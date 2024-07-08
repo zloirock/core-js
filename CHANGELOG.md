@@ -28,10 +28,10 @@
 - Some minor optimizations
 - Compat data improvements:
   - Added [Safari 18.0](https://webkit.org/blog/15443/news-from-wwdc24-webkit-in-safari-18-beta/) compat data:
-    - Fixed `Object.groupBy` and `Map.groupBy` to [work for non-objects](https://bugs.webkit.org/show_bug.cgi?id=271524)
+    - Fixed [`Object.groupBy` and `Map.groupBy`](https://github.com/tc39/proposal-array-grouping) to [work for non-objects](https://bugs.webkit.org/show_bug.cgi?id=271524)
     - Fixed [throwing a `RangeError` if `Set` methods are called on an object with negative size property](https://bugs.webkit.org/show_bug.cgi?id=267494)
     - Fixed [`Set.prototype.symmetricDifference` to call `this.has` in each iteration](https://bugs.webkit.org/show_bug.cgi?id=272679)
-    - Fixed `Array.fromAsync` to [not call the `Array` constructor twice](https://bugs.webkit.org/show_bug.cgi?id=271703)
+    - Fixed [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) to [not call the `Array` constructor twice](https://bugs.webkit.org/show_bug.cgi?id=271703)
     - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse)
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as [shipped from FF129](https://bugzilla.mozilla.org/show_bug.cgi?id=1903329)
   - [`Symbol.asyncDispose`](https://github.com/tc39/proposal-explicit-resource-management) added and marked as supported from V8 ~ Chromium 127
