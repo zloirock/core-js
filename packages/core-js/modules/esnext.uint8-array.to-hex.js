@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var global = require('../internals/global');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
+var notDetached = require('../internals/array-buffer-not-detached');
 
 var Uint8Array = global.Uint8Array;
 var numberToString = uncurryThis(1.0.toString);
@@ -12,6 +13,7 @@ var numberToString = uncurryThis(1.0.toString);
 if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
   toHex: function toHex() {
     anUint8Array(this);
+    notDetached(this.buffer);
     var result = '';
     for (var i = 0, length = this.length; i < length; i++) {
       var hex = numberToString(this[i], 16);

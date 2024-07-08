@@ -27,6 +27,13 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
   assert.same(new Uint8Array([215, 111, 183]).toBase64({ alphabet: 'base64' }), '12+3', 'encoding #5');
   assert.same(new Uint8Array([215, 111, 183]).toBase64({ alphabet: 'base64url' }), '12-3', 'encoding #6');
 
+  if (ArrayBuffer.prototype.transfer) {
+    const array2 = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
+    array2.buffer.transfer();
+
+    assert.throws(() => array2.toBase64(), TypeError, 'detached');
+  }
+
   assert.throws(() => toBase64.call(null), TypeError, "isn't generic #1");
   assert.throws(() => toBase64.call(undefined), TypeError, "isn't generic #2");
   assert.throws(() => toBase64.call(new Int16Array([1])), TypeError, "isn't generic #3");
