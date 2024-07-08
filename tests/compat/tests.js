@@ -1853,6 +1853,9 @@ GLOBAL.tests = {
   'esnext.uint8-array.from-hex': function () {
     return Uint8Array.fromHex;
   },
+  'esnext.uint8-array.set-from-hex': function () {
+    return Uint8Array.prototype.setFromHex;
+  },
   'esnext.uint8-array.to-base64': function () {
     return Uint8Array.prototype.toBase64;
   },

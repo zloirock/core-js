@@ -249,4 +249,7 @@ export default {
     'esnext.symbol.custom-matcher',
     'web.url.parse',
   ],
+  3.38: [
+    'esnext.uint8-array.set-from-hex',
+  ],
 };

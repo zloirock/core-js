@@ -2512,6 +2512,8 @@ export const data = {
   },
   'esnext.uint8-array.from-hex': {
   },
+  'esnext.uint8-array.set-from-hex': {
+  },
   'esnext.uint8-array.to-base64': {
   },
   'esnext.uint8-array.to-hex': {
