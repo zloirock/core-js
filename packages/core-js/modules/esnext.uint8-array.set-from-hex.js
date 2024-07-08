@@ -16,8 +16,7 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
     anUint8Array(this);
     aString(string);
     if (isDetached(this.buffer)) throw new TypeError('Method called on array backed by detached buffer');
-    var result = $fromHex(string, this);
-    var read = result.read;
+    var read = $fromHex(string, this).read;
     return { read: read, written: read / 2 };
   }
 });
