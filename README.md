@@ -2444,11 +2444,11 @@ class Uint8Array {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/array-buffer-base64
-core-js(-pure)/full/typed-array/from-base64
-core-js(-pure)/full/typed-array/from-hex
-core-js(-pure)/full/typed-array/set-from-hex
-core-js(-pure)/full/typed-array/to-base64
-core-js(-pure)/full/typed-array/to-hex
+core-js(-pure)/actual|full/typed-array/from-base64
+core-js(-pure)/actual|full/typed-array/from-hex
+core-js(-pure)/actual|full/typed-array/set-from-hex
+core-js(-pure)/actual|full/typed-array/to-base64
+core-js(-pure)/actual|full/typed-array/to-hex
 ```
 *Example*:
 ```js
