@@ -8,7 +8,7 @@ var $fromHex = require('../internals/uint8-from-hex');
 
 var Uint8Array = global.Uint8Array;
 
-// `Uint8Array.fromHex` method
+// `Uint8Array.prototype.setFromHex` method
 // https://github.com/tc39/proposal-arraybuffer-base64
 if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
   setFromHex: function setFromHex(string) {
