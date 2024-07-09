@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aString = require('../internals/a-string');
+var hasOwn = require('../internals/has-own-property');
 var padStart = require('../internals/string-pad').start;
 var WHITESPACES = require('../internals/whitespaces');
 
@@ -11,9 +12,17 @@ var charCodeAt = uncurryThis(''.charCodeAt);
 var numberToString = uncurryThis(1.1.toString);
 var join = uncurryThis([].join);
 var FIRST_DIGIT_OR_ASCII = /^[0-9a-z]/i;
-var SYNTAX_SOLIDUS_AND_CONTROL = /^[\t\n\v\f\r$()*+./?[\\\]^{|}]/;
+var SYNTAX_SOLIDUS = /^[$()*+./?[\\\]^{|}]/;
 var OTHER_PUNCTUATORS_AND_WHITESPACES = RegExp('^[!"#%&\',\\-:;<=>@`~' + WHITESPACES + ']');
 var exec = uncurryThis(FIRST_DIGIT_OR_ASCII.exec);
+
+var ControlEscape = {
+  '\u0009': 't',
+  '\u000A': 'n',
+  '\u000B': 'v',
+  '\u000C': 'f',
+  '\u000D': 'r'
+};
 
 var escapeChar = function (chr) {
   var hex = numberToString(charCodeAt(chr, 0), 16);
@@ -32,7 +41,9 @@ $({ target: 'RegExp', stat: true, forced: true }, {
       var chr = charAt(S, i);
       if (i === 0 && exec(FIRST_DIGIT_OR_ASCII, chr)) {
         result[i] = escapeChar(chr);
-      } else if (exec(SYNTAX_SOLIDUS_AND_CONTROL, chr)) {
+      } else if (hasOwn(ControlEscape, chr)) {
+        result[i] = '\\' + ControlEscape[chr];
+      } else if (exec(SYNTAX_SOLIDUS, chr)) {
         result[i] = '\\' + chr;
       } else if (exec(OTHER_PUNCTUATORS_AND_WHITESPACES, chr)) {
         result[i] = escapeChar(chr);
