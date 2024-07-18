@@ -1,6 +1,6 @@
 'use strict';
 var IS_PURE = require('../internals/is-pure');
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var defineGlobalProperty = require('../internals/define-global-property');
 
 var SHARED = '__core-js_shared__';

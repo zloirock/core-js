@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var DESCRIPTORS = require('../internals/descriptors');
 var TYPED_ARRAYS_CONSTRUCTORS_REQUIRES_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
@@ -38,7 +38,7 @@ var setInternalState = InternalStateModule.set;
 var enforceInternalState = InternalStateModule.enforce;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
-var RangeError = global.RangeError;
+var RangeError = globalThis.RangeError;
 var ArrayBuffer = ArrayBufferModule.ArrayBuffer;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 var DataView = ArrayBufferModule.DataView;
@@ -116,7 +116,7 @@ if (DESCRIPTORS) {
     var CONSTRUCTOR_NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
     var GETTER = 'get' + TYPE;
     var SETTER = 'set' + TYPE;
-    var NativeTypedArrayConstructor = global[CONSTRUCTOR_NAME];
+    var NativeTypedArrayConstructor = globalThis[CONSTRUCTOR_NAME];
     var TypedArrayConstructor = NativeTypedArrayConstructor;
     var TypedArrayConstructorPrototype = TypedArrayConstructor && TypedArrayConstructor.prototype;
     var exported = {};

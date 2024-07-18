@@ -1,12 +1,12 @@
 'use strict';
 /* eslint-disable no-new -- required for testing */
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
 var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
 var NATIVE_ARRAY_BUFFER_VIEWS = require('../internals/array-buffer-view-core').NATIVE_ARRAY_BUFFER_VIEWS;
 
-var ArrayBuffer = global.ArrayBuffer;
-var Int8Array = global.Int8Array;
+var ArrayBuffer = globalThis.ArrayBuffer;
+var Int8Array = globalThis.Int8Array;
 
 module.exports = !NATIVE_ARRAY_BUFFER_VIEWS || !fails(function () {
   Int8Array(1);

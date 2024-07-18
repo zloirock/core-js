@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var DOMIterables = require('../internals/dom-iterables');
 var DOMTokenListPrototype = require('../internals/dom-token-list-prototype');
 var forEach = require('../internals/array-for-each');
@@ -16,7 +16,7 @@ var handlePrototype = function (CollectionPrototype) {
 
 for (var COLLECTION_NAME in DOMIterables) {
   if (DOMIterables[COLLECTION_NAME]) {
-    handlePrototype(global[COLLECTION_NAME] && global[COLLECTION_NAME].prototype);
+    handlePrototype(globalThis[COLLECTION_NAME] && globalThis[COLLECTION_NAME].prototype);
   }
 }
 

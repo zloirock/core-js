@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var shared = require('../internals/shared-store');
 var isCallable = require('../internals/is-callable');
 var create = require('../internals/object-create');
@@ -10,7 +10,7 @@ var IS_PURE = require('../internals/is-pure');
 
 var USE_FUNCTION_CONSTRUCTOR = 'USE_FUNCTION_CONSTRUCTOR';
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
-var AsyncIterator = global.AsyncIterator;
+var AsyncIterator = globalThis.AsyncIterator;
 var PassedAsyncIteratorPrototype = shared.AsyncIteratorPrototype;
 var AsyncIteratorPrototype, prototype;
 
@@ -18,7 +18,7 @@ if (PassedAsyncIteratorPrototype) {
   AsyncIteratorPrototype = PassedAsyncIteratorPrototype;
 } else if (isCallable(AsyncIterator)) {
   AsyncIteratorPrototype = AsyncIterator.prototype;
-} else if (shared[USE_FUNCTION_CONSTRUCTOR] || global[USE_FUNCTION_CONSTRUCTOR]) {
+} else if (shared[USE_FUNCTION_CONSTRUCTOR] || globalThis[USE_FUNCTION_CONSTRUCTOR]) {
   try {
     // eslint-disable-next-line no-new-func -- we have no alternatives without usage of modern syntax
     prototype = getPrototypeOf(getPrototypeOf(getPrototypeOf(Function('return async function*(){}()')())));

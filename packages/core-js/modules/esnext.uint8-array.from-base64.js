@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var aString = require('../internals/a-string');
@@ -12,8 +12,8 @@ var getAlphabetOption = require('../internals/get-alphabet-option');
 var base64Alphabet = base64Map.c2i;
 var base64UrlAlphabet = base64Map.c2iUrl;
 
-var Uint8Array = global.Uint8Array;
-var SyntaxError = global.SyntaxError;
+var Uint8Array = globalThis.Uint8Array;
+var SyntaxError = globalThis.SyntaxError;
 var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);

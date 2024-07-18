@@ -1,5 +1,5 @@
 'use strict';
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 

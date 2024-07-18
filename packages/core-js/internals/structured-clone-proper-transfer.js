@@ -1,10 +1,10 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
 var V8 = require('../internals/environment-v8-version');
 var ENVIRONMENT = require('../internals/environment');
 
-var structuredClone = global.structuredClone;
+var structuredClone = globalThis.structuredClone;
 
 module.exports = !!structuredClone && !fails(function () {
   // prevent V8 ArrayBufferDetaching protector cell invalidation and performance degradation

@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var setPrototypeOf = require('../internals/object-set-prototype-of');

@@ -1,6 +1,6 @@
 'use strict';
 var FREEZING = require('../internals/freezing');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltIns = require('../internals/define-built-ins');
 var InternalMetadataModule = require('../internals/internal-metadata');
@@ -25,7 +25,7 @@ var freeze = $Object.freeze;
 // eslint-disable-next-line es/no-object-seal -- safe
 var seal = $Object.seal;
 
-var IS_IE11 = !global.ActiveXObject && 'ActiveXObject' in global;
+var IS_IE11 = !globalThis.ActiveXObject && 'ActiveXObject' in globalThis;
 var InternalWeakMap;
 
 var wrapper = function (init) {

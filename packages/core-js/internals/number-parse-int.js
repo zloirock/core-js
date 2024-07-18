@@ -1,13 +1,13 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
 var toString = require('../internals/to-string');
 var trim = require('../internals/string-trim').trim;
 var whitespaces = require('../internals/whitespaces');
 
-var $parseInt = global.parseInt;
-var Symbol = global.Symbol;
+var $parseInt = globalThis.parseInt;
+var Symbol = globalThis.Symbol;
 var ITERATOR = Symbol && Symbol.iterator;
 var hex = /^[+-]?0x/i;
 var exec = uncurryThis(hex.exec);

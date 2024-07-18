@@ -1,10 +1,10 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 var defineProperty = require('../internals/object-define-property').f;
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 
-var Symbol = global.Symbol;
+var Symbol = globalThis.Symbol;
 
 // `Symbol.asyncDispose` well-known symbol
 // https://github.com/tc39/proposal-async-explicit-resource-management

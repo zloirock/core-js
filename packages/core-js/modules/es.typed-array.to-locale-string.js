@@ -1,11 +1,11 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var fails = require('../internals/fails');
 var arraySlice = require('../internals/array-slice');
 
-var Int8Array = global.Int8Array;
+var Int8Array = globalThis.Int8Array;
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
 var $toLocaleString = [].toLocaleString;

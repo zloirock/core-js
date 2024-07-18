@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var bind = require('../internals/function-bind-context');
 var macrotask = require('../internals/task').set;
@@ -9,10 +9,10 @@ var IS_IOS_PEBBLE = require('../internals/environment-is-ios-pebble');
 var IS_WEBOS_WEBKIT = require('../internals/environment-is-webos-webkit');
 var IS_NODE = require('../internals/environment-is-node');
 
-var MutationObserver = global.MutationObserver || global.WebKitMutationObserver;
-var document = global.document;
-var process = global.process;
-var Promise = global.Promise;
+var MutationObserver = globalThis.MutationObserver || globalThis.WebKitMutationObserver;
+var document = globalThis.document;
+var process = globalThis.process;
+var Promise = globalThis.Promise;
 var microtask = safeGetBuiltIn('queueMicrotask');
 var notify, toggle, node, promise, then;
 
@@ -64,7 +64,7 @@ if (!microtask) {
   // - setTimeout
   } else {
     // `webpack` dev server bug on IE global methods - use bind(fn, global)
-    macrotask = bind(macrotask, global);
+    macrotask = bind(macrotask, globalThis);
     notify = function () {
       macrotask(flush);
     };

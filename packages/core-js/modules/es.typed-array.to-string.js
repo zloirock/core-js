@@ -1,10 +1,10 @@
 'use strict';
 var exportTypedArrayMethod = require('../internals/array-buffer-view-core').exportTypedArrayMethod;
 var fails = require('../internals/fails');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 
-var Uint8Array = global.Uint8Array;
+var Uint8Array = globalThis.Uint8Array;
 var Uint8ArrayPrototype = Uint8Array && Uint8Array.prototype || {};
 var arrayToString = [].toString;
 var join = uncurryThis([].join);

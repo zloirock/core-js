@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIn = require('../internals/define-built-in');
@@ -28,11 +28,11 @@ module.exports = function (options, source) {
   var STATIC = options.stat;
   var FORCED, target, key, targetProperty, sourceProperty, descriptor;
   if (GLOBAL) {
-    target = global;
+    target = globalThis;
   } else if (STATIC) {
-    target = global[TARGET] || defineGlobalProperty(TARGET, {});
+    target = globalThis[TARGET] || defineGlobalProperty(TARGET, {});
   } else {
-    target = global[TARGET] && global[TARGET].prototype;
+    target = globalThis[TARGET] && globalThis[TARGET].prototype;
   }
   if (target) for (key in source) {
     sourceProperty = source[key];

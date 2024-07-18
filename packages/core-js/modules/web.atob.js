@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
@@ -45,7 +45,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
   atob: function atob(data) {
     validateArgumentsLength(arguments.length, 1);
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
-    if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, global, data);
+    if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
     var output = '';
     var position = 0;

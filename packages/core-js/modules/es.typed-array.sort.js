@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this-clause');
 var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
@@ -12,7 +12,7 @@ var WEBKIT = require('../internals/environment-webkit-version');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
-var Uint16Array = global.Uint16Array;
+var Uint16Array = globalThis.Uint16Array;
 var nativeSort = Uint16Array && uncurryThis(Uint16Array.prototype.sort);
 
 // WebKit

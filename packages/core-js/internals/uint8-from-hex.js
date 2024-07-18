@@ -1,10 +1,10 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 
-var Uint8Array = global.Uint8Array;
-var SyntaxError = global.SyntaxError;
-var parseInt = global.parseInt;
+var Uint8Array = globalThis.Uint8Array;
+var SyntaxError = globalThis.SyntaxError;
+var parseInt = globalThis.parseInt;
 var min = Math.min;
 var NOT_HEX = /[^\da-f]/i;
 var exec = uncurryThis(NOT_HEX.exec);

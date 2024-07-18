@@ -1,7 +1,7 @@
 'use strict';
 var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
 var DESCRIPTORS = require('../internals/descriptors');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var hasOwn = require('../internals/has-own-property');
@@ -19,20 +19,20 @@ var InternalStateModule = require('../internals/internal-state');
 
 var enforceInternalState = InternalStateModule.enforce;
 var getInternalState = InternalStateModule.get;
-var Int8Array = global.Int8Array;
+var Int8Array = globalThis.Int8Array;
 var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
-var Uint8ClampedArray = global.Uint8ClampedArray;
+var Uint8ClampedArray = globalThis.Uint8ClampedArray;
 var Uint8ClampedArrayPrototype = Uint8ClampedArray && Uint8ClampedArray.prototype;
 var TypedArray = Int8Array && getPrototypeOf(Int8Array);
 var TypedArrayPrototype = Int8ArrayPrototype && getPrototypeOf(Int8ArrayPrototype);
 var ObjectPrototype = Object.prototype;
-var TypeError = global.TypeError;
+var TypeError = globalThis.TypeError;
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var TYPED_ARRAY_TAG = uid('TYPED_ARRAY_TAG');
 var TYPED_ARRAY_CONSTRUCTOR = 'TypedArrayConstructor';
 // Fixing native typed arrays in Opera Presto crashes the browser, see #595
-var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && !!setPrototypeOf && classof(global.opera) !== 'Opera';
+var NATIVE_ARRAY_BUFFER_VIEWS = NATIVE_ARRAY_BUFFER && !!setPrototypeOf && classof(globalThis.opera) !== 'Opera';
 var TYPED_ARRAY_TAG_REQUIRED = false;
 var NAME, Constructor, Prototype;
 
@@ -88,7 +88,7 @@ var aTypedArrayConstructor = function (C) {
 var exportTypedArrayMethod = function (KEY, property, forced, options) {
   if (!DESCRIPTORS) return;
   if (forced) for (var ARRAY in TypedArrayConstructorsList) {
-    var TypedArrayConstructor = global[ARRAY];
+    var TypedArrayConstructor = globalThis[ARRAY];
     if (TypedArrayConstructor && hasOwn(TypedArrayConstructor.prototype, KEY)) try {
       delete TypedArrayConstructor.prototype[KEY];
     } catch (error) {
@@ -109,7 +109,7 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
   if (!DESCRIPTORS) return;
   if (setPrototypeOf) {
     if (forced) for (ARRAY in TypedArrayConstructorsList) {
-      TypedArrayConstructor = global[ARRAY];
+      TypedArrayConstructor = globalThis[ARRAY];
       if (TypedArrayConstructor && hasOwn(TypedArrayConstructor, KEY)) try {
         delete TypedArrayConstructor[KEY];
       } catch (error) { /* empty */ }
@@ -122,7 +122,7 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
     } else return;
   }
   for (ARRAY in TypedArrayConstructorsList) {
-    TypedArrayConstructor = global[ARRAY];
+    TypedArrayConstructor = globalThis[ARRAY];
     if (TypedArrayConstructor && (!TypedArrayConstructor[KEY] || forced)) {
       defineBuiltIn(TypedArrayConstructor, KEY, property);
     }
@@ -130,14 +130,14 @@ var exportTypedArrayStaticMethod = function (KEY, property, forced) {
 };
 
 for (NAME in TypedArrayConstructorsList) {
-  Constructor = global[NAME];
+  Constructor = globalThis[NAME];
   Prototype = Constructor && Constructor.prototype;
   if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
   else NATIVE_ARRAY_BUFFER_VIEWS = false;
 }
 
 for (NAME in BigIntArrayConstructorsList) {
-  Constructor = global[NAME];
+  Constructor = globalThis[NAME];
   Prototype = Constructor && Constructor.prototype;
   if (Prototype) enforceInternalState(Prototype)[TYPED_ARRAY_CONSTRUCTOR] = Constructor;
 }
@@ -149,14 +149,14 @@ if (!NATIVE_ARRAY_BUFFER_VIEWS || !isCallable(TypedArray) || TypedArray === Func
     throw new TypeError('Incorrect invocation');
   };
   if (NATIVE_ARRAY_BUFFER_VIEWS) for (NAME in TypedArrayConstructorsList) {
-    if (global[NAME]) setPrototypeOf(global[NAME], TypedArray);
+    if (globalThis[NAME]) setPrototypeOf(globalThis[NAME], TypedArray);
   }
 }
 
 if (!NATIVE_ARRAY_BUFFER_VIEWS || !TypedArrayPrototype || TypedArrayPrototype === ObjectPrototype) {
   TypedArrayPrototype = TypedArray.prototype;
   if (NATIVE_ARRAY_BUFFER_VIEWS) for (NAME in TypedArrayConstructorsList) {
-    if (global[NAME]) setPrototypeOf(global[NAME].prototype, TypedArrayPrototype);
+    if (globalThis[NAME]) setPrototypeOf(globalThis[NAME].prototype, TypedArrayPrototype);
   }
 }
 
@@ -173,8 +173,8 @@ if (DESCRIPTORS && !hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
       return isObject(this) ? this[TYPED_ARRAY_TAG] : undefined;
     }
   });
-  for (NAME in TypedArrayConstructorsList) if (global[NAME]) {
-    createNonEnumerableProperty(global[NAME], TYPED_ARRAY_TAG, NAME);
+  for (NAME in TypedArrayConstructorsList) if (globalThis[NAME]) {
+    createNonEnumerableProperty(globalThis[NAME], TYPED_ARRAY_TAG, NAME);
   }
 }
 

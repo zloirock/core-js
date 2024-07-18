@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -7,8 +7,8 @@ var toOffset = require('../internals/to-offset');
 var toIndexedObject = require('../internals/to-object');
 var fails = require('../internals/fails');
 
-var RangeError = global.RangeError;
-var Int8Array = global.Int8Array;
+var RangeError = globalThis.RangeError;
+var Int8Array = globalThis.Int8Array;
 var Int8ArrayPrototype = Int8Array && Int8Array.prototype;
 var $set = Int8ArrayPrototype && Int8ArrayPrototype.set;
 var aTypedArray = ArrayBufferViewCore.aTypedArray;

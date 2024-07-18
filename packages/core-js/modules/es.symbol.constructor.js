@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var IS_PURE = require('../internals/is-pure');
@@ -45,11 +45,11 @@ var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(SYMBOL);
 
 var ObjectPrototype = Object[PROTOTYPE];
-var $Symbol = global.Symbol;
+var $Symbol = globalThis.Symbol;
 var SymbolPrototype = $Symbol && $Symbol[PROTOTYPE];
-var RangeError = global.RangeError;
-var TypeError = global.TypeError;
-var QObject = global.QObject;
+var RangeError = globalThis.RangeError;
+var TypeError = globalThis.TypeError;
+var QObject = globalThis.QObject;
 var nativeGetOwnPropertyDescriptor = getOwnPropertyDescriptorModule.f;
 var nativeDefineProperty = definePropertyModule.f;
 var nativeGetOwnPropertyNames = getOwnPropertyNamesExternal.f;
@@ -168,7 +168,7 @@ if (!NATIVE_SYMBOL) {
     var description = !arguments.length || arguments[0] === undefined ? undefined : $toString(arguments[0]);
     var tag = uid(description);
     var setter = function (value) {
-      var $this = this === undefined ? global : this;
+      var $this = this === undefined ? globalThis : this;
       if ($this === ObjectPrototype) call(setter, ObjectPrototypeSymbols, value);
       if (hasOwn($this, HIDDEN) && hasOwn($this[HIDDEN], tag)) $this[HIDDEN][tag] = false;
       var descriptor = createPropertyDescriptor(1, value);

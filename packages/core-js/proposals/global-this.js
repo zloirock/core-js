@@ -1,6 +1,6 @@
 'use strict';
 // https://github.com/tc39/proposal-global
 require('../modules/esnext.global-this');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 
-module.exports = global;
+module.exports = globalThis;

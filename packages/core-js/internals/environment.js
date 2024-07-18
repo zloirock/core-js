@@ -1,6 +1,6 @@
 'use strict';
 /* global Bun, Deno -- detection */
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var userAgent = require('../internals/environment-user-agent');
 var classof = require('../internals/classof-raw');
 

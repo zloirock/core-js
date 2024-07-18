@@ -1,5 +1,5 @@
 'use strict';
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var IS_NODE = require('../internals/environment-is-node');
 
 module.exports = function (name) {

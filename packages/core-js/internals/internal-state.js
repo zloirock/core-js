@@ -1,6 +1,6 @@
 'use strict';
 var NATIVE_WEAK_MAP = require('../internals/weak-map-basic-detection');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isObject = require('../internals/is-object');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var hasOwn = require('../internals/has-own-property');
@@ -9,8 +9,8 @@ var sharedKey = require('../internals/shared-key');
 var hiddenKeys = require('../internals/hidden-keys');
 
 var OBJECT_ALREADY_INITIALIZED = 'Object already initialized';
-var TypeError = global.TypeError;
-var WeakMap = global.WeakMap;
+var TypeError = globalThis.TypeError;
+var WeakMap = globalThis.WeakMap;
 var set, get, has;
 
 var enforce = function (it) {

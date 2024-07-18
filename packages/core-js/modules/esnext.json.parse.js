@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
@@ -16,9 +16,9 @@ var fails = require('../internals/fails');
 var parseJSONString = require('../internals/parse-json-string');
 var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 
-var JSON = global.JSON;
-var Number = global.Number;
-var SyntaxError = global.SyntaxError;
+var JSON = globalThis.JSON;
+var Number = globalThis.Number;
+var SyntaxError = globalThis.SyntaxError;
 var nativeParse = JSON && JSON.parse;
 var enumerableOwnProperties = getBuiltIn('Object', 'keys');
 // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe

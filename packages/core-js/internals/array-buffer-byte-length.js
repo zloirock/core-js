@@ -1,5 +1,5 @@
 'use strict';
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThisAccessor = require('../internals/function-uncurry-this-accessor');
 var classof = require('../internals/classof-raw');
 

@@ -1,5 +1,5 @@
 'use strict';
-var globalThis = require('../internals/global');
+var globalThis = require('../internals/global-this');
 
 var navigator = globalThis.navigator;
 var userAgent = navigator && navigator.userAgent;

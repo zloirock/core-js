@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var isCallable = require('../internals/is-callable');
 
 var aFunction = function (argument) {
@@ -7,5 +7,5 @@ var aFunction = function (argument) {
 };
 
 module.exports = function (namespace, method) {
-  return arguments.length < 2 ? aFunction(global[namespace]) : global[namespace] && global[namespace][method];
+  return arguments.length < 2 ? aFunction(globalThis[namespace]) : globalThis[namespace] && globalThis[namespace][method];
 };

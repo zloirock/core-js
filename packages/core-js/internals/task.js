@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var apply = require('../internals/function-apply');
 var bind = require('../internals/function-bind-context');
 var isCallable = require('../internals/is-callable');
@@ -12,13 +12,13 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var IS_IOS = require('../internals/environment-is-ios');
 var IS_NODE = require('../internals/environment-is-node');
 
-var set = global.setImmediate;
-var clear = global.clearImmediate;
-var process = global.process;
-var Dispatch = global.Dispatch;
-var Function = global.Function;
-var MessageChannel = global.MessageChannel;
-var String = global.String;
+var set = globalThis.setImmediate;
+var clear = globalThis.clearImmediate;
+var process = globalThis.process;
+var Dispatch = globalThis.Dispatch;
+var Function = globalThis.Function;
+var MessageChannel = globalThis.MessageChannel;
+var String = globalThis.String;
 var counter = 0;
 var queue = {};
 var ONREADYSTATECHANGE = 'onreadystatechange';
@@ -26,7 +26,7 @@ var $location, defer, channel, port;
 
 fails(function () {
   // Deno throws a ReferenceError on `location` access without `--location` flag
-  $location = global.location;
+  $location = globalThis.location;
 });
 
 var run = function (id) {
@@ -49,7 +49,7 @@ var eventListener = function (event) {
 
 var globalPostMessageDefer = function (id) {
   // old engines have not location.origin
-  global.postMessage(String(id), $location.protocol + '//' + $location.host);
+  globalThis.postMessage(String(id), $location.protocol + '//' + $location.host);
 };
 
 // Node.js 0.9+ & IE10+ has setImmediate, otherwise:
@@ -87,14 +87,14 @@ if (!set || !clear) {
   // Browsers with postMessage, skip WebWorkers
   // IE8 has postMessage, but it's sync & typeof its postMessage is 'object'
   } else if (
-    global.addEventListener &&
-    isCallable(global.postMessage) &&
-    !global.importScripts &&
+    globalThis.addEventListener &&
+    isCallable(globalThis.postMessage) &&
+    !globalThis.importScripts &&
     $location && $location.protocol !== 'file:' &&
     !fails(globalPostMessageDefer)
   ) {
     defer = globalPostMessageDefer;
-    global.addEventListener('message', eventListener, false);
+    globalThis.addEventListener('message', eventListener, false);
   // IE8-
   } else if (ONREADYSTATECHANGE in createElement('script')) {
     defer = function (id) {

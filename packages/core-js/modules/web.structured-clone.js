@@ -1,7 +1,7 @@
 'use strict';
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
@@ -27,12 +27,12 @@ var detachTransferable = require('../internals/detach-transferable');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
-var Object = global.Object;
-var Array = global.Array;
-var Date = global.Date;
-var Error = global.Error;
-var TypeError = global.TypeError;
-var PerformanceMark = global.PerformanceMark;
+var Object = globalThis.Object;
+var Array = globalThis.Array;
+var Date = globalThis.Date;
+var Error = globalThis.Error;
+var TypeError = globalThis.TypeError;
+var PerformanceMark = globalThis.PerformanceMark;
 var DOMException = getBuiltIn('DOMException');
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
@@ -53,7 +53,7 @@ var TRANSFERRING = 'Transferring';
 
 var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
-    var set1 = new global.Set([7]);
+    var set1 = new globalThis.Set([7]);
     var set2 = structuredCloneImplementation(set1);
     var number = structuredCloneImplementation(Object(7));
     return set2 === set1 || !set2.has(7) || !isObject(number) || +number !== 7;
@@ -71,7 +71,7 @@ var checkErrorsCloning = function (structuredCloneImplementation, $Error) {
 // https://github.com/whatwg/html/pull/5749
 var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
-    var test = structuredCloneImplementation(new global.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
+    var test = structuredCloneImplementation(new globalThis.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
     return test.name !== 'AggregateError' || test.errors[0] !== 1 || test.message !== PERFORMANCE_MARK || test.cause !== 3;
   });
 };
@@ -88,7 +88,7 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 // NodeJS implementation can't clone DOMExceptions
 // https://github.com/nodejs/node/issues/41038
 // only FF103+ supports new (html/5749) error cloning semantic
-var nativeStructuredClone = global.structuredClone;
+var nativeStructuredClone = globalThis.structuredClone;
 
 var FORCED_REPLACEMENT = IS_PURE
   || !checkErrorsCloning(nativeStructuredClone, Error)
@@ -128,10 +128,10 @@ var tryNativeRestrictedStructuredClone = function (value, type) {
 var createDataTransfer = function () {
   var dataTransfer;
   try {
-    dataTransfer = new global.DataTransfer();
+    dataTransfer = new globalThis.DataTransfer();
   } catch (error) {
     try {
-      dataTransfer = new global.ClipboardEvent('').clipboardData;
+      dataTransfer = new globalThis.ClipboardEvent('').clipboardData;
     } catch (error2) { /* empty */ }
   }
   return dataTransfer && dataTransfer.items && dataTransfer.files ? dataTransfer : null;
@@ -148,7 +148,7 @@ var cloneBuffer = function (value, map, $type) {
     // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
     else clone = value;
   } else {
-    var DataView = global.DataView;
+    var DataView = globalThis.DataView;
 
     // `ArrayBuffer#slice` is not available in IE10
     // `ArrayBuffer#slice` and `DataView` are not available in old FF
@@ -179,7 +179,7 @@ var cloneBuffer = function (value, map, $type) {
 };
 
 var cloneView = function (value, type, offset, length, map) {
-  var C = global[type];
+  var C = globalThis[type];
   // in some old engines like Safari 9, typeof C is 'object'
   // on Uint8ClampedArray or some other constructors
   if (!isObject(C)) throwUnpolyfillable(type);
@@ -334,7 +334,7 @@ var structuredCloneInternal = function (value, map) {
           } break;
         case 'DOMPoint':
         case 'DOMPointReadOnly':
-          C = global[type];
+          C = globalThis[type];
           try {
             cloned = C.fromPoint
               ? C.fromPoint(value)
@@ -344,7 +344,7 @@ var structuredCloneInternal = function (value, map) {
           } break;
         case 'DOMRect':
         case 'DOMRectReadOnly':
-          C = global[type];
+          C = globalThis[type];
           try {
             cloned = C.fromRect
               ? C.fromRect(value)
@@ -354,7 +354,7 @@ var structuredCloneInternal = function (value, map) {
           } break;
         case 'DOMMatrix':
         case 'DOMMatrixReadOnly':
-          C = global[type];
+          C = globalThis[type];
           try {
             cloned = C.fromMatrix
               ? C.fromMatrix(value)
@@ -459,7 +459,7 @@ var tryToTransfer = function (rawTransfer, map) {
       transferred = nativeStructuredClone(value, { transfer: [value] });
     } else switch (type) {
       case 'ImageBitmap':
-        C = global.OffscreenCanvas;
+        C = globalThis.OffscreenCanvas;
         if (!isConstructor(C)) throwUnpolyfillable(type, TRANSFERRING);
         try {
           canvas = new C(value.width, value.height);

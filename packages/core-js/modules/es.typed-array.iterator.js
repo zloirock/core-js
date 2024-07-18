@@ -1,5 +1,5 @@
 'use strict';
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
 var uncurryThis = require('../internals/function-uncurry-this');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
@@ -7,7 +7,7 @@ var ArrayIterators = require('../modules/es.array.iterator');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');
-var Uint8Array = global.Uint8Array;
+var Uint8Array = globalThis.Uint8Array;
 var arrayValues = uncurryThis(ArrayIterators.values);
 var arrayKeys = uncurryThis(ArrayIterators.keys);
 var arrayEntries = uncurryThis(ArrayIterators.entries);

@@ -1,16 +1,15 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
 
-var Uint8Array = global.Uint8Array;
 var numberToString = uncurryThis(1.0.toString);
 
 // `Uint8Array.prototype.toHex` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
+if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true }, {
   toHex: function toHex() {
     anUint8Array(this);
     notDetached(this.buffer);

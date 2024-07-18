@@ -1,9 +1,9 @@
 'use strict';
 var fails = require('../internals/fails');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 
 // babel-minify and Closure Compiler transpiles RegExp('a', 'y') -> /a/y and it causes SyntaxError
-var $RegExp = global.RegExp;
+var $RegExp = globalThis.RegExp;
 
 var UNSUPPORTED_Y = fails(function () {
   var re = $RegExp('a', 'y');

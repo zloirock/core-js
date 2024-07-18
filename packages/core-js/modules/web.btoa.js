@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var call = require('../internals/function-call');
@@ -33,7 +33,7 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
   btoa: function btoa(data) {
     validateArgumentsLength(arguments.length, 1);
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
-    if (BASIC) return call($btoa, global, toString(data));
+    if (BASIC) return call($btoa, globalThis, toString(data));
     var string = toString(data);
     var output = '';
     var position = 0;

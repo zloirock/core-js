@@ -2,7 +2,7 @@
 // TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
 require('../modules/es.array.iterator');
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -43,10 +43,10 @@ var NativeRequest = safeGetBuiltIn('Request');
 var Headers = safeGetBuiltIn('Headers');
 var RequestPrototype = NativeRequest && NativeRequest.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
-var RegExp = global.RegExp;
-var TypeError = global.TypeError;
-var decodeURIComponent = global.decodeURIComponent;
-var encodeURIComponent = global.encodeURIComponent;
+var RegExp = globalThis.RegExp;
+var TypeError = globalThis.TypeError;
+var decodeURIComponent = globalThis.decodeURIComponent;
+var encodeURIComponent = globalThis.encodeURIComponent;
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);

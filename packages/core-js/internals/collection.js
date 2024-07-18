@@ -1,6 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isForced = require('../internals/is-forced');
 var defineBuiltIn = require('../internals/define-built-in');
@@ -19,7 +19,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   var IS_MAP = CONSTRUCTOR_NAME.indexOf('Map') !== -1;
   var IS_WEAK = CONSTRUCTOR_NAME.indexOf('Weak') !== -1;
   var ADDER = IS_MAP ? 'set' : 'add';
-  var NativeConstructor = global[CONSTRUCTOR_NAME];
+  var NativeConstructor = globalThis[CONSTRUCTOR_NAME];
   var NativePrototype = NativeConstructor && NativeConstructor.prototype;
   var Constructor = NativeConstructor;
   var exported = {};

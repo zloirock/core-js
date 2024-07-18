@@ -3,7 +3,7 @@
 'use strict';
 var $ = require('../internals/export');
 var DESCRIPTORS = require('../internals/descriptors');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var hasOwn = require('../internals/has-own-property');
 var isCallable = require('../internals/is-callable');
@@ -12,7 +12,7 @@ var toString = require('../internals/to-string');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var copyConstructorProperties = require('../internals/copy-constructor-properties');
 
-var NativeSymbol = global.Symbol;
+var NativeSymbol = globalThis.Symbol;
 var SymbolPrototype = NativeSymbol && NativeSymbol.prototype;
 
 if (DESCRIPTORS && isCallable(NativeSymbol) && (!('description' in SymbolPrototype) ||

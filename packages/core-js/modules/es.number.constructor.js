@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
 var DESCRIPTORS = require('../internals/descriptors');
-var global = require('../internals/global');
+var globalThis = require('../internals/global-this');
 var path = require('../internals/path');
 var uncurryThis = require('../internals/function-uncurry-this');
 var isForced = require('../internals/is-forced');
@@ -19,10 +19,10 @@ var thisNumberValue = require('../internals/this-number-value');
 var trim = require('../internals/string-trim').trim;
 
 var NUMBER = 'Number';
-var NativeNumber = global[NUMBER];
+var NativeNumber = globalThis[NUMBER];
 var PureNumberNamespace = path[NUMBER];
 var NumberPrototype = NativeNumber.prototype;
-var TypeError = global.TypeError;
+var TypeError = globalThis.TypeError;
 var stringSlice = uncurryThis(''.slice);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
