@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
-var IS_NODE = require('../internals/engine-is-node');
+var IS_NODE = require('../internals/environment-is-node');
 var global = require('../internals/global');
 var call = require('../internals/function-call');
 var defineBuiltIn = require('../internals/define-built-in');

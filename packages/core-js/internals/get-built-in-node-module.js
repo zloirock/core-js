@@ -1,6 +1,6 @@
 'use strict';
-var IS_NODE = require('../internals/engine-is-node');
 var globalThis = require('../internals/global');
+var IS_NODE = require('../internals/environment-is-node');
 
 module.exports = function (name) {
   if (IS_NODE) {

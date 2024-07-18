@@ -1,6 +1,6 @@
 'use strict';
 /* eslint-disable es/no-symbol -- required for testing */
-var V8_VERSION = require('../internals/engine-v8-version');
+var V8_VERSION = require('../internals/environment-v8-version');
 var fails = require('../internals/fails');
 var global = require('../internals/global');
 

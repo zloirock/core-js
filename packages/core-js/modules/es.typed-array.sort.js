@@ -5,10 +5,10 @@ var fails = require('../internals/fails');
 var aCallable = require('../internals/a-callable');
 var internalSort = require('../internals/array-sort');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var FF = require('../internals/engine-ff-version');
-var IE_OR_EDGE = require('../internals/engine-is-ie-or-edge');
-var V8 = require('../internals/engine-v8-version');
-var WEBKIT = require('../internals/engine-webkit-version');
+var FF = require('../internals/environment-ff-version');
+var IE_OR_EDGE = require('../internals/environment-is-ie-or-edge');
+var V8 = require('../internals/environment-v8-version');
+var WEBKIT = require('../internals/environment-webkit-version');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;

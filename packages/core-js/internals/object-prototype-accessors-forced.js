@@ -2,7 +2,7 @@
 var IS_PURE = require('../internals/is-pure');
 var global = require('../internals/global');
 var fails = require('../internals/fails');
-var WEBKIT = require('../internals/engine-webkit-version');
+var WEBKIT = require('../internals/environment-webkit-version');
 
 // Forced replacement object prototype accessors methods
 module.exports = IS_PURE || !fails(function () {

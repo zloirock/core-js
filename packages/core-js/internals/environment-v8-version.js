@@ -1,6 +1,6 @@
 'use strict';
 var global = require('../internals/global');
-var userAgent = require('../internals/engine-user-agent');
+var userAgent = require('../internals/environment-user-agent');
 
 var process = global.process;
 var Deno = global.Deno;

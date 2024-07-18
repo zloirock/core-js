@@ -2,8 +2,8 @@
 var $ = require('../internals/export');
 var $reduceRight = require('../internals/array-reduce').right;
 var arrayMethodIsStrict = require('../internals/array-method-is-strict');
-var CHROME_VERSION = require('../internals/engine-v8-version');
-var IS_NODE = require('../internals/engine-is-node');
+var CHROME_VERSION = require('../internals/environment-v8-version');
+var IS_NODE = require('../internals/environment-is-node');
 
 // Chrome 80-82 has a critical bug
 // https://bugs.chromium.org/p/chromium/issues/detail?id=1049982
