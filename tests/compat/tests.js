@@ -1773,6 +1773,9 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
+  'esnext.promise.try': [PROMISES_SUPPORT, function () {
+    return Promise['try'];
+  }],
   'esnext.regexp.escape': function () {
     return RegExp.escape;
   },
