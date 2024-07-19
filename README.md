@@ -613,7 +613,7 @@ core-js/es|stable|actual|full/function/has-instance
 core-js(-pure)/es|stable|actual|full/function/bind
 core-js(-pure)/es|stable|actual|full/function/virtual/bind
 ```
-[*Example*](https://goo.gl/zqu3Wp):
+[*Example*](https://tinyurl.com/22na9nbm):
 ```js
 (function foo() {}).name // => 'foo'
 
@@ -1030,7 +1030,7 @@ for (let [_, d, D] of '1111a2b3cccc'.matchAll(/(\d)(\D)/g)) {
 'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
 #### ECMAScript: Number[⬆](#index)
-Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](https://goo.gl/jRd6b3):
+Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](https://tinyurl.com/2659klkj):
 ```js
 Number('0b1010101'); // => 85
 Number('0o7654321'); // => 2054353
@@ -1147,7 +1147,7 @@ core-js(-pure)/es|stable|actual|full/date/to-iso-string
 core-js(-pure)/es|stable|actual|full/date/to-json
 core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
-[*Example*](https://goo.gl/haeHLR):
+[*Example*](https://tinyurl.com/2cngq74c):
 ```js
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
@@ -1176,7 +1176,7 @@ core-js(-pure)/es|stable|actual|full/promise/any
 core-js(-pure)/es|stable|actual|full/promise/finally
 core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 ```
-Basic [*example*](https://goo.gl/vGrtUC):
+Basic [*example*](https://tinyurl.com/23bhbhbu):
 ```js
 function sleepRandom(time) {
   return new Promise((resolve, reject) => {
@@ -1197,20 +1197,20 @@ sleepRandom(5).then(result => {
   console.log('will not be displayed');
 }).catch(x => console.log(x));         // => => Error: Irror!
 ```
-`Promise.resolve` and `Promise.reject` [*example*](https://goo.gl/vr8TN3):
+`Promise.resolve` and `Promise.reject` [*example*](https://tinyurl.com/28nq4agd):
 ```js
 Promise.resolve(42).then(x => console.log(x)); // => 42
 Promise.reject(42).catch(x => console.log(x)); // => 42
 
 Promise.resolve($.getJSON('/data.json')); // => ES promise
 ```
-`Promise#finally` [*example*](https://goo.gl/AhyBbJ):
+`Promise#finally` [*example*](https://tinyurl.com/2ywzmz72):
 ```js
 Promise.resolve(42).finally(() => console.log('You will see it anyway'));
 
 Promise.reject(42).finally(() => console.log('You will see it anyway'));
 ```
-`Promise.all` [*example*](https://goo.gl/RdoDBZ):
+`Promise.all` [*example*](https://tinyurl.com/23nc596a):
 ```js
 Promise.all([
   'foo',
@@ -1219,7 +1219,7 @@ Promise.all([
   sleepRandom(10)             // after 15 sec:
 ]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
 ```
-`Promise.race` [*example*](https://goo.gl/L8ovkJ):
+`Promise.race` [*example*](https://tinyurl.com/2degj8ux):
 ```js
 function timeLimit(promise, time) {
   return Promise.race([promise, new Promise((resolve, reject) => {
@@ -1230,7 +1230,7 @@ function timeLimit(promise, time) {
 timeLimit(sleepRandom(5), 10).then(x => console.log(x));   // => 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(x => console.log(x)); // Error: Await > 10 sec
 ```
-`Promise.allSettled` [*example*](https://goo.gl/PXXLNJ):
+`Promise.allSettled` [*example*](https://tinyurl.com/2akj7c2u):
 ```js
 Promise.allSettled([
   Promise.resolve(1),
@@ -1238,7 +1238,7 @@ Promise.allSettled([
   Promise.resolve(3),
 ]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
-`Promise.any` [*example*](https://goo.gl/iErvmp):
+`Promise.any` [*example*](https://tinyurl.com/23u59v6g):
 ```js
 Promise.any([
   Promise.resolve(1),
@@ -1258,7 +1258,7 @@ const d = Promise.withResolvers();
 d.resolve(42);
 d.promise.then(console.log); // => 42
 ```
-[Example](https://goo.gl/wnQS4j) with async functions:
+[Example](https://tinyurl.com/bde6am73) with async functions:
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time))
 
@@ -1303,7 +1303,7 @@ let promise = Promise.reject(42);
 setTimeout(() => promise.catch(() => {}), 1e3);
 // handled [object Promise]
 ```
-In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, [*example*](https://goo.gl/Wozskl):
+In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, [*example*](https://tinyurl.com/5n6nj2e8):
 ```js
 window.addEventListener('unhandledrejection', e => console.log('unhandled', e.reason, e.promise));
 window.addEventListener('rejectionhandled', e => console.log('handled', e.reason, e.promise));
@@ -1378,7 +1378,7 @@ core-js(-pure)/es|stable|actual|full/symbol/key-for
 core-js(-pure)/es|stable|actual|full/object/get-own-property-symbols
 core-js(-pure)/es|stable|actual|full/math/to-string-tag
 ```
-[*Basic example*](https://goo.gl/BbvWFc):
+[*Basic example*](https://tinyurl.com/2b2zfvrs):
 ```js
 let Person = (() => {
   let NAME = Symbol('name');
@@ -1398,13 +1398,13 @@ console.log(person['name']);              // => undefined
 console.log(person[Symbol('name')]);      // => undefined, symbols are uniq
 for (let key in person) console.log(key); // => nothing, symbols are not enumerable
 ```
-`Symbol.for` & `Symbol.keyFor` [*example*](https://goo.gl/0pdJjX):
+`Symbol.for` & `Symbol.keyFor` [*example*](https://tinyurl.com/29u2q3jb):
 ```js
 let symbol = Symbol.for('key');
 symbol === Symbol.for('key'); // true
 Symbol.keyFor(symbol);        // 'key'
 ```
-[*Example*](https://goo.gl/mKVOQJ) with methods for getting own object keys:
+[*Example*](https://tinyurl.com/2297e9bg) with methods for getting own object keys:
 ```js
 let object = { a: 1 };
 Object.defineProperty(object, 'b', { value: 2 });
@@ -1415,7 +1415,7 @@ Object.getOwnPropertySymbols(object); // => [Symbol(c)]
 Reflect.ownKeys(object);              // => ['a', 'b', Symbol(c)]
 ```
 
-[*Symbol#description getter*](https://goo.gl/MWizfc):
+[*Symbol#description getter*](https://tinyurl.com/25s4664f):
 ```js
 Symbol('foo').description; // => 'foo'
 Symbol().description;      // => undefined
@@ -1426,7 +1426,7 @@ Symbol().description;      // => undefined
 - `Symbol.for` and `Symbol.keyFor` can't be polyfilled cross-realm.
 - By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
 
-You can disable defining setters in `Object.prototype`. [Example](https://goo.gl/N5UD7J):
+You can disable defining setters in `Object.prototype`. [Example](https://tinyurl.com/2blse6aa):
 ```js
 Symbol.useSimple();
 let symbol1 = Symbol('symbol1');
@@ -1588,7 +1588,7 @@ class WeakMap {
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
 ```
-[*Examples*](https://goo.gl/SILXyw):
+[*Examples*](https://tinyurl.com/2yws9shh):
 ```js
 let a = [1];
 let b = [2];
@@ -1633,7 +1633,7 @@ class WeakSet {
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```
-[*Examples*](https://goo.gl/TdFbEx):
+[*Examples*](https://tinyurl.com/2ceoza3j):
 ```js
 let a = [1];
 let b = [2];
@@ -1889,7 +1889,7 @@ core-js(-pure)/es|stable|actual|full/reflect/prevent-extensions
 core-js(-pure)/es|stable|actual|full/reflect/set
 core-js(-pure)/es|stable|actual|full/reflect/set-prototype-of
 ```
-[*Examples*](https://goo.gl/gVT0cH):
+[*Examples*](https://tinyurl.com/27leplqz):
 ```js
 let object = { a: 1 };
 Object.defineProperty(object, 'b', { value: 2 });
@@ -1933,7 +1933,7 @@ let globalThis: GlobalThisValue;
 ```js
 core-js(-pure)/es|stable|actual|full/global-this
 ```
-[*Examples*](https://goo.gl/LAifsc):
+[*Examples*](https://tinyurl.com/25ajyfuk):
 ```js
 globalThis.Array === Array; // => true
 ```
@@ -2356,7 +2356,7 @@ class Array {
 core-js/proposals/array-from-async-stage-2
 core-js(-pure)/actual|full/array/from-async
 ```
-[*Example*](https://goo.gl/Jt7SsD):
+[*Example*](https://tinyurl.com/2bt9bhwn):
 ```js
 await Array.fromAsync((async function * (){ yield * [1, 2, 3] })(), i => i * i); // => [1, 4, 9]
 ```
@@ -2835,7 +2835,7 @@ core-js/proposals/observable
 core-js(-pure)/full/observable
 core-js(-pure)/full/symbol/observable
 ```
-[*Examples*](https://goo.gl/1LDywi):
+[*Examples*](https://tinyurl.com/2d7p3aax):
 ```js
 new Observable(observer => {
   observer.next('hello');
@@ -2936,7 +2936,7 @@ core-js(-pure)/full/weak-map/delete-all
 core-js(-pure)/full/weak-map/of
 core-js(-pure)/full/weak-map/from
 ```
-`.of` / `.from` [*examples*](https://goo.gl/mSC7eU):
+`.of` / `.from` [*examples*](https://tinyurl.com/27fktwtw):
 ```js
 Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}
 
@@ -2954,7 +2954,7 @@ core-js/proposals/keys-composition
 core-js(-pure)/full/composite-key
 core-js(-pure)/full/composite-symbol
 ```
-[*Examples*](https://goo.gl/2oPAH7):
+[*Examples*](https://tinyurl.com/2c8pczur):
 ```js
 // returns a symbol
 const symbol = compositeSymbol({});
@@ -3097,7 +3097,7 @@ class String {
 core-js/proposals/string-code-points
 core-js(-pure)/full/string/code-points
 ```
-[*Example*](https://goo.gl/Jt7SsD):
+[*Example*](https://tinyurl.com/2bt9bhwn):
 ```js
 for (let { codePoint, position } of 'qwe'.codePoints()) {
   console.log(codePoint); // => 113, 119, 101
@@ -3218,7 +3218,7 @@ core-js(-pure)/full/reflect/has-metadata
 core-js(-pure)/full/reflect/has-own-metadata
 core-js(-pure)/full/reflect/metadata
 ```
-[*Examples*](https://goo.gl/KCo3PS):
+[*Examples*](https://tinyurl.com/27t6a5ya):
 ```js
 let object = {};
 Reflect.defineMetadata('foo', 'bar', object);
@@ -3330,7 +3330,7 @@ function clearImmediate(id: number): void;
 core-js(-pure)/stable|actual|full/set-immediate
 core-js(-pure)/stable|actual|full/clear-immediate
 ```
-[*Examples*](https://goo.gl/6nXGrx):
+[*Examples*](https://tinyurl.com/25u8y8ks):
 ```js
 setImmediate((arg1, arg2) => {
   console.log(arg1, arg2); // => Message will be displayed with minimum delay
@@ -3350,7 +3350,7 @@ function queueMicrotask(fn: Function): void;
 ```js
 core-js(-pure)/stable|actual|full/queue-microtask
 ```
-[*Examples*](https://goo.gl/nsW8P9):
+[*Examples*](https://tinyurl.com/2dk9f3zm):
 ```js
 queueMicrotask(() => console.log('called as microtask'));
 ```
@@ -3546,7 +3546,7 @@ class [DOMTokenList, NodeList] {
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each
 ```
-[*Examples*](https://goo.gl/lfXVFl):
+[*Examples*](https://tinyurl.com/25rcspv4):
 ```js
 for (let { id } of document.querySelectorAll('*')) {
   if (id) console.log(id);
@@ -3571,7 +3571,7 @@ core-js-pure/es|stable|actual|full/is-iterable
 core-js-pure/es|stable|actual|full/get-iterator
 core-js-pure/es|stable|actual|full/get-iterator-method
 ```
-[*Examples*](https://goo.gl/SXsM6D):
+*Examples*:
 ```js
 import isIterable from 'core-js-pure/actual/is-iterable';
 import getIterator from 'core-js-pure/actual/get-iterator';
