@@ -2327,6 +2327,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,
   'esnext.promise.try': {
+    chrome: '128',
   },
   // TODO: Remove from `core-js@4`
   'esnext.promise.with-resolvers': null,

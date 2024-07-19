@@ -36,6 +36,7 @@
     - Added [`URL.parse`](https://url.spec.whatwg.org/#dom-url-parse)
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as [shipped from FF129](https://bugzilla.mozilla.org/show_bug.cgi?id=1903329)
   - [`Symbol.asyncDispose`](https://github.com/tc39/proposal-explicit-resource-management) added and marked as supported from V8 ~ Chromium 127
+  - [`Promise.try`](https://github.com/tc39/proposal-promise-try) added and marked as supported [from V8 ~ Chromium 128](https://chromestatus.com/feature/6315704705089536)
   - Added Deno [1.44](https://github.com/denoland/deno/releases/tag/v1.44.0) and [1.45](https://github.com/denoland/deno/releases/tag/v1.45.0) compat data mapping
   - Added Electron 32 compat data mapping
   - Added [Opera Android 83](https://forums.opera.com/topic/72570/opera-for-android-83) compat data mapping
