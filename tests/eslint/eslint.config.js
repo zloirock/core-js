@@ -528,7 +528,7 @@ const base = {
   // prefer `async` / `await` to the callback pattern
   'promise/prefer-await-to-callbacks': ERROR,
   // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
-  'promise/prefer-await-to-then': ERROR,
+  'promise/prefer-await-to-then': [ERROR, { strict: true }],
   // ensures the proper number of arguments are passed to `Promise` functions
   'promise/valid-params': ERROR,
 
