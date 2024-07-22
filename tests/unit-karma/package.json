@@ -2,15 +2,15 @@
   "name": "tests/unit-karma",
   "devDependencies": {
     "@onslip/karma-playwright-launcher": "^0.3.0",
-    "@playwright/browser-chromium": "^1.45.2",
-    "@playwright/browser-firefox": "^1.45.2",
-    "@playwright/browser-webkit": "^1.45.2",
+    "@playwright/browser-chromium": "^1.45.3",
+    "@playwright/browser-firefox": "^1.45.3",
+    "@playwright/browser-webkit": "^1.45.3",
     "karma": "^6.4.3",
     "karma-ie-launcher": "^1.0.0",
     "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.2.0",
     "phantomjs-prebuilt": "~2.1.16",
-    "playwright": "^1.45.2",
+    "playwright": "^1.45.3",
     "qunit": "^2.21.1",
     "which": "^4.0.0"
   }
