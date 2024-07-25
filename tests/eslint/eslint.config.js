@@ -559,6 +559,8 @@ const base = {
   'unicorn/no-invalid-fetch-options': ERROR,
   // prevent calling `EventTarget#removeEventListener()` with the result of an expression
   'unicorn/no-invalid-remove-event-listener': ERROR,
+  // disallow using `.length` as the end argument of `{ Array,String,TypedArray }#slice()`
+  'unicorn/no-length-as-slice-end': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
   // disallow a magic number as the depth argument in `Array#flat`
