@@ -2,7 +2,6 @@
 module.exports = {
   // use transforms which does not use ES5+ builtins
   plugins: [
-    ['@babel/proposal-duplicate-named-capturing-groups-regex'],
     ['@babel/transform-member-expression-literals'],
     ['@babel/transform-property-literals'],
     ['@babel/transform-arrow-functions'],
@@ -15,6 +14,7 @@ module.exports = {
     ['@babel/transform-class-static-block'],
     ['@babel/transform-computed-properties'],
     ['@babel/transform-destructuring'],
+    ['@babel/transform-duplicate-named-capturing-groups-regex'],
     ['@babel/transform-exponentiation-operator'],
     ['@babel/transform-for-of'],
     ['@babel/transform-literals'],
