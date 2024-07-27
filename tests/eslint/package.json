@@ -6,7 +6,7 @@
     "@eslint-community/eslint-plugin-eslint-comments": "^4.3.0",
     "@stylistic/eslint-plugin-js": "^2.3.0",
     "confusing-browser-globals": "^1.0.11",
-    "eslint": "^9.7.0",
+    "eslint": "^9.8.0",
     "eslint-plugin-array-func": "^5.0.1",
     "eslint-plugin-canonical": "^4.18.1",
     "eslint-plugin-depend": "^0.9.0",
