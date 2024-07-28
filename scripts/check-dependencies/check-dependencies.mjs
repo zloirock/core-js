@@ -3,6 +3,9 @@ const ignore = {
     'mkdirp',
     'webpack',
   ],
+  'scripts/check-dependencies': [
+    'updates',
+  ],
   'tests/eslint': [
     'eslint-plugin-sonarjs',
   ],
