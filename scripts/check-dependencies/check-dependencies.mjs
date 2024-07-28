@@ -3,9 +3,6 @@ const ignore = {
     'mkdirp',
     'webpack',
   ],
-  'scripts/check-dependencies': [
-    'updates',
-  ],
   'tests/observables': [
     'moon-unit',
   ],
