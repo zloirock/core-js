@@ -6,9 +6,6 @@ const ignore = {
   'scripts/check-dependencies': [
     'updates',
   ],
-  'tests/eslint': [
-    'eslint-plugin-sonarjs',
-  ],
   'tests/observables': [
     'moon-unit',
   ],
