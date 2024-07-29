@@ -1372,19 +1372,27 @@ export const features = {
   },
   'iterator/includes': {
     modules: ['esnext.iterator.includes'],
-    template: $prototype({ namespace: 'Iterator', method: 'includes' }),
+    template: $prototype,
+    namespace: 'Iterator',
+    name: 'includes',
   },
   'iterator/virtual/includes': {
     modules: ['esnext.iterator.includes'],
-    template: $virtual({ namespace: 'Iterator', method: 'includes' }),
+    template: $virtual,
+    namespace: 'Iterator',
+    name: 'includes',
   },
   'iterator/join': {
     modules: ['esnext.iterator.join'],
-    template: $prototype({ namespace: 'Iterator', method: 'join' }),
+    template: $prototype,
+    namespace: 'Iterator',
+    name: 'join',
   },
   'iterator/virtual/join': {
     modules: ['esnext.iterator.join'],
-    template: $virtual({ namespace: 'Iterator', method: 'join' }),
+    template: $virtual,
+    namespace: 'Iterator',
+    name: 'join',
   },
   'iterator/map': {
     modules: ['es.iterator.map'],

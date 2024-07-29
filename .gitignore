@@ -26,7 +26,6 @@ node_modules/
 /packages/core-js-bundle/index.js
 /packages/core-js-bundle/minified.js
 /packages/core-js-bundle/minified.js.map
-/packages/core-js-bundle/postinstall.js
 /packages/core-js-compat/LICENSE
 /packages/core-js-compat/built-in-definitions.json
 /packages/core-js-compat/data.json
@@ -45,7 +44,6 @@ node_modules/
 /packages/core-js-pure/LICENSE
 /packages/core-js-pure/index.js
 /packages/core-js-pure/configurator.js
-/packages/core-js-pure/postinstall.js
 /tests/**/bundles/
 /tests/compat/*.jar
 /tests/compat/compat-data.js
