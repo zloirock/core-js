@@ -99,7 +99,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ### Index
 - [Usage](#usage)
   - [Installation](#installation)
-  - [`postinstall` message](#postinstall-message)
   - [CommonJS API](#commonjs-api)
   - [Babel](#babel)
     - [`@babel/polyfill`](#babelpolyfill)
@@ -217,16 +216,6 @@ npm install --save @core-js/bundle@4.0.0-alpha.0
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/@core-js/bundle).
-
-### `postinstall` message[⬆](#index)
-The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
-```sh
-ADBLOCK=true npm install
-// or
-DISABLE_OPENCOLLECTIVE=true npm install
-// or
-npm install --loglevel silent
-```
 
 ### CommonJS API[⬆](#index)
 You can import only-required-for-you polyfills, like in the examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
