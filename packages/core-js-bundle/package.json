@@ -73,8 +73,5 @@
     "email": "zloirock@zloirock.ru",
     "url": "http://zloirock.ru"
   },
-  "main": "index.js",
-  "scripts": {
-    "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
-  }
+  "main": "index.js"
 }
