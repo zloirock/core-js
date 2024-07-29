@@ -2414,12 +2414,6 @@ export default [
   },
   {
     files: [
-      '**/postinstall.js',
-    ],
-    rules: reset(forbidES5BuiltIns),
-  },
-  {
-    files: [
       `packages/core-js?(-pure)/**/instance/**/${ jsFile }`,
     ],
     rules: {
