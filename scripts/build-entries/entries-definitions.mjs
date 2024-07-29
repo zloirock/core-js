@@ -2086,7 +2086,10 @@ export const features = {
   },
   'promise/all-keyed': {
     modules: ['esnext.promise.all-keyed'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'allKeyed' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'allKeyed',
+    injectOn: 'static',
   },
   'promise/all-settled': {
     modules: ['es.promise.all-settled'],
@@ -2097,7 +2100,10 @@ export const features = {
   },
   'promise/all-settled-keyed': {
     modules: ['esnext.promise.all-settled-keyed'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'allSettledKeyed' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'allSettledKeyed',
+    injectOn: 'static',
   },
   'promise/any': {
     modules: ['es.promise.any'],
