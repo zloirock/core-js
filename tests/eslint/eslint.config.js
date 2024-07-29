@@ -1731,12 +1731,6 @@ export default [
   },
   {
     files: [
-      '**/postinstall.js',
-    ],
-    rules: disable(forbidES5BuiltIns),
-  },
-  {
-    files: [
       'tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**',
     ],
     languageOptions: {
