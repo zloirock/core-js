@@ -163,10 +163,10 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
       - [Explicit resource management](#explicit-resource-management)
       - [`Promise.try`](#promisetry)
+      - [`RegExp` escaping](#regexp-escaping)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Math.sumPrecise`](#mathsumprecise)
-      - [`RegExp` escaping](#regexp-escaping)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2544,6 +2544,31 @@ Promise.try(async () => { throw 42; }).catch(it => console.log(`Promise, rejecte
 Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`));
 ```
 
+##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
+Module [`esnext.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.regexp.escape.js)
+```js
+class RegExp {
+  static escape(value: string): string
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```js
+core-js/proposals/regexp-escaping
+core-js(-pure)/full/regexp/escape
+```
+[*Example*](https://tinyurl.com/ykac4qgy):
+```js
+console.log(RegExp.escape('10$')); // => '\\x310\\$'
+console.log(RegExp.escape('abcdefg_123456')); // => '\\x61bcdefg_123456'
+console.log(RegExp.escape('Привет')); // => 'Привет'
+console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`'));
+// => '\\(\\)\\{\\}\\[\\]\\|\\x2c\\.\\?\\*\\+\\x2d\\^\\$\\x3d\\x3c\\x3e\\\\\\/\\x23\\x26\\x21\\x25\\x3a\\x3b\\x40\\x7e\\x27\\x22\\x60'
+console.log(RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'));
+// => '\\\t\\\n\\\v\\\f\\\r\\x20\\xa0\\u1680\\u2000\\u2001\\u2002\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200a\\u202f\\u205f\\u3000\\u2028\\u2029\\ufeff'
+console.log(RegExp.escape('💩')); // => '💩'
+console.log(RegExp.escape('\uD83D')); // => '\\ud83d'
+```
+
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
 ```js
@@ -2584,31 +2609,6 @@ core-js(-pure)/full/math/sum-precise
 ```js
 1e20 + 0.1 + -1e20; // => 0
 Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
-```
-
-##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
-Module [`esnext.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.regexp.escape.js)
-```js
-class RegExp {
-  static escape(value: string): string
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```js
-core-js/proposals/regexp-escaping
-core-js(-pure)/full/regexp/escape
-```
-[*Example*](https://tinyurl.com/ykac4qgy):
-```js
-console.log(RegExp.escape('10$')); // => '\\x310\\$'
-console.log(RegExp.escape('abcdefg_123456')); // => '\\x61bcdefg_123456'
-console.log(RegExp.escape('Привет')); // => 'Привет'
-console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`'));
-// => '\\(\\)\\{\\}\\[\\]\\|\\x2c\\.\\?\\*\\+\\x2d\\^\\$\\x3d\\x3c\\x3e\\\\\\/\\x23\\x26\\x21\\x25\\x3a\\x3b\\x40\\x7e\\x27\\x22\\x60'
-console.log(RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'));
-// => '\\\t\\\n\\\v\\\f\\\r\\x20\\xa0\\u1680\\u2000\\u2001\\u2002\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200a\\u202f\\u205f\\u3000\\u2028\\u2029\\ufeff'
-console.log(RegExp.escape('💩')); // => '💩'
-console.log(RegExp.escape('\uD83D')); // => '\\ud83d'
 ```
 
 #### Stage 2 proposals[⬆](#index)

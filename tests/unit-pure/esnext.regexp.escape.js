@@ -1,5 +1,5 @@
 /* eslint-disable @stylistic/js/max-len -- ok*/
-import escape from 'core-js-pure/full/regexp/escape';
+import escape from 'core-js-pure/actual/regexp/escape';
 
 QUnit.test('RegExp.escape', assert => {
   assert.isFunction(escape);

@@ -1,5 +1,12 @@
 ## Changelog
 ##### Unreleased
+- [`RegExp.escape` proposal](https://github.com/tc39/proposal-regex-escaping):
+  - Built-ins:
+    - `RegExp.escape`
+  - Moved to stage 3, [June 2024](https://github.com/tc39/proposals/commit/4b8ee265248abfa2c88ed71b3c541ddd5a2eaffe) and [July 2024](https://github.com/tc39/proposals/commit/bdb2eea6c5e41a52f2d6047d7de1a31b5d188c4f) TC39 meetings
+  - Updated the way of escaping, [regex-escaping/77](https://github.com/tc39/proposal-regex-escaping/pull/77)
+  - Throw an error on non-strings, [regex-escaping/58](https://github.com/tc39/proposal-regex-escaping/pull/58)
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - [`Promise.try` proposal](https://github.com/tc39/proposal-promise-try):
   - Built-ins:
     - `Promise.try`
@@ -16,12 +23,6 @@
   - Added `Uint8Array.prototype.toBase64` `omitPadding` option, [proposal-arraybuffer-base64/60](https://github.com/tc39/proposal-arraybuffer-base64/pull/60)
   - Added throwing a `TypeError` on arrays backed by detached buffers
   - Unconditional forced replacement changed to feature detection
-- [`RegExp.escape` proposal](https://github.com/tc39/proposal-regex-escaping):
-  - Built-ins:
-    - `RegExp.escape`
-  - Moved to stage 2.7, [June 2024 TC39 meeting](https://github.com/tc39/proposals/commit/4b8ee265248abfa2c88ed71b3c541ddd5a2eaffe)
-  - Updated the way of escaping, [regex-escaping/77](https://github.com/tc39/proposal-regex-escaping/pull/77)
-  - Throw an error on non-strings, [regex-escaping/58](https://github.com/tc39/proposal-regex-escaping/pull/58)
 - Fixed `RegExp` named capture groups polyfill in combination with non-capturing groups, [#1352](https://github.com/zloirock/core-js/pull/1352), thanks [**@Ulop**](https://github.com/Ulop)
 - Improved some cases of environment detection
 - Uses [`process.getBuiltinModule`](https://nodejs.org/docs/latest/api/process.html#processgetbuiltinmoduleid) for getting built-in NodeJS modules where it's available

@@ -31,7 +31,7 @@ var escapeChar = function (chr) {
 
 // `RegExp.escape` method
 // https://github.com/tc39/proposal-regex-escaping
-$({ target: 'RegExp', stat: true, forced: true }, {
+$({ target: 'RegExp', stat: true }, {
   escape: function escape(S) {
     aString(S);
     var length = S.length;
