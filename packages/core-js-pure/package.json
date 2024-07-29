@@ -668,8 +668,5 @@
     "./full/index.js": "./full/index.js",
     "./index": "./index.js",
     "./index.js": "./index.js"
-  },
-  "scripts": {
-    "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
   }
 }
