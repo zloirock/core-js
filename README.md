@@ -2554,7 +2554,7 @@ class RegExp {
 [*CommonJS entry points:*](#commonjs-api)
 ```js
 core-js/proposals/regexp-escaping
-core-js(-pure)/full/regexp/escape
+core-js(-pure)/actual|full/regexp/escape
 ```
 [*Example*](https://tinyurl.com/ykac4qgy):
 ```js
