@@ -2,6 +2,7 @@
 module.exports = {
   // use transforms which does not use ES5+ builtins
   plugins: [
+    ['@babel/proposal-regexp-modifiers'],
     ['@babel/transform-member-expression-literals'],
     ['@babel/transform-property-literals'],
     ['@babel/transform-arrow-functions'],
