@@ -124,7 +124,7 @@ async function buildEntry(entry, options) {
         definitionTarget = builtInDefinitions.BuiltIns;
         break;
       case 'static':
-        definitionTarget = (builtInDefinitions.StaticProperties[namespace] ??= Object.create(null));
+        definitionTarget = builtInDefinitions.StaticProperties[namespace] ??= Object.create(null);
         break;
       case 'instance':
         definitionTarget = builtInDefinitions.InstanceProperties;
