@@ -21,7 +21,6 @@ var PROPER_UNDEFINED_HANDLING = !fails(function () {
 });
 
 var NEW_REQUIRED = fails(function () {
-  // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
   NativeDataView(new NativeArrayBuffer(1));
 });
 
