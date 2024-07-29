@@ -78,8 +78,5 @@
     "url": "http://zloirock.ru"
   },
   "sideEffects": true,
-  "main": "index.js",
-  "scripts": {
-    "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
-  }
+  "main": "index.js"
 }
