@@ -676,6 +676,6 @@
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
   },
   "engines": {
-    "node": "*"
+    "node": ">=0.11"
   }
 }
