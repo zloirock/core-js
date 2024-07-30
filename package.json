@@ -59,7 +59,7 @@
     "u": "npm run update-version"
   },
   "devDependencies": {
-    "@babel/core": "^7.24.9",
+    "@babel/core": "^7.25.2",
     "@babel/plugin-proposal-regexp-modifiers": "^7.24.7",
     "@babel/plugin-transform-arrow-functions": "^7.24.7",
     "@babel/plugin-transform-block-scoped-functions": "^7.24.7",
@@ -72,7 +72,7 @@
     "@babel/plugin-transform-duplicate-named-capturing-groups-regex": "^7.25.0",
     "@babel/plugin-transform-exponentiation-operator": "^7.24.7",
     "@babel/plugin-transform-for-of": "^7.24.7",
-    "@babel/plugin-transform-literals": "^7.24.7",
+    "@babel/plugin-transform-literals": "^7.25.2",
     "@babel/plugin-transform-logical-assignment-operators": "^7.24.7",
     "@babel/plugin-transform-member-expression-literals": "^7.24.7",
     "@babel/plugin-transform-modules-commonjs": "^7.24.8",
