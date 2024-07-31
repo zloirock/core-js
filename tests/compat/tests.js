@@ -1774,7 +1774,11 @@ GLOBAL.tests = {
     return Number.fromString;
   },
   'esnext.promise.try': [PROMISES_SUPPORT, function () {
-    return Promise['try'];
+    var ACCEPT_ARGUMENTS = false;
+    Promise['try'](function (argument) {
+      ACCEPT_ARGUMENTS = argument === 8;
+    }, 8);
+    return ACCEPT_ARGUMENTS;
   }],
   'esnext.regexp.escape': function () {
     return RegExp.escape('ab') === '\\x61b';

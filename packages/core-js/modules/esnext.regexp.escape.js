@@ -31,7 +31,7 @@ var escapeChar = function (chr) {
 };
 
 // Avoiding the use of polyfills of the previous iteration of this proposal
-var FORCED = !!$escape && $escape('ab') !== '\\x61b';
+var FORCED = !$escape || $escape('ab') !== '\\x61b';
 
 // `RegExp.escape` method
 // https://github.com/tc39/proposal-regex-escaping
