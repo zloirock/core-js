@@ -1777,7 +1777,7 @@ GLOBAL.tests = {
     return Promise['try'];
   }],
   'esnext.regexp.escape': function () {
-    return RegExp.escape;
+    return RegExp.escape('ab') === '\\x61b';
   },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;

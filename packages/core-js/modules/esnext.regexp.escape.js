@@ -7,6 +7,7 @@ var padStart = require('../internals/string-pad').start;
 var WHITESPACES = require('../internals/whitespaces');
 
 var $Array = Array;
+var $escape = RegExp.escape;
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var numberToString = uncurryThis(1.1.toString);
@@ -29,9 +30,12 @@ var escapeChar = function (chr) {
   return hex.length < 3 ? '\\x' + padStart(hex, 2, '0') : '\\u' + padStart(hex, 4, '0');
 };
 
+// Avoiding the use of polyfills of the previous iteration of this proposal
+var FORCED = !!$escape && $escape('ab') !== '\\x61b';
+
 // `RegExp.escape` method
 // https://github.com/tc39/proposal-regex-escaping
-$({ target: 'RegExp', stat: true }, {
+$({ target: 'RegExp', stat: true, forced: FORCED }, {
   escape: function escape(S) {
     aString(S);
     var length = S.length;
