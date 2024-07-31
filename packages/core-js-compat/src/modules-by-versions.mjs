@@ -250,6 +250,7 @@ export default {
     'web.url.parse',
   ],
   3.38: [
+    'esnext.uint8-array.set-from-base64',
     'esnext.uint8-array.set-from-hex',
   ],
 };

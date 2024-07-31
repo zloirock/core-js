@@ -16,11 +16,11 @@ module.exports = function (string, into) {
   var maxLength = into ? min(into.length, stringLength / 2) : stringLength / 2;
   var bytes = into || new Uint8Array(maxLength);
   var read = 0;
-  var index = 0;
-  while (index < maxLength) {
+  var written = 0;
+  while (written < maxLength) {
     var hexits = stringSlice(string, read, read += 2);
     if (exec(NOT_HEX, hexits)) throw new SyntaxError('String should only contain hex characters');
-    bytes[index++] = parseInt(hexits, 16);
+    bytes[written++] = parseInt(hexits, 16);
   }
   return { bytes: bytes, read: read };
 };

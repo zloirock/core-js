@@ -2433,9 +2433,10 @@ console.log(view.getFloat16(0)); // => 1.3369140625
 Modules [`esnext.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.from-base64.js), [`esnext.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.from-hex.js), [`esnext.uint8-array.set-from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.set-from-hex.js), [`esnext.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.to-base64.js), [`esnext.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.to-hex.js).
 ```js
 class Uint8Array {
-  static fromBase64(string, options?: { alphabet?: 'base64' | 'base64url', strict?: boolean }): Uint8Array;
-  static fromHex(string): Uint8Array;
-  setFromHex(string): { read: uint, written: uint };
+  static fromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): Uint8Array;
+  static fromHex(string: string): Uint8Array;
+  setFromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): { read: uint, written: uint };
+  setFromHex(string: string): { read: uint, written: uint };
   toBase64(options?: { alphabet?: 'base64' | 'base64url', omitPadding?: boolean }): string;
   toHex(): string;
 }
@@ -2446,6 +2447,7 @@ class Uint8Array {
 core-js/proposals/array-buffer-base64
 core-js(-pure)/actual|full/typed-array/from-base64
 core-js(-pure)/actual|full/typed-array/from-hex
+core-js(-pure)/actual|full/typed-array/set-from-base64
 core-js(-pure)/actual|full/typed-array/set-from-hex
 core-js(-pure)/actual|full/typed-array/to-base64
 core-js(-pure)/actual|full/typed-array/to-hex

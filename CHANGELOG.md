@@ -16,10 +16,12 @@
   - Methods:
     - `Uint8Array.fromBase64`
     - `Uint8Array.fromHex`
+    - `Uint8Array.prototype.setFromBase64`
     - `Uint8Array.prototype.setFromHex`
     - `Uint8Array.prototype.toBase64`
     - `Uint8Array.prototype.toHex`
-  - Added `Uint8Array.prototype.setFromHex` method
+  - Added `Uint8Array.prototype.{ setFromBase64, setFromHex }` methods
+  - Added `Uint8Array.fromBase64` and `Uint8Array.prototype.setFromBase64` `lastChunkHandling` option, [proposal-arraybuffer-base64/33](https://github.com/tc39/proposal-arraybuffer-base64/pull/33)
   - Added `Uint8Array.prototype.toBase64` `omitPadding` option, [proposal-arraybuffer-base64/60](https://github.com/tc39/proposal-arraybuffer-base64/pull/60)
   - Added throwing a `TypeError` on arrays backed by detached buffers
   - Unconditional forced replacement changed to feature detection

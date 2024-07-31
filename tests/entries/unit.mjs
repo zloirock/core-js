@@ -1074,6 +1074,7 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
 for (const NS of ['actual', 'full', 'features']) {
   load(NS, 'typed-array/from-base64');
   load(NS, 'typed-array/from-hex');
+  load(NS, 'typed-array/set-from-base64');
   load(NS, 'typed-array/set-from-hex');
   load(NS, 'typed-array/to-base64');
   load(NS, 'typed-array/to-hex');
