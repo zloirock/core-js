@@ -46,4 +46,84 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
   assert.throws(() => new Uint8Array(11).setFromHex('48656c6c6f20576f726c641'), SyntaxError, 'throws on invalid #2');
   assert.throws(() => new Uint8Array(11).setFromHex('48656c6c6f20576f726c64 '), SyntaxError, 'throws on invalid #3');
   assert.throws(() => new Uint8Array(11).setFromHex('48656c6c6f20576f726c64\n'), SyntaxError, 'throws on invalid #4');
+
+  // Test262
+  // Copyright 2024 Kevin Gibbons. All rights reserved.
+  // This code is governed by the BSD license found in the https://github.com/tc39/test262/blob/main/LICENSE file.
+  [
+    'a.a',
+    'aa^',
+    'a a',
+    'a\ta',
+    'a\u000Aa',
+    'a\u000Ca',
+    'a\u000Da',
+    'a\u00A0a', // nbsp
+    'a\u2009a', // thin space
+    'a\u2028a', // line separator
+  ].forEach(value => assert.throws(() => new Uint8Array([255, 255, 255, 255, 255]).setFromHex(value), SyntaxError));
+
+  [
+    ['', []],
+    ['66', [102]],
+    ['666f', [102, 111]],
+    ['666F', [102, 111]],
+    ['666f6f', [102, 111, 111]],
+    ['666F6f', [102, 111, 111]],
+    ['666f6f62', [102, 111, 111, 98]],
+    ['666f6f6261', [102, 111, 111, 98, 97]],
+    ['666f6f626172', [102, 111, 111, 98, 97, 114]],
+  ].forEach(([string, bytes]) => {
+    const allFF = [255, 255, 255, 255, 255, 255, 255, 255];
+    const target = new Uint8Array(allFF);
+    const result = target.setFromHex(string);
+    assert.same(result.read, string.length);
+    assert.same(result.written, bytes.length);
+
+    const expected = bytes.concat(allFF.slice(bytes.length));
+    assert.arrayEqual(target, expected, `decoding ${ string }`);
+  });
+
+  const base = new Uint8Array([255, 255, 255, 255, 255, 255, 255]);
+  const subarray = base.subarray(2, 5);
+
+  let result = subarray.setFromHex('aabbcc');
+  assert.same(result.read, 6);
+  assert.same(result.written, 3);
+  assert.arrayEqual(subarray, [170, 187, 204]);
+  assert.arrayEqual(base, [255, 255, 170, 187, 204, 255, 255]);
+
+  // buffer too small
+  let target = new Uint8Array([255, 255]);
+  result = target.setFromHex('aabbcc');
+  assert.same(result.read, 4);
+  assert.same(result.written, 2);
+  assert.arrayEqual(target, [170, 187]);
+
+  // buffer exact
+  target = new Uint8Array([255, 255, 255]);
+  result = target.setFromHex('aabbcc');
+  assert.same(result.read, 6);
+  assert.same(result.written, 3);
+  assert.arrayEqual(target, [170, 187, 204]);
+
+  // buffer too large
+  target = new Uint8Array([255, 255, 255, 255]);
+  result = target.setFromHex('aabbcc');
+  assert.same(result.read, 6);
+  assert.same(result.written, 3);
+  assert.arrayEqual(target, [170, 187, 204, 255]);
+
+  [
+    'aaa ',
+    'aaag',
+  ].forEach(value => {
+    target = new Uint8Array([255, 255, 255, 255, 255]);
+    assert.throws(() => target.setFromHex(value), SyntaxError);
+    assert.arrayEqual(target, [170, 255, 255, 255, 255], `decoding from ${ value }`);
+  });
+
+  target = new Uint8Array([255, 255, 255, 255, 255]);
+  assert.throws(() => target.setFromHex('aaa'), SyntaxError);
+  assert.arrayEqual(target, [255, 255, 255, 255, 255], 'when length is odd no data is written');
 });

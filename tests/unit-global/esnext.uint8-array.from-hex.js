@@ -20,4 +20,40 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.fromHex', assert => {
   assert.throws(() => fromHex('48656c6c6f20576f726c641'), SyntaxError, 'throws on invalid #2');
   assert.throws(() => fromHex('48656c6c6f20576f726c64 '), SyntaxError, 'throws on invalid #3');
   assert.throws(() => fromHex('48656c6c6f20576f726c64\n'), SyntaxError, 'throws on invalid #4');
+
+  // Test262
+  // Copyright 2024 Kevin Gibbons. All rights reserved.
+  // This code is governed by the BSD license found in the https://github.com/tc39/test262/blob/main/LICENSE file.
+  [
+    'a.a',
+    'aa^',
+    'a a',
+    'a\ta',
+    'a\u000Aa',
+    'a\u000Ca',
+    'a\u000Da',
+    'a\u00A0a', // nbsp
+    'a\u2009a', // thin space
+    'a\u2028a', // line separator
+  ].forEach(value => assert.throws(() => Uint8Array.fromHex(value), SyntaxError));
+
+  assert.throws(() => Uint8Array.fromHex('a'), SyntaxError);
+
+  [
+    ['', []],
+    ['66', [102]],
+    ['666f', [102, 111]],
+    ['666F', [102, 111]],
+    ['666f6f', [102, 111, 111]],
+    ['666F6f', [102, 111, 111]],
+    ['666f6f62', [102, 111, 111, 98]],
+    ['666f6f6261', [102, 111, 111, 98, 97]],
+    ['666f6f626172', [102, 111, 111, 98, 97, 114]],
+  ].forEach(([string, bytes]) => {
+    const arr = Uint8Array.fromHex(string);
+    assert.same(Object.getPrototypeOf(arr), Uint8Array.prototype, `decoding ${ string }`);
+    assert.same(arr.length, bytes.length, `decoding ${ string }`);
+    assert.same(arr.buffer.byteLength, bytes.length, `decoding ${ string }`);
+    assert.arrayEqual(arr, bytes, `decoding ${ string }`);
+  });
 });
