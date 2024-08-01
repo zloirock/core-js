@@ -27,6 +27,13 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   assert.throws(() => new Uint8Array(16).setFromBase64('SGVsbG8gV29ybGQ=', { alphabet: 'base32' }), TypeError, 'incorrect encoding');
   assert.throws(() => new Uint8Array(16).setFromBase64('SGVsbG8gV29ybGQ=', { lastChunkHandling: 'fff' }), TypeError, 'incorrect lastChunkHandling');
 
+  if (ArrayBuffer.prototype.transfer) {
+    const array = new Uint8Array(16);
+    array.buffer.transfer();
+
+    assert.throws(() => array.setFromHex('SGVsbG8gV29ybGQ='), TypeError, 'detached');
+  }
+
   // Test262
   // Copyright 2024 Kevin Gibbons. All rights reserved.
   // This code is governed by the BSD license found in the https://github.com/tc39/test262/blob/main/LICENSE file.
