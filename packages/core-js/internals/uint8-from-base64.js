@@ -13,14 +13,13 @@ var base64UrlAlphabet = base64Map.c2iUrl;
 
 var SyntaxError = globalThis.SyntaxError;
 var TypeError = globalThis.TypeError;
-var ASCII_WHITESPACE = /[\t\n\f\r ]/;
-var exec = uncurryThis(ASCII_WHITESPACE.exec);
 var at = uncurryThis(''.charAt);
 
 var skipAsciiWhitespace = function (string, index) {
   var length = string.length;
   for (;index < length; index++) {
-    if (!exec(ASCII_WHITESPACE, at(string, index))) break;
+    var chr = at(string, index);
+    if (chr !== ' ' && chr !== '\t' && chr !== '\n' && chr !== '\f' && chr !== '\r') break;
   } return index;
 };
 
