@@ -38,4 +38,28 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toBase64', assert => {
   assert.throws(() => toBase64.call(undefined), TypeError, "isn't generic #2");
   assert.throws(() => toBase64.call(new Int16Array([1])), TypeError, "isn't generic #3");
   assert.throws(() => toBase64.call([1]), TypeError, "isn't generic #4");
+
+  // Test262
+  // Copyright 2024 Kevin Gibbons. All rights reserved.
+  // This code is governed by the BSD license found in the https://github.com/tc39/test262/blob/main/LICENSE file.
+  assert.same(new Uint8Array([199, 239, 242]).toBase64(), 'x+/y');
+  assert.same(new Uint8Array([199, 239, 242]).toBase64({ alphabet: 'base64' }), 'x+/y');
+  assert.same(new Uint8Array([199, 239, 242]).toBase64({ alphabet: 'base64url' }), 'x-_y');
+  assert.throws(() => new Uint8Array([199, 239, 242]).toBase64({ alphabet: 'other' }), TypeError);
+
+  // works with default alphabet
+  assert.same(new Uint8Array([199, 239]).toBase64(), 'x+8=');
+  assert.same(new Uint8Array([199, 239]).toBase64({ omitPadding: false }), 'x+8=');
+  assert.same(new Uint8Array([199, 239]).toBase64({ omitPadding: true }), 'x+8');
+  assert.same(new Uint8Array([255]).toBase64({ omitPadding: true }), '/w');
+
+  // works with base64url alphabet
+  assert.same(new Uint8Array([199, 239]).toBase64({ alphabet: 'base64url' }), 'x-8=');
+  assert.same(new Uint8Array([199, 239]).toBase64({ alphabet: 'base64url', omitPadding: false }), 'x-8=');
+  assert.same(new Uint8Array([199, 239]).toBase64({ alphabet: 'base64url', omitPadding: true }), 'x-8');
+  assert.same(new Uint8Array([255]).toBase64({ alphabet: 'base64url', omitPadding: true }), '_w');
+
+  // performs ToBoolean on the argument
+  assert.same(new Uint8Array([255]).toBase64({ omitPadding: 0 }), '/w==');
+  assert.same(new Uint8Array([255]).toBase64({ omitPadding: 1 }), '/w');
 });
