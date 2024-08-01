@@ -42,7 +42,7 @@
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) added and marked as supported [from V8 ~ Chromium 128](https://chromestatus.com/feature/6315704705089536)
   - Added Deno [1.44](https://github.com/denoland/deno/releases/tag/v1.44.0) and [1.45](https://github.com/denoland/deno/releases/tag/v1.45.0) compat data mapping
   - `self` descriptor [is broken in Deno 1.45.3](https://github.com/denoland/deno/issues/24683) (again)
-  - Added Electron 32 compat data mapping
+  - Added Electron 32 and 33 compat data mapping
   - Added [Opera Android 83](https://forums.opera.com/topic/72570/opera-for-android-83) compat data mapping
   - Added Oculus Quest Browser 34 compat data mapping
 
