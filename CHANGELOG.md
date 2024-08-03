@@ -30,6 +30,7 @@
 - Uses [`process.getBuiltinModule`](https://nodejs.org/docs/latest/api/process.html#processgetbuiltinmoduleid) for getting built-in NodeJS modules where it's available
 - Uses `https` instead of `http` in `URL` constructor feature detection to avoid extra notifications from some overly vigilant security scanners, [#1345](https://github.com/zloirock/core-js/issues/1345)
 - Some minor optimizations
+- Updated `browserslist` in `core-js-compat` dependencies that fixes an upstream issue with incorrect interpretation of some `browserslist` queries, [#1344](https://github.com/zloirock/core-js/issues/1344), [browserslist/829](https://github.com/browserslist/browserslist/issues/829), [browserslist/836](https://github.com/browserslist/browserslist/pull/836)
 - Compat data improvements:
   - Added [Safari 18.0](https://webkit.org/blog/15443/news-from-wwdc24-webkit-in-safari-18-beta/) compat data:
     - Fixed [`Object.groupBy` and `Map.groupBy`](https://github.com/tc39/proposal-array-grouping) to [work for non-objects](https://bugs.webkit.org/show_bug.cgi?id=271524)
