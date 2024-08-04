@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.38.0 - 2024.08.05](https://github.com/zloirock/core-js/releases/tag/v3.38.0)
+- Changes [v3.37.1...v3.38.0](https://github.com/zloirock/core-js/compare/v3.37.1...v3.38.0)
 - [`RegExp.escape` proposal](https://github.com/tc39/proposal-regex-escaping):
   - Built-ins:
     - `RegExp.escape`
@@ -13,7 +17,7 @@
   - Moved to stage 3, [June 2024 TC39 meeting](https://github.com/tc39/proposals/commit/de20984cd7f7bc616682c557cb839abc100422cb)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - [`Uint8Array` to / from base64 and hex stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-base64):
-  - Methods:
+  - Built-ins:
     - `Uint8Array.fromBase64`
     - `Uint8Array.fromHex`
     - `Uint8Array.prototype.setFromBase64`
