@@ -21,7 +21,7 @@ GLOBAL.showResults = function (engine, logger) {
   function logResults(showDifference) {
     for (var name in results) {
       if (data[name]) {
-        if (Boolean(data[name][engine]) === results[name]) {
+        if (!!data[name][engine] === results[name]) {
           if (showDifference) continue;
         } else difference = true;
       } else if (showDifference) continue;
