@@ -58,6 +58,7 @@ var stringSlice = uncurryThis(''.slice);
 
 var plus = /\+/g;
 var sequences = Array(4);
+var fallbackReplacer = '\uFFFD';
 
 var percentSequence = function (bytes) {
   return sequences[bytes - 1] || (sequences[bytes - 1] = RegExp('((?:%[\\da-f]{2}){' + bytes + '})', 'gi'));
@@ -67,7 +68,7 @@ var percentDecode = function (sequence) {
   try {
     return decodeURIComponent(sequence);
   } catch (error) {
-    return sequence;
+    return fallbackReplacer;
   }
 };
 
