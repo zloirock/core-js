@@ -529,6 +529,12 @@ const base = {
   'promise/prefer-await-to-callbacks': ERROR,
   // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
   'promise/prefer-await-to-then': [ERROR, { strict: true }],
+  // disallow use of non-standard `Promise` static methods
+  'promise/spec-only': [OFF, { allowedMethods: [
+    'prototype', // `eslint-plugin-promise` bug, https://github.com/eslint-community/eslint-plugin-promise/issues/533
+    'try',
+    'undefined', // `eslint-plugin-promise` bug, https://github.com/eslint-community/eslint-plugin-promise/issues/534
+  ] }],
   // ensures the proper number of arguments are passed to `Promise` functions
   'promise/valid-params': ERROR,
 
