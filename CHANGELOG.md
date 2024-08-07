@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as [shipped from FF131](https://bugzilla.mozilla.org/show_bug.cgi?id=1896390)
 
 ##### [3.38.0 - 2024.08.05](https://github.com/zloirock/core-js/releases/tag/v3.38.0)
 - Changes [v3.37.1...v3.38.0](https://github.com/zloirock/core-js/compare/v3.37.1...v3.38.0)
