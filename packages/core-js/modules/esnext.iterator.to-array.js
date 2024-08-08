@@ -8,10 +8,11 @@ var push = [].push;
 
 // `Iterator.prototype.toArray` method
 // https://github.com/tc39/proposal-iterator-helpers
+// dependency: esnext.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];
     iterate(getIteratorDirect(anObject(this)), push, { that: result, IS_RECORD: true });
     return result;
-  }
+  },
 });

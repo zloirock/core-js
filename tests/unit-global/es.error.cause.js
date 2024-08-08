@@ -1,4 +1,4 @@
-import { GLOBAL, PROTO } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
 const { create } = Object;
 
@@ -9,7 +9,7 @@ function runErrorTestCase($Error, ERROR_NAME) {
     assert.name($Error, ERROR_NAME);
     assert.looksNative($Error);
 
-    if (PROTO && $Error !== Error) {
+    if ($Error !== Error) {
       // eslint-disable-next-line no-prototype-builtins -- safe
       assert.true(Error.isPrototypeOf($Error), 'constructor has `Error` in the prototype chain');
     }

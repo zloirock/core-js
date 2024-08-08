@@ -1,5 +1,5 @@
 /* eslint-disable prefer-regex-literals -- required for testing */
-import { GLOBAL, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -93,8 +93,8 @@ QUnit.test('RegExp#@@search basic behavior', assert => {
 });
 
 QUnit.test('String#search delegates to @@search', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
   object[Symbol.search] = function (it) {
     return { value: it };

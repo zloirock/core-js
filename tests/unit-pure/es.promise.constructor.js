@@ -1,9 +1,9 @@
-import { DESCRIPTORS, GLOBAL, PROTO, STRICT } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
-import setPrototypeOf from 'core-js-pure/es/object/set-prototype-of';
-import create from 'core-js-pure/es/object/create';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
+import setPrototypeOf from '@core-js/pure/es/object/set-prototype-of';
+import create from '@core-js/pure/es/object/create';
 
 QUnit.test('Promise', assert => {
   assert.isFunction(Promise);
@@ -13,11 +13,11 @@ QUnit.test('Promise', assert => {
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
-    if (STRICT) assert.same(this, undefined, 'correct executor context');
+    assert.same(this, undefined, 'correct executor context');
   });
 });
 
-if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
+QUnit.test('Promise operations order', assert => {
   let $resolve, $resolve2;
   assert.expect(1);
   const EXPECTED_ORDER = 'DEHAFGBC';
@@ -44,7 +44,7 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
   const promise2 = new Promise(resolve => {
     $resolve2 = resolve;
   });
-  // eslint-disable-next-line es/no-object-defineproperty, unicorn/no-thenable -- required for testing
+  // eslint-disable-next-line unicorn/no-thenable -- required for testing
   $resolve2(Object.defineProperty({}, 'then', {
     get() {
       result += 'D';
@@ -116,7 +116,7 @@ QUnit.test('Promise#@@toStringTag', assert => {
   assert.same(String(new Promise(() => { /* empty */ })), '[object Promise]', 'correct stringification');
 });
 
-if (PROTO) QUnit.test('Promise subclassing', assert => {
+QUnit.test('Promise subclassing', assert => {
   function SubPromise(executor) {
     const self = new Promise(executor);
     setPrototypeOf(self, SubPromise.prototype);

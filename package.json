@@ -1,5 +1,5 @@
 {
-  "version": "3.38.0",
+  "version": "4.0.0-alpha.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
@@ -16,6 +16,7 @@
   "scripts": {
     "zxi": "zx scripts/zxi.mjs",
     "prepare": "npm run zxi scripts/prepare.mjs",
+    "build-entries": "npm run zxi time scripts/build-entries/index.mjs",
     "build-compat": "npm run zxi scripts/build-compat/index.mjs",
     "bundle": "run-s bundle-package bundle-tests",
     "bundle-package": "npm run zxi time scripts/bundle-package/bundle-package.mjs",
@@ -31,10 +32,11 @@
     "compat-hermes": "npm run zxi tests/compat/hermes-adapter.mjs",
     "compat-node": "node tests/compat/node-runner",
     "compat-rhino": "npm run zxi tests/compat/rhino-adapter.mjs 1.7.15",
+    "debug-get-dependencies": "npm run zxi time tests/debug-get-dependencies/debug-get-dependencies.mjs",
     "lint": "run-s prepare lint-raw",
     "lint-raw": "run-s test-eslint test-type-definitions bundle-package test-publint",
     "test": "run-s prepare test-raw",
-    "test-raw": "run-s lint-raw bundle-tests test-unit test-promises test-observables test-entries test-compat-data test-compat-tools test-builder check",
+    "test-raw": "run-s lint-raw bundle-tests test-unit test-promises test-entries test-compat-data test-compat-tools test-builder check",
     "test-eslint": "npm run zxi time tests/eslint/runner.mjs",
     "test-publint": "npm run zxi time tests/publint/runner.mjs",
     "test-unit": "run-s test-unit-karma test-unit-node test-unit-bun",
@@ -42,7 +44,6 @@
     "test-unit-node": "npm run zxi time tests/unit-node/runner.mjs",
     "test-unit-bun": "npm run zxi time cd tests/unit-bun/runner.mjs",
     "test-promises": "npm run zxi time cd tests/promises/runner.mjs",
-    "test-observables": "npm run zxi time cd tests/observables/runner.mjs",
     "test-entries": "npm run zxi tests/entries/index.mjs",
     "test-builder": "npm run zxi tests/builder/builder.mjs",
     "test-compat-data": "npm run zxi tests/compat-data/index.mjs",
@@ -53,7 +54,7 @@
     "downloads": "npm run zxi scripts/downloads-by-versions.mjs",
     "usage": "npm run zxi scripts/usage/usage.mjs",
     "update-version": "npm run zxi scripts/update-version.mjs",
-    "publish": "npm publish --workspaces",
+    "publish": "npm publish --workspaces --tag alpha",
     "c": "npm run check",
     "r": "npm run refresh",
     "u": "npm run update-version"
@@ -74,7 +75,6 @@
     "@babel/plugin-transform-for-of": "^7.24.7",
     "@babel/plugin-transform-literals": "^7.25.2",
     "@babel/plugin-transform-logical-assignment-operators": "^7.24.7",
-    "@babel/plugin-transform-member-expression-literals": "^7.24.7",
     "@babel/plugin-transform-modules-commonjs": "^7.24.8",
     "@babel/plugin-transform-new-target": "^7.24.7",
     "@babel/plugin-transform-nullish-coalescing-operator": "^7.24.7",
@@ -86,8 +86,6 @@
     "@babel/plugin-transform-parameters": "^7.24.7",
     "@babel/plugin-transform-private-methods": "^7.24.7",
     "@babel/plugin-transform-private-property-in-object": "^7.24.7",
-    "@babel/plugin-transform-property-literals": "^7.24.7",
-    "@babel/plugin-transform-reserved-words": "^7.24.7",
     "@babel/plugin-transform-shorthand-properties": "^7.24.7",
     "@babel/plugin-transform-spread": "^7.24.7",
     "@babel/plugin-transform-template-literals": "^7.24.7",

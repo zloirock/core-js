@@ -1,9 +1,8 @@
 import { createIterable } from '../helpers/helpers.js';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
+import getIteratorMethod from '@core-js/pure/es/get-iterator-method';
 
-import Promise from 'core-js-pure/es/promise';
-import Symbol from 'core-js-pure/es/symbol';
-import bind from 'core-js-pure/es/function/bind';
+import Promise from '@core-js/pure/es/promise';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Promise.race', assert => {
   const { race, resolve } = Promise;
@@ -15,7 +14,6 @@ QUnit.test('Promise.race', assert => {
   assert.true(iterable.called, 'works with iterables: next called');
   const array = [];
   let done = false;
-  array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
     return getIteratorMethod([]).call(this);
@@ -44,7 +42,7 @@ QUnit.test('Promise.race', assert => {
   let FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  FakePromise1.resolve = FakePromise2.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = resolve.bind(Promise);
   assert.true(race.call(FakePromise1, [1, 2, 3]) instanceof FakePromise1, 'subclassing, `this` pattern');
   FakePromise1 = function () { /* empty */ };
   FakePromise2 = function (executor) {
@@ -53,7 +51,7 @@ QUnit.test('Promise.race', assert => {
   const FakePromise3 = function (executor) {
     executor(() => { /* empty */ }, null);
   };
-  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = bind(resolve, Promise);
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = resolve.bind(Promise);
   assert.throws(() => {
     race.call(FakePromise1, [1, 2, 3]);
   }, 'NewPromiseCapability validations, #1');

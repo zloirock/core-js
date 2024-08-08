@@ -18,7 +18,7 @@ import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylisticJS from '@stylistic/eslint-plugin-js';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 
-const PACKAGES_NODE_VERSIONS = '8.9.0';
+const PACKAGES_NODE_VERSIONS = '^18.12';
 const DEV_NODE_VERSIONS = '^18.12';
 
 const ERROR = 'error';
@@ -897,9 +897,7 @@ const base = {
   'eslint-comments/require-description': ERROR,
 
   // suggest better alternatives to some dependencies
-  'depend/ban-dependencies': [ERROR, { allowed: [
-    'mkdirp', // TODO: drop from `core-js@4`
-  ] }],
+  'depend/ban-dependencies': ERROR,
 };
 
 const noAsyncAwait = {
@@ -909,10 +907,8 @@ const noAsyncAwait = {
   'promise/prefer-await-to-then': OFF,
 };
 
-const useES3Syntax = {
+const useES5Syntax = {
   ...noAsyncAwait,
-  // encourages use of dot notation whenever possible
-  'dot-notation': [ERROR, { allowKeywords: false }],
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
   // disallow function or variable declarations in nested blocks
@@ -937,10 +933,6 @@ const useES3Syntax = {
   'prefer-spread': OFF,
   // require template literals instead of string concatenation
   'prefer-template': OFF,
-  // disallow trailing commas in multiline object literals
-  '@stylistic/js/comma-dangle': [ERROR, NEVER],
-  // require or disallow use of quotes around object literal property names
-  '@stylistic/js/quote-props': [ERROR, 'as-needed', { keywords: true }],
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
@@ -965,35 +957,15 @@ const forbidESAnnexBBuiltIns = {
 };
 
 const forbidES5BuiltIns = {
-  'es/no-array-isarray': ERROR,
-  'es/no-array-prototype-every': ERROR,
   'es/no-array-prototype-filter': ERROR,
-  'es/no-array-prototype-foreach': ERROR,
   'es/no-array-prototype-indexof': ERROR,
   'es/no-array-prototype-lastindexof': ERROR,
-  'es/no-array-prototype-map': ERROR,
   'es/no-array-prototype-reduce': ERROR,
   'es/no-array-prototype-reduceright': ERROR,
-  'es/no-array-prototype-some': ERROR,
-  'es/no-date-now': ERROR,
-  'es/no-function-prototype-bind': ERROR,
-  'es/no-json': ERROR,
-  'es/no-object-create': ERROR,
-  'es/no-object-defineproperties': ERROR,
-  'es/no-object-defineproperty': ERROR,
-  'es/no-object-freeze': ERROR,
-  'es/no-object-getownpropertydescriptor': ERROR,
-  'es/no-object-getownpropertynames': ERROR,
-  'es/no-object-getprototypeof': ERROR,
   'es/no-object-isextensible': ERROR,
   'es/no-object-isfrozen': ERROR,
   'es/no-object-issealed': ERROR,
-  'es/no-object-keys': ERROR,
-  'es/no-object-preventextensions': ERROR,
-  'es/no-object-seal': ERROR,
   'es/no-string-prototype-trim': ERROR,
-  // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
-  'unicorn/prefer-date-now': OFF,
 };
 
 const forbidES2015BuiltIns = {
@@ -1006,7 +978,6 @@ const forbidES2015BuiltIns = {
   'es/no-array-prototype-findindex': ERROR,
   'es/no-array-prototype-keys': ERROR,
   'es/no-array-prototype-values': ERROR,
-  'es/no-map': ERROR,
   'es/no-math-acosh': ERROR,
   'es/no-math-asinh': ERROR,
   'es/no-math-atanh': ERROR,
@@ -1041,7 +1012,6 @@ const forbidES2015BuiltIns = {
   'es/no-proxy': ERROR,
   'es/no-reflect': ERROR,
   'es/no-regexp-prototype-flags': ERROR,
-  'es/no-set': ERROR,
   'es/no-string-fromcodepoint': ERROR,
   'es/no-string-prototype-codepointat': ERROR,
   'es/no-string-prototype-endswith': ERROR,
@@ -1051,8 +1021,6 @@ const forbidES2015BuiltIns = {
   'es/no-string-prototype-startswith': ERROR,
   'es/no-string-raw': ERROR,
   'es/no-symbol': ERROR,
-  'es/no-typed-arrays': ERROR,
-  'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
   // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': OFF,
@@ -1256,52 +1224,18 @@ const transpiledAndPolyfilled = {
 };
 
 const nodePackages = {
-  // disallow logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, NEVER],
-  // enforces the use of `catch()` on un-returned promises
-  'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
-  // prefer `node:` protocol
-  'node/prefer-node-protocol': OFF,
-  // prefer promises
-  'node/prefer-promises/dns': OFF,
-  'node/prefer-promises/fs': OFF,
-  // prefer lookarounds over capturing group that do not replace
-  'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
-  // enforce using named capture group in regular expression
-  'regexp/prefer-named-capture-group': OFF,
-  // prefer using a logical operator over a ternary
-  'unicorn/prefer-logical-operator-over-ternary': OFF,
-  // prefer using the `node:` protocol when importing Node builtin modules
-  'unicorn/prefer-node-protocol': OFF,
-  // prefer omitting the `catch` binding parameter
-  'unicorn/prefer-optional-catch-binding': OFF,
+  ...forbidES2023BuiltIns,
+  'es/no-array-prototype-findlast-findlastindex': OFF,
+  ...forbidES2024BuiltIns,
+  'es/no-intl-supportedvaluesof': ERROR,
+  ...forbidES2023IntlBuiltIns,
+  ...forbidES2025BuiltIns,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
-  ...disable(forbidES5BuiltIns),
-  ...disable(forbidES2015BuiltIns),
-  ...disable(forbidES2016BuiltIns),
-  ...disable(forbidES2017BuiltIns),
-  'es/no-atomics': ERROR,
-  'es/no-shared-array-buffer': ERROR,
-  // disallow top-level `await`
-  'es/no-top-level-await': ERROR,
-  ...forbidES2018BuiltIns,
-  ...forbidES2019BuiltIns,
-  ...forbidES2020BuiltIns,
-  ...forbidES2021BuiltIns,
-  ...forbidES2022BuiltIns,
-  ...forbidES2023BuiltIns,
-  ...forbidES2024BuiltIns,
-  ...forbidES2025BuiltIns,
-  ...disable(forbidES2016IntlBuiltIns),
-  ...disable(forbidES2017IntlBuiltIns),
-  ...forbidES2018IntlBuiltIns,
-  ...forbidES2020IntlBuiltIns,
-  ...forbidES2021IntlBuiltIns,
-  ...forbidES2022IntlBuiltIns,
-  ...forbidES2023IntlBuiltIns,
+  // prefer top-level await
+  'unicorn/prefer-top-level-await': ERROR,
 };
 
 const nodeDev = {
@@ -1610,9 +1544,9 @@ export default [
       'tests/@(compat|worker)/*.js',
     ],
     languageOptions: {
-      ecmaVersion: 3,
+      ecmaVersion: 5,
     },
-    rules: useES3Syntax,
+    rules: useES5Syntax,
   },
   {
     files: [
@@ -1627,12 +1561,6 @@ export default [
       'packages/core-js?(-pure)/**',
     ],
     rules: polyfills,
-  },
-  {
-    files: [
-      '**/postinstall.js',
-    ],
-    rules: disable(forbidES5BuiltIns),
   },
   {
     files: [
