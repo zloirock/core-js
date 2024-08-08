@@ -2340,6 +2340,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,
   'esnext.promise.try': {
+    bun: '1.1.22',
     chrome: '128',
   },
   // TODO: Remove from `core-js@4`
@@ -2372,6 +2373,7 @@ export const data = {
   'esnext.reflect.metadata': {
   },
   'esnext.regexp.escape': {
+    bun: '1.1.22',
   },
   'esnext.set.add-all': {
   },
@@ -2522,16 +2524,22 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.with': null,
   'esnext.uint8-array.from-base64': {
+    bun: '1.1.22',
   },
   'esnext.uint8-array.from-hex': {
+    bun: '1.1.22',
   },
   'esnext.uint8-array.set-from-base64': {
+    bun: '1.1.22',
   },
   'esnext.uint8-array.set-from-hex': {
+    bun: '1.1.22',
   },
   'esnext.uint8-array.to-base64': {
+    bun: '1.1.22',
   },
   'esnext.uint8-array.to-hex': {
+    bun: '1.1.22',
   },
   'esnext.weak-map.delete-all': {
   },
