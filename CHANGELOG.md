@@ -5,6 +5,7 @@
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped from Bun 1.1.22
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from Bun 1.1.22
   - Methods from [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) marked as shipped from Bun 1.1.22
+  - Added Opera Android 84 compat data mapping
 
 ##### [3.38.0 - 2024.08.05](https://github.com/zloirock/core-js/releases/tag/v3.38.0)
 - Changes [v3.37.1...v3.38.0](https://github.com/zloirock/core-js/compare/v3.37.1...v3.38.0)
