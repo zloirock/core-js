@@ -154,6 +154,10 @@ var decode = function (input) {
 
           var nextByte = parseHexOctet(input, i + 1);
 
+          if (nextByte > 191 || nextByte < 128) {  // incorrect next byte
+            break;
+          }
+
           if (isNaN(nextByte)) {
             i += 3;
             break;
