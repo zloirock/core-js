@@ -33,8 +33,6 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var arraySort = require('../internals/array-sort');
 
-var $includes = require('../internals/array-includes').includes;
-
 var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
 var URL_SEARCH_PARAMS_ITERATOR = URL_SEARCH_PARAMS + 'Iterator';
@@ -60,7 +58,6 @@ var stringSlice = uncurryThis(''.slice);
 
 var FALLBACK_REPLACER = '\uFFFD';
 var charCodeAt = uncurryThis(''.charCodeAt);
-var substring = uncurryThis(''.substring);
 var indexOf = uncurryThis(''.indexOf);
 var fromCharCode = String.fromCharCode;
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
@@ -98,7 +95,7 @@ var utf8Decode = function (octets) {
 };
 
 /* eslint-disable max-statements -- TODO */
-var decode = function (input, preserveEscapeSet) {
+var decode = function (input) {
   var length = input.length;
   var result = '';
   var i = 0;
@@ -113,7 +110,6 @@ var decode = function (input, preserveEscapeSet) {
         break;
       }
 
-      var escapeSequence = substring(input, i, i + 3);
       var octet = parseHexOctet(input, i + 1);
 
       if (isNaN(octet)) {
@@ -126,8 +122,7 @@ var decode = function (input, preserveEscapeSet) {
       var byteSequenceLength = getLeadingOnes(octet);
 
       if (byteSequenceLength === 0) {
-        var asciiChar = fromCharCode(octet);
-        decodedChar = $includes(preserveEscapeSet, asciiChar, undefined) ? escapeSequence : asciiChar;
+        decodedChar = fromCharCode(octet);
       } else {
         if (byteSequenceLength === 1 || byteSequenceLength > 4) {
           result += FALLBACK_REPLACER;
@@ -178,11 +173,6 @@ var decode = function (input, preserveEscapeSet) {
   }
 
   return result;
-};
-
-var deserialize = function (it) {
-  var preserveEscapeSet = ['%', ';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#'];
-  return decode(it, preserveEscapeSet);
 };
 
 var find = /[!'()~]|%20/g;
@@ -275,8 +265,8 @@ URLSearchParamsState.prototype = {
         if (attribute.length) {
           entry = split(attribute, '=');
           push(entries, {
-            key: deserialize(shift(entry)),
-            value: deserialize(join(entry, '='))
+            key: decode(shift(entry)),
+            value: decode(join(entry, '='))
           });
         }
       }

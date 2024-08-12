@@ -129,6 +129,7 @@ QUnit.test('URLSearchParams', assert => {
 
   assert.same(String(new URLSearchParams('%C2')), '%EF%BF%BD=');
   assert.same(String(new URLSearchParams('%F0%9F%D0%90')), '%EF%BF%BD%D0%90=');
+  assert.same(String(new URLSearchParams('%25')), '%25=');
 
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
