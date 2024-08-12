@@ -106,12 +106,12 @@ var decode = function (input) {
     var decodedChar = input[i];
 
     if (decodedChar === '%') {
-      if (i + 3 > length) {
+      if (i + 3 > length && i + 1 !== length) {
         result += FALLBACK_REPLACER;
         break;
       }
 
-      if (input[i + 1] === '%') {
+      if (input[i + 1] === '%' || i + 1 === length) {
         result += '%';
         i++;
         continue;
@@ -119,9 +119,9 @@ var decode = function (input) {
 
       var octet = parseHexOctet(input, i + 1);
 
-      if (isNaN(octet)) {
-        result += FALLBACK_REPLACER;
-        i += 3;
+      if (isNaN(octet) || octet < 32) {
+        result += decodedChar;
+        i++;
         continue;
       }
 
