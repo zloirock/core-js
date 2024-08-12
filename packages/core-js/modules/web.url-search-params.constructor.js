@@ -59,7 +59,6 @@ var stringSlice = uncurryThis(''.slice);
 
 var plus = /\+/g;
 var FALLBACK_REPLACER = '\uFFFD';
-var charCodeAt = uncurryThis(''.charCodeAt);
 var indexOf = uncurryThis(''.indexOf);
 var numberToString = uncurryThis(1.0.toString);
 var fromCharCode = String.fromCharCode;
@@ -104,13 +103,18 @@ var decode = function (input) {
   var i = 0;
 
   while (i < length) {
-    var charCode = charCodeAt(input, i);
     var decodedChar = input[i];
 
-    if (charCode === 0x25) {
+    if (decodedChar === '%') {
       if (i + 3 > length) {
         result += FALLBACK_REPLACER;
         break;
+      }
+
+      if (input[i + 1] === '%') {
+        result += '%';
+        i++;
+        continue;
       }
 
       var octet = parseHexOctet(input, i + 1);
@@ -142,7 +146,7 @@ var decode = function (input) {
             result += FALLBACK_REPLACER;
             break;
           }
-          if (charCodeAt(input, i) !== 0x25) {
+          if (input[i] !== '%') {
             result += FALLBACK_REPLACER;
             break;
           }
