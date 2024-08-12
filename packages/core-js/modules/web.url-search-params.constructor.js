@@ -32,6 +32,7 @@ var createIterResultObject = require('../internals/create-iter-result-object');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var arraySort = require('../internals/array-sort');
+var padStart = require('../internals/string-pad').start;
 
 var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
@@ -70,7 +71,7 @@ var parseHexOctet = function (string, start) {
 };
 
 var getLeadingOnes = function (octet) {
-  var binString = numberToString(octet, 2);
+  var binString = padStart(numberToString(octet, 2), 8, '0');
   return indexOf(binString, '0') !== -1 ? indexOf(binString, '0') : binString.length;
 };
 
@@ -180,7 +181,7 @@ var decode = function (input) {
 var deserialize = function (it) {
   var result = replace(it, plus, ' ');
   return decode(result);
-}
+};
 
 var find = /[!'()~]|%20/g;
 
