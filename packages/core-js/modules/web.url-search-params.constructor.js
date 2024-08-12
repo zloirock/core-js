@@ -59,7 +59,8 @@ var stringSlice = uncurryThis(''.slice);
 var FALLBACK_REPLACER = '\uFFFD';
 var charCodeAt = uncurryThis(''.charCodeAt);
 var indexOf = uncurryThis(''.indexOf);
-var fromCharCode = String.fromCharCode;
+var numberToString = uncurryThis(1.0.toString);
+var fromCharCode = uncurryThis(''.fromCharCode);
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
 var $parseInt = parseInt;
 
@@ -68,7 +69,7 @@ var parseHexOctet = function (string, start) {
 };
 
 var getLeadingOnes = function (octet) {
-  var binString = $toString(octet, 2);
+  var binString = numberToString(octet, 2);
   return indexOf(binString, '0') !== -1 ? indexOf(binString, '0') : binString.length;
 };
 
