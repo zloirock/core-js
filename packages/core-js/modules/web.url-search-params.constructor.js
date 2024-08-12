@@ -56,11 +56,12 @@ var splice = uncurryThis([].splice);
 var split = uncurryThis(''.split);
 var stringSlice = uncurryThis(''.slice);
 
+var plus = /\+/g;
 var FALLBACK_REPLACER = '\uFFFD';
 var charCodeAt = uncurryThis(''.charCodeAt);
 var indexOf = uncurryThis(''.indexOf);
 var numberToString = uncurryThis(1.0.toString);
-var fromCharCode = uncurryThis(''.fromCharCode);
+var fromCharCode = String.fromCharCode;
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
 var $parseInt = parseInt;
 
@@ -176,6 +177,11 @@ var decode = function (input) {
   return result;
 };
 
+var deserialize = function (it) {
+  var result = replace(it, plus, ' ');
+  return decode(result);
+}
+
 var find = /[!'()~]|%20/g;
 
 var replacements = {
@@ -266,8 +272,8 @@ URLSearchParamsState.prototype = {
         if (attribute.length) {
           entry = split(attribute, '=');
           push(entries, {
-            key: decode(shift(entry)),
-            value: decode(join(entry, '='))
+            key: deserialize(shift(entry)),
+            value: deserialize(join(entry, '='))
           });
         }
       }
