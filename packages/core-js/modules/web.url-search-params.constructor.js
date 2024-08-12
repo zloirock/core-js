@@ -59,6 +59,8 @@ var stringSlice = uncurryThis(''.slice);
 
 var plus = /\+/g;
 var FALLBACK_REPLACER = '\uFFFD';
+var VALID_HEX = /^[0-9a-f]+$/i;
+
 var indexOf = uncurryThis(''.indexOf);
 var numberToString = uncurryThis(1.0.toString);
 var fromCharCode = String.fromCharCode;
@@ -66,7 +68,10 @@ var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
 var $parseInt = parseInt;
 
 var parseHexOctet = function (string, start) {
-  return $parseInt(stringSlice(string, start, start + 2), 16);
+  var substr = stringSlice(string, start, start + 2);
+  if (!VALID_HEX.test(substr)) return NaN;
+
+  return $parseInt(substr, 16);
 };
 
 var getLeadingOnes = function (octet) {
@@ -107,7 +112,8 @@ var decode = function (input) {
 
     if (decodedChar === '%') {
       if (i + 3 > length && i + 1 !== length) {
-        result += FALLBACK_REPLACER;
+        /* eslint-disable no-useless-assignment -- TODO */
+        decodedChar = FALLBACK_REPLACER;
         break;
       }
 
@@ -119,7 +125,7 @@ var decode = function (input) {
 
       var octet = parseHexOctet(input, i + 1);
 
-      if (isNaN(octet) || octet < 32) {
+      if (isNaN(octet)) {
         result += decodedChar;
         i++;
         continue;
@@ -142,17 +148,13 @@ var decode = function (input) {
 
         while (sequenceIndex < byteSequenceLength) {
           i++;
-          if (i + 3 > length) {
-            result += FALLBACK_REPLACER;
+          if (i + 3 > length || input[i] !== '%') {
             break;
           }
-          if (input[i] !== '%') {
-            result += FALLBACK_REPLACER;
-            break;
-          }
+
           var nextByte = parseHexOctet(input, i + 1);
+
           if (isNaN(nextByte)) {
-            result += FALLBACK_REPLACER;
             i += 3;
             break;
           }
