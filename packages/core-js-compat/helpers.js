@@ -2,21 +2,25 @@
 // eslint-disable-next-line es/no-object-hasown -- safe
 const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
 
-function semver(input) {
-  if (input instanceof semver) return input;
-  // eslint-disable-next-line new-cap -- ok
-  if (!(this instanceof semver)) return new semver(input);
-  const match = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(input);
-  if (!match) throw new TypeError(`Invalid version: ${ input }`);
-  const [, $major, $minor, $patch] = match;
-  this.major = +$major;
-  this.minor = $minor ? +$minor : 0;
-  this.patch = $patch ? +$patch : 0;
+const VERSION_PATTERN = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/;
+
+class SemVer {
+  constructor(input) {
+    const match = VERSION_PATTERN.exec(input);
+    if (!match) throw new TypeError(`Invalid version: ${ input }`);
+    const [, $major, $minor, $patch] = match;
+    this.major = +$major;
+    this.minor = $minor ? +$minor : 0;
+    this.patch = $patch ? +$patch : 0;
+  }
+  toString() {
+    return `${ this.major }.${ this.minor }.${ this.patch }`;
+  }
 }
 
-semver.prototype.toString = function () {
-  return `${ this.major }.${ this.minor }.${ this.patch }`;
-};
+function semver(input) {
+  return input instanceof SemVer ? input : new SemVer(input);
+}
 
 function compare($a, operator, $b) {
   const a = semver($a);

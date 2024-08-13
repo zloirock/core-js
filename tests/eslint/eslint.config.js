@@ -696,6 +696,8 @@ const base = {
   'sonar/expression-complexity': [OFF, { max: 3 }],
   // `in` should not be used with primitive types
   'sonar/in-operator-type-error': ERROR,
+  // functions should be called consistently with or without `new`
+  'sonar/inconsistent-function-call': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense

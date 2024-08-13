@@ -1,3 +1,4 @@
+/* eslint-disable sonar/inconsistent-function-call -- required for testing */
 import { PROTO } from '../helpers/constants.js';
 
 import path from 'core-js-pure/es/error';

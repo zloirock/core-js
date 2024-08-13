@@ -1,3 +1,4 @@
+/* eslint-disable sonar/inconsistent-function-call -- required for testing */
 import { GLOBAL, PROTO } from '../helpers/constants.js';
 
 const { create } = Object;

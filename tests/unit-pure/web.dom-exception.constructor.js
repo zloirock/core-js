@@ -67,6 +67,7 @@ QUnit.test('DOMException', assert => {
     assert.same(DOMException.prototype[errors[name].s], errors[name].c, `DOMException.prototype.${ errors[name].s }`);
   }
 
+  // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
   assert.throws(() => DOMException(42, 'DataCloneError'), "DOMException(42, 'DataCloneError')");
   const symbol = Symbol('DOMException constructor test');
   assert.throws(() => new DOMException(symbol, 'DataCloneError'), "new DOMException(Symbol(), 'DataCloneError')");

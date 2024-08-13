@@ -9,10 +9,12 @@ QUnit.test('DisposableStack constructor', assert => {
   assert.arity(DisposableStack, 0);
   assert.name(DisposableStack, 'DisposableStack');
 
-  assert.throws(() => DisposableStack(), 'throws w/o `new`');
   assert.true(new DisposableStack() instanceof DisposableStack);
 
   assert.same(DisposableStack.prototype.constructor, DisposableStack);
+
+  // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+  assert.throws(() => DisposableStack(), 'throws w/o `new`');
 });
 
 QUnit.test('DisposableStack#dispose', assert => {

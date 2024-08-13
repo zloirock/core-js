@@ -7,14 +7,15 @@ import create from 'core-js-pure/es/object/create';
 
 QUnit.test('Promise', assert => {
   assert.isFunction(Promise);
-  assert.throws(() => {
-    Promise();
-  }, 'throws w/o `new`');
   new Promise(function (resolve, reject) {
     assert.isFunction(resolve, 'resolver is function');
     assert.isFunction(reject, 'rejector is function');
     if (STRICT) assert.same(this, undefined, 'correct executor context');
   });
+  assert.throws(() => {
+    // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+    Promise();
+  }, 'throws w/o `new`');
 });
 
 if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
