@@ -133,9 +133,9 @@ subset('core-js/stage', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
 subset('core-js/stage/pre', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
 subset('core-js/stage/0', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
 subset('core-js/stage/1', /^(?:es\.(?:map|string\.at)|esnext\.|web\.url)/);
-subset('core-js/stage/2', /^es\.string\.at|esnext\./);
-subset('core-js/stage/3', /^es\.string\.at|esnext\./);
-subset('core-js/stage/4', /^es\.string\.at|esnext\./);
+subset('core-js/stage/2', /^(?:es\.string\.at|esnext\.)/);
+subset('core-js/stage/3', /^(?:es\.string\.at|esnext\.)/);
+subset('core-js/stage/4', /^(?:es\.string\.at|esnext\.)/);
 
 async function unexpectedInnerNamespace(namespace, unexpected) {
   const paths = await glob(`packages/core-js/${ namespace }/**/*.js`);

@@ -14,6 +14,7 @@ import pluginPromise from 'eslint-plugin-promise';
 import pluginQUnit from 'eslint-plugin-qunit';
 import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
+import * as pluginSonar from 'eslint-plugin-sonar';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylisticJS from '@stylistic/eslint-plugin-js';
 import pluginUnicorn from 'eslint-plugin-unicorn';
@@ -675,6 +676,26 @@ const base = {
   'unicorn/text-encoding-identifier-case': ERROR,
   // require `new` when throwing an error
   'unicorn/throw-new-error': ERROR,
+
+  // sonar
+  // alternatives in regular expressions should be grouped when used with anchors
+  'sonar/anchor-precedence': ERROR,
+  // arguments to built-in functions should match documented types
+  'sonar/argument-type': OFF, // it seems does not work
+  // bitwise operators should not be used in boolean contexts
+  'sonar/bitwise-operators': ERROR,
+  // function call arguments should not start on new lines
+  'sonar/call-argument-line': ERROR,
+  // class names should comply with a naming convention
+  'sonar/class-name': [ERROR, { format: '^[A-Z$][a-zA-Z0-9]*$' }],
+  // comma and logical `OR` operators should not be used in switch cases
+  'sonar/comma-or-logical-or-case': ERROR,
+  // cyclomatic complexity of functions should not be too high
+  'sonar/cyclomatic-complexity': [OFF, { threshold: 16 }],
+  // expressions should not be too complex
+  'sonar/expression-complexity': [OFF, { max: 3 }],
+  // `in` should not be used with primitive types
+  'sonar/in-operator-type-error': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense
@@ -1587,6 +1608,7 @@ export default [
       qunit: fixupPluginRules(pluginQUnit),
       redos: pluginReDoS,
       regexp: pluginRegExp,
+      sonar: pluginSonar,
       sonarjs: pluginSonarJS,
       unicorn: pluginUnicorn,
     },
