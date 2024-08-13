@@ -698,6 +698,20 @@ const base = {
   'sonar/in-operator-type-error': ERROR,
   // functions should be called consistently with or without `new`
   'sonar/inconsistent-function-call': ERROR,
+  // `new` should only be used with functions and classes
+  'sonar/new-operator-misuse': [ERROR, { considerJSDoc: false }],
+  // `Array#{ sort, toSorted }` should use a compare function
+  'sonar/no-alphabetical-sort': ERROR,
+  // `delete` should not be used on arrays
+  'sonar/no-array-delete': ERROR,
+  // array indexes should be numeric
+  'sonar/no-associative-arrays': ERROR,
+  // `switch` statements should not contain non-case labels
+  'sonar/no-case-label-in-switch': ERROR,
+  // `for-in` should not be used with iterables
+  'sonar/no-for-in-iterable': ERROR,
+  // global `this` object should not be used
+  'sonar/no-global-this': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense
