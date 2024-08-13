@@ -112,7 +112,7 @@ var decode = function (input) {
     var decodedChar = charAt(input, i);
 
     if (decodedChar === '%') {
-      if (input[i + 1] === '%' || i + 1 === length || i + 3 > length) {
+      if (input[i + 1] === '%' || i + 3 > length) {
         result += '%';
         i++;
         continue;
@@ -147,12 +147,12 @@ var decode = function (input) {
 
           var nextByte = parseHexOctet(input, i + 1);
 
-          if (nextByte > 191 || nextByte < 128) break;
-
           if ($isNaN(nextByte)) {
             i += 3;
             break;
           }
+          if (nextByte > 191 || nextByte < 128) break;
+
           push(octets, nextByte);
           i += 2;
           sequenceIndex++;
