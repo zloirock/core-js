@@ -65,6 +65,7 @@ var indexOf = uncurryThis(''.indexOf);
 var numberToString = uncurryThis(1.0.toString);
 var fromCharCode = String.fromCharCode;
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
+var $isNaN = isNaN;
 var $parseInt = parseInt;
 
 var parseHexOctet = function (string, start) {
@@ -76,7 +77,8 @@ var parseHexOctet = function (string, start) {
 
 var getLeadingOnes = function (octet) {
   var binString = padStart(numberToString(octet, 2), 8, '0');
-  return indexOf(binString, '0') !== -1 ? indexOf(binString, '0') : binString.length;
+  var firstZero = indexOf(binString, '0');
+  return firstZero !== -1 ? firstZero : binString.length;
 };
 
 var utf8Decode = function (octets) {
@@ -101,23 +103,16 @@ var utf8Decode = function (octets) {
   return codePoint > 0x10FFFF ? null : codePoint;
 };
 
-/* eslint-disable max-statements -- TODO */
 var decode = function (input) {
   var length = input.length;
   var result = '';
   var i = 0;
 
   while (i < length) {
-    var decodedChar = input[i];
+    var decodedChar = charAt(input, i);
 
     if (decodedChar === '%') {
-      if (i + 3 > length && i + 1 !== length) {
-        /* eslint-disable no-useless-assignment -- TODO */
-        decodedChar = FALLBACK_REPLACER;
-        break;
-      }
-
-      if (input[i + 1] === '%' || i + 1 === length) {
+      if (input[i + 1] === '%' || i + 1 === length || i + 3 > length) {
         result += '%';
         i++;
         continue;
@@ -125,7 +120,7 @@ var decode = function (input) {
 
       var octet = parseHexOctet(input, i + 1);
 
-      if (isNaN(octet)) {
+      if ($isNaN(octet)) {
         result += decodedChar;
         i++;
         continue;
@@ -148,21 +143,17 @@ var decode = function (input) {
 
         while (sequenceIndex < byteSequenceLength) {
           i++;
-          if (i + 3 > length || input[i] !== '%') {
-            break;
-          }
+          if (i + 3 > length || input[i] !== '%') break;
 
           var nextByte = parseHexOctet(input, i + 1);
 
-          if (nextByte > 191 || nextByte < 128) {  // incorrect next byte
-            break;
-          }
+          if (nextByte > 191 || nextByte < 128) break;
 
-          if (isNaN(nextByte)) {
+          if ($isNaN(nextByte)) {
             i += 3;
             break;
           }
-          octets.push(nextByte);
+          push(octets, nextByte);
           i += 2;
           sequenceIndex++;
         }
