@@ -712,6 +712,22 @@ const base = {
   'sonar/no-for-in-iterable': ERROR,
   // global `this` object should not be used
   'sonar/no-global-this': ERROR,
+  // `in` should not be used on arrays
+  'sonar/no-in-misuse': ERROR,
+  // strings and non-strings should not be added
+  'sonar/no-incorrect-string-concat': ERROR,
+  // `await` should only be used with promises
+  'sonar/no-invalid-await': ERROR,
+  // function returns should not be invariant
+  'sonar/no-invariant-returns': ERROR,
+  // literals should not be used as functions
+  'sonar/no-literal-call': ERROR,
+  // array-mutating methods should not be used misleadingly
+  'sonar/no-misleading-array-reverse': ERROR,
+  // promises should not be misused
+  'sonar/no-misused-promises': ERROR,
+  // assignments should not be redundant
+  'sonar/no-redundant-assignments': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense

@@ -38,7 +38,6 @@ const run = assert => {
   let string = 'ABB\u0041BABAB';
   assert.same(string.match(object)[0], 'AB', 'S15.5.4.10_A1_T10');
   object = { toString() { throw new Error('intostr'); } };
-  string = 'ABB\u0041BABAB';
   try {
     string.match(object);
     assert.avoid('S15.5.4.10_A1_T11 #1 lead to throwing exception');
@@ -53,7 +52,6 @@ const run = assert => {
       throw new Error('intostr');
     },
   };
-  string = 'ABB\u0041BABAB';
   try {
     string.match(object);
     assert.avoid('S15.5.4.10_A1_T12 #1 lead to throwing exception');
@@ -90,13 +88,11 @@ const run = assert => {
     assert.same(string.match(/\d/g)[i], matches[i], 'S15.5.4.10_A2_T3 #2');
   }
   matches = ['12', '34', '56', '78', '90'];
-  string = '123456abcde7890';
   assert.same(string.match(/\d{2}/g).length, 5, 'S15.5.4.10_A2_T4 #1');
   for (let i = 0, { length } = matches; i < length; ++i) {
     assert.same(string.match(/\d{2}/g)[i], matches[i], 'S15.5.4.10_A2_T4 #2');
   }
   matches = ['ab', 'cd'];
-  string = '123456abcde7890';
   assert.same(string.match(/\D{2}/g).length, 2, 'S15.5.4.10_A2_T5 #1');
   for (let i = 0, { length } = matches; i < length; ++i) {
     assert.same(string.match(/\D{2}/g)[i], matches[i], 'S15.5.4.10_A2_T5 #2');
@@ -108,7 +104,6 @@ const run = assert => {
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/).length, 3, 'S15.5.4.10_A2_T6 #4');
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/).index, 14, 'S15.5.4.10_A2_T6 #5');
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/).input, string, 'S15.5.4.10_A2_T6 #6');
-  string = 'Boston, Mass. 02134';
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/g).length, 1, 'S15.5.4.10_A2_T7 #1');
   assert.same(string.match(/(\d{5})([ -]?\d{4})?$/g)[0], '02134', 'S15.5.4.10_A2_T7 #2');
   /* IE8- buggy here (empty string instead of `undefined`), but we don't polyfill base `.match` logic
@@ -153,35 +148,25 @@ const run = assert => {
   regexp = /(\d{5})([ -]?\d{4})?$/g;
   assert.same(string.match(regexp).length, 1, 'S15.5.4.10_A2_T12 #1');
   assert.same(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T12 #2');
-  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = 0;
-  string = 'Boston, MA 02134';
   assert.same(string.match(regexp).length, 1, 'S15.5.4.10_A2_T13 #1');
   assert.same(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T13 #2');
-  string = 'Boston, MA 02134';
-  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = string.length;
   assert.same(string.match(regexp).length, 1, 'S15.5.4.10_A2_T14 #1');
   assert.same(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T14 #2');
-  string = 'Boston, MA 02134';
-  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = string.lastIndexOf('0');
   assert.same(string.match(regexp).length, 1, 'S15.5.4.10_A2_T15 #1');
   assert.same(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T15 #2');
-  string = 'Boston, MA 02134';
-  regexp = /(\d{5})([ -]?\d{4})?$/g;
   regexp.lastIndex = string.lastIndexOf('0') + 1;
   assert.same(string.match(regexp).length, 1, 'S15.5.4.10_A2_T16 #1');
   assert.same(string.match(regexp)[0], '02134', 'S15.5.4.10_A2_T16 #2');
   regexp = /0./;
-  let number = 10203040506070809000;
+  const number = 10203040506070809000;
   assert.same(''.match.call(number, regexp)[0], '02', 'S15.5.4.10_A2_T17 #1');
   assert.same(''.match.call(number, regexp).length, 1, 'S15.5.4.10_A2_T17 #2');
   assert.same(''.match.call(number, regexp).index, 1, 'S15.5.4.10_A2_T17 #3');
   assert.same(''.match.call(number, regexp).input, String(number), 'S15.5.4.10_A2_T17 #4');
-  regexp = /0./;
   regexp.lastIndex = 0;
-  number = 10203040506070809000;
   assert.same(''.match.call(number, regexp)[0], '02', 'S15.5.4.10_A2_T18 #1');
   assert.same(''.match.call(number, regexp).length, 1, 'S15.5.4.10_A2_T18 #2');
   assert.same(''.match.call(number, regexp).index, 1, 'S15.5.4.10_A2_T18 #3');
