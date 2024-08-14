@@ -32,7 +32,6 @@ var createIterResultObject = require('../internals/create-iter-result-object');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var arraySort = require('../internals/array-sort');
-var padStart = require('../internals/string-pad').start;
 
 var ITERATOR = wellKnownSymbol('iterator');
 var URL_SEARCH_PARAMS = 'URLSearchParams';
@@ -48,6 +47,10 @@ var RequestPrototype = NativeRequest && NativeRequest.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
 var TypeError = globalThis.TypeError;
 var encodeURIComponent = globalThis.encodeURIComponent;
+var fromCharCode = String.fromCharCode;
+var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
+var $isNaN = isNaN;
+var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
@@ -56,36 +59,31 @@ var shift = uncurryThis([].shift);
 var splice = uncurryThis([].splice);
 var split = uncurryThis(''.split);
 var stringSlice = uncurryThis(''.slice);
+var exec = uncurryThis(/./.exec);
 
 var plus = /\+/g;
 var FALLBACK_REPLACER = '\uFFFD';
 var VALID_HEX = /^[0-9a-f]+$/i;
 
-var indexOf = uncurryThis(''.indexOf);
-var numberToString = uncurryThis(1.0.toString);
-var fromCharCode = String.fromCharCode;
-var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
-var $isNaN = isNaN;
-var $parseInt = parseInt;
-
 var parseHexOctet = function (string, start) {
   var substr = stringSlice(string, start, start + 2);
-  if (!VALID_HEX.test(substr)) return NaN;
+  if (!exec(VALID_HEX, substr)) return NaN;
 
   return $parseInt(substr, 16);
 };
 
 var getLeadingOnes = function (octet) {
-  var binString = padStart(numberToString(octet, 2), 8, '0');
-  var firstZero = indexOf(binString, '0');
-  return firstZero !== -1 ? firstZero : binString.length;
+  var count = 0;
+  for (var mask = 0x80; mask > 0 && (octet & mask) !== 0; mask >>= 1) {
+    count++;
+  }
+  return count;
 };
 
 var utf8Decode = function (octets) {
-  var len = octets.length;
   var codePoint = null;
 
-  switch (len) {
+  switch (octets.length) {
     case 1:
       codePoint = octets[0];
       break;
@@ -112,7 +110,7 @@ var decode = function (input) {
     var decodedChar = charAt(input, i);
 
     if (decodedChar === '%') {
-      if (input[i + 1] === '%' || i + 3 > length) {
+      if (charAt(input, i + 1) === '%' || i + 3 > length) {
         result += '%';
         i++;
         continue;
@@ -143,7 +141,7 @@ var decode = function (input) {
 
         while (sequenceIndex < byteSequenceLength) {
           i++;
-          if (i + 3 > length || input[i] !== '%') break;
+          if (i + 3 > length || charAt(input, i) !== '%') break;
 
           var nextByte = parseHexOctet(input, i + 1);
 
