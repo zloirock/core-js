@@ -2118,12 +2118,14 @@ export const data = {
   'esnext.composite-symbol': {
   },
   'esnext.data-view.get-float16': {
+    bun: '1.1.24',
     deno: '1.43',
     firefox: '129',
   },
   'esnext.data-view.get-uint8-clamped': {
   },
   'esnext.data-view.set-float16': {
+    bun: '1.1.24',
     deno: '1.43',
     firefox: '129',
   },
@@ -2280,6 +2282,7 @@ export const data = {
   'esnext.math.fscale': {
   },
   'esnext.math.f16round': {
+    bun: '1.1.24',
     deno: '1.43',
     firefox: '129',
   },
