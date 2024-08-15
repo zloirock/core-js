@@ -1,9 +1,11 @@
 'use strict';
 // TODO: in core-js@4, move /modules/ dependencies to public entries for better optimization by tools like `preset-env`
 require('../modules/es.array.iterator');
+require('../modules/es.string.from-code-point');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');
+var getBuiltIn = require('../internals/get-built-in');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var DESCRIPTORS = require('../internals/descriptors');
@@ -43,10 +45,12 @@ var NativeRequest = safeGetBuiltIn('Request');
 var Headers = safeGetBuiltIn('Headers');
 var RequestPrototype = NativeRequest && NativeRequest.prototype;
 var HeadersPrototype = Headers && Headers.prototype;
-var RegExp = globalThis.RegExp;
 var TypeError = globalThis.TypeError;
-var decodeURIComponent = globalThis.decodeURIComponent;
 var encodeURIComponent = globalThis.encodeURIComponent;
+var fromCharCode = String.fromCharCode;
+var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
+var $isNaN = isNaN;
+var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
 var push = uncurryThis([].push);
@@ -55,33 +59,123 @@ var shift = uncurryThis([].shift);
 var splice = uncurryThis([].splice);
 var split = uncurryThis(''.split);
 var stringSlice = uncurryThis(''.slice);
+var exec = uncurryThis(/./.exec);
 
 var plus = /\+/g;
-var sequences = Array(4);
+var FALLBACK_REPLACER = '\uFFFD';
+var VALID_HEX = /^[0-9a-f]+$/i;
 
-var percentSequence = function (bytes) {
-  return sequences[bytes - 1] || (sequences[bytes - 1] = RegExp('((?:%[\\da-f]{2}){' + bytes + '})', 'gi'));
+var parseHexOctet = function (string, start) {
+  var substr = stringSlice(string, start, start + 2);
+  if (!exec(VALID_HEX, substr)) return NaN;
+
+  return $parseInt(substr, 16);
 };
 
-var percentDecode = function (sequence) {
-  try {
-    return decodeURIComponent(sequence);
-  } catch (error) {
-    return sequence;
+var getLeadingOnes = function (octet) {
+  var count = 0;
+  for (var mask = 0x80; mask > 0 && (octet & mask) !== 0; mask >>= 1) {
+    count++;
   }
+  return count;
 };
 
-var deserialize = function (it) {
-  var result = replace(it, plus, ' ');
-  var bytes = 4;
-  try {
-    return decodeURIComponent(result);
-  } catch (error) {
-    while (bytes) {
-      result = replace(result, percentSequence(bytes--), percentDecode);
+var utf8Decode = function (octets) {
+  var codePoint = null;
+
+  switch (octets.length) {
+    case 1:
+      codePoint = octets[0];
+      break;
+    case 2:
+      codePoint = (octets[0] & 0x1F) << 6 | (octets[1] & 0x3F);
+      break;
+    case 3:
+      codePoint = (octets[0] & 0x0F) << 12 | (octets[1] & 0x3F) << 6 | (octets[2] & 0x3F);
+      break;
+    case 4:
+      codePoint = (octets[0] & 0x07) << 18 | (octets[1] & 0x3F) << 12 | (octets[2] & 0x3F) << 6 | (octets[3] & 0x3F);
+      break;
+  }
+
+  return codePoint > 0x10FFFF ? null : codePoint;
+};
+
+var decode = function (input) {
+  input = replace(input, plus, ' ');
+  var length = input.length;
+  var result = '';
+  var i = 0;
+
+  while (i < length) {
+    var decodedChar = charAt(input, i);
+
+    if (decodedChar === '%') {
+      if (charAt(input, i + 1) === '%' || i + 3 > length) {
+        result += '%';
+        i++;
+        continue;
+      }
+
+      var octet = parseHexOctet(input, i + 1);
+
+      if ($isNaN(octet)) {
+        result += decodedChar;
+        i++;
+        continue;
+      }
+
+      i += 2;
+      var byteSequenceLength = getLeadingOnes(octet);
+
+      if (byteSequenceLength === 0) {
+        decodedChar = fromCharCode(octet);
+      } else {
+        if (byteSequenceLength === 1 || byteSequenceLength > 4) {
+          result += FALLBACK_REPLACER;
+          i++;
+          continue;
+        }
+
+        var octets = [octet];
+        var sequenceIndex = 1;
+
+        while (sequenceIndex < byteSequenceLength) {
+          i++;
+          if (i + 3 > length || charAt(input, i) !== '%') break;
+
+          var nextByte = parseHexOctet(input, i + 1);
+
+          if ($isNaN(nextByte)) {
+            i += 3;
+            break;
+          }
+          if (nextByte > 191 || nextByte < 128) break;
+
+          push(octets, nextByte);
+          i += 2;
+          sequenceIndex++;
+        }
+
+        if (octets.length !== byteSequenceLength) {
+          result += FALLBACK_REPLACER;
+          continue;
+        }
+
+        var codePoint = utf8Decode(octets);
+        if (codePoint === null) {
+          result += FALLBACK_REPLACER;
+        } else {
+          decodedChar = fromCodePoint(codePoint);
+        }
+      }
     }
-    return result;
+
+    result += decodedChar;
+    i++;
   }
+
+  return result;
 };
 
 var find = /[!'()~]|%20/g;
@@ -174,8 +268,8 @@ URLSearchParamsState.prototype = {
         if (attribute.length) {
           entry = split(attribute, '=');
           push(entries, {
-            key: deserialize(shift(entry)),
-            value: deserialize(join(entry, '='))
+            key: decode(shift(entry)),
+            value: decode(join(entry, '='))
           });
         }
       }

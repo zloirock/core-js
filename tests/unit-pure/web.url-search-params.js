@@ -102,6 +102,36 @@ QUnit.test('URLSearchParams', assert => {
   params = new URLSearchParams(params.toString());
   assert.same(params.get('query'), '+15555555555', 'parse encoded +');
 
+  params = new URLSearchParams('b=%2sf%2a');
+  assert.same(params.get('b'), '%2sf*', 'parse encoded %2sf%2a');
+  params = new URLSearchParams('b=%%2a');
+  assert.same(params.get('b'), '%*', 'parse encoded b=%%2a');
+
+  params = new URLSearchParams('a=b\u2384');
+  assert.same(params.get('a'), 'b\u2384', 'parse \u2384');
+  params = new URLSearchParams('a\u2384b=c');
+  assert.same(params.get('a\u2384b'), 'c', 'parse \u2384');
+
+  params = new URLSearchParams('a=b%e2%8e%84');
+  assert.same(params.get('a'), 'b\u2384', 'parse b%e2%8e%84');
+  params = new URLSearchParams('a%e2%8e%84b=c');
+  assert.same(params.get('a\u2384b'), 'c', 'parse b%e2%8e%84');
+
+  params = new URLSearchParams('a=b\uD83D\uDCA9c');
+  assert.same(params.get('a'), 'b\uD83D\uDCA9c', 'parse \uD83D\uDCA9');
+  params = new URLSearchParams('a\uD83D\uDCA9b=c');
+  assert.same(params.get('a\uD83D\uDCA9b'), 'c', 'parse \uD83D\uDCA9');
+
+  params = new URLSearchParams('a=b%f0%9f%92%a9c');
+  assert.same(params.get('a'), 'b\uD83D\uDCA9c', 'parse %f0%9f%92%a9');
+  params = new URLSearchParams('a%f0%9f%92%a9b=c');
+  assert.same(params.get('a\uD83D\uDCA9b'), 'c', 'parse %f0%9f%92%a9');
+
+  assert.same(String(new URLSearchParams('%C2')), '%EF%BF%BD=');
+  assert.same(String(new URLSearchParams('%F0%9F%D0%90')), '%EF%BF%BD%D0%90=');
+  assert.same(String(new URLSearchParams('%25')), '%25=');
+  assert.same(String(new URLSearchParams('%4')), '%254=');
+
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
