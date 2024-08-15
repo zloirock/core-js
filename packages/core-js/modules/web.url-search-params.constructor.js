@@ -102,6 +102,7 @@ var utf8Decode = function (octets) {
 };
 
 var decode = function (input) {
+  input = replace(input, plus, ' ');
   var length = input.length;
   var result = '';
   var i = 0;
@@ -175,11 +176,6 @@ var decode = function (input) {
   }
 
   return result;
-};
-
-var deserialize = function (it) {
-  var result = replace(it, plus, ' ');
-  return decode(result);
 };
 
 var find = /[!'()~]|%20/g;
@@ -272,8 +268,8 @@ URLSearchParamsState.prototype = {
         if (attribute.length) {
           entry = split(attribute, '=');
           push(entries, {
-            key: deserialize(shift(entry)),
-            value: deserialize(join(entry, '='))
+            key: decode(shift(entry)),
+            value: decode(join(entry, '='))
           });
         }
       }
