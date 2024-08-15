@@ -30,8 +30,8 @@ var getSubscriptionObserverInternalState = getterFor(SUBSCRIPTION_OBSERVER);
 
 var SubscriptionState = function (observer) {
   this.observer = anObject(observer);
-  this.cleanup = undefined;
-  this.subscriptionObserver = undefined;
+  this.cleanup = null;
+  this.subscriptionObserver = null;
 };
 
 SubscriptionState.prototype = {
@@ -39,7 +39,7 @@ SubscriptionState.prototype = {
   clean: function () {
     var cleanup = this.cleanup;
     if (cleanup) {
-      this.cleanup = undefined;
+      this.cleanup = null;
       try {
         cleanup();
       } catch (error) {
@@ -53,10 +53,10 @@ SubscriptionState.prototype = {
       var subscriptionObserver = this.subscriptionObserver;
       subscription.closed = true;
       if (subscriptionObserver) subscriptionObserver.closed = true;
-    } this.observer = undefined;
+    } this.observer = null;
   },
   isClosed: function () {
-    return this.observer === undefined;
+    return this.observer === null;
   }
 };
 

@@ -56,7 +56,7 @@ defineBuiltIns(DisposableStackPrototype, {
     var suppressed;
     while (i) {
       var disposeMethod = stack[--i];
-      stack[i] = undefined;
+      stack[i] = null;
       try {
         disposeMethod();
       } catch (errorResult) {
@@ -68,7 +68,7 @@ defineBuiltIns(DisposableStackPrototype, {
         }
       }
     }
-    internalState.stack = undefined;
+    internalState.stack = null;
     if (thrown) throw suppressed;
   },
   use: function use(value) {
