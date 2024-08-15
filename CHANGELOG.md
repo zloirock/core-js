@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed some cases of `URLSearchParams` percent decoding, [#1357](https://github.com/zloirock/core-js/issues/1357), [#1361](https://github.com/zloirock/core-js/pull/1361), thanks [**@slowcheetah**](https://github.com/slowcheetah)
 - Compat data improvements:
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as [shipped from FF131](https://bugzilla.mozilla.org/show_bug.cgi?id=1896390)
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as shipped from Bun 1.1.23
