@@ -728,6 +728,20 @@ const base = {
   'sonar/no-misused-promises': ERROR,
   // assignments should not be redundant
   'sonar/no-redundant-assignments': ERROR,
+  // redundant pairs of parentheses should be removed
+  'sonar/no-redundant-parentheses': ERROR,
+  // variables should be defined before being used
+  'sonar/no-reference-error': ERROR,
+  // promise rejections should not be caught by `try` blocks
+  'sonar/no-try-promise': ERROR,
+  // `undefined` should not be passed as the value of optional parameters
+  'sonar/no-undefined-argument': ERROR,
+  // errors should not be created without being thrown
+  'sonar/no-unthrown-error': ERROR,
+  // unused private class members should be removed
+  'sonar/no-unused-private-class-members': ERROR,
+  // values should not be uselessly incremented
+  'sonar/no-useless-increment': ERROR,
 
   // sonarjs
   // collection sizes and array length comparisons should make sense

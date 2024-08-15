@@ -1,4 +1,6 @@
 'use strict';
+/* eslint-disable no-undef, no-useless-call, sonar/no-reference-error -- required for testing */
+/* eslint-disable es/no-legacy-object-prototype-accessor-methods -- required for testing */
 var IS_PURE = require('../internals/is-pure');
 var globalThis = require('../internals/global-this');
 var fails = require('../internals/fails');
@@ -11,7 +13,6 @@ module.exports = IS_PURE || !fails(function () {
   if (WEBKIT && WEBKIT < 535) return;
   var key = Math.random();
   // In FF throws only define methods
-  // eslint-disable-next-line no-undef, no-useless-call, es/no-legacy-object-prototype-accessor-methods -- required for testing
   __defineSetter__.call(null, key, function () { /* empty */ });
   delete globalThis[key];
 });
