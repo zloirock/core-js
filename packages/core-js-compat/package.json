@@ -5,7 +5,7 @@
   "description": "core-js compat",
   "repository": {
     "type": "git",
-    "url": "https://github.com/zloirock/core-js.git",
+    "url": "git+https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-compat"
   },
   "funding": {
