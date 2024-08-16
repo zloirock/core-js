@@ -149,18 +149,21 @@ export const data = {
   'es.aggregate-error.constructor': {
     chrome: '85',
     firefox: '79',
+    hermes: '0.13',
     'react-native': '0.72',
     safari: '14.0',
   },
   'es.aggregate-error.cause': {
     chrome: '94',
     firefox: '91',
+    hermes: '0.13',
     'react-native': '0.72',
     safari: '15.0',
   },
   'es.array.at': {
     chrome: '92',
     firefox: '90',
+    hermes: '0.13',
     'react-native': '0.71',
     rhino: '1.7.15',
     safari: '15.4',
@@ -247,6 +250,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
+    hermes: '0.13',
     'react-native': '0.73',
     rhino: '1.7.13',
     safari: '9.0',
@@ -385,6 +389,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
+    hermes: '0.13',
     'react-native': '0.74',
     safari: '16.0',
   },
@@ -398,6 +403,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
+    hermes: '0.13',
     'react-native': '0.74',
     safari: '16.0',
   },
@@ -423,6 +429,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     firefox: '115',
+    hermes: '0.13',
     'react-native': '0.74',
     safari: '16.0',
   },
@@ -590,6 +597,7 @@ export const data = {
   'es.json.stringify': {
     chrome: '72',
     firefox: '64',
+    hermes: '0.13',
     'react-native': '0.72',
     safari: '12.1',
   },
@@ -607,6 +615,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
+    hermes: '0.13',
     'react-native': '0.73',
     rhino: '1.7.13',
     safari: '10.0',
@@ -1325,6 +1334,7 @@ export const data = {
   'es.regexp.exec': {
     chrome: '64',
     firefox: '78',
+    hermes: '0.13',
     'react-native': '0.71',
     safari: '11.1',
   },
@@ -1361,6 +1371,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
+    hermes: '0.13',
     'react-native': '0.73',
     rhino: '1.7.13',
     safari: '10.0',
@@ -1438,6 +1449,7 @@ export const data = {
   'es.string.at-alternative': {
     chrome: '92',
     firefox: '90',
+    hermes: '0.13',
     'react-native': '0.71',
     rhino: '1.7.15',
     safari: '15.4',
@@ -1534,6 +1546,7 @@ export const data = {
   'es.string.replace': {
     chrome: '64',
     firefox: '78',
+    hermes: '0.13',
     'react-native': '0.71',
     safari: '14.0',
   },
@@ -1767,6 +1780,7 @@ export const data = {
   'es.typed-array.at': {
     chrome: '92',
     firefox: '90',
+    hermes: '0.13',
     'react-native': '0.71',
     rhino: '1.7.15',
     safari: '15.4',
@@ -1989,6 +2003,7 @@ export const data = {
     // adding frozen arrays to WeakMap unfreeze them
     // edge: '15',
     firefox: '53',
+    hermes: '0.13',
     'react-native': '0.73',
     rhino: '1.7.13',
     safari: '10.0',
@@ -1999,6 +2014,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '53',
+    hermes: '0.13',
     'react-native': '0.73',
     rhino: '1.7.13',
     safari: '10.0',
@@ -2570,6 +2586,7 @@ export const data = {
     // older have wrong arity
     edge: '16', // '13',
     firefox: '27',
+    hermes: '0.13',
     // https://github.com/nodejs/node/issues/41450
     // https://github.com/nodejs/node/issues/42530
     // https://github.com/nodejs/node/issues/42646
