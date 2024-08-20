@@ -1,12 +1,13 @@
 ## Changelog
 ##### Unreleased
 - Fixed some cases of `URLSearchParams` percent decoding, [#1357](https://github.com/zloirock/core-js/issues/1357), [#1361](https://github.com/zloirock/core-js/pull/1361), thanks [**@slowcheetah**](https://github.com/slowcheetah)
+- Some stylistic changes and minor optimizations
 - Compat data improvements:
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as [shipped from FF131](https://bugzilla.mozilla.org/show_bug.cgi?id=1896390)
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as shipped from Bun 1.1.23
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped from Bun 1.1.22
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from Bun 1.1.22
-  - Methods from [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) marked as shipped from Bun 1.1.22
+  - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) methods marked as shipped from Bun 1.1.22
   - Added Hermes 0.13 compat data, similar to React Native 0.75 Hermes
   - Added Opera Android 84 compat data mapping
 
