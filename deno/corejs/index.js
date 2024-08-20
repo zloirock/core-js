@@ -1,7 +1,7 @@
 /**
- * core-js 3.38.0
+ * core-js 3.38.1
  * © 2014-2024 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.38.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.38.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -1035,10 +1035,10 @@ var SHARED = '__core-js_shared__';
 var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, {});
 
 (store.versions || (store.versions = [])).push({
-  version: '3.38.0',
+  version: '3.38.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2024 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.38.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.38.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -3898,7 +3898,7 @@ if (FORCED_PROMISE_CONSTRUCTOR) {
       reactions: new Queue(),
       rejection: false,
       state: PENDING,
-      value: undefined
+      value: null
     });
   };
 
@@ -7417,14 +7417,14 @@ defineBuiltIns(AsyncDisposableStackPrototype, {
       var loop = function () {
         if (i) {
           var disposeMethod = stack[--i];
-          stack[i] = undefined;
+          stack[i] = null;
           try {
             Promise.resolve(disposeMethod()).then(loop, handleError);
           } catch (error) {
             handleError(error);
           }
         } else {
-          internalState.stack = undefined;
+          internalState.stack = null;
           thrown ? reject(suppressed) : resolve(undefined);
         }
       };
@@ -9047,8 +9047,8 @@ module.exports = {
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
         index: create(null),
-        first: undefined,
-        last: undefined,
+        first: null,
+        last: null,
         size: 0
       });
       if (!DESCRIPTORS) that.size = 0;
@@ -9073,7 +9073,7 @@ module.exports = {
           key: key,
           value: value,
           previous: previous = state.last,
-          next: undefined,
+          next: null,
           removed: false
         };
         if (!state.first) state.first = entry;
@@ -9107,10 +9107,10 @@ module.exports = {
         var entry = state.first;
         while (entry) {
           entry.removed = true;
-          if (entry.previous) entry.previous = entry.previous.next = undefined;
+          if (entry.previous) entry.previous = entry.previous.next = null;
           entry = entry.next;
         }
-        state.first = state.last = undefined;
+        state.first = state.last = null;
         state.index = create(null);
         if (DESCRIPTORS) state.size = 0;
         else that.size = 0;
@@ -9202,7 +9202,7 @@ module.exports = {
         target: iterated,
         state: getInternalCollectionState(iterated),
         kind: kind,
-        last: undefined
+        last: null
       });
     }, function () {
       var state = getInternalIteratorState(this);
@@ -9213,7 +9213,7 @@ module.exports = {
       // get next entry
       if (!state.target || !(state.last = entry = entry ? entry.next : state.state.first)) {
         // or finish the iteration
-        state.target = undefined;
+        state.target = null;
         return createIterResultObject(undefined, true);
       }
       // return step by kind
@@ -9531,7 +9531,7 @@ module.exports = {
       setInternalState(that, {
         type: CONSTRUCTOR_NAME,
         id: id++,
-        frozen: undefined
+        frozen: null
       });
       if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
@@ -9579,7 +9579,7 @@ module.exports = {
         if (isObject(key)) {
           var data = getWeakData(key);
           if (data === true) return uncaughtFrozenStore(state).get(key);
-          return data ? data[state.id] : undefined;
+          if (data) return data[state.id];
         }
       },
       // `WeakMap.prototype.set(key, value)` method
@@ -9986,7 +9986,7 @@ defineBuiltIns(DisposableStackPrototype, {
     var suppressed;
     while (i) {
       var disposeMethod = stack[--i];
-      stack[i] = undefined;
+      stack[i] = null;
       try {
         disposeMethod();
       } catch (errorResult) {
@@ -9998,7 +9998,7 @@ defineBuiltIns(DisposableStackPrototype, {
         }
       }
     }
-    internalState.stack = undefined;
+    internalState.stack = null;
     if (thrown) throw suppressed;
   },
   use: function use(value) {
@@ -12430,8 +12430,8 @@ var getSubscriptionObserverInternalState = getterFor(SUBSCRIPTION_OBSERVER);
 
 var SubscriptionState = function (observer) {
   this.observer = anObject(observer);
-  this.cleanup = undefined;
-  this.subscriptionObserver = undefined;
+  this.cleanup = null;
+  this.subscriptionObserver = null;
 };
 
 SubscriptionState.prototype = {
@@ -12439,7 +12439,7 @@ SubscriptionState.prototype = {
   clean: function () {
     var cleanup = this.cleanup;
     if (cleanup) {
-      this.cleanup = undefined;
+      this.cleanup = null;
       try {
         cleanup();
       } catch (error) {
@@ -12453,10 +12453,10 @@ SubscriptionState.prototype = {
       var subscriptionObserver = this.subscriptionObserver;
       subscription.closed = true;
       if (subscriptionObserver) subscriptionObserver.closed = true;
-    } this.observer = undefined;
+    } this.observer = null;
   },
   isClosed: function () {
-    return this.observer === undefined;
+    return this.observer === null;
   }
 };
 
@@ -13900,6 +13900,7 @@ var dedentStringsArray = function (template) {
       lines[lines.length - 2] = '';
       lines[lines.length - 1] = '';
     }
+    // eslint-disable-next-line sonar/no-redundant-assignments -- false positive, https://github.com/SonarSource/SonarJS/issues/4767
     for (var j = 2; j < lines.length; j += 2) {
       var text = lines[j];
       var lineContainsTemplateExpression = j + 1 === lines.length && !lastSplit;

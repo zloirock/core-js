@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.38.1 - 2024.08.20](https://github.com/zloirock/core-js/releases/tag/v3.38.1)
+- Changes [v3.38.0...v3.38.1](https://github.com/zloirock/core-js/compare/v3.38.0...v3.38.1)
 - Fixed some cases of `URLSearchParams` percent decoding, [#1357](https://github.com/zloirock/core-js/issues/1357), [#1361](https://github.com/zloirock/core-js/pull/1361), thanks [**@slowcheetah**](https://github.com/slowcheetah)
 - Some stylistic changes and minor optimizations
 - Compat data improvements:
