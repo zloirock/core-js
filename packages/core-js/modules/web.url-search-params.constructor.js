@@ -49,7 +49,6 @@ var TypeError = globalThis.TypeError;
 var encodeURIComponent = globalThis.encodeURIComponent;
 var fromCharCode = String.fromCharCode;
 var fromCodePoint = getBuiltIn('String', 'fromCodePoint');
-var $isNaN = isNaN;
 var $parseInt = parseInt;
 var charAt = uncurryThis(''.charAt);
 var join = uncurryThis([].join);
@@ -119,7 +118,8 @@ var decode = function (input) {
 
       var octet = parseHexOctet(input, i + 1);
 
-      if ($isNaN(octet)) {
+      // eslint-disable-next-line no-self-compare -- NaN check
+      if (octet !== octet) {
         result += decodedChar;
         i++;
         continue;
@@ -146,7 +146,8 @@ var decode = function (input) {
 
           var nextByte = parseHexOctet(input, i + 1);
 
-          if ($isNaN(nextByte)) {
+          // eslint-disable-next-line no-self-compare -- NaN check
+          if (nextByte !== nextByte) {
             i += 3;
             break;
           }
