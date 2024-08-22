@@ -2678,7 +2678,7 @@ export const data = {
     // https://github.com/denoland/deno/issues/15765
     // broken in Deno 1.45.3 again:
     // https://github.com/denoland/deno/issues/24683
-    // deno: '1.29.3',
+    deno: '1.46.0', // '1.29.3',
     // fails in early Chrome-based Edge
     // edge: '12',
     firefox: '31',

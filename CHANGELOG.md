@@ -2,6 +2,7 @@
 ##### Unreleased
 - Compat data improvements:
   - Added Deno [1.46](https://github.com/denoland/deno/releases/tag/v1.46.0) compat data mapping
+  - `self` descriptor [is fixed](https://github.com/denoland/deno/issues/24683) in Deno 1.46.0
 
 ##### [3.38.1 - 2024.08.20](https://github.com/zloirock/core-js/releases/tag/v3.38.1)
 - Changes [v3.38.0...v3.38.1](https://github.com/zloirock/core-js/compare/v3.38.0...v3.38.1)
