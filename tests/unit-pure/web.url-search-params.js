@@ -153,7 +153,7 @@ QUnit.test('URLSearchParams', assert => {
 
   // https://github.com/oven-sh/bun/issues/9253
   if (!BUN) assert.throws(() => {
-    // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+    // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
     URLSearchParams('');
   }, 'throws w/o `new`');
 

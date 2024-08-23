@@ -13,7 +13,7 @@ QUnit.test('Promise', assert => {
     if (STRICT) assert.same(this, undefined, 'correct executor context');
   });
   assert.throws(() => {
-    // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+    // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
     Promise();
   }, 'throws w/o `new`');
 });

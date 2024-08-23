@@ -15,7 +15,7 @@ QUnit.test('Iterator', assert => {
   }
 
   assert.throws(() => new Iterator(), 'direct constructor throws');
-  // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+  // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
   assert.throws(() => Iterator(), 'throws w/o `new`');
 });
 

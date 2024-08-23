@@ -14,7 +14,6 @@ import pluginPromise from 'eslint-plugin-promise';
 import pluginQUnit from 'eslint-plugin-qunit';
 import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
-import * as pluginSonar from 'eslint-plugin-sonar';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylisticJS from '@stylistic/eslint-plugin-js';
 import pluginUnicorn from 'eslint-plugin-unicorn';
@@ -677,73 +676,37 @@ const base = {
   // require `new` when throwing an error
   'unicorn/throw-new-error': ERROR,
 
-  // sonar
-  // alternatives in regular expressions should be grouped when used with anchors
-  'sonar/anchor-precedence': ERROR,
-  // arguments to built-in functions should match documented types
-  'sonar/argument-type': OFF, // it seems does not work
-  // bitwise operators should not be used in boolean contexts
-  'sonar/bitwise-operators': ERROR,
-  // function call arguments should not start on new lines
-  'sonar/call-argument-line': ERROR,
-  // class names should comply with a naming convention
-  'sonar/class-name': [ERROR, { format: '^[A-Z$][a-zA-Z0-9]*$' }],
-  // comma and logical `OR` operators should not be used in switch cases
-  'sonar/comma-or-logical-or-case': ERROR,
-  // cyclomatic complexity of functions should not be too high
-  'sonar/cyclomatic-complexity': [OFF, { threshold: 16 }],
-  // expressions should not be too complex
-  'sonar/expression-complexity': [OFF, { max: 3 }],
-  // `in` should not be used with primitive types
-  'sonar/in-operator-type-error': ERROR,
-  // functions should be called consistently with or without `new`
-  'sonar/inconsistent-function-call': ERROR,
-  // `new` should only be used with functions and classes
-  'sonar/new-operator-misuse': [ERROR, { considerJSDoc: false }],
-  // `Array#{ sort, toSorted }` should use a compare function
-  'sonar/no-alphabetical-sort': ERROR,
-  // `delete` should not be used on arrays
-  'sonar/no-array-delete': ERROR,
-  // array indexes should be numeric
-  'sonar/no-associative-arrays': ERROR,
-  // `switch` statements should not contain non-case labels
-  'sonar/no-case-label-in-switch': ERROR,
-  // `for-in` should not be used with iterables
-  'sonar/no-for-in-iterable': ERROR,
-  // global `this` object should not be used
-  'sonar/no-global-this': ERROR,
-  // `in` should not be used on arrays
-  'sonar/no-in-misuse': ERROR,
-  // strings and non-strings should not be added
-  'sonar/no-incorrect-string-concat': ERROR,
-  // `await` should only be used with promises
-  'sonar/no-invalid-await': ERROR,
-  // function returns should not be invariant
-  'sonar/no-invariant-returns': ERROR,
-  // literals should not be used as functions
-  'sonar/no-literal-call': ERROR,
-  // array-mutating methods should not be used misleadingly
-  'sonar/no-misleading-array-reverse': ERROR,
-  // promises should not be misused
-  'sonar/no-misused-promises': ERROR,
-  // assignments should not be redundant
-  'sonar/no-redundant-assignments': ERROR,
-  // redundant pairs of parentheses should be removed
-  'sonar/no-redundant-parentheses': ERROR,
-  // variables should be defined before being used
-  'sonar/no-reference-error': ERROR,
-  // promise rejections should not be caught by `try` blocks
-  'sonar/no-try-promise': ERROR,
-  // `undefined` should not be passed as the value of optional parameters
-  'sonar/no-undefined-argument': ERROR,
-  // errors should not be created without being thrown
-  'sonar/no-unthrown-error': ERROR,
-  // unused private class members should be removed
-  'sonar/no-unused-private-class-members': ERROR,
-  // values should not be uselessly incremented
-  'sonar/no-useless-increment': ERROR,
-
   // sonarjs
+  // alternatives in regular expressions should be grouped when used with anchors
+  'sonarjs/anchor-precedence': ERROR,
+  // arguments to built-in functions should match documented types
+  'sonarjs/argument-type': OFF, // it seems does not work
+  // bitwise operators should not be used in boolean contexts
+  'sonarjs/bitwise-operators': ERROR,
+  // function call arguments should not start on new lines
+  'sonarjs/call-argument-line': ERROR,
+  // class names should comply with a naming convention
+  'sonarjs/class-name': [ERROR, { format: '^[A-Z$][a-zA-Z0-9]*$' }],
+  // comma and logical `OR` operators should not be used in switch cases
+  'sonarjs/comma-or-logical-or-case': ERROR,
+  // cyclomatic complexity of functions should not be too high
+  'sonarjs/cyclomatic-complexity': [OFF, { threshold: 16 }],
+  // expressions should not be too complex
+  'sonarjs/expression-complexity': [OFF, { max: 3 }],
+  // `in` should not be used with primitive types
+  'sonarjs/in-operator-type-error': ERROR,
+  // functions should be called consistently with or without `new`
+  'sonarjs/inconsistent-function-call': ERROR,
+  // `new` should only be used with functions and classes
+  'sonarjs/new-operator-misuse': [ERROR, { considerJSDoc: false }],
+  // `Array#{ sort, toSorted }` should use a compare function
+  'sonarjs/no-alphabetical-sort': ERROR,
+  // `delete` should not be used on arrays
+  'sonarjs/no-array-delete': ERROR,
+  // array indexes should be numeric
+  'sonarjs/no-associative-arrays': ERROR,
+  // `switch` statements should not contain non-case labels
+  'sonarjs/no-case-label-in-switch': ERROR,
   // collection sizes and array length comparisons should make sense
   'sonarjs/no-collection-size-mischeck': ERROR,
   // two branches in a conditional structure should not have exactly the same implementation
@@ -754,20 +717,54 @@ const base = {
   'sonarjs/no-empty-collection': ERROR,
   // function calls should not pass extra arguments
   'sonarjs/no-extra-arguments': ERROR,
+  // `for-in` should not be used with iterables
+  'sonarjs/no-for-in-iterable': ERROR,
+  // global `this` object should not be used
+  'sonarjs/no-global-this': ERROR,
   // boolean expressions should not be gratuitous
   'sonarjs/no-gratuitous-expressions': ERROR,
+  // `in` should not be used on arrays
+  'sonarjs/no-in-misuse': ERROR,
+  // strings and non-strings should not be added
+  'sonarjs/no-incorrect-string-concat': ERROR,
+  // `await` should only be used with promises
+  'sonarjs/no-invalid-await': ERROR,
+  // function returns should not be invariant
+  'sonarjs/no-invariant-returns': ERROR,
+  // literals should not be used as functions
+  'sonarjs/no-literal-call': ERROR,
+  // array-mutating methods should not be used misleadingly
+  'sonarjs/no-misleading-array-reverse': ERROR,
+  // promises should not be misused
+  'sonarjs/no-misused-promises': ERROR,
+  // assignments should not be redundant
+  'sonarjs/no-redundant-assignments': ERROR,
   // boolean literals should not be redundant
   'sonarjs/no-redundant-boolean': ERROR,
   // jump statements should not be redundant
   'sonarjs/no-redundant-jump': ERROR,
+  // redundant pairs of parentheses should be removed
+  'sonarjs/no-redundant-parentheses': ERROR,
+  // variables should be defined before being used
+  'sonarjs/no-reference-error': ERROR,
   // conditionals should start on new lines
   'sonarjs/no-same-line-conditional': ERROR,
   // `switch` statements should have at least 3 `case` clauses
   'sonarjs/no-small-switch': ERROR,
+  // promise rejections should not be caught by `try` blocks
+  'sonarjs/no-try-promise': ERROR,
+  // `undefined` should not be passed as the value of optional parameters
+  'sonarjs/no-undefined-argument': ERROR,
+  // errors should not be created without being thrown
+  'sonarjs/no-unthrown-error': ERROR,
   // collection and array contents should be used
   'sonarjs/no-unused-collection': ERROR,
+  // unused private class members should be removed
+  'sonarjs/no-unused-private-class-members': ERROR,
   // the output of functions that don't return anything should not be used
   'sonarjs/no-use-of-empty-return-value': ERROR,
+  // values should not be uselessly incremented
+  'sonarjs/no-useless-increment': ERROR,
   // non-existent operators `=+`, `=-` and `=!` should not be used
   'sonarjs/non-existent-operator': ERROR,
   // local variables should not be declared and then immediately returned or thrown
@@ -1654,7 +1651,6 @@ export default [
       qunit: fixupPluginRules(pluginQUnit),
       redos: pluginReDoS,
       regexp: pluginRegExp,
-      sonar: pluginSonar,
       sonarjs: pluginSonarJS,
       unicorn: pluginUnicorn,
     },

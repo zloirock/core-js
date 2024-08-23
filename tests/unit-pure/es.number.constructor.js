@@ -1,4 +1,4 @@
-/* eslint-disable sonar/inconsistent-function-call -- required for testing */
+/* eslint-disable sonarjs/inconsistent-function-call -- required for testing */
 import globalThis from 'core-js-pure/es/global-this';
 import create from 'core-js-pure/es/object/create';
 import Number from 'core-js-pure/es/number';

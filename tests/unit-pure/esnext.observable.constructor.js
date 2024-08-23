@@ -22,7 +22,7 @@ QUnit.test('Observable', assert => {
   });
   observable.subscribe({});
   assert.true(observable instanceof Observable);
-  // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+  // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
   assert.throws(() => Observable(() => { /* empty */ }), 'throws w/o `new`');
 });
 

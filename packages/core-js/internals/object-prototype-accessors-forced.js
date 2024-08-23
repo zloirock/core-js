@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable no-undef, no-useless-call, sonar/no-reference-error -- required for testing */
+/* eslint-disable no-undef, no-useless-call, sonarjs/no-reference-error -- required for testing */
 /* eslint-disable es/no-legacy-object-prototype-accessor-methods -- required for testing */
 var IS_PURE = require('../internals/is-pure');
 var globalThis = require('../internals/global-this');

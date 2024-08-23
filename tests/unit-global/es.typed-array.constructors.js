@@ -173,7 +173,7 @@ if (DESCRIPTORS) {
         assert.throws(() => new TypedArray(new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception');
         assert.throws(() => new TypedArray(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
       }
-      // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+      // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
       assert.throws(() => TypedArray(1), TypeError, 'throws without `new`');
       assert.same(TypedArray[Symbol.species], TypedArray, '@@species');
     });

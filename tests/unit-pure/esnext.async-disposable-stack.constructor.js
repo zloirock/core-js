@@ -13,7 +13,7 @@ QUnit.test('AsyncDisposableStack constructor', assert => {
 
   assert.same(AsyncDisposableStack.prototype.constructor, AsyncDisposableStack);
 
-  // eslint-disable-next-line sonar/inconsistent-function-call -- required for testing
+  // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
   assert.throws(() => AsyncDisposableStack(), 'throws w/o `new`');
 });
 
