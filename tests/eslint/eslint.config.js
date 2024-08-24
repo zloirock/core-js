@@ -767,14 +767,22 @@ const base = {
   'sonarjs/no-useless-increment': ERROR,
   // non-existent operators `=+`, `=-` and `=!` should not be used
   'sonarjs/non-existent-operator': ERROR,
+  // properties of variables with `null` or `undefined` values should not be accessed
+  'sonarjs/null-dereference': ERROR, // it seems does not work
+  // arithmetic operations should not result in `NaN`
+  'sonarjs/operation-returning-nan': ERROR,
   // local variables should not be declared and then immediately returned or thrown
   'sonarjs/prefer-immediate-return': ERROR,
   // object literal syntax should be used
   'sonarjs/prefer-object-literal': ERROR,
+  // shorthand promises should be used
+  'sonarjs/prefer-promise-shorthand': ERROR,
   // return of boolean expressions should not be wrapped into an `if-then-else` statement
   'sonarjs/prefer-single-boolean-return': ERROR,
   // a `while` loop should be used instead of a `for` loop with condition only
   'sonarjs/prefer-while': ERROR,
+  // using slow regular expressions is security-sensitive
+  'sonarjs/slow-regex': ERROR,
 
   // regexp
   // disallow confusing quantifiers
@@ -1287,6 +1295,8 @@ const polyfills = {
   // prefer `RegExp#test()` over `String#match()` and `RegExp#exec()`
   // use `RegExp#exec()` since it does not have implicit calls under the hood
   'regexp/prefer-regexp-test': OFF,
+  // shorthand promises should be used
+  'sonarjs/prefer-promise-shorthand': OFF,
 };
 
 const transpiledAndPolyfilled = {
@@ -1415,6 +1425,8 @@ const tests = {
   'no-useless-call': OFF,
   // specify the maximum length of a line in your program
   '@stylistic/js/max-len': [ERROR, { ...base['@stylistic/js/max-len'][1], code: 180 }],
+  // shorthand promises should be used
+  'sonarjs/prefer-promise-shorthand': OFF,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': OFF,
   // prefer `.at()` method for index access and `String#charAt()`
