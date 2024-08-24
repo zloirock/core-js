@@ -6,7 +6,7 @@
     "@eslint-community/eslint-plugin-eslint-comments": "^4.4.0",
     "@stylistic/eslint-plugin-js": "^2.6.4",
     "confusing-browser-globals": "^1.0.11",
-    "eslint": "^9.9.0",
+    "eslint": "^9.9.1",
     "eslint-plugin-array-func": "^5.0.2",
     "eslint-plugin-canonical": "^5.0.0",
     "eslint-plugin-depend": "^0.10.0",
@@ -18,7 +18,7 @@
     "eslint-plugin-qunit": "^8.1.2",
     "eslint-plugin-redos": "^4.5.0-beta.6",
     "eslint-plugin-regexp": "^2.6.0",
-    "eslint-plugin-sonarjs": "^2.0.1-alpha.2",
+    "eslint-plugin-sonarjs": "^2.0.1",
     "eslint-plugin-unicorn": "^55.0.0",
     "globals": "^15.9.0",
     "jsonc-eslint-parser": "^2.4.0"
