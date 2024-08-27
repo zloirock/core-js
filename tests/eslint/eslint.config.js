@@ -151,6 +151,11 @@ const base = {
   eqeqeq: [ERROR, 'smart'],
   // require grouped accessor pairs in object literals and classes
   'grouped-accessor-pairs': [ERROR, 'getBeforeSet'],
+  // require identifiers to match a specified regular expression
+  'id-match': [ERROR, '^[$A-Za-z]|(?:[A-Z][A-Z\\d_]*[A-Z\\d])|(?:[$A-Za-z]\\w*[A-Za-z\\d])$', {
+    onlyDeclarations: true,
+    ignoreDestructuring: true,
+  }],
   // require logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, ALWAYS],
   // enforce a maximum depth that blocks can be nested
@@ -783,6 +788,16 @@ const base = {
   'sonarjs/prefer-while': ERROR,
   // using slow regular expressions is security-sensitive
   'sonarjs/slow-regex': ERROR,
+  // regular expressions with the global flag should be used with caution
+  'sonarjs/stateful-regex': ERROR,
+  // comparison operators should not be used with strings
+  'sonarjs/strings-comparison': ERROR,
+  // `super()` should be invoked appropriately
+  'sonarjs/super-invocation': ERROR,
+  // results of operations on strings should not be ignored
+  'sonarjs/useless-string-operation': ERROR,
+  // values not convertible to numbers should not be used in numeric comparisons
+  'sonarjs/values-not-convertible-to-numbers': ERROR,
 
   // regexp
   // disallow confusing quantifiers

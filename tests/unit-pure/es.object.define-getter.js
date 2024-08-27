@@ -1,3 +1,4 @@
+/* eslint-disable id-match -- unification with global tests */
 import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 import __defineGetter__ from 'core-js-pure/es/object/define-getter';
