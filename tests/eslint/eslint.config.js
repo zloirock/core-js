@@ -1,4 +1,3 @@
-import { fixupPluginRules } from '@eslint/compat';
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
@@ -1675,7 +1674,7 @@ export default [
       jsonc: pluginJSONC,
       node: pluginN,
       promise: pluginPromise,
-      qunit: fixupPluginRules(pluginQUnit),
+      qunit: pluginQUnit,
       redos: pluginReDoS,
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
