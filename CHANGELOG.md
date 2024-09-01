@@ -15,8 +15,8 @@
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped from Bun 1.1.22
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from Bun 1.1.22
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) methods marked as shipped from Bun 1.1.22
-  - Added Hermes 0.13 compat data, similar to React Native 0.75 Hermes
-  - Added Opera Android 84 compat data mapping
+  - Added [Hermes 0.13](https://github.com/facebook/hermes/releases/tag/v0.13.0) compat data, similar to React Native 0.75 Hermes
+  - Added [Opera Android 84](https://forums.opera.com/topic/73545/opera-for-android-84) compat data mapping
 
 ##### [3.38.0 - 2024.08.05](https://github.com/zloirock/core-js/releases/tag/v3.38.0)
 - Changes [v3.37.1...v3.38.0](https://github.com/zloirock/core-js/compare/v3.37.1...v3.38.0)
