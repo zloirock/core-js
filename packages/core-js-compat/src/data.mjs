@@ -2240,12 +2240,15 @@ export const data = {
   },
   'esnext.json.is-raw-json': {
     chrome: '114',
+    firefox: '132',
   },
   'esnext.json.parse': {
     chrome: '114',
+    firefox: '132',
   },
   'esnext.json.raw-json': {
     chrome: '114',
+    firefox: '132',
   },
   'esnext.map.delete-all': {
   },
