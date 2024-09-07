@@ -295,7 +295,18 @@ const base = {
   // require const declarations for variables that are never reassigned after declared
   'prefer-const': [ERROR, { destructuring: 'all' }],
   // require destructuring from arrays and/or objects
-  'prefer-destructuring': ERROR,
+  'prefer-destructuring': [ERROR, {
+    VariableDeclarator: {
+      array: true,
+      object: true,
+    },
+    AssignmentExpression: {
+      array: true,
+      object: false,
+    },
+  }, {
+    enforceForRenamedProperties: false,
+  }],
   // prefer the exponentiation operator over `Math.pow()`
   'prefer-exponentiation-operator': ERROR,
   // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
