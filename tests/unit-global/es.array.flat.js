@@ -1,4 +1,3 @@
-/* eslint-disable unicorn/no-magic-array-flat-depth -- testing */
 import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 QUnit.test('Array#flat', assert => {

@@ -584,8 +584,6 @@ const base = {
   'unicorn/no-length-as-slice-end': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
-  // disallow a magic number as the depth argument in `Array#flat`
-  'unicorn/no-magic-array-flat-depth': ERROR,
   // disallow negated expression in equality check
   'unicorn/no-negation-in-equality-check': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
