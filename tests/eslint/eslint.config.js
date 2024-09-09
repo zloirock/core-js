@@ -1633,6 +1633,8 @@ const markdown = {
   'prefer-regex-literals': OFF,
   // disallow top-level `await`
   'es/no-top-level-await': OFF,
+  // ensure imports point to files / modules that can be resolved
+  'import/no-unresolved': OFF,
   // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided
   'regexp/prefer-regexp-exec': OFF,
   // variables should be defined before being used
