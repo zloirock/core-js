@@ -72,9 +72,9 @@ console.log(targets);
 `targets` could be [a `browserslist` query](https://github.com/browserslist/browserslist) or a targets object that specifies minimum environment versions to support:
 ```js
 // browserslist query:
-'defaults, not IE 11, maintained node versions'
+'defaults, not IE 11, maintained node versions';
 // object (sure, all those fields optional):
-{
+({
   android: '4.0',         // Android WebView version
   bun: '0.1.2',           // Bun version
   chrome: '38',           // Chrome version
@@ -98,7 +98,7 @@ console.log(targets);
   samsung: '14.0',        // Samsung Internet version
   esmodules: true,        // That option set target to minimum supporting ES Modules versions of all browsers
   browsers: '> 0.25%',    // Browserslist query or object with target browsers
-}
+});
 ```
 
 ### Additional API:

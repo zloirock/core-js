@@ -8,6 +8,7 @@ import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
 import pluginImport from 'eslint-plugin-import-x';
 import pluginJSONC from 'eslint-plugin-jsonc';
+import pluginMarkdown from '@eslint/markdown';
 import pluginN from 'eslint-plugin-n';
 import pluginPromise from 'eslint-plugin-promise';
 import pluginQUnit from 'eslint-plugin-qunit';
@@ -1610,6 +1611,36 @@ const json = {
   strict: OFF,
 };
 
+const markdown = {
+  ...disable(forbidModernBuiltIns),
+  // allow use of console
+  'no-console': OFF,
+  // disallow use of new operator when not part of the assignment or comparison
+  'no-new': OFF,
+  // disallow specified syntax
+  'no-restricted-syntax': OFF,
+  // disallow use of undeclared variables unless mentioned in a /*global */ block
+  'no-undef': OFF,
+  // disallow usage of expressions in statement position
+  'no-unused-expressions': OFF,
+  // disallow declaration of variables that are not used in the code
+  'no-unused-vars': OFF,
+  // require let or const instead of var
+  'no-var': OFF,
+  // require const declarations for variables that are never reassigned after declared
+  'prefer-const': OFF,
+  // disallow use of the `RegExp` constructor in favor of regular expression literals
+  'prefer-regex-literals': OFF,
+  // disallow top-level `await`
+  'es/no-top-level-await': OFF,
+  // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided
+  'regexp/prefer-regexp-exec': OFF,
+  // variables should be defined before being used
+  'sonarjs/no-reference-error': OFF,
+  // specify the maximum length of a line in your program
+  '@stylistic/js/max-len': [ERROR, { ...base['@stylistic/js/max-len'][1], code: 200 }],
+};
+
 const globalsESNext = {
   AsyncDisposableStack: READONLY,
   AsyncIterator: READONLY,
@@ -1681,6 +1712,7 @@ export default [
       'eslint-comments': pluginESlintComments,
       import: pluginImport,
       jsonc: pluginJSONC,
+      markdown: pluginMarkdown,
       node: pluginN,
       promise: pluginPromise,
       qunit: pluginQUnit,
@@ -1837,5 +1869,24 @@ export default [
       parser: parserJSONC,
     },
     rules: json,
+  },
+  {
+    files: ['**/*.md'],
+    processor: 'markdown/markdown',
+  },
+  {
+    files: ['**/*.md/*'],
+    rules: {
+      // enforce a case style for filenames
+      'unicorn/filename-case': OFF,
+    },
+  },
+  {
+    files: ['**/*.md/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+    },
+    rules: markdown,
   },
 ];
