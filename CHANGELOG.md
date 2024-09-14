@@ -4,7 +4,7 @@
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)
   - `self` descriptor [is fixed](https://github.com/denoland/deno/issues/24683) in Deno 1.46.0
   - Added Deno [1.46](https://github.com/denoland/deno/releases/tag/v1.46.0) compat data mapping
-  - Added Electron 34 compat data mapping
+  - Added Electron 34 and updated Electron 33 compat data mapping
   - Added Oculus Quest Browser 35 compat data mapping
 
 ##### [3.38.1 - 2024.08.20](https://github.com/zloirock/core-js/releases/tag/v3.38.1)
