@@ -16,9 +16,7 @@ await Promise.all(pkgs.map(async path => {
 
   const exclude = ignore[name];
 
-  $.verbose = false;
-
-  const { stdout } = await $`updates \
+  const { stdout } = await $({ verbose: false })`updates \
     --json \
     --file ${ path } \
     --exclude ${ Array.isArray(exclude) ? exclude.join(',') : '' } \
