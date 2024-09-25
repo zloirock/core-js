@@ -14,6 +14,7 @@
     "eslint-plugin-import-x": "^4.3.0",
     "eslint-plugin-jsonc": "^2.16.0",
     "eslint-plugin-n": "^17.10.3",
+    "eslint-plugin-package-json": "^0.15.3",
     "eslint-plugin-promise": "^7.1.0",
     "eslint-plugin-qunit": "^8.1.2",
     "eslint-plugin-redos": "^4.5.0-beta.6",

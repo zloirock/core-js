@@ -10,6 +10,7 @@ import pluginImport from 'eslint-plugin-import-x';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
 import pluginN from 'eslint-plugin-n';
+import * as pluginPackageJSON from 'eslint-plugin-package-json';
 import pluginPromise from 'eslint-plugin-promise';
 import pluginQUnit from 'eslint-plugin-qunit';
 import pluginReDoS from 'eslint-plugin-redos';
@@ -1611,6 +1612,26 @@ const json = {
   strict: OFF,
 };
 
+const packageJSON = {
+  // enforce that package dependencies are unique
+  'package-json/unique-dependencies': ERROR,
+  // checks existence of local dependencies in the package.json
+  'package-json/valid-local-dependency': ERROR,
+  // enforce that if repository directory is specified, it matches the path to the package.json file
+  'package-json/valid-repository-directory': ERROR,
+  // enforce that package versions are valid semver specifiers
+  'package-json/valid-version': ERROR,
+};
+
+const packagesPackageJSON = {
+  // enforce either object or shorthand declaration for repository
+  'package-json/repository-shorthand': [ERROR, { form: 'object' }],
+  // enforce that package names are valid npm package names
+  'package-json/valid-name': ERROR,
+  // enforce that package.json has all properties required by the npm spec
+  'package-json/valid-package-def': ERROR,
+};
+
 const markdown = {
   ...disable(forbidModernBuiltIns),
   // allow use of console
@@ -1716,6 +1737,7 @@ export default [
       jsonc: pluginJSONC,
       markdown: pluginMarkdown,
       node: pluginN,
+      'package-json': pluginPackageJSON,
       promise: pluginPromise,
       qunit: pluginQUnit,
       redos: pluginReDoS,
@@ -1871,6 +1893,14 @@ export default [
       parser: parserJSONC,
     },
     rules: json,
+  },
+  {
+    files: ['**/package.json'],
+    rules: packageJSON,
+  },
+  {
+    files: ['packages/*/package.json'],
+    rules: packagesPackageJSON,
   },
   {
     files: ['**/*.md'],
