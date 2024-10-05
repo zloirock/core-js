@@ -1,4 +1,4 @@
-/* eslint-disable no-restricted-globals -- safe */
+/* eslint-disable no-restricted-globals, unicorn/prefer-global-this -- safe */
 import { DESCRIPTORS } from '../helpers/constants.js';
 
 QUnit.test('self', assert => {

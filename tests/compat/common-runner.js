@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable unicorn/prefer-global-this -- required */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var results = GLOBAL.results = Object.create(null);
 var data = GLOBAL.data;

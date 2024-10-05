@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable prefer-regex-literals, radix -- required for testing */
+/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
 /* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
@@ -266,14 +266,14 @@ function NATIVE_RAW_JSON() {
 
 function IMMEDIATE() {
   return setImmediate && clearImmediate && !(IS_BUN && (function () {
-    var version = global.Bun.version.split('.');
+    var version = Bun.version.split('.');
     return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
   })());
 }
 
 function TIMERS() {
   return !(/MSIE .\./.test(USERAGENT) || IS_BUN && (function () {
-    var version = global.Bun.version.split('.');
+    var version = Bun.version.split('.');
     return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
   })());
 }

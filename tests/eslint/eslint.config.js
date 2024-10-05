@@ -560,6 +560,8 @@ const base = {
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
   // prefer consistent types when spreading a ternary in an array literal
   'unicorn/consistent-empty-array-spread': ERROR,
+  // enforce consistent style for element existence checks with `indexOf()`, `lastIndexOf()`, `findIndex()`, and `findLastIndex()`
+  'unicorn/consistent-existence-index-check': ERROR,
   // enforce correct `Error` subclassing
   'unicorn/custom-error-definition': ERROR,
   // enforce passing a message value when throwing a built-in error
@@ -646,12 +648,16 @@ const base = {
   'unicorn/prefer-default-parameters': ERROR,
   // prefer `EventTarget` over `EventEmitter`
   'unicorn/prefer-event-target': ERROR,
+  // prefer `globalThis` over `window`, `self`, and `global`
+  'unicorn/prefer-global-this': ERROR,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
   'unicorn/prefer-includes': ERROR,
   // prefer reading a `JSON` file as a buffer
   'unicorn/prefer-json-parse-buffer': ERROR,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': ERROR,
+  // prefer `Math.min()` and `Math.max()` over ternaries for simple comparisons
+  'unicorn/prefer-math-min-max': ERROR,
   // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': ERROR,
   // prefer negative index over `.length - index` when possible
@@ -1091,6 +1097,8 @@ const forbidES5BuiltIns = {
   'es/no-string-prototype-trim': ERROR,
   // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
   'unicorn/prefer-date-now': OFF,
+  // prefer `globalThis` over `window`, `self`, and `global`
+  'unicorn/prefer-global-this': OFF,
 };
 
 const forbidES2015BuiltIns = {

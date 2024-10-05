@@ -182,9 +182,7 @@ export default {
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/chrome_android.json
   // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-chrome-for-android
   ChromeToChromeAndroid(chrome) {
-    return chrome <= 18 ? 18
-         : chrome <= 25 ? 25
-         : chrome;
+    return chrome <= 18 ? 18 : Math.max(chrome, 25);
   },
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
@@ -309,7 +307,7 @@ export default {
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/firefox_android.json
   FirefoxToFirefoxAndroid(firefox) {
-    return firefox <= 4 ? 4 : firefox;
+    return Math.max(firefox, 4);
   },
   // https://github.com/oven-sh/bun/releases
   // This is the base data. Since it have no direct Safari equals by the
