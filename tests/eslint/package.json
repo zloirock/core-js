@@ -4,7 +4,8 @@
   "devDependencies": {
     "@eslint/markdown": "^6.2.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.4.0",
-    "@stylistic/eslint-plugin-js": "^2.8.0",
+    "@stylistic/eslint-plugin-js": "^2.9.0",
+    "@stylistic/eslint-plugin-plus": "^2.9.0",
     "confusing-browser-globals": "^1.0.11",
     "eslint": "^9.12.0",
     "eslint-plugin-array-func": "^5.0.2",

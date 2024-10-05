@@ -17,6 +17,7 @@ import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylisticJS from '@stylistic/eslint-plugin-js';
+import pluginStylisticPlus from '@stylistic/eslint-plugin-plus';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
@@ -450,6 +451,8 @@ const base = {
   '@stylistic/js/template-tag-spacing': [ERROR, NEVER],
   // require spacing around the `*` in `yield *` expressions
   '@stylistic/js/yield-star-spacing': [ERROR, 'both'],
+  // enforce consistent line breaks after opening and before closing braces
+  '@stylistic/plus/curly-newline': [ERROR, { consistent: true }],
 
   // import:
   // forbid any invalid exports, i.e. re-export of the same name
@@ -1736,6 +1739,7 @@ export default [
     },
     plugins: {
       '@stylistic/js': pluginStylisticJS,
+      '@stylistic/plus': pluginStylisticPlus,
       'array-func': pluginArrayFunc,
       canonical: pluginCanonical,
       depend: pluginDepend,
