@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed `core-js-pure/actual|full/promise/try` entries for the callback arguments support
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)
   - `self` descriptor [is fixed](https://github.com/denoland/deno/issues/24683) in Deno 1.46.0
