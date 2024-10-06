@@ -267,5 +267,6 @@ export default {
     'es.iterator.some',
     'es.iterator.take',
     'es.iterator.to-array',
+    'es.promise.try',
   ],
 };

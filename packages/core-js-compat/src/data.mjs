@@ -1279,6 +1279,10 @@ export const data = {
     rhino: '1.7.14',
     safari: '11.0',
   },
+  'es.promise.try': {
+    bun: '1.1.22',
+    chrome: '128',
+  },
   'es.promise.with-resolvers': {
     bun: '0.7.1',
     chrome: '119',
@@ -2387,10 +2391,8 @@ export const data = {
   'esnext.promise.all-settled': null,
   // TODO: Remove from `core-js@4`
   'esnext.promise.any': null,
-  'esnext.promise.try': {
-    bun: '1.1.22',
-    chrome: '128',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.promise.try': null,
   // TODO: Remove from `core-js@4`
   'esnext.promise.with-resolvers': null,
   // TODO: Remove from `core-js@4`
@@ -2879,6 +2881,7 @@ export const renamed = new Map([
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
   ['esnext.promise.any', 'es.promise.any'],
+  ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
   ['esnext.set.difference.v2', 'es.set.difference.v2'],
   ['esnext.set.intersection.v2', 'es.set.intersection.v2'],

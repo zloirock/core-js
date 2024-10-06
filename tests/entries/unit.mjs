@@ -328,6 +328,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'promise/all-settled')([1, 2, 3]) instanceof Promise);
     ok(load(NS, 'promise/any')([1, 2, 3]) instanceof Promise);
     ok(load(NS, 'promise/finally')(new Promise(resolve => resolve), it => it) instanceof Promise);
+    ok(load(NS, 'promise/try')(() => 42) instanceof Promise);
     ok(load(NS, 'promise/with-resolvers')().promise instanceof load(NS, 'promise'));
     ok(load(NS, 'is-iterable')([]));
     ok(typeof load(NS, 'get-iterator-method')([]) == 'function');
@@ -703,7 +704,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
     ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
-    ok(load(NS, 'promise/try')(() => 42) instanceof load(NS, 'promise'));
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/metadata'));

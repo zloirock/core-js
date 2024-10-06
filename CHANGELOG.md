@@ -18,12 +18,17 @@
       - `Iterator.prototype[@@toStringTag]`
   - Moved to stable ES, [October 2024 TC39 meeting](https://github.com/tc39/proposal-iterator-helpers/issues/284#event-14549961807)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+- [`Promise.try`](https://github.com/tc39/proposal-promise-try):
+  - Built-ins:
+    - `Promise.try`
+  - Moved to stable ES, October 2024 TC39 meeting
+  - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
+  - Fixed `/actual|full/promise/try` entries for the callback arguments support
 - [`Math.sumPrecise` proposal](https://github.com/tc39/proposal-math-sum/):
   - Built-ins:
     - `Math.sumPrecise`
   - Moved to stage 3, [October 2024 TC39 meeting](https://x.com/robpalmer2/status/1843829675036160179)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
-- Fixed `core-js-pure/actual|full/promise/try` entries for the callback arguments support
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)
   - `self` descriptor [is fixed](https://github.com/denoland/deno/issues/24683) in Deno 1.46.0

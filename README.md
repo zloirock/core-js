@@ -151,6 +151,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Promise.allSettled`](#promiseallsettled)
       - [`Promise.any`](#promiseany)
       - [`Promise.prototype.finally`](#promiseprototypefinally)
+      - [`Promise.try`](#promisetry)
       - [`Promise.withResolvers`](#promisewithresolvers)
       - [`Symbol.asyncIterator` for asynchronous iteration](#symbolasynciterator-for-asynchronous-iteration)
       - [`Symbol.prototype.description`](#symbolprototypedescription)
@@ -163,7 +164,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Float16` methods](#float16-methods)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
       - [Explicit resource management](#explicit-resource-management)
-      - [`Promise.try`](#promisetry)
       - [`RegExp` escaping](#regexp-escaping)
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
@@ -1206,8 +1206,9 @@ core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```js
 new Date(NaN).toString(); // => 'Invalid Date'
 ```
+
 #### ECMAScript: Promise[⬆](#index)
-Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
+Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js), [`es.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.try.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
 ```ts
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
@@ -1220,6 +1221,7 @@ class Promise {
   static race(iterable: Iterable): Promise;
   static reject(r: any): Promise;
   static resolve(x: any): Promise;
+  static try(callbackfn: Function, ...args?: Array<mixed>): Promise;
   static withResolvers(): { promise: Promise, resolve: function, reject: function };
 }
 ```
@@ -1229,6 +1231,7 @@ core-js(-pure)/es|stable|actual|full/promise
 core-js(-pure)/es|stable|actual|full/promise/all-settled
 core-js(-pure)/es|stable|actual|full/promise/any
 core-js(-pure)/es|stable|actual|full/promise/finally
+core-js(-pure)/es|stable|actual|full/promise/try
 core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 ```
 Basic [*example*](https://tinyurl.com/23bhbhbu):
@@ -1309,6 +1312,19 @@ Promise.any([
   Promise.reject(2),
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+```
+`Promise.try` [*examples*](https://tinyurl.com/2p48ojau):
+```js
+/* eslint-disable promise/prefer-await-to-callbacks -- example */
+Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${ it }`));
+
+Promise.try(() => { throw new Error('42'); }).catch(error => console.log(`Promise, rejected as ${ error }`));
+
+Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${ it }`));
+
+Promise.try(async () => { throw new Error('42'); }).catch(error => console.log(`Promise, rejected as ${ error }`));
+
+Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`));
 ```
 `Promise.withResolvers` [*examples*](https://tinyurl.com/2gx4t3xu):
 ```js
@@ -2299,6 +2315,18 @@ class Promise {
 ```
 core-js/proposals/promise-finally
 ```
+
+##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)
+```ts
+class Promise {
+  static try(callbackfn: Function, ...args?: Array<mixed>): Promise;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/promise-try
+```
+
 ##### [`Promise.withResolvers`](https://github.com/tc39/proposal-promise-with-resolvers)[⬆](#index)
 ```ts
 class Promise {
@@ -2550,32 +2578,6 @@ core-js(-pure)/actual|full/async-disposable-stack
 core-js(-pure)/actual|full/suppressed-error
 core-js(-pure)/actual|full/iterator/dispose
 core-js(-pure)/actual|full/async-iterator/async-dispose
-```
-
-##### [`Promise.try`](https://github.com/tc39/proposal-promise-try)
-Module [`esnext.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.try.js)
-```ts
-class Promise {
-  static try(callbackfn: Function, ...args?: Array<mixed>): Promise;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/promise-try
-core-js(-pure)/actual|full/promise/try
-```
-[*Examples*](https://tinyurl.com/2p48ojau):
-```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
-Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${ it }`));
-
-Promise.try(() => { throw new Error('42'); }).catch(error => console.log(`Promise, rejected as ${ error }`));
-
-Promise.try(async () => 42).then(it => console.log(`Promise, resolved as ${ it }`));
-
-Promise.try(async () => { throw new Error('42'); }).catch(error => console.log(`Promise, rejected as ${ error }`));
-
-Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`));
 ```
 
 ##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
