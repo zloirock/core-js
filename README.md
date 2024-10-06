@@ -165,9 +165,9 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Explicit resource management](#explicit-resource-management)
       - [`Promise.try`](#promisetry)
       - [`RegExp` escaping](#regexp-escaping)
+      - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
-      - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2603,6 +2603,24 @@ console.log(RegExp.escape('💩')); // => '💩'
 console.log(RegExp.escape('\uD83D')); // => '\\ud83d'
 ```
 
+##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)
+Module [`esnext.math.sum-precise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.sum-precise.js)
+```ts
+class Math {
+  static sumPrecise(items: Iterable<number>): Number;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/math-sum
+core-js(-pure)/full|actual/math/sum-precise
+```
+[*Examples*](https://tinyurl.com/2bd3nako):
+```js
+1e20 + 0.1 + -1e20; // => 0
+Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
+```
+
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
 Modules [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
 ```ts
@@ -2627,23 +2645,7 @@ core-js(-pure)/actual|full/function/metadata
 core-js(-pure)/stage/2.7
 ```
 
-##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)
-Module [`esnext.math.sum-precise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.sum-precise.js)
-```ts
-class Math {
-  static sumPrecise(items: Iterable<number>): Number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/math-sum
-core-js(-pure)/full/math/sum-precise
-```
-[*Examples*](https://tinyurl.com/2bd3nako):
-```js
-1e20 + 0.1 + -1e20; // => 0
-Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
-```
+Nothing.
 
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

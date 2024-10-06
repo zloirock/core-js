@@ -1,5 +1,5 @@
 /* eslint-disable @stylistic/js/max-len -- ok */
-import sumPrecise from 'core-js-pure/full/math/sum-precise';
+import sumPrecise from 'core-js-pure/actual/math/sum-precise';
 import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Math.sumPrecise', assert => {

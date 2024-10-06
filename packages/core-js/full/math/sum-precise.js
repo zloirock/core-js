@@ -1,6 +1,4 @@
 'use strict';
-require('../../modules/es.array.iterator');
-require('../../modules/esnext.math.sum-precise');
-var path = require('../../internals/path');
+var parent = require('../../actual/math/sum-precise');
 
-module.exports = path.Math.sumPrecise;
+module.exports = parent;
