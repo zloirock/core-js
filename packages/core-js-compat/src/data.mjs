@@ -594,6 +594,71 @@ export const data = {
     rhino: '1.7.14',
     safari: '12.1',
   },
+  'es.iterator.constructor': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.drop': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.every': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.filter': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.find': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.flat-map': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.for-each': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.from': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.map': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.reduce': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.some': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.take': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
+  'es.iterator.to-array': {
+    chrome: '122',
+    deno: '1.37',
+    firefox: '131',
+  },
   'es.json.stringify': {
     chrome: '72',
     firefox: '64',
@@ -2162,80 +2227,41 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.global-this': null,
-  'esnext.iterator.constructor': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.constructor': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
   },
   'esnext.iterator.dispose': {
   },
-  'esnext.iterator.drop': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.every': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.filter': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.find': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.flat-map': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.for-each': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.from': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.drop': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.every': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.filter': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.find': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.flat-map': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.for-each': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.from': null,
   'esnext.iterator.indexed': {
   },
-  'esnext.iterator.map': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.map': null,
   'esnext.iterator.range': {
   },
-  'esnext.iterator.reduce': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.some': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.take': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
-  'esnext.iterator.to-array': {
-    chrome: '122',
-    deno: '1.37',
-    firefox: '131',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.reduce': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.some': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.take': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
   },
   'esnext.json.is-raw-json': {
@@ -2835,6 +2861,19 @@ export const renamed = new Map([
   ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
   ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.global-this', 'es.global-this'],
+  ['esnext.iterator.constructor', 'es.iterator.constructor'],
+  ['esnext.iterator.drop', 'es.iterator.drop'],
+  ['esnext.iterator.every', 'es.iterator.every'],
+  ['esnext.iterator.filter', 'es.iterator.filter'],
+  ['esnext.iterator.find', 'es.iterator.find'],
+  ['esnext.iterator.flat-map', 'es.iterator.flat-map'],
+  ['esnext.iterator.for-each', 'es.iterator.for-each'],
+  ['esnext.iterator.from', 'es.iterator.from'],
+  ['esnext.iterator.map', 'es.iterator.map'],
+  ['esnext.iterator.reduce', 'es.iterator.reduce'],
+  ['esnext.iterator.some', 'es.iterator.some'],
+  ['esnext.iterator.take', 'es.iterator.take'],
+  ['esnext.iterator.to-array', 'es.iterator.to-array'],
   ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.object.has-own', 'es.object.has-own'],
   ['esnext.object.group-by', 'es.object.group-by'],

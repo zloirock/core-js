@@ -673,6 +673,50 @@ GLOBAL.tests = {
   'es.global-this': function () {
     return globalThis;
   },
+  'es.iterator.constructor': function () {
+    try {
+      Iterator({});
+    } catch (error) {
+      return typeof Iterator == 'function'
+        && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
+    }
+  },
+  'es.iterator.drop': function () {
+    return Iterator.prototype.drop;
+  },
+  'es.iterator.every': function () {
+    return Iterator.prototype.every;
+  },
+  'es.iterator.filter': function () {
+    return Iterator.prototype.filter;
+  },
+  'es.iterator.find': function () {
+    return Iterator.prototype.find;
+  },
+  'es.iterator.flat-map': function () {
+    return Iterator.prototype.flatMap;
+  },
+  'es.iterator.for-each': function () {
+    return Iterator.prototype.forEach;
+  },
+  'es.iterator.from': function () {
+    return Iterator.from;
+  },
+  'es.iterator.map': function () {
+    return Iterator.prototype.map;
+  },
+  'es.iterator.reduce': function () {
+    return Iterator.prototype.reduce;
+  },
+  'es.iterator.some': function () {
+    return Iterator.prototype.some;
+  },
+  'es.iterator.take': function () {
+    return Iterator.prototype.take;
+  },
+  'es.iterator.to-array': function () {
+    return Iterator.prototype.toArray;
+  },
   'es.json.stringify': [SYMBOLS_SUPPORT, function () {
     var symbol = Symbol('stringify detection');
     return JSON.stringify([symbol]) === '[null]'
@@ -1626,55 +1670,11 @@ GLOBAL.tests = {
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },
-  'esnext.iterator.constructor': function () {
-    try {
-      Iterator({});
-    } catch (error) {
-      return typeof Iterator == 'function'
-        && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
-    }
-  },
   'esnext.iterator.dispose': function () {
     return [].keys()[Symbol.dispose];
   },
-  'esnext.iterator.drop': function () {
-    return Iterator.prototype.drop;
-  },
-  'esnext.iterator.every': function () {
-    return Iterator.prototype.every;
-  },
-  'esnext.iterator.filter': function () {
-    return Iterator.prototype.filter;
-  },
-  'esnext.iterator.find': function () {
-    return Iterator.prototype.find;
-  },
-  'esnext.iterator.flat-map': function () {
-    return Iterator.prototype.flatMap;
-  },
-  'esnext.iterator.for-each': function () {
-    return Iterator.prototype.forEach;
-  },
-  'esnext.iterator.from': function () {
-    return Iterator.from;
-  },
-  'esnext.iterator.map': function () {
-    return Iterator.prototype.map;
-  },
   'esnext.iterator.range': function () {
     return Iterator.range;
-  },
-  'esnext.iterator.reduce': function () {
-    return Iterator.prototype.reduce;
-  },
-  'esnext.iterator.some': function () {
-    return Iterator.prototype.some;
-  },
-  'esnext.iterator.take': function () {
-    return Iterator.prototype.take;
-  },
-  'esnext.iterator.to-array': function () {
-    return Iterator.prototype.toArray;
   },
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;

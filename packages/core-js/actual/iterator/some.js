@@ -1,8 +1,6 @@
 'use strict';
-require('../../modules/es.object.to-string');
+var parent = require('../../stable/iterator/some');
 require('../../modules/esnext.iterator.constructor');
 require('../../modules/esnext.iterator.some');
 
-var entryUnbind = require('../../internals/entry-unbind');
-
-module.exports = entryUnbind('Iterator', 'some');
+module.exports = parent;

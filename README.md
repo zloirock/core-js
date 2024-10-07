@@ -115,6 +115,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [ECMAScript: Function](#ecmascript-function)
     - [ECMAScript: Error](#ecmascript-error)
     - [ECMAScript: Array](#ecmascript-array)
+    - [ECMAScript: Iterator](#ecmascript-iterator)
     - [ECMAScript: String and RegExp](#ecmascript-string-and-regexp)
     - [ECMAScript: Number](#ecmascript-number)
     - [ECMAScript: Math](#ecmascript-math)
@@ -136,6 +137,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Change `Array` by copy](#change-array-by-copy)
       - [`Array` grouping](#array-grouping)
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
+      - [`Iterator` helpers](#iterator-helpers)
       - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
       - [`Object.fromEntries`](#objectfromentries)
       - [`Object.getOwnPropertyDescriptors`](#objectgetownpropertydescriptors)
@@ -156,7 +158,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Well-formed unicode strings](#well-formed-unicode-strings)
       - [New `Set` methods](#new-set-methods)
     - [Stage 3 proposals](#stage-3-proposals)
-      - [`Iterator` helpers](#iterator-helpers)
       - [`Array.fromAsync`](#arrayfromasync)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Float16` methods](#float16-methods)
@@ -830,6 +831,58 @@ const correctionNeeded = [1, 1, 3];
 correctionNeeded.with(1, 2); // => [1, 2, 3]
 correctionNeeded; // => [1, 1, 3]
 ```
+
+#### ECMAScript: Iterator[⬆](#index)
+Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js)
+```ts
+class Iterator {
+  static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
+  drop(limit: uint): Iterator<any>;
+  every(callbackfn: (value: any, counter: uint) => boolean): boolean;
+  filter(callbackfn: (value: any, counter: uint) => boolean): Iterator<any>;
+  find(callbackfn: (value: any, counter: uint) => boolean)): any;
+  flatMap(callbackfn: (value: any, counter: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
+  forEach(callbackfn: (value: any, counter: uint) => void): void;
+  map(callbackfn: (value: any, counter: uint) => any): Iterator<any>;
+  reduce(callbackfn: (memo: any, value: any, counter: uint) => any, initialValue: any): any;
+  some(callbackfn: (value: any, counter: uint) => boolean): boolean;
+  take(limit: uint): Iterator<any>;
+  toArray(): Array<any>;
+  @@toStringTag: 'Iterator'
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/es|stable|actual|full/iterator
+core-js(-pure)/es|stable|actual|full/iterator/drop
+core-js(-pure)/es|stable|actual|full/iterator/every
+core-js(-pure)/es|stable|actual|full/iterator/filter
+core-js(-pure)/es|stable|actual|full/iterator/find
+core-js(-pure)/es|stable|actual|full/iterator/flat-map
+core-js(-pure)/es|stable|actual|full/iterator/for-each
+core-js(-pure)/es|stable|actual|full/iterator/from
+core-js(-pure)/es|stable|actual|full/iterator/map
+core-js(-pure)/es|stable|actual|full/iterator/reduce
+core-js(-pure)/es|stable|actual|full/iterator/some
+core-js(-pure)/es|stable|actual|full/iterator/take
+core-js(-pure)/es|stable|actual|full/iterator/to-array
+```
+[Examples](https://tinyurl.com/249jw4e4):
+```js
+[1, 2, 3, 4, 5, 6, 7].values()
+  .drop(1)
+  .take(5)
+  .filter(it => it % 2)
+  .map(it => it ** 2)
+  .toArray(); // => [9, 25]
+
+Iterator.from({
+  next: () => ({ done: Math.random() > 0.9, value: Math.random() * 10 | 0 }),
+}).toArray(); // => [7, 6, 3, 0, 2, 8]
+```
+
+> [!WARNING]
+> - For preventing prototype pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they are available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
 
 #### ECMAScript: String and RegExp[⬆](#index)
 The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-end.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js), [`es.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.is-well-formed.js), [`es.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.to-well-formed.js).
@@ -2074,6 +2127,29 @@ class ArrayBuffer {
 core-js/proposals/array-buffer-transfer
 ```
 
+##### [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers)[⬆](#index)
+```ts
+class Iterator {
+  static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
+  drop(limit: uint): Iterator<any>;
+  every(callbackfn: (value: any, counter: uint) => boolean): boolean;
+  filter(callbackfn: (value: any, counter: uint) => boolean): Iterator<any>;
+  find(callbackfn: (value: any, counter: uint) => boolean)): any;
+  flatMap(callbackfn: (value: any, counter: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
+  forEach(callbackfn: (value: any, counter: uint) => void): void;
+  map(callbackfn: (value: any, counter: uint) => any): Iterator<any>;
+  reduce(callbackfn: (memo: any, value: any, counter: uint) => any, initialValue: any): any;
+  some(callbackfn: (value: any, counter: uint) => boolean): boolean;
+  take(limit: uint): Iterator<any>;
+  toArray(): Array<any>;
+  @@toStringTag: 'Iterator'
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-helpers-stage-3-2
+```
+
 ##### [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)[⬆](#index)
 ```ts
 class Object {
@@ -2298,59 +2374,6 @@ core-js/proposals/set-methods-v2
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/3
-```
-##### [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers)[⬆](#index)
-Modules [`esnext.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.constructor.js), [`esnext.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.drop.js), [`esnext.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.every.js), [`esnext.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.filter.js), [`esnext.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.find.js), [`esnext.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.flat-map.js), [`esnext.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.for-each.js), [`esnext.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.from.js), [`esnext.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.map.js), [`esnext.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.reduce.js), [`esnext.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.some.js), [`esnext.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.take.js), [`esnext.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.to-array.js)
-```ts
-class Iterator {
-  static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
-  drop(limit: uint): Iterator<any>;
-  every(callbackfn: (value: any, counter: uint) => boolean): boolean;
-  filter(callbackfn: (value: any, counter: uint) => boolean): Iterator<any>;
-  find(callbackfn: (value: any, counter: uint) => boolean)): any;
-  flatMap(callbackfn: (value: any, counter: uint) => Iterable<any> | Iterator<any>): Iterator<any>;
-  forEach(callbackfn: (value: any, counter: uint) => void): void;
-  map(callbackfn: (value: any, counter: uint) => any): Iterator<any>;
-  reduce(callbackfn: (memo: any, value: any, counter: uint) => any, initialValue: any): any;
-  some(callbackfn: (value: any, counter: uint) => boolean): boolean;
-  take(limit: uint): Iterator<any>;
-  toArray(): Array<any>;
-  @@toStringTag: 'Iterator'
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/iterator-helpers-stage-3-2
-core-js(-pure)/actual|full/iterator
-core-js(-pure)/actual|full/iterator/drop
-core-js(-pure)/actual|full/iterator/every
-core-js(-pure)/actual|full/iterator/filter
-core-js(-pure)/actual|full/iterator/find
-core-js(-pure)/actual|full/iterator/flat-map
-core-js(-pure)/actual|full/iterator/for-each
-core-js(-pure)/actual|full/iterator/from
-core-js(-pure)/actual|full/iterator/map
-core-js(-pure)/actual|full/iterator/reduce
-core-js(-pure)/actual|full/iterator/some
-core-js(-pure)/actual|full/iterator/take
-core-js(-pure)/actual|full/iterator/to-array
-```
-[Examples](https://tinyurl.com/249jw4e4):
-```js
-[1, 2, 3, 4, 5, 6, 7].values()
-  .drop(1)
-  .take(5)
-  .filter(it => it % 2)
-  .map(it => it ** 2)
-  .toArray(); // => [9, 25]
-
-Iterator.from({
-  next: () => ({ done: Math.random() > 0.9, value: Math.random() * 10 | 0 }),
-}).toArray(); // => [7, 6, 3, 0, 2, 8]
-```
-
-> [!WARNING]
-> - For preventing prototype pollution, in the `pure` version, new `%IteratorPrototype%` methods are not added to the real `%IteratorPrototype%`, they are available only on wrappers - instead of `[].values().map(fn)` use `Iterator.from([]).map(fn)`.
 
 ##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
 Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
