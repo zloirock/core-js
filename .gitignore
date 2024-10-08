@@ -5,6 +5,7 @@ node_modules/
 *.log
 *.bak
 *.swp
+.DS_Store
 
 /packages/core-js/features/
 /packages/core-js/es/index.js
