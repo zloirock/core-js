@@ -16,7 +16,7 @@
       - `Iterator.prototype.take`
       - `Iterator.prototype.toArray`
       - `Iterator.prototype[@@toStringTag]`
-  - Moved to stable ES, October 2024 TC39 meeting
+  - Moved to stable ES, [October 2024 TC39 meeting](https://github.com/tc39/proposal-iterator-helpers/issues/284#event-14549961807)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Fixed `core-js-pure/actual|full/promise/try` entries for the callback arguments support
 - Compat data improvements:
