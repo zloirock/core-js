@@ -2088,36 +2088,10 @@ export const data = {
   },
   'esnext.function.metadata': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.constructor': null,
   'esnext.iterator.dispose': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.drop': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.every': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.filter': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.find': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.flat-map': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.for-each': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.from': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.map': null,
   'esnext.iterator.range': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.reduce': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.some': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.take': null,
-  // TODO: Remove from `core-js@4`
-  'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
   },
   'esnext.json.is-raw-json': {
@@ -2431,19 +2405,6 @@ export const data = {
 
 export const renamed = new Map([
   // TODO: Clean in `core-js@4`
-  ['esnext.iterator.constructor', 'es.iterator.constructor'],
-  ['esnext.iterator.drop', 'es.iterator.drop'],
-  ['esnext.iterator.every', 'es.iterator.every'],
-  ['esnext.iterator.filter', 'es.iterator.filter'],
-  ['esnext.iterator.find', 'es.iterator.find'],
-  ['esnext.iterator.flat-map', 'es.iterator.flat-map'],
-  ['esnext.iterator.for-each', 'es.iterator.for-each'],
-  ['esnext.iterator.from', 'es.iterator.from'],
-  ['esnext.iterator.map', 'es.iterator.map'],
-  ['esnext.iterator.reduce', 'es.iterator.reduce'],
-  ['esnext.iterator.some', 'es.iterator.some'],
-  ['esnext.iterator.take', 'es.iterator.take'],
-  ['esnext.iterator.to-array', 'es.iterator.to-array'],
   ['esnext.promise.try', 'es.promise.try'],
 ]);
 

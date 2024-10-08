@@ -8,7 +8,7 @@ var push = [].push;
 
 // `Iterator.prototype.toArray` method
 // https://github.com/tc39/proposal-iterator-helpers
-// dependency: esnext.iterator.constructor
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];
