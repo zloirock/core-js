@@ -1,5 +1,23 @@
 ## Changelog
 ##### Unreleased
+- [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers):
+  - Built-ins:
+    - `Iterator`
+      - `Iterator.from`
+      - `Iterator.prototype.drop`
+      - `Iterator.prototype.every`
+      - `Iterator.prototype.filter`
+      - `Iterator.prototype.find`
+      - `Iterator.prototype.flatMap`
+      - `Iterator.prototype.forEach`
+      - `Iterator.prototype.map`
+      - `Iterator.prototype.reduce`
+      - `Iterator.prototype.some`
+      - `Iterator.prototype.take`
+      - `Iterator.prototype.toArray`
+      - `Iterator.prototype[@@toStringTag]`
+  - Moved to stable ES, [October 2024 TC39 meeting](https://github.com/tc39/proposal-iterator-helpers/issues/284#event-14549961807)
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Fixed `core-js-pure/actual|full/promise/try` entries for the callback arguments support
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)

@@ -6,7 +6,6 @@ require('../proposals/array-from-async-stage-2');
 require('../proposals/decorator-metadata-v2');
 require('../proposals/explicit-resource-management');
 require('../proposals/float16');
-require('../proposals/iterator-helpers-stage-3-2');
 require('../proposals/json-parse-with-source');
 require('../proposals/promise-try');
 require('../proposals/regexp-escaping');
