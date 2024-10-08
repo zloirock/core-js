@@ -3757,7 +3757,6 @@ export const proposals = {
     link: 'https://github.com/tc39/proposal-Number.range',
     stage: 2,
     modules: [
-      'es.iterator.constructor',
       'esnext.iterator.range',
     ],
   },
