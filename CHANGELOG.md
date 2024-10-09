@@ -21,7 +21,7 @@
 - [`Promise.try`](https://github.com/tc39/proposal-promise-try):
   - Built-ins:
     - `Promise.try`
-  - Moved to stable ES, October 2024 TC39 meeting
+  - Moved to stable ES, [October 2024 TC39 meeting](https://github.com/tc39/proposal-promise-try/commit/53d3351687274952b3b88f3ad024d9d68a9c1c93)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
   - Fixed `/actual|full/promise/try` entries for the callback arguments support
 - [`Math.sumPrecise` proposal](https://github.com/tc39/proposal-math-sum/):
