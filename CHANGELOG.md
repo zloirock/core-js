@@ -21,7 +21,7 @@
 - [`Math.sumPrecise` proposal](https://github.com/tc39/proposal-math-sum/):
   - Built-ins:
     - `Math.sumPrecise`
-  - Moved to stage 3, October 2024 TC39 meeting
+  - Moved to stage 3, [October 2024 TC39 meeting](https://x.com/robpalmer2/status/1843829675036160179)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Fixed `core-js-pure/actual|full/promise/try` entries for the callback arguments support
 - Compat data improvements:
