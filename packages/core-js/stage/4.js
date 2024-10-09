@@ -10,6 +10,7 @@ require('../proposals/global-this');
 require('../proposals/iterator-helpers-stage-3-2');
 require('../proposals/promise-all-settled');
 require('../proposals/promise-any');
+require('../proposals/promise-try');
 require('../proposals/promise-with-resolvers');
 require('../proposals/relative-indexing-method');
 require('../proposals/set-methods-v2');
