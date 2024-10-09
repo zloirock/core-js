@@ -702,6 +702,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
+    ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
     ok(load(NS, 'promise/try')(() => 42) instanceof load(NS, 'promise'));
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'symbol/dispose'));
@@ -798,7 +799,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
     ok(typeof load(NS, 'math/seeded-prng')({ seed: 42 }).next().value === 'number');
     ok(load(NS, 'math/signbit')(-2) === true);
-    ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
     ok(load(NS, 'math/umulh')(0xFFFFFFFF, 7) === 6);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);

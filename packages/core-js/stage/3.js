@@ -7,6 +7,7 @@ require('../proposals/decorator-metadata-v2');
 require('../proposals/explicit-resource-management');
 require('../proposals/float16');
 require('../proposals/json-parse-with-source');
+require('../proposals/math-sum');
 require('../proposals/promise-try');
 require('../proposals/regexp-escaping');
 // TODO: Obsolete versions, remove from `core-js@4`

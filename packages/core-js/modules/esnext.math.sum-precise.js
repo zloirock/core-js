@@ -33,7 +33,7 @@ var twosum = function (x, y) {
 
 // `Math.sumPrecise` method
 // https://github.com/tc39/proposal-math-sum
-$({ target: 'Math', stat: true, forced: true }, {
+$({ target: 'Math', stat: true }, {
   // eslint-disable-next-line max-statements -- ok
   sumPrecise: function sumPrecise(items) {
     var numbers = [];
