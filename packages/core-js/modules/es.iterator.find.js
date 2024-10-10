@@ -7,6 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.find` method
 // https://github.com/tc39/proposal-iterator-helpers
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   find: function find(predicate) {
     anObject(this);
@@ -16,5 +17,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     return iterate(record, function (value, stop) {
       if (predicate(value, counter++)) return stop(value);
     }, { IS_RECORD: true, INTERRUPTED: true }).result;
-  }
+  },
 });

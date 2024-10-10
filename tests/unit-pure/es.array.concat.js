@@ -1,5 +1,5 @@
-import Symbol from 'core-js-pure/es/symbol';
-import concat from 'core-js-pure/es/array/concat';
+import Symbol from '@core-js/pure/es/symbol';
+import concat from '@core-js/pure/es/array/concat';
 
 /* eslint-disable no-sparse-arrays -- required for testing */
 QUnit.test('Array#concat', assert => {
@@ -30,5 +30,5 @@ QUnit.test('Array#concat', assert => {
   } };
   // temporarily disabled because of a WebKit bug:
   // https://bugs.webkit.org/show_bug.cgi?id=281061
-  if (+new Date() > Date.UTC(2024, 11, 1)) assert.same(concat(array).foo, 1, '@@species');
+  if (Date.now() > Date.UTC(2024, 11, 1)) assert.same(concat(array).foo, 1, '@@species');
 });

@@ -24,12 +24,13 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.filter` method
 // https://github.com/tc39/proposal-iterator-helpers
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   filter: function filter(predicate) {
     anObject(this);
     aCallable(predicate);
     return new IteratorProxy(getIteratorDirect(this), {
-      predicate: predicate
+      predicate: predicate,
     });
-  }
+  },
 });

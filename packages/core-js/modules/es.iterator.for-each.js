@@ -7,6 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.forEach` method
 // https://github.com/tc39/proposal-iterator-helpers
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   forEach: function forEach(fn) {
     anObject(this);
@@ -16,5 +17,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     iterate(record, function (value) {
       fn(value, counter++);
     }, { IS_RECORD: true });
-  }
+  },
 });

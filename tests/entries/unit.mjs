@@ -13,8 +13,8 @@ function load(...components) {
   return require(path);
 }
 
-for (PATH of ['core-js-pure', 'core-js']) {
-  for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
+for (PATH of ['@core-js/pure', 'core-js']) {
+  for (const NS of ['es', 'stable', 'actual', 'full']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
     ok(new (load(NS, 'aggregate-error'))([42]).errors[0] === 42);
@@ -48,32 +48,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'object/lookup-getter') == 'function');
     ok(typeof load(NS, 'object/lookup-setter') == 'function');
     ok('values' in load(NS, 'object'));
-    ok(load(NS, 'function/bind')(function (a, b) {
-      return this + a + b;
-    }, 1, 2)(3) === 6);
-    ok(load(NS, 'function/virtual/bind').call(function (a, b) {
-      return this + a + b;
-    }, 1, 2)(3) === 6);
-    ok(load(NS, 'function/virtual').bind.call(function (a, b) {
-      return this + a + b;
-    }, 1, 2)(3) === 6);
     load(NS, 'function/name');
-    load(NS, 'function/has-instance');
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
-    ok(load(NS, 'array/is-array')([]));
     ok(Array.isArray(load(NS, 'array/of')('q', 'w', 'e')));
     ok(load(NS, 'array/at')([1, 2, 3], -2) === 2);
     ok(load(NS, 'array/join')('qwe', 1) === 'q1w1e');
     ok(load(NS, 'array/slice')('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/sort')([1, 3, 2])[1] === 2);
-    ok(typeof load(NS, 'array/for-each') == 'function');
     ok(typeof load(NS, 'array/map') == 'function');
     ok(typeof load(NS, 'array/filter') == 'function');
     ok(typeof load(NS, 'array/flat') == 'function');
     ok(typeof load(NS, 'array/flat-map') == 'function');
-    ok(typeof load(NS, 'array/some') == 'function');
-    ok(typeof load(NS, 'array/every') == 'function');
     ok(typeof load(NS, 'array/push') == 'function');
     ok(typeof load(NS, 'array/reduce') == 'function');
     ok(typeof load(NS, 'array/reduce-right') == 'function');
@@ -102,13 +88,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/virtual/slice').call('qwe', 1)[1] === 'e');
     ok(load(NS, 'array/virtual/splice').call([1, 2, 3], 1, 2)[0] === 2);
     ok(load(NS, 'array/virtual/sort').call([1, 3, 2])[1] === 2);
-    ok(typeof load(NS, 'array/virtual/for-each') == 'function');
     ok(typeof load(NS, 'array/virtual/map') == 'function');
     ok(typeof load(NS, 'array/virtual/filter') == 'function');
     ok(typeof load(NS, 'array/virtual/flat') == 'function');
     ok(typeof load(NS, 'array/virtual/flat-map') == 'function');
-    ok(typeof load(NS, 'array/virtual/some') == 'function');
-    ok(typeof load(NS, 'array/virtual/every') == 'function');
     ok(typeof load(NS, 'array/virtual/push') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce') == 'function');
     ok(typeof load(NS, 'array/virtual/reduce-right') == 'function');
@@ -132,11 +115,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'array/virtual/to-reversed').call([1, 2, 3])[0] === 3);
     ok(load(NS, 'array/virtual/to-sorted').call([3, 2, 1])[0] === 1);
     ok(load(NS, 'array/virtual/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
-    ok('map' in load(NS, 'array/virtual'));
     ok('from' in load(NS, 'array'));
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
     ok(new (load(NS, 'error/constructor').Error)(1, { cause: 7 }).cause === 7);
-    ok(typeof load(NS, 'error/to-string') == 'function');
     ok(new (load(NS, 'error').Error)(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'math/acosh')(1) === 0);
     ok(Object.is(load(NS, 'math/asinh')(-0), -0));
@@ -154,7 +135,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/sign')(-2) === -1);
     ok(Object.is(load(NS, 'math/sinh')(-0), -0));
     ok(load(NS, 'math/tanh')(Infinity) === 1);
-    ok(load(NS, 'math/to-string-tag') === 'Math');
     ok(load(NS, 'math/trunc')(1.5) === 1);
     ok('cbrt' in load(NS, 'math'));
     ok(load(NS, 'number/constructor')('5') === 5);
@@ -169,13 +149,10 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'number/parse-int')('2.1') === 2);
     ok(load(NS, 'number/to-exponential')(1, 1) === '1.0e+0');
     ok(load(NS, 'number/to-fixed')(1, 1) === '1.0');
-    ok(load(NS, 'number/to-precision')(1) === '1');
     ok(load(NS, 'parse-float')('1.5') === 1.5);
     ok(load(NS, 'parse-int')('2.1') === 2);
     ok(load(NS, 'number/virtual/to-exponential').call(1, 1) === '1.0e+0');
     ok(load(NS, 'number/virtual/to-fixed').call(1, 1) === '1.0');
-    ok(load(NS, 'number/virtual/to-precision').call(1) === '1');
-    ok('toPrecision' in load(NS, 'number/virtual'));
     ok('isNaN' in load(NS, 'number'));
     ok(load(NS, 'reflect/apply')((a, b) => a + b, null, [1, 2]) === 3);
     ok(load(NS, 'reflect/construct')(function () {
@@ -193,7 +170,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'reflect/prevent-extensions')({}));
     ok(load(NS, 'reflect/set')({}, 'a', 42));
     load(NS, 'reflect/set-prototype-of')(O = {}, []);
-    ok(load(NS, 'reflect/to-string-tag') === 'Reflect');
     ok(O instanceof Array);
     ok('has' in load(NS, 'reflect'));
     ok(load(NS, 'string/from-code-point')(97) === 'a');
@@ -221,7 +197,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'string/small') == 'function');
     ok(typeof load(NS, 'string/strike') == 'function');
     ok(typeof load(NS, 'string/sub') == 'function');
-    ok(load(NS, 'string/substr')('12345', 1, 3) === '234');
     ok(typeof load(NS, 'string/sup') == 'function');
     ok(typeof load(NS, 'string/replace-all') == 'function');
     ok(load(NS, 'string/pad-start')('a', 3) === '  a');
@@ -254,40 +229,26 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'string/virtual/small') == 'function');
     ok(typeof load(NS, 'string/virtual/strike') == 'function');
     ok(typeof load(NS, 'string/virtual/sub') == 'function');
-    ok(load(NS, 'string/virtual/substr').call('12345', 1, 3) === '234');
     ok(typeof load(NS, 'string/virtual/sup') == 'function');
     ok(load(NS, 'string/virtual/pad-start').call('a', 3) === '  a');
     ok(load(NS, 'string/virtual/pad-end').call('a', 3) === 'a  ');
     ok(load(NS, 'string/virtual/is-well-formed').call('a'));
     ok(load(NS, 'string/virtual/to-well-formed').call('a') === 'a');
     ok('next' in load(NS, 'string/virtual/iterator').call('qwe'));
-    ok('padEnd' in load(NS, 'string/virtual'));
     ok('raw' in load(NS, 'string'));
-    ok(String(load(NS, 'regexp/constructor')('a', 'g')) === '/a/g');
-    ok(load(NS, 'regexp/to-string')(/./g) === '/./g');
+    load(NS, 'regexp/constructor');
+    load(NS, 'regexp/to-string');
     ok(load(NS, 'regexp/flags')(/./g) === 'g');
-    ok(typeof load(NS, 'regexp/match') == 'function');
-    ok(typeof load(NS, 'regexp/replace') == 'function');
-    ok(typeof load(NS, 'regexp/search') == 'function');
-    ok(typeof load(NS, 'regexp/split') == 'function');
-    ok(typeof load(NS, 'regexp/dot-all') == 'function');
-    ok(typeof load(NS, 'regexp/sticky') == 'function');
-    ok(typeof load(NS, 'regexp/test') == 'function');
+    load(NS, 'regexp/match');
+    load(NS, 'regexp/replace');
+    load(NS, 'regexp/search');
+    load(NS, 'regexp/split');
+    load(NS, 'regexp/dot-all');
+    load(NS, 'regexp/sticky');
+    load(NS, 'regexp/test');
     load(NS, 'regexp');
-    ok(load(NS, 'escape')('!q2ф') === '%21q2%u0444');
-    ok(load(NS, 'unescape')('%21q2%u0444') === '!q2ф');
     ok(load(NS, 'json').stringify([1]) === '[1]');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
-    ok(load(NS, 'json/to-string-tag') === 'JSON');
-    ok(typeof load(NS, 'date/now')(new Date()) === 'number');
-    const date = new Date();
-    ok(load(NS, 'date/get-year')(date) === date.getFullYear() - 1900);
-    load(NS, 'date/set-year')(date, 1);
-    ok(date.getFullYear() === 1901);
-    ok(typeof load(NS, 'date/to-string')(date) === 'string');
-    ok(load(NS, 'date/to-gmt-string')(date) === date.toUTCString());
-    ok(typeof load(NS, 'date/to-primitive')(new Date(), 'number') === 'number');
-    ok(typeof load(NS, 'date/to-iso-string')(new Date()) === 'string');
     ok(load(NS, 'date/to-json')(Infinity) === null);
     ok(load(NS, 'date'));
     ok(typeof load(NS, 'symbol') == 'function');
@@ -356,12 +317,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceAt([]).call([1, 2, 3], 2) === 3);
     ok(instanceAt('').call('123', 2) === '3');
 
-    const instanceBind = load(NS, 'instance/bind');
-    ok(typeof instanceBind == 'function');
-    ok(instanceBind({}) === undefined);
-    ok(typeof instanceBind(it => it) == 'function');
-    ok(instanceBind(it => it).call(it => it, 1, 2)() === 2);
-
     const instanceCodePointAt = load(NS, 'instance/code-point-at');
     ok(typeof instanceCodePointAt == 'function');
     ok(instanceCodePointAt({}) === undefined);
@@ -391,12 +346,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceEntries({}) === undefined);
     ok(typeof instanceEntries([]) == 'function');
     ok(instanceEntries([]).call([1, 2, 3]).next().value[1] === 1);
-
-    const instanceEvery = load(NS, 'instance/every');
-    ok(typeof instanceEvery == 'function');
-    ok(instanceEvery({}) === undefined);
-    ok(typeof instanceEvery([]) == 'function');
-    ok(instanceEvery([]).call([1, 2, 3], it => typeof it == 'number'));
 
     const instanceFill = load(NS, 'instance/fill');
     ok(typeof instanceFill == 'function');
@@ -450,11 +399,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceFlat({}) === undefined);
     ok(typeof instanceFlat([]) == 'function');
     ok(instanceFlat([]).call([1, [2, 3], [4, [5, [6]]]]).length === 5);
-
-    const instanceForEach = load(NS, 'instance/for-each');
-    ok(typeof instanceForEach == 'function');
-    ok(instanceForEach({}) === undefined);
-    ok(typeof instanceForEach([]) == 'function');
 
     const instanceIncludes = load(NS, 'instance/includes');
     ok(typeof instanceIncludes == 'function');
@@ -552,12 +496,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceSlice({}) === undefined);
     ok(typeof instanceSlice([]) == 'function');
 
-    const instanceSome = load(NS, 'instance/some');
-    ok(typeof instanceSome == 'function');
-    ok(instanceSome({}) === undefined);
-    ok(typeof instanceSome([]) == 'function');
-    ok(instanceSome([]).call([1, 2, 3], it => typeof it == 'number'));
-
     const instanceSort = load(NS, 'instance/sort');
     ok(typeof instanceSort == 'function');
     ok(instanceSort({}) === undefined);
@@ -649,18 +587,18 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
   }
 
-  for (const NS of ['stable', 'actual', 'full', 'features']) {
+  for (const NS of ['stable', 'actual', 'full']) {
     ok(load(NS, 'atob')('Zg==') === 'f');
     ok(load(NS, 'btoa')('f') === 'Zg==');
     ok(typeof load(NS, 'dom-exception/constructor') == 'function');
-    ok(load(NS, 'dom-exception/to-string-tag') === 'DOMException');
     ok(typeof load(NS, 'dom-exception') == 'function');
-    ok(typeof load(NS, 'dom-collections').iterator == 'function');
-    ok(typeof load(NS, 'dom-collections/for-each') == 'function');
-    ok(typeof load(NS, 'dom-collections/iterator') == 'function');
+    load(NS, 'dom-collections');
+    load(NS, 'dom-collections/for-each');
+    load(NS, 'dom-collections/iterator');
+    load(NS, 'dom-collections/keys');
+    load(NS, 'dom-collections/values');
+    load(NS, 'dom-collections/entries');
     ok(load(NS, 'self').Math === Math);
-    ok(typeof load(NS, 'set-timeout') == 'function');
-    ok(typeof load(NS, 'set-interval') == 'function');
     ok(typeof load(NS, 'set-immediate') == 'function');
     ok(load(NS, 'structured-clone')(42) === 42);
     ok(typeof load(NS, 'clear-immediate') == 'function');
@@ -670,19 +608,44 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'url/parse')('a:b').href === 'a:b');
     load(NS, 'url/to-json');
     ok(typeof load(NS, 'url-search-params') == 'function');
+
+    const instanceForEach = load(NS, 'instance/for-each');
+    ok(typeof instanceForEach == 'function');
+    ok(instanceForEach({}) === undefined);
+    ok(typeof instanceForEach([]) == 'function');
   }
 
-  for (const NS of ['actual', 'full', 'features']) {
+  for (const NS of ['actual', 'full']) {
     ok(typeof load(NS, 'array/from-async') == 'function');
-    ok(typeof load(NS, 'array/group') == 'function');
-    ok(typeof load(NS, 'array/group-to-map') == 'function');
-    ok(typeof load(NS, 'array/group-by') == 'function');
-    ok(typeof load(NS, 'array/group-by-to-map') == 'function');
-    ok(typeof load(NS, 'array/virtual/group') == 'function');
-    ok(typeof load(NS, 'array/virtual/group-to-map') == 'function');
-    ok(typeof load(NS, 'array/virtual/group-by') == 'function');
-    ok(typeof load(NS, 'array/virtual/group-by-to-map') == 'function');
-    ok(typeof load(NS, 'async-iterator') == 'function');
+    load(NS, 'data-view/get-float16');
+    load(NS, 'data-view/set-float16');
+    ok(load(NS, 'json/is-raw-json')({}) === false);
+    ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
+    ok(typeof load(NS, 'json/raw-json')(42) == 'object');
+    ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
+    ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
+    ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
+    ok(load(NS, 'symbol/dispose'));
+    ok(load(NS, 'symbol/metadata'));
+    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
+    ok(typeof load(NS, 'disposable-stack') == 'function');
+    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
+    ok(load(NS, 'symbol/async-dispose'));
+    ok(typeof load(NS, 'async-disposable-stack') == 'function');
+    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
+  }
+
+  for (const NS of ['full']) {
+    const Map = load(NS, 'map');
+    const Set = load(NS, 'set');
+    const WeakMap = load(NS, 'weak-map');
+    const WeakSet = load(NS, 'weak-set');
+    ok(typeof load(NS, 'array/filter-reject') == 'function');
+    ok(typeof load(NS, 'array/is-template-object') == 'function');
+    ok(typeof load(NS, 'array/unique-by') == 'function');
+    ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
+    ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
+    ok(typeof load(NS, 'async-iterator/constructor') == 'function');
     ok(typeof load(NS, 'async-iterator/drop') == 'function');
     ok(typeof load(NS, 'async-iterator/every') == 'function');
     ok(typeof load(NS, 'async-iterator/filter') == 'function');
@@ -695,184 +658,35 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/some') == 'function');
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
-    load(NS, 'data-view/get-float16');
-    load(NS, 'data-view/set-float16');
-    ok(load(NS, 'function/metadata') === null);
-    ok(typeof load(NS, 'iterator/to-async') == 'function');
-    ok(load(NS, 'json/is-raw-json')({}) === false);
-    ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
-    ok(typeof load(NS, 'json/raw-json')(42) == 'object');
-    ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
-    ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
-    ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
-    ok(load(NS, 'symbol/dispose'));
-    ok(load(NS, 'symbol/metadata'));
-    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
-    ok(typeof load(NS, 'disposable-stack') == 'function');
-    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
-    load(NS, 'iterator/dispose');
-    ok(load(NS, 'symbol/async-dispose'));
-    load(NS, 'async-iterator/async-dispose');
-    ok(typeof load(NS, 'async-disposable-stack') == 'function');
-    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
-
-    const instanceGroup = load(NS, 'instance/group');
-    ok(typeof instanceGroup == 'function');
-    ok(instanceGroup({}) === undefined);
-    ok(typeof instanceGroup([]) == 'function');
-    ok(instanceGroup([]).call([1, 2, 3], it => it % 2)[1].length === 2);
-
-    const instanceGroupToMap = load(NS, 'instance/group-to-map');
-    ok(typeof instanceGroupToMap == 'function');
-    ok(instanceGroupToMap({}) === undefined);
-    ok(typeof instanceGroupToMap([]) == 'function');
-    ok(instanceGroupToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
-
-    const instanceGroupBy = load(NS, 'instance/group-by');
-    ok(typeof instanceGroupBy == 'function');
-    ok(instanceGroupBy({}) === undefined);
-    ok(typeof instanceGroupBy([]) == 'function');
-    ok(instanceGroupBy([]).call([1, 2, 3], it => it % 2)[1].length === 2);
-
-    const instanceGroupByToMap = load(NS, 'instance/group-by-to-map');
-    ok(typeof instanceGroupByToMap == 'function');
-    ok(instanceGroupByToMap({}) === undefined);
-    ok(typeof instanceGroupByToMap([]) == 'function');
-    ok(instanceGroupByToMap([]).call([1, 2, 3], it => it % 2).get(1).length === 2);
-  }
-
-  for (const NS of ['full', 'features']) {
-    const Map = load(NS, 'map');
-    const Set = load(NS, 'set');
-    const WeakMap = load(NS, 'weak-map');
-    const WeakSet = load(NS, 'weak-set');
-    ok(typeof load(NS, 'array/filter-out') == 'function');
-    ok(typeof load(NS, 'array/filter-reject') == 'function');
-    ok(typeof load(NS, 'array/is-template-object') == 'function');
-    load(NS, 'array/last-item');
-    load(NS, 'array/last-index');
-    ok(typeof load(NS, 'array/unique-by') == 'function');
-    ok(typeof load(NS, 'array/virtual/filter-out') == 'function');
-    ok(typeof load(NS, 'array/virtual/filter-reject') == 'function');
-    ok(typeof load(NS, 'array/virtual/unique-by') == 'function');
-    ok(typeof load(NS, 'async-iterator/as-indexed-pairs') == 'function');
-    ok(typeof load(NS, 'async-iterator/indexed') == 'function');
-    load(NS, 'bigint/range');
-    load(NS, 'bigint');
     load(NS, 'data-view/get-uint8-clamped');
     load(NS, 'data-view/set-uint8-clamped');
-    ok(typeof load(NS, 'composite-key')({}, 1, {}) === 'object');
-    ok(typeof load(NS, 'composite-symbol')({}, 1, {}) === 'symbol');
     ok(load(NS, 'function/demethodize')([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'function/virtual/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(!load(NS, 'function/is-callable')(class { /* empty */ }));
-    ok(!load(NS, 'function/is-constructor')(it => it));
-    ok(load(NS, 'function/un-this')([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
-    ok(typeof load(NS, 'iterator/as-indexed-pairs') == 'function');
-    ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
-    ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
+    ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
-    ok(load(NS, 'map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
-    ok(load(NS, 'map/filter')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2).size === 1);
-    ok(load(NS, 'map/find')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 3);
-    ok(load(NS, 'map/find-key')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 2);
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
-    ok(load(NS, 'map/includes')(new Map([[1, 2]]), 2), true);
-    ok(load(NS, 'map/key-by')([], it => it) instanceof Map);
-    ok(load(NS, 'map/key-of')(new Map([[1, 2]]), 2), 1);
-    ok(load(NS, 'map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
-    ok(load(NS, 'map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
-    ok(load(NS, 'map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
-    ok(load(NS, 'map/update-or-insert')(new Map([[1, 2]]), 1, it => it ** 2, () => 42) === 4);
-    ok(load(NS, 'map/upsert')(new Map([[1, 2]]), 1, it => it ** 2, () => 42) === 4);
-    ok(load(NS, 'math/clamp')(6, 2, 4) === 4);
-    ok(load(NS, 'math/deg-per-rad') === Math.PI / 180);
-    ok(load(NS, 'math/degrees')(Math.PI) === 180);
-    ok(load(NS, 'math/fscale')(3, 1, 2, 1, 2) === 3);
-    ok(load(NS, 'math/iaddh')(3, 2, 0xFFFFFFFF, 4) === 7);
-    ok(load(NS, 'math/isubh')(3, 4, 0xFFFFFFFF, 2) === 1);
-    ok(load(NS, 'math/imulh')(0xFFFFFFFF, 7) === -1);
-    ok(load(NS, 'math/rad-per-deg') === 180 / Math.PI);
-    ok(load(NS, 'math/radians')(180) === Math.PI);
-    ok(load(NS, 'math/scale')(3, 1, 2, 1, 2) === 3);
-    ok(typeof load(NS, 'math/seeded-prng')({ seed: 42 }).next().value === 'number');
-    ok(load(NS, 'math/signbit')(-2) === true);
-    ok(load(NS, 'math/umulh')(0xFFFFFFFF, 7) === 6);
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
-    ok(load(NS, 'map/reduce')(new Map([[1, 2], [2, 3], [3, 4]]), (a, b) => a + b) === 9);
-    ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
-    ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
-    ok(load(NS, 'number/from-string')('12', 3) === 5);
-    ok(load(NS, 'number/range')(1, 2).next().value === 1);
-    ok(typeof load(NS, 'object/iterate-entries')({}).next == 'function');
-    ok(typeof load(NS, 'object/iterate-keys')({}).next == 'function');
-    ok(typeof load(NS, 'object/iterate-values')({}).next == 'function');
-    ok('from' in load(NS, 'observable'));
-    ok(typeof load(NS, 'reflect/define-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/delete-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/get-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/get-metadata-keys') == 'function');
-    ok(typeof load(NS, 'reflect/get-own-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/get-own-metadata-keys') == 'function');
-    ok(typeof load(NS, 'reflect/has-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/has-own-metadata') == 'function');
-    ok(typeof load(NS, 'reflect/metadata') == 'function');
-    ok(load(NS, 'set/add-all')(new Set([1, 2, 3]), 4, 5).size === 5);
-    ok(load(NS, 'set/delete-all')(new Set([1, 2, 3]), 4, 5) === false);
-    ok(load(NS, 'set/every')(new Set([1, 2, 3]), it => typeof it == 'number'));
-    ok(load(NS, 'set/filter')(new Set([1, 2, 3]), it => it % 2).size === 2);
-    ok(load(NS, 'set/find')(new Set([2, 3, 4]), it => it % 2) === 3);
     ok(load(NS, 'set/from')([1, 2, 3, 2, 1]) instanceof Set);
-    ok(load(NS, 'set/join')(new Set([1, 2, 3])) === '1,2,3');
-    ok(load(NS, 'set/map')(new Set([1, 2, 3]), it => it % 2).size === 2);
     ok(load(NS, 'set/of')(1, 2, 3, 2, 1) instanceof Set);
-    ok(load(NS, 'set/reduce')(new Set([1, 2, 3]), (it, v) => it + v) === 6);
-    ok(load(NS, 'set/some')(new Set([1, 2, 3]), it => typeof it == 'number'));
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
     ok(load(NS, 'string/dedent')`
       a${ 1 }b
     ` === 'a1b');
-    ok('next' in load(NS, 'string/code-points')('a'));
-    ok('next' in load(NS, 'string/virtual/code-points').call('a'));
     ok(load(NS, 'symbol/custom-matcher'));
     ok(load(NS, 'symbol/is-registered-symbol')(1) === false);
     ok(load(NS, 'symbol/is-well-known-symbol')(1) === false);
-    ok(load(NS, 'symbol/is-registered')(1) === false);
-    ok(load(NS, 'symbol/is-well-known')(1) === false);
-    ok(load(NS, 'symbol/matcher'));
-    ok(load(NS, 'symbol/metadata-key'));
-    ok(load(NS, 'symbol/observable'));
-    ok(load(NS, 'symbol/pattern-match'));
-    ok(load(NS, 'symbol/replace-all'));
-    ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
     ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
-    ok(load(NS, 'weak-map/upsert')(new WeakMap(), {}, null, () => 42) === 42);
     ok(load(NS, 'weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
     ok(load(NS, 'weak-map/of')([{}, 1], [[], 2]) instanceof WeakMap);
-    ok(load(NS, 'weak-set/add-all')(new WeakSet(), [], {}) instanceof WeakSet);
-    ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
-
-    const instanceCodePoints = load(NS, 'instance/code-points');
-    ok(typeof instanceCodePoints == 'function');
-    ok(instanceCodePoints({}) === undefined);
-    ok(typeof instanceCodePoints('') == 'function');
-    ok(instanceCodePoints('').call('abc').next().value.codePoint === 97);
 
     const instanceDemethodize = load(NS, 'instance/demethodize');
     ok(typeof instanceDemethodize == 'function');
     ok(instanceDemethodize({}) === undefined);
     ok(typeof instanceDemethodize([].slice) == 'function');
     ok(instanceDemethodize([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
-
-    const instanceFilterOut = load(NS, 'instance/filter-out');
-    ok(typeof instanceFilterOut == 'function');
-    ok(instanceFilterOut({}) === undefined);
-    ok(typeof instanceFilterOut([]) == 'function');
-    ok(instanceFilterOut([]).call([1, 2, 3], it => it % 2).length === 1);
 
     const instanceFilterReject = load(NS, 'instance/filter-reject');
     ok(typeof instanceFilterReject == 'function');
@@ -885,121 +699,66 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(instanceUniqueBy({}) === undefined);
     ok(typeof instanceUniqueBy([]) == 'function');
     ok(instanceUniqueBy([]).call([1, 2, 3, 2, 1]).length === 3);
-
-    const instanceUnThis = load(NS, 'instance/un-this');
-    ok(typeof instanceUnThis == 'function');
-    ok(instanceUnThis({}) === undefined);
-    ok(typeof instanceUnThis([].slice) == 'function');
-    ok(instanceUnThis([].slice).call([].slice)([1, 2, 3], 1)[0] === 2);
   }
 
   load('proposals/accessible-object-hasownproperty');
   load('proposals/array-filtering');
-  load('proposals/array-filtering-stage-1');
   load('proposals/array-find-from-last');
   load('proposals/array-flat-map');
   load('proposals/array-from-async');
-  load('proposals/array-from-async-stage-2');
   load('proposals/array-grouping');
-  load('proposals/array-grouping-stage-3');
-  load('proposals/array-grouping-stage-3-2');
-  load('proposals/array-grouping-v2');
   load('proposals/array-includes');
   load('proposals/array-is-template-object');
-  load('proposals/array-last');
   load('proposals/array-unique');
   load('proposals/array-buffer-base64');
   load('proposals/array-buffer-transfer');
-  load('proposals/async-explicit-resource-management');
   load('proposals/async-iteration');
   load('proposals/async-iterator-helpers');
   load('proposals/change-array-by-copy');
-  load('proposals/change-array-by-copy-stage-4');
-  load('proposals/collection-methods');
   load('proposals/collection-of-from');
   load('proposals/data-view-get-set-uint8-clamped');
   load('proposals/decorator-metadata');
-  load('proposals/decorator-metadata-v2');
-  load('proposals/decorators');
-  load('proposals/efficient-64-bit-arithmetic');
   load('proposals/error-cause');
   load('proposals/explicit-resource-management');
   load('proposals/extractors');
   load('proposals/float16');
   load('proposals/function-demethodize');
-  load('proposals/function-is-callable-is-constructor');
-  load('proposals/function-un-this');
   load('proposals/global-this');
   load('proposals/iterator-helpers');
-  load('proposals/iterator-helpers-stage-3');
-  load('proposals/iterator-helpers-stage-3-2');
   load('proposals/iterator-range');
   load('proposals/json-parse-with-source');
-  load('proposals/keys-composition');
-  load('proposals/map-update-or-insert');
-  load('proposals/map-upsert');
-  load('proposals/map-upsert-stage-2');
-  load('proposals/math-extensions');
-  load('proposals/math-signbit');
+  load('proposals/map-emplace');
   load('proposals/math-sum');
-  load('proposals/number-from-string');
-  load('proposals/number-range');
   load('proposals/object-from-entries');
-  load('proposals/object-iteration');
   load('proposals/object-getownpropertydescriptors');
   load('proposals/object-values-entries');
-  load('proposals/observable');
   load('proposals/pattern-matching');
-  load('proposals/pattern-matching-v2');
   load('proposals/promise-all-settled');
   load('proposals/promise-any');
   load('proposals/promise-finally');
   load('proposals/promise-try');
   load('proposals/promise-with-resolvers');
-  load('proposals/reflect-metadata');
   load('proposals/regexp-dotall-flag');
   load('proposals/regexp-escaping');
   load('proposals/regexp-named-groups');
   load('proposals/relative-indexing-method');
-  load('proposals/seeded-random');
   load('proposals/set-methods');
-  load('proposals/set-methods-v2');
-  load('proposals/string-at');
   load('proposals/string-cooked');
-  load('proposals/string-code-points');
   load('proposals/string-dedent');
   load('proposals/string-left-right-trim');
   load('proposals/string-match-all');
   load('proposals/string-padding');
   load('proposals/string-replace-all');
-  load('proposals/string-replace-all-stage-4');
   load('proposals/symbol-description');
   load('proposals/symbol-predicates');
-  load('proposals/symbol-predicates-v2');
-  load('proposals/url');
-  load('proposals/using-statement');
   load('proposals/well-formed-stringify');
   load('proposals/well-formed-unicode-strings');
-  load('proposals');
 
-  ok(load('stage/4'));
-  ok(load('stage/3'));
-  ok(load('stage/2.7'));
-  ok(load('stage/2'));
-  ok(load('stage/1'));
-  ok(load('stage/0'));
-  ok(load('stage/pre'));
-  ok(load('stage'));
-
-  ok(load('web/dom-exception'));
-  ok(load('web/dom-collections'));
-  ok(load('web/immediate'));
-  ok(load('web/queue-microtask'));
-  ok(load('web/structured-clone')(42) === 42);
-  ok(load('web/timers'));
-  ok(load('web/url'));
-  ok(load('web/url-search-params'));
-  ok(load('web'));
+  load('stage/3');
+  load('stage/2.7');
+  load('stage/2');
+  load('stage/1');
+  load('stage/0');
 
   for (const key in entries) {
     if (key.startsWith('core-js/modules/')) {
@@ -1010,7 +769,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load());
 }
 
-for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
+for (const NS of ['es', 'stable', 'actual', 'full']) {
   ok(typeof load(NS, 'string/match') == 'function');
   ok('next' in load(NS, 'string/match-all')('a', /./g));
   ok(typeof load(NS, 'string/replace') == 'function');
@@ -1067,29 +826,22 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   load(NS, 'typed-array/to-string');
   load(NS, 'typed-array/values');
   load(NS, 'typed-array/with');
-  load(NS, 'typed-array/methods');
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
 }
 
-for (const NS of ['actual', 'full', 'features']) {
+for (const NS of ['actual', 'full']) {
   load(NS, 'typed-array/from-base64');
   load(NS, 'typed-array/from-hex');
   load(NS, 'typed-array/set-from-base64');
   load(NS, 'typed-array/set-from-hex');
   load(NS, 'typed-array/to-base64');
   load(NS, 'typed-array/to-hex');
-  load(NS, 'typed-array/to-spliced');
 }
 
-for (const NS of ['full', 'features']) {
-  load(NS, 'typed-array/from-async');
-  load(NS, 'typed-array/filter-out');
+for (const NS of ['full']) {
   load(NS, 'typed-array/filter-reject');
-  load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
 }
-
-load('modules/esnext.string.at-alternative');
 
 echo(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
 
