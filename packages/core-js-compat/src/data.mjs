@@ -2145,8 +2145,6 @@ export const data = {
   },
   'esnext.math.sum-precise': {
   },
-  // TODO: Remove from `core-js@4`
-  'esnext.promise.try': null,
   'esnext.regexp.escape': {
     bun: '1.1.22',
     firefox: '134',
@@ -2448,8 +2446,7 @@ export const data = {
 };
 
 export const renamed = new Map([
-  // TODO: Clean in `core-js@4`
-  ['esnext.promise.try', 'es.promise.try'],
+  // empty
 ]);
 
 for (const [old, nw] of renamed) data[old] = data[nw];
