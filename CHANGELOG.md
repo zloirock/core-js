@@ -29,6 +29,11 @@
     - `Math.sumPrecise`
   - Moved to stage 3, [October 2024 TC39 meeting](https://x.com/robpalmer2/status/1843829675036160179)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
+- [`DataView` get / set `Uint8Clamped` methods proposal](https://github.com/tc39/proposal-dataview-get-set-uint8clamped):
+  - Methods:
+    - `DataView.prototype.getUint8Clamped`
+    - `DataView.prototype.setUint8Clamped`
+  - Moved to stage 2, October 2024 TC39 meeting
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)
   - `self` descriptor [is fixed](https://github.com/denoland/deno/issues/24683) in Deno 1.46.0
