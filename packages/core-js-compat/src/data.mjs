@@ -2575,21 +2575,27 @@ export const data = {
   'esnext.typed-array.with': null,
   'esnext.uint8-array.from-base64': {
     bun: '1.1.22',
+    firefox: '133',
   },
   'esnext.uint8-array.from-hex': {
     bun: '1.1.22',
+    firefox: '133',
   },
   'esnext.uint8-array.set-from-base64': {
     bun: '1.1.22',
+    firefox: '133',
   },
   'esnext.uint8-array.set-from-hex': {
     bun: '1.1.22',
+    firefox: '133',
   },
   'esnext.uint8-array.to-base64': {
     bun: '1.1.22',
+    firefox: '133',
   },
   'esnext.uint8-array.to-hex': {
     bun: '1.1.22',
+    firefox: '133',
   },
   'esnext.weak-map.delete-all': {
   },

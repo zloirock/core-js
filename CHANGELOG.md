@@ -30,7 +30,8 @@
   - Moved to stage 3, [October 2024 TC39 meeting](https://x.com/robpalmer2/status/1843829675036160179)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Compat data improvements:
-  - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [supported from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)
+  - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [shipped from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)
+  - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) methods marked as [shipped from FF133](https://bugzilla.mozilla.org/show_bug.cgi?id=1917885#c9)
   - `self` descriptor [is fixed](https://github.com/denoland/deno/issues/24683) in Deno 1.46.0
   - Added Deno [1.46](https://github.com/denoland/deno/releases/tag/v1.46.0) and [2.0](https://github.com/denoland/deno/releases/tag/v2.0.0) compat data mapping
   - Added Electron 34 and updated Electron 33 compat data mapping
