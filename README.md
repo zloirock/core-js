@@ -175,6 +175,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
+      - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
       - [New collections methods](#new-collections-methods)
@@ -187,7 +188,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
       - [`Symbol.customMatcher` for pattern matching](#symbolcustommatcher-for-pattern-matching)
-      - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
     - [Stage 0 proposals](#stage-0-proposals)
       - [`Function.prototype.demethodize`](#functionprototypedemethodize)
       - [`Function.{ isCallable, isConstructor }`](#function-iscallable-isconstructor-)
@@ -2846,6 +2846,19 @@ Symbol.isWellKnownSymbol(Symbol.iterator); // => true
 Symbol.isWellKnownSymbol(Symbol('key')); // => false
 ```
 
+##### [`Symbol.customMatcher` for extractors](https://github.com/tc39/proposal-extractors)[⬆](#index)
+Module [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
+```ts
+class Symbol {
+  static customMatcher: @@customMatcher;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/pattern-extractors
+core-js(-pure)/full/symbol/custom-matcher
+```
+
 #### Stage 1 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
 ```
@@ -3154,19 +3167,6 @@ class Symbol {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/pattern-matching-v2
-core-js(-pure)/full/symbol/custom-matcher
-```
-
-##### [`Symbol.customMatcher` for extractors](https://github.com/tc39/proposal-extractors)[⬆](#index)
-Module [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
-```ts
-class Symbol {
-  static customMatcher: @@customMatcher;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher
 ```
 
