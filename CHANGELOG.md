@@ -36,6 +36,7 @@
   - Added [NodeJS 23.0](https://nodejs.org/en/blog/release/v23.0.0) compat data mapping
   - `self` descriptor [is fixed](https://github.com/denoland/deno/issues/24683) in Deno 1.46.0
   - Added Deno [1.46](https://github.com/denoland/deno/releases/tag/v1.46.0) and [2.0](https://github.com/denoland/deno/releases/tag/v2.0.0) compat data mapping
+  - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) methods marked as [shipped from Bun 1.1.31](https://github.com/oven-sh/bun/pull/14455)
   - Added Electron 34 and updated Electron 33 compat data mapping
   - Added [Opera Android 85](https://forums.opera.com/topic/74256/opera-for-android-85) compat data mapping
   - Added Oculus Quest Browser 35 compat data mapping
