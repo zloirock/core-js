@@ -30,6 +30,14 @@
   - Moved to stage 3, [October 2024 TC39 meeting](https://x.com/robpalmer2/status/1843829675036160179)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - [Extractors proposal](https://github.com/tc39/proposal-extractors) moved to stage 2, [October 2024 TC39 meeting](https://github.com/tc39/proposals/commit/11bc489049fc5ce59b21e98a670a84f153a29a80)
+- Usage of `@@species` pattern removed from `%TypedArray%` and `ArrayBuffer` methods, [tc39/ecma262/3450](https://github.com/tc39/ecma262/pull/3450):
+  - Built-ins:
+    - `%TypedArray%.prototype.filter`
+    - `%TypedArray%.prototype.filterReject`
+    - `%TypedArray%.prototype.map`
+    - `%TypedArray%.prototype.slice`
+    - `%TypedArray%.prototype.subarray`
+    - `ArrayBuffer.prototype.slice`
 - Compat data improvements:
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [shipped from FF132](https://bugzilla.mozilla.org/show_bug.cgi?id=1913085)
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) methods marked as [shipped from FF133](https://bugzilla.mozilla.org/show_bug.cgi?id=1917885#c9)
