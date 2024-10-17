@@ -478,9 +478,13 @@ var tryToTransfer = function (rawTransfer, map) {
         break;
       case 'MediaSourceHandle':
       case 'MessagePort':
+      case 'MIDIAccess':
       case 'OffscreenCanvas':
       case 'ReadableStream':
+      case 'RTCDataChannel':
       case 'TransformStream':
+      case 'WebTransportReceiveStream':
+      case 'WebTransportSendStream':
       case 'WritableStream':
         throwUnpolyfillable(type, TRANSFERRING);
     }
