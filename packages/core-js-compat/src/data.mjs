@@ -2283,17 +2283,17 @@ export const data = {
   },
   'esnext.json.is-raw-json': {
     chrome: '114',
-    // disabled in 133 nightly it seems because of regression
+    // disabled in 133 nightly because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     // firefox: '132',
   },
   'esnext.json.parse': {
     chrome: '114',
-    // disabled in 133 nightly it seems because of regression
+    // disabled in 133 nightly because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     // firefox: '132',
   },
   'esnext.json.raw-json': {
     chrome: '114',
-    // disabled in 133 nightly it seems because of regression
+    // disabled in 133 nightly because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     // firefox: '132',
   },
   'esnext.map.delete-all': {
