@@ -59,14 +59,14 @@
     "u": "npm run update-version"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.9",
+    "@babel/core": "^7.26.0",
     "@babel/plugin-proposal-regexp-modifiers": "^7.25.9",
     "@babel/plugin-transform-arrow-functions": "^7.25.9",
     "@babel/plugin-transform-block-scoped-functions": "^7.25.9",
     "@babel/plugin-transform-block-scoping": "^7.25.9",
     "@babel/plugin-transform-classes": "^7.25.9",
     "@babel/plugin-transform-class-properties": "^7.25.9",
-    "@babel/plugin-transform-class-static-block": "^7.25.9",
+    "@babel/plugin-transform-class-static-block": "^7.26.0",
     "@babel/plugin-transform-computed-properties": "^7.25.9",
     "@babel/plugin-transform-destructuring": "^7.25.9",
     "@babel/plugin-transform-duplicate-named-capturing-groups-regex": "^7.25.9",
