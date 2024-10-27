@@ -9,6 +9,8 @@ require('../../modules/esnext.map.every');
 require('../../modules/esnext.map.filter');
 require('../../modules/esnext.map.find');
 require('../../modules/esnext.map.find-key');
+require('../../modules/esnext.map.get-or-insert');
+require('../../modules/esnext.map.get-or-insert-computed');
 require('../../modules/esnext.map.includes');
 require('../../modules/esnext.map.key-of');
 require('../../modules/esnext.map.map-keys');

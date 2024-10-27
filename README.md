@@ -171,7 +171,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
-      - [`Map.prototype.emplace`](#mapprototypeemplace)
+      - [`Map` upsert](#map-upsert)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
@@ -2755,32 +2755,40 @@ for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
   console.log(i); // => 1, 4, 7, 10
 }
 ```
-##### [`Map.prototype.emplace`](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
-Modules [`esnext.map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.emplace.js) and [`esnext.weak-map.emplace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.emplace.js)
+##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
+Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
 ```ts
 class Map {
-  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
 }
 
 class WeakMap {
-  emplace(key: any, { update: (value: any, key: any, handler: object) => updated: any, insert: (key: any, handler: object) => value: any): updated | value;
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/map-upsert-stage-2
-core-js(-pure)/full/map/emplace
-core-js(-pure)/full/weak-map/emplace
+core-js/proposals/map-upsert-v4
+core-js(-pure)/full/map/get-or-insert
+core-js(-pure)/full/map/get-or-insert-computed
+core-js(-pure)/full/weak-map/get-or-insert
+core-js(-pure)/full/weak-map/get-or-insert-computed
 ```
-[*Examples*](https://is.gd/ty5I2v):
+[*Examples*](https://tinyurl.com/2a54u5ux):
 ```js
-const map = new Map([['a', 2]]);
+const map = new Map([['a', 1]]);
 
-map.emplace('a', { update: it => it ** 2, insert: () => 3 }); // => 4
+map.getOrInsert('a', 2); // => 1
 
-map.emplace('b', { update: it => it ** 2, insert: () => 3 }); // => 3
+map.getOrInsert('b', 3); // => 3
 
-console.log(map); // => Map { 'a': 4, 'b': 3 }
+map.getOrInsertComputed('a', key => key); // => 1
+
+map.getOrInsertComputed('c', key => key); // => 'c'
+
+console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
 ```
 ##### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)[⬆](#index)
 Module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)

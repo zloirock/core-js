@@ -779,6 +779,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'map/find')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 3);
     ok(load(NS, 'map/find-key')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 2);
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
+    ok(load(NS, 'map/get-or-insert')(new Map([[1, 2]]), 1, 3) === 2);
+    ok(load(NS, 'map/get-or-insert-computed')(new Map([[1, 2]]), 1, key => key) === 2);
     ok(load(NS, 'map/includes')(new Map([[1, 2]]), 2), true);
     ok(load(NS, 'map/key-by')([], it => it) instanceof Map);
     ok(load(NS, 'map/key-of')(new Map([[1, 2]]), 2), 1);
@@ -848,6 +850,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'symbol/replace-all'));
     ok(load(NS, 'weak-map/delete-all')(new WeakMap(), [], {}) === false);
     ok(load(NS, 'weak-map/emplace')(new WeakMap(), {}, { insert: () => ({ a: 42 }) }).a === 42);
+    ok(load(NS, 'weak-map/get-or-insert')(new WeakMap([[{}, 2]]), {}, 3) === 3);
+    ok(load(NS, 'weak-map/get-or-insert-computed')(new WeakMap([[{}, 2]]), {}, () => 3) === 3);
     ok(load(NS, 'weak-map/upsert')(new WeakMap(), {}, null, () => 42) === 42);
     ok(load(NS, 'weak-map/from')([[{}, 1], [[], 2]]) instanceof WeakMap);
     ok(load(NS, 'weak-map/of')([{}, 1], [[], 2]) instanceof WeakMap);
@@ -939,6 +943,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/map-update-or-insert');
   load('proposals/map-upsert');
   load('proposals/map-upsert-stage-2');
+  load('proposals/map-upsert-v4');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/math-sum');

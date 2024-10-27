@@ -2298,6 +2298,7 @@ export const data = {
   },
   'esnext.map.delete-all': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.map.emplace': {
   },
   'esnext.map.every': {
@@ -2309,6 +2310,10 @@ export const data = {
   'esnext.map.find-key': {
   },
   'esnext.map.from': {
+  },
+  'esnext.map.get-or-insert': {
+  },
+  'esnext.map.get-or-insert-computed': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.map.group-by': null,
@@ -2619,7 +2624,12 @@ export const data = {
   },
   'esnext.weak-map.of': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.weak-map.emplace': {
+  },
+  'esnext.weak-map.get-or-insert': {
+  },
+  'esnext.weak-map.get-or-insert-computed': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.upsert': {

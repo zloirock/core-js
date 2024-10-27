@@ -1699,9 +1699,6 @@ GLOBAL.tests = {
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
   },
-  'esnext.map.emplace': function () {
-    return Map.prototype.emplace;
-  },
   'esnext.map.every': function () {
     return Map.prototype.every;
   },
@@ -1716,6 +1713,12 @@ GLOBAL.tests = {
   },
   'esnext.map.from': function () {
     return Map.from;
+  },
+  'esnext.map.get-or-insert': function () {
+    return Map.prototype.getOrInsert;
+  },
+  'esnext.map.get-or-insert-computed': function () {
+    return Map.prototype.getOrInsertComputed;
   },
   'esnext.map.includes': function () {
     return Map.prototype.includes;
@@ -1875,8 +1878,11 @@ GLOBAL.tests = {
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
   },
-  'esnext.weak-map.emplace': function () {
-    return WeakMap.prototype.emplace;
+  'esnext.weak-map.get-or-insert': function () {
+    return WeakMap.prototype.getOrInsert;
+  },
+  'esnext.weak-map.get-or-insert-computed': function () {
+    return WeakMap.prototype.getOrInsertComputed;
   },
   'esnext.weak-map.from': function () {
     return WeakMap.from;
