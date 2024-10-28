@@ -15,6 +15,7 @@ $({ target: 'WeakMap', proto: true, real: true, forced: true }, {
     aWeakMap(this);
     aCallable(callbackfn);
     if (has(this, key)) return get(this, key);
+    set(this, key); // key validation
     var value = callbackfn(key);
     set(this, key, value);
     return value;
