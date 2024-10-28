@@ -15,6 +15,8 @@ $({ target: 'Map', proto: true, real: true, forced: true }, {
     aMap(this);
     aCallable(callbackfn);
     if (has(this, key)) return get(this, key);
+    // CanonicalizeKeyedCollectionKey
+    if (key === 0 && 1 / key === -Infinity) key = 0;
     var value = callbackfn(key);
     set(this, key, value);
     return value;
