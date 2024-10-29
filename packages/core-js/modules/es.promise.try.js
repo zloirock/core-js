@@ -19,7 +19,7 @@ var FORCED = !Promise || !Promise['try'] || perform(function () {
 }).error || !ACCEPT_ARGUMENTS;
 
 // `Promise.try` method
-// https://github.com/tc39/proposal-promise-try
+// https://tc39.es/ecma262/#sec-promise.try
 $({ target: 'Promise', stat: true, forced: FORCED }, {
   'try': function (callbackfn /* , ...args */) {
     var args = arguments.length > 1 ? slice(arguments, 1) : [];

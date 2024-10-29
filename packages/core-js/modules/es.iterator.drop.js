@@ -24,7 +24,7 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.prototype.drop` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://tc39.es/ecma262/#sec-iterator.prototype.drop
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   drop: function drop(limit) {
     anObject(this);

@@ -32,7 +32,7 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.prototype.flatMap` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://tc39.es/ecma262/#sec-iterator.prototype.flatmap
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   flatMap: function flatMap(mapper) {
     anObject(this);

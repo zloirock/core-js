@@ -59,7 +59,7 @@ if (FORCED || !hasOwn(IteratorPrototype, CONSTRUCTOR) || IteratorPrototype[CONST
 IteratorConstructor.prototype = IteratorPrototype;
 
 // `Iterator` constructor
-// https://github.com/tc39/proposal-iterator-helpers
+// https://tc39.es/ecma262/#sec-iterator
 $({ global: true, constructor: true, forced: FORCED }, {
   Iterator: IteratorConstructor
 });

@@ -20,7 +20,7 @@ var DOES_NOT_WORK_WITH_PRIMITIVES = !nativeGroupBy || fails(function () {
 });
 
 // `Object.groupBy` method
-// https://github.com/tc39/proposal-array-grouping
+// https://tc39.es/ecma262/#sec-object.groupby
 $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
   groupBy: function groupBy(items, callbackfn) {
     requireObjectCoercible(items);

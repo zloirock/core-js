@@ -8,7 +8,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var $TypeError = TypeError;
 
 // `Iterator.prototype.reduce` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://tc39.es/ecma262/#sec-iterator.prototype.reduce
 $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);

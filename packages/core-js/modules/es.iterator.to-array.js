@@ -7,7 +7,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var push = [].push;
 
 // `Iterator.prototype.toArray` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://tc39.es/ecma262/#sec-iterator.prototype.toarray
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];

@@ -4,7 +4,7 @@ var map = require('../internals/iterator-map');
 var IS_PURE = require('../internals/is-pure');
 
 // `Iterator.prototype.map` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://tc39.es/ecma262/#sec-iterator.prototype.map
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   map: map
 });

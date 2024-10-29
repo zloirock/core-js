@@ -6,7 +6,7 @@ var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.some` method
-// https://github.com/tc39/proposal-iterator-helpers
+// https://tc39.es/ecma262/#sec-iterator.prototype.some
 $({ target: 'Iterator', proto: true, real: true }, {
   some: function some(predicate) {
     anObject(this);
