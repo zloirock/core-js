@@ -168,6 +168,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
+      - [`Iterator` sequencing](#iterator-sequencing)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2018,6 +2019,8 @@ globalThis.Array === Array; // => true
 ### ECMAScript proposals[⬆](#index)
 [The TC39 process.](https://tc39.github.io/process-document/)
 
+`core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2.7` - stage 2.7 and stage 3, etc.
+
 #### Finished proposals[⬆](#index)
 
 Finished (stage 4) proposals already marked in `core-js` as stable ECMAScript, they are available in `core-js/stable` and `core-js/es` namespace, you can find them in related sections of the README. However, even for finished proposals, `core-js` provides a way to include only features for a specific proposal like `core-js/proposals/proposal-name`.
@@ -2397,8 +2400,6 @@ core-js/proposals/set-methods-v2
 
 #### Stage 3 proposals[⬆](#index)
 
-`core-js/stage/3` entry point contains only stage 3 proposals, `core-js/stage/2.7` - stage 2.7 and stage 3, etc.
-
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/3
@@ -2647,7 +2648,25 @@ core-js(-pure)/actual|full/function/metadata
 core-js(-pure)/stage/2.7
 ```
 
-Nothing.
+##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
+Module [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
+```ts
+class Iterator {
+  concat(...items: Array<IterableObject>): Iterator<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-sequencing
+core-js(-pure)/full/iterator/concat
+```
+[*Example*](https://tinyurl.com/2522xjae):
+```js
+Iterator.concat(Iterator.from([0, 1]), [2, 3], function * () {
+  yield 4;
+  yield 5;
+}()).toArray(); // => [0, 1, 2, 3, 4, 5]
+```
 
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)

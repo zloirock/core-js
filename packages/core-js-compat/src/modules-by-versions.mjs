@@ -268,6 +268,7 @@ export default {
     'es.iterator.take',
     'es.iterator.to-array',
     'es.promise.try',
+    'esnext.iterator.concat',
     'esnext.map.get-or-insert',
     'esnext.map.get-or-insert-computed',
     'esnext.weak-map.get-or-insert',

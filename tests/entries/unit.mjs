@@ -771,6 +771,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(typeof load(NS, 'iterator/as-indexed-pairs') == 'function');
     ok(typeof load(NS, 'iterator/indexed') == 'function');
+    ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
@@ -938,6 +939,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-helpers-stage-3');
   load('proposals/iterator-helpers-stage-3-2');
   load('proposals/iterator-range');
+  load('proposals/iterator-sequencing');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');
   load('proposals/map-update-or-insert');

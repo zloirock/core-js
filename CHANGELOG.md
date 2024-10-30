@@ -29,6 +29,9 @@
     - `Math.sumPrecise`
   - Moved to stage 3, [October 2024 TC39 meeting](https://github.com/tc39/proposal-math-sum/issues/19)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
+- Added [`Iterator` sequencing stage 2.7 proposal](https://github.com/tc39/proposal-iterator-sequencing):
+  - Added built-ins:
+    - `Iterator.concat`
 - [`Map` upsert stage 2 proposal](https://github.com/tc39/proposal-upsert):
   - [Updated to the new API following the October 2024 TC39 meeting](https://github.com/tc39/proposal-upsert/pull/58)
   - Added built-ins:

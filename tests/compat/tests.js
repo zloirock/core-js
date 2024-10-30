@@ -1677,6 +1677,9 @@ GLOBAL.tests = {
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },
+  'esnext.iterator.concat': function () {
+    return Iterator.concat;
+  },
   'esnext.iterator.dispose': function () {
     return [].keys()[Symbol.dispose];
   },

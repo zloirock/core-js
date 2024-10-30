@@ -2249,6 +2249,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
   },
+  'esnext.iterator.concat': {
+  },
   'esnext.iterator.dispose': {
   },
   // TODO: Remove from `core-js@4`
