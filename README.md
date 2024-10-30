@@ -2649,7 +2649,7 @@ core-js(-pure)/stage/2.7
 ```
 
 ##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
-Module [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
+Module [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
 ```ts
 class Iterator {
   concat(...items: Array<IterableObject>): Iterator<any>;
@@ -2662,7 +2662,7 @@ core-js(-pure)/full/iterator/concat
 ```
 [*Example*](https://tinyurl.com/2522xjae):
 ```js
-Iterator.concat(Iterator.from([0, 1]), [2, 3], function * () {
+Iterator.concat([0, 1].values(), [2, 3], function * () {
   yield 4;
   yield 5;
 }()).toArray(); // => [0, 1, 2, 3, 4, 5]
