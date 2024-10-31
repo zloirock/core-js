@@ -48,6 +48,7 @@
     - `%TypedArray%.prototype.slice`
     - `%TypedArray%.prototype.subarray`
     - `ArrayBuffer.prototype.slice`
+- Some other minor improvements
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) methods marked as [shipped from FF133](https://bugzilla.mozilla.org/show_bug.cgi?id=1917885#c9)
   - Added [NodeJS 23.0](https://nodejs.org/en/blog/release/v23.0.0) compat data mapping
