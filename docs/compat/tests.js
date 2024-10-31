@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable prefer-regex-literals, radix -- required for testing */
+/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
 /* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
@@ -266,14 +266,14 @@ function NATIVE_RAW_JSON() {
 
 function IMMEDIATE() {
   return setImmediate && clearImmediate && !(IS_BUN && (function () {
-    var version = global.Bun.version.split('.');
+    var version = Bun.version.split('.');
     return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
   })());
 }
 
 function TIMERS() {
   return !(/MSIE .\./.test(USERAGENT) || IS_BUN && (function () {
-    var version = global.Bun.version.split('.');
+    var version = Bun.version.split('.');
     return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
   })());
 }
@@ -673,6 +673,50 @@ GLOBAL.tests = {
   'es.global-this': function () {
     return globalThis;
   },
+  'es.iterator.constructor': function () {
+    try {
+      Iterator({});
+    } catch (error) {
+      return typeof Iterator == 'function'
+        && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
+    }
+  },
+  'es.iterator.drop': function () {
+    return Iterator.prototype.drop;
+  },
+  'es.iterator.every': function () {
+    return Iterator.prototype.every;
+  },
+  'es.iterator.filter': function () {
+    return Iterator.prototype.filter;
+  },
+  'es.iterator.find': function () {
+    return Iterator.prototype.find;
+  },
+  'es.iterator.flat-map': function () {
+    return Iterator.prototype.flatMap;
+  },
+  'es.iterator.for-each': function () {
+    return Iterator.prototype.forEach;
+  },
+  'es.iterator.from': function () {
+    return Iterator.from;
+  },
+  'es.iterator.map': function () {
+    return Iterator.prototype.map;
+  },
+  'es.iterator.reduce': function () {
+    return Iterator.prototype.reduce;
+  },
+  'es.iterator.some': function () {
+    return Iterator.prototype.some;
+  },
+  'es.iterator.take': function () {
+    return Iterator.prototype.take;
+  },
+  'es.iterator.to-array': function () {
+    return Iterator.prototype.toArray;
+  },
   'es.json.stringify': [SYMBOLS_SUPPORT, function () {
     var symbol = Symbol('stringify detection');
     return JSON.stringify([symbol]) === '[null]'
@@ -978,6 +1022,13 @@ GLOBAL.tests = {
   }],
   'es.promise.reject': PROMISES_SUPPORT,
   'es.promise.resolve': PROMISES_SUPPORT,
+  'es.promise.try': [PROMISES_SUPPORT, function () {
+    var ACCEPT_ARGUMENTS = false;
+    Promise['try'](function (argument) {
+      ACCEPT_ARGUMENTS = argument === 8;
+    }, 8);
+    return ACCEPT_ARGUMENTS;
+  }],
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
@@ -1626,55 +1677,14 @@ GLOBAL.tests = {
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },
-  'esnext.iterator.constructor': function () {
-    try {
-      Iterator({});
-    } catch (error) {
-      return typeof Iterator == 'function'
-        && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
-    }
+  'esnext.iterator.concat': function () {
+    return Iterator.concat;
   },
   'esnext.iterator.dispose': function () {
     return [].keys()[Symbol.dispose];
   },
-  'esnext.iterator.drop': function () {
-    return Iterator.prototype.drop;
-  },
-  'esnext.iterator.every': function () {
-    return Iterator.prototype.every;
-  },
-  'esnext.iterator.filter': function () {
-    return Iterator.prototype.filter;
-  },
-  'esnext.iterator.find': function () {
-    return Iterator.prototype.find;
-  },
-  'esnext.iterator.flat-map': function () {
-    return Iterator.prototype.flatMap;
-  },
-  'esnext.iterator.for-each': function () {
-    return Iterator.prototype.forEach;
-  },
-  'esnext.iterator.from': function () {
-    return Iterator.from;
-  },
-  'esnext.iterator.map': function () {
-    return Iterator.prototype.map;
-  },
   'esnext.iterator.range': function () {
     return Iterator.range;
-  },
-  'esnext.iterator.reduce': function () {
-    return Iterator.prototype.reduce;
-  },
-  'esnext.iterator.some': function () {
-    return Iterator.prototype.some;
-  },
-  'esnext.iterator.take': function () {
-    return Iterator.prototype.take;
-  },
-  'esnext.iterator.to-array': function () {
-    return Iterator.prototype.toArray;
   },
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
@@ -1692,9 +1702,6 @@ GLOBAL.tests = {
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
   },
-  'esnext.map.emplace': function () {
-    return Map.prototype.emplace;
-  },
   'esnext.map.every': function () {
     return Map.prototype.every;
   },
@@ -1709,6 +1716,12 @@ GLOBAL.tests = {
   },
   'esnext.map.from': function () {
     return Map.from;
+  },
+  'esnext.map.get-or-insert': function () {
+    return Map.prototype.getOrInsert;
+  },
+  'esnext.map.get-or-insert-computed': function () {
+    return Map.prototype.getOrInsertComputed;
   },
   'esnext.map.includes': function () {
     return Map.prototype.includes;
@@ -1773,13 +1786,6 @@ GLOBAL.tests = {
   'esnext.number.from-string': function () {
     return Number.fromString;
   },
-  'esnext.promise.try': [PROMISES_SUPPORT, function () {
-    var ACCEPT_ARGUMENTS = false;
-    Promise['try'](function (argument) {
-      ACCEPT_ARGUMENTS = argument === 8;
-    }, 8);
-    return ACCEPT_ARGUMENTS;
-  }],
   'esnext.regexp.escape': function () {
     return RegExp.escape('ab') === '\\x61b';
   },
@@ -1875,8 +1881,11 @@ GLOBAL.tests = {
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
   },
-  'esnext.weak-map.emplace': function () {
-    return WeakMap.prototype.emplace;
+  'esnext.weak-map.get-or-insert': function () {
+    return WeakMap.prototype.getOrInsert;
+  },
+  'esnext.weak-map.get-or-insert-computed': function () {
+    return WeakMap.prototype.getOrInsertComputed;
   },
   'esnext.weak-map.from': function () {
     return WeakMap.from;

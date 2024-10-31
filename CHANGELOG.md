@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.39.0 - 2024.10.31](https://github.com/zloirock/core-js/releases/tag/v3.39.0)
+- Changes [v3.38.1...v3.39.0](https://github.com/zloirock/core-js/compare/v3.38.1...v3.39.0)
 - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers):
   - Built-ins:
     - `Iterator`
