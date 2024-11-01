@@ -1252,8 +1252,19 @@ const forbidES2024BuiltIns = {
 };
 
 const forbidES2025BuiltIns = {
-  // disallow duplicate named capture groups
-  'es/no-regexp-duplicate-named-capturing-groups': ERROR,
+  'es/no-iterator': ERROR,
+  'es/no-iterator-prototype-drop': ERROR,
+  'es/no-iterator-prototype-every': ERROR,
+  'es/no-iterator-prototype-filter': ERROR,
+  'es/no-iterator-prototype-find': ERROR,
+  'es/no-iterator-prototype-flatmap': ERROR,
+  'es/no-iterator-prototype-foreach': ERROR,
+  'es/no-iterator-prototype-map': ERROR,
+  'es/no-iterator-prototype-reduce': ERROR,
+  'es/no-iterator-prototype-some': ERROR,
+  'es/no-iterator-prototype-take': ERROR,
+  'es/no-iterator-prototype-toarray': ERROR,
+  'es/no-promise-try': ERROR,
   'es/no-set-prototype-difference': ERROR,
   'es/no-set-prototype-intersection': ERROR,
   'es/no-set-prototype-isdisjointfrom': ERROR,
@@ -1296,6 +1307,15 @@ const forbidES2023IntlBuiltIns = {
   'es/no-intl-numberformat-prototype-formatrange': ERROR,
   'es/no-intl-numberformat-prototype-formatrangetoparts': ERROR,
   'es/no-intl-pluralrules-prototype-selectrange': ERROR,
+};
+
+const forbidSomeES2025Syntax = {
+  'es/no-regexp-duplicate-named-capturing-groups': ERROR,
+  'es/no-regexp-modifiers': ERROR,
+  'es/no-import-attributes': ERROR,
+  'es/no-dynamic-import-options': ERROR,
+  'es/no-trailing-dynamic-import-commas': ERROR,
+  'es/no-json-modules': ERROR,
 };
 
 const forbidModernBuiltIns = {
@@ -1363,6 +1383,7 @@ const transpiledAndPolyfilled = {
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  ...forbidSomeES2025Syntax,
 };
 
 const nodePackages = {
@@ -1412,6 +1433,7 @@ const nodePackages = {
   ...forbidES2021IntlBuiltIns,
   ...forbidES2022IntlBuiltIns,
   ...forbidES2023IntlBuiltIns,
+  ...forbidSomeES2025Syntax,
 };
 
 const nodeDev = {
@@ -1428,6 +1450,7 @@ const nodeDev = {
   'redos/no-vulnerable': OFF,
   // prefer top-level await
   'unicorn/prefer-top-level-await': ERROR,
+  ...forbidSomeES2025Syntax,
 };
 
 const tests = {
