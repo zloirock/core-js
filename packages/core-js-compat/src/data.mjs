@@ -1295,6 +1295,7 @@ export const data = {
   'es.promise.try': {
     bun: '1.1.22',
     chrome: '128',
+    safari: '18.2',
   },
   'es.promise.with-resolvers': {
     bun: '0.7.1',
@@ -2219,6 +2220,7 @@ export const data = {
     bun: '1.1.23',
     deno: '1.43',
     firefox: '129',
+    safari: '18.2',
   },
   'esnext.data-view.get-uint8-clamped': {
   },
@@ -2226,6 +2228,7 @@ export const data = {
     bun: '1.1.23',
     deno: '1.43',
     firefox: '129',
+    safari: '18.2',
   },
   'esnext.data-view.set-uint8-clamped': {
   },
@@ -2357,6 +2360,7 @@ export const data = {
     bun: '1.1.23',
     deno: '1.43',
     firefox: '129',
+    safari: '18.2',
   },
   // TODO: Remove from `core-js@4`
   'esnext.math.iaddh': {
@@ -2447,6 +2451,7 @@ export const data = {
   },
   'esnext.regexp.escape': {
     bun: '1.1.22',
+    safari: '18.2',
   },
   'esnext.set.add-all': {
   },
@@ -2599,26 +2604,32 @@ export const data = {
   'esnext.uint8-array.from-base64': {
     bun: '1.1.22',
     firefox: '133',
+    safari: '18.2',
   },
   'esnext.uint8-array.from-hex': {
     bun: '1.1.22',
     firefox: '133',
+    safari: '18.2',
   },
   'esnext.uint8-array.set-from-base64': {
     bun: '1.1.22',
     firefox: '133',
+    safari: '18.2',
   },
   'esnext.uint8-array.set-from-hex': {
     bun: '1.1.22',
     firefox: '133',
+    safari: '18.2',
   },
   'esnext.uint8-array.to-base64': {
     bun: '1.1.22',
     firefox: '133',
+    safari: '18.2',
   },
   'esnext.uint8-array.to-hex': {
     bun: '1.1.22',
     firefox: '133',
+    safari: '18.2',
   },
   'esnext.weak-map.delete-all': {
   },
