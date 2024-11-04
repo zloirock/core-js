@@ -22,7 +22,7 @@
     "eslint-plugin-regexp": "^2.6.0",
     "eslint-plugin-sonarjs": "^2.0.4",
     "eslint-plugin-unicorn": "^56.0.0",
-    "globals": "^15.11.0",
+    "globals": "^15.12.0",
     "jsonc-eslint-parser": "^2.4.0"
   }
 }
