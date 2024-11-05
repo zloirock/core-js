@@ -2841,7 +2841,7 @@ export const data = {
     chrome: '126',
     deno: '1.43',
     firefox: '126',
-    node: '22.0',
+    node: '22.1',
     safari: '18.0',
   },
   'web.url.to-json': {
