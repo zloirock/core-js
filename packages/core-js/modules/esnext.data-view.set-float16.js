@@ -5,6 +5,8 @@ var aDataView = require('../internals/a-data-view');
 var toIndex = require('../internals/to-index');
 var f16round = require('../internals/math-f16round');
 
+var pow = Math.pow;
+
 var EPSILON = 2.220446049250313e-16; // Number.EPSILON
 var INVERSE_EPSILON = 1 / EPSILON;
 
@@ -12,10 +14,10 @@ var roundTiesToEven = function (n) {
   return n + INVERSE_EPSILON - INVERSE_EPSILON;
 };
 
-var minInfinity16 = 65520; // (2 - 2 ** -11) * 2 ** 15
-var minNormal16 = 0.000061005353927612305; // (1 - 2 ** -11) * 2 ** -14
-var recMinSubnormal16 = 16777216; // 2 ** 10 * 2 ** 14
-var recSignificandDenom16 = 1024; // 2 ** 10;
+var MIN_INFINITY16 = 65520; // (2 - 2 ** -11) * 2 ** 15
+var MIN_NORMAL16 = 0.000061005353927612305; // (1 - 2 ** -11) * 2 ** -14
+var REC_MIN_SUBNORMAL16 = 16777216; // 2 ** 10 * 2 ** 14
+var REC_SIGNIFICAND_DENOM16 = 1024; // 2 ** 10;
 
 function packFloat16(value) {
   // eslint-disable-next-line no-self-compare -- NaN check
@@ -24,18 +26,18 @@ function packFloat16(value) {
 
   var neg = value < 0;
   if (neg) value = -value;
-  if (value >= minInfinity16) return neg << 15 | 0x7C00; // Infinity
-  if (value < minNormal16) return neg << 15 | roundTiesToEven(value * recMinSubnormal16); // subnormal
+  if (value >= MIN_INFINITY16) return neg << 15 | 0x7C00; // Infinity
+  if (value < MIN_NORMAL16) return neg << 15 | roundTiesToEven(value * REC_MIN_SUBNORMAL16); // subnormal
 
   // normal
   var exponent = Math.log(value) / Math.LN2 | 0;
   if (exponent === -15) {
     // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal)
     // to the latter (former impossible because of the subnormal check above)
-    return neg << 15 | recSignificandDenom16;
+    return neg << 15 | REC_SIGNIFICAND_DENOM16;
   }
-  var significand = roundTiesToEven((value * Math.pow(2, -exponent) - 1) * recSignificandDenom16);
-  if (significand === recSignificandDenom16) {
+  var significand = roundTiesToEven((value * pow(2, -exponent) - 1) * REC_SIGNIFICAND_DENOM16);
+  if (significand === REC_SIGNIFICAND_DENOM16) {
     // we round from a value between 2 ** n * (1 + 1023/1024) and 2 ** (n + 1) * (1 + 0/1024) to the latter
     return neg << 15 | exponent + 16 << 10;
   }
