@@ -38,7 +38,7 @@ $({ target: 'DataView', proto: true }, {
   setFloat16: function setFloat16(byteOffset, value /* , littleEndian */) {
     aDataView(this);
     var offset = toIndex(byteOffset);
-    var bytes = packFloat16(f16round(value), 10, 2);
+    var bytes = packFloat16(f16round(value));
     return setUint16(this, offset, bytes[1] << 8 | bytes[0], arguments.length > 2 ? arguments[2] : false);
   }
 });
