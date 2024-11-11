@@ -18,17 +18,23 @@ var recMinSubnormal16 = 16777216; // 2 ** 10 * 2 ** 14
 var recSignificandDenom16 = 1024; // 2 ** 10;
 
 function packFloat16(value) {
-  if (Number.isNaN(value)) return 0x7e00; // NaN
+  // eslint-disable-next-line no-self-compare
+  if (value !== value) return 0x7E00; // NaN
   if (value === 0) return (1 / value === -Infinity) << 15; // +0 or -0
+
   var neg = value < 0;
   if (neg) value = -value;
-  if (value >= minInfinity16) return neg << 15 | 0x7c00; // Infinity
+  if (value >= minInfinity16) return neg << 15 | 0x7C00; // Infinity
   if (value < minNormal16) return neg << 15 | roundTiesToEven(value * recMinSubnormal16); // subnormal
+
   // normal
-  var exponent = Math.log2(value) | 0;
-  if (exponent === -15) return neg << 15 | recSignificandDenom16; // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal) to the latter (former impossible because of the subnormal check above)
+  var exponent = Math.log(value) / Math.LN2 | 0;
+  // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal)
+  // to the latter (former impossible because of the subnormal check above)
+  if (exponent === -15) return neg << 15 | recSignificandDenom16;
   var significand = roundTiesToEven((value * Math.pow(2, -exponent) - 1) * recSignificandDenom16);
-  if (significand === recSignificandDenom16) return neg << 15 | exponent + 16 << 10; // we round from a value between 2 ** n * (1 + 1023/1024) and 2 ** (n + 1) * (1 + 0/1024) to the latter
+  // we round from a value between 2 ** n * (1 + 1023/1024) and 2 ** (n + 1) * (1 + 0/1024) to the latter
+  if (significand === recSignificandDenom16) return neg << 15 | exponent + 16 << 10;
   return neg << 15 | exponent + 15 << 10 | significand;
 }
 
