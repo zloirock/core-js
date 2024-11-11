@@ -29,12 +29,16 @@ function packFloat16(value) {
 
   // normal
   var exponent = Math.log(value) / Math.LN2 | 0;
-  // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal)
-  // to the latter (former impossible because of the subnormal check above)
-  if (exponent === -15) return neg << 15 | recSignificandDenom16;
+  if (exponent === -15) {
+    // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal)
+    // to the latter (former impossible because of the subnormal check above)
+    return neg << 15 | recSignificandDenom16;
+  }
   var significand = roundTiesToEven((value * Math.pow(2, -exponent) - 1) * recSignificandDenom16);
-  // we round from a value between 2 ** n * (1 + 1023/1024) and 2 ** (n + 1) * (1 + 0/1024) to the latter
-  if (significand === recSignificandDenom16) return neg << 15 | exponent + 16 << 10;
+  if (significand === recSignificandDenom16) {
+    // we round from a value between 2 ** n * (1 + 1023/1024) and 2 ** (n + 1) * (1 + 0/1024) to the latter
+    return neg << 15 | exponent + 16 << 10;
+  }
   return neg << 15 | exponent + 15 << 10 | significand;
 }
 
