@@ -19,7 +19,7 @@ var MIN_NORMAL16 = 0.000061005353927612305; // (1 - 2 ** -11) * 2 ** -14
 var REC_MIN_SUBNORMAL16 = 16777216; // 2 ** 10 * 2 ** 14
 var REC_SIGNIFICAND_DENOM16 = 1024; // 2 ** 10;
 
-function packFloat16(value) {
+var packFloat16 = function (value) {
   // eslint-disable-next-line no-self-compare -- NaN check
   if (value !== value) return 0x7E00; // NaN
   if (value === 0) return (1 / value === -Infinity) << 15; // +0 or -0
@@ -42,7 +42,7 @@ function packFloat16(value) {
     return neg << 15 | exponent + 16 << 10;
   }
   return neg << 15 | exponent + 15 << 10 | significand;
-}
+};
 
 // eslint-disable-next-line es/no-typed-arrays -- safe
 var setUint16 = uncurryThis(DataView.prototype.setUint16);
