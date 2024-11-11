@@ -6,6 +6,8 @@ var toIndex = require('../internals/to-index');
 var f16round = require('../internals/math-f16round');
 
 var pow = Math.pow;
+var log = Math.log;
+var LN2 = Math.LN2;
 
 var EPSILON = 2.220446049250313e-16; // Number.EPSILON
 var INVERSE_EPSILON = 1 / EPSILON;
@@ -30,7 +32,7 @@ var packFloat16 = function (value) {
   if (value < MIN_NORMAL16) return neg << 15 | roundTiesToEven(value * REC_MIN_SUBNORMAL16); // subnormal
 
   // normal
-  var exponent = Math.log(value) / Math.LN2 | 0;
+  var exponent = log(value) / LN2 | 0;
   if (exponent === -15) {
     // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal)
     // to the latter (former impossible because of the subnormal check above)
