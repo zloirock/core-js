@@ -39,6 +39,6 @@ $({ target: 'DataView', proto: true }, {
     aDataView(this);
     var offset = toIndex(byteOffset);
     var bytes = packFloat16(f16round(value));
-    return setUint16(this, offset, bytes[1] << 8 | bytes[0], arguments.length > 2 ? arguments[2] : false);
+    return setUint16(this, offset, bytes, arguments.length > 2 ? arguments[2] : false);
   }
 });
