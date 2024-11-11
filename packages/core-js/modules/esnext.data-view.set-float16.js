@@ -18,7 +18,7 @@ var recMinSubnormal16 = 16777216; // 2 ** 10 * 2 ** 14
 var recSignificandDenom16 = 1024; // 2 ** 10;
 
 function packFloat16(value) {
-  // eslint-disable-next-line no-self-compare
+  // eslint-disable-next-line no-self-compare -- NaN check
   if (value !== value) return 0x7E00; // NaN
   if (value === 0) return (1 / value === -Infinity) << 15; // +0 or -0
 
