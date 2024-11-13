@@ -3,6 +3,7 @@
 - Compat data improvements:
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped from Safari 18.2
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from Safari 18.2
+  - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from FF134
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as shipped from Safari 18.2
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) methods marked as shipped from Safari 18.2
   - Fixed NodeJS version where `URL.parse` was added - 22.1 instead of 22.0

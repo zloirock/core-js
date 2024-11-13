@@ -1295,6 +1295,7 @@ export const data = {
   'es.promise.try': {
     bun: '1.1.22',
     chrome: '128',
+    firefox: '134',
     safari: '18.2',
   },
   'es.promise.with-resolvers': {
