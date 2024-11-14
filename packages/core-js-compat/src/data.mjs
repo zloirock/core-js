@@ -2256,6 +2256,7 @@ export const data = {
   'esnext.iterator.concat': {
   },
   'esnext.iterator.dispose': {
+    firefox: '134',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.drop': null,
@@ -2532,6 +2533,7 @@ export const data = {
     bun: '1.0.23',
     chrome: '127',
     deno: '1.38',
+    firefox: '134',
     // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699
     node: '20.5.0',
@@ -2542,6 +2544,7 @@ export const data = {
     bun: '1.0.23',
     chrome: '125',
     deno: '1.38',
+    firefox: '134',
     // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699
     node: '20.5.0',
