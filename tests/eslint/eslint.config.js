@@ -1597,7 +1597,7 @@ const json = {
   // disallow `Infinity`
   'jsonc/no-infinity': ERROR,
   // disallow irregular whitespace
-  'jsonc/no-irregular-whitespace': ERROR,
+  'jsonc/no-irregular-whitespace': [ERROR, {}],
   // disallow use of multiline strings
   'jsonc/no-multi-str': ERROR,
   // disallow `NaN`
