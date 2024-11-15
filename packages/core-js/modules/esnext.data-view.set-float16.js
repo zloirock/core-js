@@ -3,7 +3,6 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aDataView = require('../internals/a-data-view');
 var toIndex = require('../internals/to-index');
-var f16round = require('../internals/math-f16round');
 
 var pow = Math.pow;
 var log = Math.log;
@@ -55,7 +54,7 @@ $({ target: 'DataView', proto: true }, {
   setFloat16: function setFloat16(byteOffset, value /* , littleEndian */) {
     aDataView(this);
     var offset = toIndex(byteOffset);
-    var bytes = packFloat16(f16round(value));
+    var bytes = packFloat16(value);
     return setUint16(this, offset, bytes, arguments.length > 2 ? arguments[2] : false);
   }
 });
