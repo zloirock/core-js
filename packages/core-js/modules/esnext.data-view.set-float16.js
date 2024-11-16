@@ -3,17 +3,11 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aDataView = require('../internals/a-data-view');
 var toIndex = require('../internals/to-index');
+// TODO: Replace with module dependency in `core-js@4`
+var log2 = require('../internals/math-log2');
+var roundTiesToEven = require('../internals/math-round-ties-to-even');
 
 var pow = Math.pow;
-var log = Math.log;
-var LN2 = Math.LN2;
-
-var EPSILON = 2.220446049250313e-16; // Number.EPSILON
-var INVERSE_EPSILON = 1 / EPSILON;
-
-var roundTiesToEven = function (n) {
-  return n + INVERSE_EPSILON - INVERSE_EPSILON;
-};
 
 var MIN_INFINITY16 = 65520; // (2 - 2 ** -11) * 2 ** 15
 var MIN_NORMAL16 = 0.000061005353927612305; // (1 - 2 ** -11) * 2 ** -14
@@ -31,7 +25,7 @@ var packFloat16 = function (value) {
   if (value < MIN_NORMAL16) return neg << 15 | roundTiesToEven(value * REC_MIN_SUBNORMAL16); // subnormal
 
   // normal
-  var exponent = log(value) / LN2 | 0;
+  var exponent = log2(value) | 0;
   if (exponent === -15) {
     // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal)
     // to the latter (former impossible because of the subnormal check above)
