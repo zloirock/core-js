@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Optimized `DataView.prototype.{ getFloat16, setFloat16 }` performance, thanks [**@LeviPesin**](https://github.com/LeviPesin)
 - Compat data improvements:
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped from Safari 18.2
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from Safari 18.2
