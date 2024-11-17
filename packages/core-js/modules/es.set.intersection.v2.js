@@ -5,7 +5,7 @@ var intersection = require('../internals/set-intersection');
 var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');
 
 var INCORRECT = !setMethodAcceptSetLike('intersection') || fails(function () {
-  // eslint-disable-next-line es/no-array-from, es/no-set -- testing
+  // eslint-disable-next-line es/no-array-from, es/no-set, es/no-set-prototype-intersection -- testing
   return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) !== '3,2';
 });
 
