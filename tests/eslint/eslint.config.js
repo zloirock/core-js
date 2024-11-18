@@ -1825,6 +1825,12 @@ export default [
   },
   {
     files: [
+      'packages/core-js?(-pure)/**/instance/**',
+    ],
+    rules: disable(forbidModernBuiltIns),
+  },
+  {
+    files: [
       'tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**',
     ],
     languageOptions: {
