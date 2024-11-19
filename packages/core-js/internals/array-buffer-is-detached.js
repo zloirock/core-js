@@ -1,17 +1,15 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var uncurryThis = require('../internals/function-uncurry-this-clause');
+var NATIVE_ARRAY_BUFFER = require('../internals/array-buffer-basic-detection');
 var arrayBufferByteLength = require('../internals/array-buffer-byte-length');
 
-var ArrayBuffer = globalThis.ArrayBuffer;
-var ArrayBufferPrototype = ArrayBuffer && ArrayBuffer.prototype;
-var slice = ArrayBufferPrototype && uncurryThis(ArrayBufferPrototype.slice);
+var DataView = globalThis.DataView;
 
 module.exports = function (O) {
-  if (arrayBufferByteLength(O) !== 0) return false;
-  if (!slice) return false;
+  if (!NATIVE_ARRAY_BUFFER || arrayBufferByteLength(O) !== 0) return false;
   try {
-    slice(O, 0, 0);
+    // eslint-disable-next-line no-new -- thrower
+    new DataView(O);
     return false;
   } catch (error) {
     return true;
