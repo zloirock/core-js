@@ -71,10 +71,10 @@ QUnit.test('Object#toString', assert => {
   if ([].entries) {
     assert.same(`${ [].entries() }`, '[object Array Iterator]', 'Array Iterator -> `Array Iterator`');
   }
-  if (GLOBAL.Set && Set.entries) {
+  if (GLOBAL.Set && Set.prototype.entries) {
     assert.same(`${ new Set().entries() }`, '[object Set Iterator]', 'Set Iterator -> `Set Iterator`');
   }
-  if (GLOBAL.Map && Map.entries) {
+  if (GLOBAL.Map && Map.prototype.entries) {
     assert.same(`${ new Map().entries() }`, '[object Map Iterator]', 'Map Iterator -> `Map Iterator`');
   }
   assert.same(`${ Math }`, '[object Math]', 'Math -> `Math`');
