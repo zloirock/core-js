@@ -14,7 +14,9 @@ if (!DESCRIPTORS) Object.defineProperties = defineProperties;
 const { getOwnPropertyDescriptor } = Object;
 const { toString, propertyIsEnumerable } = Object.prototype;
 
-assign(QUnit.assert, {
+const { assert } = QUnit;
+
+assign(assert, {
   arity(fn, length, message) {
     this.same(fn.length, length, message ?? `The arity of the function is ${ length }`);
   },
@@ -180,7 +182,7 @@ assign(QUnit.assert, {
   },
 });
 
-QUnit.assert.skip = reduce(getOwnPropertyNames(assert), (skip, method) => {
+assert.skip = reduce(getOwnPropertyNames(assert), (skip, method) => {
   skip[method] = () => { /* empty */ };
   return skip;
 }, {});
