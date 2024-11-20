@@ -11,8 +11,7 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.looksNative(transferToFixedLength);
   assert.nonEnumerable(ArrayBuffer.prototype, 'transferToFixedLength');
 
-  // works incorrectly in ancient webkit
-  const DETACHED = false; // 'detached' in ArrayBuffer.prototype;
+  const DETACHED = 'detached' in ArrayBuffer.prototype;
 
   const array = [0, 1, 2, 3, 4, 5, 6, 7];
 
@@ -21,7 +20,8 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.notSame(transferred, buffer, 'returns new buffer 1');
   assert.true(transferred instanceof ArrayBuffer, 'returns ArrayBuffer 1');
   assert.same(buffer.byteLength, 0, 'original array length 1');
-  if (DETACHED) assert.true(buffer.detached, 'original array detached 1');
+  // works incorrectly in ancient WebKit
+  if (DETACHED) assert.skip.true(buffer.detached, 'original array detached 1');
   assert.same(transferred.byteLength, 8, 'proper transferred byteLength 1');
   assert.arrayEqual(bufferToArray(transferred), array, 'properly copied 1');
 
@@ -30,7 +30,8 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.notSame(transferred, buffer, 'returns new buffer 2');
   assert.true(transferred instanceof ArrayBuffer, 'returns ArrayBuffer 2');
   assert.same(buffer.byteLength, 0, 'original array length 2');
-  if (DETACHED) assert.true(buffer.detached, 'original array detached 2');
+  // works incorrectly in ancient WebKit
+  if (DETACHED) assert.skip.true(buffer.detached, 'original array detached 2');
   assert.same(transferred.byteLength, 5, 'proper transferred byteLength 2');
   assert.arrayEqual(bufferToArray(transferred), array.slice(0, 5), 'properly copied 2');
 
@@ -39,7 +40,8 @@ if (transferToFixedLength) QUnit.test('ArrayBuffer#transferToFixedLength', asser
   assert.notSame(transferred, buffer, 'returns new buffer 3');
   assert.true(transferred instanceof ArrayBuffer, 'returns ArrayBuffer 3');
   assert.same(buffer.byteLength, 0, 'original array length 3');
-  if (DETACHED) assert.true(buffer.detached, 'original array detached 3');
+  // works incorrectly in ancient WebKit
+  if (DETACHED) assert.skip.true(buffer.detached, 'original array detached 3');
   assert.same(transferred.byteLength, 16, 'proper transferred byteLength 3');
   assert.arrayEqual(bufferToArray(transferred), [...array, 0, 0, 0, 0, 0, 0, 0, 0], 'properly copied 3');
 
