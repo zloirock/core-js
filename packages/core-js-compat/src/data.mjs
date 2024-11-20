@@ -2453,6 +2453,7 @@ export const data = {
   },
   'esnext.regexp.escape': {
     bun: '1.1.22',
+    firefox: '134',
     safari: '18.2',
   },
   'esnext.set.add-all': {
