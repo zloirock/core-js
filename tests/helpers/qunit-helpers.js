@@ -1,6 +1,8 @@
 import { DESCRIPTORS } from './constants.js';
 import assign from 'core-js-pure/es/object/assign';
 import defineProperties from 'core-js-pure/es/object/define-properties';
+import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
+import reduce from 'core-js-pure/es/array/reduce';
 import isIterable from 'core-js-pure/es/is-iterable';
 import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
@@ -177,3 +179,8 @@ assign(QUnit.assert, {
     this.same(value, true, message);
   },
 });
+
+QUnit.assert.skip = reduce(getOwnPropertyNames(assert), (skip, method) => {
+  skip[method] = () => { /* empty */ };
+  return skip;
+}, {});
