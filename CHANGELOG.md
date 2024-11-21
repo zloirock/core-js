@@ -1,6 +1,8 @@
 ## Changelog
 ##### Unreleased
 - Optimized `DataView.prototype.{ getFloat16, setFloat16 }` performance, [#1379](https://github.com/zloirock/core-js/pull/1379), thanks [**@LeviPesin**](https://github.com/LeviPesin)
+- Dropped unneeded feature detection of non-standard `%TypedArray%.prototype.toSpliced`
+- Dropped possible re-usage of some non-standard / early stage features (like `Math.scale`) available on global
 - Some other minor improvements
 - Compat data improvements:
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped from Safari 18.2
