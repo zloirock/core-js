@@ -7,6 +7,7 @@ var padStart = require('../internals/string-pad').start;
 var WHITESPACES = require('../internals/whitespaces');
 
 var $Array = Array;
+// eslint-disable-next-line es/no-nonstandard-regexp-properties -- safe
 var $escape = RegExp.escape;
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);

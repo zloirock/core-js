@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var fromAsync = require('../internals/array-from-async');
 var fails = require('../internals/fails');
 
+// eslint-disable-next-line es/no-nonstandard-array-properties -- safe
 var nativeFromAsync = Array.fromAsync;
 // https://bugs.webkit.org/show_bug.cgi?id=271703
 var INCORRECT_CONSTRUCTURING = !nativeFromAsync || fails(function () {

@@ -30,5 +30,6 @@ QUnit.test('Array#map', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.map(Boolean).foo, 1, '@@species');
 });

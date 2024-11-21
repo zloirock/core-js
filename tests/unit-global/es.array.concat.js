@@ -30,5 +30,7 @@ QUnit.test('Array#concat', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
+  // https://bugs.webkit.org/show_bug.cgi?id=281061
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.concat().foo, 1, '@@species');
 });

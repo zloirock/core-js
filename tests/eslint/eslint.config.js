@@ -1059,6 +1059,280 @@ const useES3Syntax = {
   'unicorn/prefer-optional-catch-binding': OFF,
 };
 
+const forbidNonStandardBuiltIns = {
+  // disallow non-standard built-in methods
+  'es/no-nonstandard-array-properties': ERROR,
+  'es/no-nonstandard-array-prototype-properties': ERROR,
+  'es/no-nonstandard-arraybuffer-properties': ERROR,
+  'es/no-nonstandard-arraybuffer-prototype-properties': ERROR,
+  'es/no-nonstandard-atomics-properties': ERROR,
+  'es/no-nonstandard-bigint-properties': ERROR,
+  'es/no-nonstandard-bigint-prototype-properties': ERROR,
+  'es/no-nonstandard-boolean-properties': ERROR,
+  'es/no-nonstandard-boolean-prototype-properties': ERROR,
+  'es/no-nonstandard-dataview-properties': ERROR,
+  'es/no-nonstandard-dataview-prototype-properties': ERROR,
+  'es/no-nonstandard-date-properties': ERROR,
+  'es/no-nonstandard-date-prototype-properties': ERROR,
+  'es/no-nonstandard-finalizationregistry-properties': ERROR,
+  'es/no-nonstandard-finalizationregistry-prototype-properties': ERROR,
+  'es/no-nonstandard-function-properties': ERROR,
+  'es/no-nonstandard-intl-collator-properties': ERROR,
+  'es/no-nonstandard-intl-collator-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-datetimeformat-properties': ERROR,
+  'es/no-nonstandard-intl-datetimeformat-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-displaynames-properties': ERROR,
+  'es/no-nonstandard-intl-displaynames-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-listformat-properties': ERROR,
+  'es/no-nonstandard-intl-listformat-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-locale-properties': ERROR,
+  'es/no-nonstandard-intl-locale-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-numberformat-properties': ERROR,
+  'es/no-nonstandard-intl-numberformat-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-pluralrules-properties': ERROR,
+  'es/no-nonstandard-intl-pluralrules-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-properties': ERROR,
+  'es/no-nonstandard-intl-relativetimeformat-properties': ERROR,
+  'es/no-nonstandard-intl-relativetimeformat-prototype-properties': ERROR,
+  'es/no-nonstandard-intl-segmenter-properties': ERROR,
+  'es/no-nonstandard-intl-segmenter-prototype-properties': ERROR,
+  'es/no-nonstandard-iterator-properties': ERROR,
+  'es/no-nonstandard-iterator-prototype-properties': ERROR,
+  'es/no-nonstandard-json-properties': ERROR,
+  'es/no-nonstandard-map-properties': ERROR,
+  'es/no-nonstandard-map-prototype-properties': ERROR,
+  'es/no-nonstandard-math-properties': ERROR,
+  'es/no-nonstandard-number-properties': ERROR,
+  'es/no-nonstandard-number-prototype-properties': ERROR,
+  'es/no-nonstandard-object-properties': ERROR,
+  'es/no-nonstandard-promise-properties': ERROR,
+  'es/no-nonstandard-promise-prototype-properties': ERROR,
+  'es/no-nonstandard-proxy-properties': ERROR,
+  'es/no-nonstandard-reflect-properties': ERROR,
+  'es/no-nonstandard-regexp-properties': ERROR,
+  'es/no-nonstandard-regexp-prototype-properties': ERROR,
+  'es/no-nonstandard-set-properties': ERROR,
+  'es/no-nonstandard-set-prototype-properties': ERROR,
+  'es/no-nonstandard-sharedarraybuffer-properties': ERROR,
+  'es/no-nonstandard-sharedarraybuffer-prototype-properties': ERROR,
+  'es/no-nonstandard-string-properties': ERROR,
+  'es/no-nonstandard-string-prototype-properties': ERROR,
+  'es/no-nonstandard-symbol-properties': [ERROR, { allow: [
+    'sham', // non-standard flag
+  ] }],
+  'es/no-nonstandard-symbol-prototype-properties': ERROR,
+  'es/no-nonstandard-typed-array-properties': ERROR,
+  'es/no-nonstandard-typed-array-prototype-properties': ERROR,
+  'es/no-nonstandard-weakmap-properties': ERROR,
+  'es/no-nonstandard-weakmap-prototype-properties': ERROR,
+  'es/no-nonstandard-weakref-properties': ERROR,
+  'es/no-nonstandard-weakref-prototype-properties': ERROR,
+  'es/no-nonstandard-weakset-properties': ERROR,
+  'es/no-nonstandard-weakset-prototype-properties': ERROR,
+};
+
+const forbidCompletelyNonExistentBuiltIns = {
+  ...forbidNonStandardBuiltIns,
+  // disallow non-standard built-in methods
+  'es/no-nonstandard-array-properties': [ERROR, { allow: [
+    'fromAsync',
+    'isTemplateObject',
+  ] }],
+  'es/no-nonstandard-array-prototype-properties': [ERROR, { allow: [
+    'filterReject',
+    'uniqueBy',
+    // TODO: drop from `core-js@4`
+    'filterOut',
+    'group',
+    'groupBy',
+    'groupByToMap',
+    'groupToMap',
+    'lastIndex',
+    'lastItem',
+  ] }],
+  'es/no-nonstandard-bigint-properties': [ERROR, { allow: [
+    // TODO: drop from `core-js@4`
+    'range',
+  ] }],
+  'es/no-nonstandard-dataview-prototype-properties': [ERROR, { allow: [
+    'getFloat16',
+    'getUint8Clamped',
+    'setFloat16',
+    'setUint8Clamped',
+  ] }],
+  'es/no-nonstandard-function-properties': [ERROR, { allow: [
+    'isCallable',
+    'isConstructor',
+  ] }],
+  'es/no-nonstandard-iterator-properties': [ERROR, { allow: [
+    'concat',
+    'range',
+  ] }],
+  'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
+    'toAsync',
+    // TODO: drop from `core-js@4`
+    'asIndexedPairs',
+    'indexed',
+  ] }],
+  'es/no-nonstandard-json-properties': [ERROR, { allow: [
+    'isRawJSON',
+    'rawJSON',
+  ] }],
+  'es/no-nonstandard-map-properties': [ERROR, { allow: [
+    'from',
+    'of',
+    // TODO: drop from `core-js@4`
+    'keyBy',
+  ] }],
+  'es/no-nonstandard-map-prototype-properties': [ERROR, { allow: [
+    'getOrInsert',
+    'getOrInsertComputed',
+    // TODO: drop from `core-js@4`
+    'deleteAll',
+    'emplace',
+    'every',
+    'filter',
+    'find',
+    'findKey',
+    'includes',
+    'keyOf',
+    'mapKeys',
+    'mapValues',
+    'merge',
+    'reduce',
+    'some',
+    'update',
+    'updateOrInsert',
+    'upsert',
+  ] }],
+  'es/no-nonstandard-math-properties': [ERROR, { allow: [
+    'f16round',
+    'sumPrecise',
+    // TODO: drop from `core-js@4`
+    'DEG_PER_RAD',
+    'RAD_PER_DEG',
+    'clamp',
+    'degrees',
+    'fscale',
+    'iaddh',
+    'imulh',
+    'isubh',
+    'radians',
+    'scale',
+    'seededPRNG',
+    'signbit',
+    'umulh',
+  ] }],
+  'es/no-nonstandard-number-properties': [ERROR, { allow: [
+    // TODO: drop from `core-js@4`
+    'fromString',
+    'range',
+  ] }],
+  'es/no-nonstandard-object-properties': [ERROR, { allow: [
+    // TODO: drop from `core-js@4`
+    'iterateEntries',
+    'iterateKeys',
+    'iterateValues',
+  ] }],
+  'es/no-nonstandard-reflect-properties': [ERROR, { allow: [
+    // TODO: drop from `core-js@4`
+    'defineMetadata',
+    'deleteMetadata',
+    'getMetadata',
+    'getMetadataKeys',
+    'getOwnMetadata',
+    'getOwnMetadataKeys',
+    'hasMetadata',
+    'hasOwnMetadata',
+    'metadata',
+  ] }],
+  'es/no-nonstandard-regexp-properties': [ERROR, { allow: [
+    'escape',
+  ] }],
+  'es/no-nonstandard-set-properties': [ERROR, { allow: [
+    'from',
+    'of',
+  ] }],
+  'es/no-nonstandard-set-prototype-properties': [ERROR, { allow: [
+    // TODO: drop from `core-js@4`
+    'addAll',
+    'deleteAll',
+    'every',
+    'filter',
+    'find',
+    'join',
+    'map',
+    'reduce',
+    'some',
+  ] }],
+  'es/no-nonstandard-string-properties': [ERROR, { allow: [
+    'cooked',
+    'dedent',
+  ] }],
+  'es/no-nonstandard-string-prototype-properties': [ERROR, { allow: [
+    // TODO: drop from `core-js@4`
+    'codePoints',
+  ] }],
+  'es/no-nonstandard-symbol-properties': [ERROR, { allow: [
+    'asyncDispose',
+    'customMatcher',
+    'dispose',
+    'isRegisteredSymbol',
+    'isWellKnownSymbol',
+    'metadata',
+    'sham', // non-standard flag
+    // TODO: drop from `core-js@4`
+    'isRegistered',
+    'isWellKnown',
+    'matcher',
+    'metadataKey',
+    'observable',
+    'patternMatch',
+    'replaceAll',
+    'useSetter',
+    'useSimple',
+  ] }],
+  'es/no-nonstandard-typed-array-properties': [ERROR, { allow: [
+    'fromBase64',
+    'fromHex',
+    // TODO: drop from `core-js@4`
+    'fromAsync',
+  ] }],
+  'es/no-nonstandard-typed-array-prototype-properties': [ERROR, { allow: [
+    'filterReject',
+    'uniqueBy',
+    // TODO: drop from `core-js@4`
+    'filterOut',
+    'groupBy',
+    'setFromBase64',
+    'setFromHex',
+    'toBase64',
+    'toHex',
+    'toSpliced',
+  ] }],
+  'es/no-nonstandard-weakmap-properties': [ERROR, { allow: [
+    'from',
+    'of',
+  ] }],
+  'es/no-nonstandard-weakmap-prototype-properties': [ERROR, { allow: [
+    'getOrInsert',
+    'getOrInsertComputed',
+    // TODO: drop from `core-js@4`
+    'deleteAll',
+    'emplace',
+    'upsert',
+  ] }],
+  'es/no-nonstandard-weakset-properties': [ERROR, { allow: [
+    'from',
+    'of',
+  ] }],
+  'es/no-nonstandard-weakset-prototype-properties': [ERROR, { allow: [
+    // TODO: drop from `core-js@4`
+    'addAll',
+    'deleteAll',
+  ] }],
+};
+
 const forbidESAnnexBBuiltIns = {
   'es/no-date-prototype-getyear-setyear': ERROR,
   'es/no-date-prototype-togmtstring': ERROR,
@@ -1384,6 +1658,7 @@ const transpiledAndPolyfilled = {
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
   ...forbidSomeES2025Syntax,
+  ...forbidCompletelyNonExistentBuiltIns,
 };
 
 const nodePackages = {
@@ -1668,6 +1943,7 @@ const packagesPackageJSON = {
 
 const markdown = {
   ...disable(forbidModernBuiltIns),
+  ...forbidCompletelyNonExistentBuiltIns,
   // allow use of console
   'no-console': OFF,
   // disallow use of new operator when not part of the assignment or comparison
@@ -1781,6 +2057,7 @@ export default [
     },
     rules: {
       ...base,
+      ...forbidNonStandardBuiltIns,
       ...forbidESAnnexBBuiltIns,
     },
   },
@@ -1827,7 +2104,10 @@ export default [
     files: [
       'packages/core-js?(-pure)/**/instance/**',
     ],
-    rules: disable(forbidModernBuiltIns),
+    rules: {
+      ...disable(forbidModernBuiltIns),
+      ...forbidCompletelyNonExistentBuiltIns,
+    },
   },
   {
     files: [
@@ -1843,6 +2123,12 @@ export default [
       'tests/**',
     ],
     rules: tests,
+  },
+  {
+    files: [
+      'tests/compat/tests.js',
+    ],
+    rules: forbidCompletelyNonExistentBuiltIns,
   },
   {
     files: [

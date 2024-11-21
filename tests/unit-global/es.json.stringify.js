@@ -393,6 +393,7 @@ if (GLOBAL.JSON?.stringify) {
 
     const arr1 = [];
     const circular2 = [arr1];
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- testing
     arr1.toJSON = () => circular2;
     assert.throws(() => stringify(circular2), TypeError, 'value-tojson-array-circular');
 
@@ -408,12 +409,15 @@ if (GLOBAL.JSON?.stringify) {
 
     assert.same(stringify({ toJSON() { return [false]; } }), '[false]', 'value-tojson-result-1');
     const arr2 = [true];
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- testing
     arr2.toJSON = () => { /* empty */ };
     assert.same(stringify(arr2), undefined, 'value-tojson-result-2');
     const str3 = new String('str');
+    // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- testing
     str3.toJSON = () => null;
     assert.same(stringify({ key: str3 }), '{"key":null}', 'value-tojson-result-3');
     const num3 = new Number(14);
+    // eslint-disable-next-line es/no-nonstandard-number-prototype-properties -- testing
     num3.toJSON = () => ({ key: 7 });
     assert.same(stringify([num3]), '[{"key":7}]', 'value-tojson-result-4');
 

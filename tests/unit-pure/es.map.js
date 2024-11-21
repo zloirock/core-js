@@ -37,6 +37,7 @@ QUnit.test('Map', assert => {
   assert.true(done, '.return #throw');
   const array = [];
   done = false;
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- legacy FF case
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;

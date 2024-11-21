@@ -14,6 +14,7 @@ QUnit.test('Promise.all', assert => {
   assert.true(iterable.called, 'works with iterables: next called');
   const array = [];
   let done = false;
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- legacy FF case
   array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;

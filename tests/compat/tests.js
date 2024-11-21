@@ -374,6 +374,7 @@ GLOBAL.tests = {
       return { foo: 1 };
     };
 
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array1.concat()[0] === array1 && array2.concat().foo === 1;
   },
   'es.array.copy-within': function () {
@@ -395,6 +396,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.filter(Boolean).foo === 1;
   },
   'es.array.find': function () {
@@ -475,6 +477,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.map(function () { return true; }).foo === 1;
   },
   'es.array.of': function () {
@@ -513,6 +516,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.slice().foo === 1;
   },
   'es.array.some': function () {
@@ -569,6 +573,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.splice().foo === 1;
   },
   'es.array.to-reversed': function () {

@@ -28,5 +28,6 @@ QUnit.test('Array#concat', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
+  // https://bugs.webkit.org/show_bug.cgi?id=281061
   assert.same(concat(array).foo, 1, '@@species');
 });

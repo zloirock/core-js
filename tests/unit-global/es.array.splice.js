@@ -43,5 +43,6 @@ QUnit.test('Array#splice', assert => {
   array.constructor = { [Symbol.species]: function () {
     return { foo: 1 };
   } };
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
   assert.same(array.splice().foo, 1, '@@species');
 });

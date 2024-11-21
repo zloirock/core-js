@@ -124,6 +124,7 @@ if (PROTO) QUnit.test('Promise subclassing', assert => {
   function SubPromise(executor) {
     const self = new Promise(executor);
     setPrototypeOf(self, SubPromise.prototype);
+    // eslint-disable-next-line es/no-nonstandard-promise-prototype-properties -- safe
     self.mine = 'subclass';
     return self;
   }
