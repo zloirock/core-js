@@ -14,6 +14,7 @@
   - [`Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as shipped from FF134
   - Fixed NodeJS version where `URL.parse` was added - 22.1 instead of 22.0
   - Added [Deno 2.1](https://github.com/denoland/deno/releases/tag/v2.1.0) compat data mapping
+  - Added Electron 35 compat data mapping
 
 ##### [3.39.0 - 2024.10.31](https://github.com/zloirock/core-js/releases/tag/v3.39.0)
 - Changes [v3.38.1...v3.39.0](https://github.com/zloirock/core-js/compare/v3.38.1...v3.39.0)
