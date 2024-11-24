@@ -1,12 +1,13 @@
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aDataView = require('../internals/a-data-view');
 var toIndex = require('../internals/to-index');
-// TODO: Replace with module dependency in `core-js@4`
-var log2 = require('../internals/math-log2');
 var roundTiesToEven = require('../internals/math-round-ties-to-even');
 
+// dependency: es.math.log2
+var log2 = getBuiltInStaticMethod('Math', 'log2');
 var pow = Math.pow;
 
 var MIN_INFINITY16 = 65520; // (2 - 2 ** -11) * 2 ** 15
