@@ -5,7 +5,7 @@ var store = require('../internals/shared-store');
 
 var functionToString = uncurryThis(Function.prototype.toString);
 
-// Avoid recursion in `store.inspectSource`
+// this helper broken in `core-js@3.4.1-3.4.4`, so we can't use `shared` helper
 if (!isCallable(store.inspectSource)) {
   store.inspectSource = function (it) {
     try {
