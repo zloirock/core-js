@@ -526,6 +526,8 @@ const base = {
   'array-func/no-unnecessary-this-arg': ERROR,
 
   // promise:
+  // enforces the use of `catch()` on un-returned promises
+  'promise/catch-or-return': ERROR,
   // avoid calling `cb()` inside of a `then()` or `catch()`
   'promise/no-callback-in-promise': ERROR,
   // disallow creating new promises with paths that resolve multiple times
@@ -1622,6 +1624,8 @@ const forbidModernBuiltIns = {
 const polyfills = {
   // prefer `node:` protocol
   'node/prefer-node-protocol': OFF,
+  // enforces the use of `catch()` on un-returned promises
+  'promise/catch-or-return': OFF,
   // avoid nested `then()` or `catch()` statements
   'promise/no-nesting': OFF,
   // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
@@ -1668,8 +1672,6 @@ const transpiledAndPolyfilled = {
 const nodePackages = {
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
-  // enforces the use of `catch()` on un-returned promises
-  'promise/catch-or-return': ERROR,
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
   // prefer `node:` protocol
@@ -1763,6 +1765,8 @@ const tests = {
   'no-useless-call': OFF,
   // specify the maximum length of a line in your program
   '@stylistic/js/max-len': [ERROR, { ...base['@stylistic/js/max-len'][1], code: 180 }],
+  // enforces the use of `catch()` on un-returned promises
+  'promise/catch-or-return': OFF,
   // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
   'promise/prefer-catch': OFF,
   // shorthand promises should be used
@@ -1972,6 +1976,8 @@ const markdown = {
   'es/no-top-level-await': OFF,
   // ensure imports point to files / modules that can be resolved
   'import/no-unresolved': OFF,
+  // enforces the use of `catch()` on un-returned promises
+  'promise/catch-or-return': OFF,
   // enforce that `RegExp#exec` is used instead of `String#match` if no global flag is provided
   'regexp/prefer-regexp-exec': OFF,
   // variables should be defined before being used
