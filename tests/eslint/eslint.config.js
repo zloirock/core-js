@@ -549,6 +549,8 @@ const base = {
   'promise/prefer-await-to-callbacks': ERROR,
   // prefer `await` to `then()` / `catch()` / `finally()` for reading `Promise` values
   'promise/prefer-await-to-then': [ERROR, { strict: true }],
+  // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
+  'promise/prefer-catch': ERROR,
   // disallow use of non-standard `Promise` static methods
   'promise/spec-only': [OFF, { allowedMethods: [
     'prototype', // `eslint-plugin-promise` bug, https://github.com/eslint-community/eslint-plugin-promise/issues/533
@@ -1622,6 +1624,8 @@ const polyfills = {
   'node/prefer-node-protocol': OFF,
   // avoid nested `then()` or `catch()` statements
   'promise/no-nesting': OFF,
+  // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
+  'promise/prefer-catch': OFF,
   // prefer `RegExp#test()` over `String#match()` and `RegExp#exec()`
   // use `RegExp#exec()` since it does not have implicit calls under the hood
   'regexp/prefer-regexp-test': OFF,
@@ -1759,6 +1763,8 @@ const tests = {
   'no-useless-call': OFF,
   // specify the maximum length of a line in your program
   '@stylistic/js/max-len': [ERROR, { ...base['@stylistic/js/max-len'][1], code: 180 }],
+  // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
+  'promise/prefer-catch': OFF,
   // shorthand promises should be used
   'sonarjs/prefer-promise-shorthand': OFF,
   // enforce passing a message value when throwing a built-in error
