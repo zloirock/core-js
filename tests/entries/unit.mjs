@@ -695,6 +695,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/some') == 'function');
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
+    ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     load(NS, 'data-view/get-float16');
     load(NS, 'data-view/set-float16');
     ok(load(NS, 'function/metadata') === null);
@@ -771,7 +772,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'function/virtual/un-this').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(typeof load(NS, 'iterator/as-indexed-pairs') == 'function');
     ok(typeof load(NS, 'iterator/indexed') == 'function');
-    ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
