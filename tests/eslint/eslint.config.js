@@ -763,8 +763,6 @@ const base = {
   'sonarjs/no-literal-call': ERROR,
   // array-mutating methods should not be used misleadingly
   'sonarjs/no-misleading-array-reverse': ERROR,
-  // promises should not be misused
-  'sonarjs/no-misused-promises': ERROR,
   // assignments should not be redundant
   'sonarjs/no-redundant-assignments': ERROR,
   // boolean literals should not be redundant
@@ -787,8 +785,6 @@ const base = {
   'sonarjs/no-unthrown-error': ERROR,
   // collection and array contents should be used
   'sonarjs/no-unused-collection': ERROR,
-  // unused private class members should be removed
-  'sonarjs/no-unused-private-class-members': ERROR,
   // the output of functions that don't return anything should not be used
   'sonarjs/no-use-of-empty-return-value': ERROR,
   // values should not be uselessly incremented
