@@ -1,10 +1,9 @@
 import { minify } from 'terser';
-import builder from 'core-js-builder';
-import config from 'core-js-builder/config.js';
+import builder from '@core-js/builder';
+import config from '@core-js/builder/config.js';
 
 const { cyan, green } = chalk;
-const DENO = argv._.includes('deno');
-const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
+const PATH = 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
   const size = (code.length / 1024).toFixed(2);
@@ -12,16 +11,13 @@ function log(kind, name, code) {
 }
 
 async function bundle({ bundled, minified, options = {} }) {
-  const source = await builder(options);
+  const { script } = await builder({ modules: 'core-js/full', ...options });
 
-  log('bundling', bundled, source);
-  await fs.writeFile(`${ PATH }${ bundled }.js`, source);
+  log('bundling', bundled, script);
+  await fs.writeFile(`${ PATH }${ bundled }.js`, script);
 
-  if (!minified) return;
-
-  const { code, map } = await minify(source, {
-    ecma: 3,
-    ie8: true,
+  const { code, map } = await minify(script, {
+    ecma: 5,
     safari10: true,
     keep_fnames: true,
     compress: {
@@ -51,30 +47,7 @@ async function bundle({ bundled, minified, options = {} }) {
   log('minification', minified, code);
 }
 
-await bundle(DENO ? {
-  bundled: 'index',
-  options: {
-    targets: { deno: '1.0' },
-    exclude: [
-      'esnext.array.filter-out',       // obsolete
-      'esnext.map.update-or-insert',   // obsolete
-      'esnext.map.upsert',             // obsolete
-      'esnext.math.iaddh',             // withdrawn
-      'esnext.math.imulh',             // withdrawn
-      'esnext.math.isubh',             // withdrawn
-      'esnext.math.seeded-prng',       // changing of the API, waiting for the spec text
-      'esnext.math.umulh',             // withdrawn
-      'esnext.object.iterate-entries', // withdrawn
-      'esnext.object.iterate-keys',    // withdrawn
-      'esnext.object.iterate-values',  // withdrawn
-      'esnext.string.at',              // withdrawn
-      'esnext.symbol.pattern-match',   // is not a part of actual proposal, replaced by esnext.symbol.matcher
-      'esnext.symbol.replace-all',     // obsolete
-      'esnext.typed-array.filter-out', // obsolete
-      'esnext.weak-map.upsert',        // obsolete
-    ],
-  },
-} : {
+await bundle({
   bundled: 'index',
   minified: 'minified',
 });
