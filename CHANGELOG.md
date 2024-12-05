@@ -9,6 +9,7 @@
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from Safari 18.2
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as shipped from Safari 18.2
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) methods marked as shipped from Safari 18.2
+  - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [shipped from FF135](https://bugzilla.mozilla.org/show_bug.cgi?id=1934622)
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped [from FF134](https://bugzilla.mozilla.org/show_bug.cgi?id=1918235)
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from FF134
   - [`Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as shipped from FF134

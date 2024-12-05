@@ -2290,18 +2290,18 @@ export const data = {
   },
   'esnext.json.is-raw-json': {
     chrome: '114',
-    // disabled in 133 nightly because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
-    // firefox: '132',
+    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
+    firefox: '135', // '132',
   },
   'esnext.json.parse': {
     chrome: '114',
-    // disabled in 133 nightly because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
-    // firefox: '132',
+    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
+    firefox: '135', // '132',
   },
   'esnext.json.raw-json': {
     chrome: '114',
-    // disabled in 133 nightly because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
-    // firefox: '132',
+    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
+    firefox: '135', // '132',
   },
   'esnext.map.delete-all': {
   },
