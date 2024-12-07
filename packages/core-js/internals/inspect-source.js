@@ -8,7 +8,12 @@ var functionToString = uncurryThis(Function.toString);
 // this helper broken in `core-js@3.4.1-3.4.4`, so we can't use `shared` helper
 if (!isCallable(store.inspectSource)) {
   store.inspectSource = function (it) {
-    return functionToString(it);
+    try {
+      return isCallable(it) ? functionToString(it) : '';
+    } catch (error) {
+      // Fallback to an empty string if `functionToString` fails
+      return '';
+    }
   };
 }
 
