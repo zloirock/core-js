@@ -9,7 +9,7 @@ There is always some ["help wanted" issues](https://github.com/zloirock/core-js/
 ## How to add a new polyfill
 
 - The polyfill implementation should be added to the [`packages/core-js/modules`](./packages/core-js/modules) directory.
-- The polyfill should properly work in ES3 and all possible engines. If in some engines it cannot be implemented (for example, it striuctly requires more modern ES or unavailable platform features), it should not break any other `core-js` features or application in any way.
+- The polyfill should properly work in ES3 and all possible engines. If in some engines it cannot be implemented (for example, it strictly requires more modern ES or unavailable platform features), it should not break any other `core-js` features or application in any way.
 - Avoid possible observing / breakage polyfills via patching built-ins at runtime: cache all global built-ins in the polyfills code and don't call prototype methods from instances.
 - Shared helpers should be added to the [`packages/core-js/internals`](./packages/core-js/internals) directory. Reuse already existing helpers.
 - Avoid direct import from `/modules/` path in `/internals|modules/` since it will break optimizations via Babel / `swc`. Specify such dependencies in `/es|stable|actual/full/` entries and use something like [`internals/get-built-in`](./packages/core-js/modules/get-built-in.js) helpers.
@@ -36,7 +36,7 @@ For updating `core-js-compat` data:
 - If you want to add new data for Deno, run `npm run compat-deno` with the installed required Deno version and you will see the results in the console. Use `npm run compat-deno json` if you want to get the result as JSON.
 - If you want to add new data for Bun, run `npm run compat-bun` with the installed required Bun version and you will see the results in the console.
 - If you want to add new data for Rhino, set the required Rhino version in `compat-rhino` NPM script in [`package.json`](./package.json), run `npm run compat-rhino` and you will see the results in the console.
-- If you want to add new data for Hermes (incl. shipped with React Native), run `npm run compat-hermes YOR_PATH_TO_HERMES` and you will see the results in the console.
+- If you want to add new data for Hermes (incl. shipped with React Native), run `npm run compat-hermes YOUR_PATH_TO_HERMES` and you will see the results in the console.
 - After getting this data, add it to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs).
 - If you want to add new mapping (for example, to add a new iOS Safari version based on Safari or NodeJS based on Chrome), add it to [`packages/core-js-compat/src/mapping.mjs`](./packages/core-js-compat/src/mapping.mjs).
 
