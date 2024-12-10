@@ -1,7 +1,7 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
-import concat from 'core-js-pure/full/iterator/concat';
-import Iterator from 'core-js-pure/full/iterator';
+import concat from 'core-js-pure/actual/iterator/concat';
+import Iterator from 'core-js-pure/actual/iterator';
 import from from 'core-js-pure/es/array/from';
 
 QUnit.test('Iterator.concat', assert => {
