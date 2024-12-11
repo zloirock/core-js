@@ -174,7 +174,8 @@ export default {
   ChromeToOpera(chrome) {
     return chrome <= 28 ? 15
          : chrome <= 82 ? chrome - 13
-         : chrome - 14;
+         : chrome <= 129 ? chrome - 14
+         : chrome - 15;
   },
   ChromeToAndroid: [
     [9, '3.0'],

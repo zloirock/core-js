@@ -16,6 +16,7 @@
   - Fixed NodeJS version where `URL.parse` was added - 22.1 instead of 22.0
   - Added [Deno 2.1](https://github.com/denoland/deno/releases/tag/v2.1.0) compat data mapping
   - Added Electron 35 compat data mapping
+  - Updated Opera 115+ compat data mapping
   - Added Opera Android [86](https://forums.opera.com/topic/75006/opera-for-android-86) and 87 compat data mapping
 
 ##### [3.39.0 - 2024.10.31](https://github.com/zloirock/core-js/releases/tag/v3.39.0)
