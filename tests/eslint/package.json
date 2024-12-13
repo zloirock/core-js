@@ -7,7 +7,7 @@
     "@stylistic/eslint-plugin-js": "^2.12.1",
     "@stylistic/eslint-plugin-plus": "^2.12.1",
     "confusing-browser-globals": "^1.0.11",
-    "eslint": "^9.16.0",
+    "eslint": "^9.17.0",
     "eslint-plugin-array-func": "^5.0.2",
     "eslint-plugin-canonical": "^5.0.0",
     "eslint-plugin-depend": "^0.12.0",
