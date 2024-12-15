@@ -9,10 +9,10 @@
     "confusing-browser-globals": "^1.0.11",
     "eslint": "^9.17.0",
     "eslint-plugin-array-func": "^5.0.2",
-    "eslint-plugin-canonical": "^5.0.0",
+    "eslint-plugin-canonical": "^5.1.2",
     "eslint-plugin-depend": "^0.12.0",
     "eslint-plugin-es-x": "^8.4.1",
-    "eslint-plugin-import-x": "^4.5.0",
+    "eslint-plugin-import-x": "^4.6.0",
     "eslint-plugin-jsonc": "^2.18.2",
     "eslint-plugin-n": "^17.15.0",
     "eslint-plugin-package-json": "^0.18.0",
@@ -22,7 +22,7 @@
     "eslint-plugin-regexp": "^2.7.0",
     "eslint-plugin-sonarjs": "^3.0.1",
     "eslint-plugin-unicorn": "^56.0.1",
-    "globals": "^15.13.0",
+    "globals": "^15.14.0",
     "jsonc-eslint-parser": "^2.4.0"
   }
 }
