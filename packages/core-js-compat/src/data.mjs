@@ -2176,6 +2176,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer-to-fixed-length': null,
   'esnext.async-disposable-stack.constructor': {
+    chrome: '133',
   },
   'esnext.async-iterator.constructor': {
   },
@@ -2234,6 +2235,7 @@ export const data = {
   'esnext.data-view.set-uint8-clamped': {
   },
   'esnext.disposable-stack.constructor': {
+    chrome: '133',
   },
   'esnext.function.demethodize': {
   },
@@ -2256,6 +2258,7 @@ export const data = {
   'esnext.iterator.concat': {
   },
   'esnext.iterator.dispose': {
+    chrome: '133',
     firefox: '134',
   },
   // TODO: Remove from `core-js@4`
