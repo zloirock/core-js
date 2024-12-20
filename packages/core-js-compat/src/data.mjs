@@ -2110,6 +2110,7 @@ export const data = {
     // https://github.com/oven-sh/bun/issues/9282
     // https://github.com/oven-sh/bun/issues/9283
     // bun: '1.0.23',
+    chrome: '133',
   },
   'esnext.array.from-async': {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
