@@ -15,7 +15,7 @@ const DIR = dirname(FILE);
 $.verbose = true;
 
 if (await pathExists(`${ DIR }/package.json`)) {
-  await $({ cwd: DIR })`NODE_NO_WARNINGS=1 npm install \
+  await $({ cwd: DIR })`npm install \
     --no-audit \
     --no-fund \
     --lockfile-version=3 \
