@@ -2110,7 +2110,8 @@ export const data = {
     // https://github.com/oven-sh/bun/issues/9282
     // https://github.com/oven-sh/bun/issues/9283
     // bun: '1.0.23',
-    chrome: '133',
+    // reverted in https://issues.chromium.org/issues/42203506#comment25
+    // chrome: '133',
   },
   'esnext.array.from-async': {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
@@ -2177,7 +2178,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer-to-fixed-length': null,
   'esnext.async-disposable-stack.constructor': {
-    chrome: '133',
+    // reverted in https://issues.chromium.org/issues/42203506#comment25
+    // chrome: '133',
   },
   'esnext.async-iterator.constructor': {
   },
@@ -2236,7 +2238,8 @@ export const data = {
   'esnext.data-view.set-uint8-clamped': {
   },
   'esnext.disposable-stack.constructor': {
-    chrome: '133',
+    // reverted in https://issues.chromium.org/issues/42203506#comment25
+    // chrome: '133',
   },
   'esnext.function.demethodize': {
   },
@@ -2259,7 +2262,8 @@ export const data = {
   'esnext.iterator.concat': {
   },
   'esnext.iterator.dispose': {
-    chrome: '133',
+    // reverted in https://issues.chromium.org/issues/42203506#comment25
+    // chrome: '133',
     firefox: '134',
   },
   // TODO: Remove from `core-js@4`

@@ -5,7 +5,6 @@
 - Dropped possible re-usage of some non-standard / early stage features (like `Math.scale`) available on global
 - Some other minor improvements
 - Compat data improvements:
-  - [`DisposableStack`, `AsyncDisposableStack`, `SuppressedError` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as [shipped from V8 ~ Chromium 133](https://issues.chromium.org/issues/42203506#comment24)
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped from Safari 18.2
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from Safari 18.2
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as shipped from Safari 18.2
