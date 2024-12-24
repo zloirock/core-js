@@ -1,10 +1,10 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
-var isArray = require('../internals/is-array');
 var isCallable = require('../internals/is-callable');
 var classof = require('../internals/classof-raw');
 var toString = require('../internals/to-string');
 
+var isArray = Array.isArray;
 var push = uncurryThis([].push);
 
 module.exports = function (replacer) {

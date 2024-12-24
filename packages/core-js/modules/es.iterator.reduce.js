@@ -9,6 +9,7 @@ var $TypeError = TypeError;
 
 // `Iterator.prototype.reduce` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.reduce
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
@@ -28,5 +29,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
     }, { IS_RECORD: true });
     if (noInitial) throw new $TypeError('Reduce of empty iterator with no initial value');
     return accumulator;
-  }
+  },
 });

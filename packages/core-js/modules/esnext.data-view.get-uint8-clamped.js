@@ -2,7 +2,6 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 
-// eslint-disable-next-line es/no-typed-arrays -- safe
 var getUint8 = uncurryThis(DataView.prototype.getUint8);
 
 // `DataView.prototype.getUint8Clamped` method
@@ -10,5 +9,5 @@ var getUint8 = uncurryThis(DataView.prototype.getUint8);
 $({ target: 'DataView', proto: true, forced: true }, {
   getUint8Clamped: function getUint8Clamped(byteOffset) {
     return getUint8(this, byteOffset);
-  }
+  },
 });
