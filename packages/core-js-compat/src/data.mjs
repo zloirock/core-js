@@ -2241,6 +2241,8 @@ export const data = {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // chrome: '133',
   },
+  'esnext.error.is-error': {
+  },
   'esnext.function.demethodize': {
   },
   'esnext.function.is-callable': {

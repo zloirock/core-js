@@ -274,4 +274,7 @@ export default {
     'esnext.weak-map.get-or-insert',
     'esnext.weak-map.get-or-insert-computed',
   ],
+  '3.40': [
+    'esnext.error.is-error',
+  ],
 };
