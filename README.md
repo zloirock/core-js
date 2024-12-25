@@ -160,6 +160,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [New `Set` methods](#new-set-methods)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Array.fromAsync`](#arrayfromasync)
+      - [`Iterator` sequencing](#iterator-sequencing)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Float16` methods](#float16-methods)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
@@ -168,7 +169,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
-      - [`Iterator` sequencing](#iterator-sequencing)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2421,6 +2421,26 @@ core-js(-pure)/actual|full/array/from-async
 await Array.fromAsync((async function * () { yield * [1, 2, 3]; })(), i => i * i); // => [1, 4, 9]
 ```
 
+##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
+Module [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
+```ts
+class Iterator {
+  concat(...items: Array<IterableObject>): Iterator<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-sequencing
+core-js(-pure)/actual|full/iterator/concat
+```
+[*Example*](https://tinyurl.com/2522xjae):
+```js
+Iterator.concat([0, 1].values(), [2, 3], function * () {
+  yield 4;
+  yield 5;
+}()).toArray(); // => [0, 1, 2, 3, 4, 5]
+```
+
 ##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)
 Modules [`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
 ```ts
@@ -2648,25 +2668,7 @@ core-js(-pure)/actual|full/function/metadata
 core-js(-pure)/stage/2.7
 ```
 
-##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
-Module [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
-```ts
-class Iterator {
-  concat(...items: Array<IterableObject>): Iterator<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/iterator-sequencing
-core-js(-pure)/full/iterator/concat
-```
-[*Example*](https://tinyurl.com/2522xjae):
-```js
-Iterator.concat([0, 1].values(), [2, 3], function * () {
-  yield 4;
-  yield 5;
-}()).toArray(); // => [0, 1, 2, 3, 4, 5]
-```
+*empty*
 
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
