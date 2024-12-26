@@ -697,6 +697,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     load(NS, 'data-view/get-float16');
     load(NS, 'data-view/set-float16');
+    ok(load(NS, 'error/is-error')(new Error()));
     ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'json/is-raw-json')({}) === false);
@@ -935,6 +936,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/function-is-callable-is-constructor');
   load('proposals/function-un-this');
   load('proposals/global-this');
+  load('proposals/is-error');
   load('proposals/iterator-helpers');
   load('proposals/iterator-helpers-stage-3');
   load('proposals/iterator-helpers-stage-3-2');

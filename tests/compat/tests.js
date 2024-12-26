@@ -114,6 +114,9 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
     && new URL('https://x', undefined).host === 'x';
 };
 
+// eslint-disable-next-line no-proto -- safe
+var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || ({}).__proto__;
+
 var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
   try {
     Object.prototype.__defineSetter__.call(null, Math.random(), function () { /* empty */ });
@@ -1669,6 +1672,12 @@ GLOBAL.tests = {
   }],
   'esnext.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
+  },
+  'esnext.error.is-error': function () {
+    return PROTOTYPE_SETTING_AVAILABLE &&
+      (typeof DOMException != 'function' || Error.isError(new DOMException('DOMException'))) &&
+      Error.isError(new Error('Error', { cause: function () { /* empty */ } })) &&
+      Error.isError(Object.create(Error.prototype));
   },
   'esnext.function.demethodize': function () {
     return Function.prototype.demethodize;
