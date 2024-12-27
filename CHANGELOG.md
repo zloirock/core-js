@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Added [`Error.isError` stage 3 proposal](https://github.com/tc39/proposal-is-error):
+  - Added built-ins:
+    - `Error.isError`
+  - We have no bulletproof way to polyfill this method / check if the object is an error, so it's an enough naive implementation that is marked as `.sham`
 - Optimized `DataView.prototype.{ getFloat16, setFloat16 }` performance, [#1379](https://github.com/zloirock/core-js/pull/1379), thanks [**@LeviPesin**](https://github.com/LeviPesin)
 - Dropped unneeded feature detection of non-standard `%TypedArray%.prototype.toSpliced`
 - Dropped possible re-usage of some non-standard / early stage features (like `Math.scale`) available on global

@@ -167,6 +167,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`RegExp` escaping](#regexp-escaping)
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
+      - [`Error.isError`](#erroriserror)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
     - [Stage 2 proposals](#stage-2-proposals)
@@ -2641,6 +2642,33 @@ core-js/proposals/decorator-metadata-v2
 core-js(-pure)/actual|full/symbol/metadata
 core-js(-pure)/actual|full/function/metadata
 ```
+```
+
+##### [`Error.isError`](https://github.com/tc39/proposal-is-error)[⬆](#index)
+Module [`esnext.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.error.is-error.js)
+```ts
+class Error {
+  static isError(value: any): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/is-error
+core-js(-pure)/actual|full/error/is-error
+```
+[*Example*](https://tinyurl.com/23nauwoz):
+```js
+Error.isError(new Error('error')); // => true
+Error.isError(new TypeError('error')); // => true
+Error.isError(new DOMException('error')); // => true
+
+Error.isError(null); // => false
+Error.isError({}); // => false
+Error.isError(Object.create(Error.prototype)); // => false
+```
+
+> [!WARNING]
+> We have no bulletproof way to polyfill this method / check if the object is an error, so it's an enough naive implementation.
 
 #### Stage 2.7 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
