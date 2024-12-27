@@ -2242,6 +2242,9 @@ export const data = {
     // chrome: '133',
   },
   'esnext.error.is-error': {
+    // early WebKit implementation bug
+    // https://github.com/oven-sh/bun/issues/15821
+    // bun: '1.1.39',
   },
   'esnext.function.demethodize': {
   },
