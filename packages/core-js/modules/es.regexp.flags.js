@@ -1,6 +1,5 @@
 'use strict';
 var globalThis = require('../internals/global-this');
-var DESCRIPTORS = require('../internals/descriptors');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var regExpFlags = require('../internals/regexp-flags');
 var fails = require('../internals/fails');
@@ -9,7 +8,7 @@ var fails = require('../internals/fails');
 var RegExp = globalThis.RegExp;
 var RegExpPrototype = RegExp.prototype;
 
-var FORCED = DESCRIPTORS && fails(function () {
+var FORCED = fails(function () {
   var INDICES_SUPPORT = true;
   try {
     RegExp('.', 'd');
@@ -22,10 +21,9 @@ var FORCED = DESCRIPTORS && fails(function () {
   var calls = '';
   var expected = INDICES_SUPPORT ? 'dgimsy' : 'gimsy';
 
-  var addGetter = function (key, chr) {
-    // eslint-disable-next-line es/no-object-defineproperty -- safe
+  var addGetter = function (key, char) {
     Object.defineProperty(O, key, { get: function () {
-      calls += chr;
+      calls += char;
       return true;
     } });
   };
@@ -35,14 +33,15 @@ var FORCED = DESCRIPTORS && fails(function () {
     global: 'g',
     ignoreCase: 'i',
     multiline: 'm',
-    sticky: 'y'
+    sticky: 'y',
   };
 
   if (INDICES_SUPPORT) pairs.hasIndices = 'd';
 
-  for (var key in pairs) addGetter(key, pairs[key]);
+  Object.keys(pairs).forEach(function (key) {
+    addGetter(key, pairs[key]);
+  });
 
-  // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
   var result = Object.getOwnPropertyDescriptor(RegExpPrototype, 'flags').get.call(O);
 
   return result !== expected || calls !== expected;
@@ -52,5 +51,5 @@ var FORCED = DESCRIPTORS && fails(function () {
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.flags
 if (FORCED) defineBuiltInAccessor(RegExpPrototype, 'flags', {
   configurable: true,
-  get: regExpFlags
+  get: regExpFlags,
 });

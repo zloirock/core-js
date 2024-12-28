@@ -1,5 +1,5 @@
 /* eslint-disable prefer-regex-literals, regexp/no-unused-capturing-group, sonarjs/slow-regex, unicorn/prefer-string-replace-all -- required for testing */
-import { GLOBAL, NATIVE, STRICT } from '../helpers/constants.js';
+import { GLOBAL, NATIVE } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
 const Symbol = GLOBAL.Symbol || {};
@@ -149,13 +149,15 @@ QUnit.test('RegExp#@@replace basic behavior', assert => {
 });
 
 QUnit.test('String.replace delegates to @@replace', assert => {
-  const string = STRICT ? 'string' : Object('string');
-  const number = STRICT ? 42 : Object(42);
+  const string = 'string';
+  const number = 42;
   const object = {};
   object[Symbol.replace] = function (a, b) {
     return { a, b };
   };
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(object, 42).a, string);
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(object, 42).b, 42);
   assert.same(''.replace.call(number, object, 42).a, number);
   assert.same(''.replace.call(number, object, 42).b, 42);
@@ -163,7 +165,9 @@ QUnit.test('String.replace delegates to @@replace', assert => {
   regexp[Symbol.replace] = function (a, b) {
     return { a, b };
   };
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(regexp, 42).a, string);
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- @@replace
   assert.same(string.replace(regexp, 42).b, 42);
   assert.same(''.replace.call(number, regexp, 42).a, number);
   assert.same(''.replace.call(number, regexp, 42).b, 42);
