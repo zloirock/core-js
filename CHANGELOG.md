@@ -16,7 +16,7 @@
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [shipped from FF135](https://bugzilla.mozilla.org/show_bug.cgi?id=1934622)
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped [from FF134](https://bugzilla.mozilla.org/show_bug.cgi?id=1918235)
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from FF134
-  - [`Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as shipped from FF134
+  - [`Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as shipped from FF135
   - Fixed NodeJS version where `URL.parse` was added - 22.1 instead of 22.0
   - Added [Deno 2.1](https://github.com/denoland/deno/releases/tag/v2.1.0) compat data mapping
   - Added Electron 35 compat data mapping

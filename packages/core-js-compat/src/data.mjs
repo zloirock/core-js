@@ -2269,7 +2269,7 @@ export const data = {
   'esnext.iterator.dispose': {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // chrome: '133',
-    firefox: '134',
+    firefox: '135',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.drop': null,
@@ -2547,7 +2547,7 @@ export const data = {
     bun: '1.0.23',
     chrome: '127',
     deno: '1.38',
-    firefox: '134',
+    firefox: '135',
     // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699
     node: '20.5.0',
@@ -2558,7 +2558,7 @@ export const data = {
     bun: '1.0.23',
     chrome: '125',
     deno: '1.38',
-    firefox: '134',
+    firefox: '135',
     // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
     // https://github.com/nodejs/node/issues/48699
     node: '20.5.0',
