@@ -585,6 +585,14 @@ export const data = {
     rhino: '1.9.0',
     safari: '17.4',
   },
+  // TODO: recheck
+  'es.array.iterator': {
+    chrome: '66',
+    edge: '15',
+    firefox: '60',
+    rhino: '1.8.0',
+    safari: '10.0',
+  },
   'es.array.from-async': { // `Promise` dependency should be loaded before
     // https://bugs.webkit.org/show_bug.cgi?id=326074
     bun: '1.4.4', // '1.1.2', '0.3.0',
@@ -609,6 +617,14 @@ export const data = {
   },
   'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
   },
+  'es.math.log2': {
+    chrome: '41',
+    edge: '12',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.9.2',
+    safari: '7.1',
+  },
   'es.string.repeat': {
     chrome: '41',
     edge: '13',
@@ -617,13 +633,21 @@ export const data = {
     rhino: '1.7.13',
     safari: '9.0',
   },
-  // TODO: recheck
-  'es.array.iterator': {
-    chrome: '66',
+  'es.string.pad-end': {
+    chrome: '57',
     edge: '15',
-    firefox: '60',
-    rhino: '1.8.0',
-    safari: '10.0',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '11.0',
+  },
+  'es.string.pad-start': {
+    chrome: '57',
+    edge: '15',
+    firefox: '48',
+    hermes: '0.1',
+    rhino: '1.7.13',
+    safari: '11.0',
   },
   'es.array.at': {
     chrome: '92',
@@ -1427,14 +1451,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
-  'es.math.log2': {
-    chrome: '41',
-    edge: '12',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.9.2',
-    safari: '7.1',
-  },
   'es.math.sign': {
     chrome: '38',
     edge: '12',
@@ -1846,22 +1862,6 @@ export const data = {
     hermes: '0.6',
     rhino: '1.8.0',
     safari: '13.1', // '13',
-  },
-  'es.string.pad-end': {
-    chrome: '57',
-    edge: '15',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '11.0',
-  },
-  'es.string.pad-start': {
-    chrome: '57',
-    edge: '15',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '11.0',
   },
   'es.string.raw': {
     chrome: '41',

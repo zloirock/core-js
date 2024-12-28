@@ -638,6 +638,15 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
+    return [][Symbol.iterator] === [].values
+      && [][Symbol.iterator].name === 'values'
+      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
+      && [].keys().next()
+      && [][Symbol.unscopables].keys
+      && [][Symbol.unscopables].values
+      && [][Symbol.unscopables].entries;
+  }],
   'es.array.from-async': function () {
     // V8 incorrectly closes iterators on step errors and retries failed cleanup.
     // https://issues.chromium.org/issues/511947515
@@ -677,18 +686,22 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
   'es.async-iterator.async-dispose': function () {
     return AsyncIterator.prototype[Symbol.asyncDispose];
   },
+  'es.math.log2': function () {
+    // V8 ~ Chrome < 41 and Rhino < 1.9.2 bug: https://issues.chromium.org/issues/42206893
+    // https://github.com/mozilla/rhino/pull/2522
+    return Math.log2(8) === 3
+      // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
+      && Math.log2(536870912) === 29;
+  },
   'es.string.repeat': function () {
     return String.prototype.repeat;
   },
-  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
-    return [][Symbol.iterator] === [].values
-      && [][Symbol.iterator].name === 'values'
-      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
-      && [].keys().next()
-      && [][Symbol.unscopables].keys
-      && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries;
-  }],
+  'es.string.pad-end': function () {
+    return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;
+  },
+  'es.string.pad-start': function () {
+    return String.prototype.padStart && !WEBKIT_STRING_PAD_BUG;
+  },
   'es.array.at': function () {
     return [].at;
   },
@@ -1227,13 +1240,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
     return Math.log1p(0.01) === 0.009950330853168083;
   },
-  'es.math.log2': function () {
-    // V8 ~ Chrome < 41 and Rhino < 1.9.2 bug: https://issues.chromium.org/issues/42206893
-    // https://github.com/mozilla/rhino/pull/2522
-    return Math.log2(8) === 3
-      // FF < 48 bug: https://bugzilla.mozilla.org/show_bug.cgi?id=933257
-      && Math.log2(536870912) === 29;
-  },
   'es.math.sign': function () {
     return Math.sign;
   },
@@ -1553,12 +1559,6 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     } catch (error) {
       return 'a'.matchAll(/./g);
     }
-  },
-  'es.string.pad-end': function () {
-    return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;
-  },
-  'es.string.pad-start': function () {
-    return String.prototype.padStart && !WEBKIT_STRING_PAD_BUG;
   },
   'es.string.raw': function () {
     return String.raw;
