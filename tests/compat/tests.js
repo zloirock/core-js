@@ -1677,7 +1677,7 @@ GLOBAL.tests = {
     return PROTOTYPE_SETTING_AVAILABLE &&
       (typeof DOMException != 'function' || Error.isError(new DOMException('DOMException'))) &&
       Error.isError(new Error('Error', { cause: function () { /* empty */ } })) &&
-      Error.isError(Object.create(Error.prototype));
+      !Error.isError(Object.create(Error.prototype));
   },
   'esnext.function.demethodize': function () {
     return Function.prototype.demethodize;
