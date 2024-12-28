@@ -609,6 +609,15 @@ GLOBAL.tests = {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
+    return [][Symbol.iterator] === [].values
+      && [][Symbol.iterator].name === 'values'
+      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
+      && [].keys().next()
+      && [][Symbol.unscopables].keys
+      && [][Symbol.unscopables].values
+      && [][Symbol.unscopables].entries;
+  }],
   'es.array.from-async': function () {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
     var counter = 0;
@@ -627,18 +636,18 @@ GLOBAL.tests = {
   'es.async-iterator.async-dispose': function () {
     return AsyncIterator.prototype[Symbol.asyncDispose];
   },
+  'es.math.log2': function () {
+    return Math.log2;
+  },
   'es.string.repeat': function () {
     return String.prototype.repeat;
   },
-  'es.array.iterator': [SYMBOLS_SUPPORT, function () {
-    return [][Symbol.iterator] === [].values
-      && [][Symbol.iterator].name === 'values'
-      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
-      && [].keys().next()
-      && [][Symbol.unscopables].keys
-      && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries;
-  }],
+  'es.string.pad-end': function () {
+    return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;
+  },
+  'es.string.pad-start': function () {
+    return String.prototype.padStart && !WEBKIT_STRING_PAD_BUG;
+  },
   'es.array.at': function () {
     return [].at;
   },
@@ -1076,9 +1085,6 @@ GLOBAL.tests = {
   'es.math.log1p': function () {
     return Math.log1p;
   },
-  'es.math.log2': function () {
-    return Math.log2;
-  },
   'es.math.sign': function () {
     return Math.sign;
   },
@@ -1370,12 +1376,6 @@ GLOBAL.tests = {
     } catch (error) {
       return 'a'.matchAll(/./g);
     }
-  },
-  'es.string.pad-end': function () {
-    return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;
-  },
-  'es.string.pad-start': function () {
-    return String.prototype.padStart && !WEBKIT_STRING_PAD_BUG;
   },
   'es.string.raw': function () {
     return String.raw;
