@@ -609,8 +609,17 @@ GLOBAL.tests = {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.math.log2': function () {
+    return Math.log2;
+  },
   'es.string.repeat': function () {
     return String.prototype.repeat;
+  },
+  'es.string.pad-end': function () {
+    return String.prototype.padEnd && !WEBKIT_STRING_PAD_BUG;
+  },
+  'es.string.pad-start': function () {
+    return String.prototype.padStart && !WEBKIT_STRING_PAD_BUG;
   },
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
     var iterator = [][Symbol.iterator]();
