@@ -1,7 +1,8 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
 import concat from 'core-js-pure/full/iterator/concat';
-import Iterator from 'core-js-pure/full/iterator';
+import Iterator from 'core-js-pure/es/iterator';
+import Symbol from 'core-js-pure/es/symbol';
 import from from 'core-js-pure/es/array/from';
 
 QUnit.test('Iterator.concat', assert => {
@@ -59,6 +60,27 @@ QUnit.test('Iterator.concat', assert => {
   iterator.next();
   assert.deepEqual(iterator.return(), { done: true, value: undefined }, '.return with active inner iterator with return result');
   assert.true(called, 'inner .return called');
+
+  // https://github.com/tc39/proposal-iterator-sequencing/issues/17
+  const oldIterResult = {
+    done: false,
+    value: 123,
+  };
+  const testIterator = {
+    next() {
+      return oldIterResult;
+    },
+  };
+  const iterable = {
+    [Symbol.iterator]() {
+      return testIterator;
+    },
+  };
+  iterator = concat(iterable);
+  const iterResult = iterator.next();
+  assert.same(iterResult.done, false);
+  assert.same(iterResult.value, 123);
+  assert.same(iterResult, oldIterResult);
 
   assert.throws(() => concat(createIterator([1, 2, 3])), TypeError, 'non-iterable iterator #1');
   assert.throws(() => concat([], createIterator([1, 2, 3])), TypeError, 'non-iterable iterator #2');

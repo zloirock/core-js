@@ -5,6 +5,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
+var createIterResultObject = require('../internals/create-iter-result-object');
 
 var $Array = Array;
 
@@ -16,7 +17,7 @@ var IteratorProxy = createIteratorProxy(function () {
       var iterables = this.iterables;
       if (iterableIndex >= iterables.length) {
         this.done = true;
-        return;
+        return createIterResultObject(undefined, true);
       }
       var entry = iterables[iterableIndex];
       this.iterables[iterableIndex] = null;
@@ -29,9 +30,9 @@ var IteratorProxy = createIteratorProxy(function () {
       this.next = null;
       continue;
     }
-    return result.value;
+    return result;
   }
-});
+}, false, true);
 
 // `Iterator.concat` method
 // https://github.com/tc39/proposal-iterator-sequencing

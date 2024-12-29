@@ -62,6 +62,27 @@ QUnit.test('Iterator.concat', assert => {
   assert.deepEqual(iterator.return(), { done: true, value: undefined }, '.return with active inner iterator with return result');
   assert.true(called, 'inner .return called');
 
+  // https://github.com/tc39/proposal-iterator-sequencing/issues/17
+  const oldIterResult = {
+    done: false,
+    value: 123,
+  };
+  const testIterator = {
+    next() {
+      return oldIterResult;
+    },
+  };
+  const iterable = {
+    [Symbol.iterator]() {
+      return testIterator;
+    },
+  };
+  iterator = concat(iterable);
+  const iterResult = iterator.next();
+  assert.same(iterResult.done, false);
+  assert.same(iterResult.value, 123);
+  assert.same(iterResult, oldIterResult);
+
   assert.throws(() => concat(createIterator([1, 2, 3])), TypeError, 'non-iterable iterator #1');
   assert.throws(() => concat([], createIterator([1, 2, 3])), TypeError, 'non-iterable iterator #2');
   assert.throws(() => concat(''), TypeError, 'iterable non-object argument #1');

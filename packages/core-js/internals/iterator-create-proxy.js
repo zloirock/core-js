@@ -22,12 +22,13 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
     next: function next() {
       var state = getInternalState(this);
       // for simplification:
-      //   for `%WrapForValidIteratorPrototype%.next` our `nextHandler` returns `IterResultObject`
+      //   for `%WrapForValidIteratorPrototype%.next` or with `state.returnHandlerResult` our `nextHandler` returns `IterResultObject`
       //   for `%IteratorHelperPrototype%.next` - just a value
       if (IS_ITERATOR) return state.nextHandler();
+      if (state.done) return createIterResultObject(undefined, true);
       try {
-        var result = state.done ? undefined : state.nextHandler();
-        return createIterResultObject(result, state.done);
+        var result = state.nextHandler();
+        return state.returnHandlerResult ? result : createIterResultObject(result, state.done);
       } catch (error) {
         state.done = true;
         throw error;
@@ -57,13 +58,14 @@ var IteratorHelperPrototype = createIteratorProxyPrototype(false);
 
 createNonEnumerableProperty(IteratorHelperPrototype, TO_STRING_TAG, 'Iterator Helper');
 
-module.exports = function (nextHandler, IS_ITERATOR) {
+module.exports = function (nextHandler, IS_ITERATOR, RETURN_HANDLER_RESULT) {
   var IteratorProxy = function Iterator(record, state) {
     if (state) {
       state.iterator = record.iterator;
       state.next = record.next;
     } else state = record;
     state.type = IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER;
+    state.returnHandlerResult = !!RETURN_HANDLER_RESULT;
     state.nextHandler = nextHandler;
     state.counter = 0;
     state.done = false;
