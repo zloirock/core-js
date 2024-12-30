@@ -243,7 +243,19 @@ function createSetLike(size) {
   };
 }
 
-function createSetMethodTest(METHOD_NAME) {
+function createSetLikeWithInfinitySize(size) {
+  return {
+    size: size,
+    has: function () {
+      return true;
+    },
+    keys: function () {
+      throw new Error('e');
+    }
+  };
+}
+
+function createSetMethodTest(METHOD_NAME, callback) {
   return function () {
     try {
       new Set()[METHOD_NAME](createSetLike(0));
@@ -253,7 +265,18 @@ function createSetMethodTest(METHOD_NAME) {
         new Set()[METHOD_NAME](createSetLike(-1));
         return false;
       } catch (error2) {
-        return true;
+        if (!callback) return true;
+        // early V8 implementation bug
+        // https://issues.chromium.org/issues/351332634
+        try {
+          new Set()[METHOD_NAME](createSetLikeWithInfinitySize(-Infinity));
+          return false;
+        } catch (error) {
+          var set = new Set();
+          set.add(1);
+          set.add(2);
+          return callback(set[METHOD_NAME](createSetLikeWithInfinitySize(Infinity)));
+        }
       }
     } catch (error) {
       return false;
@@ -1200,13 +1223,23 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
-  'es.set.difference.v2': createSetMethodTest('difference'),
-  'es.set.intersection.v2': [createSetMethodTest('intersection'), function () {
+  'es.set.difference.v2': createSetMethodTest('difference', function (result) {
+    return result.size === 0;
+  }),
+  'es.set.intersection.v2': [createSetMethodTest('intersection', function (result) {
+    return result.size === 2 && result.has(1) && result.has(2);
+  }), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
-  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
-  'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
-  'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
+  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom', function (result) {
+    return !result;
+  }),
+  'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf', function (result) {
+    return result;
+  }),
+  'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf', function (result) {
+    return !result;
+  }),
   'es.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
   'es.set.union.v2': createSetMethodTest('union'),
   'es.string.at-alternative': function () {

@@ -17,7 +17,19 @@ var createSetLike = function (size) {
   };
 };
 
-module.exports = function (name) {
+var createSetLikeWithInfinitySize = function (size) {
+  return {
+    size: size,
+    has: function () {
+      return true;
+    },
+    keys: function () {
+      throw new Error('e');
+    }
+  };
+};
+
+module.exports = function (name, callback) {
   var Set = getBuiltIn('Set');
   try {
     new Set()[name](createSetLike(0));
@@ -27,7 +39,18 @@ module.exports = function (name) {
       new Set()[name](createSetLike(-1));
       return false;
     } catch (error2) {
-      return true;
+      if (!callback) return true;
+      // early V8 implementation bug
+      // https://issues.chromium.org/issues/351332634
+      try {
+        new Set()[name](createSetLikeWithInfinitySize(-Infinity));
+        return false;
+      } catch (error) {
+        var set = new Set();
+        set.add(1);
+        set.add(2);
+        return callback(set[name](createSetLikeWithInfinitySize(Infinity)));
+      }
     }
   } catch (error) {
     return false;
