@@ -28,6 +28,26 @@ QUnit.test('Set#isSupersetOf', assert => {
   assert.true(new Set([1, 2, 3]).isSupersetOf(createIterable([1])));
   assert.false(new Set([2, 3, 4]).isSupersetOf(createIterable([1])));
 
+  assert.false(new Set([42, 43]).isSupersetOf({
+    size: Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
+  assert.throws(() => new Set().isSupersetOf({
+    size: -Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
   assert.throws(() => new Set([1, 2, 3]).isSupersetOf(), TypeError);
   assert.throws(() => isSupersetOf.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => isSupersetOf.call(undefined, [1, 2, 3]), TypeError);

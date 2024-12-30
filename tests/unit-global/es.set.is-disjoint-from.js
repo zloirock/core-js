@@ -26,6 +26,26 @@ QUnit.test('Set#isDisjointFrom', assert => {
   assert.true(new Set([1]).isDisjointFrom(createIterable([2])));
   assert.false(new Set([1]).isDisjointFrom(createIterable([1])));
 
+  assert.false(new Set([42, 43]).isDisjointFrom({
+    size: Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
+  assert.throws(() => new Set().isDisjointFrom({
+    size: -Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
   assert.throws(() => new Set([1, 2, 3]).isDisjointFrom(), TypeError);
   assert.throws(() => isDisjointFrom.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => isDisjointFrom.call(undefined, [1, 2, 3]), TypeError);

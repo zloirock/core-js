@@ -25,6 +25,26 @@ QUnit.test('Set#difference', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).difference([3, 4])), [1, 2]);
   assert.deepEqual(from(new Set([1, 2, 3]).difference(createIterable([3, 4]))), [1, 2]);
 
+  assert.same(new Set([42, 43]).difference({
+    size: Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }).size, 0);
+
+  assert.throws(() => new Set().difference({
+    size: -Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
   assert.throws(() => new Set([1, 2, 3]).difference(), TypeError);
 
   assert.throws(() => difference.call({}, [1, 2, 3]), TypeError);

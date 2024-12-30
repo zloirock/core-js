@@ -26,6 +26,26 @@ QUnit.test('Set#isSubsetOf', assert => {
   assert.true(new Set([1]).isSubsetOf(createIterable([1, 2, 3])));
   assert.false(new Set([1]).isSubsetOf(createIterable([2, 3, 4])));
 
+  assert.true(new Set([42, 43]).isSubsetOf({
+    size: Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
+  assert.throws(() => new Set().isSubsetOf({
+    size: -Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
   assert.throws(() => new Set([1, 2, 3]).isSubsetOf(), TypeError);
   assert.throws(() => isSubsetOf.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => isSubsetOf.call(undefined, [1, 2, 3]), TypeError);

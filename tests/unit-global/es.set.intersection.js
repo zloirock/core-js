@@ -30,6 +30,26 @@ QUnit.test('Set#intersection', assert => {
   assert.deepEqual(from(new Set([1, 2, 3]).intersection([2, 3, 4])), [2, 3]);
   assert.deepEqual(from(new Set([1, 2, 3]).intersection(createIterable([2, 3, 4]))), [2, 3]);
 
+  assert.deepEqual(from(new Set([42, 43]).intersection({
+    size: Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  })), [42, 43]);
+
+  assert.throws(() => new Set().intersection({
+    size: -Infinity,
+    has() {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  }));
+
   assert.throws(() => new Set([1, 2, 3]).intersection(), TypeError);
 
   assert.throws(() => intersection.call({}, [1, 2, 3]), TypeError);
