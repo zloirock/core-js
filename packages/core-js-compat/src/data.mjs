@@ -1464,7 +1464,7 @@ export const data = {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    // v8 < Chrome 128 does not properly convert set-like objects Infinty size
+    // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
@@ -1478,7 +1478,7 @@ export const data = {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    // v8 < Chrome 128 does not properly convert set-like objects Infinty size
+    // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
@@ -1492,7 +1492,7 @@ export const data = {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    // v8 < Chrome 128 does not properly convert set-like objects Infinty size
+    // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
@@ -1506,7 +1506,7 @@ export const data = {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    // v8 < Chrome 128 does not properly convert set-like objects Infinty size
+    // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
@@ -1520,7 +1520,7 @@ export const data = {
     bun: '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
-    // v8 < Chrome 128 does not properly convert set-like objects Infinty size
+    // v8 < Chrome 128 does not properly convert set-like objects Infinity size
     // https://issues.chromium.org/issues/351332634
     chrome: '128', // '122',
     firefox: '127',
