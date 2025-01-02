@@ -30,7 +30,7 @@
     "compat-deno": "deno run --allow-read tests/compat/deno-runner.mjs",
     "compat-hermes": "npm run zxi tests/compat/hermes-adapter.mjs",
     "compat-node": "node tests/compat/node-runner",
-    "compat-rhino": "npm run zxi tests/compat/rhino-adapter.mjs 1.7.15",
+    "compat-rhino": "npm run zxi tests/compat/rhino-adapter.mjs",
     "lint": "run-s prepare lint-raw",
     "lint-raw": "run-s test-eslint test-type-definitions bundle-package test-publint",
     "test": "run-s prepare test-raw",

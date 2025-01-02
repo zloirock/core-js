@@ -22,6 +22,7 @@
   - [`Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as shipped from FF135
   - Fixed NodeJS version where `URL.parse` was added - 22.1 instead of 22.0
   - Added [Deno 2.1](https://github.com/denoland/deno/releases/tag/v2.1.0) compat data mapping
+  - Added [Rhino 1.8.0](https://github.com/mozilla/rhino/releases/tag/Rhino1_8_0_Release) compat data with significant number of modern features
   - Added Electron 35 compat data mapping
   - Updated Opera 115+ compat data mapping
   - Added Opera Android [86](https://forums.opera.com/topic/75006/opera-for-android-86) and 87 compat data mapping
