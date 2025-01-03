@@ -53,14 +53,26 @@ for (const PATH of await glob('packages/*/package.json')) {
 }
 
 if (NEW_VERSION !== PREV_VERSION) {
+  const CURRENT_DATE = `${ CURRENT_YEAR }.${ String(NOW.getMonth() + 1).padStart(2, '0') }.${ String(NOW.getDate()).padStart(2, '0') }`;
+  const NUMBER_OF_COMMITS = Number(await $`git rev-list "v${ PREV_VERSION }"..HEAD --count`) + 1;
   const changelog = await readFile(CHANGELOG, 'utf8');
   await writeFile(CHANGELOG, changelog.replaceAll('##### Unreleased', `##### Unreleased\n- Nothing\n\n##### [${
     NEW_VERSION
   } - ${
-    CURRENT_YEAR }.${ String(NOW.getMonth() + 1).padStart(2, '0') }.${ String(NOW.getDate()).padStart(2, '0')
+    CURRENT_DATE
   }](https://github.com/zloirock/core-js/releases/tag/v${
     NEW_VERSION
-  })\n- Changes [v${ PREV_VERSION }...v${ NEW_VERSION }](https://github.com/zloirock/core-js/compare/v${ PREV_VERSION }...v${ NEW_VERSION })`));
+  })\n- Changes [v${
+    PREV_VERSION
+  }...v${
+    NEW_VERSION
+  }](https://github.com/zloirock/core-js/compare/v${
+    PREV_VERSION
+  }...v${
+    NEW_VERSION
+  }) (${
+    NUMBER_OF_COMMITS
+  } commits)`));
 }
 
 if (CURRENT_YEAR !== OLD_YEAR) echo(green('the year updated'));
