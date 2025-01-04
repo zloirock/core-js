@@ -2371,16 +2371,19 @@ export const data = {
   'esnext.iterator.to-async': {
   },
   'esnext.json.is-raw-json': {
+    bun: '1.1.43',
     chrome: '114',
     // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     firefox: '135', // '132',
   },
   'esnext.json.parse': {
+    bun: '1.1.43',
     chrome: '114',
     // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     firefox: '135', // '132',
   },
   'esnext.json.raw-json': {
+    bun: '1.1.43',
     chrome: '114',
     // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
     firefox: '135', // '132',

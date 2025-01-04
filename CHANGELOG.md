@@ -20,6 +20,7 @@
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as shipped [from FF134](https://bugzilla.mozilla.org/show_bug.cgi?id=1918235)
   - [`Promise.try`](https://github.com/tc39/proposal-promise-try) marked as shipped from FF134
   - [`Symbol.dispose`, `Symbol.asyncDispose` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as shipped from FF135
+  - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as shipped from Bun 1.1.43
   - Fixed NodeJS version where `URL.parse` was added - 22.1 instead of 22.0
   - Added [Deno 2.1](https://github.com/denoland/deno/releases/tag/v2.1.0) compat data mapping
   - Added [Rhino 1.8.0](https://github.com/mozilla/rhino/releases/tag/Rhino1_8_0_Release) compat data with significant number of modern features
