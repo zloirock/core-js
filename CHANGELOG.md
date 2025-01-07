@@ -4,6 +4,8 @@
   - Added built-ins:
     - `Error.isError`
   - We have no bulletproof way to polyfill this method / check if the object is an error, so it's an enough naive implementation that is marked as `.sham`
+- [Explicit Resource Management stage 3 proposal](https://github.com/tc39/proposal-explicit-resource-management):
+  - Updated the way async disposing of only sync disposable resources, [tc39/proposal-explicit-resource-management/218](https://github.com/tc39/proposal-explicit-resource-management/pull/218)
 - [`Iterator` sequencing stage 2.7 proposal](https://github.com/tc39/proposal-iterator-sequencing):
   - Reuse `IteratorResult` objects when possible, [tc39/proposal-iterator-sequencing/17](https://github.com/tc39/proposal-iterator-sequencing/issues/17), [tc39/proposal-iterator-sequencing/18](https://github.com/tc39/proposal-iterator-sequencing/pull/18), December 2024 TC39 meeting
 - Added a fix of [V8 < 12.8](https://issues.chromium.org/issues/351332634) / [NodeJS < 22.10](https://github.com/nodejs/node/pull/54883) bug with handling infinite length of set-like objects in `Set` methods
