@@ -114,6 +114,9 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
     && new URL('https://x', undefined).host === 'x';
 };
 
+// eslint-disable-next-line no-proto -- safe
+var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || ({}).__proto__;
+
 var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
   try {
     Object.prototype.__defineSetter__.call(null, Math.random(), function () { /* empty */ });
@@ -240,7 +243,19 @@ function createSetLike(size) {
   };
 }
 
-function createSetMethodTest(METHOD_NAME) {
+function createSetLikeWithInfinitySize(size) {
+  return {
+    size: size,
+    has: function () {
+      return true;
+    },
+    keys: function () {
+      throw new Error('e');
+    }
+  };
+}
+
+function createSetMethodTest(METHOD_NAME, callback) {
   return function () {
     try {
       new Set()[METHOD_NAME](createSetLike(0));
@@ -250,7 +265,18 @@ function createSetMethodTest(METHOD_NAME) {
         new Set()[METHOD_NAME](createSetLike(-1));
         return false;
       } catch (error2) {
-        return true;
+        if (!callback) return true;
+        // early V8 implementation bug
+        // https://issues.chromium.org/issues/351332634
+        try {
+          new Set()[METHOD_NAME](createSetLikeWithInfinitySize(-Infinity));
+          return false;
+        } catch (error) {
+          var set = new Set();
+          set.add(1);
+          set.add(2);
+          return callback(set[METHOD_NAME](createSetLikeWithInfinitySize(Infinity)));
+        }
       }
     } catch (error) {
       return false;
@@ -374,6 +400,7 @@ GLOBAL.tests = {
       return { foo: 1 };
     };
 
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array1.concat()[0] === array1 && array2.concat().foo === 1;
   },
   'es.array.copy-within': function () {
@@ -395,6 +422,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.filter(Boolean).foo === 1;
   },
   'es.array.find': function () {
@@ -475,6 +503,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.map(function () { return true; }).foo === 1;
   },
   'es.array.of': function () {
@@ -513,6 +542,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.slice().foo === 1;
   },
   'es.array.some': function () {
@@ -569,6 +599,7 @@ GLOBAL.tests = {
     constructor[Symbol.species] = function () {
       return { foo: 1 };
     };
+    // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- @@species
     return array.splice().foo === 1;
   },
   'es.array.to-reversed': function () {
@@ -1192,13 +1223,23 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
-  'es.set.difference.v2': createSetMethodTest('difference'),
-  'es.set.intersection.v2': [createSetMethodTest('intersection'), function () {
+  'es.set.difference.v2': createSetMethodTest('difference', function (result) {
+    return result.size === 0;
+  }),
+  'es.set.intersection.v2': [createSetMethodTest('intersection', function (result) {
+    return result.size === 2 && result.has(1) && result.has(2);
+  }), function () {
     return String(Array.from(new Set([1, 2, 3]).intersection(new Set([3, 2])))) === '3,2';
   }],
-  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom'),
-  'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf'),
-  'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf'),
+  'es.set.is-disjoint-from.v2': createSetMethodTest('isDisjointFrom', function (result) {
+    return !result;
+  }),
+  'es.set.is-subset-of.v2': createSetMethodTest('isSubsetOf', function (result) {
+    return result;
+  }),
+  'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf', function (result) {
+    return !result;
+  }),
   'es.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
   'es.set.union.v2': createSetMethodTest('union'),
   'es.string.at-alternative': function () {
@@ -1664,6 +1705,12 @@ GLOBAL.tests = {
   }],
   'esnext.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
+  },
+  'esnext.error.is-error': function () {
+    return PROTOTYPE_SETTING_AVAILABLE &&
+      (typeof DOMException != 'function' || Error.isError(new DOMException('DOMException'))) &&
+      Error.isError(new Error('Error', { cause: function () { /* empty */ } })) &&
+      !Error.isError(Object.create(Error.prototype));
   },
   'esnext.function.demethodize': function () {
     return Function.prototype.demethodize;
