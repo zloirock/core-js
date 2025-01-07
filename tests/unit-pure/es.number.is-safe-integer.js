@@ -1,5 +1,5 @@
-import create from 'core-js-pure/es/object/create';
-import isSafeInteger from 'core-js-pure/es/number/is-safe-integer';
+import create from '@core-js/pure/es/object/create';
+import isSafeInteger from '@core-js/pure/es/number/is-safe-integer';
 
 QUnit.test('Number.isSafeInteger', assert => {
   assert.isFunction(isSafeInteger);
