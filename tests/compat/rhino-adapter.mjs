@@ -1,3 +1,3 @@
 const [path] = argv._;
 
-await $`java -jar ${ path } -version 200 -require tests/compat/rhino-runner.js`;
+await $`java -jar ${ path } -require tests/compat/rhino-runner.js`;
