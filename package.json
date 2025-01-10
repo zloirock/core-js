@@ -61,7 +61,7 @@
   "devDependencies": {
     "@babel/core": "^7.26.0",
     "@babel/plugin-transform-arrow-functions": "^7.25.9",
-    "@babel/plugin-transform-block-scoped-functions": "^7.25.9",
+    "@babel/plugin-transform-block-scoped-functions": "^7.26.5",
     "@babel/plugin-transform-block-scoping": "^7.25.9",
     "@babel/plugin-transform-classes": "^7.25.9",
     "@babel/plugin-transform-class-properties": "^7.25.9",
@@ -76,7 +76,7 @@
     "@babel/plugin-transform-member-expression-literals": "^7.25.9",
     "@babel/plugin-transform-modules-commonjs": "^7.26.3",
     "@babel/plugin-transform-new-target": "^7.25.9",
-    "@babel/plugin-transform-nullish-coalescing-operator": "^7.25.9",
+    "@babel/plugin-transform-nullish-coalescing-operator": "^7.26.5",
     "@babel/plugin-transform-numeric-separator": "^7.25.9",
     "@babel/plugin-transform-object-rest-spread": "^7.25.9",
     "@babel/plugin-transform-object-super": "^7.25.9",
