@@ -1,6 +1,6 @@
 {
   "name": "tests/publint",
   "devDependencies": {
-    "publint": "^0.3.1"
+    "publint": "^0.3.2"
   }
 }
