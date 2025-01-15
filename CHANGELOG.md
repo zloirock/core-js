@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - [`Error.isError`](https://github.com/tc39/proposal-is-error) added and marked as supported from V8 ~ Chromium 134
 
 ##### [3.40.0 - 2025.01.08](https://github.com/zloirock/core-js/releases/tag/v3.40.0)
 - Changes [v3.39.0...v3.40.0](https://github.com/zloirock/core-js/compare/v3.39.0...v3.40.0) (130 commits)

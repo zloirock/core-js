@@ -2314,6 +2314,7 @@ export const data = {
     // early WebKit implementation bug
     // https://github.com/oven-sh/bun/issues/15821
     // bun: '1.1.39',
+    chrome: '134',
   },
   'esnext.function.demethodize': {
   },
