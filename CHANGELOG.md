@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Compat data improvements:
+  - [`DisposableStack`, `AsyncDisposableStack`, `SuppressedError` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as [shipped from V8 ~ Chromium 134](https://issues.chromium.org/issues/42203506#comment24)
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) added and marked as supported from V8 ~ Chromium 134
 
 ##### [3.40.0 - 2025.01.08](https://github.com/zloirock/core-js/releases/tag/v3.40.0)
