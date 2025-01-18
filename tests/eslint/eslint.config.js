@@ -1928,6 +1928,8 @@ const json = {
 };
 
 const packageJSON = {
+  // prevents adding unnecessary / redundant files
+  'package-json/no-redundant-files': ERROR,
   // enforce that package dependencies are unique
   'package-json/unique-dependencies': ERROR,
   // checks existence of local dependencies in the package.json
