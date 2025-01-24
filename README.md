@@ -2404,7 +2404,7 @@ core-js/proposals/set-methods-v2
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/3
-
+````
 ##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
 Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
 ```ts
