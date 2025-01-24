@@ -2404,7 +2404,7 @@ core-js/proposals/set-methods-v2
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/3
-
+```
 ##### [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async)[⬆](#index)
 Modules [`esnext.array.from-async`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.from-async.js).
 ```ts
@@ -3107,7 +3107,7 @@ core-js/full/typed-array/filter-reject
 [*Examples*](https://is.gd/jJcoWw):
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]
-````
+```
 ##### [Array deduplication](https://github.com/tc39/proposal-array-unique)[⬆](#index)
 Modules [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
 ```ts
@@ -3572,7 +3572,7 @@ class DOMException {
   attribute stack: string; // in engines that should have it
   @@toStringTag: 'DOMException';
 }
-````
+```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stable|actual|full/dom-exception
