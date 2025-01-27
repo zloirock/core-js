@@ -1928,6 +1928,8 @@ const json = {
 };
 
 const packageJSON = {
+  // reports on unnecessary empty arrays and objects
+  'package-json/no-empty-fields': ERROR,
   // prevents adding unnecessary / redundant files
   'package-json/no-redundant-files': ERROR,
   // enforce that package dependencies are unique
