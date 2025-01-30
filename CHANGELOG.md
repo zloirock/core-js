@@ -4,6 +4,7 @@
   - [`DisposableStack`, `AsyncDisposableStack`, `SuppressedError` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as [shipped from V8 ~ Chromium 134](https://issues.chromium.org/issues/42203506#comment24)
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) added and marked as supported from V8 ~ Chromium 134
   - Updated [Opera Android 87](https://forums.opera.com/topic/75836/opera-for-android-87) compat data mapping
+  - Updated Electron 35 compat data mapping
 
 ##### [3.40.0 - 2025.01.08](https://github.com/zloirock/core-js/releases/tag/v3.40.0)
 - Changes [v3.39.0...v3.40.0](https://github.com/zloirock/core-js/compare/v3.39.0...v3.40.0) (130 commits)
