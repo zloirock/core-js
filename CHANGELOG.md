@@ -5,6 +5,7 @@
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) added and marked as supported from V8 ~ Chromium 134
   - Updated [Opera Android 87](https://forums.opera.com/topic/75836/opera-for-android-87) compat data mapping
   - Updated Electron 35 compat data mapping
+  - Added Samsung Internet 28 compat data mapping
   - Added Oculus Quest Browser 36 compat data mapping
 
 ##### [3.40.0 - 2025.01.08](https://github.com/zloirock/core-js/releases/tag/v3.40.0)
