@@ -59,7 +59,7 @@
     "u": "npm run update-version"
   },
   "devDependencies": {
-    "@babel/core": "^7.26.7",
+    "@babel/core": "^7.26.8",
     "@babel/plugin-transform-arrow-functions": "^7.25.9",
     "@babel/plugin-transform-block-scoped-functions": "^7.26.5",
     "@babel/plugin-transform-block-scoping": "^7.25.9",
@@ -90,11 +90,11 @@
     "@babel/plugin-transform-reserved-words": "^7.25.9",
     "@babel/plugin-transform-shorthand-properties": "^7.25.9",
     "@babel/plugin-transform-spread": "^7.25.9",
-    "@babel/plugin-transform-template-literals": "^7.25.9",
+    "@babel/plugin-transform-template-literals": "^7.26.8",
     "@babel/plugin-transform-unicode-regex": "^7.25.9",
     "konan": "^2.1.1",
     "npm-run-all2": "^7.0.2",
-    "semver": "^7.7.0",
-    "zx": "^8.3.1"
+    "semver": "^7.7.1",
+    "zx": "^8.3.2"
   }
 }
