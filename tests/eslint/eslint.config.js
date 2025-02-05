@@ -1945,6 +1945,12 @@ const packageJSON = {
 const packagesPackageJSON = {
   // enforce either object or shorthand declaration for repository
   'package-json/repository-shorthand': [ERROR, { form: 'object' }],
+  // requires the `author` property to be present
+  'package-json/require-author': ERROR,
+  // requires the `name` property to be present
+  'package-json/require-name': ERROR,
+  // requires the `version` property to be present
+  'package-json/require-version': ERROR,
   // enforce that package names are valid npm package names
   'package-json/valid-name': ERROR,
   // enforce that package.json has all properties required by the npm spec
