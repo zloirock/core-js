@@ -565,6 +565,10 @@ const base = {
   // unicorn
   // enforce a specific parameter name in `catch` clauses
   'unicorn/catch-error-name': [ERROR, { name: ERROR, ignore: [/^err/] }],
+  // enforce consistent assertion style with `node:assert`
+  'unicorn/consistent-assert': ERROR,
+  // prefer passing `Date` directly to the constructor when cloning
+  'unicorn/consistent-date-clone': ERROR,
   // prefer consistent types when spreading a ternary in an array literal
   'unicorn/consistent-empty-array-spread': ERROR,
   // enforce consistent style for element existence checks with `indexOf()`, `lastIndexOf()`, `findIndex()`, and `findLastIndex()`
@@ -579,6 +583,8 @@ const base = {
   'unicorn/filename-case': [ERROR, { case: 'kebabCase' }],
   // enforce specifying rules to disable in `eslint-disable` comments
   'unicorn/no-abusive-eslint-disable': ERROR,
+  // disallow recursive access to `this` within getters and setters
+  'unicorn/no-accessor-recursion': ERROR,
   // enforce combining multiple `Array#push` into one call
   'unicorn/no-array-push-push': ERROR,
   // disallow using `await` in `Promise` method parameters
@@ -587,6 +593,8 @@ const base = {
   'unicorn/no-console-spaces': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': ERROR,
+  // disallow `instanceof` with built-in objects
+  'unicorn/no-instanceof-builtins': [ERROR, { strategy: 'loose' }],
   // disallow invalid options in `fetch` and `Request`
   'unicorn/no-invalid-fetch-options': ERROR,
   // prevent calling `EventTarget#removeEventListener()` with the result of an expression
@@ -595,6 +603,8 @@ const base = {
   'unicorn/no-length-as-slice-end': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
+  // disallow named usage of default import and export
+  'unicorn/no-named-default': ERROR,
   // disallow negated expression in equality check
   'unicorn/no-negation-in-equality-check': ERROR,
   // enforce the use of `Buffer.from()` and `Buffer.alloc()` instead of the deprecated `new Buffer()`
@@ -1631,6 +1641,8 @@ const polyfills = {
   'regexp/prefer-regexp-test': OFF,
   // shorthand promises should be used
   'sonarjs/prefer-promise-shorthand': OFF,
+  // disallow `instanceof` with built-in objects
+  'unicorn/no-instanceof-builtins': OFF,
 };
 
 const transpiledAndPolyfilled = {
@@ -1763,6 +1775,8 @@ const tests = {
   '@stylistic/js/max-len': [ERROR, { ...base['@stylistic/js/max-len'][1], code: 180 }],
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': OFF,
+  // disallow `instanceof` with built-in objects
+  'unicorn/no-instanceof-builtins': OFF,
   // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
   'promise/prefer-catch': OFF,
   // shorthand promises should be used
