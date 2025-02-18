@@ -264,6 +264,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('padEnd' in load(NS, 'string/virtual'));
     ok('raw' in load(NS, 'string'));
     ok(String(load(NS, 'regexp/constructor')('a', 'g')) === '/a/g');
+    ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'regexp/to-string')(/./g) === '/./g');
     ok(load(NS, 'regexp/flags')(/./g) === 'g');
     ok(typeof load(NS, 'regexp/match') == 'function');
@@ -705,7 +706,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'math/f16round')(1.337) === 1.3369140625);
     ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
-    ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/metadata'));
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);

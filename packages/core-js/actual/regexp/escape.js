@@ -1,5 +1,5 @@
 'use strict';
+var parent = require('../../stable/regexp/escape');
 require('../../modules/esnext.regexp.escape');
-var path = require('../../internals/path');
 
-module.exports = path.RegExp.escape;
+module.exports = parent;

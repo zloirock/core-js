@@ -12,6 +12,7 @@ require('../proposals/promise-all-settled');
 require('../proposals/promise-any');
 require('../proposals/promise-try');
 require('../proposals/promise-with-resolvers');
+require('../proposals/regexp-escaping');
 require('../proposals/relative-indexing-method');
 require('../proposals/set-methods-v2');
 require('../proposals/string-match-all');
