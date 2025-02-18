@@ -277,4 +277,7 @@ export default {
   '3.40': [
     'esnext.error.is-error',
   ],
+  3.41: [
+    'es.regexp.escape',
+  ],
 };

@@ -148,6 +148,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.prototype.trimStart` / `String.prototype.trimEnd`](#stringprototypetrimstart-stringprototypetrimend)
       - [`RegExp` `s` (`dotAll`) flag](#regexp-s-dotall-flag)
       - [`RegExp` named capture groups](#regexp-named-capture-groups)
+      - [`RegExp` escaping](#regexp-escaping)
       - [`Promise.allSettled`](#promiseallsettled)
       - [`Promise.any`](#promiseany)
       - [`Promise.prototype.finally`](#promiseprototypefinally)
@@ -164,7 +165,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Float16` methods](#float16-methods)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
       - [Explicit resource management](#explicit-resource-management)
-      - [`RegExp` escaping](#regexp-escaping)
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
       - [`Error.isError`](#erroriserror)
@@ -893,7 +893,7 @@ Adding support of well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace
 
 Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.anchor.js), [`es.string.big`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.big.js), [`es.string.blink`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.blink.js), [`es.string.bold`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.bold.js), [`es.string.fixed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.fixed.js), [`es.string.fontcolor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.fontcolor.js), [`es.string.fontsize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.fontsize.js), [`es.string.italics`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.italics.js), [`es.string.link`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.link.js), [`es.string.small`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.small.js), [`es.string.strike`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.strike.js), [`es.string.sub`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.sub.js), [`es.string.sup`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.sup.js), [`es.string.substr`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.substr.js), [`es.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.escape.js) and [`es.unescape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.unescape.js).
 
-`RegExp` features: modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.flags.js), [`es.regexp.sticky`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.sticky.js) and [`es.regexp.test`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.test.js).
+`RegExp` features: modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.escape.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.flags.js), [`es.regexp.sticky`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.sticky.js) and [`es.regexp.test`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.test.js).
 ```ts
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;
@@ -939,6 +939,7 @@ class String {
 class RegExp {
   // support of sticky (`y`) flag, dotAll (`s`) flag, named capture groups, can alter flags
   constructor(pattern: RegExp | string, flags?: string): RegExp;
+  static escape(value: string): string
   exec(): Array<string | undefined> | null; // IE8 fixes
   test(string: string): boolean; // delegation to `.exec`
   toString(): string; // ES2015+ fix - generic
@@ -998,6 +999,7 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/sup
 core-js(-pure)/es|stable|actual|full/string(/virtual)/iterator
 core-js/es|stable|actual|full/regexp
 core-js/es|stable|actual|full/regexp/constructor
+core-js(-pure)/es|stable|actual|full/regexp/escape
 core-js/es|stable|actual|full/regexp/dot-all
 core-js(-pure)/es|stable|actual|full/regexp/flags
 core-js/es|stable|actual|full/regexp/sticky
@@ -1086,6 +1088,20 @@ for (let { groups: { number, letter } } of '1111a2b3cccc'.matchAll(RegExp('(?<nu
 'a💩b'.toWellFormed();      // => 'a💩b'
 'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
+
+[*Example*](https://tinyurl.com/ykac4qgy):
+```js
+console.log(RegExp.escape('10$')); // => '\\x310\\$'
+console.log(RegExp.escape('abcdefg_123456')); // => '\\x61bcdefg_123456'
+console.log(RegExp.escape('Привет')); // => 'Привет'
+console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`'));
+// => '\\(\\)\\{\\}\\[\\]\\|\\x2c\\.\\?\\*\\+\\x2d\\^\\$\\x3d\\x3c\\x3e\\\\\\/\\x23\\x26\\x21\\x25\\x3a\\x3b\\x40\\x7e\\x27\\x22\\x60'
+console.log(RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'));
+// => '\\\t\\\n\\\v\\\f\\\r\\x20\\xa0\\u1680\\u2000\\u2001\\u2002\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200a\\u202f\\u205f\\u3000\\u2028\\u2029\\ufeff'
+console.log(RegExp.escape('💩')); // => '💩'
+console.log(RegExp.escape('\uD83D')); // => '\\ud83d'
+```
+
 #### ECMAScript: Number[⬆](#index)
 Module [`es.number.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.number.constructor.js). `Number` constructor support binary and octal literals, [*example*](https://tinyurl.com/2659klkj):
 ```js
@@ -2283,6 +2299,18 @@ class RegExp {
 ```
 core-js/proposals/regexp-named-groups
 ```
+
+##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
+```ts
+class RegExp {
+  static escape(value: string): string
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/regexp-escaping
+```
+
 ##### [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)[⬆](#index)
 ```ts
 class Promise {
@@ -2580,31 +2608,6 @@ core-js(-pure)/actual|full/async-disposable-stack
 core-js(-pure)/actual|full/suppressed-error
 core-js(-pure)/actual|full/iterator/dispose
 core-js(-pure)/actual|full/async-iterator/async-dispose
-```
-
-##### [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)[⬆](#index)
-Module [`esnext.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.regexp.escape.js)
-```ts
-class RegExp {
-  static escape(value: string): string
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/regexp-escaping
-core-js(-pure)/actual|full/regexp/escape
-```
-[*Example*](https://tinyurl.com/ykac4qgy):
-```js
-console.log(RegExp.escape('10$')); // => '\\x310\\$'
-console.log(RegExp.escape('abcdefg_123456')); // => '\\x61bcdefg_123456'
-console.log(RegExp.escape('Привет')); // => 'Привет'
-console.log(RegExp.escape('(){}[]|,.?*+-^$=<>\\/#&!%:;@~\'"`'));
-// => '\\(\\)\\{\\}\\[\\]\\|\\x2c\\.\\?\\*\\+\\x2d\\^\\$\\x3d\\x3c\\x3e\\\\\\/\\x23\\x26\\x21\\x25\\x3a\\x3b\\x40\\x7e\\x27\\x22\\x60'
-console.log(RegExp.escape('\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF'));
-// => '\\\t\\\n\\\v\\\f\\\r\\x20\\xa0\\u1680\\u2000\\u2001\\u2002\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200a\\u202f\\u205f\\u3000\\u2028\\u2029\\ufeff'
-console.log(RegExp.escape('💩')); // => '💩'
-console.log(RegExp.escape('\uD83D')); // => '\\ud83d'
 ```
 
 ##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)

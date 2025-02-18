@@ -1447,6 +1447,11 @@ export const data = {
     firefox: '78',
     safari: '11.1',
   },
+  'es.regexp.escape': {
+    bun: '1.1.22',
+    firefox: '134',
+    safari: '18.2',
+  },
   'es.regexp.dot-all': {
     chrome: '62',
     firefox: '78',
@@ -2537,11 +2542,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.reflect.metadata': {
   },
-  'esnext.regexp.escape': {
-    bun: '1.1.22',
-    firefox: '134',
-    safari: '18.2',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.regexp.escape': null,
   'esnext.set.add-all': {
   },
   'esnext.set.delete-all': {
@@ -3019,6 +3021,7 @@ export const renamed = new Map([
   ['esnext.promise.any', 'es.promise.any'],
   ['esnext.promise.try', 'es.promise.try'],
   ['esnext.promise.with-resolvers', 'es.promise.with-resolvers'],
+  ['esnext.regexp.escape', 'es.regexp.escape'],
   ['esnext.set.difference.v2', 'es.set.difference.v2'],
   ['esnext.set.intersection.v2', 'es.set.intersection.v2'],
   ['esnext.set.is-disjoint-from.v2', 'es.set.is-disjoint-from.v2'],

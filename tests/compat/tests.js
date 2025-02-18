@@ -1131,6 +1131,9 @@ GLOBAL.tests = {
       && RegExp('.', 's').exec('\n')
       && RegExp[Symbol.species];
   }],
+  'es.regexp.escape': function () {
+    return RegExp.escape('ab') === '\\x61b';
+  },
   'es.regexp.dot-all': function () {
     return RegExp('.', 's').dotAll;
   },
@@ -1832,9 +1835,6 @@ GLOBAL.tests = {
   },
   'esnext.number.from-string': function () {
     return Number.fromString;
-  },
-  'esnext.regexp.escape': function () {
-    return RegExp.escape('ab') === '\\x61b';
   },
   'esnext.set.add-all': function () {
     return Set.prototype.addAll;
