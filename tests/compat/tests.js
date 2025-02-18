@@ -656,6 +656,12 @@ GLOBAL.tests = {
     return ArrayBuffer.prototype.transferToFixedLength;
   },
   'es.data-view.constructor': ARRAY_BUFFER_SUPPORT,
+  'es.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.getFloat16;
+  }],
+  'es.data-view.set-float16': [ARRAY_BUFFER_SUPPORT, function () {
+    return DataView.prototype.setFloat16;
+  }],
   'es.date.get-year': function () {
     return new Date(16e11).getYear() === 120;
   },
@@ -814,6 +820,9 @@ GLOBAL.tests = {
   },
   'es.math.fround': function () {
     return Math.fround;
+  },
+  'es.math.f16round': function () {
+    return Math.f16round;
   },
   'es.math.hypot': function () {
     return Math.hypot && Math.hypot(Infinity, NaN) === Infinity;
@@ -1694,14 +1703,8 @@ GLOBAL.tests = {
   'esnext.composite-symbol': function () {
     return compositeSymbol;
   },
-  'esnext.data-view.get-float16': [ARRAY_BUFFER_SUPPORT, function () {
-    return DataView.prototype.getFloat16;
-  }],
   'esnext.data-view.get-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
     return DataView.prototype.getUint8Clamped;
-  }],
-  'esnext.data-view.set-float16': [ARRAY_BUFFER_SUPPORT, function () {
-    return DataView.prototype.setFloat16;
   }],
   'esnext.data-view.set-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
     return DataView.prototype.setUint8Clamped;
@@ -1814,9 +1817,6 @@ GLOBAL.tests = {
   },
   'esnext.math.fscale': function () {
     return Math.fscale;
-  },
-  'esnext.math.f16round': function () {
-    return Math.f16round;
   },
   'esnext.math.rad-per-deg': function () {
     return Math.RAD_PER_DEG;

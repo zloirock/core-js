@@ -278,6 +278,9 @@ export default {
     'esnext.error.is-error',
   ],
   3.41: [
+    'es.data-view.get-float16',
+    'es.data-view.set-float16',
+    'es.math.f16round',
     'es.regexp.escape',
   ],
 };

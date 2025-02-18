@@ -486,6 +486,18 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
+  'es.data-view.get-float16': {
+    bun: '1.1.23',
+    deno: '1.43',
+    firefox: '129',
+    safari: '18.2',
+  },
+  'es.data-view.set-float16': {
+    bun: '1.1.23',
+    deno: '1.43',
+    firefox: '129',
+    safari: '18.2',
+  },
   'es.array-buffer.detached': {
     bun: '1.0.19',
     chrome: '114',
@@ -792,6 +804,12 @@ export const data = {
     hermes: '0.1',
     rhino: '1.7.13',
     safari: '7.1',
+  },
+  'es.math.f16round': {
+    bun: '1.1.23',
+    deno: '1.43',
+    firefox: '129',
+    safari: '18.2',
   },
   'es.math.hypot': {
     // https://bugs.chromium.org/p/v8/issues/detail?id=9546
@@ -2295,20 +2313,12 @@ export const data = {
   },
   'esnext.composite-symbol': {
   },
-  'esnext.data-view.get-float16': {
-    bun: '1.1.23',
-    deno: '1.43',
-    firefox: '129',
-    safari: '18.2',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.data-view.get-float16': null,
   'esnext.data-view.get-uint8-clamped': {
   },
-  'esnext.data-view.set-float16': {
-    bun: '1.1.23',
-    deno: '1.43',
-    firefox: '129',
-    safari: '18.2',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.data-view.set-float16': null,
   'esnext.data-view.set-uint8-clamped': {
   },
   'esnext.disposable-stack.constructor': {
@@ -2449,12 +2459,8 @@ export const data = {
   },
   'esnext.math.fscale': {
   },
-  'esnext.math.f16round': {
-    bun: '1.1.23',
-    deno: '1.43',
-    firefox: '129',
-    safari: '18.2',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.math.f16round': null,
   // TODO: Remove from `core-js@4`
   'esnext.math.iaddh': {
   },
@@ -3000,6 +3006,8 @@ export const renamed = new Map([
   ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
   ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
   ['esnext.aggregate-error', 'es.aggregate-error'],
+  ['esnext.data-view.get-float16', 'es.data-view.get-float16'],
+  ['esnext.data-view.set-float16', 'es.data-view.set-float16'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
   ['esnext.iterator.drop', 'es.iterator.drop'],
@@ -3015,6 +3023,7 @@ export const renamed = new Map([
   ['esnext.iterator.take', 'es.iterator.take'],
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
   ['esnext.map.group-by', 'es.map.group-by'],
+  ['esnext.math.f16round', 'es.math.f16round'],
   ['esnext.object.has-own', 'es.object.has-own'],
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],

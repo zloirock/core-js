@@ -7,6 +7,7 @@ require('../../modules/es.math.clz32');
 require('../../modules/es.math.cosh');
 require('../../modules/es.math.expm1');
 require('../../modules/es.math.fround');
+require('../../modules/es.math.f16round');
 require('../../modules/es.math.hypot');
 require('../../modules/es.math.imul');
 require('../../modules/es.math.log10');
