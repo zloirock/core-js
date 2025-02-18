@@ -1,5 +1,5 @@
 'use strict';
+var parent = require('../../stable/math/f16round');
 require('../../modules/esnext.math.f16round');
-var path = require('../../internals/path');
 
-module.exports = path.Math.f16round;
+module.exports = parent;

@@ -6,6 +6,7 @@ require('../proposals/array-find-from-last');
 require('../proposals/array-grouping-v2');
 require('../proposals/change-array-by-copy-stage-4');
 // require('../proposals/error-cause');
+require('../proposals/float16');
 require('../proposals/global-this');
 require('../proposals/iterator-helpers-stage-3-2');
 require('../proposals/promise-all-settled');
