@@ -1536,6 +1536,8 @@ const forbidES2024BuiltIns = {
 };
 
 const forbidES2025BuiltIns = {
+  'es/no-dataview-prototype-getfloat16-setfloat16': ERROR,
+  'es/no-float16array': ERROR,
   'es/no-iterator': ERROR,
   'es/no-iterator-prototype-drop': ERROR,
   'es/no-iterator-prototype-every': ERROR,
@@ -1548,6 +1550,7 @@ const forbidES2025BuiltIns = {
   'es/no-iterator-prototype-some': ERROR,
   'es/no-iterator-prototype-take': ERROR,
   'es/no-iterator-prototype-toarray': ERROR,
+  'es/no-math-f16round': ERROR,
   'es/no-promise-try': ERROR,
   'es/no-set-prototype-difference': ERROR,
   'es/no-set-prototype-intersection': ERROR,
@@ -1593,6 +1596,10 @@ const forbidES2023IntlBuiltIns = {
   'es/no-intl-pluralrules-prototype-selectrange': ERROR,
 };
 
+const forbidES2025IntlBuiltIns = {
+  'es/no-intl-durationformat': ERROR,
+};
+
 const forbidSomeES2025Syntax = {
   'es/no-regexp-duplicate-named-capturing-groups': ERROR,
   'es/no-regexp-modifiers': ERROR,
@@ -1623,6 +1630,7 @@ const forbidModernBuiltIns = {
   ...forbidES2021IntlBuiltIns,
   ...forbidES2022IntlBuiltIns,
   ...forbidES2023IntlBuiltIns,
+  ...forbidES2025IntlBuiltIns,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
 };
@@ -1722,6 +1730,7 @@ const nodePackages = {
   ...forbidES2021IntlBuiltIns,
   ...forbidES2022IntlBuiltIns,
   ...forbidES2023IntlBuiltIns,
+  ...forbidES2025IntlBuiltIns,
   ...forbidSomeES2025Syntax,
 };
 
@@ -1735,6 +1744,7 @@ const nodeDev = {
   ...forbidES2025BuiltIns,
   'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
+  ...forbidES2025IntlBuiltIns,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
   // prefer top-level await
