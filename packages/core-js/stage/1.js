@@ -8,6 +8,7 @@ require('../proposals/collection-methods');
 require('../proposals/collection-of-from');
 require('../proposals/data-view-get-set-uint8-clamped');
 require('../proposals/keys-composition');
+require('../proposals/math-clamp');
 require('../proposals/math-extensions');
 require('../proposals/math-signbit');
 require('../proposals/number-from-string');

@@ -946,6 +946,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/map-upsert');
   load('proposals/map-upsert-stage-2');
   load('proposals/map-upsert-v4');
+  load('proposals/math-clamp');
   load('proposals/math-extensions');
   load('proposals/math-signbit');
   load('proposals/math-sum');
