@@ -15,7 +15,7 @@
 - [`Math.clamp` stage 1 proposal](https://github.com/CanadaHonk/proposal-math-clamp):
   - Built-ins:
     - `Math.clamp`
-  - Extracted from [old `Math` extensions proposal](https://github.com/rwaldron/proposal-math-extensions)
+  - Extracted from [old `Math` extensions proposal](https://github.com/rwaldron/proposal-math-extensions), [February 2025 TC39 meeting](https://github.com/tc39/proposals/commit/0c24594aab19a50b86d0db7248cac5eb0ae35621)
   - Added arguments validation
   - Added new entries
 - Compat data improvements:
