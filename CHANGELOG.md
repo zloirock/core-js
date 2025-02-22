@@ -21,6 +21,7 @@
 - Compat data improvements:
   - [`DisposableStack`, `AsyncDisposableStack`, `SuppressedError` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as [shipped from V8 ~ Chromium 134](https://issues.chromium.org/issues/42203506#comment24)
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) added and marked as supported from V8 ~ Chromium 134
+  - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as [shipped from Safari 18.4](https://developer.apple.com/documentation/safari-release-notes/safari-18_4-release-notes#New-Features)
   - Added [Deno 2.2](https://github.com/denoland/deno/releases/tag/v2.2.0) compat data and compat data mapping
     - Explicit Resource Management features are available in V8 ~ Chromium 134, but not in Deno 2.2 based on it
   - Updated Electron 35 compat data mapping
