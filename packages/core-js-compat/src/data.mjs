@@ -488,12 +488,14 @@ export const data = {
   },
   'es.data-view.get-float16': {
     bun: '1.1.23',
+    chrome: '135',
     deno: '1.43',
     firefox: '129',
     safari: '18.2',
   },
   'es.data-view.set-float16': {
     bun: '1.1.23',
+    chrome: '135',
     deno: '1.43',
     firefox: '129',
     safari: '18.2',
@@ -820,6 +822,7 @@ export const data = {
   },
   'es.math.f16round': {
     bun: '1.1.23',
+    chrome: '135',
     deno: '1.43',
     firefox: '129',
     safari: '18.2',
