@@ -2287,8 +2287,9 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer-to-fixed-length': null,
   'esnext.async-disposable-stack.constructor': {
-    // reverted in https://issues.chromium.org/issues/42203506#comment25
-    chrome: '134', // '133',
+    // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
+    // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
+    chrome: '136',
     deno: false,
   },
   'esnext.async-iterator.constructor': {

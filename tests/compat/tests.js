@@ -1653,6 +1653,9 @@ GLOBAL.tests = {
     return [].uniqueBy;
   },
   'esnext.async-disposable-stack.constructor': function () {
+    // https://github.com/tc39/proposal-explicit-resource-management/issues/256
+    // can't be detected synchronously
+    if (V8_VERSION && V8_VERSION < 136) return;
     return typeof AsyncDisposableStack == 'function';
   },
   'esnext.async-iterator.constructor': function () {

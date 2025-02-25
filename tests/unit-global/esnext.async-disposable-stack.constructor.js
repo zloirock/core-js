@@ -184,3 +184,19 @@ QUnit.test('AsyncDisposableStack#3', assert => {
     assert.same(error.suppressed.message, '3');
   });
 });
+
+// https://github.com/tc39/proposal-explicit-resource-management/issues/256
+QUnit.test('AsyncDisposableStack#256', assert => {
+  const resume = assert.async();
+  assert.expect(1);
+  let called = false;
+  const stack = new AsyncDisposableStack();
+  const neverResolves = new Promise(() => { /* empty */ });
+  stack.use({ [Symbol.dispose]() { return neverResolves; } });
+  stack.disposeAsync().then(() => {
+    called = true;
+    assert.required('It should be called');
+    resume();
+  });
+  setTimeout(() => called || resume(), 3e3);
+});

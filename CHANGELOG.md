@@ -18,8 +18,9 @@
   - Extracted from [old `Math` extensions proposal](https://github.com/rwaldron/proposal-math-extensions), [February 2025 TC39 meeting](https://github.com/tc39/proposals/commit/0c24594aab19a50b86d0db7248cac5eb0ae35621)
   - Added arguments validation
   - Added new entries
+- Added a workaround of a V8 `AsyncDisposableStack` bug, [tc39/proposal-explicit-resource-management/256](https://github.com/tc39/proposal-explicit-resource-management/issues/256)
 - Compat data improvements:
-  - [`DisposableStack`, `AsyncDisposableStack`, `SuppressedError` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as [shipped from V8 ~ Chromium 134](https://issues.chromium.org/issues/42203506#comment24)
+  - [`DisposableStack`, `SuppressedError` and `Iterator.prototype[@@dispose]`](https://github.com/tc39/proposal-explicit-resource-management) marked as [shipped from V8 ~ Chromium 134](https://issues.chromium.org/issues/42203506#comment24)
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) added and marked as [shipped from V8 ~ Chromium 134](https://issues.chromium.org/issues/382104870#comment4)
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as [shipped from V8 ~ Chromium 135](https://issues.chromium.org/issues/42203953#comment36)
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as [shipped from Safari 18.4](https://developer.apple.com/documentation/safari-release-notes/safari-18_4-release-notes#New-Features)
