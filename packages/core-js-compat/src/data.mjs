@@ -2506,6 +2506,7 @@ export const data = {
   'esnext.math.signbit': {
   },
   'esnext.math.sum-precise': {
+    firefox: '137',
   },
   // TODO: Remove from `core-js@4`
   'esnext.math.umulh': {

@@ -25,6 +25,7 @@
   - [`Math.f16round` and `DataView.prototype.{ getFloat16, setFloat16 }`](https://github.com/tc39/proposal-float16array) marked as [shipped from V8 ~ Chromium 135](https://issues.chromium.org/issues/42203953#comment36)
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as [shipped from Safari 18.4](https://developer.apple.com/documentation/safari-release-notes/safari-18_4-release-notes#New-Features)
   - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) features marked as [shipped from Safari 18.4](https://developer.apple.com/documentation/safari-release-notes/safari-18_4-release-notes#New-Features)
+  - [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum) marked as shipped from FF137
   - Added [Deno 2.2](https://github.com/denoland/deno/releases/tag/v2.2.0) compat data and compat data mapping
     - Explicit Resource Management features are available in V8 ~ Chromium 134, but not in Deno 2.2 based on it
   - Updated Electron 35 and added Electron 36 compat data mapping
