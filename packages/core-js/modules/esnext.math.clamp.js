@@ -9,7 +9,7 @@ var $min = Math.min;
 var $max = Math.max;
 
 // `Math.clamp` method
-// https://rwaldron.github.io/proposal-math-extensions/
+// https://github.com/tc39/proposal-math-clamp
 $({ target: 'Math', stat: true, forced: true }, {
   clamp: function clamp(value, min, max) {
     aNumber(value);

@@ -7,7 +7,7 @@ var FLOAT16_MAX_VALUE = 65504;
 var FLOAT16_MIN_VALUE = 6.103515625e-05;
 
 // `Math.f16round` method
-// https://github.com/tc39/proposal-float16array
+// https://tc39.es/ecma262/#sec-math.f16round
 $({ target: 'Math', stat: true }, {
   f16round: function f16round(x) {
     return floatRound(x, FLOAT16_EPSILON, FLOAT16_MAX_VALUE, FLOAT16_MIN_VALUE);

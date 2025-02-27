@@ -22,7 +22,7 @@ var unpackFloat16 = function (bytes) {
 var getUint16 = uncurryThis(DataView.prototype.getUint16);
 
 // `DataView.prototype.getFloat16` method
-// https://github.com/tc39/proposal-float16array
+// https://tc39.es/ecma262/#sec-dataview.prototype.getfloat16
 $({ target: 'DataView', proto: true }, {
   getFloat16: function getFloat16(byteOffset /* , littleEndian */) {
     var uint16 = getUint16(this, byteOffset, arguments.length > 1 ? arguments[1] : false);
