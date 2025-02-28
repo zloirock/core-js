@@ -17,5 +17,5 @@ $({ target: 'Math', stat: true, forced: true }, {
     notANaN(aNumber(max));
     if ((sameValue(min, 0) && sameValue(max, -0)) || min > max) throw new $RangeError('`min` should be smaller than `max`');
     return $min(max, $max(min, value));
-  }
+  },
 });
