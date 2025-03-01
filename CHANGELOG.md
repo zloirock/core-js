@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.41.0 - 2025.03.01](https://github.com/zloirock/core-js/releases/tag/v3.41.0)
+- Changes [v3.40.0...v3.41.0](https://github.com/zloirock/core-js/compare/v3.40.0...v3.41.0) (85 commits)
 - [`RegExp.escape` proposal](https://github.com/tc39/proposal-regex-escaping):
   - Built-ins:
     - `RegExp.escape`
