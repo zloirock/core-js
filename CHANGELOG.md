@@ -9,7 +9,7 @@
     - `RegExp.escape`
   - Moved to stable ES, [February 2025 TC39 meeting](https://github.com/tc39/proposals/commit/b81fa9bccf4b51f33de0cbe797976a84d05d4b76)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
-- [`Float16` proposal](https://github.com/tc39/proposal-regex-escaping):
+- [`Float16` proposal](https://github.com/tc39/proposal-float16array):
   - Built-ins:
     - `Math.f16round`
     - `DataView.prototype.getFloat16`
