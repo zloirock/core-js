@@ -2219,7 +2219,8 @@ export const data = {
     // https://github.com/oven-sh/bun/issues/9283
     // bun: '1.0.23',
     // reverted in https://issues.chromium.org/issues/42203506#comment25
-    chrome: '134', // '133',
+    // disabled again in 135 and re-enabled in 136
+    chrome: '136', // '134', // '133',
     deno: false,
   },
   'esnext.array.from-async': {
@@ -2342,7 +2343,8 @@ export const data = {
   },
   'esnext.disposable-stack.constructor': {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
-    chrome: '134', // '133',
+    // disabled again in 135 and re-enabled in 136
+    chrome: '136', // '134', // '133',
     deno: false,
   },
   'esnext.error.is-error': {
@@ -2373,7 +2375,8 @@ export const data = {
   },
   'esnext.iterator.dispose': {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
-    chrome: '134', // '133',
+    // disabled again in 135 and re-enabled in 136
+    chrome: '136', // '134', // '133',
     deno: false,
     firefox: '135',
   },
