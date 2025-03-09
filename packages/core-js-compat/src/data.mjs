@@ -1483,6 +1483,7 @@ export const data = {
   },
   'es.regexp.escape': {
     bun: '1.1.22',
+    chrome: '136',
     firefox: '134',
     safari: '18.2',
   },
