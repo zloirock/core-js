@@ -1971,8 +1971,14 @@ const packagesPackageJSON = {
   'package-json/repository-shorthand': [ERROR, { form: 'object' }],
   // requires the `author` property to be present
   'package-json/require-author': ERROR,
+  // requires the `engines` property to be present
+  // TODO: core-js@4
+  // 'package-json/require-engines': ERROR,
   // requires the `name` property to be present
   'package-json/require-name': ERROR,
+  // requires the `types` property to be present
+  // TODO: core-js@4
+  // 'package-json/require-types': ERROR,
   // requires the `version` property to be present
   'package-json/require-version': ERROR,
   // enforce that package names are valid npm package names
