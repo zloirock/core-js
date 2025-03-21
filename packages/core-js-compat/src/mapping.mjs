@@ -274,6 +274,7 @@ export default {
     [129, 85],
     [130, 86],
     [132, 87],
+    [134, 88],
   ],
   // https://developer.oculus.com/documentation/web/browser-release-notes/
   // Need to find another data source since release notes are not available for new versions.
