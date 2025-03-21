@@ -276,8 +276,8 @@ export default {
     [132, 87],
     [134, 88],
   ],
-  // https://developer.oculus.com/documentation/web/browser-release-notes/
-  // Need to find another data source since release notes are not available for new versions.
+  // https://developers.meta.com/horizon/documentation/web/browser-release-notes/
+  // https://www.meta.com/experiences/browser/1916519981771802/
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
   // https://whatmyuseragent.com/browser/oc/oculus-browser
   ChromeAndroidToQuest: [
