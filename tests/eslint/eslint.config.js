@@ -578,7 +578,7 @@ const base = {
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': ERROR,
   // require escape sequences to use uppercase values
-  'unicorn/escape-case': ERROR,
+  'unicorn/escape-case': [ERROR, 'uppercase'],
   // enforce a case style for filenames
   'unicorn/filename-case': [ERROR, { case: 'kebabCase' }],
   // enforce specifying rules to disable in `eslint-disable` comments
@@ -636,7 +636,7 @@ const base = {
   // disallow useless `case` in `switch` statements
   'unicorn/no-useless-switch-case': ERROR,
   // enforce lowercase identifier and uppercase value for number literals
-  'unicorn/number-literal-case': ERROR,
+  'unicorn/number-literal-case': [ERROR, { hexadecimalValue: 'uppercase' }],
   // enforce the style of numeric separators by correctly grouping digits
   'unicorn/numeric-separators-style': [ERROR, {
     onlyIfContainsSeparator: true,
