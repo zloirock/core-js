@@ -2353,6 +2353,7 @@ export const data = {
     // https://github.com/oven-sh/bun/issues/15821
     // bun: '1.1.39',
     chrome: '134',
+    firefox: '138',
   },
   'esnext.function.demethodize': {
   },

@@ -3,6 +3,7 @@
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
+  - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked as [shipped from FF138](https://bugzilla.mozilla.org/show_bug.cgi?id=1952249)
   - Updated Electron 36 compat data mapping
   - Added [Opera Android 88](https://forums.opera.com/topic/83800/opera-for-android-88) compat data mapping
 
