@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
 var aWeakMap = require('../internals/a-weak-map');
+var aWeakKey = require('../internals/a-weak-key');
 var WeakMapHelpers = require('../internals/weak-map-helpers');
 
 var get = WeakMapHelpers.get;
@@ -13,9 +14,9 @@ var set = WeakMapHelpers.set;
 $({ target: 'WeakMap', proto: true, real: true, forced: true }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aWeakMap(this);
+    aWeakKey(key);
     aCallable(callbackfn);
     if (has(this, key)) return get(this, key);
-    set(this, key); // key validation
     var value = callbackfn(key);
     set(this, key, value);
     return value;

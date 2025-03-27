@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Validation order of [`WeakMap.prototype.getOrInsertComputed`](https://github.com/tc39/proposal-upsert) updated following [proposal-upsert/79](https://github.com/tc39/proposal-upsert/pull/79) 
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
