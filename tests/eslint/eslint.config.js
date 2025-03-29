@@ -2108,6 +2108,9 @@ export default [
       ...forbidNonStandardBuiltIns,
       ...forbidESAnnexBBuiltIns,
     },
+    settings: {
+      'es-x': { allowTestedProperty: true },
+    },
   },
   {
     files: [
