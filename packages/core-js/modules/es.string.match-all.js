@@ -9,6 +9,7 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
 var classof = require('../internals/classof-raw');
 var isRegExp = require('../internals/is-regexp');
 var getRegExpFlags = require('../internals/regexp-get-flags');
@@ -19,7 +20,6 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var speciesConstructor = require('../internals/species-constructor');
 var advanceStringIndex = require('../internals/advance-string-index');
 var regExpExec = require('../internals/regexp-exec-abstract');
-var isObject = require('../internals/is-object');
 var InternalStateModule = require('../internals/internal-state');
 var IS_PURE = require('../internals/is-pure');
 

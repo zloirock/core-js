@@ -4,13 +4,13 @@ var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var isCallable = require('../internals/is-callable');
+var isObject = require('../internals/is-object');
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
 var getMethod = require('../internals/get-method');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var getSubstitution = require('../internals/get-substitution');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var isObject = require('../internals/is-object');
 var IS_PURE = require('../internals/is-pure');
 
 var REPLACE = wellKnownSymbol('replace');

@@ -2,13 +2,13 @@
 var call = require('../internals/function-call');
 var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-symbol-logic');
 var anObject = require('../internals/an-object');
+var isObject = require('../internals/is-object');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var getMethod = require('../internals/get-method');
 var advanceStringIndex = require('../internals/advance-string-index');
 var regExpExec = require('../internals/regexp-exec-abstract');
-var isObject = require('../internals/is-object');
 
 // @@match logic
 fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNative) {
@@ -17,7 +17,7 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
     // https://tc39.es/ecma262/#sec-string.prototype.match
     function match(regexp) {
       var O = requireObjectCoercible(this);
-      var matcher = !isObject(regexp) ? undefined : getMethod(regexp, MATCH);
+      var matcher = isObject(regexp) ? getMethod(regexp, MATCH) : undefined;
       return matcher ? call(matcher, regexp, O) : new RegExp(regexp)[MATCH](toString(O));
     },
     // `RegExp.prototype[@@match]` method
