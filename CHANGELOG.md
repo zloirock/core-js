@@ -6,6 +6,7 @@
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked as [shipped from FF138](https://bugzilla.mozilla.org/show_bug.cgi?id=1952249)
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as supported from Deno 1.38.1 since it seems they were disabled in 1.38.0
+  - Added [NodeJS 24.0](https://github.com/nodejs/node/pull/57609) compat data mapping
   - Updated Electron 36 compat data mapping
   - Added [Opera Android 88](https://forums.opera.com/topic/83800/opera-for-android-88) compat data mapping
   - Added Oculus Quest Browser 37 compat data mapping
