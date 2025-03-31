@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Validation order of [`WeakMap.prototype.getOrInsertComputed`](https://github.com/tc39/proposal-upsert) updated following [proposal-upsert/79](https://github.com/tc39/proposal-upsert/pull/79) 
+- Don't call well-known Symbol methods for RegExp on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009)
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
@@ -9,7 +10,6 @@
   - Updated Electron 36 compat data mapping
   - Added [Opera Android 88](https://forums.opera.com/topic/83800/opera-for-android-88) compat data mapping
   - Added Oculus Quest Browser 37 compat data mapping
-  - Don't call well-known Symbol methods for RegExp on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009)
 
 ##### [3.41.0 - 2025.03.01](https://github.com/zloirock/core-js/releases/tag/v3.41.0)
 - Changes [v3.40.0...v3.41.0](https://github.com/zloirock/core-js/compare/v3.40.0...v3.41.0) (85 commits)
