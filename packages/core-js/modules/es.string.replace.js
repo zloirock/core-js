@@ -6,7 +6,6 @@ var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-
 var fails = require('../internals/fails');
 var anObject = require('../internals/an-object');
 var isCallable = require('../internals/is-callable');
-var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
@@ -16,6 +15,7 @@ var getMethod = require('../internals/get-method');
 var getSubstitution = require('../internals/get-substitution');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+var isObject = require('../internals/is-object');
 
 var REPLACE = wellKnownSymbol('replace');
 var max = Math.max;
@@ -64,7 +64,7 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
     // https://tc39.es/ecma262/#sec-string.prototype.replace
     function replace(searchValue, replaceValue) {
       var O = requireObjectCoercible(this);
-      var replacer = isNullOrUndefined(searchValue) ? undefined : getMethod(searchValue, REPLACE);
+      var replacer = !isObject(searchValue) ? undefined : getMethod(searchValue, REPLACE);
       return replacer
         ? call(replacer, searchValue, O, replaceValue)
         : call(nativeReplace, toString(O), searchValue, replaceValue);
