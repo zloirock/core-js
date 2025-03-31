@@ -9,6 +9,7 @@
   - Updated Electron 36 compat data mapping
   - Added [Opera Android 88](https://forums.opera.com/topic/83800/opera-for-android-88) compat data mapping
   - Added Oculus Quest Browser 37 compat data mapping
+  - Don't call well-known Symbol methods for RegExp on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009)
 
 ##### [3.41.0 - 2025.03.01](https://github.com/zloirock/core-js/releases/tag/v3.41.0)
 - Changes [v3.40.0...v3.41.0](https://github.com/zloirock/core-js/compare/v3.40.0...v3.41.0) (85 commits)
