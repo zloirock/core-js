@@ -285,5 +285,7 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
 
   target = new Uint8Array([255, 255, 255, 255, 255]);
   assert.throws(() => target.setFromBase64('MjYyZg==='), SyntaxError, 'extra characters after padding');
-  assert.arrayEqual(target, [50, 54, 50, 255, 255], 'decoding from MjYyZg=== should not write the last chunk because it has extra padding');
+  // temporarily disabled because of a WebKit bug:
+  // https://bugs.webkit.org/show_bug.cgi?id=276215
+  if (Date.now() > Date.UTC(2025, 4, 30)) assert.arrayEqual(target, [50, 54, 50, 255, 255], 'decoding from MjYyZg=== should not write the last chunk because it has extra padding');
 });
