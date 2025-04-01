@@ -96,7 +96,8 @@ console.log(targets);
   rhino: '1.7.13',        // Rhino engine version
   safari: '14.0',         // Safari version
   samsung: '14.0',        // Samsung Internet version
-  esmodules: true,        // That option set target to minimum supporting ES Modules versions of all browsers
+  esmodules: true | 'intersect', // true option set target to minimum supporting ES Modules versions of all browsers. The browsers target is ignored
+                          // The 'intersect' option intersects the `browsers` target and `browserslist`'s targets. The highest matching version will be used 
   browsers: '> 0.25%',    // Browserslist query or object with target browsers
 });
 ```
