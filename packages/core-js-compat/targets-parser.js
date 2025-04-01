@@ -53,14 +53,16 @@ module.exports = function (targets) {
 
   const list = Object.entries(rest);
 
-  if (browsers && esmodules !== true) {
+  const normalizedESModules = esmodules === 'intersect' ? 'intersect' : !!esmodules;
+
+  if (browsers && normalizedESModules !== true) {
     if (typeof browsers == 'string' || Array.isArray(browsers)) {
       list.push(...browserslist(browsers).map(it => it.split(' ')));
     } else {
       list.push(...Object.entries(browsers));
     }
   }
-  if (esmodules === true) {
+  if (normalizedESModules === true) {
     list.push(...Object.entries(external.modules));
   }
   if (node) {
@@ -82,7 +84,7 @@ module.exports = function (targets) {
   });
 
   const reduced = new Map();
-  const operator = esmodules === 'intersect' ? '>' : '<=';
+  const operator = normalizedESModules === 'intersect' ? '>' : '<=';
   for (const [engine, version] of normalized) {
     if (!reduced.has(engine) || compare(version, operator, reduced.get(engine))) {
       reduced.set(engine, version);
