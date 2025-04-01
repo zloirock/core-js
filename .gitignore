@@ -6,7 +6,6 @@ node_modules/
 *.bak
 *.swp
 .DS_Store
-.idea
 
 /packages/core-js/features/
 /packages/core-js/es/index.js
