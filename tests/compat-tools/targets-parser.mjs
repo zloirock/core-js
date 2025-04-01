@@ -110,7 +110,7 @@ deepEqual(targetsParser({
   chrome: 77,
 }), new Map([
   ['chrome', '77'],
-  ['ie', '11']
+  ['ie', '11'],
 ]), 'targets.esmodules: intersect');
 
 echo(chalk.green('targets parser tested'));
