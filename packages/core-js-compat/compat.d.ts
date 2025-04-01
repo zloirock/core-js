@@ -12,7 +12,7 @@ type Environments = {
 
 type Targets = Environments & {
   browsers?: Environments | BrowserslistQuery,
-  esmodules?: boolean,
+  esmodules?: boolean | 'intersect',
 };
 
 type CompatOptions = {

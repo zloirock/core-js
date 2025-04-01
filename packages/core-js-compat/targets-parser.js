@@ -53,14 +53,16 @@ module.exports = function (targets) {
 
   const list = Object.entries(rest);
 
-  if (browsers) {
+  const normalizedESModules = esmodules === 'intersect' ? 'intersect' : !!esmodules;
+
+  if (browsers && normalizedESModules !== true) {
     if (typeof browsers == 'string' || Array.isArray(browsers)) {
       list.push(...browserslist(browsers).map(it => it.split(' ')));
     } else {
       list.push(...Object.entries(browsers));
     }
   }
-  if (esmodules) {
+  if (normalizedESModules === true) {
     list.push(...Object.entries(external.modules));
   }
   if (node) {
@@ -81,12 +83,13 @@ module.exports = function (targets) {
     return a < b ? -1 : a > b ? 1 : 0;
   });
 
-  const reducedByMinVersion = new Map();
+  const reduced = new Map();
+  const operator = normalizedESModules === 'intersect' ? '>' : '<=';
   for (const [engine, version] of normalized) {
-    if (!reducedByMinVersion.has(engine) || compare(version, '<=', reducedByMinVersion.get(engine))) {
-      reducedByMinVersion.set(engine, version);
+    if (!reduced.has(engine) || compare(version, operator, reduced.get(engine))) {
+      reduced.set(engine, version);
     }
   }
 
-  return reducedByMinVersion;
+  return reduced;
 };
