@@ -89,7 +89,7 @@ deepEqual(targetsParser({
   ['chrome', '61'],
   ['chrome-android', '56'],
   ['deno', '1.0'],
-  ['edge', '13'],
+  ['edge', '16'],
   ['electron', '1'],
   ['firefox', '60'],
   ['firefox-android', '60'],
@@ -100,8 +100,17 @@ deepEqual(targetsParser({
   ['opera-android', '40'],
   ['quest', '4.0'],
   ['react-native', '0.70'],
-  ['safari', '5.1'],
+  ['safari', '10.1'],
   ['samsung', '4'],
 ]), 'mixed');
+
+deepEqual(targetsParser({
+  esmodules: 'intersect',
+  browsers: 'ie 11, chrome 56',
+  chrome: 77,
+}), new Map([
+  ['chrome', '77'],
+  ['ie', '11']
+]), 'targets.esmodules: intersect');
 
 echo(chalk.green('targets parser tested'));
