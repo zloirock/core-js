@@ -2743,7 +2743,10 @@ export const data = {
   'esnext.uint8-array.set-from-base64': {
     bun: '1.1.22',
     firefox: '133',
-    safari: '18.2',
+    // Uint8Array.prototype.setFromBase64 doesn't write chunks before invalid data
+    // https://bugs.webkit.org/show_bug.cgi?id=290829
+    safari: false,  // '18.2'
+    ios: '18.2',
   },
   'esnext.uint8-array.set-from-hex': {
     bun: '1.1.22',

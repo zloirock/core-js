@@ -4,6 +4,7 @@
 - Don't call well-known Symbol methods for RegExp on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009)
 - Added 'intersect' support for `targets.esmodules` (Babel v7 behavior)
 - Fixed handling of `targets.esmodules: true` (Babel v7 behavior)
+- Added workaround for the `Uint8Array.prototype.setFromBase64` [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in a Linux build of WebKit
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
