@@ -1917,7 +1917,13 @@ GLOBAL.tests = {
     return Uint8Array.fromHex;
   },
   'esnext.uint8-array.set-from-base64': function () {
-    return Uint8Array.prototype.setFromBase64;
+    var target = new Uint8Array([255, 255, 255, 255, 255]);
+    try {
+      target.setFromBase64('MjYyZg===');
+    } catch (error) {
+      return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
+    }
+    return false;
   },
   'esnext.uint8-array.set-from-hex': function () {
     return Uint8Array.prototype.setFromHex;
