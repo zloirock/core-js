@@ -304,6 +304,19 @@ function TIMERS() {
   })());
 }
 
+function checkIteratorClosingOnEarlyError(METHOD_NAME, arg) {
+  return function () {
+    var CLOSED = false;
+    try {
+      Iterator.prototype[METHOD_NAME].call({
+        next: function () { return { done: true }; },
+        'return': function () { CLOSED = true; }
+      }, arg);
+    } catch (error) { /** empty */ }
+    return CLOSED;
+  };
+}
+
 GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
@@ -718,9 +731,7 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
-  'es.iterator.drop': function () {
-    return Iterator.prototype.drop;
-  },
+  'es.iterator.drop': checkIteratorClosingOnEarlyError('drop', -1),
   'es.iterator.every': function () {
     return Iterator.prototype.every;
   },

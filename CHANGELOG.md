@@ -5,6 +5,8 @@
 - Added 'intersect' support for `targets.esmodules` (Babel v7 behavior)
 - Fixed handling of `targets.esmodules: true` (Babel v7 behavior)
 - Added workaround for the `Uint8Array.prototype.setFromBase64` [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in a Linux build of WebKit
+- Implemented early-error iterator closing [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467) in the following methods:
+  - `Iterator.prototype.drop`
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)

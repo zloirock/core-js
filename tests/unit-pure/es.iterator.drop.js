@@ -23,5 +23,7 @@ QUnit.test('Iterator#drop', assert => {
   assert.throws(() => drop.call({}, 1).next(), TypeError);
   assert.throws(() => drop.call([], 1).next(), TypeError);
   assert.throws(() => drop.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
-  assert.throws(() => drop.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => drop.call(it, NaN), RangeError, 'NaN');
+  assert.true(it.closed, "drop doesn't close iterator on validation error");
 });
