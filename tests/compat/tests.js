@@ -733,9 +733,7 @@ GLOBAL.tests = {
   },
   'es.iterator.drop': checkIteratorClosingOnEarlyError('drop', -1),
   'es.iterator.every': checkIteratorClosingOnEarlyError('every', null),
-  'es.iterator.filter': function () {
-    return Iterator.prototype.filter;
-  },
+  'es.iterator.filter': checkIteratorClosingOnEarlyError('filter', null),
   'es.iterator.find': function () {
     return Iterator.prototype.find;
   },
