@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var call = require('../internals/function-call');
 var iterate = require('../internals/iterate');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
@@ -23,7 +24,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_C
       iteratorClose(this, 'throw', new $TypeError(tryToString(predicate) + ' is not a function'));
     }
 
-    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return nativeFind.call(this, predicate);
+    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeFind, this, predicate);
 
     var record = getIteratorDirect(this);
     var counter = 0;
