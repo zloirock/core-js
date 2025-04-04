@@ -43,7 +43,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
       iteratorClose(this, 'throw', error);
     }
 
-    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return nativeDrop.call(this, remaining);
+    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeDrop, this, remaining);
 
     return new IteratorProxy(getIteratorDirect(this), {
       remaining: remaining
