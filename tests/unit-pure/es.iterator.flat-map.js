@@ -33,5 +33,7 @@ QUnit.test('Iterator#flatMap', assert => {
   assert.throws(() => flatMap.call([], () => { /* empty */ }).next(), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => flatMap.call(createIterator([1]), null), TypeError);
-  assert.throws(() => flatMap.call(createIterator([1]), {}), TypeError);
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => flatMap.call(it, {}), TypeError);
+  assert.true(it.closed, "flatMap doesn't close iterator on validation error");
 });
