@@ -740,9 +740,7 @@ GLOBAL.tests = {
   'es.iterator.from': function () {
     return Iterator.from;
   },
-  'es.iterator.map': function () {
-    return Iterator.prototype.map;
-  },
+  'es.iterator.map': checkIteratorClosingOnEarlyError('map', null),
   'es.iterator.reduce': function () {
     return Iterator.prototype.reduce;
   },
