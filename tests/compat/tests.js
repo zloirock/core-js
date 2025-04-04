@@ -732,9 +732,7 @@ GLOBAL.tests = {
     }
   },
   'es.iterator.drop': checkIteratorClosingOnEarlyError('drop', -1),
-  'es.iterator.every': function () {
-    return Iterator.prototype.every;
-  },
+  'es.iterator.every': checkIteratorClosingOnEarlyError('every', null),
   'es.iterator.filter': function () {
     return Iterator.prototype.filter;
   },
