@@ -734,9 +734,7 @@ GLOBAL.tests = {
   'es.iterator.drop': checkIteratorClosingOnEarlyError('drop', -1),
   'es.iterator.every': checkIteratorClosingOnEarlyError('every', null),
   'es.iterator.filter': checkIteratorClosingOnEarlyError('filter', null),
-  'es.iterator.find': function () {
-    return Iterator.prototype.find;
-  },
+  'es.iterator.find': checkIteratorClosingOnEarlyError('find', null),
   'es.iterator.flat-map': function () {
     return Iterator.prototype.flatMap;
   },

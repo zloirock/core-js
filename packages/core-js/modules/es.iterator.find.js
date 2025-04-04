@@ -1,16 +1,30 @@
 'use strict';
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
-var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
+var tryToString = require('../internals/try-to-string');
+var iteratorClose = require('../internals/iterator-close');
+var globalThis = require('../internals/global-this');
+var isCallable = require('../internals/is-callable');
+var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+
+var $TypeError = TypeError;
+var Iterator = globalThis.Iterator;
+var nativeFind = Iterator && Iterator.prototype && Iterator.prototype.find;
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFind && !checkIteratorClosingOnEarlyError(nativeFind, null);
 
 // `Iterator.prototype.find` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.find
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR }, {
   find: function find(predicate) {
     anObject(this);
-    aCallable(predicate);
+    if (!isCallable(predicate)) {
+      iteratorClose(this, 'throw', new $TypeError(tryToString(predicate) + ' is not a function'));
+    }
+
+    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return nativeFind.call(this, predicate);
+
     var record = getIteratorDirect(this);
     var counter = 0;
     return iterate(record, function (value, stop) {
