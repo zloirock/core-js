@@ -736,9 +736,7 @@ GLOBAL.tests = {
   'es.iterator.filter': checkIteratorClosingOnEarlyError('filter', null),
   'es.iterator.find': checkIteratorClosingOnEarlyError('find', null),
   'es.iterator.flat-map': checkIteratorClosingOnEarlyError('flatMap', null),
-  'es.iterator.for-each': function () {
-    return Iterator.prototype.forEach;
-  },
+  'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', null),
   'es.iterator.from': function () {
     return Iterator.from;
   },
