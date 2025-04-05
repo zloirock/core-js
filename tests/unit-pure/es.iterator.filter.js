@@ -27,5 +27,7 @@ QUnit.test('Iterator#filter', assert => {
   assert.throws(() => filter.call([], () => { /* empty */ }).next(), TypeError);
   assert.throws(() => filter.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => filter.call(createIterator([1]), null), TypeError);
-  assert.throws(() => filter.call(createIterator([1]), {}), TypeError);
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => filter.call(it, {}), TypeError);
+  assert.true(it.closed, "filter doesn't close iterator on validation error");
 });

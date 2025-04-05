@@ -27,5 +27,7 @@ QUnit.test('Iterator#find', assert => {
   assert.throws(() => find.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => find.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => find.call(createIterator([1]), null), TypeError);
-  assert.throws(() => find.call(createIterator([1]), {}), TypeError);
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => find.call(it, {}), TypeError);
+  assert.true(it.closed, "find doesn't close iterator on validation error");
 });

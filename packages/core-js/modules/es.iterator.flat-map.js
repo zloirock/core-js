@@ -1,13 +1,16 @@
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorClose = require('../internals/iterator-close');
 var IS_PURE = require('../internals/is-pure');
+var tryToString = require('../internals/try-to-string');
+var globalThis = require('../internals/global-this');
+var isCallable = require('../internals/is-callable');
+var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -31,12 +34,23 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
+var $TypeError = TypeError;
+var Iterator = globalThis.Iterator;
+var nativeFlatMap = Iterator && Iterator.prototype && Iterator.prototype.flatMap;
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFlatMap && !checkIteratorClosingOnEarlyError(nativeFlatMap, null);
+var FORCED = IS_PURE || !nativeFlatMap || NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
+
 // `Iterator.prototype.flatMap` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.flatmap
-$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
-    aCallable(mapper);
+    if (!isCallable(mapper)) {
+      iteratorClose(this, 'throw', new $TypeError(tryToString(mapper) + ' is not a function'));
+    }
+
+    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeFlatMap, this, mapper);
+
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
       inner: null

@@ -29,5 +29,7 @@ QUnit.test('Iterator#reduce', assert => {
   assert.throws(() => reduce.call([], (a, b) => a + b, 0), TypeError);
   assert.throws(() => reduce.call(createIterator([1]), undefined, 1), TypeError);
   assert.throws(() => reduce.call(createIterator([1]), null, 1), TypeError);
-  assert.throws(() => reduce.call(createIterator([1]), {}, 1), TypeError);
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => reduce.call(it, {}, 1), TypeError);
+  assert.true(it.closed, "reduce doesn't close iterator on validation error");
 });
