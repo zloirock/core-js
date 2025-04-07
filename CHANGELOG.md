@@ -1,6 +1,13 @@
 ## Changelog
 ##### Unreleased
-- Validation order of [`WeakMap.prototype.getOrInsertComputed`](https://github.com/tc39/proposal-upsert) updated following [proposal-upsert/79](https://github.com/tc39/proposal-upsert/pull/79) 
+- [`Map` upsert stage](https://github.com/tc39/proposal-upsert):
+  - Moved to stage 2.7, Appril 2025 TC39 meeting
+  - Validation order of `WeakMap.prototype.getOrInsertComputed` updated following [proposal-upsert/79](https://github.com/tc39/proposal-upsert/pull/79)
+  - Built-ins:
+    - `Map.prototype.getOrInsert`
+    - `Map.prototype.getOrInsertComputed`
+    - `WeakMap.prototype.getOrInsert`
+    - `WeakMap.prototype.getOrInsertComputed`
 - Don't call well-known Symbol methods for RegExp on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009)
 - Added 'intersect' support for `targets.esmodules` (Babel v7 behavior)
 - Fixed handling of `targets.esmodules: true` (Babel v7 behavior)
