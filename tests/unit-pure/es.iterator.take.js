@@ -23,5 +23,7 @@ QUnit.test('Iterator#take', assert => {
   assert.throws(() => take.call({}, 1).next(), TypeError);
   assert.throws(() => take.call([], 1).next(), TypeError);
   assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
-  assert.throws(() => take.call(createIterator([1, 2, 3]), NaN), RangeError, 'NaN');
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => take.call(it, NaN), RangeError, 'NaN');
+  assert.true(it.closed, "take doesn't close iterator on validation error");
 });

@@ -27,5 +27,7 @@ QUnit.test('Iterator#map', assert => {
   assert.throws(() => map.call([], () => { /* empty */ }).next(), TypeError);
   assert.throws(() => map.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => map.call(createIterator([1]), null), TypeError);
-  assert.throws(() => map.call(createIterator([1]), {}), TypeError);
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => map.call(it, {}), TypeError);
+  assert.true(it.closed, "map doesn't close iterator on validation error");
 });

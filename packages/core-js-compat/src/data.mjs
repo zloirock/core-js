@@ -638,46 +638,59 @@ export const data = {
     safari: '18.4',
   },
   'es.iterator.drop': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    // https://bugs.webkit.org/show_bug.cgi?id=291195
+    // bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.every': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.filter': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.find': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.flat-map': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.for-each': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.from': {
     bun: '1.1.31',
@@ -687,32 +700,41 @@ export const data = {
     safari: '18.4',
   },
   'es.iterator.map': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.reduce': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.some': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.take': {
-    bun: '1.1.31',
-    chrome: '122',
-    deno: '1.38.1',
-    firefox: '131',
-    safari: '18.4',
+    // with changes related to the new iteration closing approach on early error
+    // https://github.com/tc39/ecma262/pull/3467
+    // https://bugs.webkit.org/show_bug.cgi?id=291195
+    // bun: '1.2.4', // '1.1.31',
+    chrome: '135', // '122',
+    deno: '2.2.5', // '1.38.1',
+    // firefox: '131',
+    // safari: '18.4',
   },
   'es.iterator.to-array': {
     bun: '1.1.31',

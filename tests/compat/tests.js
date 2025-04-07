@@ -304,6 +304,22 @@ function TIMERS() {
   })());
 }
 
+function checkIteratorClosingOnEarlyError(ExpectedError, METHOD_NAME, arg) {
+  return function () {
+    var CLOSED = false;
+    try {
+      Iterator.prototype[METHOD_NAME].call({
+        next: function () { return { done: true }; },
+        'return': function () { CLOSED = true; }
+      }, arg);
+    } catch (error) {
+      // https://bugs.webkit.org/show_bug.cgi?id=291195
+      if (!(error instanceof ExpectedError)) return false;
+    }
+    return CLOSED;
+  };
+}
+
 GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
@@ -718,39 +734,19 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
-  'es.iterator.drop': function () {
-    return Iterator.prototype.drop;
-  },
-  'es.iterator.every': function () {
-    return Iterator.prototype.every;
-  },
-  'es.iterator.filter': function () {
-    return Iterator.prototype.filter;
-  },
-  'es.iterator.find': function () {
-    return Iterator.prototype.find;
-  },
-  'es.iterator.flat-map': function () {
-    return Iterator.prototype.flatMap;
-  },
-  'es.iterator.for-each': function () {
-    return Iterator.prototype.forEach;
-  },
+  'es.iterator.drop': checkIteratorClosingOnEarlyError(RangeError, 'drop', -1),
+  'es.iterator.every': checkIteratorClosingOnEarlyError(TypeError, 'every', null),
+  'es.iterator.filter': checkIteratorClosingOnEarlyError(TypeError, 'filter', null),
+  'es.iterator.find': checkIteratorClosingOnEarlyError(TypeError, 'find', null),
+  'es.iterator.flat-map': checkIteratorClosingOnEarlyError(TypeError, 'flatMap', null),
+  'es.iterator.for-each': checkIteratorClosingOnEarlyError(TypeError, 'forEach', null),
   'es.iterator.from': function () {
     return Iterator.from;
   },
-  'es.iterator.map': function () {
-    return Iterator.prototype.map;
-  },
-  'es.iterator.reduce': function () {
-    return Iterator.prototype.reduce;
-  },
-  'es.iterator.some': function () {
-    return Iterator.prototype.some;
-  },
-  'es.iterator.take': function () {
-    return Iterator.prototype.take;
-  },
+  'es.iterator.map': checkIteratorClosingOnEarlyError(TypeError, 'map', null),
+  'es.iterator.reduce': checkIteratorClosingOnEarlyError(TypeError, 'reduce', null),
+  'es.iterator.some': checkIteratorClosingOnEarlyError(TypeError, 'some', null),
+  'es.iterator.take': checkIteratorClosingOnEarlyError(RangeError, 'take', -1),
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
   },

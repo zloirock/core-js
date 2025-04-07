@@ -32,5 +32,7 @@ QUnit.test('Iterator#forEach', assert => {
   assert.throws(() => forEach.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => forEach.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => forEach.call(createIterator([1]), null), TypeError);
-  assert.throws(() => forEach.call(createIterator([1]), {}), TypeError);
+  const it = createIterator([1], { return() { this.closed = true; } });
+  assert.throws(() => forEach.call(it, {}), TypeError);
+  assert.true(it.closed, "forEach doesn't close iterator on validation error");
 });
