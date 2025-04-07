@@ -6,11 +6,10 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 var IS_PURE = require('../internals/is-pure');
-var tryToString = require('../internals/try-to-string');
 var iteratorClose = require('../internals/iterator-close');
 var globalThis = require('../internals/global-this');
-var isCallable = require('../internals/is-callable');
 var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+var aCallable = require('../internals/a-callable');
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -26,7 +25,6 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-var $TypeError = TypeError;
 var Iterator = globalThis.Iterator;
 var nativeFilter = Iterator && Iterator.prototype && Iterator.prototype.filter;
 var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFilter && !checkIteratorClosingOnEarlyError(nativeFilter, null);
@@ -37,8 +35,10 @@ var FORCED = IS_PURE || !nativeFilter || NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   filter: function filter(predicate) {
     anObject(this);
-    if (!isCallable(predicate)) {
-      iteratorClose(this, 'throw', new $TypeError(tryToString(predicate) + ' is not a function'));
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
     }
 
     if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeFilter, this, predicate);

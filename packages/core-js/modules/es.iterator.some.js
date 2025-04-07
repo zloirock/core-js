@@ -4,13 +4,11 @@ var call = require('../internals/function-call');
 var iterate = require('../internals/iterate');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
-var tryToString = require('../internals/try-to-string');
 var iteratorClose = require('../internals/iterator-close');
 var globalThis = require('../internals/global-this');
-var isCallable = require('../internals/is-callable');
 var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+var aCallable = require('../internals/a-callable');
 
-var $TypeError = TypeError;
 var Iterator = globalThis.Iterator;
 var nativeSome = Iterator && Iterator.prototype && Iterator.prototype.some;
 var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeSome && !checkIteratorClosingOnEarlyError(nativeSome, null);
@@ -20,8 +18,10 @@ var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeSome && !checkIteratorC
 $({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR }, {
   some: function some(predicate) {
     anObject(this);
-    if (!isCallable(predicate)) {
-      iteratorClose(this, 'throw', new $TypeError(tryToString(predicate) + ' is not a function'));
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
     }
 
     if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeSome, this, predicate);
