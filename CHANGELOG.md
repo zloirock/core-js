@@ -5,7 +5,7 @@
 - Added 'intersect' support for `targets.esmodules` (Babel v7 behavior)
 - Fixed handling of `targets.esmodules: true` (Babel v7 behavior)
 - Added workaround for the `Uint8Array.prototype.setFromBase64` [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in a Linux build of WebKit
-- Implemented early-error iterator closing [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467) in the following methods:
+- Implemented early-error iterator closing [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467), including fix of [a WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291195), in the following methods:
   - `Iterator.prototype.drop`
   - `Iterator.prototype.every`
   - `Iterator.prototype.filter`
