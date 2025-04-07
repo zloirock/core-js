@@ -304,22 +304,14 @@ function TIMERS() {
   })());
 }
 
-function checkIteratorClosingOnEarlyError(METHOD_NAME) {
-  var args = arguments;
+function checkIteratorClosingOnEarlyError(METHOD_NAME, arg) {
   return function () {
     var CLOSED = false;
     try {
-      if (args.length === 2) {
-        Iterator.prototype[METHOD_NAME].call({
-          next: function () { return { done: true }; },
-          'return': function () { CLOSED = true; }
-        }, args[1]);
-      } else {
-        Iterator.prototype[METHOD_NAME].call({
-          next: function () { return { done: true }; },
-          'return': function () { CLOSED = true; }
-        }, args[1], args[2]);
-      }
+      Iterator.prototype[METHOD_NAME].call({
+        next: function () { return { done: true }; },
+        'return': function () { CLOSED = true; }
+      }, arg);
     } catch (error) { /** empty */ }
     return CLOSED;
   };
@@ -749,7 +741,7 @@ GLOBAL.tests = {
     return Iterator.from;
   },
   'es.iterator.map': checkIteratorClosingOnEarlyError('map', null),
-  'es.iterator.reduce': checkIteratorClosingOnEarlyError('reduce', {}, 1),
+  'es.iterator.reduce': checkIteratorClosingOnEarlyError('reduce', null),
   'es.iterator.some': checkIteratorClosingOnEarlyError('some', null),
   'es.iterator.take': checkIteratorClosingOnEarlyError('take', -1),
   'es.iterator.to-array': function () {
