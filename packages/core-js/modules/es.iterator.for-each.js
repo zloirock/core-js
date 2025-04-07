@@ -11,7 +11,7 @@ var aCallable = require('../internals/a-callable');
 
 var Iterator = globalThis.Iterator;
 var nativeForEach = Iterator && Iterator.prototype && Iterator.prototype.forEach;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeForEach && !checkIteratorClosingOnEarlyError(nativeForEach, null);
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeForEach && !checkIteratorClosingOnEarlyError(TypeError, nativeForEach, null);
 
 // `Iterator.prototype.forEach` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.foreach

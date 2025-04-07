@@ -640,7 +640,8 @@ export const data = {
   'es.iterator.drop': {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
-    bun: '1.2.4', // '1.1.31',
+    // https://bugs.webkit.org/show_bug.cgi?id=291195
+    // bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     // firefox: '131',
@@ -728,7 +729,8 @@ export const data = {
   'es.iterator.take': {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
-    bun: '1.2.4', // '1.1.31',
+    // https://bugs.webkit.org/show_bug.cgi?id=291195
+    // bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     // firefox: '131',

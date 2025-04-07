@@ -21,7 +21,7 @@ var nativeMap = Iterator && Iterator.prototype && Iterator.prototype.map;
 
 // `Iterator.prototype.map` method
 // https://github.com/tc39/proposal-iterator-helpers
-module.exports = (nativeMap && checkIteratorClosingOnEarlyError(nativeMap, null)) ? nativeMap : function map(mapper) {
+module.exports = (nativeMap && checkIteratorClosingOnEarlyError(TypeError, nativeMap, null)) ? nativeMap : function map(mapper) {
   anObject(this);
   try {
     aCallable(mapper);

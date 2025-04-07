@@ -24,7 +24,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 var Iterator = globalThis.Iterator;
 var nativeTake = Iterator && Iterator.prototype && Iterator.prototype.take;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = !IS_PURE && nativeTake && !checkIteratorClosingOnEarlyError(nativeTake, -1);
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = !IS_PURE && nativeTake && !checkIteratorClosingOnEarlyError(RangeError, nativeTake, -1);
 var FORCED = IS_PURE || !nativeTake || NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
 
 // `Iterator.prototype.take` method

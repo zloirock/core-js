@@ -35,7 +35,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 var Iterator = globalThis.Iterator;
 var nativeFlatMap = Iterator && Iterator.prototype && Iterator.prototype.flatMap;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFlatMap && !checkIteratorClosingOnEarlyError(nativeFlatMap, null);
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFlatMap && !checkIteratorClosingOnEarlyError(TypeError, nativeFlatMap, null);
 var FORCED = IS_PURE || !nativeFlatMap || NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
 
 // `Iterator.prototype.flatMap` method

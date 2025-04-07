@@ -12,7 +12,7 @@ var aCallable = require('../internals/a-callable');
 var $TypeError = TypeError;
 var Iterator = globalThis.Iterator;
 var nativeReduce = Iterator && Iterator.prototype && Iterator.prototype.reduce;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeReduce && !checkIteratorClosingOnEarlyError(nativeReduce, null);
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeReduce && !checkIteratorClosingOnEarlyError(TypeError, nativeReduce, null);
 
 // `Iterator.prototype.reduce` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.reduce

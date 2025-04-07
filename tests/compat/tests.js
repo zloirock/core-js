@@ -304,7 +304,7 @@ function TIMERS() {
   })());
 }
 
-function checkIteratorClosingOnEarlyError(METHOD_NAME, arg) {
+function checkIteratorClosingOnEarlyError(ExpectedError, METHOD_NAME, arg) {
   return function () {
     var CLOSED = false;
     try {
@@ -312,7 +312,10 @@ function checkIteratorClosingOnEarlyError(METHOD_NAME, arg) {
         next: function () { return { done: true }; },
         'return': function () { CLOSED = true; }
       }, arg);
-    } catch (error) { /** empty */ }
+    } catch (error) {
+      // https://bugs.webkit.org/show_bug.cgi?id=291195
+      if (!(error instanceof ExpectedError)) return false;
+    }
     return CLOSED;
   };
 }
@@ -731,19 +734,19 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
-  'es.iterator.drop': checkIteratorClosingOnEarlyError('drop', -1),
-  'es.iterator.every': checkIteratorClosingOnEarlyError('every', null),
-  'es.iterator.filter': checkIteratorClosingOnEarlyError('filter', null),
-  'es.iterator.find': checkIteratorClosingOnEarlyError('find', null),
-  'es.iterator.flat-map': checkIteratorClosingOnEarlyError('flatMap', null),
-  'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', null),
+  'es.iterator.drop': checkIteratorClosingOnEarlyError(RangeError, 'drop', -1),
+  'es.iterator.every': checkIteratorClosingOnEarlyError(TypeError, 'every', null),
+  'es.iterator.filter': checkIteratorClosingOnEarlyError(TypeError, 'filter', null),
+  'es.iterator.find': checkIteratorClosingOnEarlyError(TypeError, 'find', null),
+  'es.iterator.flat-map': checkIteratorClosingOnEarlyError(TypeError, 'flatMap', null),
+  'es.iterator.for-each': checkIteratorClosingOnEarlyError(TypeError, 'forEach', null),
   'es.iterator.from': function () {
     return Iterator.from;
   },
-  'es.iterator.map': checkIteratorClosingOnEarlyError('map', null),
-  'es.iterator.reduce': checkIteratorClosingOnEarlyError('reduce', null),
-  'es.iterator.some': checkIteratorClosingOnEarlyError('some', null),
-  'es.iterator.take': checkIteratorClosingOnEarlyError('take', -1),
+  'es.iterator.map': checkIteratorClosingOnEarlyError(TypeError, 'map', null),
+  'es.iterator.reduce': checkIteratorClosingOnEarlyError(TypeError, 'reduce', null),
+  'es.iterator.some': checkIteratorClosingOnEarlyError(TypeError, 'some', null),
+  'es.iterator.take': checkIteratorClosingOnEarlyError(RangeError, 'take', -1),
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
   },

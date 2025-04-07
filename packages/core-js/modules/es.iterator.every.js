@@ -11,7 +11,7 @@ var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-clos
 
 var Iterator = globalThis.Iterator;
 var nativeEvery = Iterator && Iterator.prototype && Iterator.prototype.every;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeEvery && !checkIteratorClosingOnEarlyError(nativeEvery, null);
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeEvery && !checkIteratorClosingOnEarlyError(TypeError, nativeEvery, null);
 
 // `Iterator.prototype.every` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.every

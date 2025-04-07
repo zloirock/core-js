@@ -11,7 +11,7 @@ var aCallable = require('../internals/a-callable');
 
 var Iterator = globalThis.Iterator;
 var nativeFind = Iterator && Iterator.prototype && Iterator.prototype.find;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFind && !checkIteratorClosingOnEarlyError(nativeFind, null);
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFind && !checkIteratorClosingOnEarlyError(TypeError, nativeFind, null);
 
 // `Iterator.prototype.find` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.find
