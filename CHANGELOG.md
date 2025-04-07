@@ -14,6 +14,7 @@
   - `Iterator.prototype.forEach`
   - `Iterator.prototype.map`
   - `Iterator.prototype.reduce`
+  - `Iterator.prototype.some`
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)

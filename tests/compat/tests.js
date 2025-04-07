@@ -750,9 +750,7 @@ GLOBAL.tests = {
   },
   'es.iterator.map': checkIteratorClosingOnEarlyError('map', null),
   'es.iterator.reduce': checkIteratorClosingOnEarlyError('reduce', {}, 1),
-  'es.iterator.some': function () {
-    return Iterator.prototype.some;
-  },
+  'es.iterator.some': checkIteratorClosingOnEarlyError('some', null),
   'es.iterator.take': function () {
     return Iterator.prototype.take;
   },
