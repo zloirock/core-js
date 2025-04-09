@@ -5,3 +5,8 @@ await Promise.all([
   --entry ../../tests/${ entry }.js \
   --output-filename ${ output }.js \
 `));
+
+fs.copyFile('../../packages/core-js-bundle/index.js', '../../tests/bundles/core-js-bundle.js');
+
+fs.copyFile('./node_modules/@slowcheetah/qunitjs-1/qunit/qunit.js', '../../tests/bundles/qunit.js');
+fs.copyFile('./node_modules/@slowcheetah/qunitjs-1/qunit/qunit.css', '../../tests/bundles/qunit.css');
