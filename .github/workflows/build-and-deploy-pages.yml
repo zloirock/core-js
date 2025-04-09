@@ -40,15 +40,30 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ matrix.branch }}
+      - name: Build cache key
+        id: cache-key
+        run: |
+          HASH=$(git rev-parse --short HEAD)
+          echo "CACHE_KEY=${{ matrix.branch }}-$HASH" >> "$GITHUB_ENV"
+      - name: Restore cached artifacts
+        id: artifacts-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ matrix.branch }}
+          key: ${{ env.CACHE_KEY }}
       - uses: actions/setup-node@v4
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
         with:
           node-version: 23
           cache: npm
-      - run: npm ci
-      - run: git checkout ${{ matrix.branch }}
-      - run: npm run build-compat
-      - run: npm run bundle
+      - name: Build
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
+        run: |
+          npm ci
+          npm run build-compat
+          npm run bundle
       - name: Prepare build artifacts
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
         run: |
           mkdir -p ${{ matrix.branch }}/compat
           cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js ${{ matrix.branch }}/compat
@@ -56,6 +71,12 @@ jobs:
           cp tests/bundles/* ${{ matrix.branch }}/bundles
           mkdir -p ${{ matrix.branch }}/unit-browser
           cp tests/unit-browser/* ${{ matrix.branch }}/unit-browser
+      - name: Save cached artifacts
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ matrix.branch }}
+          key: ${{ env.CACHE_KEY }}
       - name: Upload artifacts for branch ${{ matrix.branch }}
         uses: actions/upload-artifact@v4
         with:
@@ -74,7 +95,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: pages
-      - run: cp -r docs/ pages/
+      - name: Add docs
+        run: cp -r docs/ pages/
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload GitHub Pages artifact
