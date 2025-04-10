@@ -13,7 +13,7 @@ var $TypeError = TypeError;
 
 // `AsyncIterator.prototype.reduce` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
     aCallable(reducer);

@@ -7,7 +7,6 @@ var notANaN = require('../internals/not-a-nan');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var createIterResultObject = require('../internals/create-iter-result-object');
-var IS_PURE = require('../internals/is-pure');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
@@ -37,7 +36,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.take` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
