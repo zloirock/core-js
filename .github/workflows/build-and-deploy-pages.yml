@@ -1,0 +1,108 @@
+name: Build and Deploy pages to GitHub Pages
+on: [push, workflow_dispatch]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  list-branches:
+    runs-on: ubuntu-latest
+    outputs:
+      branches: ${{ steps.set-branches.outputs.branches }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get branch list and set output
+        id: set-branches
+        run: |
+          BRANCHES=$(
+            git branch -r |
+            grep -Ev 'HEAD|v1|v2' |
+            sed 's/^[ *]*//' |
+            sed 's/^origin\///' |
+            jq -R . |
+            jq -cs
+          )
+          echo "branches=$BRANCHES" >> "$GITHUB_OUTPUT"
+
+  build-compat-pages:
+    needs: list-branches
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        branch: ${{ fromJson(needs.list-branches.outputs.branches) }}
+    name: Build for ${{ matrix.branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
+      - name: Build cache key
+        id: cache-key
+        run: |
+          HASH=$(git rev-parse --short HEAD)
+          echo "CACHE_KEY=${{ matrix.branch }}-$HASH" >> "$GITHUB_ENV"
+      - name: Restore cached artifacts
+        id: artifacts-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ matrix.branch }}
+          key: ${{ env.CACHE_KEY }}
+      - uses: actions/setup-node@v4
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
+        with:
+          node-version: 23
+          cache: npm
+      - name: Build
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
+        run: |
+          npm ci
+          npm run build-compat
+          npm run bundle
+      - name: Prepare build artifacts
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ${{ matrix.branch }}/compat
+          cp tests/compat/index.html tests/compat/compat-data.js tests/compat/tests.js tests/compat/browsers-runner.js ${{ matrix.branch }}/compat
+          mkdir -p ${{ matrix.branch }}/bundles
+          cp tests/bundles/* ${{ matrix.branch }}/bundles
+          mkdir -p ${{ matrix.branch }}/unit-browser
+          cp tests/unit-browser/* ${{ matrix.branch }}/unit-browser
+      - name: Save cached artifacts
+        if: steps.artifacts-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ matrix.branch }}
+          key: ${{ env.CACHE_KEY }}
+      - name: Upload artifacts for branch ${{ matrix.branch }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.branch }}
+          path: ${{ matrix.branch }}
+
+  combine-pages-and-deploy:
+    needs: build-compat-pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: pages
+      - name: Add docs
+        run: cp -r docs/ pages/
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
