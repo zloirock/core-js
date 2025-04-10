@@ -8,7 +8,6 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var closeAsyncIteration = require('../internals/async-iterator-close');
-var IS_PURE = require('../internals/is-pure');
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
@@ -56,7 +55,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.filter` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   filter: function filter(predicate) {
     anObject(this);
     aCallable(predicate);
