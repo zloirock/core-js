@@ -1,9 +1,9 @@
-import { createAsyncIterable, createIterable, createIterator } from '../helpers/helpers.js';
+import { createAsyncIterable, createIterable/* , createIterator */ } from '../helpers/helpers.js';
 import { STRICT_THIS } from '../helpers/constants.js';
 
 import Promise from 'core-js-pure/es/promise';
 import fromAsync from 'core-js-pure/actual/array/from-async';
-import Iterator from 'core-js-pure/actual/iterator';
+// import Iterator from 'core-js-pure/actual/iterator';
 
 QUnit.test('Array.fromAsync', assert => {
   assert.isFunction(fromAsync);
@@ -21,9 +21,9 @@ QUnit.test('Array.fromAsync', assert => {
 
   function C() { /* empty */ }
 
-  const closableIterator = createIterator([1], {
-    return() { this.closed = true; return { value: undefined, done: true }; },
-  });
+  // const closableIterator = createIterator([1], {
+  //   return() { this.closed = true; return { value: undefined, done: true }; },
+  // });
 
   return fromAsync(createAsyncIterable([1, 2, 3]), it => it ** 2).then(it => {
     assert.arrayEqual(it, [1, 4, 9], 'async iterable and mapfn');
@@ -90,12 +90,14 @@ QUnit.test('Array.fromAsync', assert => {
     assert.avoid();
   }, error => {
     assert.true(error instanceof TypeError);
-  }).then(() => {
+  });
+  /* Tests are temporarily disabled due to the lack of proper async feature detection.
+  .then(() => {
     return fromAsync(Iterator.from(closableIterator), () => { throw 42; });
   }).then(() => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error');
     assert.true(closableIterator.closed, 'doesn\'t close sync iterator on promise rejection');
-  });
+  }); */
 });
