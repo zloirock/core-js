@@ -2,9 +2,9 @@ import Promise from 'core-js-pure/es/promise';
 import assign from 'core-js-pure/es/object/assign';
 import create from 'core-js-pure/es/object/create';
 import values from 'core-js-pure/es/array/values';
-// import ITERATOR from 'core-js-pure/es/symbol/iterator';
+import ITERATOR from 'core-js-pure/es/symbol/iterator';
 import AsyncIterator from 'core-js-pure/actual/async-iterator';
-// import Iterator from 'core-js-pure/actual/iterator';
+import Iterator from 'core-js-pure/actual/iterator';
 
 QUnit.test('AsyncIterator.from', assert => {
   const { from } = AsyncIterator;
@@ -25,28 +25,26 @@ QUnit.test('AsyncIterator.from', assert => {
   assert.throws(() => from(undefined), TypeError);
   assert.throws(() => from(null), TypeError);
 
-  // const closableIterator = {
-  //   closed: false,
-  //   [ITERATOR]() { return this; },
-  //   next() {
-  //     return { value: Promise.reject(42), done: false };
-  //   },
-  //   return() {
-  //     this.closed = true;
-  //     return { value: undefined, done: true };
-  //   },
-  // };
+  const closableIterator = {
+    closed: false,
+    [ITERATOR]() { return this; },
+    next() {
+      return { value: Promise.reject(42), done: false };
+    },
+    return() {
+      this.closed = true;
+      return { value: undefined, done: true };
+    },
+  };
 
   return AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
     assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');
-  });
-  /* Tests are temporarily disabled due to the lack of proper async feature detection.
-  .then(() => {
+  }).then(() => {
     return from(Iterator.from(closableIterator)).toArray();
   }).then(() => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error');
     assert.true(closableIterator.closed, 'doesn\'t close sync iterator on promise rejection');
-  }); */
+  });
 });

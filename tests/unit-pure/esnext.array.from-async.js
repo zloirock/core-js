@@ -91,7 +91,7 @@ QUnit.test('Array.fromAsync', assert => {
   }, error => {
     assert.true(error instanceof TypeError);
   });
-  /* Tests are temporarily disabled due to the lack of proper async feature detection.
+  /* Tests are temporarily disabled due to the lack of proper async feature detection in native implementations.
   .then(() => {
     return fromAsync(Iterator.from(closableIterator), () => { throw 42; });
   }).then(() => {
