@@ -17,6 +17,10 @@
   - `Iterator.prototype.some`
   - `Iterator.prototype.take`
 - Fixed missing forced replacement of `AsyncIterator` helpers
+- Added closing of sync iterator when async wrapper yields a rejection [tc39/ecma262#2600](https://github.com/tc39/ecma262/pull/2600). Affected methods:
+  - `Array.prototype.fromAsync` (due to the lack of async feature detection capability - temporarily, only in own core-js implementation)
+  - `AsyncIterator.prototype.from`
+  - `Iterator.prototype.toAsync`
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
