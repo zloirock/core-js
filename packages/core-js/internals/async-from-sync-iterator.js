@@ -21,10 +21,12 @@ var asyncFromSyncIteratorContinuation = function (result, resolve, reject, syncI
   Promise.resolve(result.value).then(function (value) {
     resolve(createIterResultObject(value, done));
   }, function (error) {
-    try {
-      if (!done && closeOnRejection) iteratorClose(syncIterator, 'throw', error);
-    } catch (error2) {
-      error = error2;
+    if (!done && closeOnRejection) {
+      try {
+        iteratorClose(syncIterator, 'throw', error);
+      } catch (error2) {
+        error = error2;
+      }
     }
 
     reject(error);
