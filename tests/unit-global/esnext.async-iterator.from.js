@@ -38,8 +38,7 @@ QUnit.test('AsyncIterator.from', assert => {
 
   return AsyncIterator.from([1, Promise.resolve(2), 3]).toArray().then(result => {
     assert.arrayEqual(result, [1, 2, 3], 'unwrap promises');
-  })
-  .then(() => {
+  }).then(() => {
     return from(Iterator.from(closableIterator)).toArray();
   }).then(() => {
     assert.avoid();
