@@ -2244,7 +2244,7 @@ export const data = {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
-    deno: false,
+    deno: '2.2.10',
   },
   'esnext.array.from-async': {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
@@ -2368,7 +2368,7 @@ export const data = {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
-    deno: false,
+    deno: '2.2.10',
   },
   'esnext.error.is-error': {
     // early WebKit implementation bug
@@ -2401,7 +2401,7 @@ export const data = {
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
-    deno: false,
+    deno: '2.2.10',
     firefox: '135',
   },
   // TODO: Remove from `core-js@4`

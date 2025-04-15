@@ -25,6 +25,7 @@
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked as [shipped from FF138](https://bugzilla.mozilla.org/show_bug.cgi?id=1952249)
+  - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features re-enabled in [Deno 2.2.10](https://github.com/denoland/deno/releases/tag/v2.2.10)
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as supported from Deno 1.38.1 since it seems they were disabled in 1.38.0
   - Added [NodeJS 24.0](https://github.com/nodejs/node/pull/57609) compat data mapping
   - Updated Electron 36 compat data mapping
