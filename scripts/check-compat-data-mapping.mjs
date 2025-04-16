@@ -69,7 +69,8 @@ assert(modernV8ToChrome(deno.engine) <= latest(mapping.ChromeToDeno)[0], 'Deno')
 assert(oculus.engine <= latest(mapping.ChromeAndroidToQuest)[0], 'Meta Quest');
 assert(opera.version === String(mapping.ChromeToOpera(opera.engine)), 'Opera');
 assert(operaAndroid.engine <= latest(mapping.ChromeAndroidToOperaAndroid)[0], 'Opera for Android');
-assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
+// temporarily disabled since MDN contains data for inconsistent releases of iOS Safari and Safari 18.5 beta
+// assert(ios.version === Object.entries(safari).find(([, { engine_version: engine }]) => engine === ios.engine)[0], 'iOS Safari');
 assert(samsung.engine <= latest(mapping.ChromeAndroidToSamsung)[0], 'Samsung Internet');
 
 if (updated) echo(chalk.green('updates of compat data mapping not required'));
