@@ -1,7 +1,7 @@
 ## Changelog
 ##### Unreleased
 - [`Map` upsert stage](https://github.com/tc39/proposal-upsert):
-  - Moved to stage 2.7, Appril 2025 TC39 meeting
+  - Moved to stage 2.7, [April 2025 TC39 meeting](https://x.com/robpalmer2/status/1911882240109261148)
   - Validation order of `WeakMap.prototype.getOrInsertComputed` updated following [proposal-upsert/79](https://github.com/tc39/proposal-upsert/pull/79)
   - Built-ins:
     - `Map.prototype.getOrInsert`
