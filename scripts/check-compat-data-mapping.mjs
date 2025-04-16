@@ -48,8 +48,8 @@ const [
   oculus,
   opera,
   operaAndroid,
-  safari,
-  ios,
+  // safari,
+  // ios,
   samsung,
 ] = await Promise.all([
   getJSON('https://nodejs.org/dist/index.json'),
@@ -58,8 +58,8 @@ const [
   getLatestFromMDN('oculus'),
   getLatestFromMDN('opera'),
   getLatestFromMDN('opera_android'),
-  getFromMDN('safari'),
-  getLatestFromMDN('safari_ios'),
+  // getFromMDN('safari'),
+  // getLatestFromMDN('safari_ios'),
   getLatestFromMDN('samsunginternet_android'),
 ]);
 
