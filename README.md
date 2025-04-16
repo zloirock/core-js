@@ -170,10 +170,10 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Error.isError`](#erroriserror)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
+      - [`Map` upsert](#map-upsert)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
-      - [`Map` upsert](#map-upsert)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
@@ -2694,6 +2694,42 @@ Iterator.concat([0, 1].values(), [2, 3], function * () {
 }()).toArray(); // => [0, 1, 2, 3, 4, 5]
 ```
 
+##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
+Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
+```ts
+class Map {
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
+}
+
+class WeakMap {
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/map-upsert-v4
+core-js(-pure)/full/map/get-or-insert
+core-js(-pure)/full/map/get-or-insert-computed
+core-js(-pure)/full/weak-map/get-or-insert
+core-js(-pure)/full/weak-map/get-or-insert-computed
+```
+[*Examples*](https://tinyurl.com/2a54u5ux):
+```js
+const map = new Map([['a', 1]]);
+
+map.getOrInsert('a', 2); // => 1
+
+map.getOrInsert('b', 3); // => 3
+
+map.getOrInsertComputed('a', key => key); // => 1
+
+map.getOrInsertComputed('c', key => key); // => 'c'
+
+console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
+```
+
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
 ```
@@ -2800,41 +2836,7 @@ for (const i of Iterator.range(1, 10, { step: 3, inclusive: true })) {
   console.log(i); // => 1, 4, 7, 10
 }
 ```
-##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
-Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
-```ts
-class Map {
-  getOrInsert(key: any, value: any): any;
-  getOrInsertComputed(key: any, (key: any) => value: any): any;
-}
 
-class WeakMap {
-  getOrInsert(key: any, value: any): any;
-  getOrInsertComputed(key: any, (key: any) => value: any): any;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/map-upsert-v4
-core-js(-pure)/full/map/get-or-insert
-core-js(-pure)/full/map/get-or-insert-computed
-core-js(-pure)/full/weak-map/get-or-insert
-core-js(-pure)/full/weak-map/get-or-insert-computed
-```
-[*Examples*](https://tinyurl.com/2a54u5ux):
-```js
-const map = new Map([['a', 1]]);
-
-map.getOrInsert('a', 2); // => 1
-
-map.getOrInsert('b', 3); // => 3
-
-map.getOrInsertComputed('a', key => key); // => 1
-
-map.getOrInsertComputed('c', key => key); // => 'c'
-
-console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
-```
 ##### [`Array.isTemplateObject`](https://github.com/tc39/proposal-array-is-template-object)[⬆](#index)
 Module [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
 ```ts

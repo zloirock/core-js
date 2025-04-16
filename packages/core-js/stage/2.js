@@ -5,7 +5,6 @@ require('../proposals/array-is-template-object');
 require('../proposals/async-iterator-helpers');
 require('../proposals/extractors');
 require('../proposals/iterator-range');
-require('../proposals/map-upsert-v4');
 require('../proposals/string-dedent');
 require('../proposals/symbol-predicates-v2');
 // TODO: Obsolete versions, remove from `core-js@4`
