@@ -2640,7 +2640,6 @@ core-js/proposals/decorator-metadata-v2
 core-js(-pure)/actual|full/symbol/metadata
 core-js(-pure)/actual|full/function/metadata
 ```
-```
 
 ##### [`Error.isError`](https://github.com/tc39/proposal-is-error)[⬆](#index)
 Module [`esnext.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.error.is-error.js)
