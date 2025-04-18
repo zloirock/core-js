@@ -12,11 +12,29 @@ var aCallable = require('../internals/a-callable');
 var $TypeError = TypeError;
 var Iterator = globalThis.Iterator;
 var nativeReduce = Iterator && Iterator.prototype && Iterator.prototype.reduce;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeReduce && !checkIteratorClosingOnEarlyError(TypeError, nativeReduce, null);
+
+// https://bugs.webkit.org/show_bug.cgi?id=291651
+var nativeMethodFailsOnUndefinedInitialParam = function () {
+  try {
+    // eslint-disable-next-line es/no-iterator-prototype-reduce, es/no-array-prototype-keys -- required for testing
+    [].keys().reduce(function () { return false; }, undefined);
+    return false;
+  } catch (err) {
+    return true;
+  }
+};
+
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = false;
+var nativeMethodWithoutClosingOnEarlyError = function () {
+  NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = !checkIteratorClosingOnEarlyError(TypeError, nativeReduce, null);
+  return NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
+};
+
+var FORCED = !nativeReduce || nativeMethodFailsOnUndefinedInitialParam() || nativeMethodWithoutClosingOnEarlyError();
 
 // `Iterator.prototype.reduce` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.reduce
-$({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR }, {
+$({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
     try {

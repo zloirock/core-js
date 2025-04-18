@@ -28,6 +28,7 @@
   - `Array.prototype.fromAsync` (due to the lack of async feature detection capability - temporarily, only in own core-js implementation)
   - `AsyncIterator.prototype.from`
   - `Iterator.prototype.toAsync`
+- Added detection for throwing on `undefined` initial parameter in `Iterator.prototype.reduce` (see [WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291651))
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
