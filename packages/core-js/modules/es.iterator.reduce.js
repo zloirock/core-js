@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var anObject = require('../internals/an-object');
+var fails = require('../internals/fails');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
 var globalThis = require('../internals/global-this');
@@ -12,11 +13,20 @@ var aCallable = require('../internals/a-callable');
 var $TypeError = TypeError;
 var Iterator = globalThis.Iterator;
 var nativeReduce = Iterator && Iterator.prototype && Iterator.prototype.reduce;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeReduce && !checkIteratorClosingOnEarlyError(TypeError, nativeReduce, null);
+
+// https://bugs.webkit.org/show_bug.cgi?id=291651
+var NATIVE_METHOD_FAILS_ON_UNDEFINED_INITIAL_PARAM = nativeReduce && fails(function () {
+  Iterator.from([]).reduce(function () { return false; }, undefined);
+});
+var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = false;
+var FORCED = NATIVE_METHOD_FAILS_ON_UNDEFINED_INITIAL_PARAM || function () {
+  NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeReduce && !checkIteratorClosingOnEarlyError(TypeError, nativeReduce, null);
+  return NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
+}();
 
 // `Iterator.prototype.reduce` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.reduce
-$({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR }, {
+$({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
     try {
