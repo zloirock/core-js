@@ -81,4 +81,3 @@ else if (CURRENT_YEAR === OLD_YEAR) echo(red('bump is not required'));
 
 await $`npm run bundle-package deno`;
 await $`npm run build-compat`;
-await import('./copy-compat-table.mjs');

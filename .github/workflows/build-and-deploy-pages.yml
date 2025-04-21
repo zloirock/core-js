@@ -95,8 +95,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: pages
-      - name: Add docs
-        run: cp -r docs/ pages/
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload GitHub Pages artifact
