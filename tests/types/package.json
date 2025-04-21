@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "test:types": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
