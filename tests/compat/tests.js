@@ -744,7 +744,12 @@ GLOBAL.tests = {
     return Iterator.from;
   },
   'es.iterator.map': checkIteratorClosingOnEarlyError(TypeError, 'map', null),
-  'es.iterator.reduce': checkIteratorClosingOnEarlyError(TypeError, 'reduce', null),
+  'es.iterator.reduce': [checkIteratorClosingOnEarlyError(TypeError, 'reduce', null), function () {
+    // fails on undefined initial parameter
+    // https://bugs.webkit.org/show_bug.cgi?id=291651
+    [].keys().reduce(function () { /* empty */ }, undefined);
+    return true;
+  }],
   'es.iterator.some': checkIteratorClosingOnEarlyError(TypeError, 'some', null),
   'es.iterator.take': checkIteratorClosingOnEarlyError(RangeError, 'take', -1),
   'es.iterator.to-array': function () {
