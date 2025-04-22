@@ -21,7 +21,7 @@ interface Uint8ArrayConstructor {
 }
 
 interface Uint8Array {
-  setFromBase64(str: string, opts?: fromBase64Options): Uint8Array;
+  setFromBase64(str: string, opts?: fromBase64Options): processMetadata;
   setFromHex(str: string): processMetadata;
   toBase64(opts?: toBase64Options): string;
   toHex(): string;
