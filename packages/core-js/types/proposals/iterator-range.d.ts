@@ -15,3 +15,5 @@ interface IteratorConstructor {
 
   range(start: bigint, end: bigint, options?: bigint | RangeOptionsBigInt): Iterator<bigint>;
 }
+
+declare const Iterator: IteratorConstructor;
