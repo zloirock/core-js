@@ -4,7 +4,7 @@ interface AsyncIteratorConstructor {
   from<T>(iterable: AsyncIterable<T> | Iterable<T> | AsyncIterator<T>): AsyncIterator<T>;
 }
 
-declare const AsyncIterator: AsyncIteratorConstructor;
+declare var AsyncIterator: AsyncIteratorConstructor;
 
 interface AsyncIterator<T> {
   drop(limit: number): AsyncIterator<T>;
