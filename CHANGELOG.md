@@ -8,7 +8,7 @@
     - `Map.prototype.getOrInsertComputed`
     - `WeakMap.prototype.getOrInsert`
     - `WeakMap.prototype.getOrInsertComputed`
-- Don't call well-known `Symbol` methods for `RegExp` on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009):
+- Don't call well-known `Symbol` methods for `RegExp` on primitive values following [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009):
   - For avoid performance regression, temporarily, only in own `core-js` implementations
   - Built-ins:
     - `String.prototype.matchAll`
@@ -17,7 +17,7 @@
     - `String.prototype.replace`
     - `String.prototype.search`
     - `String.prototype.split`
-- Added workaround for the `Uint8Array.prototype.setFromBase64` [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in some of Linux builds of WebKit
+- Added workaround for the [`Uint8Array.prototype.setFromBase64`](https://github.com/tc39/proposal-arraybuffer-base64) [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in some of Linux builds of WebKit
 - Implemented early-error iterator closing [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467), including fix of [a WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291195), in the following methods:
   - `Iterator.prototype.drop`
   - `Iterator.prototype.every`
@@ -29,11 +29,11 @@
   - `Iterator.prototype.reduce`
   - `Iterator.prototype.some`
   - `Iterator.prototype.take`
-- Fixed missing forced replacement of `AsyncIterator` helpers
-- Added closing of sync iterator when async wrapper yields a rejection [tc39/ecma262#2600](https://github.com/tc39/ecma262/pull/2600). Affected methods:
-  - `Array.prototype.fromAsync` (due to the lack of async feature detection capability - temporarily, only in own core-js implementation)
-  - `AsyncIterator.prototype.from`
-  - `Iterator.prototype.toAsync`
+- Fixed missing forced replacement of [`AsyncIterator` helpers](https://github.com/tc39/proposal-async-iterator-helpers)
+- Added closing of sync iterator when async wrapper yields a rejection following [tc39/ecma262#2600](https://github.com/tc39/ecma262/pull/2600). Affected methods:
+  - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) (due to the lack of async feature detection capability - temporarily, only in own core-js implementation)
+  - [`AsyncIterator.prototype.from`](https://github.com/tc39/proposal-async-iterator-helpers)
+  - [`Iterator.prototype.toAsync`](https://github.com/tc39/proposal-async-iterator-helpers)
 - Added detection for throwing on `undefined` initial parameter in `Iterator.prototype.reduce` (see [WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291651))
 - `core-js-compat` and `core-js-builder` API:
   - Added `'intersect'` support for `targets.esmodules` (Babel 7 behavior)
