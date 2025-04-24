@@ -44,6 +44,7 @@
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked as [shipped from FF138](https://bugzilla.mozilla.org/show_bug.cgi?id=1952249)
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features re-enabled in [Deno 2.2.10](https://github.com/denoland/deno/releases/tag/v2.2.10)
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as supported from Deno 1.38.1 since it seems they were disabled in 1.38.0
+  - `Iterator.prototype.{ drop, reduce, take }` methods marked as fixed in Bun 1.2.11
   - Added [NodeJS 24.0](https://github.com/nodejs/node/pull/57609) compat data mapping
   - Updated Electron 36 compat data mapping
   - Added Opera Android [88](https://forums.opera.com/topic/83800/opera-for-android-88) and 89 compat data mapping

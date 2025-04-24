@@ -641,7 +641,7 @@ export const data = {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
     // https://bugs.webkit.org/show_bug.cgi?id=291195
-    // bun: '1.2.4', // '1.1.31',
+    bun: '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     // firefox: '131',
@@ -713,7 +713,7 @@ export const data = {
     // https://github.com/tc39/ecma262/pull/3467
     // due to bug that causes a throw when the initial parameter is `undefined`
     // https://bugs.webkit.org/show_bug.cgi?id=291651
-    // bun: '1.2.4', // '1.1.31',
+    bun: '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     // firefox: '131',
@@ -732,7 +732,7 @@ export const data = {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
     // https://bugs.webkit.org/show_bug.cgi?id=291195
-    // bun: '1.2.4', // '1.1.31',
+    bun: '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     // firefox: '131',
