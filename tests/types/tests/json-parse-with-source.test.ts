@@ -18,3 +18,7 @@ if (JSON.isRawJSON(smth)) {
 JSON.rawJSON(123);
 // @ts-expect-error
 JSON.rawJSON();
+
+JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: ReviverContext) => {});
+// @ts-expect-error
+JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: []) => {});
