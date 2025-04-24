@@ -1,16 +1,22 @@
 ## Changelog
 ##### Unreleased
-- [`Map` upsert stage](https://github.com/tc39/proposal-upsert):
+- [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
   - Moved to stage 2.7, [April 2025 TC39 meeting](https://x.com/robpalmer2/status/1911882240109261148)
-  - Validation order of `WeakMap.prototype.getOrInsertComputed` updated following [proposal-upsert/79](https://github.com/tc39/proposal-upsert/pull/79)
+  - Validation order of `WeakMap.prototype.getOrInsertComputed` updated following [tc39/proposal-upsert#79](https://github.com/tc39/proposal-upsert/pull/79)
   - Built-ins:
     - `Map.prototype.getOrInsert`
     - `Map.prototype.getOrInsertComputed`
     - `WeakMap.prototype.getOrInsert`
     - `WeakMap.prototype.getOrInsertComputed`
-- Don't call well-known Symbol methods for RegExp on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009)
-- Added 'intersect' support for `targets.esmodules` (Babel v7 behavior)
-- Fixed handling of `targets.esmodules: true` (Babel v7 behavior)
+- Don't call well-known `Symbol` methods for `RegExp` on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009):
+  - For avoid performance regression, temporarily, only in own `core-js` implemenation
+  - Built-ins:
+    - `String.prototype.matchAll`
+    - `String.prototype.match`
+    - `String.prototype.replaceAll`
+    - `String.prototype.replace`
+    - `String.prototype.search`
+    - `String.prototype.split`
 - Added workaround for the `Uint8Array.prototype.setFromBase64` [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in a Linux build of WebKit
 - Implemented early-error iterator closing [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467), including fix of [a WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291195), in the following methods:
   - `Iterator.prototype.drop`
@@ -29,6 +35,9 @@
   - `AsyncIterator.prototype.from`
   - `Iterator.prototype.toAsync`
 - Added detection for throwing on `undefined` initial parameter in `Iterator.prototype.reduce` (see [WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291651))
+- `core-js-compat` and `core-js-builder` API:
+  - Added `'intersect'` support for `targets.esmodules` (Babel 7 behavior)
+  - Fixed handling of `targets.esmodules: true` (Babel 7 behavior)
 - Compat data improvements:
   - [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features disabled (again) in V8 ~ Chromium 135 and re-added in 136
   - [`RegExp.escape`](https://github.com/tc39/proposal-regex-escaping) marked as [shipped from V8 ~ Chromium 136](https://issues.chromium.org/issues/353856236#comment17)
