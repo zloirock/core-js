@@ -9,7 +9,7 @@
     - `WeakMap.prototype.getOrInsert`
     - `WeakMap.prototype.getOrInsertComputed`
 - Don't call well-known `Symbol` methods for `RegExp` on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009):
-  - For avoid performance regression, temporarily, only in own `core-js` implemenation
+  - For avoid performance regression, temporarily, only in own `core-js` implemenations
   - Built-ins:
     - `String.prototype.matchAll`
     - `String.prototype.match`
@@ -17,7 +17,7 @@
     - `String.prototype.replace`
     - `String.prototype.search`
     - `String.prototype.split`
-- Added workaround for the `Uint8Array.prototype.setFromBase64` [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in some of Linux build of WebKit
+- Added workaround for the `Uint8Array.prototype.setFromBase64` [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in some of Linux builds of WebKit
 - Implemented early-error iterator closing [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467), including fix of [a WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291195), in the following methods:
   - `Iterator.prototype.drop`
   - `Iterator.prototype.every`
