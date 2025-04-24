@@ -31,7 +31,7 @@
   - `Iterator.prototype.take`
 - Fixed missing forced replacement of [`AsyncIterator` helpers](https://github.com/tc39/proposal-async-iterator-helpers)
 - Added closing of sync iterator when async wrapper yields a rejection following [tc39/ecma262#2600](https://github.com/tc39/ecma262/pull/2600). Affected methods:
-  - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) (due to the lack of async feature detection capability - temporarily, only in own core-js implementation)
+  - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) (due to the lack of async feature detection capability - temporarily, only in own `core-js` implementation)
   - [`AsyncIterator.prototype.from`](https://github.com/tc39/proposal-async-iterator-helpers)
   - [`Iterator.prototype.toAsync`](https://github.com/tc39/proposal-async-iterator-helpers)
 - Added detection for throwing on `undefined` initial parameter in `Iterator.prototype.reduce` (see [WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291651))
@@ -46,7 +46,7 @@
   - [`Iterator` helpers proposal](https://github.com/tc39/proposal-iterator-helpers) features marked as supported from Deno 1.38.1 since it seems they were disabled in 1.38.0
   - `Iterator.prototype.{ drop, reduce, take }` methods marked as fixed in Bun 1.2.11
   - Added [NodeJS 24.0](https://github.com/nodejs/node/pull/57609) compat data mapping
-  - Updated Electron 36 compat data mapping
+  - Updated Electron 36 and added Electron 37 compat data mapping
   - Added Opera Android [88](https://forums.opera.com/topic/83800/opera-for-android-88) and 89 compat data mapping
   - Added Oculus Quest Browser 37 compat data mapping
 
