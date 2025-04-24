@@ -9,7 +9,7 @@
     - `WeakMap.prototype.getOrInsert`
     - `WeakMap.prototype.getOrInsertComputed`
 - Don't call well-known `Symbol` methods for `RegExp` on primitive values [tc39/ecma262#3009](https://github.com/tc39/ecma262/pull/3009):
-  - For avoid performance regression, temporarily, only in own `core-js` implemenations
+  - For avoid performance regression, temporarily, only in own `core-js` implementations
   - Built-ins:
     - `String.prototype.matchAll`
     - `String.prototype.match`
