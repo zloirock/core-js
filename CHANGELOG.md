@@ -18,7 +18,7 @@
     - `String.prototype.search`
     - `String.prototype.split`
 - Added workaround for the [`Uint8Array.prototype.setFromBase64`](https://github.com/tc39/proposal-arraybuffer-base64) [bug](https://bugs.webkit.org/show_bug.cgi?id=290829) in some of Linux builds of WebKit
-- Implemented early-error iterator closing [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467), including fix of [a WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291195), in the following methods:
+- Implemented early-error iterator closing following [tc39/ecma262#3467](https://github.com/tc39/ecma262/pull/3467), including fix of [a WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291195), in the following methods:
   - `Iterator.prototype.drop`
   - `Iterator.prototype.every`
   - `Iterator.prototype.filter`
