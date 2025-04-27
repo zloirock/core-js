@@ -613,9 +613,13 @@ const base = {
   'unicorn/no-thenable': ERROR,
   // disallow comparing `undefined` using `typeof` when it's not required
   'unicorn/no-typeof-undefined': ERROR,
+  // disallow using 1 as the depth argument of `Array#flat()`
+  'unicorn/no-unnecessary-array-flat-depth': ERROR,
+  // disallow using `.length` or `Infinity` as the `deleteCount` or `skipCount` argument of `Array#{ splice, toSpliced }()`
+  'unicorn/no-unnecessary-array-splice-count': ERROR,
   // disallow awaiting non-promise values
   'unicorn/no-unnecessary-await': ERROR,
-  // disallow using `.length` or `Infinity` as the `deleteCount` or `skipCount` argument of `Array#{splice,toSpliced}()
+  // disallow using `.length` or `Infinity` as the end argument of `{ Array, String, %TypedArray% }#slice()`
   'unicorn/no-unnecessary-slice-end': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
@@ -1971,6 +1975,8 @@ const packagesPackageJSON = {
   'package-json/repository-shorthand': [ERROR, { form: 'object' }],
   // requires the `author` property to be present
   'package-json/require-author': ERROR,
+  // requires the `description` property to be present
+  'package-json/require-description': ERROR,
   // requires the `engines` property to be present
   // TODO: core-js@4
   // 'package-json/require-engines': ERROR,

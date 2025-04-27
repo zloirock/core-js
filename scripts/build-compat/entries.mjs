@@ -17,7 +17,7 @@ async function getModulesForEntryPoint(path, parent) {
     return getModulesForEntryPoint(dependency, entry);
   }));
 
-  return helpers.intersection(result.flat(1), modules);
+  return helpers.intersection(result.flat(), modules);
 }
 
 const entriesList = await glob([

@@ -11,6 +11,7 @@ QUnit.test('Array#flat', assert => {
   assert.deepEqual([].flat(), []);
   const array = [1, [2, 3], [4, [5, 6]]];
   assert.deepEqual(array.flat(0), array);
+  // eslint-disable-next-line unicorn/no-unnecessary-array-flat-depth -- testing
   assert.deepEqual(array.flat(1), [1, 2, 3, 4, [5, 6]]);
   assert.deepEqual(array.flat(), [1, 2, 3, 4, [5, 6]]);
   assert.deepEqual(array.flat(2), [1, 2, 3, 4, 5, 6]);
