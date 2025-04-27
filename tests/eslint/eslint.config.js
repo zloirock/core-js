@@ -585,8 +585,6 @@ const base = {
   'unicorn/no-abusive-eslint-disable': ERROR,
   // disallow recursive access to `this` within getters and setters
   'unicorn/no-accessor-recursion': ERROR,
-  // enforce combining multiple `Array#push` into one call
-  'unicorn/no-array-push-push': ERROR,
   // disallow using `await` in `Promise` method parameters
   'unicorn/no-await-in-promise-methods': ERROR,
   // do not use leading/trailing space between `console.log` parameters
@@ -599,8 +597,6 @@ const base = {
   'unicorn/no-invalid-fetch-options': ERROR,
   // prevent calling `EventTarget#removeEventListener()` with the result of an expression
   'unicorn/no-invalid-remove-event-listener': ERROR,
-  // disallow using `.length` as the end argument of `{ Array,String,TypedArray }#slice()`
-  'unicorn/no-length-as-slice-end': ERROR,
   // disallow `if` statements as the only statement in `if` blocks without `else`
   'unicorn/no-lonely-if': ERROR,
   // disallow named usage of default import and export
@@ -619,6 +615,8 @@ const base = {
   'unicorn/no-typeof-undefined': ERROR,
   // disallow awaiting non-promise values
   'unicorn/no-unnecessary-await': ERROR,
+  // disallow using `.length` or `Infinity` as the `deleteCount` or `skipCount` argument of `Array#{splice,toSpliced}()
+  'unicorn/no-unnecessary-slice-end': ERROR,
   // disallow unreadable array destructuring
   'unicorn/no-unreadable-array-destructuring': ERROR,
   // disallow unreadable IIFEs
@@ -689,6 +687,8 @@ const base = {
   'unicorn/prefer-structured-clone': ERROR,
   // prefer using `Set#size` instead of `Array#length`
   'unicorn/prefer-set-size': ERROR,
+  // enforce combining multiple `Array#push`, `Element#classList.{ add, remove }()` or `importScripts` into one call
+  'unicorn/prefer-single-call': ERROR,
   // prefer `String#replaceAll()` over regex searches with the global flag
   'unicorn/prefer-string-replace-all': ERROR,
   // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
