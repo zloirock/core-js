@@ -1925,7 +1925,6 @@ GLOBAL.tests = {
     } catch (error) {
       return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
     }
-    return false;
   },
   'esnext.uint8-array.set-from-hex': function () {
     return Uint8Array.prototype.setFromHex;

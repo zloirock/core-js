@@ -13,7 +13,6 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.s
   } catch (error) {
     return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
   }
-  return false;
 })();
 
 // `Uint8Array.prototype.setFromBase64` method
