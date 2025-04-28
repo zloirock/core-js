@@ -1,3 +1,4 @@
+// type: proposals/extractors.d.ts
 'use strict';
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 
