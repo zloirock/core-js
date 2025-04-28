@@ -1,3 +1,4 @@
+// type: proposals/array-buffer-base64.d.ts
 'use strict';
 /* eslint-disable es/no-uint8array-prototype-setfrombase64 -- safe */
 var $ = require('../internals/export');
