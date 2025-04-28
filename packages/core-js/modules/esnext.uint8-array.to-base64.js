@@ -1,3 +1,4 @@
+// type: proposals/array-buffer-base64.d.ts
 'use strict';
 var $ = require('../internals/export');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');

@@ -1,3 +1,4 @@
+// type: proposals/math-clamp.d.ts
 'use strict';
 var $ = require('../internals/export');
 var aNumber = require('../internals/a-number');
