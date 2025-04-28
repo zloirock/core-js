@@ -1,3 +1,4 @@
+// type: proposals/collection-of-from.d.ts
 'use strict';
 var $ = require('../internals/export');
 var WeakSetHelpers = require('../internals/weak-set-helpers');

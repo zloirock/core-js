@@ -1,3 +1,4 @@
+// type: proposals/array-is-template-object.d.ts
 'use strict';
 var $ = require('../internals/export');
 

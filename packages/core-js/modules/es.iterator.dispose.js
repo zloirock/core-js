@@ -1,3 +1,4 @@
+// type: proposals/explicit-resource-management.d.ts
 'use strict';
 // https://tc39.es/ecma262/#sec-iterator.prototype-%symbol.dispose%
 var call = require('../internals/function-call');
