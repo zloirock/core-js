@@ -1,3 +1,4 @@
+// type: proposals/array-filtering.d.ts
 'use strict';
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var aTypedArray = require('../internals/a-typed-array');

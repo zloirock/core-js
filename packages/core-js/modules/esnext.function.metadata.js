@@ -1,3 +1,4 @@
+// type: proposals/decorator-metadata.d.ts
 'use strict';
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
