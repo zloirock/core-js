@@ -1,3 +1,4 @@
+// type: proposals/array-filtering.d.ts
 'use strict';
 var $ = require('../internals/export');
 var $filterReject = require('../internals/array-iteration').filterReject;

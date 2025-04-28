@@ -1,4 +1,4 @@
-
+// type: proposals/symbol-predicates.d.ts
 'use strict';
 var $ = require('../internals/export');
 var shared = require('../internals/shared');
