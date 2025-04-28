@@ -7,7 +7,7 @@ const allModulesSet = new Set(modules);
 
 const MODULE_PATH = /\/(?<path>(?:internals|modules)\/[\d\-.a-z]+)$/;
 const DIRECTIVE = /^ *\/\/ @dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
-const TYPES_DIRECTIVE = /^ *\/\/ type: (?<type>[\d\-\/.a-z]+)$/gm;
+const TYPES_DIRECTIVE = /^ *\/\/ type: (?<type>[\d\-./a-z]+)$/gm;
 
 const dependenciesCache = new Map();
 const typesCache = new Map();
