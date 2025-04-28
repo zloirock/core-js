@@ -10,14 +10,14 @@ var iteratorClose = require('../internals/iterator-close');
 var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
 var IS_PURE = require('../internals/is-pure');
 
+var mapWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('map', TypeError);
+
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
   var result = anObject(call(this.next, iterator));
   var done = this.done = !!result.done;
   if (!done) return callWithSafeIterationClosing(iterator, this.mapper, [result.value, this.counter++], true);
 });
-
-var mapWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('map', TypeError);
 
 // `Iterator.prototype.map` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.map
