@@ -1,8 +1,8 @@
 'use strict';
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
+var aCallable = require('./a-callable');
 var anObject = require('../internals/an-object');
-var aCallable = require('../internals/a-callable');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
 var globalThis = require('../internals/global-this');

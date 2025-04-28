@@ -1,6 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
+var aCallable = require('./a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
@@ -9,7 +10,6 @@ var IS_PURE = require('../internals/is-pure');
 var iteratorClose = require('../internals/iterator-close');
 var globalThis = require('../internals/global-this');
 var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
-var aCallable = require('../internals/a-callable');
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;

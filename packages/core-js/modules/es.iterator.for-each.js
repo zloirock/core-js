@@ -2,12 +2,12 @@
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var iterate = require('../internals/iterate');
+var aCallable = require('./a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
 var globalThis = require('../internals/global-this');
 var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
-var aCallable = require('../internals/a-callable');
 
 var Iterator = globalThis.Iterator;
 var nativeForEach = Iterator && Iterator.prototype && Iterator.prototype.forEach;
