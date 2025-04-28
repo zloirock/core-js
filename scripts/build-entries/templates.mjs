@@ -116,7 +116,7 @@ export const $staticWithContext = p => ({
     var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
   
     module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }() {
-      return apply(method, isCallable(this) ? this : getBuiltIn(' ${ p.namespace } '), arguments);
+      return apply(method, isCallable(this) ? this : getBuiltIn('${ p.namespace }'), arguments);
     };
   `,
   dts: dedent`
