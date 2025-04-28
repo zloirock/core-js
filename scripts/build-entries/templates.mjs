@@ -1,8 +1,6 @@
 import { basename } from 'node:path';
 import dedent from 'dedent';
 
-const t = template => params => `'use strict';\n${ template({ ...params }) }\n`;
-
 const importInternal = (module, level) => `require('${ level ? '../'.repeat(level) : './' }internals/${ module }');`;
 
 const importModule = (module, level) => `require('${ level ? '../'.repeat(level) : './' }modules/${ module }');`;
@@ -23,10 +21,15 @@ function isAllowedFunctionName(name) {
   }
 }
 
-export const wrapEntry = (template) => `'use strict';\n${ template }\n`
-export const wrapDts = (template, p) => `${ importTypes(p) }${ p.types.length ? '\n\n' : '' }${ template }\n`
+export const wrapEntry = template => `'use strict';\n${ template }\n`;
+export const wrapDts = (template, p) => `${ importTypes(p) }${ p.types.length ? '\n\n' : '' }${ template }\n`;
 
-export const $justImport = t(p => importModules(p));
+export const $justImport = p => ({
+  entry: dedent`
+    ${ importModules(p) }
+  `,
+  dts: '',
+});
 
 export const $virtual = p => ({
   entry: dedent`
@@ -39,7 +42,7 @@ export const $virtual = p => ({
   dts: dedent`
     declare const method: typeof ${ p.namespace }.prototype.${ p.name };
     export = method;
-  `
+  `,
 });
 
 export const $virtualIterator = p => ({
@@ -54,7 +57,7 @@ export const $virtualIterator = p => ({
     // todo check
     declare const it: typeof Symbol.iterator;
     export = it;
-  `
+  `,
 });
 
 export const $prototype = p => ({
@@ -68,7 +71,7 @@ export const $prototype = p => ({
   dts: dedent`
     declare const method: typeof ${ p.namespace }.prototype.${ p.name };
     export = method;
-  `
+  `,
 });
 
 export const $prototypeIterator = p => ({
@@ -84,7 +87,7 @@ export const $prototypeIterator = p => ({
     // todo check
     declare const it: typeof Symbol.iterator;
     export = it;
-  `
+  `,
 });
 
 export const $static = p => ({
@@ -98,28 +101,28 @@ export const $static = p => ({
   dts: dedent`
     declare const method: typeof ${ p.namespace }.${ p.name };
     export = method;
-  `
+  `,
 });
 
 export const $staticWithContext = p => ({
   entry: dedent`
     ${ importModules(p) }
     
-    var getBuiltIn = ${importInternal('get-built-in', p.level)}
-    var getBuiltInStaticMethod = ${importInternal('get-built-in-static-method', p.level)}
-    var isCallable = ${importInternal('is-callable', p.level)}
-    var apply = ${importInternal('function-apply', p.level)}
+    var getBuiltIn = ${ importInternal('get-built-in', p.level) }
+    var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
+    var isCallable = ${ importInternal('is-callable', p.level) }
+    var apply = ${ importInternal('function-apply', p.level) }
   
-    var method = getBuiltInStaticMethod('${p.namespace}', '${p.name}');
+    var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
   
-    module.exports = function ${isAllowedFunctionName(p.name) ? p.name : ''}() {
-      return apply(method, isCallable(this) ? this : getBuiltIn('${p.namespace}'), arguments);
+    module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }() {
+      return apply(method, isCallable(this) ? this : getBuiltIn(' ${ p.namespace } '), arguments);
     };
   `,
   dts: dedent`
     declare const method: typeof ${ p.namespace }.${ p.name };
     export = method;
-  `
+  `,
 });
 
 export const $patchableStatic = p => ({
@@ -136,7 +139,7 @@ export const $patchableStatic = p => ({
   dts: dedent`
     declare const method: typeof ${ p.namespace }.${ p.name };
     export = method;
-  `
+  `,
 });
 
 export const $namespace = p => ({
@@ -150,7 +153,7 @@ export const $namespace = p => ({
   dts: dedent`
     declare const namespace: typeof ${ p.name };
     export = namespace;
-  `
+  `,
 });
 
 export const $helper = p => ({
@@ -161,11 +164,11 @@ export const $helper = p => ({
   
     module.exports = $export;
   `,
-    dts: dedent`
-      // todo implement in the future
-      declare const helper: any
-      export = helper;
-    `
+  dts: dedent`
+    // todo implement in the future
+    declare const helper: any
+    export = helper;
+  `,
 });
 
 export const $path = p => ({
@@ -176,10 +179,10 @@ export const $path = p => ({
   
     module.exports = path;
   `,
-    dts: dedent`
-      declare const path: typeof globalThis;
-      export = path;
-    `
+  dts: dedent`
+    declare const path: typeof globalThis;
+    export = path;
+  `,
 });
 
 export const $instanceArray = p => ({
@@ -195,10 +198,10 @@ export const $instanceArray = p => ({
       return ownProperty;
     };
   `,
-    dts: dedent`
-      declare const method: typeof Array.prototype.${ p.name } | any;
-      export = method;
-    `
+  dts: dedent`
+    declare const method: typeof Array.prototype.${ p.name } | any;
+    export = method;
+  `,
 });
 
 export const $instanceString = p => ({
@@ -215,10 +218,10 @@ export const $instanceString = p => ({
       return ownProperty;
     };
   `,
-    dts: dedent`
-      declare const method: typeof String.prototype.${ p.name } | any;
-      export = method;
-    `
+  dts: dedent`
+    declare const method: typeof String.prototype.${ p.name } | any;
+    export = method;
+  `,
 });
 
 export const $instanceFunction = p => ({
@@ -235,10 +238,10 @@ export const $instanceFunction = p => ({
       } return ownProperty;
     };
   `,
-    dts: dedent`
-      declare const method: typeof Function.prototype.${ p.name } | any;
-      export = method;
-    `
+  dts: dedent`
+    declare const method: typeof Function.prototype.${ p.name } | any;
+    export = method;
+  `,
 });
 
 export const $instanceDOMIterables = p => ({
@@ -261,10 +264,10 @@ export const $instanceDOMIterables = p => ({
       return ownProperty;
     };
   `,
-    dts: dedent`
-      declare const method: typeof Array.prototype.${ p.name } | any;
-      export = method;
-    `
+  dts: dedent`
+    declare const method: typeof Array.prototype.${ p.name } | any;
+    export = method;
+  `,
 });
 
 export const $instanceArrayString = p => ({
@@ -284,10 +287,10 @@ export const $instanceArrayString = p => ({
       return ownProperty;
     };
   `,
-    dts: dedent`
-      declare const method: typeof Array.prototype.${ p.name } | String.prototype.${ p.name } | any;
-      export = method;
-    `
+  dts: dedent`
+    declare const method: typeof Array.prototype.${ p.name } | String.prototype.${ p.name } | any;
+    export = method;
+  `,
 });
 
 export const $instanceArrayDOMIterables = p => ({
@@ -316,7 +319,7 @@ export const $instanceArrayDOMIterables = p => ({
   dts: dedent`
     declare const method: typeof Array.prototype.${ p.name } | any;
     export = method;
-  `
+  `,
 });
 
 export const $instanceRegExpFlags = p => ({
@@ -335,7 +338,7 @@ export const $instanceRegExpFlags = p => ({
   dts: dedent`
     declare const method: typeof RegExp.prototype.${ p.name };
     export = method;
-  `
+  `,
 });
 
 export const $proposal = p => ({
@@ -344,7 +347,5 @@ export const $proposal = p => ({
     // ${ p.link }
     ${ importModules(p) }
   `,
-  dts: p => dedent`
-    ${ importTypes(p) }
-  `
+  dts: '',
 });
