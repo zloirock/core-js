@@ -1,3 +1,4 @@
+// type: proposals/array-buffer-base64.d.ts
 'use strict';
 /* eslint-disable es/no-nonstandard-typed-array-prototype-properties -- safe */
 var $ = require('../internals/export');
