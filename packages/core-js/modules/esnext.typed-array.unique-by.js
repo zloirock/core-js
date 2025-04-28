@@ -1,3 +1,4 @@
+// type: proposals/array-unique.d.ts
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
