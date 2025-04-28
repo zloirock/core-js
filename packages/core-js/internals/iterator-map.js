@@ -1,6 +1,6 @@
 'use strict';
 var call = require('../internals/function-call');
-var aCallable = require('./a-callable');
+var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
