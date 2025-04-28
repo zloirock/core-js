@@ -1,3 +1,4 @@
+// type: proposals/explicit-resource-management.d.ts
 'use strict';
 // https://github.com/tc39/proposal-explicit-resource-management
 var $ = require('../internals/export');
