@@ -1,6 +1,6 @@
-import { getListOfDependencies, sort } from './get-dependencies.mjs';
+import { getListOfDependencies, getListOfTypes, sort } from './get-dependencies.mjs';
 import { features, proposals } from './entries-definitions.mjs';
-import { $proposal, $path } from './templates.mjs';
+import { $proposal, $path, wrapDts, wrapEntry } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 
 const { mkdir, writeFile, readJson, writeJson } = fs;
@@ -84,11 +84,16 @@ async function buildEntry(entry, options) {
   modules = await getListOfDependencies(modules);
   if (filter) modules = modules.filter(it => filter.has(it));
 
-  const file = template({ ...options, modules, rawModules, level, entry });
+  const types = await getListOfTypes(modules, level);
+
+  const tpl = template({ ...options, modules, rawModules, level, entry, types });
 
   const filepath = `./packages/core-js/${ entry }.js`;
   await mkdir(dirname(filepath), { recursive: true });
-  await writeFile(filepath, file);
+  await writeFile(filepath, wrapEntry(tpl.entry));
+
+  const typePath = `./packages/core-js/${ entry }.d.ts`;
+  await writeFile(typePath, wrapDts(tpl.dts, { types, level }));
 
   built++;
 
