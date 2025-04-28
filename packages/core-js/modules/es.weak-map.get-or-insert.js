@@ -1,3 +1,4 @@
+// type: proposals/map-upsert.d.ts
 'use strict';
 var $ = require('../internals/export');
 var aWeakMap = require('../internals/a-weak-map');
