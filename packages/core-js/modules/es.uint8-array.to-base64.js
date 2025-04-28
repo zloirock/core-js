@@ -1,3 +1,4 @@
+// type: proposals/array-buffer-base64.d.ts
 'use strict';
 /* eslint-disable no-useless-assignment -- false positive for [index++] */
 /* eslint-disable es/no-uint8array-prototype-tobase64 -- safe */
