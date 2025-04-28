@@ -32,7 +32,7 @@
 - Fixed missing forced replacement of [`AsyncIterator` helpers](https://github.com/tc39/proposal-async-iterator-helpers)
 - Added closing of sync iterator when async wrapper yields a rejection following [tc39/ecma262#2600](https://github.com/tc39/ecma262/pull/2600). Affected methods:
   - [`Array.fromAsync`](https://github.com/tc39/proposal-array-from-async) (due to the lack of async feature detection capability - temporarily, only in own `core-js` implementation)
-  - [`AsyncIterator.prototype.from`](https://github.com/tc39/proposal-async-iterator-helpers)
+  - [`AsyncIterator.from`](https://github.com/tc39/proposal-async-iterator-helpers)
   - [`Iterator.prototype.toAsync`](https://github.com/tc39/proposal-async-iterator-helpers)
 - Added detection for throwing on `undefined` initial parameter in `Iterator.prototype.reduce` (see [WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=291651))
 - `core-js-compat` and `core-js-builder` API:
