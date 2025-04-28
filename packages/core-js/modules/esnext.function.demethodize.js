@@ -1,3 +1,4 @@
+// type: proposals/function-demethodize.d.ts
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
