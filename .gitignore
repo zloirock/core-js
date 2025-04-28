@@ -15,6 +15,7 @@ node_modules/
 /packages/core-js/stable/
 /packages/core-js/stage/
 /packages/core-js/index.js
+/packages/core-js/index.d.ts
 /packages/core-js/LICENSE
 /packages/core-js-builder/LICENSE
 /packages/core-js-bundle/LICENSE
@@ -36,6 +37,7 @@ node_modules/
 /packages/core-js-pure/proposals/
 /packages/core-js-pure/stable/
 /packages/core-js-pure/stage/
+/packages/core-js-pure/types/
 /packages/core-js-pure/LICENSE
 /packages/core-js-pure/index.js
 /packages/core-js-pure/configurator.js
