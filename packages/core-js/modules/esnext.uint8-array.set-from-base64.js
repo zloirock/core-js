@@ -1,3 +1,4 @@
+// type: proposals/array-buffer-base64.d.ts
 'use strict';
 var $ = require('../internals/export');
 var $fromBase64 = require('../internals/uint8-from-base64');
