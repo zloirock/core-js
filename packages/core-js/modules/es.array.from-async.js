@@ -1,3 +1,4 @@
+// type: proposals/array-from-async.d.ts
 'use strict';
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');
