@@ -6,16 +6,13 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
-var globalThis = require('../internals/global-this');
-var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
 
-var Iterator = globalThis.Iterator;
-var nativeFind = Iterator && Iterator.prototype && Iterator.prototype.find;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFind && !checkIteratorClosingOnEarlyError(TypeError, nativeFind, null);
+var findWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('find', TypeError);
 
 // `Iterator.prototype.find` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.find
-$({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR }, {
+$({ target: 'Iterator', proto: true, real: true, forced: findWithoutClosingOnEarlyError }, {
   find: function find(predicate) {
     anObject(this);
     try {
@@ -24,7 +21,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_C
       iteratorClose(this, 'throw', error);
     }
 
-    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeFind, this, predicate);
+    if (findWithoutClosingOnEarlyError) return call(findWithoutClosingOnEarlyError, this, predicate);
 
     var record = getIteratorDirect(this);
     var counter = 0;

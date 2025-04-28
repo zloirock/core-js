@@ -304,17 +304,18 @@ function TIMERS() {
   })());
 }
 
-function checkIteratorClosingOnEarlyError(ExpectedError, METHOD_NAME, arg) {
+// https://github.com/tc39/ecma262/pull/3467
+function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
   return function () {
     var CLOSED = false;
     try {
       Iterator.prototype[METHOD_NAME].call({
         next: function () { return { done: true }; },
         'return': function () { CLOSED = true; }
-      }, arg);
+      }, -1);
     } catch (error) {
       // https://bugs.webkit.org/show_bug.cgi?id=291195
-      if (!(error instanceof ExpectedError)) return false;
+      if (!(error instanceof ExpectedError)) return;
     }
     return CLOSED;
   };
@@ -734,24 +735,24 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
-  'es.iterator.drop': checkIteratorClosingOnEarlyError(RangeError, 'drop', -1),
-  'es.iterator.every': checkIteratorClosingOnEarlyError(TypeError, 'every', null),
-  'es.iterator.filter': checkIteratorClosingOnEarlyError(TypeError, 'filter', null),
-  'es.iterator.find': checkIteratorClosingOnEarlyError(TypeError, 'find', null),
-  'es.iterator.flat-map': checkIteratorClosingOnEarlyError(TypeError, 'flatMap', null),
-  'es.iterator.for-each': checkIteratorClosingOnEarlyError(TypeError, 'forEach', null),
+  'es.iterator.drop': checkIteratorClosingOnEarlyError('drop', RangeError),
+  'es.iterator.every': checkIteratorClosingOnEarlyError('every', TypeError),
+  'es.iterator.filter': checkIteratorClosingOnEarlyError('filter', TypeError),
+  'es.iterator.find': checkIteratorClosingOnEarlyError('find', TypeError),
+  'es.iterator.flat-map': checkIteratorClosingOnEarlyError('flatMap', TypeError),
+  'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
   'es.iterator.from': function () {
     return Iterator.from;
   },
-  'es.iterator.map': checkIteratorClosingOnEarlyError(TypeError, 'map', null),
-  'es.iterator.reduce': [checkIteratorClosingOnEarlyError(TypeError, 'reduce', null), function () {
+  'es.iterator.map': checkIteratorClosingOnEarlyError('map', TypeError),
+  'es.iterator.reduce': [checkIteratorClosingOnEarlyError('reduce', TypeError), function () {
     // fails on undefined initial parameter
     // https://bugs.webkit.org/show_bug.cgi?id=291651
     [].keys().reduce(function () { /* empty */ }, undefined);
     return true;
   }],
-  'es.iterator.some': checkIteratorClosingOnEarlyError(TypeError, 'some', null),
-  'es.iterator.take': checkIteratorClosingOnEarlyError(RangeError, 'take', -1),
+  'es.iterator.some': checkIteratorClosingOnEarlyError('some', TypeError),
+  'es.iterator.take': checkIteratorClosingOnEarlyError('take', RangeError),
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
   },

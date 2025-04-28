@@ -1,15 +1,16 @@
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
-var globalThis = require('../internals/global-this');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var notANaN = require('../internals/not-a-nan');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorClose = require('../internals/iterator-close');
-var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
 var IS_PURE = require('../internals/is-pure');
+
+var takeWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('take', RangeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -22,14 +23,9 @@ var IteratorProxy = createIteratorProxy(function () {
   if (!done) return result.value;
 });
 
-var Iterator = globalThis.Iterator;
-var nativeTake = Iterator && Iterator.prototype && Iterator.prototype.take;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = !IS_PURE && nativeTake && !checkIteratorClosingOnEarlyError(RangeError, nativeTake, -1);
-var FORCED = IS_PURE || !nativeTake || NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
-
 // `Iterator.prototype.take` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.take
-$({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || takeWithoutClosingOnEarlyError }, {
   take: function take(limit) {
     anObject(this);
     var remaining;
@@ -39,7 +35,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
       iteratorClose(this, 'throw', error);
     }
 
-    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeTake, this, remaining);
+    if (takeWithoutClosingOnEarlyError) return call(takeWithoutClosingOnEarlyError, this, remaining);
 
     return new IteratorProxy(getIteratorDirect(this), {
       remaining: remaining

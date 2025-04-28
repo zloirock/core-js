@@ -8,8 +8,9 @@ var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorClose = require('../internals/iterator-close');
 var IS_PURE = require('../internals/is-pure');
-var globalThis = require('../internals/global-this');
-var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
+
+var flatMapWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('flatMap', TypeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -33,14 +34,9 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-var Iterator = globalThis.Iterator;
-var nativeFlatMap = Iterator && Iterator.prototype && Iterator.prototype.flatMap;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFlatMap && !checkIteratorClosingOnEarlyError(TypeError, nativeFlatMap, null);
-var FORCED = IS_PURE || !nativeFlatMap || NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
-
 // `Iterator.prototype.flatMap` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.flatmap
-$({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || flatMapWithoutClosingOnEarlyError }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
     try {
@@ -49,7 +45,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
       iteratorClose(this, 'throw', error);
     }
 
-    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeFlatMap, this, mapper);
+    if (flatMapWithoutClosingOnEarlyError) return call(flatMapWithoutClosingOnEarlyError, this, mapper);
 
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: mapper,

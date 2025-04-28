@@ -8,8 +8,9 @@ var createIteratorProxy = require('../internals/iterator-create-proxy');
 var callWithSafeIterationClosing = require('../internals/call-with-safe-iteration-closing');
 var IS_PURE = require('../internals/is-pure');
 var iteratorClose = require('../internals/iterator-close');
-var globalThis = require('../internals/global-this');
-var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
+
+var filterWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('filter', TypeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -25,14 +26,9 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 });
 
-var Iterator = globalThis.Iterator;
-var nativeFilter = Iterator && Iterator.prototype && Iterator.prototype.filter;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeFilter && !checkIteratorClosingOnEarlyError(TypeError, nativeFilter, null);
-var FORCED = IS_PURE || !nativeFilter || NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR;
-
 // `Iterator.prototype.filter` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.filter
-$({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || filterWithoutClosingOnEarlyError }, {
   filter: function filter(predicate) {
     anObject(this);
     try {
@@ -41,7 +37,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
       iteratorClose(this, 'throw', error);
     }
 
-    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeFilter, this, predicate);
+    if (filterWithoutClosingOnEarlyError) return call(filterWithoutClosingOnEarlyError, this, predicate);
 
     return new IteratorProxy(getIteratorDirect(this), {
       predicate: predicate

@@ -6,16 +6,13 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
-var globalThis = require('../internals/global-this');
-var checkIteratorClosingOnEarlyError = require('../internals/check-iterator-closing-on-early-error');
+var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
 
-var Iterator = globalThis.Iterator;
-var nativeSome = Iterator && Iterator.prototype && Iterator.prototype.some;
-var NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR = nativeSome && !checkIteratorClosingOnEarlyError(TypeError, nativeSome, null);
+var someWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('some', TypeError);
 
 // `Iterator.prototype.some` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.some
-$({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR }, {
+$({ target: 'Iterator', proto: true, real: true, forced: someWithoutClosingOnEarlyError }, {
   some: function some(predicate) {
     anObject(this);
     try {
@@ -24,7 +21,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: NATIVE_METHOD_WITHOUT_C
       iteratorClose(this, 'throw', error);
     }
 
-    if (NATIVE_METHOD_WITHOUT_CLOSING_ON_EARLY_ERROR) return call(nativeSome, this, predicate);
+    if (someWithoutClosingOnEarlyError) return call(someWithoutClosingOnEarlyError, this, predicate);
 
     var record = getIteratorDirect(this);
     var counter = 0;
