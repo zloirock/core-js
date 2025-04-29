@@ -1,4 +1,4 @@
-// type: proposals/map-upsert.d.ts
+// types: proposals/map-upsert
 'use strict';
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
