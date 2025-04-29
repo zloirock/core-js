@@ -1,4 +1,4 @@
-// type: proposals/collection-of-from.d.ts
+// types: proposals/collection-of-from
 'use strict';
 var $ = require('../internals/export');
 var SetHelpers = require('../internals/set-helpers');

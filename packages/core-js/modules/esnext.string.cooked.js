@@ -1,4 +1,4 @@
-// type: proposals/string-cooked.d.ts
+// types: proposals/string-cooked
 'use strict';
 var $ = require('../internals/export');
 var cooked = require('../internals/string-cooked');
