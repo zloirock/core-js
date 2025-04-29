@@ -7,10 +7,9 @@ const allModulesSet = new Set(modules);
 
 const MODULE_PATH = /\/(?<path>(?:internals|modules)\/[\d\-.a-z]+)$/;
 const DIRECTIVE = /^ *\/\/ @dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
-const TYPES_DIRECTIVE = /^ *\/\/ type: (?<type>[\d\-./a-z]+)$/gm;
+const TYPES_DIRECTIVE = /^ *\/\/ types: (?<types>[\d\-./a-z]+)$/gm;
 
-const dependenciesCache = new Map();
-const typesCache = new Map();
+const cache = new Map();
 
 function unique(array) {
   return [...new Set(array)];
@@ -31,39 +30,40 @@ function normalizeModulePath(unnormalizedPath) {
 }
 
 async function getSetOfAllDependenciesForModule(path, stack = new Set()) {
-  if (dependenciesCache.has(path)) return dependenciesCache.get(path);
+  if (cache.has(path)) return cache.get(path);
   if (stack.has(path)) throw new Error(red(`Circular dependency: ${ cyan(path) }`));
   stack.add(path);
   const module = String(await fs.readFile(`./packages/core-js/${ path }.js`));
   const directDependencies = konan(module).strings.map(normalizeModulePath);
   const declaredDependencies = [...module.matchAll(DIRECTIVE)].map(it => normalizeModulePath(it.groups.module));
   const dependencies = unique([...directDependencies, ...declaredDependencies]);
-  const result = new Set([path]);
+  const paths = new Set([path]);
+  const types = new Set();
+  for (const it of module.matchAll(TYPES_DIRECTIVE)) {
+    types.add(it.groups.types);
+  }
   for (const dependency of dependencies) {
     const dependenciesOfDependency = await getSetOfAllDependenciesForModule(dependency, new Set(stack));
-    dependenciesOfDependency.forEach(it => result.add(it));
+    dependenciesOfDependency.dependencies.forEach(it => paths.add(it));
   }
-  dependenciesCache.set(path, result);
+  const result = {
+    dependencies: paths,
+    types,
+  };
+  cache.set(path, result);
   return result;
 }
 
 export async function getListOfDependencies(paths) {
   const dependencies = [];
+  const types = [];
   for (const module of paths.map(normalizeModulePath)) {
-    dependencies.push(...await getSetOfAllDependenciesForModule(module));
+    const result = await getSetOfAllDependenciesForModule(module);
+    dependencies.push(...result.dependencies);
+    types.push(...result.types);
   }
-  return sort(unique(dependencies).filter(it => it.startsWith('modules/')).map(it => it.slice(8)));
-}
-
-export async function getListOfTypes(modulePaths) {
-  if (typesCache.has(modulePaths)) return typesCache.get(modulePaths);
-  const typesSet = new Set();
-  for (const modulePath of modulePaths) {
-    const module = String(await fs.readFile(`./packages/core-js/modules/${ modulePath }.js`));
-    [...module.matchAll(TYPES_DIRECTIVE)].map(it => typesSet.add(it.groups.type));
-  }
-  const types = Array.from(typesSet);
-  typesCache.set(modulePaths, types);
-
-  return types;
+  return {
+    dependencies: sort(unique(dependencies).filter(it => it.startsWith('modules/')).map(it => it.slice(8))),
+    types: unique(types),
+  };
 }
