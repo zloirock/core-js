@@ -1,4 +1,4 @@
-import { getListOfDependencies, getListOfTypes, sort } from './get-dependencies.mjs';
+import { getListOfDependencies, sort } from './get-dependencies.mjs';
 import { features, proposals } from './entries-definitions.mjs';
 import { $proposal, $path, wrapDts, wrapEntry } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
@@ -81,10 +81,10 @@ async function buildEntry(entry, options) {
 
   const level = entry.split('/').length - 1;
 
-  modules = await getListOfDependencies(modules);
-  if (filter) modules = modules.filter(it => filter.has(it));
+  const { dependencies, types } = await getListOfDependencies(modules);
+  modules = dependencies;
 
-  const types = await getListOfTypes(modules, level);
+  if (filter) modules = modules.filter(it => filter.has(it));
 
   const tpl = template({ ...options, modules, rawModules, level, entry, types });
 
