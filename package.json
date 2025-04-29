@@ -54,6 +54,7 @@
     "test-builder": "npm run zxi tests/builder/builder.mjs",
     "test-compat-data": "npm run zxi tests/compat-data/index.mjs",
     "test-compat-tools": "npm run zxi tests/compat-tools/index.mjs",
+    "test-templates": "npm run zxi tests/build-entries/templates.mjs",
     "test-type-definitions": "npm run zxi time cd tests/type-definitions/runner.mjs",
     "test262": "npm run zxi time cd tests/test262/runner.mjs",
     "refresh": "UPDATE_DEPENDENCIES=1 npm run prepare-monorepo && npm run test-raw",
