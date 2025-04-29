@@ -1,4 +1,4 @@
-// type: proposals/async-iterator-helpers.d.ts
+// types: proposals/async-iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var anInstance = require('../internals/an-instance');

@@ -1,4 +1,4 @@
-// type: proposals/explicit-resource-management.d.ts
+// types: proposals/explicit-resource-management
 'use strict';
 // https://tc39.es/ecma262/#sec-disposablestack-objects
 var $ = require('../internals/export');
