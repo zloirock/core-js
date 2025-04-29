@@ -1,4 +1,4 @@
-// type: proposals/json-parse-with-source.d.ts
+// types: proposals/json-parse-with-source
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
