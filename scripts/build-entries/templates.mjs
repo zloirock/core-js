@@ -54,9 +54,8 @@ export const $virtualIterator = p => ({
     module.exports = getIteratorMethod(${ p.source });
   `,
   dts: dedent`
-    // todo check
-    declare const it: typeof Symbol.iterator;
-    export = it;
+    declare const method: typeof Array.prototype[typeof Symbol.iterator];
+    export = method;
   `,
 });
 
@@ -69,7 +68,10 @@ export const $prototype = p => ({
     module.exports = entryUnbind('${ p.namespace }', '${ p.name }');
   `,
   dts: dedent`
-    declare const method: typeof ${ p.namespace }.prototype.${ p.name };
+    declare const method: (
+      thisArg: any,
+      ...args: Parameters<typeof ${ p.namespace }.prototype.${ p.name }>
+    ) => ReturnType<typeof ${ p.namespace }.prototype.${ p.name }>;
     export = method;
   `,
 });
@@ -84,9 +86,8 @@ export const $prototypeIterator = p => ({
     module.exports = uncurryThis(getIteratorMethod(${ p.source }));
   `,
   dts: dedent`
-    // todo check
-    declare const it: typeof Symbol.iterator;
-    export = it;
+    declare const method: typeof Array.prototype[typeof Symbol.iterator];
+    export = method;
   `,
 });
 
@@ -120,7 +121,10 @@ export const $staticWithContext = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof ${ p.namespace }.${ p.name };
+    declare const method: (
+      this: Function | void,
+      ...args: Parameters<typeof ${ p.namespace }.${ p.name }>
+    ) => ReturnType<typeof ${ p.namespace }.${ p.name }>;
     export = method;
   `,
 });
@@ -166,7 +170,7 @@ export const $helper = p => ({
   `,
   dts: dedent`
     // todo implement in the future
-    declare const helper: any
+    declare const helper: (arg: NonNullable<any>) => any;
     export = helper;
   `,
 });
@@ -199,7 +203,7 @@ export const $instanceArray = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof Array.prototype.${ p.name } | any;
+    declare const method: (arg: NonNullable<any>) => any;
     export = method;
   `,
 });
@@ -219,7 +223,7 @@ export const $instanceString = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof String.prototype.${ p.name } | any;
+    declare const method: (arg: NonNullable<any>) => any;
     export = method;
   `,
 });
@@ -239,7 +243,7 @@ export const $instanceFunction = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof Function.prototype.${ p.name } | any;
+    declare const method: (arg: NonNullable<any>) => any;
     export = method;
   `,
 });
@@ -265,7 +269,7 @@ export const $instanceDOMIterables = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof Array.prototype.${ p.name } | any;
+    declare const method: (arg: NonNullable<any>) => any;
     export = method;
   `,
 });
@@ -288,7 +292,7 @@ export const $instanceArrayString = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof Array.prototype.${ p.name } | String.prototype.${ p.name } | any;
+    declare const method: (arg: NonNullable<any>) => any;
     export = method;
   `,
 });
@@ -317,7 +321,7 @@ export const $instanceArrayDOMIterables = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof Array.prototype.${ p.name } | any;
+    declare const method: (arg: NonNullable<any>) => any;
     export = method;
   `,
 });
@@ -336,7 +340,7 @@ export const $instanceRegExpFlags = p => ({
     };
   `,
   dts: dedent`
-    declare const method: typeof RegExp.prototype.${ p.name };
+    declare const method: (arg: NonNullable<any>) => any;
     export = method;
   `,
 });
