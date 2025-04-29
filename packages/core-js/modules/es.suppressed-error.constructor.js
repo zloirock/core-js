@@ -1,4 +1,4 @@
-// type: proposals/explicit-resource-management.d.ts
+// types: proposals/explicit-resource-management
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
