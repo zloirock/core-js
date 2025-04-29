@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.42.0 - 2025.04.30](https://github.com/zloirock/core-js/releases/tag/v3.42.0)
+- Changes [v3.41.0...v3.42.0](https://github.com/zloirock/core-js/compare/v3.41.0...v3.42.0) (142 commits)
 - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
   - Moved to stage 2.7, [April 2025 TC39 meeting](https://x.com/robpalmer2/status/1911882240109261148)
   - Validation order of `WeakMap.prototype.getOrInsertComputed` updated following [tc39/proposal-upsert#79](https://github.com/tc39/proposal-upsert/pull/79)

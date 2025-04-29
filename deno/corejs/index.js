@@ -1,7 +1,7 @@
 /**
- * core-js 3.41.0
+ * core-js 3.42.0
  * © 2014-2025 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.41.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.42.0/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -112,13 +112,13 @@ __webpack_require__(128);
 __webpack_require__(136);
 __webpack_require__(137);
 __webpack_require__(141);
-__webpack_require__(148);
 __webpack_require__(149);
-__webpack_require__(151);
+__webpack_require__(150);
 __webpack_require__(152);
-__webpack_require__(154);
+__webpack_require__(153);
 __webpack_require__(155);
 __webpack_require__(156);
+__webpack_require__(157);
 __webpack_require__(158);
 __webpack_require__(159);
 __webpack_require__(160);
@@ -293,21 +293,21 @@ __webpack_require__(460);
 __webpack_require__(461);
 __webpack_require__(462);
 __webpack_require__(463);
-__webpack_require__(464);
-__webpack_require__(467);
+__webpack_require__(465);
 __webpack_require__(468);
 __webpack_require__(469);
 __webpack_require__(470);
-__webpack_require__(473);
+__webpack_require__(471);
 __webpack_require__(474);
 __webpack_require__(475);
-__webpack_require__(479);
+__webpack_require__(476);
 __webpack_require__(480);
 __webpack_require__(481);
-__webpack_require__(483);
+__webpack_require__(482);
 __webpack_require__(484);
 __webpack_require__(485);
-module.exports = __webpack_require__(486);
+__webpack_require__(486);
+module.exports = __webpack_require__(487);
 
 
 /***/ }),
@@ -1042,10 +1042,10 @@ var SHARED = '__core-js_shared__';
 var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, {});
 
 (store.versions || (store.versions = [])).push({
-  version: '3.41.0',
+  version: '3.42.0',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2025 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.41.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.42.0/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -3824,8 +3824,12 @@ var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
 var notANaN = __webpack_require__(143);
 var toPositiveInteger = __webpack_require__(144);
+var iteratorClose = __webpack_require__(98);
 var createIteratorProxy = __webpack_require__(145);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
 var IS_PURE = __webpack_require__(35);
+
+var dropWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('drop', RangeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -3844,10 +3848,18 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.drop` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.drop
-$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || dropWithoutClosingOnEarlyError }, {
   drop: function drop(limit) {
     anObject(this);
-    var remaining = toPositiveInteger(notANaN(+limit));
+    var remaining;
+    try {
+      remaining = toPositiveInteger(notANaN(+limit));
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (dropWithoutClosingOnEarlyError) return call(dropWithoutClosingOnEarlyError, this, remaining);
+
     return new IteratorProxy(getIteratorDirect(this), {
       remaining: remaining
     });
@@ -4022,25 +4034,28 @@ module.exports = function (value, done) {
 
 "use strict";
 
-var $ = __webpack_require__(2);
-var iterate = __webpack_require__(91);
-var aCallable = __webpack_require__(29);
-var anObject = __webpack_require__(45);
-var getIteratorDirect = __webpack_require__(142);
+var globalThis = __webpack_require__(3);
 
-// `Iterator.prototype.every` method
-// https://tc39.es/ecma262/#sec-iterator.prototype.every
-$({ target: 'Iterator', proto: true, real: true }, {
-  every: function every(predicate) {
-    anObject(this);
-    aCallable(predicate);
-    var record = getIteratorDirect(this);
-    var counter = 0;
-    return !iterate(record, function (value, stop) {
-      if (!predicate(value, counter++)) return stop();
-    }, { IS_RECORD: true, INTERRUPTED: true }).stopped;
+// https://github.com/tc39/ecma262/pull/3467
+module.exports = function (METHOD_NAME, ExpectedError) {
+  var Iterator = globalThis.Iterator;
+  var IteratorPrototype = Iterator && Iterator.prototype;
+  var method = IteratorPrototype && IteratorPrototype[METHOD_NAME];
+
+  var CLOSED = false;
+
+  if (method) try {
+    method.call({
+      next: function () { return { done: true }; },
+      'return': function () { CLOSED = true; }
+    }, -1);
+  } catch (error) {
+    // https://bugs.webkit.org/show_bug.cgi?id=291195
+    if (!(error instanceof ExpectedError)) CLOSED = false;
   }
-});
+
+  if (!CLOSED) return method;
+};
 
 
 /***/ }),
@@ -4051,12 +4066,55 @@ $({ target: 'Iterator', proto: true, real: true }, {
 
 var $ = __webpack_require__(2);
 var call = __webpack_require__(7);
+var iterate = __webpack_require__(91);
+var aCallable = __webpack_require__(29);
+var anObject = __webpack_require__(45);
+var getIteratorDirect = __webpack_require__(142);
+var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+
+var everyWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('every', TypeError);
+
+// `Iterator.prototype.every` method
+// https://tc39.es/ecma262/#sec-iterator.prototype.every
+$({ target: 'Iterator', proto: true, real: true, forced: everyWithoutClosingOnEarlyError }, {
+  every: function every(predicate) {
+    anObject(this);
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (everyWithoutClosingOnEarlyError) return call(everyWithoutClosingOnEarlyError, this, predicate);
+
+    var record = getIteratorDirect(this);
+    var counter = 0;
+    return !iterate(record, function (value, stop) {
+      if (!predicate(value, counter++)) return stop();
+    }, { IS_RECORD: true, INTERRUPTED: true }).stopped;
+  }
+});
+
+
+/***/ }),
+/* 150 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+var $ = __webpack_require__(2);
+var call = __webpack_require__(7);
 var aCallable = __webpack_require__(29);
 var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
 var createIteratorProxy = __webpack_require__(145);
-var callWithSafeIterationClosing = __webpack_require__(150);
+var callWithSafeIterationClosing = __webpack_require__(151);
 var IS_PURE = __webpack_require__(35);
+var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+
+var filterWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('filter', TypeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -4074,10 +4132,17 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.filter` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.filter
-$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || filterWithoutClosingOnEarlyError }, {
   filter: function filter(predicate) {
     anObject(this);
-    aCallable(predicate);
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (filterWithoutClosingOnEarlyError) return call(filterWithoutClosingOnEarlyError, this, predicate);
+
     return new IteratorProxy(getIteratorDirect(this), {
       predicate: predicate
     });
@@ -4086,7 +4151,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
 
 
 /***/ }),
-/* 150 */
+/* 151 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -4105,23 +4170,35 @@ module.exports = function (iterator, fn, value, ENTRIES) {
 
 
 /***/ }),
-/* 151 */
+/* 152 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 var $ = __webpack_require__(2);
+var call = __webpack_require__(7);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(29);
 var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
+var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+
+var findWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('find', TypeError);
 
 // `Iterator.prototype.find` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.find
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: findWithoutClosingOnEarlyError }, {
   find: function find(predicate) {
     anObject(this);
-    aCallable(predicate);
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (findWithoutClosingOnEarlyError) return call(findWithoutClosingOnEarlyError, this, predicate);
+
     var record = getIteratorDirect(this);
     var counter = 0;
     return iterate(record, function (value, stop) {
@@ -4132,7 +4209,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
 
 
 /***/ }),
-/* 152 */
+/* 153 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -4142,10 +4219,13 @@ var call = __webpack_require__(7);
 var aCallable = __webpack_require__(29);
 var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
-var getIteratorFlattenable = __webpack_require__(153);
+var getIteratorFlattenable = __webpack_require__(154);
 var createIteratorProxy = __webpack_require__(145);
 var iteratorClose = __webpack_require__(98);
 var IS_PURE = __webpack_require__(35);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+
+var flatMapWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('flatMap', TypeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -4171,10 +4251,17 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.flatMap` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.flatmap
-$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || flatMapWithoutClosingOnEarlyError }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
-    aCallable(mapper);
+    try {
+      aCallable(mapper);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (flatMapWithoutClosingOnEarlyError) return call(flatMapWithoutClosingOnEarlyError, this, mapper);
+
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
       inner: null
@@ -4184,7 +4271,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
 
 
 /***/ }),
-/* 153 */
+/* 154 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -4202,23 +4289,35 @@ module.exports = function (obj, stringHandling) {
 
 
 /***/ }),
-/* 154 */
+/* 155 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 var $ = __webpack_require__(2);
+var call = __webpack_require__(7);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(29);
 var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
+var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+
+var forEachWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('forEach', TypeError);
 
 // `Iterator.prototype.forEach` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.foreach
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: forEachWithoutClosingOnEarlyError }, {
   forEach: function forEach(fn) {
     anObject(this);
-    aCallable(fn);
+    try {
+      aCallable(fn);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (forEachWithoutClosingOnEarlyError) return call(forEachWithoutClosingOnEarlyError, this, fn);
+
     var record = getIteratorDirect(this);
     var counter = 0;
     iterate(record, function (value) {
@@ -4229,7 +4328,7 @@ $({ target: 'Iterator', proto: true, real: true }, {
 
 
 /***/ }),
-/* 155 */
+/* 156 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -4240,7 +4339,7 @@ var toObject = __webpack_require__(38);
 var isPrototypeOf = __webpack_require__(23);
 var IteratorPrototype = __webpack_require__(140).IteratorPrototype;
 var createIteratorProxy = __webpack_require__(145);
-var getIteratorFlattenable = __webpack_require__(153);
+var getIteratorFlattenable = __webpack_require__(154);
 var IS_PURE = __webpack_require__(35);
 
 var IteratorProxy = createIteratorProxy(function () {
@@ -4260,34 +4359,23 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
 
 
 /***/ }),
-/* 156 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-var $ = __webpack_require__(2);
-var map = __webpack_require__(157);
-var IS_PURE = __webpack_require__(35);
-
-// `Iterator.prototype.map` method
-// https://tc39.es/ecma262/#sec-iterator.prototype.map
-$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
-  map: map
-});
-
-
-/***/ }),
 /* 157 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
+var $ = __webpack_require__(2);
 var call = __webpack_require__(7);
 var aCallable = __webpack_require__(29);
 var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
 var createIteratorProxy = __webpack_require__(145);
-var callWithSafeIterationClosing = __webpack_require__(150);
+var callWithSafeIterationClosing = __webpack_require__(151);
+var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+var IS_PURE = __webpack_require__(35);
+
+var mapWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('map', TypeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -4297,14 +4385,23 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.prototype.map` method
-// https://github.com/tc39/proposal-iterator-helpers
-module.exports = function map(mapper) {
-  anObject(this);
-  aCallable(mapper);
-  return new IteratorProxy(getIteratorDirect(this), {
-    mapper: mapper
-  });
-};
+// https://tc39.es/ecma262/#sec-iterator.prototype.map
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || mapWithoutClosingOnEarlyError }, {
+  map: function map(mapper) {
+    anObject(this);
+    try {
+      aCallable(mapper);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (mapWithoutClosingOnEarlyError) return call(mapWithoutClosingOnEarlyError, this, mapper);
+
+    return new IteratorProxy(getIteratorDirect(this), {
+      mapper: mapper
+    });
+  }
+});
 
 
 /***/ }),
@@ -4318,18 +4415,38 @@ var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(29);
 var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
+var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+var apply = __webpack_require__(67);
+var fails = __webpack_require__(6);
 
 var $TypeError = TypeError;
 
+// https://bugs.webkit.org/show_bug.cgi?id=291651
+var FAILS_ON_INITIAL_UNDEFINED = fails(function () {
+  // eslint-disable-next-line es/no-iterator-prototype-reduce, es/no-array-prototype-keys, array-callback-return -- required for testing
+  [].keys().reduce(function () { /* empty */ }, undefined);
+});
+
+var reduceWithoutClosingOnEarlyError = !FAILS_ON_INITIAL_UNDEFINED && iteratorHelperWithoutClosingOnEarlyError('reduce', $TypeError);
+
 // `Iterator.prototype.reduce` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.reduce
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: FAILS_ON_INITIAL_UNDEFINED || reduceWithoutClosingOnEarlyError }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
-    aCallable(reducer);
-    var record = getIteratorDirect(this);
+    try {
+      aCallable(reducer);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
     var noInitial = arguments.length < 2;
     var accumulator = noInitial ? undefined : arguments[1];
+    if (reduceWithoutClosingOnEarlyError) {
+      return apply(reduceWithoutClosingOnEarlyError, this, noInitial ? [reducer] : [reducer, accumulator]);
+    }
+    var record = getIteratorDirect(this);
     var counter = 0;
     iterate(record, function (value) {
       if (noInitial) {
@@ -4353,17 +4470,29 @@ $({ target: 'Iterator', proto: true, real: true }, {
 "use strict";
 
 var $ = __webpack_require__(2);
+var call = __webpack_require__(7);
 var iterate = __webpack_require__(91);
 var aCallable = __webpack_require__(29);
 var anObject = __webpack_require__(45);
 var getIteratorDirect = __webpack_require__(142);
+var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
+
+var someWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('some', TypeError);
 
 // `Iterator.prototype.some` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.some
-$({ target: 'Iterator', proto: true, real: true }, {
+$({ target: 'Iterator', proto: true, real: true, forced: someWithoutClosingOnEarlyError }, {
   some: function some(predicate) {
     anObject(this);
-    aCallable(predicate);
+    try {
+      aCallable(predicate);
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (someWithoutClosingOnEarlyError) return call(someWithoutClosingOnEarlyError, this, predicate);
+
     var record = getIteratorDirect(this);
     var counter = 0;
     return iterate(record, function (value, stop) {
@@ -4387,7 +4516,10 @@ var notANaN = __webpack_require__(143);
 var toPositiveInteger = __webpack_require__(144);
 var createIteratorProxy = __webpack_require__(145);
 var iteratorClose = __webpack_require__(98);
+var iteratorHelperWithoutClosingOnEarlyError = __webpack_require__(148);
 var IS_PURE = __webpack_require__(35);
+
+var takeWithoutClosingOnEarlyError = !IS_PURE && iteratorHelperWithoutClosingOnEarlyError('take', RangeError);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -4402,10 +4534,18 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.take` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.take
-$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE || takeWithoutClosingOnEarlyError }, {
   take: function take(limit) {
     anObject(this);
-    var remaining = toPositiveInteger(notANaN(+limit));
+    var remaining;
+    try {
+      remaining = toPositiveInteger(notANaN(+limit));
+    } catch (error) {
+      iteratorClose(this, 'throw', error);
+    }
+
+    if (takeWithoutClosingOnEarlyError) return call(takeWithoutClosingOnEarlyError, this, remaining);
+
     return new IteratorProxy(getIteratorDirect(this), {
       remaining: remaining
     });
@@ -4458,6 +4598,7 @@ var get = MapHelpers.get;
 var set = MapHelpers.set;
 var push = uncurryThis([].push);
 
+// https://bugs.webkit.org/show_bug.cgi?id=271524
 var DOES_NOT_WORK_WITH_PRIMITIVES = IS_PURE || fails(function () {
   return Map.groupBy('ab', function (it) {
     return it;
@@ -4588,6 +4729,7 @@ var nativeGroupBy = Object.groupBy;
 var create = getBuiltIn('Object', 'create');
 var push = uncurryThis([].push);
 
+// https://bugs.webkit.org/show_bug.cgi?id=271524
 var DOES_NOT_WORK_WITH_PRIMITIVES = !nativeGroupBy || fails(function () {
   return nativeGroupBy('ab', function (it) {
     return it;
@@ -6555,8 +6697,10 @@ module.exports = function (name, callback) {
   try {
     new Set()[name](createSetLike(0));
     try {
-      // late spec change, early WebKit ~ Safari 17.0 beta implementation does not pass it
+      // late spec change, early WebKit ~ Safari 17 implementation does not pass it
       // https://github.com/tc39/proposal-set-methods/pull/88
+      // also covered engines with
+      // https://bugs.webkit.org/show_bug.cgi?id=272679
       new Set()[name](createSetLike(-1));
       return false;
     } catch (error2) {
@@ -6946,7 +7090,7 @@ var call = __webpack_require__(7);
 var uncurryThis = __webpack_require__(13);
 var requireObjectCoercible = __webpack_require__(15);
 var isCallable = __webpack_require__(20);
-var isNullOrUndefined = __webpack_require__(16);
+var isObject = __webpack_require__(19);
 var isRegExp = __webpack_require__(237);
 var toString = __webpack_require__(76);
 var getMethod = __webpack_require__(28);
@@ -6970,7 +7114,7 @@ $({ target: 'String', proto: true }, {
     var IS_REG_EXP, flags, replacer, string, searchString, functionalReplace, searchLength, advanceBy, position, replacement;
     var endOfLastMatch = 0;
     var result = '';
-    if (!isNullOrUndefined(searchValue)) {
+    if (isObject(searchValue)) {
       IS_REG_EXP = isRegExp(searchValue);
       if (IS_REG_EXP) {
         flags = toString(requireObjectCoercible(getRegExpFlags(searchValue)));
@@ -7785,6 +7929,7 @@ var create = __webpack_require__(87);
 var getMethod = __webpack_require__(28);
 var defineBuiltIns = __webpack_require__(146);
 var InternalStateModule = __webpack_require__(50);
+var iteratorClose = __webpack_require__(98);
 var getBuiltIn = __webpack_require__(22);
 var AsyncIteratorPrototype = __webpack_require__(257);
 var createIterResultObject = __webpack_require__(147);
@@ -7795,11 +7940,21 @@ var ASYNC_FROM_SYNC_ITERATOR = 'AsyncFromSyncIterator';
 var setInternalState = InternalStateModule.set;
 var getInternalState = InternalStateModule.getterFor(ASYNC_FROM_SYNC_ITERATOR);
 
-var asyncFromSyncIteratorContinuation = function (result, resolve, reject) {
+var asyncFromSyncIteratorContinuation = function (result, resolve, reject, syncIterator, closeOnRejection) {
   var done = result.done;
   Promise.resolve(result.value).then(function (value) {
     resolve(createIterResultObject(value, done));
-  }, reject);
+  }, function (error) {
+    if (!done && closeOnRejection) {
+      try {
+        iteratorClose(syncIterator, 'throw', error);
+      } catch (error2) {
+        error = error2;
+      }
+    }
+
+    reject(error);
+  });
 };
 
 var AsyncFromSyncIterator = function AsyncIterator(iteratorRecord) {
@@ -7812,7 +7967,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
     var state = getInternalState(this);
     return new Promise(function (resolve, reject) {
       var result = anObject(call(state.next, state.iterator));
-      asyncFromSyncIteratorContinuation(result, resolve, reject);
+      asyncFromSyncIteratorContinuation(result, resolve, reject, state.iterator, true);
     });
   },
   'return': function () {
@@ -7821,7 +7976,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
       var $return = getMethod(iterator, 'return');
       if ($return === undefined) return resolve(createIterResultObject(undefined, true));
       var result = anObject(call($return, iterator));
-      asyncFromSyncIteratorContinuation(result, resolve, reject);
+      asyncFromSyncIteratorContinuation(result, resolve, reject, iterator);
     });
   }
 });
@@ -9028,7 +9183,6 @@ var notANaN = __webpack_require__(143);
 var toPositiveInteger = __webpack_require__(144);
 var createAsyncIteratorProxy = __webpack_require__(283);
 var createIterResultObject = __webpack_require__(147);
-var IS_PURE = __webpack_require__(35);
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
@@ -9061,7 +9215,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.drop` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   drop: function drop(limit) {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
@@ -9083,7 +9237,7 @@ var $every = __webpack_require__(258).every;
 
 // `AsyncIterator.prototype.every` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   every: function every(predicate) {
     return $every(this, predicate);
   }
@@ -9105,7 +9259,6 @@ var getIteratorDirect = __webpack_require__(142);
 var createAsyncIteratorProxy = __webpack_require__(283);
 var createIterResultObject = __webpack_require__(147);
 var closeAsyncIteration = __webpack_require__(259);
-var IS_PURE = __webpack_require__(35);
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
@@ -9153,7 +9306,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.filter` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   filter: function filter(predicate) {
     anObject(this);
     aCallable(predicate);
@@ -9175,7 +9328,7 @@ var $find = __webpack_require__(258).find;
 
 // `AsyncIterator.prototype.find` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   find: function find(predicate) {
     return $find(this, predicate);
   }
@@ -9198,7 +9351,6 @@ var createAsyncIteratorProxy = __webpack_require__(283);
 var createIterResultObject = __webpack_require__(147);
 var getAsyncIteratorFlattenable = __webpack_require__(290);
 var closeAsyncIteration = __webpack_require__(259);
-var IS_PURE = __webpack_require__(35);
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
@@ -9265,7 +9417,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.flatMap` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
     aCallable(mapper);
@@ -9325,7 +9477,7 @@ var $forEach = __webpack_require__(258).forEach;
 
 // `AsyncIterator.prototype.forEach` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   forEach: function forEach(fn) {
     return $forEach(this, fn);
   }
@@ -9344,11 +9496,10 @@ var isPrototypeOf = __webpack_require__(23);
 var getAsyncIteratorFlattenable = __webpack_require__(290);
 var AsyncIteratorPrototype = __webpack_require__(257);
 var WrapAsyncIterator = __webpack_require__(293);
-var IS_PURE = __webpack_require__(35);
 
 // `AsyncIterator.from` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', stat: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', stat: true, forced: true }, {
   from: function from(O) {
     var iteratorRecord = getAsyncIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);
     return isPrototypeOf(AsyncIteratorPrototype, iteratorRecord.iterator)
@@ -9397,11 +9548,10 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
 
 var $ = __webpack_require__(2);
 var map = __webpack_require__(282);
-var IS_PURE = __webpack_require__(35);
 
 // `AsyncIterator.prototype.map` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   map: map
 });
 
@@ -9427,7 +9577,7 @@ var $TypeError = TypeError;
 
 // `AsyncIterator.prototype.reduce` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
     aCallable(reducer);
@@ -9490,7 +9640,7 @@ var $some = __webpack_require__(258).some;
 
 // `AsyncIterator.prototype.some` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   some: function some(predicate) {
     return $some(this, predicate);
   }
@@ -9511,7 +9661,6 @@ var notANaN = __webpack_require__(143);
 var toPositiveInteger = __webpack_require__(144);
 var createAsyncIteratorProxy = __webpack_require__(283);
 var createIterResultObject = __webpack_require__(147);
-var IS_PURE = __webpack_require__(35);
 
 var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   var state = this;
@@ -9541,7 +9690,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.take` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
@@ -9563,7 +9712,7 @@ var $toArray = __webpack_require__(258).toArray;
 
 // `AsyncIterator.prototype.toArray` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'AsyncIterator', proto: true, real: true }, {
+$({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   toArray: function toArray() {
     return $toArray(this, undefined, []);
   }
@@ -11107,8 +11256,9 @@ $({ target: 'Iterator', name: 'indexed', proto: true, real: true, forced: true }
 
 "use strict";
 
+__webpack_require__(157);
 var call = __webpack_require__(7);
-var map = __webpack_require__(157);
+var map = __webpack_require__(140).IteratorPrototype.map;
 
 var callback = function (value, counter) {
   return [counter, value];
@@ -11260,11 +11410,10 @@ var anObject = __webpack_require__(45);
 var AsyncFromSyncIterator = __webpack_require__(256);
 var WrapAsyncIterator = __webpack_require__(293);
 var getIteratorDirect = __webpack_require__(142);
-var IS_PURE = __webpack_require__(35);
 
 // `Iterator.prototype.toAsync` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-$({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'Iterator', proto: true, real: true, forced: true }, {
   toAsync: function toAsync() {
     return new WrapAsyncIterator(getIteratorDirect(new AsyncFromSyncIterator(getIteratorDirect(anObject(this)))));
   }
@@ -11281,7 +11430,7 @@ var $ = __webpack_require__(2);
 var NATIVE_RAW_JSON = __webpack_require__(338);
 var isRawJSON = __webpack_require__(339);
 
-// `JSON.parse` method
+// `JSON.isRawJSON` method
 // https://tc39.es/proposal-json-parse-with-source/#sec-json.israwjson
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
@@ -11683,8 +11832,8 @@ var isWhitespace = function (it) {
   return it === ' ' || it === '\t' || it === '\n' || it === '\r';
 };
 
-// `JSON.parse` method
-// https://tc39.es/proposal-json-parse-with-source/#sec-json.israwjson
+// `JSON.rawJSON` method
+// https://tc39.es/proposal-json-parse-with-source/#sec-json.rawjson
 // https://github.com/tc39/proposal-json-parse-with-source
 $({ target: 'JSON', stat: true, forced: !NATIVE_RAW_JSON }, {
   rawJSON: function rawJSON(text) {
@@ -15111,9 +15260,18 @@ var anUint8Array = __webpack_require__(453);
 
 var Uint8Array = globalThis.Uint8Array;
 
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.setFromBase64 || !(function () {
+  var target = new Uint8Array([255, 255, 255, 255, 255]);
+  try {
+    target.setFromBase64('MjYyZg===');
+  } catch (error) {
+    return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
+  }
+})();
+
 // `Uint8Array.prototype.setFromBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64
-if (Uint8Array) $({ target: 'Uint8Array', proto: true }, {
+if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   setFromBase64: function setFromBase64(string /* , options */) {
     anUint8Array(this);
 
@@ -15396,6 +15554,7 @@ $({ target: 'WeakMap', proto: true, real: true, forced: true }, {
 var $ = __webpack_require__(2);
 var aCallable = __webpack_require__(29);
 var aWeakMap = __webpack_require__(458);
+var aWeakKey = __webpack_require__(464);
 var WeakMapHelpers = __webpack_require__(421);
 
 var get = WeakMapHelpers.get;
@@ -15407,9 +15566,9 @@ var set = WeakMapHelpers.set;
 $({ target: 'WeakMap', proto: true, real: true, forced: true }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aWeakMap(this);
+    aWeakKey(key);
     aCallable(callbackfn);
     if (has(this, key)) return get(this, key);
-    set(this, key); // key validation
     var value = callbackfn(key);
     set(this, key, value);
     return value;
@@ -15423,9 +15582,28 @@ $({ target: 'WeakMap', proto: true, real: true, forced: true }, {
 
 "use strict";
 
+var WeakMapHelpers = __webpack_require__(421);
+
+var weakmap = new WeakMapHelpers.WeakMap();
+var set = WeakMapHelpers.set;
+var remove = WeakMapHelpers.remove;
+
+module.exports = function (key) {
+  set(weakmap, key, 1);
+  remove(weakmap, key);
+  return key;
+};
+
+
+/***/ }),
+/* 465 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
 var $ = __webpack_require__(2);
-var aWeakSet = __webpack_require__(465);
-var add = __webpack_require__(466).add;
+var aWeakSet = __webpack_require__(466);
+var add = __webpack_require__(467).add;
 
 // `WeakSet.prototype.addAll` method
 // https://github.com/tc39/proposal-collection-methods
@@ -15440,12 +15618,12 @@ $({ target: 'WeakSet', proto: true, real: true, forced: true }, {
 
 
 /***/ }),
-/* 465 */
+/* 466 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
-var has = __webpack_require__(466).has;
+var has = __webpack_require__(467).has;
 
 // Perform ? RequireInternalSlot(M, [[WeakSetData]])
 module.exports = function (it) {
@@ -15455,7 +15633,7 @@ module.exports = function (it) {
 
 
 /***/ }),
-/* 466 */
+/* 467 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15475,14 +15653,14 @@ module.exports = {
 
 
 /***/ }),
-/* 467 */
+/* 468 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 var $ = __webpack_require__(2);
-var aWeakSet = __webpack_require__(465);
-var remove = __webpack_require__(466).remove;
+var aWeakSet = __webpack_require__(466);
+var remove = __webpack_require__(467).remove;
 
 // `WeakSet.prototype.deleteAll` method
 // https://github.com/tc39/proposal-collection-methods
@@ -15500,13 +15678,13 @@ $({ target: 'WeakSet', proto: true, real: true, forced: true }, {
 
 
 /***/ }),
-/* 468 */
+/* 469 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 var $ = __webpack_require__(2);
-var WeakSetHelpers = __webpack_require__(466);
+var WeakSetHelpers = __webpack_require__(467);
 var createCollectionFrom = __webpack_require__(352);
 
 // `WeakSet.from` method
@@ -15517,13 +15695,13 @@ $({ target: 'WeakSet', stat: true, forced: true }, {
 
 
 /***/ }),
-/* 469 */
+/* 470 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 var $ = __webpack_require__(2);
-var WeakSetHelpers = __webpack_require__(466);
+var WeakSetHelpers = __webpack_require__(467);
 var createCollectionOf = __webpack_require__(363);
 
 // `WeakSet.of` method
@@ -15534,7 +15712,7 @@ $({ target: 'WeakSet', stat: true, forced: true }, {
 
 
 /***/ }),
-/* 470 */
+/* 471 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15551,9 +15729,9 @@ var defineBuiltInAccessor = __webpack_require__(124);
 var hasOwn = __webpack_require__(37);
 var anInstance = __webpack_require__(138);
 var anObject = __webpack_require__(45);
-var errorToString = __webpack_require__(471);
+var errorToString = __webpack_require__(472);
 var normalizeStringArgument = __webpack_require__(75);
-var DOMExceptionConstants = __webpack_require__(472);
+var DOMExceptionConstants = __webpack_require__(473);
 var clearErrorStack = __webpack_require__(81);
 var InternalStateModule = __webpack_require__(50);
 var DESCRIPTORS = __webpack_require__(5);
@@ -15686,7 +15864,7 @@ for (var key in DOMExceptionConstants) if (hasOwn(DOMExceptionConstants, key)) {
 
 
 /***/ }),
-/* 471 */
+/* 472 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15722,7 +15900,7 @@ module.exports = INCORRECT_TO_STRING ? function toString() {
 
 
 /***/ }),
-/* 472 */
+/* 473 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15757,7 +15935,7 @@ module.exports = {
 
 
 /***/ }),
-/* 473 */
+/* 474 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15771,7 +15949,7 @@ var hasOwn = __webpack_require__(37);
 var anInstance = __webpack_require__(138);
 var inheritIfRequired = __webpack_require__(74);
 var normalizeStringArgument = __webpack_require__(75);
-var DOMExceptionConstants = __webpack_require__(472);
+var DOMExceptionConstants = __webpack_require__(473);
 var clearErrorStack = __webpack_require__(81);
 var DESCRIPTORS = __webpack_require__(5);
 var IS_PURE = __webpack_require__(35);
@@ -15832,7 +16010,7 @@ if (PolyfilledDOMExceptionPrototype.constructor !== PolyfilledDOMException) {
 
 
 /***/ }),
-/* 474 */
+/* 475 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15847,18 +16025,18 @@ setToStringTag(getBuiltIn(DOM_EXCEPTION), DOM_EXCEPTION);
 
 
 /***/ }),
-/* 475 */
+/* 476 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 // TODO: Remove this module from `core-js@4` since it's split to modules listed below
-__webpack_require__(476);
 __webpack_require__(477);
+__webpack_require__(478);
 
 
 /***/ }),
-/* 476 */
+/* 477 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15875,7 +16053,7 @@ $({ global: true, bind: true, enumerable: true, forced: globalThis.clearImmediat
 
 
 /***/ }),
-/* 477 */
+/* 478 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15883,7 +16061,7 @@ $({ global: true, bind: true, enumerable: true, forced: globalThis.clearImmediat
 var $ = __webpack_require__(2);
 var globalThis = __webpack_require__(3);
 var setTask = __webpack_require__(177).set;
-var schedulersFix = __webpack_require__(478);
+var schedulersFix = __webpack_require__(479);
 
 // https://github.com/oven-sh/bun/issues/1633
 var setImmediate = globalThis.setImmediate ? schedulersFix(setTask, false) : setTask;
@@ -15896,7 +16074,7 @@ $({ global: true, bind: true, enumerable: true, forced: globalThis.setImmediate 
 
 
 /***/ }),
-/* 478 */
+/* 479 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15934,7 +16112,7 @@ module.exports = function (scheduler, hasTimeArg) {
 
 
 /***/ }),
-/* 479 */
+/* 480 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -15982,7 +16160,7 @@ try {
 
 
 /***/ }),
-/* 480 */
+/* 481 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16524,7 +16702,7 @@ $({ global: true, enumerable: true, sham: !PROPER_STRUCTURED_CLONE_TRANSFER, for
 
 
 /***/ }),
-/* 481 */
+/* 482 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16534,7 +16712,7 @@ var getBuiltIn = __webpack_require__(22);
 var fails = __webpack_require__(6);
 var validateArgumentsLength = __webpack_require__(179);
 var toString = __webpack_require__(76);
-var USE_NATIVE_URL = __webpack_require__(482);
+var USE_NATIVE_URL = __webpack_require__(483);
 
 var URL = getBuiltIn('URL');
 
@@ -16567,7 +16745,7 @@ $({ target: 'URL', stat: true, forced: !THROWS_WITHOUT_ARGUMENTS || WRONG_ARITY 
 
 
 /***/ }),
-/* 482 */
+/* 483 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16616,7 +16794,7 @@ module.exports = !fails(function () {
 
 
 /***/ }),
-/* 483 */
+/* 484 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16625,7 +16803,7 @@ var $ = __webpack_require__(2);
 var getBuiltIn = __webpack_require__(22);
 var validateArgumentsLength = __webpack_require__(179);
 var toString = __webpack_require__(76);
-var USE_NATIVE_URL = __webpack_require__(482);
+var USE_NATIVE_URL = __webpack_require__(483);
 
 var URL = getBuiltIn('URL');
 
@@ -16646,7 +16824,7 @@ $({ target: 'URL', stat: true, forced: !USE_NATIVE_URL }, {
 
 
 /***/ }),
-/* 484 */
+/* 485 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16702,7 +16880,7 @@ if (params + '' !== 'a=2') {
 
 
 /***/ }),
-/* 485 */
+/* 486 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16737,7 +16915,7 @@ if (params.has('a', 2) || !params.has('a', undefined)) {
 
 
 /***/ }),
-/* 486 */
+/* 487 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
