@@ -47,7 +47,7 @@
   - `Iterator.prototype.{ drop, reduce, take }` methods marked as fixed in Bun 1.2.11
   - Added [NodeJS 24.0](https://github.com/nodejs/node/pull/57609) compat data mapping
   - Updated Electron 36 and added Electron 37 compat data mapping
-  - Added Opera Android [88](https://forums.opera.com/topic/83800/opera-for-android-88) and 89 compat data mapping
+  - Added Opera Android [88](https://forums.opera.com/topic/83800/opera-for-android-88) and [89](https://forums.opera.com/topic/84437/opera-for-android-89) compat data mapping
   - Added Oculus Quest Browser 37 compat data mapping
 
 ##### [3.41.0 - 2025.03.01](https://github.com/zloirock/core-js/releases/tag/v3.41.0)
