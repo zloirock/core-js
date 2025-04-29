@@ -1,4 +1,4 @@
-// type: proposals/symbol-predicates.d.ts
+// types: proposals/symbol-predicates
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
