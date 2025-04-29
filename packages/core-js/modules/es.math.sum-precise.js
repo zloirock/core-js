@@ -1,4 +1,4 @@
-// type: proposals/math-sum.d.ts
+// types: proposals/math-sum
 'use strict';
 // based on Shewchuk's algorithm for exactly floating point addition
 // adapted from https://github.com/tc39/proposal-math-sum/blob/3513d58323a1ae25560e8700aa5294500c6c9287/polyfill/polyfill.mjs
