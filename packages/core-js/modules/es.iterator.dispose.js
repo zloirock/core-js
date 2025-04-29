@@ -1,4 +1,4 @@
-// type: proposals/explicit-resource-management.d.ts
+// types: proposals/explicit-resource-management
 'use strict';
 // https://github.com/tc39/proposal-explicit-resource-management
 var call = require('../internals/function-call');
