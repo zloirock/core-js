@@ -28,7 +28,7 @@ export const $justImport = p => ({
   entry: dedent`
     ${ importModules(p) }
   `,
-  dts: '',
+  dts: '// it has no exports',
 });
 
 export const $virtual = p => ({
@@ -351,5 +351,5 @@ export const $proposal = p => ({
     // ${ p.link }
     ${ importModules(p) }
   `,
-  dts: '',
+  dts: '// it has no exports',
 });
