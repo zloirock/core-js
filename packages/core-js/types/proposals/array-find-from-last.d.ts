@@ -1,6 +1,6 @@
 // proposal stage: 4
 // https://github.com/tc39/proposal-array-find-from-last
-// https://github.com/microsoft/TypeScript/blob/069de743dbd17b47cc2fc58e1d16da5410911284/src/lib/es2023.array.d.ts#L5
+// https://github.com/microsoft/TypeScript/blob/069de743dbd17b47cc2fc58e1d16da5410911284/src/lib/es2023.array.d.ts
 interface Array<T> {
   findLast<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): S | undefined;
 
@@ -92,7 +92,7 @@ interface Float64Array {
 interface BigInt64Array {
   findLast<S extends bigint>(predicate: (value: bigint, index: number, array: this) => value is S, thisArg?: any): S | undefined;
 
-  findLast(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): number | undefined;
+  findLast(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): bigint | undefined;
 
   findLastIndex(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): number;
 }
@@ -100,7 +100,7 @@ interface BigInt64Array {
 interface BigUint64Array {
   findLast<S extends bigint>(predicate: (value: bigint, index: number, array: this) => value is S, thisArg?: any): S | undefined;
 
-  findLast(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): number | undefined;
+  findLast(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): bigint | undefined;
 
   findLastIndex(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): number;
 }
