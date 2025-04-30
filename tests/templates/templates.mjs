@@ -33,7 +33,7 @@ deepEqual(
 deepEqual(
   $virtualIterator(props),
   {
-    dts: 'declare const method: typeof source.prototype[typeof Symbol.iterator];\nexport = method;',
+    dts: 'declare const method: typeof namespace.prototype[typeof Symbol.iterator];\nexport = method;',
     entry: "require('../../modules/module1');\nrequire('../../modules/module2');\n" +
       "\nvar getIteratorMethod = require('../../internals/get-iterator-method');\n\nmodule.exports = getIteratorMethod(source);",
   },
@@ -92,3 +92,5 @@ deepEqual(
   },
   'Template $patchableStatic incorrect',
 );
+
+echo(chalk.green('templates tested'));
