@@ -25,7 +25,6 @@ var getUint16 = uncurryThis(DataView.prototype.getUint16);
 // https://tc39.es/ecma262/#sec-dataview.prototype.getfloat16
 $({ target: 'DataView', proto: true }, {
   getFloat16: function getFloat16(byteOffset /* , littleEndian */) {
-    var uint16 = getUint16(this, byteOffset, arguments.length > 1 ? arguments[1] : false);
-    return unpackFloat16(uint16);
+    return unpackFloat16(getUint16(this, byteOffset, arguments.length > 1 ? arguments[1] : false));
   }
 });

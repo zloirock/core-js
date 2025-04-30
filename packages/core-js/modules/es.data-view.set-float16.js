@@ -46,9 +46,11 @@ var setUint16 = uncurryThis(DataView.prototype.setUint16);
 // https://tc39.es/ecma262/#sec-dataview.prototype.setfloat16
 $({ target: 'DataView', proto: true }, {
   setFloat16: function setFloat16(byteOffset, value /* , littleEndian */) {
-    aDataView(this);
-    var offset = toIndex(byteOffset);
-    var bytes = packFloat16(+value);
-    return setUint16(this, offset, bytes, arguments.length > 2 ? arguments[2] : false);
+    return setUint16(
+      aDataView(this),
+      toIndex(byteOffset),
+      packFloat16(+value),
+      arguments.length > 2 ? arguments[2] : false
+    );
   }
 });
