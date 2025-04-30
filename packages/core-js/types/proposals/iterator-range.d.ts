@@ -13,7 +13,7 @@ type RangeOptionsBigInt = {
 interface IteratorConstructor {
   range(start: number, end: number, options?: number | RangeOptionsNumber): Iterator<number>;
 
-  range(start: bigint, end: bigint, options?: bigint | RangeOptionsBigInt): Iterator<bigint>;
+  range(start: bigint, end: bigint | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: bigint | RangeOptionsBigInt): Iterator<bigint>;
 }
 
 declare var Iterator: IteratorConstructor;
