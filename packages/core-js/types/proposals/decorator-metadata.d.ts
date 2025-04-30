@@ -4,6 +4,6 @@ interface SymbolConstructor {
   readonly metadata: unique symbol;
 }
 
-interface Object {
+interface Function {
   [Symbol.metadata]?: object;
 }
