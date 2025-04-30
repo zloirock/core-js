@@ -54,7 +54,7 @@ export const $virtualIterator = p => ({
     module.exports = getIteratorMethod(${ p.source });
   `,
   dts: dedent`
-    declare const method: typeof Array.prototype[typeof Symbol.iterator];
+    declare const method: typeof ${ p.namespace }.prototype[typeof Symbol.iterator];
     export = method;
   `,
 });
@@ -86,7 +86,10 @@ export const $prototypeIterator = p => ({
     module.exports = uncurryThis(getIteratorMethod(${ p.source }));
   `,
   dts: dedent`
-    declare const method: typeof Array.prototype[typeof Symbol.iterator];
+    declare const method: (
+      thisArg: any,
+      ...args: Parameters<typeof ${ p.namespace }.prototype[typeof Symbol.iterator]>
+    ) => ReturnType<typeof ${ p.namespace }.prototype[typeof Symbol.iterator]>;
     export = method;
   `,
 });

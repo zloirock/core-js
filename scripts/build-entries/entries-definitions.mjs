@@ -369,11 +369,13 @@ export const features = {
     modules: ['es.array.iterator'],
     template: $prototypeIterator,
     source: '[]',
+    namespace: 'Array',
   },
   'array/virtual/iterator': {
     modules: ['es.array.iterator'],
     template: $virtualIterator,
     source: '[]',
+    namespace: 'Array',
   },
   'array/join': {
     modules: ['es.array.join'],
@@ -2568,11 +2570,13 @@ export const features = {
     modules: ['es.string.iterator'],
     template: $prototypeIterator,
     source: "''",
+    namespace: 'String',
   },
   'string/virtual/iterator': {
     modules: ['es.string.iterator'],
     template: $virtualIterator,
     source: "''",
+    namespace: 'String',
   },
   'string/link': {
     modules: ['es.string.link'],
