@@ -29,7 +29,7 @@ function normalizeModulePath(unnormalizedPath) {
   return path.endsWith('.js') ? path.slice(0, -3) : path;
 }
 
-async function getSetOfAllDependenciesForModule(path, stack = new Set()) {
+async function getModuleMetadata(path, stack = new Set()) {
   if (cache.has(path)) return cache.get(path);
   if (stack.has(path)) throw new Error(red(`Circular dependency: ${ cyan(path) }`));
   stack.add(path);
@@ -43,8 +43,8 @@ async function getSetOfAllDependenciesForModule(path, stack = new Set()) {
     types.add(it.groups.types);
   }
   for (const dependency of dependencies) {
-    const dependenciesOfDependency = await getSetOfAllDependenciesForModule(dependency, new Set(stack));
-    dependenciesOfDependency.dependencies.forEach(it => paths.add(it));
+    const moduleMetadata = await getModuleMetadata(dependency, new Set(stack));
+    moduleMetadata.dependencies.forEach(it => paths.add(it));
   }
   const result = {
     dependencies: paths,
@@ -54,11 +54,11 @@ async function getSetOfAllDependenciesForModule(path, stack = new Set()) {
   return result;
 }
 
-export async function getListOfDependencies(paths) {
+export async function getModulesMetadata(paths) {
   const dependencies = [];
   const types = [];
   for (const module of paths.map(normalizeModulePath)) {
-    const result = await getSetOfAllDependenciesForModule(module);
+    const result = await getModuleMetadata(module);
     dependencies.push(...result.dependencies);
     types.push(...result.types);
   }
