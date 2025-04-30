@@ -5,7 +5,7 @@ interface Map<K, V> {
   getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
 }
 
-interface WeakMap<K extends object, V> {
+interface WeakMap<K extends WeakKey, V> {
   getOrInsert(key: K, value: V): V;
   getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
 }
