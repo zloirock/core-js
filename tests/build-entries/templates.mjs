@@ -33,7 +33,7 @@ deepEqual(
 deepEqual(
   $virtualIterator(props),
   {
-    dts: 'declare const method: typeof Array.prototype[typeof Symbol.iterator];\nexport = method;',
+    dts: 'declare const method: typeof source.prototype[typeof Symbol.iterator];\nexport = method;',
     entry: "require('../../modules/module1');\nrequire('../../modules/module2');\n" +
       "\nvar getIteratorMethod = require('../../internals/get-iterator-method');\n\nmodule.exports = getIteratorMethod(source);",
   },
@@ -52,7 +52,8 @@ deepEqual(
 deepEqual(
   $prototypeIterator(props),
   {
-    dts: 'declare const method: typeof Array.prototype[typeof Symbol.iterator];\nexport = method;',
+    dts: 'declare const method: (\n  thisArg: any,\n  ...args: Parameters<typeof namespace.prototype[typeof Symbol.iterator]>\n' +
+      ') => ReturnType<typeof namespace.prototype[typeof Symbol.iterator]>;\nexport = method;',
     entry: "require('../../modules/module1');\nrequire('../../modules/module2');\n" +
       "\nvar uncurryThis = require('../../internals/function-uncurry-this');\nvar getIteratorMethod = require('../../internals/get-iterator-method');\n" +
       '\nmodule.exports = uncurryThis(getIteratorMethod(source));',
