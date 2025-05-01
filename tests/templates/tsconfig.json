@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "strict": true,
+    "typeRoots": ["../../packages/**/*.d.ts", "./node_modules/@types"],
+    "noEmit": true,
+    "esModuleInterop": true,
+    "moduleResolution": "NodeNext"
+  },
+  "files": ["entries.ts"],
+  "exclude": ["node_modules"]
+}
