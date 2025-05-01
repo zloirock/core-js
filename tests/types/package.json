@@ -1,8 +1,10 @@
 {
+  "name": "test-types",
   "scripts": {
-    "test:types": "tsc"
+    "test-types": "tsc"
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
     "typescript": "^5.8.3"
   }
 }
