@@ -1,7 +1,7 @@
 // $justImport
 require('@core-js/pure/full/array-buffer/detached');
 // @ts-expect-error it has no exports
-import abd from '@core-js/pure/full/array-buffer/detached';
+import abdetach from '@core-js/pure/full/array-buffer/detached';
 
 // $virtual
 require('@core-js/pure/full/array/virtual/at').call([1, 2, 3], -2);
