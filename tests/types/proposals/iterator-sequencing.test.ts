@@ -1,9 +1,9 @@
 declare const itn1: Iterator<number>;
-declare const its1: Iterator<string>;
+declare const its1: Iterable<string>;
 declare const arrs: string[];
 declare const arrn: number[];
 declare const arrb: boolean[];
-declare const itb1: Iterator<boolean>;
+declare const itb1: Iterable<boolean>;
 
 const ri1: Iterator<number | string> = itn1.concat(its1);
 const ri2: Iterator<number | string> = itn1.concat(arrs);
