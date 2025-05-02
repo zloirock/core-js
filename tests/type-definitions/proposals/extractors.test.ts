@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const rscs1: symbol = Symbol.customExtractor;
 const rscs2: typeof Symbol.customExtractor = Symbol.customExtractor;
 

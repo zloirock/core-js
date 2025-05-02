@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 function testTypedArrayUniqueBy<T>(
   arr: { uniqueBy(resolver?: PropertyKey | ((value: T) => any)): any },
   key: PropertyKey
