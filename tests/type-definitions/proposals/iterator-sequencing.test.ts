@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 declare const itn1: Iterator<number>;
 declare const its1: Iterable<string>;
 declare const arrs: string[];

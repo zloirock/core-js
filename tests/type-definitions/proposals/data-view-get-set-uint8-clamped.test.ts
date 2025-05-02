@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 declare const dv: DataView;
 
 const rdv: number = dv.getUint8Clamped(0);

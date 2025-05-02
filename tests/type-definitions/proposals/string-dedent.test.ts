@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const rdedent1: string = String.dedent`foo\nbar`;
 const rdedent2: string = String.dedent`line1
   line2
