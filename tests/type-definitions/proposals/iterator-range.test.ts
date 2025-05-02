@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const rir1: Iterator<number> = Iterator.range(1, 10);
 Iterator.range(1, 10, 1);
 Iterator.range(1, 10, { step: 1 });
