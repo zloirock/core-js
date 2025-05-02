@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 function acceptUint8Array(v: Uint8Array) {}
 function acceptProcessMetadata(v: { read: number; written: number }) {}
 function acceptString(v: string) {}
