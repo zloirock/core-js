@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 function acceptsNumber(x: number) {}
 
 acceptsNumber(Math.sumPrecise(0.1, 0.2));

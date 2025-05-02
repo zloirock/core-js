@@ -1,13 +1,19 @@
 {
   "compilerOptions": {
     "strict": true,
-    "target": "esnext",
+    "target": "es2020",
     "module": "esnext",
     "moduleResolution": "node",
     "esModuleInterop": true,
     "noEmit": true
   },
+  "typeRoots": [
+    "../../packages/core-js/**/*.d.ts",
+    "../../packages/core-js-pure/**/*.d.ts",
+    "./node_modules/@types"
+  ],
   "include": [
-    "*.ts"
+    "*.ts",
+    "proposals/*.ts",
   ]
 }

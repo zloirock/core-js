@@ -7,6 +7,13 @@ import abdetach from '@core-js/pure/full/array-buffer/detached';
 require('@core-js/pure/full/array/virtual/at').call([1, 2, 3], -2);
 import at from '@core-js/pure/full/array/virtual/at';
 at.call([1, 2, 3], -2);
+at.apply([1, 2, 3], [-2]);
+// @ts-expect-error
+at.call([1, 2, 3], null);
+// @ts-expect-error
+at.call(-2);
+// @ts-expect-error
+at('string');
 // @ts-expect-error
 at(null, 0);
 

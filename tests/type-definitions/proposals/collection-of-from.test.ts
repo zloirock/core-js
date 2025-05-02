@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const rm: Map<number, []> = Map.from([[1, 'a'], [2, 'b']]);
 const rm2: Map<number, number> = Map.from([[1, 10], [2, 20]], (v: number, k: number) => v + k);
 Map.from([[1, 10], [2, 20]], function (this: { n: number }, v: number) { return v + this.n; }, { n: 2 });
