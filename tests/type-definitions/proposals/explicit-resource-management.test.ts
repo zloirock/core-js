@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const d: symbol = Symbol.dispose;
 const ad: symbol = Symbol.asyncDispose;
 

@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const rsymbol1: boolean = Symbol.isRegisteredSymbol(Symbol.for('foo'));
 const rsymbol2: boolean = Symbol.isRegisteredSymbol(undefined);
 const rsymbol3: boolean = Symbol.isRegisteredSymbol(Symbol('bar'));

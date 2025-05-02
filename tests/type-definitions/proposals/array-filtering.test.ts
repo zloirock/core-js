@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 function testFilterReject<TArr, TValue>(arr: TArr & { filterReject: any }, _: TValue) {
   const res: typeof arr = arr.filterReject((x: TValue) => false);
 
@@ -10,18 +12,18 @@ function testFilterReject<TArr, TValue>(arr: TArr & { filterReject: any }, _: TV
   }, { test: 'hello' });
 }
 
-testFilterReject([1,2,3], 1);
-testFilterReject(new Int8Array([1,2]), 1);
-testFilterReject(new Uint8Array([1,2]), 1);
-testFilterReject(new Uint8ClampedArray([1,2]), 1);
-testFilterReject(new Int16Array([1,2]), 1);
-testFilterReject(new Uint16Array([1,2]), 1);
-testFilterReject(new Int32Array([1,2]), 1);
-testFilterReject(new Uint32Array([1,2]), 1);
-testFilterReject(new Float32Array([1,2]), 1);
-testFilterReject(new Float64Array([1,2]), 1);
-testFilterReject(new BigInt64Array([1n,2n]), 1n);
-testFilterReject(new BigUint64Array([1n,2n]), 1n);
+testFilterReject([1, 2, 3], 1);
+testFilterReject(new Int8Array([1, 2]), 1);
+testFilterReject(new Uint8Array([1, 2]), 1);
+testFilterReject(new Uint8ClampedArray([1, 2]), 1);
+testFilterReject(new Int16Array([1, 2]), 1);
+testFilterReject(new Uint16Array([1, 2]), 1);
+testFilterReject(new Int32Array([1, 2]), 1);
+testFilterReject(new Uint32Array([1, 2]), 1);
+testFilterReject(new Float32Array([1, 2]), 1);
+testFilterReject(new Float64Array([1, 2]), 1);
+testFilterReject(new BigInt64Array([1n, 2n]), 1n);
+testFilterReject(new BigUint64Array([1n, 2n]), 1n);
 
 // @ts-expect-error
 [1,2,3].filterReject((x: string) => false);
