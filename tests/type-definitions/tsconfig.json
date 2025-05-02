@@ -14,6 +14,6 @@
   ],
   "include": [
     "*.ts",
-    "proposals/*.ts",
+    "proposals/*.ts"
   ]
 }
