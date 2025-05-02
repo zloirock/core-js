@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const e = new Error();
 const ne = { foo: 1 };
 

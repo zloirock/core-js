@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 declare const map: Map<string, number>;
 
 const a: number = map.getOrInsert('x', 42);
