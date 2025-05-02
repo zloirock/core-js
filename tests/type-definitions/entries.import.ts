@@ -5,114 +5,125 @@ import detached from '@core-js/pure/full/array-buffer/detached';
 
 // $virtual
 import at from '@core-js/pure/full/array/virtual/at';
-at.call([1, 2, 3], -2);
+const atResult1: number = at.call([1, 2, 3], -2);
 at.apply([1, 2, 3], [-2]);
 // @ts-expect-error
 at.call([1, 2, 3], null);
 // @ts-expect-error
-at.call(-2);
+at.call(123);
 // @ts-expect-error
 at('string');
 // @ts-expect-error
-at(null, 0);
+at(null);
 
 // $virtualIterator
-import avit from '@core-js/pure/full/array/virtual/iterator';
-avit.call([1]).next().value;
+import arrayVirtualIterator from '@core-js/pure/full/array/virtual/iterator';
+const aviValue1: number = arrayVirtualIterator.call([1]).next().value;
+const aviResult1: IterableIterator<number> = arrayVirtualIterator.call([1, 2, 3]);
+const aviResult2: IterableIterator<string> = arrayVirtualIterator.call(['a', 'b']);
+const aviResult3: IterableIterator<boolean> = arrayVirtualIterator.call([true, false]);
 // @ts-expect-error
-avit(1);
+arrayVirtualIterator(1);
+// @ts-expect-error
+arrayVirtualIterator.call([1, 2, 3], 1);
 
 // $prototype
-import aat from '@core-js/pure/full/array/at';
-aat([1, 2, 3], -2);
+import arrayAt from '@core-js/pure/full/array/at';
+const arrayAtResult1: number = arrayAt([1, 2, 3], -2);
+const arrayAtResult2: string = arrayAt(['a', 'b'], -2);
+const arrayAtResult3: undefined = arrayAt([], 1);
 // @ts-expect-error
-aat(1, 0, 0);
+arrayAt([1, 2], 'string');
+// @ts-expect-error
+arrayAt();
+// @ts-expect-error
+arrayAt(1, 0, 0);
 
 // $prototypeIterator
-import ait from '@core-js/pure/full/array/iterator';
-ait([]).next().value;
+import arrayIterator from '@core-js/pure/full/array/iterator';
+arrayIterator([]).next().value;
 // @ts-expect-error
-ait();
+arrayIterator();
 
 // $static
-import af from '@core-js/pure/full/array/from';
-af('qwe', (it) => it.toUpperCase(), {});
+import arrayFrom from '@core-js/pure/full/array/from';
+arrayFrom('qwe', (it) => it.toUpperCase(), {});
 // @ts-expect-error
-af(1);
+arrayFrom(1);
 // @ts-expect-error
-af('qwe', 1);
+arrayFrom('qwe', 1);
 
 // $staticWithContext
-import pas from '@core-js/pure/full/promise/all-settled';
-pas([1, 2, 3]);
+import allSettled from '@core-js/pure/full/promise/all-settled';
+allSettled([1, 2, 3]);
 // @ts-expect-error
-pas(1);
+allSettled(1);
 
 // $patchableStatic
-import js from '@core-js/pure/full/json/stringify';
-js({ a: 1, b: 2, c: 'asd'}, (_key, val) => typeof val === 'number' ? val * 2 : val, 4);
+import stringify from '@core-js/pure/full/json/stringify';
+stringify({ a: 1, b: 2, c: 'asd'}, (_key, val) => typeof val === 'number' ? val * 2 : val, 4);
 // @ts-expect-error
-js([1], 1);
+stringify([1], 1);
 
 // $namespace
-import adc from '@core-js/pure/full/async-disposable-stack/constructor';
-new adc();
+import adsConstructor from '@core-js/pure/full/async-disposable-stack/constructor';
+new adsConstructor();
 // @ts-expect-error
-adc.prototype = 1;
+adsConstructor.prototype = 1;
 
 // $helper
-import it from '@core-js/pure/full/get-iterator';
-it([]).next().value;
+import getIterator from '@core-js/pure/full/get-iterator';
+getIterator([]).next().value;
 // @ts-expect-error
-it();
+getIterator();
 
 // $path
-import ec from '@core-js/pure/full/error/constructor';
-new ec.Error('er');
+import errorConstructor from '@core-js/pure/full/error/constructor';
+new errorConstructor.Error('er');
 // @ts-expect-error
-ec();
+errorConstructor();
 
 // $instanceArray
-import ic from '@core-js/pure/full/instance/concat';
-ic({});
+import iConcat from '@core-js/pure/full/instance/concat';
+iConcat({});
 // @ts-expect-error
-ic();
+iConcat();
 
 // $instanceString
-import icp from '@core-js/pure/full/instance/code-point-at';
-icp('').call('a', 0);
+import iCodePointAt from '@core-js/pure/full/instance/code-point-at';
+iCodePointAt('').call('a', 0);
 // @ts-expect-error
-icp();
+iCodePointAt();
 
 // $instanceFunction
-import id from '@core-js/pure/full/instance/demethodize';
-id([].slice)([1, 2, 3], 1);
+import iDemethodize from '@core-js/pure/full/instance/demethodize';
+iDemethodize([].slice)([1, 2, 3], 1);
 // @ts-expect-error
-id();
+iDemethodize();
 
 // $instanceDOMIterables
-import ife from '@core-js/pure/full/instance/for-each';
-ife({});
+import iForEach from '@core-js/pure/full/instance/for-each';
+iForEach({});
 // @ts-expect-error
-ife();
+iForEach();
 
 // $instanceArrayString
-import ia from '@core-js/pure/full/instance/at';
-ia('').call('123', 2);
+import iAt from '@core-js/pure/full/instance/at';
+iAt('').call('123', 2);
 // @ts-expect-error
-ia();
+iAt();
 
 // $instanceArrayDOMIterables
-import ie from '@core-js/pure/full/instance/entries';
-ie([]).call([1, 2, 3]).next().value;
+import iEntries from '@core-js/pure/full/instance/entries';
+iEntries([]).call([1, 2, 3]).next().value;
 // @ts-expect-error
-ie();
+iEntries();
 
 // $instanceRegExpFlags
-import inf from '@core-js/pure/full/instance/flags';
-inf(/./g);
+import iFlags from '@core-js/pure/full/instance/flags';
+iFlags(/./g);
 // @ts-expect-error
-inf();
+iFlags();
 
 // $proposal
 import '@core-js/pure/proposals/accessible-object-hasownproperty';
