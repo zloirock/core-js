@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 const r: RawJSONObject = JSON.rawJSON('{"a":123}');
 
 const isr1: boolean = JSON.isRawJSON(r);
