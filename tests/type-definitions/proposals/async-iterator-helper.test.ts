@@ -1,12 +1,14 @@
+import 'core-js/full';
+
 AsyncIterator.from([1, 2, 3]);
 AsyncIterator.from(new Set([1, 2, 3]));
 AsyncIterator.from((async function* () { yield 1; yield 2; })());
 AsyncIterator.from((function* () { yield 3; })());
 AsyncIterator.from('abc');
 
-declare const ain: AsyncIterator<number>;
-declare const aio: AsyncIterator<{ x: number }>;
-declare const ais: AsyncIterator<string>;
+declare const ain: AsyncIteratorObject<number>;
+declare const aio: AsyncIteratorObject<{ x: number }>;
+declare const ais: AsyncIteratorObject<string>;
 declare const ilb: Iterable<boolean>;
 declare const is: Iterator<string>;
 declare const itn: Iterator<number>;
