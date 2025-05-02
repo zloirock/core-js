@@ -48,6 +48,7 @@ node_modules/
 /packages/core-js-pure/stage/
 /packages/core-js-pure/types/
 /packages/core-js-pure/index.js
+/packages/core-js-pure/index.d.ts
 /packages/core-js-pure/configurator.js
 /packages/core-js-pure/package.json
 /packages/core-js-pure/LICENSE
