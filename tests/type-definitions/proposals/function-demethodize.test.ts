@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 function sumTo(this: { base: number }, a: number, b: number): number {
   return this.base + a + b;
 }
