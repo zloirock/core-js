@@ -1,3 +1,5 @@
+import 'core-js/full';
+
 Array.fromAsync([1, 2, 3]);
 Array.fromAsync([Promise.resolve(1), 2, 3]);
 Array.fromAsync((async function* () { yield 1; })());
