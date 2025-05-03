@@ -264,6 +264,7 @@ const base = {
     allowShortCircuit: true,
     allowTernary: true,
     allowTaggedTemplates: true,
+    ignoreDirectives: true,
   }],
   // disallow unused labels
   'no-unused-labels': ERROR,
