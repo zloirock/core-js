@@ -29,4 +29,23 @@ QUnit.test('Set#symmetricDifference', assert => {
   assert.throws(() => symmetricDifference.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => symmetricDifference.call(undefined, [1, 2, 3]), TypeError);
   assert.throws(() => symmetricDifference.call(null, [1, 2, 3]), TypeError);
+
+  // https://github.com/WebKit/WebKit/pull/27264/files#diff-7bdbbad7ceaa222787994f2db702dd45403fa98e14d6270aa65aaf09754dcfe0R8
+  const baseSet = new Set(['a', 'b', 'c', 'd', 'e']);
+  const values = ['f', 'g', 'h', 'i', 'j'];
+  const setLike = {
+    size: values.length,
+    has() { return true; },
+    keys() {
+      let index = 0;
+      return {
+        next() {
+          const done = index >= values.length;
+          if (!baseSet.has('f')) baseSet.add('f');
+          return { done, value: values[index++] };
+        },
+      };
+    },
+  };
+  assert.deepEqual(from(baseSet.symmetricDifference(setLike)), ['a', 'b', 'c', 'd', 'e', 'g', 'h', 'i', 'j']);
 });
