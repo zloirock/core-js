@@ -2378,6 +2378,8 @@ export const data = {
     // bun: '1.1.39',
     chrome: '134',
     firefox: '138',
+    // https://github.com/nodejs/node/issues/58134
+    node: false,
   },
   'esnext.function.demethodize': {
   },
