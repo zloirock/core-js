@@ -3,6 +3,7 @@
 - Compat data improvements:
   - Added [Deno 2.3](https://github.com/denoland/deno/releases/tag/v2.3.0) compat data mapping
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked not supported in Node because of [a bug](https://github.com/nodejs/node/issues/58134)
+  - [`Float16`](https://github.com/tc39/proposal-float16array) and [Explicit resource management ](https://github.com/tc39/proposal-explicit-resource-management) marked as [not enabled by default](https://github.com/nodejs/node/pull/57609#discussion_r2072361536) in Node 24
 
 ##### [3.42.0 - 2025.04.30](https://github.com/zloirock/core-js/releases/tag/v3.42.0)
 - Changes [v3.41.0...v3.42.0](https://github.com/zloirock/core-js/compare/v3.41.0...v3.42.0) (142 commits)

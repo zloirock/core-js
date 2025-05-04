@@ -491,6 +491,8 @@ export const data = {
     chrome: '135',
     deno: '1.43',
     firefox: '129',
+    // https://github.com/nodejs/node/pull/57609#discussion_r2072361536
+    node: false,
     safari: '18.2',
   },
   'es.data-view.set-float16': {
@@ -498,6 +500,8 @@ export const data = {
     chrome: '135',
     deno: '1.43',
     firefox: '129',
+    // https://github.com/nodejs/node/pull/57609#discussion_r2072361536
+    node: false,
     safari: '18.2',
   },
   'es.array-buffer.detached': {
@@ -849,6 +853,8 @@ export const data = {
     chrome: '135',
     deno: '1.43',
     firefox: '129',
+    // https://github.com/nodejs/node/pull/57609#discussion_r2072361536
+    node: false,
     safari: '18.2',
   },
   'es.math.hypot': {
@@ -2247,6 +2253,8 @@ export const data = {
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
+    // https://github.com/nodejs/node/pull/57609#discussion_r2072361536
+    node: false,
   },
   'esnext.array.from-async': {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
@@ -2317,6 +2325,8 @@ export const data = {
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
     chrome: '136',
     deno: false,
+    // https://github.com/nodejs/node/pull/57609#discussion_r2072361536
+    node: false,
   },
   'esnext.async-iterator.constructor': {
   },
@@ -2371,6 +2381,8 @@ export const data = {
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
+    // https://github.com/nodejs/node/pull/57609#discussion_r2072361536
+    node: false,
   },
   'esnext.error.is-error': {
     // early WebKit implementation bug
@@ -2407,6 +2419,8 @@ export const data = {
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
     firefox: '135',
+    // https://github.com/nodejs/node/pull/57609#discussion_r2072361536
+    node: false,
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.drop': null,
