@@ -18,7 +18,7 @@ import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylisticJS from '@stylistic/eslint-plugin-js';
 import pluginStylisticPlus from '@stylistic/eslint-plugin-plus';
-import pluginUnicorn from 'eslint-plugin-unicorn';
+import pluginUnicorn from 'eslint-plugin-unicorn-x';
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^18.12';
@@ -1019,7 +1019,6 @@ const base = {
 
   // suggest better alternatives to some dependencies
   'depend/ban-dependencies': [ERROR, { allowed: [
-    'eslint-plugin-unicorn',
     'mkdirp', // TODO: drop from `core-js@4`
   ] }],
 };
