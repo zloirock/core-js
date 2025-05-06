@@ -54,7 +54,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         with:
-          node-version: 23
+          node-version: 24
           cache: npm
       - name: Build
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
