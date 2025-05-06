@@ -10,7 +10,7 @@ var getOwnPropertyNames = require('../internals/object-get-own-property-names').
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
-var getRegExpFlags = require('../internals/regexp-get-flags');
+var getRegExpFlagsImplementation = require('../internals/regexp-get-flags');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var proxyAccessor = require('../internals/proxy-accessor');
 var defineBuiltIn = require('../internals/define-built-in');
@@ -139,7 +139,7 @@ if (isForced('RegExp', BASE_FORCED)) {
 
     if (patternIsRegExp || isPrototypeOf(RegExpPrototype, pattern)) {
       pattern = pattern.source;
-      if (flagsAreUndefined) flags = getRegExpFlags(rawPattern);
+      if (flagsAreUndefined) flags = getRegExpFlagsImplementation(rawPattern);
     }
 
     pattern = pattern === undefined ? '' : toString(pattern);

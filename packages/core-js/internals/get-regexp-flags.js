@@ -1,7 +1,10 @@
 'use strict';
-var isRegExp = require('../internals/is-regexp');
-var regExpGetFlags = require('../internals/regexp-get-flags');
+var detectionOfCorrectnessRegexpFlags = require('./detection-of-correctness-regexp-flags');
+var isRegExp = require('./is-regexp');
+var getRegExpFlagsImplementation = require('./regexp-get-flags');
 
-module.exports = function (it) {
-  return (isRegExp(it) && !('flags' in it)) ? regExpGetFlags(it) : it.flags;
+module.exports = detectionOfCorrectnessRegexpFlags.correct ? function (it) {
+  return it.flags;
+} : function (it) {
+  return (!detectionOfCorrectnessRegexpFlags.correct && isRegExp(it)) ? getRegExpFlagsImplementation(it) : it.flags;
 };

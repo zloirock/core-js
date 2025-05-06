@@ -4,7 +4,7 @@ var defineBuiltIn = require('../internals/define-built-in');
 var anObject = require('../internals/an-object');
 var $toString = require('../internals/to-string');
 var fails = require('../internals/fails');
-var getRegExpFlags = require('../internals/regexp-get-flags');
+var getRegExpFlags = require('../internals/get-regexp-flags');
 
 var TO_STRING = 'toString';
 var RegExpPrototype = RegExp.prototype;
