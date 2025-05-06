@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- Always check regular expression flags by `flags` getter [PR](https://github.com/tc39/ecma262/pull/2791). Native methods are not fixed, only own implementation updated for:
+  - `RegExp.prototype[@@match]`
+  - `RegExp.prototype[@@replace]`
 - Compat data improvements:
   - Added [Deno 2.3](https://github.com/denoland/deno/releases/tag/v2.3.0) compat data mapping
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked not supported in Node because of [a bug](https://github.com/nodejs/node/issues/56497)
