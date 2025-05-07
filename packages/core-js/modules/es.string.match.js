@@ -3,13 +3,13 @@ var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-symbol-logic');
 var anObject = require('../internals/an-object');
-var getRegExpFlags = require('../internals/regexp-get-flags');
 var isObject = require('../internals/is-object');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var getMethod = require('../internals/get-method');
 var advanceStringIndex = require('../internals/advance-string-index');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var regExpExec = require('../internals/regexp-exec-abstract');
 
 var stringIndexOf = uncurryThis(''.indexOf);
