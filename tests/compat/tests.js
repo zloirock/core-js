@@ -1240,28 +1240,27 @@ GLOBAL.tests = {
   'es.set.difference.v2': [createSetMethodTest('difference', function (result) {
     return result.size === 0;
   }), function () {
-    const values = [2, 3];
-    const setLike = {
+    // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
+    // https://bugs.webkit.org/show_bug.cgi?id=288595
+    var values = [2];
+    var setLike = {
       size: values.length,
-      has() { return true; },
-      keys() {
-        let index = 0;
+      has: function () { return true; },
+      keys: function () {
+        var index = 0;
         return {
-          next() {
-            const done = index >= values.length;
-            if (!baseSet.has(42)) {
-              baseSet.add(42);
-            }
-            return { done, value: values[index++] };
-          },
+          next: function () {
+            var done = index >= values.length;
+            if (baseSet.has(1)) baseSet.clear();
+            return { done: done, value: values[index++] };
+          }
         };
-      },
+      }
     };
 
-    let baseSet = new Set([1, 2, 3, 4]);
-    const result = baseSet.difference(setLike);
+    var baseSet = new Set([1, 2, 3, 4]);
 
-    return result.size === 2;
+    return baseSet.difference(setLike).size === 3;
   }],
   'es.set.intersection.v2': [createSetMethodTest('intersection', function (result) {
     return result.size === 2 && result.has(1) && result.has(2);
