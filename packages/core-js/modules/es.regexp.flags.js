@@ -1,17 +1,16 @@
 'use strict';
 var DESCRIPTORS = require('../internals/descriptors');
-var detectCorrectnessOfRegExpFlags = require('../internals/detect-correctness-of-regexp-flags');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
-var regExpFlags = require('../internals/regexp-flags');
-
-var FORCED = DESCRIPTORS && !detectCorrectnessOfRegExpFlags.correct;
+var regExpFlagsDetection = require('../internals/regexp-flags-detection');
+var regExpFlagsGetterImplementation = require('../internals/regexp-flags');
 
 // `RegExp.prototype.flags` getter
 // https://tc39.es/ecma262/#sec-get-regexp.prototype.flags
-if (FORCED) {
+if (DESCRIPTORS && !regExpFlagsDetection.correct) {
   defineBuiltInAccessor(RegExp.prototype, 'flags', {
     configurable: true,
-    get: regExpFlags
+    get: regExpFlagsGetterImplementation
   });
-  detectCorrectnessOfRegExpFlags.correct = true;
+
+  regExpFlagsDetection.correct = true;
 }

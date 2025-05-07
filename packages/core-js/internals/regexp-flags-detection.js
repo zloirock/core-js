@@ -1,12 +1,11 @@
 'use strict';
-var globalThis = require('./global-this');
-var fails = require('./fails');
+var globalThis = require('../internals/global-this');
+var fails = require('../internals/fails');
 
 // babel-minify and Closure Compiler transpiles RegExp('.', 'd') -> /./d and it causes SyntaxError
 var RegExp = globalThis.RegExp;
-var RegExpPrototype = RegExp.prototype;
 
-var FLAGS_IS_CORRECT = !fails(function () {
+var FLAGS_GETTER_IS_CORRECT = !fails(function () {
   var INDICES_SUPPORT = true;
   try {
     RegExp('.', 'd');
@@ -40,9 +39,9 @@ var FLAGS_IS_CORRECT = !fails(function () {
   for (var key in pairs) addGetter(key, pairs[key]);
 
   // eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
-  var result = Object.getOwnPropertyDescriptor(RegExpPrototype, 'flags').get.call(O);
+  var result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
 
   return result !== expected || calls !== expected;
 });
 
-module.exports = { correct: FLAGS_IS_CORRECT };
+module.exports = { correct: FLAGS_GETTER_IS_CORRECT };

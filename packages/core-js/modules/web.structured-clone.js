@@ -19,7 +19,7 @@ var createProperty = require('../internals/create-property');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
-var getRegExpFlagsHelper = require('../internals/get-regexp-flags-helper');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
 var setIterate = require('../internals/set-iterate');
@@ -213,7 +213,7 @@ var structuredCloneInternal = function (value, map) {
     case 'RegExp':
       // in this block because of a Safari 14.1 bug
       // old FF does not clone regexes passed to the constructor, so get the source and flags directly
-      cloned = new RegExp(value.source, getRegExpFlagsHelper(value));
+      cloned = new RegExp(value.source, getRegExpFlags(value));
       break;
     case 'Error':
       name = value.name;
