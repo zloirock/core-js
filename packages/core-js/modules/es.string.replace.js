@@ -14,6 +14,7 @@ var requireObjectCoercible = require('../internals/require-object-coercible');
 var advanceStringIndex = require('../internals/advance-string-index');
 var getMethod = require('../internals/get-method');
 var getSubstitution = require('../internals/get-substitution');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
@@ -87,10 +88,11 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
       var functionalReplace = isCallable(replaceValue);
       if (!functionalReplace) replaceValue = toString(replaceValue);
 
-      var global = rx.global;
+      var flags = toString(getRegExpFlags(rx));
+      var global = stringIndexOf(flags, 'g') !== -1;
       var fullUnicode;
       if (global) {
-        fullUnicode = rx.unicode;
+        fullUnicode = stringIndexOf(flags, 'u') !== -1;
         rx.lastIndex = 0;
       }
 

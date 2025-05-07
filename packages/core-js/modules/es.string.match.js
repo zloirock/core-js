@@ -1,5 +1,6 @@
 'use strict';
 var call = require('../internals/function-call');
+var uncurryThis = require('../internals/function-uncurry-this');
 var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-symbol-logic');
 var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
@@ -8,7 +9,10 @@ var toString = require('../internals/to-string');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var getMethod = require('../internals/get-method');
 var advanceStringIndex = require('../internals/advance-string-index');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var regExpExec = require('../internals/regexp-exec-abstract');
+
+var stringIndexOf = uncurryThis(''.indexOf);
 
 // @@match logic
 fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNative) {
@@ -29,9 +33,11 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
 
       if (res.done) return res.value;
 
-      if (!rx.global) return regExpExec(rx, S);
+      var flags = toString(getRegExpFlags(rx));
 
-      var fullUnicode = rx.unicode;
+      if (stringIndexOf(flags, 'g') === -1) return regExpExec(rx, S);
+
+      var fullUnicode = stringIndexOf(flags, 'u') !== -1;
       rx.lastIndex = 0;
       var A = [];
       var n = 0;
