@@ -1237,9 +1237,32 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
-  'es.set.difference.v2': createSetMethodTest('difference', function (result) {
+  'es.set.difference.v2': [createSetMethodTest('difference', function (result) {
     return result.size === 0;
-  }),
+  }), function () {
+    const values = [2, 3];
+    const setLike = {
+      size: values.length,
+      has() { return true; },
+      keys() {
+        let index = 0;
+        return {
+          next() {
+            const done = index >= values.length;
+            if (!baseSet.has(42)) {
+              baseSet.add(42);
+            }
+            return { done, value: values[index++] };
+          },
+        };
+      },
+    };
+
+    let baseSet = new Set([1, 2, 3, 4]);
+    const result = baseSet.difference(setLike);
+
+    return result.size === 2;
+  }],
   'es.set.intersection.v2': [createSetMethodTest('intersection', function (result) {
     return result.size === 2 && result.has(1) && result.has(2);
   }), function () {
