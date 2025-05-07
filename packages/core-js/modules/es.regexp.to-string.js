@@ -4,7 +4,7 @@ var defineBuiltIn = require('../internals/define-built-in');
 var anObject = require('../internals/an-object');
 var $toString = require('../internals/to-string');
 var fails = require('../internals/fails');
-var getRegExpFlags = require('../internals/get-regexp-flags');
+var getRegExpFlagsHelper = require('../internals/get-regexp-flags-helper');
 
 var TO_STRING = 'toString';
 var RegExpPrototype = RegExp.prototype;
@@ -20,7 +20,7 @@ if (NOT_GENERIC || INCORRECT_NAME) {
   defineBuiltIn(RegExpPrototype, TO_STRING, function toString() {
     var R = anObject(this);
     var pattern = $toString(R.source);
-    var flags = $toString(getRegExpFlags(R));
+    var flags = $toString(getRegExpFlagsHelper(R));
     return '/' + pattern + '/' + flags;
   }, { unsafe: true });
 }

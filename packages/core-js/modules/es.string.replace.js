@@ -13,7 +13,7 @@ var toString = require('../internals/to-string');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var advanceStringIndex = require('../internals/advance-string-index');
 var getMethod = require('../internals/get-method');
-var getRegExpFlags = require('../internals/get-regexp-flags');
+var getRegExpFlagsHelper = require('../internals/get-regexp-flags-helper');
 var getSubstitution = require('../internals/get-substitution');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -88,7 +88,7 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
       var functionalReplace = isCallable(replaceValue);
       if (!functionalReplace) replaceValue = toString(replaceValue);
 
-      var flags = toString(getRegExpFlags(rx));
+      var flags = toString(getRegExpFlagsHelper(rx));
       var global = stringIndexOf(flags, 'g') !== -1;
       var fullUnicode;
       if (global) {

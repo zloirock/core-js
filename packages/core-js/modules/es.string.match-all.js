@@ -12,7 +12,7 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var classof = require('../internals/classof-raw');
 var isRegExp = require('../internals/is-regexp');
-var getRegExpFlags = require('../internals/get-regexp-flags');
+var getRegExpFlagsHelper = require('../internals/get-regexp-flags-helper');
 var getMethod = require('../internals/get-method');
 var defineBuiltIn = require('../internals/define-built-in');
 var fails = require('../internals/fails');
@@ -68,7 +68,7 @@ var $matchAll = function (string) {
   var R = anObject(this);
   var S = toString(string);
   var C = speciesConstructor(R, RegExp);
-  var flags = toString(getRegExpFlags(R));
+  var flags = toString(getRegExpFlagsHelper(R));
   var matcher, $global, fullUnicode;
   matcher = new C(C === RegExp ? R.source : R, flags);
   $global = !!~stringIndexOf(flags, 'g');
@@ -85,7 +85,7 @@ $({ target: 'String', proto: true, forced: WORKS_WITH_NON_GLOBAL_REGEX }, {
     var flags, S, matcher, rx;
     if (isObject(regexp)) {
       if (isRegExp(regexp)) {
-        flags = toString(requireObjectCoercible(getRegExpFlags(regexp)));
+        flags = toString(requireObjectCoercible(getRegExpFlagsHelper(regexp)));
         if (!~stringIndexOf(flags, 'g')) throw new $TypeError('`.matchAll` does not allow non-global regexes');
       }
       if (WORKS_WITH_NON_GLOBAL_REGEX) return nativeMatchAll(O, regexp);

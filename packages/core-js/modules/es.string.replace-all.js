@@ -8,7 +8,7 @@ var isObject = require('../internals/is-object');
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
 var getMethod = require('../internals/get-method');
-var getRegExpFlags = require('../internals/get-regexp-flags');
+var getRegExpFlagsHelper = require('../internals/get-regexp-flags-helper');
 var getSubstitution = require('../internals/get-substitution');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var IS_PURE = require('../internals/is-pure');
@@ -31,7 +31,7 @@ $({ target: 'String', proto: true }, {
     if (isObject(searchValue)) {
       IS_REG_EXP = isRegExp(searchValue);
       if (IS_REG_EXP) {
-        flags = toString(requireObjectCoercible(getRegExpFlags(searchValue)));
+        flags = toString(requireObjectCoercible(getRegExpFlagsHelper(searchValue)));
         if (!~indexOf(flags, 'g')) throw new $TypeError('`.replaceAll` does not allow non-global regexes');
       }
       replacer = getMethod(searchValue, REPLACE);

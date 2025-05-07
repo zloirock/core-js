@@ -3,7 +3,7 @@ var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fixRegExpWellKnownSymbolLogic = require('../internals/fix-regexp-well-known-symbol-logic');
 var anObject = require('../internals/an-object');
-var getRegExpFlags = require('../internals/get-regexp-flags');
+var getRegExpFlagsHelper = require('../internals/get-regexp-flags-helper');
 var isObject = require('../internals/is-object');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
@@ -33,7 +33,7 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
 
       if (res.done) return res.value;
 
-      var flags = toString(getRegExpFlags(rx));
+      var flags = toString(getRegExpFlagsHelper(rx));
 
       if (stringIndexOf(flags, 'g') === -1) return regExpExec(rx, S);
 
