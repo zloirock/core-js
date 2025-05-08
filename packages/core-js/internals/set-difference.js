@@ -20,7 +20,7 @@ module.exports = function difference(other) {
     if (otherRec.includes(e)) remove(result, e);
   });
   else iterateSimple(otherRec.getIterator(), function (e) {
-    if (has(O, e)) remove(result, e);
+    if (has(result, e)) remove(result, e);
   });
   return result;
 };

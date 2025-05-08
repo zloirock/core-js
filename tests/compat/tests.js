@@ -1237,9 +1237,30 @@ GLOBAL.tests = {
       && set.has(0)
       && set[Symbol.toStringTag];
   }],
-  'es.set.difference.v2': createSetMethodTest('difference', function (result) {
+  'es.set.difference.v2': [createSetMethodTest('difference', function (result) {
     return result.size === 0;
-  }),
+  }), function () {
+    // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
+    // https://bugs.webkit.org/show_bug.cgi?id=288595
+    var setLike = {
+      size: 1,
+      has: function () { return true; },
+      keys: function () {
+        var index = 0;
+        return {
+          next: function () {
+            var done = index++ > 1;
+            if (baseSet.has(1)) baseSet.clear();
+            return { done: done, value: 2 };
+          }
+        };
+      }
+    };
+
+    var baseSet = new Set([1, 2, 3, 4]);
+
+    return baseSet.difference(setLike).size === 3;
+  }],
   'es.set.intersection.v2': [createSetMethodTest('intersection', function (result) {
     return result.size === 2 && result.has(1) && result.has(2);
   }), function () {
