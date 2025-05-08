@@ -1564,7 +1564,9 @@ export const data = {
     safari: '10.0',
   },
   'es.set.difference.v2': {
-    bun: '1.1.1',
+    // Bun 1.2.4 has a bug when `this` is updated while Set.prototype.difference is being executed
+    // https://bugs.webkit.org/show_bug.cgi?id=288595
+    bun: '1.2.5', // '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     // v8 < Chrome 128 does not properly convert set-like objects Infinity size
@@ -1575,7 +1577,9 @@ export const data = {
     node: '22.10',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    safari: '18.0', // '17.0',
+    // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
+    // https://bugs.webkit.org/show_bug.cgi?id=288595
+    // safari: '18.0', // '17.0',
   },
   'es.set.intersection.v2': {
     bun: '1.1.1',
