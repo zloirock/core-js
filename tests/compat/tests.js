@@ -1242,17 +1242,16 @@ GLOBAL.tests = {
   }), function () {
     // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
     // https://bugs.webkit.org/show_bug.cgi?id=288595
-    var values = [2];
     var setLike = {
-      size: values.length,
+      size: 1,
       has: function () { return true; },
       keys: function () {
         var index = 0;
         return {
           next: function () {
-            var done = index >= values.length;
+            var done = index++ > 1;
             if (baseSet.has(1)) baseSet.clear();
-            return { done: done, value: values[index++] };
+            return { done: done, value: 2 };
           }
         };
       }

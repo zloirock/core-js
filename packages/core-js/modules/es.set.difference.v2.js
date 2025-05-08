@@ -14,10 +14,12 @@ var FORCED = SET_LIKE_INCORRECT_BEHAVIOR || fails(function () {
     size: 1,
     has: function () { return true; },
     keys: function () {
+      var index = 0;
       return {
         next: function () {
+          var done = index++ > 1;
           if (baseSet.has(1)) baseSet.clear();
-          return { done: true, value: 1 };
+          return { done: done, value: 2 };
         }
       };
     }
