@@ -69,5 +69,5 @@ QUnit.test('Set#difference', assert => {
 
   const baseSet = new Set([1, 2, 3, 4]);
   const result = baseSet.difference(setLike);
-  assert.deepEqual(Array.from(result), [1, 3, 4], 'incorrect behavior when this updated while Set#difference is being executed');
+  assert.deepEqual(from(result), [1, 3, 4], 'incorrect behavior when this updated while Set#difference is being executed');
 });

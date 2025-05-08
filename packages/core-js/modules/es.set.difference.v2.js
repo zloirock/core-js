@@ -9,17 +9,15 @@ var SET_LIKE_INCORRECT_BEHAVIOR = !setMethodAcceptSetLike('difference', function
 });
 
 var FORCED = SET_LIKE_INCORRECT_BEHAVIOR || fails(function () {
-  var values = [2];
+  // https://bugs.webkit.org/show_bug.cgi?id=288595
   var setLike = {
-    size: values.length,
+    size: 1,
     has: function () { return true; },
     keys: function () {
-      var index = 0;
       return {
         next: function () {
-          var done = index >= values.length;
           if (baseSet.has(1)) baseSet.clear();
-          return { done: done, value: values[index++] };
+          return { done: true, value: 1 };
         }
       };
     }
