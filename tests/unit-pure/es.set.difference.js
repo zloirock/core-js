@@ -50,4 +50,26 @@ QUnit.test('Set#difference', assert => {
   assert.throws(() => difference.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => difference.call(undefined, [1, 2, 3]), TypeError);
   assert.throws(() => difference.call(null, [1, 2, 3]), TypeError);
+
+  // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
+  // https://bugs.webkit.org/show_bug.cgi?id=288595
+  const values = [2];
+  const setLike = {
+    size: values.length,
+    has() { return true; },
+    keys() {
+      let index = 0;
+      return {
+        next() {
+          const done = index >= values.length;
+          if (baseSet.has(1)) baseSet.clear();
+          return { done, value: values[index++] };
+        },
+      };
+    },
+  };
+
+  const baseSet = new Set([1, 2, 3, 4]);
+  const result = baseSet.difference(setLike);
+  assert.deepEqual(Array.from(result), [1, 3, 4], 'incorrect behavior when this updated while Set#difference is being executed');
 });

@@ -1,13 +1,14 @@
 'use strict';
 var $ = require('../internals/export');
 var difference = require('../internals/set-difference');
+var fails = require('../internals/fails');
 var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');
 
 var SET_LIKE_INCORRECT_BEHAVIOR = !setMethodAcceptSetLike('difference', function (result) {
   return result.size === 0;
 });
 
-var FORCED = SET_LIKE_INCORRECT_BEHAVIOR || (function () {
+var FORCED = SET_LIKE_INCORRECT_BEHAVIOR || fails(function () {
   var values = [2];
   var setLike = {
     size: values.length,
@@ -23,10 +24,11 @@ var FORCED = SET_LIKE_INCORRECT_BEHAVIOR || (function () {
       };
     }
   };
+  // eslint-disable-next-line es/no-set -- testing
   var baseSet = new Set([1, 2, 3, 4]);
-
+  // eslint-disable-next-line es/no-set-prototype-difference -- testing
   return baseSet.difference(setLike).size !== 3;
-})();
+});
 
 // `Set.prototype.difference` method
 // https://tc39.es/ecma262/#sec-set.prototype.difference
