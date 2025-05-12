@@ -291,8 +291,7 @@ function createSetMethodTestShouldGetNextBeforeCloning(METHOD_NAME) {
       size: 0,
       has: function () { return true; },
       keys: function () {
-        var o = {};
-        Object.defineProperty(o, 'next', {
+        return Object.defineProperty({}, 'next', {
           get: function () {
             baseSet.clear();
             baseSet.add(4);
@@ -301,7 +300,6 @@ function createSetMethodTestShouldGetNextBeforeCloning(METHOD_NAME) {
             };
           }
         });
-        return o;
       }
     };
     var result = baseSet[METHOD_NAME](setLike);

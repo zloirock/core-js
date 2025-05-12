@@ -5,7 +5,7 @@
   - `RegExp.prototype[@@replace]`
 - Improved handling of `RegExp` flags in polyfills of some methods in engines without proper support of `RegExp.prototype.flags` and without polyfill of this getter
 - Added feature detection for [a bug](https://bugs.webkit.org/show_bug.cgi?id=288595) that occurs when `this` is updated while `Set.prototype.difference` is being executed
-- Added feature detection for [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430) that occurs when `next` isn't called before cloning `this` in the following methods:
+- Added feature detection for [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430) that occurs when `keys` isn't called before cloning `this` in the following methods:
   - `Set.prototype.symmetricDifference`
   - `Set.prototype.union`
 - Compat data improvements:
