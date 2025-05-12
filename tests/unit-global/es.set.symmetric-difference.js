@@ -52,9 +52,9 @@ QUnit.test('Set#symmetricDifference', assert => {
   }
 
   {
-    // Should get next before cloning this
+    // Should get keys before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
-    const baseSet = new Set([1, 2, 3]);
+    const baseSet = new Set();
     const setLike = {
       size: 0,
       has() { return true; },

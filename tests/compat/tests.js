@@ -284,9 +284,9 @@ function createSetMethodTest(METHOD_NAME, callback) {
   };
 }
 
-function createSetMethodTestShouldGetNextBeforeCloning(METHOD_NAME) {
+function createSetMethodTestShouldGetKeysBeforeCloning(METHOD_NAME) {
   return function () {
-    var baseSet = new Set([]);
+    var baseSet = new Set();
     var setLike = {
       size: 0,
       has: function () { return true; },
@@ -1301,11 +1301,11 @@ GLOBAL.tests = {
   }),
   'es.set.symmetric-difference.v2': [
     createSetMethodTest('symmetricDifference'),
-    createSetMethodTestShouldGetNextBeforeCloning('symmetricDifference')
+    createSetMethodTestShouldGetKeysBeforeCloning('symmetricDifference')
   ],
   'es.set.union.v2': [
     createSetMethodTest('union'),
-    createSetMethodTestShouldGetNextBeforeCloning('union')
+    createSetMethodTestShouldGetKeysBeforeCloning('union')
   ],
   'es.string.at-alternative': function () {
     return '𠮷'.at(-2) === '\uD842';
