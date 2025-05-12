@@ -14,7 +14,9 @@
   - Updated Electron 37 compat data mapping
   - `Set.prototype.difference` marked as not supported in Safari and supported only from Bun 1.2.5 because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=288595)
   - `Set.prototype.differsymmetricDifferenceence` marked as supported from Bun 1.2.5 because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430) was fixed
+  - `Set.prototype.differsymmetricDifferenceence` marked not supported in Safari because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430)
   - `Set.prototype.union` marked as supported from Bun 1.2.5 because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430) was fixed
+  - `Set.prototype.union` marked not supported in Safari because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430)
 
 ##### [3.42.0 - 2025.04.30](https://github.com/zloirock/core-js/releases/tag/v3.42.0)
 - Changes [v3.41.0...v3.42.0](https://github.com/zloirock/core-js/compare/v3.41.0...v3.42.0) (142 commits)

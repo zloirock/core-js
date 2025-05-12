@@ -1647,7 +1647,7 @@ export const data = {
     firefox: '127',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    safari: '18.0', // '17.0',
+    // safari: '18.0', // '17.0',
   },
   'es.set.union.v2': {
     // Should get next before cloning this
@@ -1659,7 +1659,7 @@ export const data = {
     firefox: '127',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    safari: '18.0', // '17.0',
+    // safari: '18.0', // '17.0',
   },
   'es.string.at-alternative': {
     chrome: '92',
