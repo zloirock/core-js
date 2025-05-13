@@ -1638,24 +1638,32 @@ export const data = {
     safari: '18.0', // '17.0',
   },
   'es.set.symmetric-difference.v2': {
-    bun: '1.1.1',
+    // Should get iterator record of a set-like object before cloning this
+    // https://bugs.webkit.org/show_bug.cgi?id=289430
+    bun: '1.2.5', // '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    safari: '18.0', // '17.0',
+    // Should get iterator record of a set-like object before cloning this
+    // https://bugs.webkit.org/show_bug.cgi?id=289430
+    // safari: '18.0', // '17.0',
   },
   'es.set.union.v2': {
-    bun: '1.1.1',
+    // Should get iterator record of a set-like object before cloning this
+    // https://bugs.webkit.org/show_bug.cgi?id=289430
+    bun: '1.2.5', // '1.1.1',
     // v8 ~ Chrome 122 does not properly work with set-like objects
     // https://bugs.chromium.org/p/v8/issues/detail?id=14559
     chrome: '123',
     firefox: '127',
     // safari 17 does not properly work with set-like objects
     // https://bugs.webkit.org/show_bug.cgi?id=267494
-    safari: '18.0', // '17.0',
+    // Should get iterator record of a set-like object before cloning this
+    // https://bugs.webkit.org/show_bug.cgi?id=289430
+    // safari: '18.0', // '17.0',
   },
   'es.string.at-alternative': {
     chrome: '92',

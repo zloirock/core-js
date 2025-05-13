@@ -284,6 +284,30 @@ function createSetMethodTest(METHOD_NAME, callback) {
   };
 }
 
+function createSetMethodTestShouldGetKeysBeforeCloning(METHOD_NAME) {
+  return function () {
+    var baseSet = new Set();
+    var setLike = {
+      size: 0,
+      has: function () { return true; },
+      keys: function () {
+        return Object.defineProperty({}, 'next', {
+          get: function () {
+            baseSet.clear();
+            baseSet.add(4);
+            return function () {
+              return { done: true };
+            };
+          }
+        });
+      }
+    };
+    var result = baseSet[METHOD_NAME](setLike);
+
+    return result.size === 1 && result.values().next().value === 4;
+  };
+}
+
 function NATIVE_RAW_JSON() {
   var unsafeInt = '9007199254740993';
   var raw = JSON.rawJSON(unsafeInt);
@@ -1275,8 +1299,14 @@ GLOBAL.tests = {
   'es.set.is-superset-of.v2': createSetMethodTest('isSupersetOf', function (result) {
     return !result;
   }),
-  'es.set.symmetric-difference.v2': createSetMethodTest('symmetricDifference'),
-  'es.set.union.v2': createSetMethodTest('union'),
+  'es.set.symmetric-difference.v2': [
+    createSetMethodTest('symmetricDifference'),
+    createSetMethodTestShouldGetKeysBeforeCloning('symmetricDifference')
+  ],
+  'es.set.union.v2': [
+    createSetMethodTest('union'),
+    createSetMethodTestShouldGetKeysBeforeCloning('union')
+  ],
   'es.string.at-alternative': function () {
     return '𠮷'.at(-2) === '\uD842';
   },

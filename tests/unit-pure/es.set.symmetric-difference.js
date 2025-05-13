@@ -32,22 +32,47 @@ QUnit.test('Set#symmetricDifference', assert => {
   assert.throws(() => symmetricDifference.call(undefined, [1, 2, 3]), TypeError);
   assert.throws(() => symmetricDifference.call(null, [1, 2, 3]), TypeError);
 
-  // https://github.com/WebKit/WebKit/pull/27264/files#diff-7bdbbad7ceaa222787994f2db702dd45403fa98e14d6270aa65aaf09754dcfe0R8
-  const baseSet = new Set(['a', 'b', 'c', 'd', 'e']);
-  const values = ['f', 'g', 'h', 'i', 'j'];
-  const setLike = {
-    size: values.length,
-    has() { return true; },
-    keys() {
-      let index = 0;
-      return {
-        next() {
-          const done = index >= values.length;
-          if (!baseSet.has('f')) baseSet.add('f');
-          return { done, value: values[index++] };
-        },
-      };
-    },
-  };
-  assert.deepEqual(from(baseSet.symmetricDifference(setLike)), ['a', 'b', 'c', 'd', 'e', 'g', 'h', 'i', 'j']);
+  {
+    // https://github.com/WebKit/WebKit/pull/27264/files#diff-7bdbbad7ceaa222787994f2db702dd45403fa98e14d6270aa65aaf09754dcfe0R8
+    const baseSet = new Set(['a', 'b', 'c', 'd', 'e']);
+    const values = ['f', 'g', 'h', 'i', 'j'];
+    const setLike = {
+      size: values.length,
+      has() { return true; },
+      keys() {
+        let index = 0;
+        return {
+          next() {
+            const done = index >= values.length;
+            if (!baseSet.has('f')) baseSet.add('f');
+            return { done, value: values[index++] };
+          },
+        };
+      },
+    };
+    assert.deepEqual(from(baseSet.symmetricDifference(setLike)), ['a', 'b', 'c', 'd', 'e', 'g', 'h', 'i', 'j']);
+  }
+
+  {
+    // Should get iterator record of a set-like object before cloning this
+    // https://bugs.webkit.org/show_bug.cgi?id=289430
+    const baseSet = new Set();
+    const setLike = {
+      size: 0,
+      has() { return true; },
+      keys() {
+        return {
+          // eslint-disable-next-line es/no-accessor-properties -- needed for test
+          get next() {
+            baseSet.clear();
+            baseSet.add(4);
+            return function () {
+              return { done: true };
+            };
+          },
+        };
+      },
+    };
+    assert.deepEqual(from(baseSet.symmetricDifference(setLike)), [4]);
+  }
 });

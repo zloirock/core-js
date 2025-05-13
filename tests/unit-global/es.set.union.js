@@ -28,4 +28,27 @@ QUnit.test('Set#union', assert => {
   assert.throws(() => union.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => union.call(undefined, [1, 2, 3]), TypeError);
   assert.throws(() => union.call(null, [1, 2, 3]), TypeError);
+
+  {
+    // Should get iterator record of a set-like object before cloning this
+    // https://bugs.webkit.org/show_bug.cgi?id=289430
+    const baseSet = new Set();
+    const setLike = {
+      size: 0,
+      has() { return true; },
+      keys() {
+        return {
+          // eslint-disable-next-line es/no-accessor-properties -- needed for test
+          get next() {
+            baseSet.clear();
+            baseSet.add(4);
+            return function () {
+              return { done: true };
+            };
+          },
+        };
+      },
+    };
+    assert.deepEqual(from(baseSet.union(setLike)), [4]);
+  }
 });
