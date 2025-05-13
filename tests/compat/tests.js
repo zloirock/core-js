@@ -678,7 +678,12 @@ GLOBAL.tests = {
     }
   },
   'es.array.with': function () {
-    return []['with'];
+    // Incorrect exception thrown when index coercion fails in Firefox
+    try {
+      []['with']({ valueOf: function () { throw 4; } }, null);
+    } catch (error) {
+      return error === 4;
+    }
   },
   'es.array-buffer.constructor': [ARRAY_BUFFER_SUPPORT, function () {
     try {
