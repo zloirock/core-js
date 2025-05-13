@@ -345,6 +345,17 @@ function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
   };
 }
 
+// https://issues.chromium.org/issues/336839115
+function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
+  return function () {
+    if (typeof Iterator == 'function' && Iterator.prototype[methodName]) try {
+      Iterator.prototype[methodName].call({ next: null }, argument).next();
+    } catch (error) {
+      return true;
+    }
+  };
+}
+
 GLOBAL.tests = {
   // TODO: Remove this module from `core-js@4` since it's split to modules listed below
   'es.symbol': [SYMBOLS_SUPPORT, function () {
@@ -759,16 +770,28 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
-  'es.iterator.drop': checkIteratorClosingOnEarlyError('drop', RangeError),
+  'es.iterator.drop': [
+    iteratorHelperThrowsErrorOnInvalidIterator('drop', 0),
+    checkIteratorClosingOnEarlyError('drop', RangeError)
+  ],
   'es.iterator.every': checkIteratorClosingOnEarlyError('every', TypeError),
-  'es.iterator.filter': checkIteratorClosingOnEarlyError('filter', TypeError),
+  'es.iterator.filter': [
+    iteratorHelperThrowsErrorOnInvalidIterator('filter', function () { /* empty */ }),
+    checkIteratorClosingOnEarlyError('filter', TypeError)
+  ],
   'es.iterator.find': checkIteratorClosingOnEarlyError('find', TypeError),
-  'es.iterator.flat-map': checkIteratorClosingOnEarlyError('flatMap', TypeError),
+  'es.iterator.flat-map': [
+    iteratorHelperThrowsErrorOnInvalidIterator('flatMap', function () { /* empty */ }),
+    checkIteratorClosingOnEarlyError('flatMap', TypeError)
+  ],
   'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
   'es.iterator.from': function () {
     return Iterator.from;
   },
-  'es.iterator.map': checkIteratorClosingOnEarlyError('map', TypeError),
+  'es.iterator.map': [
+    iteratorHelperThrowsErrorOnInvalidIterator('map', function () { /* empty */ }),
+    checkIteratorClosingOnEarlyError('map', TypeError)
+  ],
   'es.iterator.reduce': [checkIteratorClosingOnEarlyError('reduce', TypeError), function () {
     // fails on undefined initial parameter
     // https://bugs.webkit.org/show_bug.cgi?id=291651
