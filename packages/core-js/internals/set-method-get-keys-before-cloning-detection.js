@@ -1,5 +1,5 @@
 'use strict';
-// Should get keys before cloning this
+// Should get iterator record of a set-like object before cloning this
 // https://bugs.webkit.org/show_bug.cgi?id=289430
 module.exports = function (METHOD_NAME) {
   try {

@@ -52,7 +52,7 @@ QUnit.test('Set#symmetricDifference', assert => {
   }
 
   {
-    // Should get keys before cloning this
+    // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     const baseSet = new Set();
     const setLike = {
