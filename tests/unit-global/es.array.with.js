@@ -30,4 +30,9 @@ QUnit.test('Array#with', assert => {
     return { foo: 1 };
   } };
   assert.true(array.with(1, 2) instanceof Array, 'non-generic');
+
+  // Incorrect exception thrown when index coercion fails in Firefox
+  function CustomError() { /* empty */ }
+  const index = { valueOf() { throw new CustomError(); } };
+  assert.throws(() => withAt.call([], index, null), CustomError, 'incorrect error');
 });
