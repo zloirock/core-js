@@ -8,6 +8,11 @@
 - Added feature detection for [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430) that occurs when iterator record of a set-like object isn't called before cloning `this` in the following methods:
   - `Set.prototype.symmetricDifference`
   - `Set.prototype.union`
+- Added feature detection for [a bug](https://issues.chromium.org/issues/336839115) in V8 ~ Chromium < 126. Following methods should throw an error on invalid iterator:
+  - `Iterator.prototype.drop`
+  - `Iterator.prototype.filter`
+  - `Iterator.prototype.flatMap`
+  - `Iterator.prototype.map`
 - Compat data improvements:
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked not supported in Node because of [a bug](https://github.com/nodejs/node/issues/56497)
   - Added [Deno 2.3](https://github.com/denoland/deno/releases/tag/v2.3.0) compat data mapping
