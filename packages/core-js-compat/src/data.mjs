@@ -2210,12 +2210,14 @@ export const data = {
     safari: '10.0',
   },
   'es.typed-array.with': {
-    bun: '0.1.9',
+    // It should truncate a negative fractional index to zero, but instead throws an error
+    // bun: '0.1.9',
     chrome: '110',
     deno: '1.27',
     firefox: '115',
     rhino: '1.8.0',
-    safari: '16.4',
+    // It should truncate a negative fractional index to zero, but instead throws an error
+    // safari: '16.4',
   },
   'es.unescape': {
     chrome: '1',

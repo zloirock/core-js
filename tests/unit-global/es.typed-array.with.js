@@ -39,5 +39,8 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
         return error === 8;
       }
     }(), 'proper order of operations');
+
+    // WebKit doesn't handle this correctly. It should truncate a negative fractional index to zero, but instead throws an error
+    assert.same(new TypedArray(1).with(-0.5, $(1))[0], $(1));
   }
 });
