@@ -14,6 +14,7 @@
   - `Iterator.prototype.flatMap`
   - `Iterator.prototype.map`
 - Added feature detection for Firefox bug: incorrect exception thrown by `Array.prototype.with` when index coercion fails
+- Added feature detection for WebKit bug: `TypedArray.prototype.with` should truncate negative fractional index to zero, but instead throws an error
 - Compat data improvements:
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked not supported in Node because of [a bug](https://github.com/nodejs/node/issues/56497)
   - Added [Deno 2.3](https://github.com/denoland/deno/releases/tag/v2.3.0) compat data mapping
@@ -21,6 +22,7 @@
   - `Set.prototype.difference` marked as not supported in Safari and supported only from Bun 1.2.5 because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=288595)
   - `Set.prototype.{ symmetricDifference, union }` marked as not supported in Safari and supported only from Bun 1.2.5 because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=289430)
   - `Array.prototype.with` marked as unsupported in Firefox because it throws an incorrect exception when index coercion fails
+  - `TypedArray.prototype.with` marked as unsupported in Bun and Safari because it should truncate negative fractional index to zero, but instead throws an error
 
 ##### [3.42.0 - 2025.04.30](https://github.com/zloirock/core-js/releases/tag/v3.42.0)
 - Changes [v3.41.0...v3.42.0](https://github.com/zloirock/core-js/compare/v3.41.0...v3.42.0) (142 commits)
