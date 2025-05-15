@@ -181,6 +181,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
       - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
+      - [`Iterator` chunking](#iterator-chunking)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
       - [New collections methods](#new-collections-methods)
@@ -3056,6 +3057,25 @@ class Symbol {
 ```
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher
+```
+
+##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
+Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js)
+```ts
+class Iterator {
+  chunks(chunkSize: number): Iterator<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-chunking
+core-js(-pure)/full/iterator/chunks
+```
+[*Examples*](http://es6.zloirock.ru/#const%20digits%20%3D%20()%20%3D%3E%20%5B0%2C%201%2C%202%2C%203%2C%204%2C%205%2C%206%2C%207%2C%208%2C%209%5D.values()%3B%0A%0Alet%20chunksOf2%20%3D%20Array.from(digits().chunks(2))%3B%0A%0Alog(chunksOf2)%3B)
+```js
+const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+
+let chunksOf2 = Array.from(digits().chunks(2));  // [ [0, 1], [2, 3], [4, 5], [6, 7], [8, 9] ]
 ```
 
 #### Stage 1 proposals[⬆](#index)

@@ -293,6 +293,8 @@ export default {
     'es.suppressed-error.constructor',
     'es.symbol.async-dispose',
     'es.symbol.dispose',
+    'esnext.iterator.chunks',
+    'esnext.iterator.windows',
     'esnext.iterator.zip',
     'esnext.iterator.zip-keyed',
     'esnext.number.clamp',

@@ -1835,6 +1835,10 @@ GLOBAL.tests = {
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },
+  'esnext.iterator.chunks': function () {
+    // eslint-disable-next-line es/no-nonstandard-iterator-prototype-properties -- required for detection
+    return Iterator.prototype.chunks;
+  },
   'esnext.iterator.concat': function () {
     return Iterator.concat;
   },
