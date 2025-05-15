@@ -1,5 +1,8 @@
 ## Changelog
 ##### Unreleased
+- [`Iterator` chunking stage 2 proposal](https://github.com/tc39/proposal-iterator-chunking):
+  - Added built-ins:
+    - `Iterator.prototype.chunks`
 - Always check regular expression flags by `flags` getter [PR](https://github.com/tc39/ecma262/pull/2791). Native methods are not fixed, only own implementation updated for:
   - `RegExp.prototype[@@match]`
   - `RegExp.prototype[@@replace]`

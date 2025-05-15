@@ -1248,6 +1248,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     // TODO: drop from `core-js@4`
     'asIndexedPairs',
     'indexed',
+    'chunks',
   ] }],
   'es/no-nonstandard-json-properties': [ERROR, { allow: [
     'isRawJSON',

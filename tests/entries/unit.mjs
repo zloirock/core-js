@@ -940,6 +940,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-helpers-stage-3-2');
   load('proposals/iterator-range');
   load('proposals/iterator-sequencing');
+  load('proposals/iterator-chunking');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');
   load('proposals/map-update-or-insert');
@@ -1097,6 +1098,7 @@ for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/filter-reject');
   load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
+  load(NS, 'iterator/chunks');
 }
 
 load('modules/esnext.string.at-alternative');
