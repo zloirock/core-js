@@ -99,18 +99,20 @@ const base = {
   'no-template-curly-in-string': ERROR,
   // disallow `this` / `super` before calling `super()` in constructors
   'no-this-before-super': ERROR,
-  // disallow unmodified loop conditions
-  'no-unmodified-loop-condition': ERROR,
+  // disallow `let` or `var` variables that are read but never assigned
+  'no-unassigned-vars': ERROR,
   // disallow use of undeclared variables unless mentioned in a /*global */ block
   'no-undef': [ERROR, { typeof: false }],
-  // disallow control flow statements in `finally` blocks
-  'no-unsafe-finally': ERROR,
   // avoid code that looks like two expressions but is actually one
   'no-unexpected-multiline': ERROR,
+  // disallow unmodified loop conditions
+  'no-unmodified-loop-condition': ERROR,
   // disallow unreachable statements after a return, throw, continue, or break statement
   'no-unreachable': ERROR,
   // disallow loops with a body that allows only one iteration
   'no-unreachable-loop': ERROR,
+  // disallow control flow statements in `finally` blocks
+  'no-unsafe-finally': ERROR,
   // disallow negation of the left operand of an in expression
   'no-unsafe-negation': ERROR,
   // disallow use of optional chaining in contexts where the `undefined` value is not allowed

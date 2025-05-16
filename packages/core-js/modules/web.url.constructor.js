@@ -65,6 +65,7 @@ var LEADING_C0_CONTROL_OR_SPACE = /^[\u0000-\u0020]+/;
 var TRAILING_C0_CONTROL_OR_SPACE = /(^|[^\u0000-\u0020])[\u0000-\u0020]+$/;
 var TAB_AND_NEW_LINE = /[\t\n\r]/g;
 /* eslint-enable regexp/no-control-character -- safe */
+// eslint-disable-next-line no-unassigned-vars -- expected `undefined` value
 var EOF;
 
 // https://url.spec.whatwg.org/#ipv4-number-parser
