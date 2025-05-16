@@ -1153,6 +1153,15 @@ GLOBAL.tests = {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.array.from-async': function () {
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    var counter = 0;
+    Array.fromAsync.call(function () {
+      counter++;
+      return [];
+    }, { length: 0 });
+    return counter === 1;
+  },
   'es.async-disposable-stack.constructor': function () {
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256
     // can't be detected synchronously
@@ -1754,15 +1763,6 @@ GLOBAL.tests = {
       && set.add({}) === set
       && set[Symbol.toStringTag];
   }],
-  'esnext.array.from-async': function () {
-    // https://bugs.webkit.org/show_bug.cgi?id=271703
-    var counter = 0;
-    Array.fromAsync.call(function () {
-      counter++;
-      return [];
-    }, { length: 0 });
-    return counter === 1;
-  },
   'esnext.array.filter-reject': function () {
     return [].filterReject;
   },

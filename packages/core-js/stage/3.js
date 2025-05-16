@@ -2,7 +2,6 @@
 var parent = require('./4');
 
 require('../proposals/array-buffer-base64');
-require('../proposals/array-from-async-stage-2');
 require('../proposals/decorator-metadata-v2');
 require('../proposals/json-parse-with-source');
 require('../proposals/math-sum');
