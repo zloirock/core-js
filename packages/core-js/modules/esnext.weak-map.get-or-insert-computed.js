@@ -11,7 +11,7 @@ var set = WeakMapHelpers.set;
 
 // `WeakMap.prototype.getOrInsertComputed` method
 // https://github.com/tc39/proposal-upsert
-$({ target: 'WeakMap', proto: true, real: true, forced: true }, {
+$({ target: 'WeakMap', proto: true, real: true }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aWeakMap(this);
     aWeakKey(key);
