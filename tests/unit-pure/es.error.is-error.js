@@ -1,4 +1,4 @@
-import isError from 'core-js-pure/actual/error/is-error';
+import isError from 'core-js-pure/es/error/is-error';
 import create from 'core-js-pure/es/object/create';
 import AggregateError from 'core-js-pure/es/aggregate-error';
 import SuppressedError from 'core-js-pure/actual/suppressed-error';

@@ -8,6 +8,7 @@ require('../proposals/change-array-by-copy-stage-4');
 // require('../proposals/error-cause');
 require('../proposals/float16');
 require('../proposals/global-this');
+require('../proposals/is-error');
 require('../proposals/iterator-helpers-stage-3-2');
 require('../proposals/promise-all-settled');
 require('../proposals/promise-any');
