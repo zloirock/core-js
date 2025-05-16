@@ -2695,8 +2695,6 @@ Error.isError(Object.create(Error.prototype)); // => false
 core-js(-pure)/stage/2.7
 ```
 
-*empty*
-
 ##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
 ```ts

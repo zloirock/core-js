@@ -1,5 +1,10 @@
 ## Changelog
 ##### Unreleased
+- [`Iterator` sequencing proposal](https://github.com/tc39/proposal-iterator-sequencing):
+  - Built-ins:
+    - `Iterator.concat`
+  - Moved to stage 3, May 2025 TC39 meeting
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Always check regular expression flags by `flags` getter [PR](https://github.com/tc39/ecma262/pull/2791). Native methods are not fixed, only own implementation updated for:
   - `RegExp.prototype[@@match]`
   - `RegExp.prototype[@@replace]`
