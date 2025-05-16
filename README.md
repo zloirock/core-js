@@ -171,6 +171,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
       - [`Map` upsert](#map-upsert)
+      - [`Math.clamp`](#mathclamp)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -186,7 +187,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` filtering](#array-filtering)
       - [`Array` deduplication](#array-deduplication)
       - [`DataView` get / set `Uint8Clamped` methods](#dataview-get-set-iint8clamped-methods)
-      - [`Math.clamp`](#mathclamp)
       - [`Number.fromString`](#numberfromstring)
       - [`String.cooked`](#stringcooked)
       - [`String.prototype.codePoints`](#stringprototypecodepoints)
@@ -2731,6 +2731,25 @@ map.getOrInsertComputed('c', key => key); // => 'c'
 console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
 ```
 
+##### [`Math.clamp`](https://github.com/tc39/proposal-math-clamp)[⬆](#index)
+Module [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.clamp.js)
+```ts
+class Math {
+  clamp(value: number, min: number, max: number): number;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/math-clamp
+core-js(-pure)/full/math/clamp
+```
+[*Example*](https://tinyurl.com/2ayyqr8j):
+```js
+Math.clamp(5, 0, 10); // => 5
+Math.clamp(-5, 0, 10); // => 0
+Math.clamp(15, 0, 10); // => 10
+````
+
 #### Stage 2 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
 ```
@@ -3157,25 +3176,6 @@ const view = new DataView(new ArrayBuffer(1));
 view.setUint8Clamped(0, 100500);
 console.log(view.getUint8Clamped(0)); // => 255
 ```
-
-##### [`Math.clamp`](https://github.com/CanadaHonk/proposal-math-clamp)[⬆](#index)
-Module [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.clamp.js)
-```ts
-class Math {
-  clamp(value: number, min: number, max: number): number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/math-clamp
-core-js(-pure)/full/math/clamp
-```
-[*Example*](https://tinyurl.com/2ayyqr8j):
-```js
-Math.clamp(5, 0, 10); // => 5
-Math.clamp(-5, 0, 10); // => 0
-Math.clamp(15, 0, 10); // => 10
-````
 
 ##### [`Number.fromString`](https://github.com/tc39/proposal-number-fromstring)[⬆](#index)
 Module [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
