@@ -18,6 +18,7 @@ require('../../modules/es.array.for-each');
 require('../../modules/es.array.includes');
 require('../../modules/es.array.index-of');
 require('../../modules/es.array.iterator');
+require('../../modules/es.array.from-async');
 require('../../modules/es.array.join');
 require('../../modules/es.array.last-index-of');
 require('../../modules/es.array.map');
@@ -39,6 +40,7 @@ require('../../modules/es.array.unshift');
 require('../../modules/es.array.with');
 require('../../modules/es.object.to-string');
 require('../../modules/es.string.iterator');
+require('../../modules/es.promise');
 var path = require('../../internals/path');
 
 module.exports = path.Array;

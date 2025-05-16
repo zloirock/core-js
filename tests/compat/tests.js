@@ -1126,6 +1126,15 @@ GLOBAL.tests = {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.array.from-async': function () {
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    var counter = 0;
+    Array.fromAsync.call(function () {
+      counter++;
+      return [];
+    }, { length: 0 });
+    return counter === 1;
+  },
   'es.reflect.apply': function () {
     try {
       return Reflect.apply(function () {
@@ -1722,15 +1731,6 @@ GLOBAL.tests = {
     return typeof SuppressedError == 'function'
       && SuppressedError.length === 3
       && new SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
-  },
-  'esnext.array.from-async': function () {
-    // https://bugs.webkit.org/show_bug.cgi?id=271703
-    var counter = 0;
-    Array.fromAsync.call(function () {
-      counter++;
-      return [];
-    }, { length: 0 });
-    return counter === 1;
   },
   'esnext.array.filter-reject': function () {
     return [].filterReject;
