@@ -136,6 +136,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('from' in load(NS, 'array'));
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
     ok(new (load(NS, 'error/constructor').Error)(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'error/is-error')(new Error()));
     ok(typeof load(NS, 'error/to-string') == 'function');
     ok(new (load(NS, 'error').Error)(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'math/acosh')(1) === 0);
@@ -697,7 +698,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/some') == 'function');
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
-    ok(load(NS, 'error/is-error')(new Error()));
     ok(load(NS, 'function/metadata') === null);
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'json/is-raw-json')({}) === false);
