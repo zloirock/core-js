@@ -168,9 +168,9 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
       - [`Error.isError`](#erroriserror)
+      - [`Map` upsert](#map-upsert)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
-      - [`Map` upsert](#map-upsert)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2666,35 +2666,6 @@ Error.isError({}); // => false
 Error.isError(Object.create(Error.prototype)); // => false
 ```
 
-> [!WARNING]
-> We have no bulletproof way to polyfill this method / check if the object is an error, so it's an enough naive implementation.
-
-#### Stage 2.7 proposals[⬆](#index)
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js(-pure)/stage/2.7
-```
-
-##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
-Module [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
-```ts
-class Iterator {
-  concat(...items: Array<IterableObject>): Iterator<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/iterator-sequencing
-core-js(-pure)/full/iterator/concat
-```
-[*Example*](https://tinyurl.com/2522xjae):
-```js
-Iterator.concat([0, 1].values(), [2, 3], function * () {
-  yield 4;
-  yield 5;
-}()).toArray(); // => [0, 1, 2, 3, 4, 5]
-```
-
 ##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
 ```ts
@@ -2729,6 +2700,35 @@ map.getOrInsertComputed('a', key => key); // => 1
 map.getOrInsertComputed('c', key => key); // => 'c'
 
 console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
+```
+
+> [!WARNING]
+> We have no bulletproof way to polyfill this method / check if the object is an error, so it's an enough naive implementation.
+
+#### Stage 2.7 proposals[⬆](#index)
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/stage/2.7
+```
+
+##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
+Module [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
+```ts
+class Iterator {
+  concat(...items: Array<IterableObject>): Iterator<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-sequencing
+core-js(-pure)/full/iterator/concat
+```
+[*Example*](https://tinyurl.com/2522xjae):
+```js
+Iterator.concat([0, 1].values(), [2, 3], function * () {
+  yield 4;
+  yield 5;
+}()).toArray(); // => [0, 1, 2, 3, 4, 5]
 ```
 
 #### Stage 2 proposals[⬆](#index)
