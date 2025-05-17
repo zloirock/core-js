@@ -1,4 +1,3 @@
 'use strict';
-require('../../modules/es.object.to-string');
-require('../../modules/es.promise');
+require('../../stable/async-iterator/async-dispose');
 require('../../modules/esnext.async-iterator.async-dispose');
