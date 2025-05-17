@@ -283,4 +283,13 @@ export default {
     'es.math.f16round',
     'es.regexp.escape',
   ],
+  3.43: [
+    'es.async-disposable-stack.constructor',
+    'es.async-iterator.async-dispose',
+    'es.disposable-stack.constructor',
+    'es.iterator.dispose',
+    'es.suppressed-error.constructor',
+    'es.symbol.async-dispose',
+    'es.symbol.dispose',
+  ],
 };
