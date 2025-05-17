@@ -1,5 +1,5 @@
 import AsyncIterator from 'core-js-pure/full/async-iterator';
-import Symbol from 'core-js-pure/full/symbol';
+import Symbol from 'core-js-pure/es/symbol';
 import create from 'core-js-pure/es/object/create';
 
 QUnit.test('AsyncIterator#@@asyncDispose', assert => {

@@ -123,6 +123,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [ECMAScript: Promise](#ecmascript-promise)
     - [ECMAScript: Symbol](#ecmascript-symbol)
     - [ECMAScript: Collections](#ecmascript-collections)
+    - [ECMAScript: Explicit Resource Management](#ecmascript-explicit-resource-management)
     - [ECMAScript: Typed Arrays](#ecmascript-typed-arrays)
     - [ECMAScript: Reflect](#ecmascript-reflect)
     - [ECMAScript: JSON](#ecmascript-json)
@@ -138,6 +139,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` grouping](#array-grouping)
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
       - [`Error.isError`](#erroriserror)
+      - [Explicit Resource Management](#explicit-resource-management)
       - [`Float16` methods](#float16-methods)
       - [`Iterator` helpers](#iterator-helpers)
       - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
@@ -165,7 +167,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array.fromAsync`](#arrayfromasync)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
-      - [Explicit resource management](#explicit-resource-management)
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
@@ -627,10 +628,15 @@ console.log.bind(console, 42)(43); // => 42 43
 ```
 
 #### ECMAScript: Error[⬆](#index)
-Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
+Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
 ```ts
+class Error {
+  static isError(value: any): boolean;
+  constructor(message: string, { cause: any }): %Error%;
+  toString(): string; // different fixes
+}
+
 class [
-  Error,
   EvalError,
   RangeError,
   ReferenceError,
@@ -640,7 +646,7 @@ class [
   WebAssembly.CompileError,
   WebAssembly.LinkError,
   WebAssembly.RuntimeError,
-] {
+] extends Error {
   constructor(message: string, { cause: any }): %Error%;
 }
 
@@ -651,18 +657,22 @@ class AggregateError extends Error {
   cause: any;
 }
 
-class Error {
-  static isError(value: any): boolean;
-  toString(): string; // different fixes
+class SuppressedError extends Error {
+  constructor(error: any, suppressed: any, message?: string): SuppressedError;
+  error: any;
+  suppressed: any;
+  message: string;
+  cause: any;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
 core-js(-pure)/es|stable|actual|full/error/is-error
 core-js/es|stable|actual|full/error/to-string
+core-js(-pure)/es|stable|actual|full/aggregate-error
+core-js(-pure)/es|stable|actual|full/suppressed-error
 ```
 [*Example*](https://is.gd/1SufcH):
 ```js
@@ -852,7 +862,7 @@ correctionNeeded; // => [1, 1, 3]
 ```
 
 #### ECMAScript: Iterator[⬆](#index)
-Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js)
+Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js)
 ```ts
 class Iterator {
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
@@ -867,12 +877,14 @@ class Iterator {
   some(callbackfn: (value: any, counter: uint) => boolean): boolean;
   take(limit: uint): Iterator<any>;
   toArray(): Array<any>;
+  @@dispose(): undefined;
   @@toStringTag: 'Iterator'
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/iterator
+core-js(-pure)/es|stable|actual|full/iterator/dispose
 core-js(-pure)/es|stable|actual|full/iterator/drop
 core-js(-pure)/es|stable|actual|full/iterator/every
 core-js(-pure)/es|stable|actual|full/iterator/filter
@@ -1432,12 +1444,14 @@ setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 ```
 
 #### ECMAScript: Symbol[⬆](#index)
-Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js).
+Modules [`es.symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.js), [`es.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-dispose.js), [`es.symbol.async-iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.async-iterator.js), [`es.symbol.description`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.description.js), [`es.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.dispose.js), [`es.symbol.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.has-instance.js), [`es.symbol.is-concat-spreadable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.is-concat-spreadable.js), [`es.symbol.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.iterator.js), [`es.symbol.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.match.js), [`es.symbol.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.replace.js), [`es.symbol.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.search.js), [`es.symbol.species`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.species.js), [`es.symbol.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.split.js), [`es.symbol.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-primitive.js), [`es.symbol.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.to-string-tag.js), [`es.symbol.unscopables`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.symbol.unscopables.js), [`es.math.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.to-string-tag.js).
 ```ts
 class Symbol {
   constructor(description?): symbol;
   readonly attribute description: string | void;
+  static asyncDispose: @@asyncDispose;
   static asyncIterator: @@asyncIterator;
+  static dispose: @@dispose;
   static hasInstance: @@hasInstance;
   static isConcatSpreadable: @@isConcatSpreadable;
   static iterator: @@iterator;
@@ -1473,8 +1487,10 @@ class Object {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/symbol
+core-js(-pure)/es|stable|actual|full/symbol/async-dispose
 core-js(-pure)/es|stable|actual|full/symbol/async-iterator
 core-js/es|stable|actual|full/symbol/description
+core-js(-pure)/es|stable|actual|full/symbol/dispose
 core-js(-pure)/es|stable|actual|full/symbol/has-instance
 core-js(-pure)/es|stable|actual|full/symbol/is-concat-spreadable
 core-js(-pure)/es|stable|actual|full/symbol/iterator
@@ -1764,6 +1780,63 @@ console.log(weakset.has(b));   // => false
 > [!WARNING]
 > - Weak-collections polyfill stores values as hidden properties of keys. It works correctly and does not leak in most cases. However, it is desirable to store a collection longer than its keys.
 > - Native symbols as `WeakMap` keys can't be properly polyfilled without memory leaks.
+
+#### ECMAScript: Explicit Resource Management[⬆](#index)
+> [!NOTE]
+> This is only built-ins for this Explicit Resource Management, `using` syntax support requires transpiler support.
+
+Modules [`es.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.async-dispose.js).
+```ts
+class Symbol {
+  static asyncDispose: @@asyncDispose;
+  static dispose: @@dispose;
+}
+
+class DisposableStack {
+  constructor(): DisposableStack;
+  dispose(): undefined;
+  use(value: Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  move(): DisposableStack;
+  @@dispose(): undefined;
+  @@toStringTag: 'DisposableStack';
+}
+
+class AsyncDisposableStack {
+  constructor(): AsyncDisposableStack;
+  disposeAsync(): Promise<undefined>;
+  use(value: AsyncDisposable | Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  move(): AsyncDisposableStack;
+  @@asyncDispose(): Promise<undefined>;
+  @@toStringTag: 'AsyncDisposableStack';
+}
+
+class SuppressedError extends Error {
+  constructor(error: any, suppressed: any, message?: string): SuppressedError;
+  error: any;
+  suppressed: any;
+  message: string;
+  cause: any;
+}
+
+class Iterator {
+  @@dispose(): undefined;
+}
+
+class AsyncIterator {
+  @@asyncDispose(): Promise<undefined>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js(-pure)/es|stable|actual|full/disposable-stack
+core-js(-pure)/es|stable|actual|full/async-disposable-stack
+core-js(-pure)/es|stable|actual|full/iterator/dispose
+core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
+```
 
 #### ECMAScript: Typed Arrays[⬆](#index)
 Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
@@ -2200,6 +2273,59 @@ core-js/proposals/is-error
 > [!WARNING]
 > We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's an enough naive implementation.
 
+
+##### [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
+> [!NOTE]
+> This is only built-ins for this Explicit Resource Management, `using` syntax support requires [transpiler support](https://babeljs.io/docs/babel-plugin-syntax-explicit-resource-management).
+```ts
+class Symbol {
+  static asyncDispose: @@asyncDispose;
+  static dispose: @@dispose;
+}
+
+class DisposableStack {
+  constructor(): DisposableStack;
+  dispose(): undefined;
+  use(value: Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  move(): DisposableStack;
+  @@dispose(): undefined;
+  @@toStringTag: 'DisposableStack';
+}
+
+class AsyncDisposableStack {
+  constructor(): AsyncDisposableStack;
+  disposeAsync(): Promise<undefined>;
+  use(value: AsyncDisposable | Disposable): value;
+  adopt(value: object, onDispose: Function): value;
+  defer(onDispose: Function): undefined;
+  move(): AsyncDisposableStack;
+  @@asyncDispose(): Promise<undefined>;
+  @@toStringTag: 'AsyncDisposableStack';
+}
+
+class SuppressedError extends Error {
+  constructor(error: any, suppressed: any, message?: string): SuppressedError;
+  error: any;
+  suppressed: any;
+  message: string;
+  cause: any;
+}
+
+class Iterator {
+  @@dispose(): undefined;
+}
+
+class AsyncIterator {
+  @@asyncDispose(): Promise<undefined>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/explicit-resource-management
+```
+
 ##### [`Float16` methods](https://github.com/tc39/proposal-float16array)[⬆](#index)
 ```ts
 class DataView {
@@ -2574,67 +2700,6 @@ console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
 console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
 console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
-```
-
-##### [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)[⬆](#index)
-> [!NOTE]
-> This is only built-ins for this proposal, `using` syntax support requires transpiler support.
-
-Modules [`esnext.symbol.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.dispose.js), [`esnext.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.disposable-stack.constructor.js), [`esnext.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.suppressed-error.constructor.js), [`esnext.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.dispose.js), [`esnext.symbol.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.async-dispose.js), [`esnext.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-disposable-stack.constructor.js), [`esnext.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.async-dispose.js).
-```ts
-class Symbol {
-  static asyncDispose: @@asyncDispose;
-  static dispose: @@dispose;
-}
-
-class DisposableStack {
-  constructor(): DisposableStack;
-  dispose(): undefined;
-  use(value: Disposable): value;
-  adopt(value: object, onDispose: Function): value;
-  defer(onDispose: Function): undefined;
-  move(): DisposableStack;
-  @@dispose(): undefined;
-  @@toStringTag: 'DisposableStack';
-}
-
-class AsyncDisposableStack {
-  constructor(): AsyncDisposableStack;
-  disposeAsync(): Promise<undefined>;
-  use(value: AsyncDisposable | Disposable): value;
-  adopt(value: object, onDispose: Function): value;
-  defer(onDispose: Function): undefined;
-  move(): AsyncDisposableStack;
-  @@asyncDispose(): Promise<undefined>;
-  @@toStringTag: 'AsyncDisposableStack';
-}
-
-class SuppressedError extends Error {
-  constructor(error: any, suppressed: any, message?: string): SuppressedError;
-  error: any;
-  suppressed: any;
-  message: string;
-  cause: any;
-}
-
-class Iterator {
-  @@dispose(): undefined;
-}
-
-class AsyncIterator {
-  @@asyncDispose(): Promise<undefined>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/explicit-resource-management
-core-js(-pure)/actual|full/symbol/async-dispose
-core-js(-pure)/actual|full/symbol/dispose
-core-js(-pure)/actual|full/disposable-stack
-core-js(-pure)/actual|full/async-disposable-stack
-core-js(-pure)/actual|full/suppressed-error
-core-js(-pure)/actual|full/iterator/dispose
-core-js(-pure)/actual|full/async-iterator/async-dispose
 ```
 
 ##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)

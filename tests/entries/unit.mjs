@@ -350,6 +350,16 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/some') == 'function');
     ok(typeof load(NS, 'iterator/take') == 'function');
     ok(typeof load(NS, 'iterator/to-array') == 'function');
+    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
+    ok(typeof load(NS, 'disposable-stack') == 'function');
+    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
+    load(NS, 'iterator/dispose');
+    ok(load(NS, 'symbol/async-dispose'));
+    ok(load(NS, 'symbol/dispose'));
+    load(NS, 'async-iterator');
+    load(NS, 'async-iterator/async-dispose');
+    ok(typeof load(NS, 'async-disposable-stack') == 'function');
+    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
 
     const instanceAt = load(NS, 'instance/at');
     ok(typeof instanceAt == 'function');
@@ -704,16 +714,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
-    ok(load(NS, 'symbol/dispose'));
     ok(load(NS, 'symbol/metadata'));
-    ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
-    ok(typeof load(NS, 'disposable-stack') == 'function');
-    ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
-    load(NS, 'iterator/dispose');
-    ok(load(NS, 'symbol/async-dispose'));
-    load(NS, 'async-iterator/async-dispose');
-    ok(typeof load(NS, 'async-disposable-stack') == 'function');
-    ok(typeof load(NS, 'async-disposable-stack/constructor') == 'function');
 
     const instanceGroup = load(NS, 'instance/group');
     ok(typeof instanceGroup == 'function');

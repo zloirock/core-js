@@ -22,10 +22,28 @@ export const data = {
     rhino: '1.8.0',
     safari: '12.1',
   },
+  'es.symbol.async-dispose': {
+    bun: '1.0.23',
+    chrome: '127',
+    deno: '1.38',
+    firefox: '135',
+    // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
+    // https://github.com/nodejs/node/issues/48699
+    node: '20.5.0',
+  },
   'es.symbol.async-iterator': {
     chrome: '63',
     firefox: '55',
     safari: '12.0',
+  },
+  'es.symbol.dispose': {
+    bun: '1.0.23',
+    chrome: '125',
+    deno: '1.38',
+    firefox: '135',
+    // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
+    // https://github.com/nodejs/node/issues/48699
+    node: '20.5.0',
   },
   'es.symbol.for': {
     chrome: '41',
@@ -173,6 +191,16 @@ export const data = {
     'react-native': '0.72',
     rhino: '1.8.0',
     safari: '15.0',
+  },
+  'es.suppressed-error.constructor': {
+    // Bun ~ 1.0.33 issues
+    // https://github.com/oven-sh/bun/issues/9282
+    // https://github.com/oven-sh/bun/issues/9283
+    bun: '1.2.15', // '1.0.23',
+    // reverted in https://issues.chromium.org/issues/42203506#comment25
+    // disabled again in 135 and re-enabled in 136
+    chrome: '136', // '134', // '133',
+    deno: '2.2.10',
   },
   'es.array.at': {
     chrome: '92',
@@ -599,6 +627,12 @@ export const data = {
     rhino: '1.7.13',
     safari: '3.1',
   },
+  'es.disposable-stack.constructor': {
+    // reverted in https://issues.chromium.org/issues/42203506#comment25
+    // disabled again in 135 and re-enabled in 136
+    chrome: '136', // '134', // '133',
+    deno: '2.2.10',
+  },
   'es.escape': {
     chrome: '1',
     firefox: '1',
@@ -646,6 +680,13 @@ export const data = {
     deno: '1.38.1',
     firefox: '131',
     safari: '18.4',
+  },
+  'es.iterator.dispose': {
+    // reverted in https://issues.chromium.org/issues/42203506#comment25
+    // disabled again in 135 and re-enabled in 136
+    chrome: '136', // '134', // '133',
+    deno: '2.2.10',
+    firefox: '135',
   },
   'es.iterator.drop': {
     // with changes related to the new iteration closing approach on early error
@@ -1400,6 +1441,14 @@ export const data = {
     chrome: '119',
     firefox: '121',
     safari: '17.4',
+  },
+  'es.async-disposable-stack.constructor': { // `Promise` dependency should be loaded before
+    // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
+    // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
+    chrome: '136',
+    deno: false,
+  },
+  'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
   },
   'es.reflect.apply': {
     chrome: '49',
@@ -2264,16 +2313,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.aggregate-error': null,
-  'esnext.suppressed-error.constructor': {
-    // Bun ~ 1.0.33 issues
-    // https://github.com/oven-sh/bun/issues/9282
-    // https://github.com/oven-sh/bun/issues/9283
-    bun: '1.2.15', // '1.0.23',
-    // reverted in https://issues.chromium.org/issues/42203506#comment25
-    // disabled again in 135 and re-enabled in 136
-    chrome: '136', // '134', // '133',
-    deno: '2.2.10',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.suppressed-error.constructor': null,
   'esnext.array.from-async': {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
     bun: '1.1.2', // '0.3.0',
@@ -2338,19 +2379,15 @@ export const data = {
   'esnext.array-buffer.transfer': null,
   // TODO: Remove from `core-js@4`
   'esnext.array-buffer.transfer-to-fixed-length': null,
-  'esnext.async-disposable-stack.constructor': {
-    // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
-    // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
-    chrome: '136',
-    deno: false,
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.async-disposable-stack.constructor': null,
   'esnext.async-iterator.constructor': {
   },
   // TODO: Remove from `core-js@4`
   'esnext.async-iterator.as-indexed-pairs': {
   },
-  'esnext.async-iterator.async-dispose': {
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.async-iterator.async-dispose': null,
   'esnext.async-iterator.drop': {
   },
   'esnext.async-iterator.every': {
@@ -2392,12 +2429,8 @@ export const data = {
   'esnext.data-view.set-float16': null,
   'esnext.data-view.set-uint8-clamped': {
   },
-  'esnext.disposable-stack.constructor': {
-    // reverted in https://issues.chromium.org/issues/42203506#comment25
-    // disabled again in 135 and re-enabled in 136
-    chrome: '136', // '134', // '133',
-    deno: '2.2.10',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.disposable-stack.constructor': null,
   // TODO: Remove from `core-js@4`
   'esnext.error.is-error': null,
   'esnext.function.demethodize': {
@@ -2420,13 +2453,8 @@ export const data = {
   },
   'esnext.iterator.concat': {
   },
-  'esnext.iterator.dispose': {
-    // reverted in https://issues.chromium.org/issues/42203506#comment25
-    // disabled again in 135 and re-enabled in 136
-    chrome: '136', // '134', // '133',
-    deno: '2.2.10',
-    firefox: '135',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.dispose': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.drop': null,
   // TODO: Remove from `core-js@4`
@@ -2699,26 +2727,12 @@ export const data = {
   'esnext.string.replace-all': null,
   // TODO: Remove from `core-js@4`
   'esnext.string.to-well-formed': null,
-  'esnext.symbol.async-dispose': {
-    bun: '1.0.23',
-    chrome: '127',
-    deno: '1.38',
-    firefox: '135',
-    // Node 20.4.0 add `Symbol.asyncDispose`, but with incorrect descriptor
-    // https://github.com/nodejs/node/issues/48699
-    node: '20.5.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.symbol.async-dispose': null,
   'esnext.symbol.custom-matcher': {
   },
-  'esnext.symbol.dispose': {
-    bun: '1.0.23',
-    chrome: '125',
-    deno: '1.38',
-    firefox: '135',
-    // Node 20.4.0 add `Symbol.dispose`, but with incorrect descriptor
-    // https://github.com/nodejs/node/issues/48699
-    node: '20.5.0',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.symbol.dispose': null,
   'esnext.symbol.is-registered-symbol': {
   },
   // TODO: Remove from `core-js@4`
@@ -3070,6 +3084,7 @@ export const renamed = new Map([
   ['es.set', 'es.set.constructor'],
   ['es.weak-map', 'es.weak-map.constructor'],
   ['es.weak-set', 'es.weak-set.constructor'],
+  ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.array.at', 'es.array.at'],
   ['esnext.array.find-last', 'es.array.find-last'],
   ['esnext.array.find-last-index', 'es.array.find-last-index'],
@@ -3080,12 +3095,15 @@ export const renamed = new Map([
   ['esnext.array-buffer.detached', 'es.array-buffer.detached'],
   ['esnext.array-buffer.transfer', 'es.array-buffer.transfer'],
   ['esnext.array-buffer.transfer-to-fixed-length', 'es.array-buffer.transfer-to-fixed-length'],
-  ['esnext.aggregate-error', 'es.aggregate-error'],
+  ['esnext.async-disposable-stack.constructor', 'es.async-disposable-stack.constructor'],
+  ['esnext.async-iterator.async-dispose', 'es.async-iterator.async-dispose'],
   ['esnext.data-view.get-float16', 'es.data-view.get-float16'],
   ['esnext.data-view.set-float16', 'es.data-view.set-float16'],
+  ['esnext.disposable-stack.constructor', 'es.disposable-stack.constructor'],
   ['esnext.error.is-error', 'es.error.is-error'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
+  ['esnext.iterator.dispose', 'es.iterator.dispose'],
   ['esnext.iterator.drop', 'es.iterator.drop'],
   ['esnext.iterator.every', 'es.iterator.every'],
   ['esnext.iterator.filter', 'es.iterator.filter'],
@@ -3118,7 +3136,10 @@ export const renamed = new Map([
   ['esnext.string.match-all', 'es.string.match-all'],
   ['esnext.string.replace-all', 'es.string.replace-all'],
   ['esnext.string.to-well-formed', 'es.string.to-well-formed'],
+  ['esnext.suppressed-error.constructor', 'es.suppressed-error.constructor'],
   ['esnext.typed-array.at', 'es.typed-array.at'],
+  ['esnext.symbol.async-dispose', 'es.symbol.async-dispose'],
+  ['esnext.symbol.dispose', 'es.symbol.dispose'],
   ['esnext.typed-array.find-last', 'es.typed-array.find-last'],
   ['esnext.typed-array.find-last-index', 'es.typed-array.find-last-index'],
   ['esnext.typed-array.to-reversed', 'es.typed-array.to-reversed'],

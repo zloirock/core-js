@@ -374,8 +374,16 @@ GLOBAL.tests = {
     // eslint-disable-next-line symbol-description -- required for testing
     return Symbol('description detection').description === 'description detection' && Symbol().description === undefined;
   },
+  'es.symbol.async-dispose': function () {
+    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'asyncDispose');
+    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
+  },
   'es.symbol.async-iterator': function () {
     return Symbol.asyncIterator;
+  },
+  'es.symbol.dispose': function () {
+    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'dispose');
+    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
   'es.symbol.for': SYMBOL_REGISTRY,
   'es.symbol.has-instance': [SYMBOLS_SUPPORT, function () {
@@ -444,6 +452,11 @@ GLOBAL.tests = {
   'es.aggregate-error.cause': function () {
     return new AggregateError([1], 'e', { cause: 7 }).cause === 7
       && !('cause' in AggregateError.prototype);
+  },
+  'es.suppressed-error.constructor': function () {
+    return typeof SuppressedError == 'function'
+      && SuppressedError.length === 3
+      && new SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
   },
   'es.array.at': function () {
     return [].at;
@@ -756,6 +769,9 @@ GLOBAL.tests = {
   'es.date.to-string': function () {
     return new Date(NaN).toString() === 'Invalid Date';
   },
+  'es.disposable-stack.constructor': function () {
+    return typeof DisposableStack == 'function';
+  },
   'es.escape': function () {
     return escape;
   },
@@ -780,6 +796,9 @@ GLOBAL.tests = {
       return typeof Iterator == 'function'
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
+  },
+  'es.iterator.dispose': function () {
+    return [].keys()[Symbol.dispose];
   },
   'es.iterator.drop': [
     iteratorHelperThrowsErrorOnInvalidIterator('drop', 0),
@@ -1134,6 +1153,15 @@ GLOBAL.tests = {
   'es.promise.with-resolvers': [PROMISES_SUPPORT, function () {
     return Promise.withResolvers;
   }],
+  'es.async-disposable-stack.constructor': function () {
+    // https://github.com/tc39/proposal-explicit-resource-management/issues/256
+    // can't be detected synchronously
+    if (V8_VERSION && V8_VERSION < 136) return;
+    return typeof AsyncDisposableStack == 'function';
+  },
+  'es.async-iterator.async-dispose': function () {
+    return AsyncIterator.prototype[Symbol.asyncDispose];
+  },
   'es.reflect.apply': function () {
     try {
       return Reflect.apply(function () {
@@ -1726,11 +1754,6 @@ GLOBAL.tests = {
       && set.add({}) === set
       && set[Symbol.toStringTag];
   }],
-  'esnext.suppressed-error.constructor': function () {
-    return typeof SuppressedError == 'function'
-      && SuppressedError.length === 3
-      && new SuppressedError(1, 2, 3, { cause: 4 }).cause !== 4;
-  },
   'esnext.array.from-async': function () {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
     var counter = 0;
@@ -1749,17 +1772,8 @@ GLOBAL.tests = {
   'esnext.array.unique-by': function () {
     return [].uniqueBy;
   },
-  'esnext.async-disposable-stack.constructor': function () {
-    // https://github.com/tc39/proposal-explicit-resource-management/issues/256
-    // can't be detected synchronously
-    if (V8_VERSION && V8_VERSION < 136) return;
-    return typeof AsyncDisposableStack == 'function';
-  },
   'esnext.async-iterator.constructor': function () {
     return typeof AsyncIterator == 'function';
-  },
-  'esnext.async-iterator.async-dispose': function () {
-    return AsyncIterator.prototype[Symbol.asyncDispose];
   },
   'esnext.async-iterator.drop': function () {
     return AsyncIterator.prototype.drop;
@@ -1809,9 +1823,6 @@ GLOBAL.tests = {
   'esnext.data-view.set-uint8-clamped': [ARRAY_BUFFER_SUPPORT, function () {
     return DataView.prototype.setUint8Clamped;
   }],
-  'esnext.disposable-stack.constructor': function () {
-    return typeof DisposableStack == 'function';
-  },
   'esnext.function.demethodize': function () {
     return Function.prototype.demethodize;
   },
@@ -1826,9 +1837,6 @@ GLOBAL.tests = {
   },
   'esnext.iterator.concat': function () {
     return Iterator.concat;
-  },
-  'esnext.iterator.dispose': function () {
-    return [].keys()[Symbol.dispose];
   },
   'esnext.iterator.range': function () {
     return Iterator.range;
@@ -1972,16 +1980,8 @@ GLOBAL.tests = {
   'esnext.string.dedent': function () {
     return String.dedent;
   },
-  'esnext.symbol.async-dispose': function () {
-    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'asyncDispose');
-    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
-  },
   'esnext.symbol.custom-matcher': function () {
     return Symbol.customMatcher;
-  },
-  'esnext.symbol.dispose': function () {
-    var descriptor = Object.getOwnPropertyDescriptor(Symbol, 'dispose');
-    return descriptor.value && !descriptor.enumerable && !descriptor.configurable && !descriptor.writable;
   },
   'esnext.symbol.is-registered-symbol': function () {
     return Symbol.isRegisteredSymbol;
