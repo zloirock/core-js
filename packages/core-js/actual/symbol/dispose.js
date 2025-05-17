@@ -1,5 +1,5 @@
 'use strict';
+var parent = require('../../stable/symbol/dispose');
 require('../../modules/esnext.symbol.dispose');
-var WrappedWellKnownSymbolModule = require('../../internals/well-known-symbol-wrapped');
 
-module.exports = WrappedWellKnownSymbolModule.f('dispose');
+module.exports = parent;
