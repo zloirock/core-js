@@ -773,7 +773,7 @@ core-js(-pure)/es|stable|actual|full/array(/virtual)/with
 Array.from(new Set([1, 2, 3, 2, 1]));        // => [1, 2, 3]
 Array.from({ 0: 1, 1: 2, 2: 3, length: 3 }); // => [1, 2, 3]
 Array.from('123', Number);                   // => [1, 2, 3]
-Array.from('123', it => it * it);            // => [1, 4, 9]
+Array.from('123', it => it ** 2);            // => [1, 4, 9]
 
 Array.of(1);       // => [1]
 Array.of(1, 2, 3); // => [1, 2, 3]
@@ -2470,7 +2470,7 @@ core-js(-pure)/actual|full/array/from-async
 ```
 [*Example*](https://tinyurl.com/2bt9bhwn):
 ```js
-await Array.fromAsync((async function * () { yield * [1, 2, 3]; })(), i => i * i); // => [1, 4, 9]
+await Array.fromAsync((async function * () { yield * [1, 2, 3]; })(), it => it ** 2); // => [1, 4, 9]
 ```
 
 ##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)

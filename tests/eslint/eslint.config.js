@@ -9,6 +9,7 @@ import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comment
 import pluginImport from 'eslint-plugin-import-x';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
+import pluginMath from 'eslint-plugin-math';
 import pluginN from 'eslint-plugin-n';
 import * as pluginPackageJSON from 'eslint-plugin-package-json';
 import pluginPromise from 'eslint-plugin-promise';
@@ -835,6 +836,61 @@ const base = {
   // values not convertible to numbers should not be used in numeric comparisons
   'sonarjs/values-not-convertible-to-numbers': ERROR,
 
+  // math
+  // enforce the conversion to absolute values to be the method you prefer
+  'math/abs': [ERROR, { prefer: 'Math.abs' }],
+  // disallow static calculations that go to infinity
+  'math/no-static-infinity-calculations': ERROR,
+  // disallow static calculations that go to `NaN`
+  'math/no-static-nan-calculations': ERROR,
+  // enforce the use of exponentiation (`**`) operator instead of other calculations
+  'math/prefer-exponentiation-operator': ERROR,
+  // enforce the use of `Math.cbrt()` instead of other cube root calculations
+  'math/prefer-math-cbrt': ERROR,
+  // enforce the use of `Math.E` instead of other ways
+  'math/prefer-math-e': ERROR,
+  // enforce the use of `Math.hypot()` instead of other hypotenuse calculations
+  'math/prefer-math-hypot': ERROR,
+  // enforce the use of `Math.LN10` instead of other ways
+  'math/prefer-math-ln10': ERROR,
+  // enforce the use of `Math.LN2` instead of other ways
+  'math/prefer-math-ln2': ERROR,
+  // enforce the use of `Math.log10` instead of other ways
+  'math/prefer-math-log10': ERROR,
+  // enforce the use of `Math.LOG10E` instead of other ways
+  'math/prefer-math-log10e': ERROR,
+  // enforce the use of `Math.log2` instead of other ways
+  'math/prefer-math-log2': ERROR,
+  // enforce the use of `Math.LOG2E` instead of other ways
+  'math/prefer-math-log2e': ERROR,
+  // enforce the use of `Math.PI` instead of literal number
+  'math/prefer-math-pi': ERROR,
+  // enforce the use of `Math.sqrt()` instead of other square root calculations
+  'math/prefer-math-sqrt': ERROR,
+  // enforce the use of `Math.SQRT1_2` instead of other ways
+  'math/prefer-math-sqrt1-2': ERROR,
+  // enforce the use of `Math.SQRT2` instead of other ways
+  'math/prefer-math-sqrt2': ERROR,
+  // enforce the use of `Math.trunc()` instead of other truncations
+  // temporarily disabled because of https://github.com/ota-meshi/eslint-plugin-math/issues/92
+  'math/prefer-math-trunc': OFF,
+  // enforce the use of `Number.EPSILON` instead of other ways
+  'math/prefer-number-epsilon': ERROR,
+  // enforce the use of `Number.isFinite()` instead of other checking ways
+  'math/prefer-number-is-finite': ERROR,
+  // enforce the use of `Number.isInteger()` instead of other checking ways
+  'math/prefer-number-is-integer': ERROR,
+  // enforce the use of `Number.isNaN()` instead of other checking ways
+  'math/prefer-number-is-nan': ERROR,
+  // enforce the use of `Number.isSafeInteger()` instead of other checking ways
+  'math/prefer-number-is-safe-integer': ERROR,
+  // enforce the use of `Number.MAX_SAFE_INTEGER` instead of other ways
+  'math/prefer-number-max-safe-integer': ERROR,
+  // enforce the use of `Number.MAX_VALUE` instead of literal number
+  'math/prefer-number-max-value': ERROR,
+  // enforce the use of `Number.MIN_SAFE_INTEGER` instead of other ways
+  'math/prefer-number-min-safe-integer': ERROR,
+
   // regexp
   // disallow confusing quantifiers
   'regexp/confusing-quantifier': ERROR,
@@ -1064,6 +1120,8 @@ const useES3Syntax = {
   '@stylistic/js/comma-dangle': [ERROR, NEVER],
   // require or disallow use of quotes around object literal property names
   '@stylistic/js/quote-props': [ERROR, 'as-needed', { keywords: true }],
+  // enforce the use of exponentiation (`**`) operator instead of other calculations
+  'math/prefer-exponentiation-operator': OFF,
   // prefer lookarounds over capturing group that do not replace
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
@@ -1453,6 +1511,30 @@ const forbidES2015BuiltIns = {
   'es/no-typed-arrays': ERROR,
   'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
+  // enforce the use of `Math.cbrt()` instead of other cube root calculations
+  'math/prefer-math-cbrt': OFF,
+  // enforce the use of `Math.hypot()` instead of other hypotenuse calculations
+  'math/prefer-math-hypot': OFF,
+  // enforce the use of `Math.log10` instead of other ways
+  'math/prefer-math-log10': OFF,
+  // enforce the use of `Math.log10` instead of other ways
+  'math/prefer-math-log2': OFF,
+  // enforce the use of `Math.trunc()` instead of other truncations
+  'math/prefer-math-trunc': OFF,
+  // enforce the use of `Number.EPSILON` instead of other ways
+  'math/prefer-number-epsilon': OFF,
+  // enforce the use of `Number.isFinite()` instead of other checking ways
+  'math/prefer-number-is-finite': OFF,
+  // enforce the use of `Number.isInteger()` instead of other checking ways
+  'math/prefer-number-is-integer': OFF,
+  // enforce the use of `Number.isNaN()` instead of other checking ways
+  'math/prefer-number-is-nan': OFF,
+  // enforce the use of `Number.isSafeInteger()` instead of other checking ways
+  'math/prefer-number-is-safe-integer': OFF,
+  // enforce the use of `Number.MAX_SAFE_INTEGER` instead of other ways
+  'math/prefer-number-max-safe-integer': OFF,
+  // enforce the use of `Number.MIN_SAFE_INTEGER` instead of other ways
+  'math/prefer-number-min-safe-integer': OFF,
   // prefer modern `Math` APIs over legacy patterns
   'unicorn/prefer-modern-math-apis': OFF,
   // prefer `String#{ startsWith, endsWith }()` over `RegExp#test()`
@@ -1792,14 +1874,14 @@ const tests = {
   '@stylistic/js/max-len': [ERROR, { ...base['@stylistic/js/max-len'][1], code: 180 }],
   // enforces the use of `catch()` on un-returned promises
   'promise/catch-or-return': OFF,
-  // disallow `instanceof` with built-in objects
-  'unicorn/no-instanceof-builtins': OFF,
   // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
   'promise/prefer-catch': OFF,
   // shorthand promises should be used
   'sonarjs/prefer-promise-shorthand': OFF,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': OFF,
+  // disallow `instanceof` with built-in objects
+  'unicorn/no-instanceof-builtins': OFF,
   // prefer `.at()` method for index access and `String#charAt()`
   'unicorn/prefer-at': OFF,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
@@ -2103,6 +2185,7 @@ export default [
       import: pluginImport,
       jsonc: pluginJSONC,
       markdown: pluginMarkdown,
+      math: pluginMath,
       node: pluginN,
       'package-json': pluginPackageJSON,
       promise: pluginPromise,

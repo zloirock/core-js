@@ -13,7 +13,9 @@ QUnit.test('parseFloat', assert => {
   assert.same(parseFloat(' -0'), -0);
   assert.same(parseFloat(`${ WHITESPACES }+0`), 0);
   assert.same(parseFloat(`${ WHITESPACES }-0`), -0);
+  // eslint-disable-next-line math/no-static-nan-calculations -- feature detection
   assert.same(parseFloat(null), NaN);
+  // eslint-disable-next-line math/no-static-nan-calculations -- feature detection
   assert.same(parseFloat(undefined), NaN);
 
   if (typeof Symbol == 'function' && !Symbol.sham) {

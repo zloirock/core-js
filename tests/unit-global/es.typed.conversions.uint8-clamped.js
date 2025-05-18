@@ -1,4 +1,4 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
   const uint8clamped = new Uint8ClampedArray(1);
@@ -44,16 +44,16 @@ if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
     [4294967295, 255, [255]],
     [4294967296, 255, [255]],
     [4294967297, 255, [255]],
-    [9007199254740991, 255, [255]],
-    [-9007199254740991, 0, [0]],
-    [9007199254740992, 255, [255]],
-    [-9007199254740992, 0, [0]],
-    [9007199254740994, 255, [255]],
-    [-9007199254740994, 0, [0]],
+    [MAX_SAFE_INTEGER, 255, [255]],
+    [MIN_SAFE_INTEGER, 0, [0]],
+    [MAX_SAFE_INTEGER + 1, 255, [255]],
+    [MIN_SAFE_INTEGER - 1, 0, [0]],
+    [MAX_SAFE_INTEGER + 3, 255, [255]],
+    [MIN_SAFE_INTEGER - 3, 0, [0]],
     [Infinity, 255, [255]],
     [-Infinity, 0, [0]],
-    [-1.7976931348623157e+308, 0, [0]],
-    [1.7976931348623157e+308, 255, [255]],
+    [-Number.MAX_VALUE, 0, [0]],
+    [Number.MAX_VALUE, 255, [255]],
     [5e-324, 0, [0]],
     [-5e-324, 0, [0]],
     [NaN, 0, [0]],

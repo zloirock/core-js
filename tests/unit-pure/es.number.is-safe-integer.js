@@ -1,3 +1,4 @@
+import { MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 import create from 'core-js-pure/es/object/create';
 import isSafeInteger from 'core-js-pure/es/number/is-safe-integer';
 
@@ -13,15 +14,15 @@ QUnit.test('Number.isSafeInteger', assert => {
     2 ** 32,
     2 ** 32 - 1,
     -0,
-    9007199254740991,
-    -9007199254740991,
+    MAX_SAFE_INTEGER,
+    MIN_SAFE_INTEGER,
   ];
   for (const value of safeIntegers) {
     assert.true(isSafeInteger(value), `isSafeInteger ${ typeof value } ${ value }`);
   }
   const notSafeIntegers = [
-    9007199254740992,
-    -9007199254740992,
+    MAX_SAFE_INTEGER + 1,
+    MIN_SAFE_INTEGER - 1,
     NaN,
     0.1,
     Infinity,

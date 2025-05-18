@@ -1,3 +1,5 @@
+import { MAX_SAFE_INTEGER } from '../helpers/constants.js';
+
 QUnit.test('Number.range', assert => {
   const { range } = Number;
   const { from } = Array;
@@ -27,8 +29,8 @@ QUnit.test('Number.range', assert => {
     [0, 0.1, 0.2, 0.30000000000000004, 0.4, 0.5, 0.6000000000000001, 0.7000000000000001, 0.8, 0.9],
   );
   assert.deepEqual(
-    from(range(2 ** 53 - 1, 2 ** 53, { inclusive: true })),
-    [9007199254740991, 9007199254740992],
+    from(range(MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1, { inclusive: true })),
+    [MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1],
   );
   assert.deepEqual(from(range(0, 0)), []);
   assert.deepEqual(from(range(0, -5, 1)), []);

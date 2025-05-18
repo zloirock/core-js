@@ -33,8 +33,8 @@ QUnit.test('Math.hypot', assert => {
   assert.same(hypot(0, 0, 1), 1);
   assert.same(hypot(0, 1, 0), 1);
   assert.same(hypot(1, 0, 0), 1);
-  assert.same(hypot(2, 3, 4), sqrt(2 * 2 + 3 * 3 + 4 * 4));
-  assert.same(hypot(2, 3, 4, 5), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5));
+  assert.same(hypot(2, 3, 4), sqrt(2 ** 2 + 3 ** 2 + 4 ** 2));
+  assert.same(hypot(2, 3, 4, 5), sqrt(2 ** 2 + 3 ** 2 + 4 ** 2 + 5 ** 2));
   assert.closeTo(hypot(66, 66), 93.33809511662427, 1e-11);
   assert.closeTo(hypot(0.1, 100), 100.0000499999875, 1e-11);
   assert.same(hypot(1e+300, 1e+300), 1.4142135623730952e+300);
@@ -47,7 +47,7 @@ QUnit.test('Math.hypot', assert => {
   const checker2 = createConversionChecker(3);
   const checker3 = createConversionChecker(4);
   const checker4 = createConversionChecker(5);
-  assert.same(hypot(checker1, checker2, checker3, checker4), sqrt(2 * 2 + 3 * 3 + 4 * 4 + 5 * 5), 'object wrapper');
+  assert.same(hypot(checker1, checker2, checker3, checker4), sqrt(2 ** 2 + 3 ** 2 + 4 ** 2 + 5 ** 2), 'object wrapper');
   assert.same(checker1.$valueOf, 1, 'checker1 valueOf calls');
   assert.same(checker1.$toString, 0, 'checker1 toString calls');
   assert.same(checker2.$valueOf, 1, 'checker2 valueOf calls');

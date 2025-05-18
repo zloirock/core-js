@@ -18,8 +18,6 @@ QUnit.test('Math.fround', assert => {
   assert.same(fround(-Infinity), -Infinity);
   assert.same(fround(MAX_VALUE), Infinity);
   assert.same(fround(-MAX_VALUE), -Infinity);
-  assert.same(fround(1.7976931348623157e+308), Infinity);
-  assert.same(fround(-1.7976931348623157e+308), -Infinity);
   assert.same(fround(3.4028235677973366e+38), Infinity);
   assert.same(fround(3), 3);
   assert.same(fround(-3), -3);

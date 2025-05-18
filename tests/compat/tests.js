@@ -909,6 +909,7 @@ GLOBAL.tests = {
     return Math.trunc;
   },
   'es.number.constructor': function () {
+    // eslint-disable-next-line math/no-static-nan-calculations -- feature detection
     return Number(' 0o1') && Number('0b1') && !Number('+0x1');
   },
   'es.number.epsilon': function () {

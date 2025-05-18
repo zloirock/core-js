@@ -1,4 +1,4 @@
-import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants.js';
+import { DESCRIPTORS, LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Float32 conversions', assert => {
   const float32array = new Float32Array(1);
@@ -49,16 +49,16 @@ if (DESCRIPTORS) QUnit.test('Float32 conversions', assert => {
     [4294967295, 4294967296, [0, 0, 128, 79]],
     [4294967296, 4294967296, [0, 0, 128, 79]],
     [4294967297, 4294967296, [0, 0, 128, 79]],
-    [9007199254740991, 9007199254740992, [0, 0, 0, 90]],
-    [-9007199254740991, -9007199254740992, [0, 0, 0, 218]],
-    [9007199254740992, 9007199254740992, [0, 0, 0, 90]],
-    [-9007199254740992, -9007199254740992, [0, 0, 0, 218]],
-    [9007199254740994, 9007199254740992, [0, 0, 0, 90]],
-    [-9007199254740994, -9007199254740992, [0, 0, 0, 218]],
+    [MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1, [0, 0, 0, 90]],
+    [MIN_SAFE_INTEGER, MIN_SAFE_INTEGER - 1, [0, 0, 0, 218]],
+    [MAX_SAFE_INTEGER + 1, MAX_SAFE_INTEGER + 1, [0, 0, 0, 90]],
+    [MIN_SAFE_INTEGER - 1, MIN_SAFE_INTEGER - 1, [0, 0, 0, 218]],
+    [MAX_SAFE_INTEGER + 3, MAX_SAFE_INTEGER + 1, [0, 0, 0, 90]],
+    [MIN_SAFE_INTEGER - 3, MIN_SAFE_INTEGER - 1, [0, 0, 0, 218]],
     [Infinity, Infinity, [0, 0, 128, 127]],
     [-Infinity, -Infinity, [0, 0, 128, 255]],
-    [1.7976931348623157e+308, Infinity, [0, 0, 128, 127]],
-    [-1.7976931348623157e+308, -Infinity, [0, 0, 128, 255]],
+    [Number.MAX_VALUE, Infinity, [0, 0, 128, 127]],
+    [-Number.MAX_VALUE, -Infinity, [0, 0, 128, 255]],
     [5e-324, 0, [0, 0, 0, 0]],
     [-5e-324, -0, [0, 0, 0, 128]],
   ];

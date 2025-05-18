@@ -22,7 +22,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArray%.from', assert => {
     instance = TypedArray.from(createIterable([$(1), $(2), $(3)]));
     assert.true(instance instanceof TypedArray, 'correct instance with iterable');
     assert.deepEqual(instance, new TypedArray([$(1), $(2), $(3)]), 'correct elements with iterable');
-    assert.deepEqual(TypedArray.from([1, 2, 3], it => String(it * it)), new TypedArray([$(1), $(4), $(9)]), 'accept callback');
+    assert.deepEqual(TypedArray.from([1, 2, 3], it => String(it ** 2)), new TypedArray([$(1), $(4), $(9)]), 'accept callback');
     assert.deepEqual(TypedArray.from([{ valueOf() { return $(2); } }]), new TypedArray([$(2)]), 'passed array with object convertible to primitive');
     assert.deepEqual(TypedArray.from(createIterable([{ valueOf() { return $(2); } }])), new TypedArray([$(2)]), 'passed iterable with object convertible to primitive');
     const context = {};

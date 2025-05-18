@@ -3,5 +3,6 @@ QUnit.test('Number.MIN_SAFE_INTEGER', assert => {
   assert.nonEnumerable(Number, 'MIN_SAFE_INTEGER');
   assert.nonConfigurable(Number, 'MIN_SAFE_INTEGER');
   assert.nonWritable(Number, 'MIN_SAFE_INTEGER');
+  // eslint-disable-next-line math/prefer-number-min-safe-integer -- testing
   assert.same(Number.MIN_SAFE_INTEGER, -(2 ** 53) + 1, 'Is -2^53 + 1');
 });

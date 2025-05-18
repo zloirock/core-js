@@ -1,4 +1,4 @@
-import { DESCRIPTORS, LITTLE_ENDIAN } from '../helpers/constants.js';
+import { DESCRIPTORS, LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Uint32 conversions', assert => {
   const uint32array = new Uint32Array(1);
@@ -48,15 +48,15 @@ if (DESCRIPTORS) QUnit.test('Uint32 conversions', assert => {
     [4294967295, 4294967295, [255, 255, 255, 255]],
     [4294967296, 0, [0, 0, 0, 0]],
     [4294967297, 1, [1, 0, 0, 0]],
-    [9007199254740991, 4294967295, [255, 255, 255, 255]],
-    [-9007199254740991, 1, [1, 0, 0, 0]],
-    [9007199254740992, 0, [0, 0, 0, 0]],
-    [-9007199254740992, 0, [0, 0, 0, 0]],
-    [9007199254740994, 2, [2, 0, 0, 0]],
-    [-9007199254740994, 4294967294, [254, 255, 255, 255]],
+    [MAX_SAFE_INTEGER, 4294967295, [255, 255, 255, 255]],
+    [MIN_SAFE_INTEGER, 1, [1, 0, 0, 0]],
+    [MAX_SAFE_INTEGER + 1, 0, [0, 0, 0, 0]],
+    [MIN_SAFE_INTEGER - 1, 0, [0, 0, 0, 0]],
+    [MAX_SAFE_INTEGER + 3, 2, [2, 0, 0, 0]],
+    [MIN_SAFE_INTEGER - 3, 4294967294, [254, 255, 255, 255]],
     [Infinity, 0, [0, 0, 0, 0]], [-Infinity, 0, [0, 0, 0, 0]],
-    [-1.7976931348623157e+308, 0, [0, 0, 0, 0]],
-    [1.7976931348623157e+308, 0, [0, 0, 0, 0]],
+    [-Number.MAX_VALUE, 0, [0, 0, 0, 0]],
+    [Number.MAX_VALUE, 0, [0, 0, 0, 0]],
     [5e-324, 0, [0, 0, 0, 0]],
     [-5e-324, 0, [0, 0, 0, 0]],
     [NaN, 0, [0, 0, 0, 0]],

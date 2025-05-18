@@ -32,7 +32,9 @@ QUnit.test('parseInt', assert => {
   assert.same(parseInt('+0xF'), 15, 'signed hex #3');
   assert.same(parseInt('+0xF', 16), 15, 'signed hex #4');
   assert.same(parseInt('10', -4294967294), 2, 'radix uses ToUint32');
+  // eslint-disable-next-line math/no-static-nan-calculations -- feature detection
   assert.same(parseInt(null), NaN);
+  // eslint-disable-next-line math/no-static-nan-calculations -- feature detection
   assert.same(parseInt(undefined), NaN);
 
   if (typeof Symbol == 'function' && !Symbol.sham) {

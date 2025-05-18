@@ -1,4 +1,4 @@
-import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN, NATIVE } from '../helpers/constants.js';
+import { DESCRIPTORS, GLOBAL, LITTLE_ENDIAN, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER, NATIVE } from '../helpers/constants.js';
 
 if (DESCRIPTORS) QUnit.test('Int8 conversions', assert => {
   const int8array = new Int8Array(1);
@@ -44,12 +44,12 @@ if (DESCRIPTORS) QUnit.test('Int8 conversions', assert => {
     [2147483648, 0, [0]],
     [-2147483648, 0, [0]],
     [4294967296, 0, [0]],
-    [9007199254740992, 0, [0]],
-    [-9007199254740992, 0, [0]],
+    [MAX_SAFE_INTEGER + 1, 0, [0]],
+    [MIN_SAFE_INTEGER - 1, 0, [0]],
     [Infinity, 0, [0]],
     [-Infinity, 0, [0]],
-    [-1.7976931348623157e+308, 0, [0]],
-    [1.7976931348623157e+308, 0, [0]],
+    [-Number.MAX_VALUE, 0, [0]],
+    [Number.MAX_VALUE, 0, [0]],
     [5e-324, 0, [0]],
     [-5e-324, 0, [0]],
     [NaN, 0, [0]],
@@ -61,10 +61,10 @@ if (DESCRIPTORS) QUnit.test('Int8 conversions', assert => {
       [-2147483649, -1, [255]],
       [4294967295, -1, [255]],
       [4294967297, 1, [1]],
-      [9007199254740991, -1, [255]],
-      [-9007199254740991, 1, [1]],
-      [9007199254740994, 2, [2]],
-      [-9007199254740994, -2, [254]],
+      [MAX_SAFE_INTEGER, -1, [255]],
+      [MIN_SAFE_INTEGER, 1, [1]],
+      [MAX_SAFE_INTEGER + 3, 2, [2]],
+      [MIN_SAFE_INTEGER - 3, -2, [254]],
     );
   }
   for (const [value, conversion, little] of data) {
