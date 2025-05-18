@@ -8,9 +8,12 @@ import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // for Babel template transform
+// eslint-disable-next-line es/no-object-freeze -- safe
 if (!Object.freeze) Object.freeze = Object;
+// eslint-disable-next-line es/no-object-defineproperties -- safe
 if (!DESCRIPTORS) Object.defineProperties = defineProperties;
 
+// eslint-disable-next-line es/no-object-getownpropertydescriptor -- safe
 const { getOwnPropertyDescriptor } = Object;
 const { toString, propertyIsEnumerable } = Object.prototype;
 

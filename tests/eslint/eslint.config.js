@@ -2143,7 +2143,7 @@ export default [
   {
     files: [
       'packages/core-js?(-pure)/**',
-      'tests/@(unit-pure|worker)/**',
+      'tests/@(helpers|unit-pure|worker)/**',
       'tests/compat/@(browsers|hermes|node|rhino)-runner.js',
     ],
     rules: forbidModernBuiltIns,

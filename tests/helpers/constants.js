@@ -57,6 +57,7 @@ export const LITTLE_ENDIAN = (() => {
   }
 })();
 
+// eslint-disable-next-line es/no-object-setprototypeof -- detection
 export const PROTO = !!Object.setPrototypeOf || '__proto__' in Object.prototype;
 
 export let REDEFINABLE_PROTO = false;
@@ -75,6 +76,7 @@ export const STRICT = !STRICT_THIS;
 
 export const FREEZING = !function () {
   try {
+    // eslint-disable-next-line es/no-object-isextensible, es/no-object-preventextensions -- detection
     return Object.isExtensible(Object.preventExtensions({}));
   } catch {
     return true;
@@ -85,6 +87,7 @@ export const CORRECT_PROTOTYPE_GETTER = !function () {
   try {
     function F() { /* empty */ }
     F.prototype.constructor = null;
+    // eslint-disable-next-line es/no-object-getprototypeof -- detection
     return Object.getPrototypeOf(new F()) !== F.prototype;
   } catch {
     return true;
