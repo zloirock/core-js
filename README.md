@@ -2942,7 +2942,7 @@ core-js/proposals/observable
 core-js(-pure)/full/observable
 core-js(-pure)/full/symbol/observable
 ```
-[*Examples*](https://tinyurl.com/2d7p3aax):
+*Example*:
 ```js
 new Observable(observer => {
   observer.next('hello');
