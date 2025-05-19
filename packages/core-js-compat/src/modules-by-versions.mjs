@@ -285,5 +285,6 @@ export default {
   ],
   3.43: [
     'esnext.iterator.chunks',
+    'esnext.iterator.windows',
   ],
 };

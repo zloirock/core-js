@@ -2455,6 +2455,8 @@ export const data = {
   'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
   },
+  'esnext.iterator.windows': {
+  },
   'esnext.json.is-raw-json': {
     bun: '1.1.43',
     chrome: '114',

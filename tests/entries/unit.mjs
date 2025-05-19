@@ -772,6 +772,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
+    ok(typeof load(NS, 'iterator/chunks') == 'function');
+    ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
     ok(load(NS, 'map/emplace')(new Map([[1, 2]]), 1, { update: it => it ** 2 }) === 4);
     ok(load(NS, 'map/every')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === false);
@@ -1098,7 +1100,6 @@ for (const NS of ['full', 'features']) {
   load(NS, 'typed-array/filter-reject');
   load(NS, 'typed-array/group-by');
   load(NS, 'typed-array/unique-by');
-  load(NS, 'iterator/chunks');
 }
 
 load('modules/esnext.string.at-alternative');

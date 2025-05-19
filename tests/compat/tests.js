@@ -1824,7 +1824,6 @@ GLOBAL.tests = {
     return Function.prototype[Symbol.metadata] === null;
   },
   'esnext.iterator.chunks': function () {
-    // eslint-disable-next-line es/no-nonstandard-iterator-prototype-properties -- required for detection
     return Iterator.prototype.chunks;
   },
   'esnext.iterator.concat': function () {
@@ -1838,6 +1837,9 @@ GLOBAL.tests = {
   },
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
+  },
+  'esnext.iterator.windows': function () {
+    return Iterator.prototype.windows;
   },
   'esnext.json.is-raw-json': NATIVE_RAW_JSON,
   'esnext.json.parse': function () {
