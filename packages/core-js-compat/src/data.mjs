@@ -2488,6 +2488,8 @@ export const data = {
   'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
   },
+  'esnext.iterator.windows': {
+  },
   'esnext.iterator.zip': {
   },
   'esnext.iterator.zip-keyed': {

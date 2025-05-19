@@ -1258,6 +1258,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     'asIndexedPairs',
     'indexed',
     'chunks',
+    'windows',
   ] }],
   'es/no-nonstandard-json-properties': [ERROR, { allow: [
     'isRawJSON',

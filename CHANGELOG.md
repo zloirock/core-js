@@ -37,9 +37,10 @@
   - Added built-ins:
     - `Iterator.zip`
     - `Iterator.zipKeyed`
-- [`Iterator` chunking stage 2 proposal](https://github.com/tc39/proposal-iterator-chunking):
+- Added [`Iterator` chunking stage 2 proposal](https://github.com/tc39/proposal-iterator-chunking):
   - Added built-ins:
     - `Iterator.prototype.chunks`
+    - `Iterator.prototype.windows`
 - [`Number.prototype.clamp` proposal](https://github.com/tc39/proposal-math-clamp):
   - Built-ins:
     - `Number.prototype.clamp`

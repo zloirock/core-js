@@ -8,36 +8,38 @@ var uncurryThis = require('../internals/function-uncurry-this');
 
 var $RangeError = RangeError;
 var push = uncurryThis([].push);
+var slice = uncurryThis([].slice);
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
   var next = this.next;
-  var chunkSize = this.chunkSize;
-  var buffer = [];
+  var buffer = this.buffer;
+  var windowSize = this.windowSize;
   var result, done;
   while (true) {
     result = anObject(call(next, iterator));
-    done = !!result.done;
-    if (done) {
-      if (buffer.length) return buffer;
-      this.done = true;
-      return;
-    }
+    done = this.done = !!result.done;
+    if (done) return;
+
     push(buffer, result.value);
-    if (buffer.length === chunkSize) return buffer;
+    if (buffer.length === windowSize) {
+      this.buffer = slice(buffer, 1);
+      return buffer;
+    }
   }
 });
 
-// `Iterator.prototype.chunks` method
+// `Iterator.prototype.windows` method
 // https://github.com/tc39/proposal-iterator-chunking
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
-  chunks: function chunks(chunkSize) {
+  windows: function windows(windowSize) {
     var O = anObject(this);
-    if (!chunkSize || chunkSize >>> 0 !== chunkSize) {
-      throw $RangeError('chunkSize must be integer in [1, 2^32-1]');
+    if (!windowSize || windowSize >>> 0 !== windowSize) {
+      throw $RangeError('windowSize must be integer in [1, 2^32-1]');
     }
     return new IteratorProxy(getIteratorDirect(O), {
-      chunkSize: chunkSize
+      windowSize: windowSize,
+      buffer: []
     });
   }
 });
