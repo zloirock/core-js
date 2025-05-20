@@ -890,6 +890,8 @@ const base = {
   'math/prefer-number-max-value': ERROR,
   // enforce the use of `Number.MIN_SAFE_INTEGER` instead of other ways
   'math/prefer-number-min-safe-integer': ERROR,
+  // enforce the use of `Number.MIN_VALUE` instead of literal number
+  'math/prefer-number-min-value': ERROR,
 
   // regexp
   // disallow confusing quantifiers

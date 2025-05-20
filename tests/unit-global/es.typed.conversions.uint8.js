@@ -48,8 +48,8 @@ if (DESCRIPTORS) QUnit.test('Uint8 conversions', assert => {
     [Infinity, 0, [0]], [-Infinity, 0, [0]],
     [-Number.MAX_VALUE, 0, [0]],
     [Number.MAX_VALUE, 0, [0]],
-    [5e-324, 0, [0]],
-    [-5e-324, 0, [0]],
+    [Number.MIN_VALUE, 0, [0]],
+    [-Number.MIN_VALUE, 0, [0]],
     [NaN, 0, [0]],
   ];
   // Android 4.3- bug

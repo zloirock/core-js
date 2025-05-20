@@ -58,8 +58,8 @@ if (DESCRIPTORS) QUnit.test('Int32 conversions', assert => {
     [-Infinity, 0, [0, 0, 0, 0]],
     [-Number.MAX_VALUE, 0, [0, 0, 0, 0]],
     [Number.MAX_VALUE, 0, [0, 0, 0, 0]],
-    [5e-324, 0, [0, 0, 0, 0]],
-    [-5e-324, 0, [0, 0, 0, 0]],
+    [Number.MIN_VALUE, 0, [0, 0, 0, 0]],
+    [-Number.MIN_VALUE, 0, [0, 0, 0, 0]],
     [NaN, 0, [0, 0, 0, 0]],
   ];
   for (const [value, conversion, little] of data) {

@@ -63,8 +63,8 @@ QUnit.test('DataView.prototype.{ getUint8Clamped, setUint8Clamped }', assert => 
     [-Infinity, 0, [0]],
     [-Number.MAX_VALUE, 0, [0]],
     [Number.MAX_VALUE, 255, [255]],
-    [5e-324, 0, [0]],
-    [-5e-324, 0, [0]],
+    [Number.MIN_VALUE, 0, [0]],
+    [-Number.MIN_VALUE, 0, [0]],
     [NaN, 0, [0]],
   ];
 

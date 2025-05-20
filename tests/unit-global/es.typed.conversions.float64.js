@@ -58,8 +58,8 @@ if (DESCRIPTORS) QUnit.test('Float64 conversions', assert => {
     [-Infinity, -Infinity, [0, 0, 0, 0, 0, 0, 240, 255]],
     [-Number.MAX_VALUE, -Number.MAX_VALUE, [255, 255, 255, 255, 255, 255, 239, 255]],
     [Number.MAX_VALUE, Number.MAX_VALUE, [255, 255, 255, 255, 255, 255, 239, 127]],
-    [5e-324, 5e-324, [1, 0, 0, 0, 0, 0, 0, 0]],
-    [-5e-324, -5e-324, [1, 0, 0, 0, 0, 0, 0, 128]],
+    [Number.MIN_VALUE, Number.MIN_VALUE, [1, 0, 0, 0, 0, 0, 0, 0]],
+    [-Number.MIN_VALUE, -Number.MIN_VALUE, [1, 0, 0, 0, 0, 0, 0, 128]],
   ];
   for (const [value, conversion, little] of data) {
     const big = little.slice().reverse();
