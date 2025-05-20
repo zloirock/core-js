@@ -21,4 +21,11 @@ QUnit.test('Iterator.from', assert => {
   assert.throws(() => from(null), TypeError);
   assert.throws(() => from({}).next(), TypeError);
   assert.throws(() => from(assign(new Iterator(), { next: 42 })).next(), TypeError);
+
+  // Should not throw when an underlying iterator's `return` method is null
+  // https://bugs.webkit.org/show_bug.cgi?id=288714
+  const iterator = createIterator([], { return: null });
+  const result = from(iterator).return('ignored');
+  assert.true(result.done, 'iterator with null next #1');
+  assert.strictEqual(result.value, undefined, 'iterator with null next #2');
 });

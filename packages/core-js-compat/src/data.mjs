@@ -694,11 +694,13 @@ export const data = {
     // safari: '18.4',
   },
   'es.iterator.from': {
-    bun: '1.1.31',
+    // Because of a bug in wrapper validation https://bugs.webkit.org/show_bug.cgi?id=288714
+    bun: '1.2.5',  // '1.1.31',
     chrome: '122',
     deno: '1.38.1',
     firefox: '131',
-    safari: '18.4',
+    // Because of a bug in wrapper validation https://bugs.webkit.org/show_bug.cgi?id=288714
+    // safari: '18.4',
   },
   'es.iterator.map': {
     // with changes related to the new iteration closing approach on early error

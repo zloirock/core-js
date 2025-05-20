@@ -791,7 +791,8 @@ GLOBAL.tests = {
   ],
   'es.iterator.for-each': checkIteratorClosingOnEarlyError('forEach', TypeError),
   'es.iterator.from': function () {
-    return Iterator.from;
+    Iterator.from({ 'return': null })['return']();
+    return true;
   },
   'es.iterator.map': [
     iteratorHelperThrowsErrorOnInvalidIterator('map', function () { /* empty */ }),
