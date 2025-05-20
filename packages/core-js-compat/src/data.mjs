@@ -448,7 +448,7 @@ export const data = {
     chrome: '110',
     deno: '1.27',
     // Incorrect exception thrown when index coercion fails
-    // firefox: '115',
+    firefox: '140', // '115',
     hermes: '0.13',
     'react-native': '0.74',
     rhino: '1.8.0',
