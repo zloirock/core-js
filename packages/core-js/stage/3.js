@@ -7,6 +7,7 @@ require('../proposals/decorator-metadata-v2');
 require('../proposals/explicit-resource-management');
 require('../proposals/is-error');
 require('../proposals/json-parse-with-source');
+require('../proposals/map-upsert-v4');
 require('../proposals/math-sum');
 // TODO: Obsolete versions, remove from `core-js@4`
 require('../proposals/array-grouping-stage-3');
