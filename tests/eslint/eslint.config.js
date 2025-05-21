@@ -2,6 +2,7 @@ import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
+import pluginASCII from 'eslint-plugin-ascii';
 import pluginCanonical from 'eslint-plugin-canonical';
 import pluginDepend from 'eslint-plugin-depend';
 import pluginESX from 'eslint-plugin-es-x';
@@ -458,6 +459,10 @@ const base = {
   '@stylistic/js/yield-star-spacing': [ERROR, 'both'],
   // enforce consistent line breaks after opening and before closing braces
   '@stylistic/plus/curly-newline': [ERROR, { consistent: true }],
+
+  // ascii
+  // forbid non-ascii chars in ast node names
+  'ascii/valid-name': ERROR,
 
   // import:
   // forbid any invalid exports, i.e. re-export of the same name
@@ -2190,6 +2195,7 @@ export default [
       '@stylistic/js': pluginStylisticJS,
       '@stylistic/plus': pluginStylisticPlus,
       'array-func': pluginArrayFunc,
+      ascii: pluginASCII,
       canonical: pluginCanonical,
       depend: pluginDepend,
       es: pluginESX,

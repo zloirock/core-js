@@ -9,6 +9,7 @@
     "confusing-browser-globals": "^1.0.11",
     "eslint": "^9.27.0",
     "eslint-plugin-array-func": "^5.0.2",
+    "eslint-plugin-ascii": "^2.0.0",
     "eslint-plugin-canonical": "^5.1.3",
     "eslint-plugin-depend": "^1.2.0",
     "eslint-plugin-es-x": "^8.6.2",
