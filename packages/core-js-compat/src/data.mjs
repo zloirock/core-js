@@ -139,6 +139,15 @@ export const data = {
     rhino: '1.8.0',
     safari: '15.0',
   },
+  'es.error.is-error': {
+    // early WebKit implementation bug
+    // https://github.com/oven-sh/bun/issues/15821
+    // bun: '1.1.39',
+    chrome: '134',
+    firefox: '138',
+    // https://github.com/nodejs/node/issues/58134
+    node: false,
+  },
   'es.error.to-string': {
     chrome: '33',
     firefox: '11',
@@ -2389,15 +2398,8 @@ export const data = {
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
   },
-  'esnext.error.is-error': {
-    // early WebKit implementation bug
-    // https://github.com/oven-sh/bun/issues/15821
-    // bun: '1.1.39',
-    chrome: '134',
-    firefox: '138',
-    // https://github.com/nodejs/node/issues/58134
-    node: false,
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.error.is-error': null,
   'esnext.function.demethodize': {
   },
   'esnext.function.is-callable': {
@@ -3081,6 +3083,7 @@ export const renamed = new Map([
   ['esnext.aggregate-error', 'es.aggregate-error'],
   ['esnext.data-view.get-float16', 'es.data-view.get-float16'],
   ['esnext.data-view.set-float16', 'es.data-view.set-float16'],
+  ['esnext.error.is-error', 'es.error.is-error'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
   ['esnext.iterator.drop', 'es.iterator.drop'],

@@ -419,6 +419,12 @@ GLOBAL.tests = {
     return new Error('e', { cause: 7 }).cause === 7
       && !('cause' in Error.prototype);
   },
+  'es.error.is-error': function () {
+    return PROTOTYPE_SETTING_AVAILABLE &&
+      (typeof DOMException != 'function' || Error.isError(new DOMException('DOMException'))) &&
+      Error.isError(new Error('Error', { cause: function () { /* empty */ } })) &&
+      !Error.isError(Object.create(Error.prototype));
+  },
   'es.error.to-string': function () {
     if (DESCRIPTORS_SUPPORT) {
       // Chrome 32- incorrectly call accessor
@@ -1805,12 +1811,6 @@ GLOBAL.tests = {
   }],
   'esnext.disposable-stack.constructor': function () {
     return typeof DisposableStack == 'function';
-  },
-  'esnext.error.is-error': function () {
-    return PROTOTYPE_SETTING_AVAILABLE &&
-      (typeof DOMException != 'function' || Error.isError(new DOMException('DOMException'))) &&
-      Error.isError(new Error('Error', { cause: function () { /* empty */ } })) &&
-      !Error.isError(Object.create(Error.prototype));
   },
   'esnext.function.demethodize': function () {
     return Function.prototype.demethodize;

@@ -283,4 +283,7 @@ export default {
     'es.math.f16round',
     'es.regexp.escape',
   ],
+  3.43: [
+    'es.error.is-error',
+  ],
 };
