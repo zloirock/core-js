@@ -7,6 +7,7 @@ var DESCRIPTORS = require('../internals/descriptors');
 var CONFIGURABLE_FUNCTION_NAME = require('../internals/function-name').CONFIGURABLE;
 var inspectSource = require('../internals/inspect-source');
 var InternalStateModule = require('../internals/internal-state');
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 
 var enforceInternalState = InternalStateModule.enforce;
 var getInternalState = InternalStateModule.get;
@@ -16,6 +17,7 @@ var defineProperty = Object.defineProperty;
 var stringSlice = uncurryThis(''.slice);
 var replace = uncurryThis(''.replace);
 var join = uncurryThis([].join);
+var functionToStringDescriptor = getOwnPropertyDescriptor(Function.prototype, 'toString');
 
 var CONFIGURABLE_LENGTH = DESCRIPTORS && !fails(function () {
   return defineProperty(function () { /* empty */ }, 'length', { value: 8 }).length !== 8;
@@ -49,7 +51,9 @@ var makeBuiltIn = module.exports = function (value, name, options) {
 };
 
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
-// eslint-disable-next-line no-extend-native -- required
-Function.prototype.toString = makeBuiltIn(function toString() {
-  return isCallable(this) && getInternalState(this).source || inspectSource(this);
-}, 'toString');
+if ((functionToStringDescriptor.writable || functionToStringDescriptor.set) && functionToStringDescriptor.configurable) {
+  // eslint-disable-next-line no-extend-native -- required 
+  Function.prototype.toString = makeBuiltIn(function toString() {
+    return isCallable(this) && getInternalState(this).source || inspectSource(this);
+  }, 'toString');
+}
