@@ -2,8 +2,10 @@
 require('../../modules/es.array.concat');
 require('../../modules/es.object.to-string');
 require('../../modules/es.symbol');
+require('../../modules/es.symbol.async-dispose');
 require('../../modules/es.symbol.async-iterator');
 require('../../modules/es.symbol.description');
+require('../../modules/es.symbol.dispose');
 require('../../modules/es.symbol.has-instance');
 require('../../modules/es.symbol.is-concat-spreadable');
 require('../../modules/es.symbol.iterator');
