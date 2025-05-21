@@ -11,6 +11,7 @@ import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
 import pluginMath from 'eslint-plugin-math';
 import pluginN from 'eslint-plugin-n';
+import pluginNodeDependencies from 'eslint-plugin-node-dependencies';
 import * as pluginPackageJSON from 'eslint-plugin-package-json';
 import pluginPromise from 'eslint-plugin-promise';
 import pluginQUnit from 'eslint-plugin-qunit';
@@ -2080,6 +2081,15 @@ const packagesPackageJSON = {
   'package-json/valid-package-def': ERROR,
 };
 
+const nodeDependencies = {
+  // enforce the versions of the engines of the dependencies to be compatible
+  'node-dependencies/compat-engines': ERROR,
+  // disallow having dependencies on deprecate packages
+  'node-dependencies/no-deprecated': ERROR,
+  // enforce versions that is valid as a semantic version
+  'node-dependencies/valid-semver': ERROR,
+};
+
 const markdown = {
   ...disable(forbidModernBuiltIns),
   ...forbidCompletelyNonExistentBuiltIns,
@@ -2189,6 +2199,7 @@ export default [
       markdown: pluginMarkdown,
       math: pluginMath,
       node: pluginN,
+      'node-dependencies': pluginNodeDependencies,
       'package-json': pluginPackageJSON,
       promise: pluginPromise,
       qunit: pluginQUnit,
@@ -2367,7 +2378,10 @@ export default [
   },
   {
     files: ['**/package.json'],
-    rules: packageJSON,
+    rules: {
+      ...packageJSON,
+      ...nodeDependencies,
+    },
   },
   {
     files: ['packages/*/package.json'],
