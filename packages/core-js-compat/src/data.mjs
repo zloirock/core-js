@@ -2259,7 +2259,7 @@ export const data = {
     // Bun ~ 1.0.33 issues
     // https://github.com/oven-sh/bun/issues/9282
     // https://github.com/oven-sh/bun/issues/9283
-    // bun: '1.0.23',
+    bun: '1.2.15', // '1.0.23',
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
