@@ -2,7 +2,7 @@
 // Originally from https://github.com/web-platform-tests/wpt
 // Available under the 3-Clause BSD License https://github.com/web-platform-tests/wpt/blob/master/LICENSE.md
 
-/* eslint-disable @stylistic/js/max-len -- ignore */
+/* eslint-disable @stylistic/max-len -- ignore */
 export default [
   {
     comment: 'Label with hyphens in 3rd and 4th position',

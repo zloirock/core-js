@@ -1,4 +1,4 @@
-/* eslint-disable @stylistic/js/max-len -- ok*/
+/* eslint-disable @stylistic/max-len -- ok*/
 import escape from 'core-js-pure/es/regexp/escape';
 
 QUnit.test('RegExp.escape', assert => {

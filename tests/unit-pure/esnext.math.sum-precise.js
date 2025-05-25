@@ -1,4 +1,4 @@
-/* eslint-disable @stylistic/js/max-len -- ok */
+/* eslint-disable @stylistic/max-len -- ok */
 import sumPrecise from 'core-js-pure/actual/math/sum-precise';
 import { createIterable } from '../helpers/helpers.js';
 

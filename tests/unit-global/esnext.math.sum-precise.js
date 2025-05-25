@@ -1,4 +1,4 @@
-/* eslint-disable @stylistic/js/max-len -- ok */
+/* eslint-disable @stylistic/max-len -- ok */
 import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Math.sumPrecise', assert => {
