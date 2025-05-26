@@ -293,5 +293,6 @@ export default {
     'es.suppressed-error.constructor',
     'es.symbol.async-dispose',
     'es.symbol.dispose',
+    'esnext.iterator.zip',
   ],
 };
