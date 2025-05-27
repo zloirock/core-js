@@ -86,7 +86,7 @@ var IteratorProxy = createIteratorProxy(function () {
     push(results, result);
   }
 
-  return finishResults !== undefined ? finishResults(results) : results;
+  return finishResults ? finishResults(results) : results;
 });
 
 module.exports = function (iters, mode, padding, finishResults) {

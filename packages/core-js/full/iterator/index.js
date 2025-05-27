@@ -3,6 +3,7 @@ var parent = require('../../actual/iterator');
 require('../../modules/esnext.iterator.concat');
 require('../../modules/esnext.iterator.range');
 require('../../modules/esnext.iterator.zip');
+require('../../modules/esnext.iterator.zip-keyed');
 // TODO: Remove from `core-js@4`
 require('../../modules/esnext.iterator.as-indexed-pairs');
 require('../../modules/esnext.iterator.indexed');

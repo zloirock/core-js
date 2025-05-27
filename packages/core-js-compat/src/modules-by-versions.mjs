@@ -294,5 +294,6 @@ export default {
     'es.symbol.async-dispose',
     'es.symbol.dispose',
     'esnext.iterator.zip',
+    'esnext.iterator.zip-keyed',
   ],
 };

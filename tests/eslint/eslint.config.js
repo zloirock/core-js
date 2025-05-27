@@ -1250,6 +1250,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     'concat',
     'range',
     'zip',
+    'zipKeyed',
   ] }],
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
     'toAsync',
