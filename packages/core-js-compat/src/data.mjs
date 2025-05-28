@@ -645,7 +645,7 @@ export const data = {
     bun: '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.every': {
@@ -654,7 +654,7 @@ export const data = {
     bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.filter': {
@@ -663,7 +663,7 @@ export const data = {
     bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.find': {
@@ -672,7 +672,7 @@ export const data = {
     bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.flat-map': {
@@ -681,7 +681,7 @@ export const data = {
     bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.for-each': {
@@ -690,7 +690,7 @@ export const data = {
     bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.from': {
@@ -708,7 +708,7 @@ export const data = {
     bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.reduce': {
@@ -719,7 +719,7 @@ export const data = {
     bun: '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.some': {
@@ -728,7 +728,7 @@ export const data = {
     bun: '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.take': {
@@ -738,7 +738,7 @@ export const data = {
     bun: '1.2.11', // '1.2.4', // '1.1.31',
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
-    // firefox: '131',
+    firefox: '141', // '131',
     // safari: '18.4',
   },
   'es.iterator.to-array': {
