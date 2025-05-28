@@ -4,7 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var thisNumberValue = require('../internals/this-number-value');
 
-var nativeToPrecision = uncurryThis(1.0.toPrecision);
+var nativeToPrecision = uncurryThis(1.1.toPrecision);
 
 var FORCED = fails(function () {
   // IE7-

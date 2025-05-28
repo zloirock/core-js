@@ -13,7 +13,7 @@ var pow = Math.pow;
 var valid = /^[\d.a-z]+$/;
 var charAt = uncurryThis(''.charAt);
 var exec = uncurryThis(valid.exec);
-var numberToString = uncurryThis(1.0.toString);
+var numberToString = uncurryThis(1.1.toString);
 var stringSlice = uncurryThis(''.slice);
 var split = uncurryThis(''.split);
 
