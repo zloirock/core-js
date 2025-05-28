@@ -16,6 +16,7 @@
 - Added feature detection for [a WebKit bug](https://bugs.webkit.org/show_bug.cgi?id=288714): incorrect exception thrown by `Iterator.from` when underlying iterator's `return` method is `null`
 - Added feature detection for a FF bug: incorrect exception thrown by `Array.prototype.with` when index coercion fails
 - Added feature detection for a WebKit bug: `TypedArray.prototype.with` should truncate negative fractional index to zero, but instead throws an error
+- Worked around a bug of many different tools ([example](https://github.com/zloirock/core-js/pull/1368#issuecomment-2908034690)) with incorrect transforming and breaking JS syntax on getting a method from a number literal
 - Fixed deoptimization of the `Promise` polyfill in the pure version
 - Added some missed dependencies to `/iterator/flat-map` entries
 - Compat data improvements:
