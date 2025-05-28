@@ -1847,7 +1847,7 @@ GLOBAL.tests = {
   'esnext.iterator.zip': function () {
     return Iterator.zip;
   },
-  'esnext.iterator.zipKeyed': function () {
+  'esnext.iterator.zip-keyed': function () {
     return Iterator.zipKeyed;
   },
   'esnext.json.is-raw-json': NATIVE_RAW_JSON,

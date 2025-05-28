@@ -7,7 +7,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var getModeOption = require('../internals/get-mode-option');
-var getPaddingOption = require('../internals/get-padding-option');
 var isDataDescriptor = require('../internals/is-data-descriptor');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
@@ -25,7 +24,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
     var options = arguments.length > 1 ? arguments[1] : undefined;
     anObjectOrUndefined(options);
     var mode = getModeOption(options);
-    var paddingOption = mode === 'longest' ? getPaddingOption(options) : undefined;
+    var paddingOption = mode === 'longest' ? anObjectOrUndefined(options && options.padding) : undefined;
 
     var iters = [];
     var padding = [];
@@ -40,6 +39,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
         return iteratorCloseAll(iters, 'throw', error);
       }
       if (!desc || !desc.enumerable) continue;
+      value = undefined;
       if (isDataDescriptor(desc)) {
         value = desc.value;
       } else {
@@ -82,8 +82,8 @@ $({ target: 'Iterator', stat: true, forced: true }, {
 
     var finishResults = function (results) {
       var obj = create(null);
-      for (i = 0; i < iterCount; i++) {
-        obj[keys[i]] = results[i];
+      for (var j = 0; j < iterCount; j++) {
+        obj[keys[j]] = results[j];
       }
       return obj;
     };

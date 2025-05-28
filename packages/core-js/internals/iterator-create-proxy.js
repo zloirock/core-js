@@ -9,6 +9,7 @@ var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
+var iteratorCloseAll = require('./iterator-close-all');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
@@ -44,6 +45,11 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       }
       if (state.inner) try {
         iteratorClose(state.inner.iterator, 'normal');
+      } catch (error) {
+        return iteratorClose(iterator, 'throw', error);
+      }
+      if (state.openIters) try {
+        iteratorCloseAll(state.openIters, 'normal');
       } catch (error) {
         return iteratorClose(iterator, 'throw', error);
       }

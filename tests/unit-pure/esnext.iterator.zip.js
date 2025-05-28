@@ -1,14 +1,12 @@
 import { createIterator } from '../helpers/helpers.js';
 
-QUnit.test('Iterator.zip', assert => {
-  const { zip } = Iterator;
-  const { from } = Array;
+import from from 'core-js-pure/es/array/from';
+import zip from 'core-js-pure/full/iterator/zip';
 
+QUnit.test('Iterator.zip', assert => {
   assert.isFunction(zip);
   assert.arity(zip, 1);
   assert.name(zip, 'zip');
-  assert.looksNative(zip);
-  assert.nonEnumerable(Iterator, 'zip');
 
   let result = zip([[1, 2, 3], [4, 5, 6]]);
   assert.deepEqual(from(result), [[1, 4], [2, 5], [3, 6]]);

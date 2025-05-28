@@ -39,9 +39,10 @@ var IteratorProxy = createIteratorProxy(function () {
       }
       if (done) {
         openIters[i] = undefined;
+        this.openItersCount--;
         if (mode === 'shortest') {
           this.done = true;
-          return iteratorCloseAll(openIters, 'return', undefined);
+          return iteratorCloseAll(openIters, 'normal', undefined);
         }
         if (mode === 'strict') {
           if (i) {
@@ -49,18 +50,21 @@ var IteratorProxy = createIteratorProxy(function () {
             return iteratorCloseAll(openIters, 'throw', new $TypeError(ITERATOR_IS_EXHAUSTED));
           }
 
-          var open;
+          var open, openDone;
           for (var k = 1; k < iterCount; k++) {
             // eslint-disable-next-line max-depth -- specification case
             try {
               open = call(iters[k].next, iters[k].iterator);
+              openDone = open.done;
+              open = open.value;
             } catch (error) {
               openIters[k] = undefined;
               return iteratorCloseAll(openIters, 'throw', open);
             }
             // eslint-disable-next-line max-depth -- specification case
-            if (!open.value) {
+            if (openDone) {
               openIters[k] = undefined;
+              this.openItersCount--;
             } else {
               this.done = true;
               return iteratorCloseAll(openIters, 'throw', new $TypeError(ITERATOR_IS_EXHAUSTED));
@@ -69,13 +73,7 @@ var IteratorProxy = createIteratorProxy(function () {
           this.done = true;
           return;
         }
-        var isEmptyOpenIters = true;
-        for (var j = 0; j < openIters.length; j++) {
-          if (openIters[j] === undefined) continue;
-          isEmptyOpenIters = false;
-          break;
-        }
-        if (isEmptyOpenIters) {
+        if (!this.openItersCount) {
           this.done = true;
           return;
         }
@@ -91,12 +89,11 @@ var IteratorProxy = createIteratorProxy(function () {
 
 module.exports = function (iters, mode, padding, finishResults) {
   var iterCount = iters.length;
-  var openIters = slice(iters, 0);
-
   return new IteratorProxy({
     iters: iters,
     iterCount: iterCount,
-    openIters: openIters,
+    openIters: slice(iters, 0),
+    openItersCount: iterCount,
     mode: mode,
     padding: padding,
     finishResults: finishResults

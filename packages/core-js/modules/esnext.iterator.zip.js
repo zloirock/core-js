@@ -3,10 +3,9 @@ var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var call = require('../internals/function-call');
-var getIterator = require('../internals/get-iterator');
+var getIteratorRecord = require('../internals/get-iterator-record');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var getModeOption = require('../internals/get-mode-option');
-var getPaddingOption = require('../internals/get-padding-option');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
@@ -23,37 +22,37 @@ $({ target: 'Iterator', stat: true, forced: true }, {
     var options = arguments.length > 1 ? arguments[1] : undefined;
     anObjectOrUndefined(options);
     var mode = getModeOption(options);
-    var paddingOption = mode === 'longest' ? getPaddingOption(options) : undefined;
+    var paddingOption = mode === 'longest' ? anObjectOrUndefined(options && options.padding) : undefined;
 
     var iters = [];
     var padding = [];
-    var inputIter = getIterator(iterables);
-    var iter, done, result;
+    var inputIter = getIteratorRecord(iterables);
+    var iter, done, next;
     while (!done) {
       try {
-        result = anObject(call(inputIter.next, inputIter));
-        done = result.done;
+        next = anObject(call(inputIter.next, inputIter.iterator));
+        done = next.done;
       } catch (error) {
         return iteratorCloseAll(iters, 'throw', error);
       }
       if (!done) {
         try {
-          iter = getIteratorFlattenable(result.value, true);
+          iter = getIteratorFlattenable(next.value, true);
         } catch (error) {
-          return iteratorCloseAll(concat([inputIter], iters), 'throw', error);
+          return iteratorCloseAll(concat([inputIter.iterator], iters), 'throw', error);
         }
         push(iters, iter);
       }
     }
 
     var iterCount = iters.length;
-    var i, paddingIter;
+    var i, paddingDone, paddingIter;
     if (mode === 'longest') {
       if (paddingOption === undefined) {
         for (i = 0; i < iterCount; i++) push(padding, undefined);
       } else {
         try {
-          paddingIter = getIterator(paddingOption);
+          paddingIter = getIteratorRecord(paddingOption);
         } catch (error) {
           return iteratorCloseAll(iters, 'throw', error);
         }
@@ -61,14 +60,16 @@ $({ target: 'Iterator', stat: true, forced: true }, {
         for (i = 0; i < iterCount; i++) {
           if (usingIterator) {
             try {
-              result = anObject(call(paddingIter.next, paddingIter));
+              next = anObject(call(paddingIter.next, paddingIter.iterator));
+              paddingDone = next.done;
+              next = next.value;
             } catch (error) {
               return iteratorCloseAll(iters, 'throw', error);
             }
-            if (result.done) {
+            if (paddingDone) {
               usingIterator = false;
             } else {
-              push(padding, result.value);
+              push(padding, next);
             }
           } else {
             push(padding, undefined);
@@ -77,7 +78,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
 
         if (usingIterator) {
           try {
-            iteratorClose(paddingIter, 'normal');
+            iteratorClose(paddingIter.iterator, 'normal');
           } catch (error) {
             return iteratorCloseAll(iters, 'throw', error);
           }

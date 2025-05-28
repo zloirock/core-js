@@ -5,7 +5,7 @@ module.exports = function (iters, kind, value) {
   for (var i = iters.length - 1; i >= 0; i--) {
     if (iters[i] === undefined) continue;
     try {
-      value = iteratorClose(iters[i], kind, value);
+      value = iteratorClose(iters[i].iterator, kind, value);
     } catch (error) {
       kind = 'throw';
       value = error;
