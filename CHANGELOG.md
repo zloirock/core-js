@@ -17,6 +17,7 @@
 - Added feature detection for a FF bug: incorrect exception thrown by `Array.prototype.with` when index coercion fails
 - Added feature detection for a WebKit bug: `TypedArray.prototype.with` should truncate negative fractional index to zero, but instead throws an error
 - Fixed deoptimization of the `Promise` polyfill in the pure version
+- Added some missed dependencies to `/iterator/flat-map` entries
 - Compat data improvements:
   - [`Error.isError`](https://github.com/tc39/proposal-is-error) marked not supported in Node because of [a bug](https://github.com/nodejs/node/issues/56497)
   - Added [Deno 2.3](https://github.com/denoland/deno/releases/tag/v2.3.0) compat data mapping
