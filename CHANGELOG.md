@@ -1,5 +1,28 @@
 ## Changelog
 ##### Unreleased
+- [Explicit Resource Management proposals](https://github.com/tc39/proposal-explicit-resource-management):
+  - Built-ins:
+    - `Symbol.dispose`
+    - `Symbol.asyncDispose`
+    - `SuppressedError`
+    - `DisposableStack`
+      - `DisposableStack.prototype.dispose`
+      - `DisposableStack.prototype.use`
+      - `DisposableStack.prototype.adopt`
+      - `DisposableStack.prototype.defer`
+      - `DisposableStack.prototype.move`
+      - `DisposableStack.prototype[@@dispose]`
+    - `AsyncDisposableStack`
+      - `AsyncDisposableStack.prototype.disposeAsync`
+      - `AsyncDisposableStack.prototype.use`
+      - `AsyncDisposableStack.prototype.adopt`
+      - `AsyncDisposableStack.prototype.defer`
+      - `AsyncDisposableStack.prototype.move`
+      - `AsyncDisposableStack.prototype[@@asyncDispose]`
+    - `Iterator.prototype[@@dispose]`
+    - `AsyncIterator.prototype[@@asyncDispose]`
+  - Moved to stable ES, [May 2025 TC39 meeting](https://x.com/robpalmer2/status/1927744934343213085)
+  - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - [`Error.isError` proposal](https://github.com/tc39/proposal-is-error):
   - Built-ins:
     - `Error.isError`
