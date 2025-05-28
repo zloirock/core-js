@@ -61,6 +61,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'function/has-instance');
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
+    ok(typeof load(NS, 'array/from-async') == 'function');
     ok(load(NS, 'array/is-array')([]));
     ok(Array.isArray(load(NS, 'array/of')('q', 'w', 'e')));
     ok(load(NS, 'array/at')([1, 2, 3], -2) === 2);
@@ -686,7 +687,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
   }
 
   for (const NS of ['actual', 'full', 'features']) {
-    ok(typeof load(NS, 'array/from-async') == 'function');
     ok(typeof load(NS, 'array/group') == 'function');
     ok(typeof load(NS, 'array/group-to-map') == 'function');
     ok(typeof load(NS, 'array/group-by') == 'function');

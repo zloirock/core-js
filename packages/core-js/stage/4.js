@@ -3,6 +3,7 @@
 require('../proposals/accessible-object-hasownproperty');
 require('../proposals/array-buffer-transfer');
 require('../proposals/array-find-from-last');
+require('../proposals/array-from-async-stage-2');
 require('../proposals/array-grouping-v2');
 require('../proposals/change-array-by-copy-stage-4');
 // require('../proposals/error-cause');

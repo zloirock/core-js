@@ -284,6 +284,7 @@ export default {
     'es.regexp.escape',
   ],
   3.43: [
+    'es.array.from-async',
     'es.async-disposable-stack.constructor',
     'es.async-iterator.async-dispose',
     'es.disposable-stack.constructor',

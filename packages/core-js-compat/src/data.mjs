@@ -1442,6 +1442,15 @@ export const data = {
     firefox: '121',
     safari: '17.4',
   },
+  'es.array.from-async': { // <- `Array#values` and `Promise` dependencies should be loaded before
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    bun: '1.1.2', // '0.3.0',
+    chrome: '121',
+    deno: '1.38',
+    firefox: '115',
+    // https://bugs.webkit.org/show_bug.cgi?id=271703
+    safari: '18.0', // '16.4',
+  },
   'es.async-disposable-stack.constructor': { // `Promise` dependency should be loaded before
     // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
@@ -2315,15 +2324,8 @@ export const data = {
   'esnext.aggregate-error': null,
   // TODO: Remove from `core-js@4`
   'esnext.suppressed-error.constructor': null,
-  'esnext.array.from-async': {
-    // https://bugs.webkit.org/show_bug.cgi?id=271703
-    bun: '1.1.2', // '0.3.0',
-    chrome: '121',
-    deno: '1.38',
-    firefox: '115',
-    // https://bugs.webkit.org/show_bug.cgi?id=271703
-    safari: '18.0', // '16.4',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.array.from-async': null,
   // TODO: Remove from `core-js@4`
   'esnext.array.at': null,
   // TODO: Remove from `core-js@4`
@@ -3088,6 +3090,7 @@ export const renamed = new Map([
   ['esnext.array.at', 'es.array.at'],
   ['esnext.array.find-last', 'es.array.find-last'],
   ['esnext.array.find-last-index', 'es.array.find-last-index'],
+  ['esnext.array.from-async', 'es.array.from-async'],
   ['esnext.array.to-reversed', 'es.array.to-reversed'],
   ['esnext.array.to-sorted', 'es.array.to-sorted'],
   ['esnext.array.to-spliced', 'es.array.to-spliced'],

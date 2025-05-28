@@ -2,7 +2,7 @@ import { createAsyncIterable, createIterable/* , createIterator */ } from '../he
 import { STRICT_THIS } from '../helpers/constants.js';
 
 import Promise from 'core-js-pure/es/promise';
-import fromAsync from 'core-js-pure/actual/array/from-async';
+import fromAsync from 'core-js-pure/es/array/from-async';
 // import Iterator from 'core-js-pure/actual/iterator';
 
 QUnit.test('Array.fromAsync', assert => {
