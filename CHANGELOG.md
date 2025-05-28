@@ -26,7 +26,7 @@
 - [`Array.fromAsync` proposal](https://github.com/tc39/proposal-array-from-async):
   - Built-ins:
     - `Array.fromAsync`
-  - Moved to stable ES, May 2025 TC39 meeting
+  - Moved to stable ES, [May 2025 TC39 meeting](https://github.com/tc39/proposal-array-from-async/issues/14#issuecomment-2916645435)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - [`Error.isError` proposal](https://github.com/tc39/proposal-is-error):
   - Built-ins:
