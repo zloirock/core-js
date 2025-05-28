@@ -1,6 +1,5 @@
 'use strict';
-require('../../modules/es.object.create');
+var parent = require('../../stable/error/is-error');
 require('../../modules/esnext.error.is-error');
-var path = require('../../internals/path');
 
-module.exports = path.Error.isError;
+module.exports = parent;

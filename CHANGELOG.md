@@ -1,5 +1,10 @@
 ## Changelog
 ##### Unreleased
+- [`Error.isError` proposal](https://github.com/tc39/proposal-is-error):
+  - Built-ins:
+    - `Error.isError`
+  - Moved to stable ES, [May 2025 TC39 meeting](https://github.com/tc39/proposals/commit/a5d4bb99d79f328533d0c36b0cd20597fa12c7a8)
+  - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - Always check regular expression flags by `flags` getter [PR](https://github.com/tc39/ecma262/pull/2791). Native methods are not fixed, only own implementation updated for:
   - `RegExp.prototype[@@match]`
   - `RegExp.prototype[@@replace]`

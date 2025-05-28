@@ -137,6 +137,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Change `Array` by copy](#change-array-by-copy)
       - [`Array` grouping](#array-grouping)
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
+      - [`Error.isError`](#erroriserror)
       - [`Float16` methods](#float16-methods)
       - [`Iterator` helpers](#iterator-helpers)
       - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
@@ -167,7 +168,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Explicit resource management](#explicit-resource-management)
       - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
-      - [`Error.isError`](#erroriserror)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
       - [`Map` upsert](#map-upsert)
@@ -627,7 +627,7 @@ console.log.bind(console, 42)(43); // => 42 43
 ```
 
 #### ECMAScript: Error[⬆](#index)
-Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
+Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
 ```ts
 class [
   Error,
@@ -652,6 +652,7 @@ class AggregateError extends Error {
 }
 
 class Error {
+  static isError(value: any): boolean;
   toString(): string; // different fixes
 }
 ```
@@ -660,6 +661,7 @@ class Error {
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
+core-js(-pure)/es|stable|actual|full/error/is-error
 core-js/es|stable|actual|full/error/to-string
 ```
 [*Example*](https://is.gd/1SufcH):
@@ -676,6 +678,20 @@ error.cause === cause; // => true
 
 Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
 ```
+
+[*Example*](https://tinyurl.com/23nauwoz):
+```js
+Error.isError(new Error('error')); // => true
+Error.isError(new TypeError('error')); // => true
+Error.isError(new DOMException('error')); // => true
+
+Error.isError(null); // => false
+Error.isError({}); // => false
+Error.isError(Object.create(Error.prototype)); // => false
+```
+
+> [!WARNING]
+> We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's an enough naive implementation.
 
 #### ECMAScript: Array[⬆](#index)
 Modules [`es.array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.from.js), [`es.array.is-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.is-array.js), [`es.array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.of.js), [`es.array.copy-within`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.copy-within.js), [`es.array.fill`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.fill.js), [`es.array.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find.js), [`es.array.find-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find-index.js), [`es.array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find-last.js), [`es.array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.find-last-index.js), [`es.array.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.iterator.js), [`es.array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.includes.js), [`es.array.push`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.push.js), [`es.array.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.slice.js), [`es.array.join`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.join.js), [`es.array.unshift`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unshift.js), [`es.array.index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.index-of.js), [`es.array.last-index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.last-index-of.js), [`es.array.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.every.js), [`es.array.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.some.js), [`es.array.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.for-each.js), [`es.array.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.map.js), [`es.array.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.filter.js), [`es.array.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reduce.js), [`es.array.reduce-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reduce-right.js), [`es.array.reverse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.reverse.js), [`es.array.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.sort.js), [`es.array.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.flat.js), [`es.array.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.flat-map.js), [`es.array.unscopables.flat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat.js), [`es.array.unscopables.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.unscopables.flat-map.js), [`es.array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.at.js), [`es.array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.to-reversed.js), [`es.array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.to-sorted.js), [`es.array.to-spliced`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.to-spliced.js), [`es.array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array.with.js).
@@ -2170,6 +2186,20 @@ class ArrayBuffer {
 core-js/proposals/array-buffer-transfer
 ```
 
+##### [`Error.isError`](https://github.com/tc39/proposal-is-error)[⬆](#index)
+```ts
+class Error {
+  static isError(value: any): boolean;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/is-error
+```
+
+> [!WARNING]
+> We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's an enough naive implementation.
+
 ##### [`Float16` methods](https://github.com/tc39/proposal-float16array)[⬆](#index)
 ```ts
 class DataView {
@@ -2642,32 +2672,6 @@ core-js/proposals/decorator-metadata-v2
 core-js(-pure)/actual|full/symbol/metadata
 core-js(-pure)/actual|full/function/metadata
 ```
-
-##### [`Error.isError`](https://github.com/tc39/proposal-is-error)[⬆](#index)
-Module [`esnext.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.error.is-error.js)
-```ts
-class Error {
-  static isError(value: any): boolean;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/is-error
-core-js(-pure)/actual|full/error/is-error
-```
-[*Example*](https://tinyurl.com/23nauwoz):
-```js
-Error.isError(new Error('error')); // => true
-Error.isError(new TypeError('error')); // => true
-Error.isError(new DOMException('error')); // => true
-
-Error.isError(null); // => false
-Error.isError({}); // => false
-Error.isError(Object.create(Error.prototype)); // => false
-```
-
-> [!WARNING]
-> We have no bulletproof way to polyfill this method / check if the object is an error, so it's an enough naive implementation.
 
 #### Stage 2.7 proposals[⬆](#index)
 [*CommonJS entry points:*](#commonjs-api)
