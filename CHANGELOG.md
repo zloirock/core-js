@@ -21,7 +21,7 @@
       - `AsyncDisposableStack.prototype[@@asyncDispose]`
     - `Iterator.prototype[@@dispose]`
     - `AsyncIterator.prototype[@@asyncDispose]`
-  - Moved to stable ES, May 2025 TC39 meeting
+  - Moved to stable ES, [May 2025 TC39 meeting](https://x.com/robpalmer2/status/1927744934343213085)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - [`Error.isError` proposal](https://github.com/tc39/proposal-is-error):
   - Built-ins:
