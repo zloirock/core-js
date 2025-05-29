@@ -4,6 +4,7 @@ var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var getIteratorDirect = require('../internals/get-iterator-direct');
+var iteratorClose = require('../internals/iterator-close');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var $RangeError = RangeError;
@@ -34,7 +35,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   chunks: function chunks(chunkSize) {
     var O = anObject(this);
     if (!chunkSize || chunkSize >>> 0 !== chunkSize) {
-      throw $RangeError('chunkSize must be integer in [1, 2^32-1]');
+      return iteratorClose(O, 'throw', new $RangeError('chunkSize must be integer in [1, 2^32-1]'));
     }
     return new IteratorProxy(getIteratorDirect(O), {
       chunkSize: chunkSize
