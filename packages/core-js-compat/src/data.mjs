@@ -1455,7 +1455,6 @@ export const data = {
     // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
     chrome: '136',
-    deno: false,
   },
   'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
   },
