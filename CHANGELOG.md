@@ -36,7 +36,7 @@
 - [`Math.clamp` proposal](https://github.com/tc39/proposal-math-clamp):
   - Built-ins:
     - `Math.clamp`
-  - Moved to stage 2, May 2025 TC39 meeting
+  - Moved to stage 2, [May 2025 TC39 meeting](https://github.com/tc39/proposal-math-clamp/commit/a005f28a6a03e175b9671de1c8c70dd5b7b08c2d)
 - Always check regular expression flags by `flags` getter [PR](https://github.com/tc39/ecma262/pull/2791). Native methods are not fixed, only own implementation updated for:
   - `RegExp.prototype[@@match]`
   - `RegExp.prototype[@@replace]`
