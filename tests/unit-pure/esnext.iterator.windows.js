@@ -30,5 +30,14 @@ QUnit.test('Iterator#windows', assert => {
 
   assert.throws(() => windows.call(it), RangeError, 'throws on empty argument');
   assert.throws(() => windows.call(it, -1), RangeError, 'throws on negative argument');
-  assert.throws(() => windows.call(it, 0x100000000), RangeError, 'throws on argument more then 2^32 - 1');
+
+  const observableReturn = {
+    return() {
+      this.called = true;
+      return { done: true, value: undefined };
+    },
+  };
+  const itObservable = createIterator([1, 2, 3], observableReturn);
+  assert.throws(() => windows.call(itObservable, 0x100000000), RangeError, 'throws on argument more then 2^32 - 1');
+  assert.true(itObservable.called, 'iterator closed on argument validation error');
 });

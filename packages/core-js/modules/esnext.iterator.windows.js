@@ -4,6 +4,7 @@ var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var getIteratorDirect = require('../internals/get-iterator-direct');
+var iteratorClose = require('../internals/iterator-close');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var $RangeError = RangeError;
@@ -35,7 +36,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   windows: function windows(windowSize) {
     var O = anObject(this);
     if (!windowSize || windowSize >>> 0 !== windowSize) {
-      throw $RangeError('windowSize must be integer in [1, 2^32-1]');
+      return iteratorClose(O, 'throw', new $RangeError('windowSize must be integer in [1, 2^32-1]'));
     }
     return new IteratorProxy(getIteratorDirect(O), {
       windowSize: windowSize,
