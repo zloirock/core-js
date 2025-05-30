@@ -1914,9 +1914,6 @@ GLOBAL.tests = {
   'esnext.map.update': function () {
     return Map.prototype.update;
   },
-  'esnext.math.clamp': function () {
-    return Math.clamp;
-  },
   'esnext.math.deg-per-rad': function () {
     return Math.DEG_PER_RAD;
   },
@@ -1940,6 +1937,9 @@ GLOBAL.tests = {
   },
   'esnext.math.sum-precise': function () {
     return Math.sumPrecise;
+  },
+  'esnext.number.clamp': function () {
+    return Number.prototype.clamp;
   },
   'esnext.number.from-string': function () {
     return Number.fromString;

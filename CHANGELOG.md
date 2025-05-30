@@ -37,10 +37,11 @@
   - Built-ins:
     - `Iterator.zip`
     - `Iterator.zipKeyed`
-- [`Math.clamp` proposal](https://github.com/tc39/proposal-math-clamp):
+- [`Number.prototype.clamp` proposal](https://github.com/tc39/proposal-math-clamp):
   - Built-ins:
-    - `Math.clamp`
+    - `Number.prototype.clamp`
   - Moved to stage 2, [May 2025 TC39 meeting](https://github.com/tc39/proposal-math-clamp/commit/a005f28a6a03e175b9671de1c8c70dd5b7b08c2d)
+  - `Math.clamp` was replaced with `Number.prototype.clamp`
   - Removed a `RangeError` if `min <= max` or `+0` min and `-0` max, [tc39/proposal-math-clamp/#22](https://github.com/tc39/proposal-math-clamp/issues/22)
 - Always check regular expression flags by `flags` getter [PR](https://github.com/tc39/ecma262/pull/2791). Native methods are not fixed, only own implementation updated for:
   - `RegExp.prototype[@@match]`

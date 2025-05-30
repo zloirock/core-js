@@ -20,6 +20,8 @@ require('../proposals/string-cooked');
 // TODO: Obsolete versions, remove from `core-js@4`:
 require('../proposals/array-from-async');
 require('../proposals/map-upsert');
+// TODO: Obsolete versions, remove from `core-js@4`:
+require('../proposals/math-clamp');
 require('../proposals/number-range');
 require('../proposals/pattern-matching');
 require('../proposals/string-replace-all');
