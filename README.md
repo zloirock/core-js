@@ -177,7 +177,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
       - [`Array.isTemplateObject`](#arrayistemplateobject)
-      - [`Math.clamp`](#mathclamp)
+      - [`Number.prototype.clamp`](#numberprototypeclamp)
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
       - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
@@ -2978,23 +2978,23 @@ core-js(-pure)/full/array/is-template-object
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
 ```
 
-##### [`Math.clamp`](https://github.com/tc39/proposal-math-clamp)[⬆](#index)
-Module [`esnext.math.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.clamp.js)
+##### [`Number.prototype.clamp`](https://github.com/tc39/proposal-math-clamp)[⬆](#index)
+Module [`esnext.number.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.clamp.js)
 ```ts
-class Math {
-  clamp(value: number, min: number, max: number): number;
+class Number {
+  clamp(min: number, max: number): number;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/math-clamp
-core-js(-pure)/full/math/clamp
+core-js/proposals/math-clamp-v2
+core-js(-pure)/full/number/clamp
 ```
-[*Example*](https://tinyurl.com/2ayyqr8j):
+[*Example*](https://tinyurl.com/yeyv7nxz):
 ```js
-Math.clamp(5, 0, 10); // => 5
-Math.clamp(-5, 0, 10); // => 0
-Math.clamp(15, 0, 10); // => 10
+5.0.clamp(0, 10); // => 5
+-5.0.clamp(0, 10); // => 0
+15.0.clamp(0, 10); // => 10
 ````
 
 ##### [`String.dedent`](https://github.com/tc39/proposal-string-dedent)[⬆](#index)

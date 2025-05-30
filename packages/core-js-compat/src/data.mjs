@@ -2558,6 +2558,7 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.map.upsert': {
   },
+  // TODO: Remove from `core-js@4`
   'esnext.math.clamp': {
   },
   'esnext.math.deg-per-rad': {
@@ -2593,6 +2594,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.math.umulh': {
+  },
+  'esnext.number.clamp': {
   },
   'esnext.number.from-string': {
   },

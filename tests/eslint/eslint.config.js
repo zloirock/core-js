@@ -1312,6 +1312,9 @@ const forbidCompletelyNonExistentBuiltIns = {
     'fromString',
     'range',
   ] }],
+  'es/no-nonstandard-number-prototype-properties': [ERROR, { allow: [
+    'clamp',
+  ] }],
   'es/no-nonstandard-object-properties': [ERROR, { allow: [
     // TODO: drop from `core-js@4`
     'iterateEntries',

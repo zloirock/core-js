@@ -295,5 +295,6 @@ export default {
     'es.symbol.dispose',
     'esnext.iterator.zip',
     'esnext.iterator.zip-keyed',
+    'esnext.number.clamp',
   ],
 };
