@@ -33,6 +33,10 @@
     - `Error.isError`
   - Moved to stable ES, [May 2025 TC39 meeting](https://github.com/tc39/proposals/commit/a5d4bb99d79f328533d0c36b0cd20597fa12c7a8)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
+- Added [Joint iteration stage 2.7 proposal](https://github.com/tc39/proposal-joint-iteration):
+  - Built-ins:
+    - `Iterator.zip`
+    - `Iterator.zipKeyed`
 - [`Math.clamp` proposal](https://github.com/tc39/proposal-math-clamp):
   - Built-ins:
     - `Math.clamp`

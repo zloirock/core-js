@@ -13,6 +13,7 @@ require('../proposals/async-explicit-resource-management');
 require('../proposals/decorators');
 require('../proposals/decorator-metadata');
 require('../proposals/iterator-helpers');
+require('../proposals/joint-iteration');
 require('../proposals/map-upsert-stage-2');
 require('../proposals/math-clamp');
 require('../proposals/set-methods');

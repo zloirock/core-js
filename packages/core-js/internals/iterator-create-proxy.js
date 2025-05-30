@@ -9,10 +9,13 @@ var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
+var iteratorCloseAll = require('./iterator-close-all');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
 var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';
+var NORMAL = 'normal';
+var THROW = 'throw';
 var setInternalState = InternalStateModule.set;
 
 var createIteratorProxyPrototype = function (IS_ITERATOR) {
@@ -43,11 +46,16 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         return returnMethod ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
       }
       if (state.inner) try {
-        iteratorClose(state.inner.iterator, 'normal');
+        iteratorClose(state.inner.iterator, NORMAL);
       } catch (error) {
-        return iteratorClose(iterator, 'throw', error);
+        return iteratorClose(iterator, THROW, error);
       }
-      if (iterator) iteratorClose(iterator, 'normal');
+      if (state.openIters) try {
+        iteratorCloseAll(state.openIters, NORMAL);
+      } catch (error) {
+        return iteratorClose(iterator, THROW, error);
+      }
+      if (iterator) iteratorClose(iterator, NORMAL);
       return createIterResultObject(undefined, true);
     }
   });

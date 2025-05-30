@@ -1844,6 +1844,12 @@ GLOBAL.tests = {
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
   },
+  'esnext.iterator.zip': function () {
+    return Iterator.zip;
+  },
+  'esnext.iterator.zip-keyed': function () {
+    return Iterator.zipKeyed;
+  },
   'esnext.json.is-raw-json': NATIVE_RAW_JSON,
   'esnext.json.parse': function () {
     var unsafeInt = '9007199254740993';
