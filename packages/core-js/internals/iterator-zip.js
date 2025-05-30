@@ -1,13 +1,14 @@
 'use strict';
 var call = require('../internals/function-call');
+var uncurryThis = require('../internals/function-uncurry-this');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorCloseAll = require('../internals/iterator-close-all');
-var uncurryThis = require('../internals/function-uncurry-this');
 
 var $TypeError = TypeError;
 var slice = uncurryThis([].slice);
 var push = uncurryThis([].push);
 var ITERATOR_IS_EXHAUSTED = 'Iterator is exhausted';
+var THROW = 'throw';
 
 // eslint-disable-next-line max-statements -- specification case
 var IteratorProxy = createIteratorProxy(function () {
@@ -35,7 +36,7 @@ var IteratorProxy = createIteratorProxy(function () {
         result = result.value;
       } catch (error) {
         openIters[i] = undefined;
-        return iteratorCloseAll(openIters, 'throw', error);
+        return iteratorCloseAll(openIters, THROW, error);
       }
       if (done) {
         openIters[i] = undefined;
@@ -46,8 +47,7 @@ var IteratorProxy = createIteratorProxy(function () {
         }
         if (mode === 'strict') {
           if (i) {
-            this.done = true;
-            return iteratorCloseAll(openIters, 'throw', new $TypeError(ITERATOR_IS_EXHAUSTED));
+            return iteratorCloseAll(openIters, THROW, new $TypeError(ITERATOR_IS_EXHAUSTED));
           }
 
           var open, openDone;
@@ -59,15 +59,14 @@ var IteratorProxy = createIteratorProxy(function () {
               open = open.value;
             } catch (error) {
               openIters[k] = undefined;
-              return iteratorCloseAll(openIters, 'throw', open);
+              return iteratorCloseAll(openIters, THROW, open);
             }
             // eslint-disable-next-line max-depth -- specification case
             if (openDone) {
               openIters[k] = undefined;
               this.openItersCount--;
             } else {
-              this.done = true;
-              return iteratorCloseAll(openIters, 'throw', new $TypeError(ITERATOR_IS_EXHAUSTED));
+              return iteratorCloseAll(openIters, THROW, new $TypeError(ITERATOR_IS_EXHAUSTED));
             }
           }
           this.done = true;

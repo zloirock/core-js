@@ -3,24 +3,24 @@ var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var call = require('../internals/function-call');
+var uncurryThis = require('../internals/function-uncurry-this');
 var getIteratorRecord = require('../internals/get-iterator-record');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var getModeOption = require('../internals/get-mode-option');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
-var uncurryThis = require('../internals/function-uncurry-this');
 
 var concat = uncurryThis([].concat);
 var push = uncurryThis([].push);
+var THROW = 'throw';
 
 // `Iterator.zip` method
 // https://github.com/tc39/proposal-joint-iteration
 $({ target: 'Iterator', stat: true, forced: true }, {
   zip: function zip(iterables /* , options */) {
     anObject(iterables);
-    var options = arguments.length > 1 ? arguments[1] : undefined;
-    anObjectOrUndefined(options);
+    var options = arguments.length > 1 ? anObjectOrUndefined(arguments[1]) : undefined;
     var mode = getModeOption(options);
     var paddingOption = mode === 'longest' ? anObjectOrUndefined(options && options.padding) : undefined;
 
@@ -33,13 +33,13 @@ $({ target: 'Iterator', stat: true, forced: true }, {
         next = anObject(call(inputIter.next, inputIter.iterator));
         done = next.done;
       } catch (error) {
-        return iteratorCloseAll(iters, 'throw', error);
+        return iteratorCloseAll(iters, THROW, error);
       }
       if (!done) {
         try {
           iter = getIteratorFlattenable(next.value, true);
         } catch (error) {
-          return iteratorCloseAll(concat([inputIter.iterator], iters), 'throw', error);
+          return iteratorCloseAll(concat([inputIter.iterator], iters), THROW, error);
         }
         push(iters, iter);
       }
@@ -54,7 +54,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
         try {
           paddingIter = getIteratorRecord(paddingOption);
         } catch (error) {
-          return iteratorCloseAll(iters, 'throw', error);
+          return iteratorCloseAll(iters, THROW, error);
         }
         var usingIterator = true;
         for (i = 0; i < iterCount; i++) {
@@ -64,7 +64,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
               paddingDone = next.done;
               next = next.value;
             } catch (error) {
-              return iteratorCloseAll(iters, 'throw', error);
+              return iteratorCloseAll(iters, THROW, error);
             }
             if (paddingDone) {
               usingIterator = false;
@@ -80,7 +80,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
           try {
             iteratorClose(paddingIter.iterator, 'normal');
           } catch (error) {
-            return iteratorCloseAll(iters, 'throw', error);
+            return iteratorCloseAll(iters, THROW, error);
           }
         }
       }
