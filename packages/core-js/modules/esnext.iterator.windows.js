@@ -35,7 +35,7 @@ var IteratorProxy = createIteratorProxy(function () {
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   windows: function windows(windowSize) {
     var O = anObject(this);
-    if (!windowSize || windowSize >>> 0 !== windowSize) {
+    if (typeof windowSize != 'number' || !windowSize || windowSize >>> 0 !== windowSize) {
       return iteratorClose(O, 'throw', new $RangeError('windowSize must be integer in [1, 2^32-1]'));
     }
     return new IteratorProxy(getIteratorDirect(O), {

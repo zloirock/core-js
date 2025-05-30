@@ -34,7 +34,7 @@ var IteratorProxy = createIteratorProxy(function () {
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   chunks: function chunks(chunkSize) {
     var O = anObject(this);
-    if (!chunkSize || chunkSize >>> 0 !== chunkSize) {
+    if (typeof chunkSize != 'number' || !chunkSize || chunkSize >>> 0 !== chunkSize) {
       return iteratorClose(O, 'throw', new $RangeError('chunkSize must be integer in [1, 2^32-1]'));
     }
     return new IteratorProxy(getIteratorDirect(O), {
