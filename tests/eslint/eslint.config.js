@@ -1237,9 +1237,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     'range',
   ] }],
   'es/no-nonstandard-dataview-prototype-properties': [ERROR, { allow: [
-    'getFloat16',
     'getUint8Clamped',
-    'setFloat16',
     'setUint8Clamped',
   ] }],
   'es/no-nonstandard-function-properties': [ERROR, { allow: [
@@ -1290,7 +1288,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'upsert',
   ] }],
   'es/no-nonstandard-math-properties': [ERROR, { allow: [
-    'f16round',
     'sumPrecise',
     // TODO: drop from `core-js@4`
     'DEG_PER_RAD',
@@ -1332,9 +1329,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'hasMetadata',
     'hasOwnMetadata',
     'metadata',
-  ] }],
-  'es/no-nonstandard-regexp-properties': [ERROR, { allow: [
-    'escape',
   ] }],
   'es/no-nonstandard-set-properties': [ERROR, { allow: [
     'from',
