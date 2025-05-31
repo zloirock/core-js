@@ -2452,6 +2452,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.iterator.as-indexed-pairs': {
   },
+  'esnext.iterator.chunks': {
+  },
   'esnext.iterator.concat': {
   },
   // TODO: Remove from `core-js@4`
@@ -2485,6 +2487,8 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.iterator.to-array': null,
   'esnext.iterator.to-async': {
+  },
+  'esnext.iterator.windows': {
   },
   'esnext.iterator.zip': {
   },

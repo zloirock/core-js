@@ -773,6 +773,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/indexed') == 'function');
     ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
+    ok(typeof load(NS, 'iterator/chunks') == 'function');
+    ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/zip') == 'function');
     ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
     ok(load(NS, 'map/delete-all')(new Map(), 1, 2) === false);
@@ -944,6 +946,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-helpers-stage-3-2');
   load('proposals/iterator-range');
   load('proposals/iterator-sequencing');
+  load('proposals/iterator-chunking');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');
