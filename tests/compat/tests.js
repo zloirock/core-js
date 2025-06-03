@@ -1835,6 +1835,9 @@ GLOBAL.tests = {
   'esnext.function.metadata': function () {
     return Function.prototype[Symbol.metadata] === null;
   },
+  'esnext.iterator.chunks': function () {
+    return Iterator.prototype.chunks;
+  },
   'esnext.iterator.concat': function () {
     return Iterator.concat;
   },
@@ -1843,6 +1846,9 @@ GLOBAL.tests = {
   },
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
+  },
+  'esnext.iterator.windows': function () {
+    return Iterator.prototype.windows;
   },
   'esnext.iterator.zip': function () {
     return Iterator.zip;

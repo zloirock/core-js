@@ -1251,7 +1251,9 @@ const forbidCompletelyNonExistentBuiltIns = {
     'zipKeyed',
   ] }],
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
+    'chunks',
     'toAsync',
+    'windows',
     // TODO: drop from `core-js@4`
     'asIndexedPairs',
     'indexed',
