@@ -62,7 +62,7 @@
     "@babel/core": "^7.27.4",
     "@babel/plugin-transform-arrow-functions": "^7.27.1",
     "@babel/plugin-transform-block-scoped-functions": "^7.27.1",
-    "@babel/plugin-transform-block-scoping": "^7.27.3",
+    "@babel/plugin-transform-block-scoping": "^7.27.5",
     "@babel/plugin-transform-classes": "^7.27.1",
     "@babel/plugin-transform-class-properties": "^7.27.1",
     "@babel/plugin-transform-class-static-block": "^7.27.1",
