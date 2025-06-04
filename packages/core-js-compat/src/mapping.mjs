@@ -280,6 +280,7 @@ export default {
     [132, 87],
     [134, 88],
     [135, 89],
+    [137, 90],
   ],
   // https://developers.meta.com/horizon/documentation/web/browser-release-notes/
   // https://www.meta.com/experiences/browser/1916519981771802/
