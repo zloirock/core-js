@@ -1,0 +1,104 @@
+@use '../includes/variables' as *;
+
+.hljs {
+  display: block;
+  overflow-x: auto;
+  background: $bg;
+  color: $foreground;
+  padding: 1em;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: $comment;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link {
+  color: $pink;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-name,
+.hljs-type,
+.hljs-attribute,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+  color: $green;
+}
+
+.hljs-number,
+.hljs-meta,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-params {
+  color: $purple;
+}
+
+.hljs-class .hljs-title,
+.hljs-strong {
+  font-weight: bold;
+  color: $yellow;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-function .hljs-title {
+  color: $cyan;
+}
+
+.hljs-tag,
+.hljs-deletion {
+  color: $red;
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: $orange;
+}
+
+.hljs-doctag {
+  color: $orange;
+}
+
+.hljs-bullet {
+  color: $purple;
+}
+
+.hljs-code,
+.hljs-formula {
+  color: $pink;
+}
+
+.hljs-link {
+  text-decoration: underline;
+}
+
+.hljs-selector-id {
+  color: $yellow;
+}
+
+.hljs-selector-class {
+  color: $cyan;
+}
+
+.hljs::selection,
+.hljs span::selection {
+  background: $selection;
+}
+
+code {
+  font-size: 0.85rem;
+  scrollbar-color: $secondary $highlight;
+  scrollbar-width: thin;
+}

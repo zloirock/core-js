@@ -1,0 +1,21 @@
+@use "../includes/theme" as *;
+@use "../includes/mixins" as *;
+
+main {
+  display: flex;
+  justify-content: center;
+  flex-grow: 1;
+  margin: 2rem 0;
+
+  @include media('min', 'sm') {
+    padding: 1rem;
+  }
+
+  .main {
+    padding: 2rem 1rem;
+
+    background-color: $background-light;
+
+    @include wrapper;
+  }
+}
