@@ -1,0 +1,22 @@
+@use 'variables' as *;
+@use "mixins" as *;
+
+$font-color: $foreground;
+$font-color-light: $white;
+
+$button-color: $green;
+$button-color-hover: $green;
+
+$box-color: $bg;
+
+$background-color: $dark;
+$background-light: $secondary;
+
+$link-color: rgba($foreground, 0.7);
+$link-color-hover: $foreground;
+
+$border-color: $background-color;
+$border-color-light: $secondary;
+
+$form-font-color: $foreground;
+$form-hint-color: $foreground;

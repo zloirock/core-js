@@ -1,0 +1,56 @@
+@use "../includes/theme" as *;
+@use "../includes/mixins" as *;
+
+html {
+    font-size: 14px;
+    line-height: 1.8;
+    color: $font-color;
+
+    @include media("min", "lg") {
+        font-size: 16px;
+    }
+
+    @include media("min", "xxl") {
+        font-size: 18px;
+    }
+}
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+
+    font-family: Helvetica, sans-serif;
+    font-weight: 400;
+    font-style: normal;
+    background-color: $background-color;
+}
+a {
+    color: $link-color;
+
+    &:hover {
+        color: $link-color-hover;
+    }
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    color: $font-color-light;
+}
+h1 {
+    font-size: 2.625rem;
+}
+h2 {
+    font-size: 2.25rem;
+}
+h3 {
+    font-size: 1.875rem;
+}
+h4 {
+    font-size: 1.5rem;
+}
+
+.box {
+    background-color: $box-color;
+    border: 3px dashed $border-color;
+    border-radius: 1rem;
+}
