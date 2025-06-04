@@ -1,8 +1,10 @@
+import { DESCRIPTORS } from '../helpers/constants.js';
 import { createIterable, createSetLike } from '../helpers/helpers.js';
 
 QUnit.test('Set#symmetricDifference', assert => {
   const { symmetricDifference } = Set.prototype;
   const { from } = Array;
+  const { defineProperty } = Object;
 
   assert.isFunction(symmetricDifference);
   assert.arity(symmetricDifference, 1);
@@ -51,7 +53,7 @@ QUnit.test('Set#symmetricDifference', assert => {
     assert.deepEqual(from(baseSet.symmetricDifference(setLike)), ['a', 'b', 'c', 'd', 'e', 'g', 'h', 'i', 'j']);
   }
 
-  {
+  if (DESCRIPTORS) {
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
     const baseSet = new Set();
@@ -59,16 +61,13 @@ QUnit.test('Set#symmetricDifference', assert => {
       size: 0,
       has() { return true; },
       keys() {
-        return {
-          // eslint-disable-next-line es/no-accessor-properties -- needed for test
-          get next() {
-            baseSet.clear();
-            baseSet.add(4);
-            return function () {
-              return { done: true };
-            };
-          },
-        };
+        return defineProperty({}, 'next', { get() {
+          baseSet.clear();
+          baseSet.add(4);
+          return function () {
+            return { done: true };
+          };
+        } });
       },
     };
     assert.deepEqual(from(baseSet.symmetricDifference(setLike)), [4]);
