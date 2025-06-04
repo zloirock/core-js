@@ -1,3 +1,4 @@
+import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 const { from } = Array;
@@ -24,10 +25,12 @@ QUnit.test('Iterator#chunks', assert => {
   assert.deepEqual(result.return(), { done: true, value: undefined }, '.return with active inner iterator result');
   assert.deepEqual(result.next(), { done: true, value: undefined }, '.return with active inner iterator result on closed iterator');
 
-  assert.throws(() => chunks.call('', 1), TypeError, 'iterable non-object this');
-  assert.throws(() => chunks.call(undefined, 1), TypeError, 'non-iterable-object this #1');
-  assert.throws(() => chunks.call(null, 1), TypeError, 'non-iterable-object this #2');
-  assert.throws(() => chunks.call(5, 1), TypeError, 'non-iterable-object this #3');
+  if (STRICT) {
+    assert.throws(() => chunks.call('', 1), TypeError, 'iterable non-object this');
+    assert.throws(() => chunks.call(undefined, 1), TypeError, 'non-iterable-object this #1');
+    assert.throws(() => chunks.call(null, 1), TypeError, 'non-iterable-object this #2');
+    assert.throws(() => chunks.call(5, 1), TypeError, 'non-iterable-object this #3');
+  }
 
   assert.throws(() => chunks.call(it), RangeError, 'throws on empty argument');
   assert.throws(() => chunks.call(it, -1), RangeError, 'throws on negative argument');
