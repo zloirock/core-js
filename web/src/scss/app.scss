@@ -1,0 +1,12 @@
+@use "includes/variables";
+@use "includes/theme";
+@use "includes/reset";
+@use "includes/forms";
+@use "includes/mixins";
+
+@use "includes/base";
+
+@use "parts/header";
+@use "parts/main";
+@use "parts/footer";
+@use "parts/code";

@@ -1,0 +1,15 @@
+{
+  "name": "web",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1",
+    "marked": "^15.0.12",
+    "marked-highlight": "^2.2.1",
+    "sass": "^1.89.1",
+    "vite": "^6.3.5"
+  }
+}

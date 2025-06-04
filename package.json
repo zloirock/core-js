@@ -18,6 +18,7 @@
     "prepare": "npm run zxi scripts/prepare.mjs",
     "build-entries": "npm run zxi time scripts/build-entries/index.mjs",
     "build-compat": "npm run zxi scripts/build-compat/index.mjs",
+    "build-web": "npm run zxi time web/scripts/index.mjs",
     "bundle": "run-s bundle-package bundle-tests",
     "bundle-package": "npm run zxi time scripts/bundle-package/bundle-package.mjs",
     "bundle-tests": "npm run zxi time cd scripts/bundle-tests/bundle-tests.mjs",

@@ -1,0 +1,78 @@
+@use "../includes/theme" as *;
+
+button {
+    background-color: $button-color;
+    border: none;
+    border-radius: 1rem;
+    cursor: pointer;
+    padding: 1rem;
+
+    font-weight: 600;
+    color: $font-color;
+
+    &:hover {
+        background-color: $button-color-hover;
+    }
+
+    &.big {
+        border-radius: 2rem;
+        font-size: 1.25rem;
+        padding: 1rem;
+    }
+
+    &.full-width {
+        width: 100%;
+    }
+}
+
+input {
+    width: 100%;
+    padding: 0 2rem 0 0;
+
+    font-size: 1rem;
+    color: $form-font-color;
+    line-height: 3rem;
+
+    background-color: $background-light;
+    border-radius: 8px;
+    border: 0;
+    outline: 0;
+}
+
+.form-item {
+    display: flex;
+    align-items: center;
+
+    padding: 0 2rem;
+    margin-bottom: 0.5rem;
+
+    background-color: $background-light;
+    border-radius: 8px;
+
+    .icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        margin-right: 0.75rem;
+
+        svg {
+            width: 100%;
+            height: auto;
+            color: $form-font-color;
+            opacity: 0.3;
+        }
+    }
+}
+select {
+    width: 100%;
+
+    font-size: 1rem;
+    color: $form-font-color;
+    height: 3rem;
+
+    background-color: $background-light;
+    border-radius: 8px;
+    border: 0;
+    outline: 0;
+
+    appearance: none;
+}

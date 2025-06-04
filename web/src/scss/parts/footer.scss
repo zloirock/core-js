@@ -1,0 +1,29 @@
+@use "../includes/theme" as *;
+@use "../includes/mixins" as *;
+
+footer {
+  display: flex;
+  border-top: 1px solid $border-color-light;
+  padding: 2rem;
+  justify-content: center;
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    flex-direction: column;
+
+    @include wrapper;
+
+    @include media('min', 'sm') {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    .title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: $font-color;
+    }
+  }
+}
