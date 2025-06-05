@@ -8,15 +8,21 @@ $button-color: $green;
 $button-color-hover: $green;
 
 $box-color: $bg;
+$box-light: $selection;
 
 $background-color: $dark;
 $background-light: $secondary;
 
 $link-color: rgba($foreground, 0.7);
 $link-color-hover: $foreground;
+$link-color2: rgba($yellow, 0.7);
+$link-color2-hover: $yellow;
 
 $border-color: $background-color;
 $border-color-light: $secondary;
+$border-color-lighter: $selection;
 
 $form-font-color: $foreground;
 $form-hint-color: $foreground;
+
+$success: $green;

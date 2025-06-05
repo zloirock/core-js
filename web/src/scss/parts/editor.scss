@@ -1,0 +1,42 @@
+@use "../includes/variables" as *;
+@use "../includes/mixins" as *;
+
+.editor {
+  position: relative;
+  height: 30rem;
+  padding: 0;
+  border: none;
+  margin: 2rem 0;
+
+  .input, .output {
+    box-sizing: border-box;
+    position: absolute;
+    height: 100%;
+    width: 90%;
+
+    font-family: monospace;
+    padding: 0.5em;
+    border: none;
+    font-size: 0.85rem;
+    line-height: 1.375rem;
+    white-space: pre;
+    word-wrap: break-word;
+    overflow: auto;
+
+    scrollbar-color: $secondary $highlight;
+    scrollbar-width: thin;
+  }
+
+  .input {
+    z-index: 1;
+    color: transparent;
+    caret-color: $foreground;
+    background-color: transparent;
+  }
+
+  .output {
+    z-index: 0;
+    background-color: $bg;
+    padding-bottom: 7px;
+  }
+}
