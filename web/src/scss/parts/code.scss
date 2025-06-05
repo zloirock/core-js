@@ -5,7 +5,7 @@
   overflow-x: auto;
   background: $bg;
   color: $foreground;
-  padding: 1em;
+  padding: 0.5em;
 }
 
 .hljs-comment,
@@ -98,7 +98,13 @@
 }
 
 code {
-  font-size: 0.85rem;
+  background: $selection;
+  padding: 0 0.25rem;
+}
+
+pre code {
   scrollbar-color: $secondary $highlight;
   scrollbar-width: thin;
+  font-size: 0.85rem;
+  line-height: 1.375rem;
 }
