@@ -35,6 +35,7 @@ a {
 h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
     color: $font-color-light;
+    margin-top: 0.5rem;
 }
 h1 {
     font-size: 2.625rem;
@@ -49,8 +50,27 @@ h4 {
     font-size: 1.5rem;
 }
 
+p {
+    padding: 0.5rem 0;
+}
+
+pre {
+    padding: 1rem 0;
+}
+
+blockquote {
+    background-color: $box-light;
+    border-left: 2px solid $success;
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+}
+
+ul {
+    padding-left: 1rem;
+    list-style-type: disc;
+}
+
 .box {
     background-color: $box-color;
-    border: 3px dashed $border-color;
     border-radius: 1rem;
 }

@@ -11,11 +11,52 @@ main {
     padding: 1rem;
   }
 
+  a {
+    color: $link-color2;
+
+    &:hover {
+      color: $link-color2-hover;
+    }
+  }
+
   .main {
-    padding: 2rem 1rem;
+    padding: 1rem 1rem;
 
     background-color: $background-light;
 
     @include wrapper;
+
+    .wrapper {
+      display: flex;
+
+      .content {
+        width: 100%;
+        padding-right: 1rem;
+      }
+
+      .table-of-contents {
+        position: sticky;
+        top: 2rem;
+        align-self: flex-start;
+        font-size: 0.875rem;
+        max-width: 20%;
+
+        @include media('max', 'lg') {
+          display: none;
+        }
+
+        .toc-link {
+          border-left: 1px solid $border-color-lighter;
+          padding: 0 0 0.5rem 1rem;
+
+          .h3 {
+            margin-left: 0.5rem;
+          }
+          .h4, .h5, .h6, .h7 {
+            margin-left: 1rem;
+          }
+        }
+      }
+    }
   }
 }
