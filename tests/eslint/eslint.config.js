@@ -1222,7 +1222,6 @@ const forbidCompletelyNonExistentBuiltIns = {
   ...forbidNonStandardBuiltIns,
   // disallow non-standard built-in methods
   'es/no-nonstandard-array-properties': [ERROR, { allow: [
-    'fromAsync',
     'isTemplateObject',
   ] }],
   'es/no-nonstandard-array-prototype-properties': [ERROR, { allow: [
@@ -1362,9 +1361,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     'codePoints',
   ] }],
   'es/no-nonstandard-symbol-properties': [ERROR, { allow: [
-    'asyncDispose',
     'customMatcher',
-    'dispose',
     'isRegisteredSymbol',
     'isWellKnownSymbol',
     'metadata',
@@ -2146,11 +2143,7 @@ const markdown = {
 };
 
 const globalsESNext = {
-  AsyncDisposableStack: READONLY,
   AsyncIterator: READONLY,
-  DisposableStack: READONLY,
-  Observable: READONLY,
-  SuppressedError: READONLY,
   compositeKey: READONLY,
   compositeSymbol: READONLY,
 };
