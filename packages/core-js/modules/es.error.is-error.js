@@ -12,6 +12,7 @@ var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || ({}).__proto__;
 
 var DOMException = getBuiltIn(DOM_EXCEPTION);
 var $Error = Error;
+// eslint-disable-next-line es/no-error-iserror -- safe
 var $isError = $Error.isError;
 
 var FORCED = !$isError || !PROTOTYPE_SETTING_AVAILABLE || fails(function () {
