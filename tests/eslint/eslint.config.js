@@ -2410,7 +2410,6 @@ export default [
   {
     files: ['**/*.md'],
     processor: 'markdown/markdown',
-    },
   },
   {
     files: ['**/*.md/*'],
