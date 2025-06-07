@@ -77,6 +77,7 @@
   - Iterators closing on early errors in `Iterator` helpers marked as implemented from FF141
   - `Array.prototype.with` marked as supported only from FF140 because it throws an incorrect exception when index coercion fails
   - `TypedArray.prototype.with` marked as unsupported in Bun and Safari because it should truncate negative fractional index to zero, but instead throws an error
+  - `DisposableStack` and `AsyncDisposableStack` marked as [shipped in FF141](https://bugzilla.mozilla.org/show_bug.cgi?id=1967744) (`SuppressedError` has [a bug](https://bugzilla.mozilla.org/show_bug.cgi?id=1971000))
   - `AsyncDisposableStack` bugs marked as fixed in Deno 2.3.2
   - `SuppressedError` bugs ([extra arguments support](https://github.com/oven-sh/bun/issues/9283) and [arity](https://github.com/oven-sh/bun/issues/9282)) marked as fixed in Bun 1.2.15
 

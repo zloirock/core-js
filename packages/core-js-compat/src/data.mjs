@@ -201,6 +201,8 @@ export const data = {
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1971000
+    // firefox: '141',
   },
   'es.array.at': {
     chrome: '92',
@@ -632,6 +634,7 @@ export const data = {
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
+    firefox: '141',
   },
   'es.escape': {
     chrome: '1',
@@ -1455,6 +1458,7 @@ export const data = {
     // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
     chrome: '136',
+    firefox: '141',
   },
   'es.async-iterator.async-dispose': { // `Promise` dependency should be loaded before
   },
