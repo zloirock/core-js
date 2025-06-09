@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.43.0 - 2025.06.09](https://github.com/zloirock/core-js/releases/tag/v3.43.0)
+- Changes [v3.42.0...v3.43.0](https://github.com/zloirock/core-js/compare/v3.42.0...v3.43.0) (139 commits)
 - [Explicit Resource Management proposals](https://github.com/tc39/proposal-explicit-resource-management):
   - Built-ins:
     - `Symbol.dispose`
