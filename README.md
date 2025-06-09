@@ -664,7 +664,6 @@ class SuppressedError extends Error {
   error: any;
   suppressed: any;
   message: string;
-  cause: any;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
