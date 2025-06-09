@@ -66,6 +66,7 @@
 - Worked around a bug of many different tools ([example](https://github.com/zloirock/core-js/pull/1368#issuecomment-2908034690)) with incorrect transforming and breaking JS syntax on getting a method from a number literal
 - Fixed deoptimization of the `Promise` polyfill in the pure version
 - Added some missed dependencies to `/iterator/flat-map` entries
+- Some other minor fixes and improvements
 - Compat data improvements:
   - Added [Deno 2.3](https://github.com/denoland/deno/releases/tag/v2.3.0) and [Deno 2.3.2](https://github.com/denoland/deno/releases/tag/v2.3.2) compat data mapping
   - Updated Electron 37 compat data mapping
