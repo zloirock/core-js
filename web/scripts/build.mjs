@@ -69,7 +69,7 @@ async function build() {
     const htmlContent = mdPath.indexOf('/docs') !== -1 ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
-    resultHtml = template.replace('{canonical}', `${canonical}`);
+    resultHtml = resultHtml.replace('{canonical}', `${canonical}`);
 
     const htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
