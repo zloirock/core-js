@@ -8,6 +8,12 @@ import path from 'path';
 const docsDir = 'docs/web/';
 const resultDir = 'web/dist/';
 const templatePath = 'web/templates/index.html';
+const siteUrl = 'http://core-js.io/';
+const defaultBranch = 'web';
+
+const args = process.argv;
+const lastArg = args[args.length - 1];
+const branch = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
 
 async function getAllMdFiles(dir) {
   let entries = await fs.readdir(dir, { withFileTypes: true });
@@ -55,12 +61,15 @@ async function build() {
   });
 
   const mdFiles = await getAllMdFiles(docsDir);
+  const canonicalBranch = branch !== defaultBranch ? `branches/${branch}` : '';
+  const canonical = siteUrl + canonicalBranch;
   for (const mdPath of mdFiles) {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
-    const htmlContent = mdPath.indexOf('docs') !== -1 ? markedWithContents.parse(content) : marked.parse(content);
+    const htmlContent = mdPath.indexOf('/docs') !== -1 ? markedWithContents.parse(content) : marked.parse(content);
 
-    const resultHtml = template.replace('{content}', `${htmlContent}`);
+    let resultHtml = template.replace('{content}', `${htmlContent}`);
+    resultHtml = template.replace('{canonical}', `${canonical}`);
 
     const htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
