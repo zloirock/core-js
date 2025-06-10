@@ -22,7 +22,7 @@ const errors = {
   NetworkError: { s: 'NETWORK_ERR', c: 19, m: 1 },
   AbortError: { s: 'ABORT_ERR', c: 20, m: 1 },
   URLMismatchError: { s: 'URL_MISMATCH_ERR', c: 21, m: 1 },
-  // https://issues.chromium.org/issues/423917907
+  // https://github.com/whatwg/webidl/pull/1465
   // QuotaExceededError: { s: 'QUOTA_EXCEEDED_ERR', c: 22, m: 1 },
   TimeoutError: { s: 'TIMEOUT_ERR', c: 23, m: 1 },
   InvalidNodeTypeError: { s: 'INVALID_NODE_TYPE_ERR', c: 24, m: 1 },
