@@ -7,8 +7,9 @@ const exec = promisify(child_process.exec);
 const { cp } = fs;
 
 const srcDir = 'core-js';
-const buildsRootDir = `builds`;
-const buildResultDir = `branches`;
+const buildsRootDir = 'builds';
+const buildResultDir = 'branches';
+const repo = 'https://github.com/zloirock/core-js.git';
 
 const buildId = new Date().toISOString().replace(/[^0-9]/g, '-') + Math.random().toString(36).substring(2, 8);
 
@@ -52,10 +53,17 @@ async function createBuildDir() {
   console.timeEnd(`Created build directory ${buildDir}`);
 }
 
+async function installDependencies() {
+  console.log(`Installing dependencies...`);
+  console.time(`Installed dependencies`);
+  await exec(`npm ci`, { cwd: buildSrcDir });
+  console.timeEnd(`Installed dependencies`);
+}
+
 async function cloneRepo() {
   console.log(`Cloning core-js repository...`);
   console.time(`Cloned core-js repository`);
-  await exec(`git clone git@github.com:zloirock/core-js.git ${srcDir}`, { cwd: buildDir });
+  await exec(`git clone ${repo} ${srcDir}`, { cwd: buildDir });
   console.timeEnd(`Cloned core-js repository`);
 }
 
@@ -81,6 +89,7 @@ async function run() {
   console.time('Finished in');
   await createBuildDir();
   await cloneRepo();
+  await installDependencies();
   const branches = await getBranchesWithSiteDocs(buildSrcDir);
   if (!branches.length) {
     console.log('No branches with Web Builder found.');
