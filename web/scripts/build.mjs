@@ -1,9 +1,13 @@
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from "marked-gfm-heading-id";
 import { markedHighlight } from 'marked-highlight';
+import { promisify } from 'node:util';
+import child_process from 'child_process';
 import fs from 'fs/promises';
 import hljs from 'highlight.js';
 import path from 'path';
+
+const exec = promisify(child_process.exec);
 
 const docsDir = 'docs/web/';
 const resultDir = 'web/dist/';
@@ -79,5 +83,11 @@ async function build() {
     echo(chalk.green(`File created: ${htmlFilePath}`));
   }
 }
+
+async function getVersionTags() {
+  const tagsString = await exec('git tag | grep -E "^v[4-9]\\.[0-9]+\\.[0-9]+$" | sort -V');
+  return tagsString['stdout'].split('\n');
+}
+// console.log(await getVersionTags());
 
 await build().catch(console.error);
