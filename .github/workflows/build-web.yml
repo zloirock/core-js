@@ -1,0 +1,24 @@
+name: Build web pages
+
+on:
+  push:
+    branches:
+      - web
+  workflow_dispatch:
+
+jobs:
+  run-on-server:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.CI_SSH_KEY }}
+
+      - name: Run node runner.mjs on remote server
+        run: |
+          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "cd /var/www/core-js/ && node runner.mjs"
