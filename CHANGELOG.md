@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - Added iOS 26.0 compat data mapping
 
 ##### [3.43.0 - 2025.06.09](https://github.com/zloirock/core-js/releases/tag/v3.43.0)
 - Changes [v3.42.0...v3.43.0](https://github.com/zloirock/core-js/compare/v3.42.0...v3.43.0) (139 commits)

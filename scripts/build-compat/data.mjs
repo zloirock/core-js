@@ -68,8 +68,10 @@ for (const scope of [data, external]) {
     }
     map('FirefoxToFirefoxAndroid');
     map('SafariToIOS');
-    if (!has(module, 'ios') && has(module, 'safari') && semver(module.safari).major >= 15) {
-      module.ios = module.safari;
+    if (!has(module, 'ios') && has(module, 'safari')) {
+      const version = semver(module.safari);
+      if (version.major >= 19) version.major += 7;
+      module.ios = version.toString('minor');
     }
     map('SafariToPhantom');
     map('HermesToReactNative');
