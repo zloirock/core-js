@@ -699,7 +699,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.every': {
     // with changes related to the new iteration closing approach on early error
@@ -708,7 +708,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.filter': {
     // with changes related to the new iteration closing approach on early error
@@ -717,7 +717,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.find': {
     // with changes related to the new iteration closing approach on early error
@@ -726,7 +726,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.flat-map': {
     // with changes related to the new iteration closing approach on early error
@@ -735,7 +735,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.for-each': {
     // with changes related to the new iteration closing approach on early error
@@ -744,7 +744,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.from': {
     // Because of a bug in wrapper validation https://bugs.webkit.org/show_bug.cgi?id=288714
@@ -753,7 +753,7 @@ export const data = {
     deno: '1.38.1',
     firefox: '131',
     // Because of a bug in wrapper validation https://bugs.webkit.org/show_bug.cgi?id=288714
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.map': {
     // with changes related to the new iteration closing approach on early error
@@ -762,7 +762,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.reduce': {
     // with changes related to the new iteration closing approach on early error
@@ -773,7 +773,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.some': {
     // with changes related to the new iteration closing approach on early error
@@ -782,7 +782,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.take': {
     // with changes related to the new iteration closing approach on early error
@@ -792,7 +792,7 @@ export const data = {
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '19.0', // 18.4',
+    safari: '26.0', // 18.4',
   },
   'es.iterator.to-array': {
     bun: '1.1.31',
@@ -1652,7 +1652,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
     // https://bugs.webkit.org/show_bug.cgi?id=288595
-    safari: '19.0', // '18.0', // '17.0',
+    safari: '26.0', // '18.0', // '17.0',
   },
   'es.set.intersection.v2': {
     bun: '1.1.1',
@@ -1722,7 +1722,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
-    safari: '19.0', // '18.0', // '17.0',
+    safari: '26.0', // '18.0', // '17.0',
   },
   'es.set.union.v2': {
     // Should get iterator record of a set-like object before cloning this
@@ -1736,7 +1736,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
-    safari: '19.0', // '18.0', // '17.0',
+    safari: '26.0', // '18.0', // '17.0',
   },
   'es.string.at-alternative': {
     chrome: '92',

@@ -13,9 +13,7 @@ class SemVer {
     this.minor = $minor ? +$minor : 0;
     this.patch = $patch ? +$patch : 0;
   }
-  toString(slice) {
-    if (slice === 'major') return `${ this.major }`;
-    if (slice === 'minor') return `${ this.major }.${ this.minor }`;
+  toString() {
     return `${ this.major }.${ this.minor }.${ this.patch }`;
   }
 }
