@@ -1652,7 +1652,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // A WebKit bug occurs when `this` is updated while Set.prototype.difference is being executed
     // https://bugs.webkit.org/show_bug.cgi?id=288595
-    // safari: '18.0', // '17.0',
+    safari: '19.0', // '18.0', // '17.0',
   },
   'es.set.intersection.v2': {
     bun: '1.1.1',
@@ -1722,7 +1722,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
-    // safari: '18.0', // '17.0',
+    safari: '19.0', // '18.0', // '17.0',
   },
   'es.set.union.v2': {
     // Should get iterator record of a set-like object before cloning this
@@ -1736,7 +1736,7 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=267494
     // Should get iterator record of a set-like object before cloning this
     // https://bugs.webkit.org/show_bug.cgi?id=289430
-    // safari: '18.0', // '17.0',
+    safari: '19.0', // '18.0', // '17.0',
   },
   'es.string.at-alternative': {
     chrome: '92',
