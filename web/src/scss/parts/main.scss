@@ -29,9 +29,50 @@ main {
     .wrapper {
       display: flex;
 
+      .docs-menu {
+        position: sticky;
+        top: 2rem;
+        align-self: flex-start;
+
+        padding: 1rem 0.5rem 1rem 0;
+
+        font-size: 0.875rem;
+        flex-basis: 20%;
+        flex-shrink: 0;
+        line-height: 1.3;
+
+        border-right: 1px solid $border-color-lighter;
+
+        @include media('max', 'lg') {
+          display: none;
+        }
+
+        ul {
+          list-style: none;
+
+          li {
+            padding: 0 0 0.75rem 0;
+
+            &:last-child {
+              padding-bottom: 0;
+            }
+          }
+        }
+
+        .menu-header {
+          padding: 0 0 0.75rem 0;
+          font-weight: 600;
+        }
+
+        .menu-item {
+          border-right: 1px solid $border-color-lighter;
+          padding: 0 0.5rem 0.5rem 0.5rem;
+        }
+      }
+
       .content {
         width: 100%;
-        padding-right: 1rem;
+        padding: 0 1rem;
       }
 
       .table-of-contents {
@@ -41,7 +82,7 @@ main {
         font-size: 0.875rem;
         max-width: 20%;
 
-        @include media('max', 'lg') {
+        @include media('max', 'xl') {
           display: none;
         }
 

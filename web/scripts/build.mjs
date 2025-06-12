@@ -12,7 +12,8 @@ const exec = promisify(child_process.exec);
 const docsDir = 'docs/web/';
 const resultDir = 'web/dist/';
 const templatePath = 'web/templates/index.html';
-const siteUrl = 'http://core-js.io/';
+const docsMenuPath = 'web/src/docs-menu.html';
+const siteUrl = 'https://core-js.io/';
 const defaultBranch = 'web';
 
 const args = process.argv;
@@ -36,6 +37,7 @@ async function getAllMdFiles(dir) {
 
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
+  const docsMenu = await fs.readFile(docsMenuPath, 'utf-8');
 
   const highlightExt = markedHighlight({
     emptyLangClass: 'hljs',
@@ -46,27 +48,32 @@ async function build() {
     }
   });
   const marked = new Marked(highlightExt);
-  const markedWithContents = new Marked(highlightExt)
+  const markedWithContents = new Marked(highlightExt);
   markedWithContents.use(gfmHeadingId({ prefix: 'block-' }), {
     hooks: {
       postprocess(html) {
         const headings = getHeadingList().filter(({ level }) => level > 1);
         return `
 <div class="wrapper">
-  <div class="content">
-      ${html}
-  </div>
-  <div class="table-of-contents">
-      ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
-  </div>
+    <div class="docs-menu">
+        ${docsMenu}
+    </div>
+    <div class="content">
+        ${html}
+    </div>
+    <div class="table-of-contents">
+        ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
+    </div>
 </div>`;
       }
     }
   });
 
   const mdFiles = await getAllMdFiles(docsDir);
-  const canonicalBranch = branch !== defaultBranch ? `branches/${branch}` : '';
-  const canonical = siteUrl + canonicalBranch;
+  // const canonicalBranch = branch && branch !== defaultBranch ? `branches/${branch}` : '';
+  // const canonical = siteUrl + canonicalBranch;
+  const base = branch && branch !== defaultBranch ? `branches/${branch}` : '';
+  // const base = '/core-js-v4/web/dist/';
   for (const mdPath of mdFiles) {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
@@ -74,6 +81,7 @@ async function build() {
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{canonical}', `${canonical}`);
+    resultHtml = resultHtml.replace('{base}', `${base}`);
 
     const htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
