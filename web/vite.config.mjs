@@ -12,7 +12,7 @@ import { resolve } from 'path';
 //   }
 // }
 
-const distDir = '/';
+const distDir = '';
 
 export default defineConfig({
   root: 'src',
