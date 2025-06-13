@@ -2067,6 +2067,8 @@ const packageJSON = {
   'package-json/no-redundant-files': ERROR,
   // enforce that package dependencies are unique
   'package-json/unique-dependencies': ERROR,
+  // enforce that the `bin` property is valid
+  'package-json/valid-bin': ERROR,
   // checks existence of local dependencies in the package.json
   'package-json/valid-local-dependency': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
