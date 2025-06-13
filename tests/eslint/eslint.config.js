@@ -2067,6 +2067,8 @@ const packageJSON = {
   'package-json/no-redundant-files': ERROR,
   // enforce that package dependencies are unique
   'package-json/unique-dependencies': ERROR,
+  // enforce that the author field is a valid npm author specification
+  'package-json/valid-author': ERROR,
   // enforce that the `bin` property is valid
   'package-json/valid-bin': ERROR,
   // checks existence of local dependencies in the package.json
