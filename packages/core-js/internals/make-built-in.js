@@ -49,7 +49,11 @@ var makeBuiltIn = module.exports = function (value, name, options) {
 };
 
 // add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
-// eslint-disable-next-line no-extend-native -- required
-Function.prototype.toString = makeBuiltIn(function toString() {
-  return isCallable(this) && getInternalState(this).source || inspectSource(this);
-}, 'toString');
+try {
+  // eslint-disable-next-line no-extend-native -- required 
+  Function.prototype.toString = makeBuiltIn(function toString() {
+    return isCallable(this) && getInternalState(this).source || inspectSource(this);
+  }, 'toString');
+} catch {
+  /* silently ignore assignment error */
+}
