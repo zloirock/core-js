@@ -877,8 +877,7 @@ const base = {
   // enforce the use of `Math.SQRT2` instead of other ways
   'math/prefer-math-sqrt2': ERROR,
   // enforce the use of `Math.trunc()` instead of other truncations
-  // temporarily disabled because of https://github.com/ota-meshi/eslint-plugin-math/issues/92
-  'math/prefer-math-trunc': OFF,
+  'math/prefer-math-trunc': [ERROR, { reportBitwise: false }],
   // enforce the use of `Number.EPSILON` instead of other ways
   'math/prefer-number-epsilon': ERROR,
   // enforce the use of `Number.isFinite()` instead of other checking ways
