@@ -83,11 +83,12 @@ async function build() {
       const groups = mdPath.match(/\/(?<version>[0-9.]+)/);
       if (groups && groups.version) version = groups.version;
     }
+    console.log(`Processing file: ${mdPath} (version: ${version}) isDocs: ${isDocs}`);
     const htmlContent = isDocs ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
-    resultHtml = resultHtml.replace('{docs-version}', `${version}`);
+    resultHtml = resultHtml.replaceAll('{docs-version}', `${version}`);
 
     const htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
