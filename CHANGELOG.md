@@ -3,6 +3,7 @@
 - Compat data improvements:
   - `Iterator` helpers marked as fixed and updated following the latest spec changes in Safari 26.0
   - `Set.prototype.{ difference, symmetricDifference, union }` marked as fixed in Safari 26.0
+  - `SuppressedError` marked [as fixed](https://bugzilla.mozilla.org/show_bug.cgi?id=1971000) in FF141
 
 ##### [3.43.0 - 2025.06.09](https://github.com/zloirock/core-js/releases/tag/v3.43.0)
 - Changes [v3.42.0...v3.43.0](https://github.com/zloirock/core-js/compare/v3.42.0...v3.43.0) (139 commits)

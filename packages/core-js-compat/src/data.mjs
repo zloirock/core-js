@@ -202,7 +202,7 @@ export const data = {
     chrome: '136', // '134', // '133',
     deno: '2.2.10',
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1971000
-    // firefox: '141',
+    firefox: '141',
   },
   'es.array.at': {
     chrome: '92',
