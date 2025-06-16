@@ -13,8 +13,8 @@ const docsDir = 'docs/web/';
 const resultDir = 'web/dist/';
 const templatePath = 'web/templates/index.html';
 const docsMenuPath = 'web/src/docs-menu.html';
-const siteUrl = 'https://core-js.io/';
 const defaultBranch = 'web';
+const defaultVersion = '4.0';
 
 const args = process.argv;
 const lastArg = args[args.length - 1];
@@ -77,11 +77,17 @@ async function build() {
   for (const mdPath of mdFiles) {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
-    const htmlContent = mdPath.indexOf('/docs') !== -1 ? markedWithContents.parse(content) : marked.parse(content);
+    const isDocs = mdPath.indexOf('/docs') !== -1;
+    let version = defaultVersion;
+    if (isDocs) {
+      const groups = mdPath.match(/\/(?<version>[0-9.]+)/);
+      if (groups && groups.version) version = groups.version;
+    }
+    const htmlContent = isDocs ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
-    resultHtml = resultHtml.replace('{canonical}', `${canonical}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
+    resultHtml = resultHtml.replace('{docs-version}', `${version}`);
 
     const htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
