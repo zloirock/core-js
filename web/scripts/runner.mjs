@@ -57,6 +57,7 @@ async function installDependencies() {
   console.log(`Installing dependencies...`);
   console.time(`Installed dependencies`);
   await exec(`npm ci`, { cwd: buildSrcDir });
+  await exec(`npm ci`, { cwd: buildSrcDir + 'web/' });
   console.timeEnd(`Installed dependencies`);
 }
 
