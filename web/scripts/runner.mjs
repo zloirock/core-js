@@ -33,7 +33,7 @@ async function getBranchesWithSiteDocs() {
 async function buildWeb(branch) {
   console.log(`Building web for branch "${branch}"`);
   console.time(`Built web for branch "${branch}"`);
-  const stdout = await exec(`git checkout ${branch} && npm run build-web -- branch=${branch}`, { cwd: buildSrcDir });
+  const stdout = await exec(`npm run build-web -- branch=${branch}`, { cwd: buildSrcDir });
   console.timeEnd(`Built web for branch "${branch}"`);
   return stdout;
 }
@@ -53,9 +53,10 @@ async function createBuildDir() {
   console.timeEnd(`Created build directory ${buildDir}`);
 }
 
-async function installDependencies() {
+async function installDependencies(branch) {
   console.log(`Installing dependencies...`);
   console.time(`Installed dependencies`);
+  await exec(`git checkout ${branch}`, { cwd: buildSrcDir });
   await exec(`npm ci`, { cwd: buildSrcDir });
   await exec(`npm ci`, { cwd: buildSrcDir + 'web/' });
   console.timeEnd(`Installed dependencies`);
@@ -90,7 +91,6 @@ async function run() {
   console.time('Finished in');
   await createBuildDir();
   await cloneRepo();
-  await installDependencies();
   const branches = await getBranchesWithSiteDocs(buildSrcDir);
   if (!branches.length) {
     console.log('No branches with Web Builder found.');
@@ -98,6 +98,7 @@ async function run() {
   }
 
   for (const branch of branches) {
+    await installDependencies(branch);
     await buildWeb(branch);
     await copyWeb(branch, buildDir, buildResultDir, siteFilesDir);
   }
