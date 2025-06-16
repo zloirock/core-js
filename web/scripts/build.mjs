@@ -38,6 +38,7 @@ async function getAllMdFiles(dir) {
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   const docsMenu = await fs.readFile(docsMenuPath, 'utf-8');
+  let htmlFileName = '';
 
   const highlightExt = markedHighlight({
     emptyLangClass: 'hljs',
@@ -62,7 +63,7 @@ async function build() {
         ${html}
     </div>
     <div class="table-of-contents">
-        ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
+        ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${htmlFileName}#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
     </div>
 </div>`;
       }
@@ -83,6 +84,8 @@ async function build() {
       const groups = mdPath.match(/\/(?<version>[0-9.]+)/);
       if (groups && groups.version) version = groups.version;
     }
+    htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
+    const htmlFilePath = path.join(resultDir, htmlFileName);
     console.log(`Processing file: ${mdPath} (version: ${version}) isDocs: ${isDocs}`);
     const htmlContent = isDocs ? markedWithContents.parse(content) : marked.parse(content);
 
@@ -90,8 +93,6 @@ async function build() {
     resultHtml = resultHtml.replace('{base}', `${base}`);
     resultHtml = resultHtml.replaceAll('{docs-version}', `${version}`);
 
-    const htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
-    const htmlFilePath = path.join(resultDir, htmlFileName);
     await fs.mkdir(path.dirname(htmlFilePath), { recursive: true });
 
     await fs.writeFile(htmlFilePath, resultHtml, 'utf-8');
