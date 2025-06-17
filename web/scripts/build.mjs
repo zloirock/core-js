@@ -80,16 +80,18 @@ async function build() {
     const content = mdContent.toString();
     const isDocs = mdPath.indexOf('/docs') !== -1;
     let version = defaultVersion;
+    let mobileDocsMenu = '';
     if (isDocs) {
       const groups = mdPath.match(/\/(?<version>[0-9.]+)/);
       if (groups && groups.version) version = groups.version;
+      mobileDocsMenu = docsMenu;
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
-    console.log(`Processing file: ${mdPath} (version: ${version}) isDocs: ${isDocs}`);
     const htmlContent = isDocs ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
+    resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
     resultHtml = resultHtml.replaceAll('{docs-version}', `${version}`);
 
