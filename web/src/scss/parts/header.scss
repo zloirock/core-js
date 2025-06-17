@@ -41,7 +41,7 @@ nav {
         .menu-items {
             display: none;
 
-            @include media("min", "md") {
+            @include media("min", "lg") {
                 display: flex;
                 gap: 1rem;
                 align-items: center;
@@ -50,14 +50,21 @@ nav {
             a {
                 font-size: 1.25rem;
             }
+
+            .mobile-docs-menu {
+                display: none;
+            }
         }
 
         &.active {
+            align-items: center;
+            overflow-y: auto;
+
             .backdrop {
                 display: block;
             }
 
-            @include media("max", "md") {
+            @include media("max", "lg") {
                 .menu-items {
                     z-index: 2;
                     display: flex;
@@ -79,6 +86,18 @@ nav {
                     padding: 50px 20px 50px 30px;
 
                     box-shadow: -1px 1px 5px $background-light;
+
+                    .mobile-docs-menu {
+                        display: block;
+
+                        ul {
+                            list-style: circle;
+                        }
+
+                        .menu-header {
+                            font-size: 1.25rem;
+                        }
+                    }
                 }
 
                 .menu-item {
@@ -93,6 +112,8 @@ nav {
 
                     a {
                         display: block;
+                        -webkit-tap-highlight-color: transparent;
+                        -webkit-touch-callout: none;
 
                         span {
                             background-color: $font-color;
@@ -118,7 +139,7 @@ nav {
         }
 
         .burger {
-            @include media("min", "md") {
+            @include media("min", "lg") {
                 display: none;
             }
 
