@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelectorAll(".menu .backdrop")[0];
   const menu = document.getElementsByClassName('menu')[0];
+  const collapsibleTrigger = document.querySelectorAll(".collapsible > a")
 
   function toggleMenu() {
     if (menu.classList.contains('active')) {
@@ -21,4 +22,11 @@ document.addEventListener('DOMContentLoaded', function(_event) {
     e.preventDefault();
     toggleMenu();
   },false);
+
+  collapsibleTrigger.forEach(el => {
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      this.parentElement.classList.toggle('active');
+    });
+  })
 });
