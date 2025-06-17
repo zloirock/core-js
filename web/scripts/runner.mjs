@@ -30,6 +30,20 @@ async function getBranchesWithSiteDocs() {
   return branches;
 }
 
+async function getTagsWithSiteDocs() {
+  console.log('Getting tags with site docs...');
+  console.time(`Got tags with site docs"`);
+  const tagsString = await exec(
+    `git tag --list | sort -V | while read t; do v=\${t#v}; IFS=. read -r M m p <<< "$v"; m=\${m:-0}; `
+    + `if { [ "$M" -gt 3 ] || { [ "$M" -eq 3 ] && [ "$m" -gt 40 ]; }; }; `
+    + `then git ls-tree -r --name-only "$t" | grep --qxF "web/scripts/build.mjs" && echo "$t"; fi; done`,
+    { cwd: buildSrcDir }
+  );
+  const tags = tagsString['stdout'].split('\n').filter(tag => tag !== '');
+  console.timeEnd(`Got tags with site docs"`);
+  return tags;
+}
+
 async function buildWeb(branch) {
   console.log(`Building web for branch "${branch}"`);
   console.time(`Built web for branch "${branch}"`);
