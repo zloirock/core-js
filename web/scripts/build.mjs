@@ -1,10 +1,8 @@
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from "marked-gfm-heading-id";
-import { markedHighlight } from 'marked-highlight';
 import { promisify } from 'node:util';
 import child_process from 'child_process';
 import fs from 'fs/promises';
-import hljs from 'highlight.js';
 import path from 'path';
 
 const exec = promisify(child_process.exec);
@@ -40,16 +38,8 @@ async function build() {
   const docsMenu = await fs.readFile(docsMenuPath, 'utf-8');
   let htmlFileName = '';
 
-  const highlightExt = markedHighlight({
-    emptyLangClass: 'hljs',
-    langPrefix: 'hljs language-',
-    highlight(code, lang) {
-      const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-      return hljs.highlight(code, { language }).value;
-    }
-  });
-  const marked = new Marked(highlightExt);
-  const markedWithContents = new Marked(highlightExt);
+  const marked = new Marked();
+  const markedWithContents = new Marked();
   markedWithContents.use(gfmHeadingId({ prefix: 'block-' }), {
     hooks: {
       postprocess(html) {
@@ -71,8 +61,6 @@ async function build() {
   });
 
   const mdFiles = await getAllMdFiles(docsDir);
-  // const canonicalBranch = branch && branch !== defaultBranch ? `branches/${branch}` : '';
-  // const canonical = siteUrl + canonicalBranch;
   const base = branch && branch !== defaultBranch ? `branches/${branch}` : '/';
   // const base = '/core-js-v4/web/dist/';
   for (const mdPath of mdFiles) {
