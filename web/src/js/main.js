@@ -1,4 +1,14 @@
 import '../scss/app.scss';
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import json from 'highlight.js/lib/languages/json';
+import bash from 'highlight.js/lib/languages/bash';
+
+hljs.registerLanguage('js', javascript);
+hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('sh', bash);
 
 document.addEventListener('DOMContentLoaded', function(_event) {
   const menuSwitcher = document.getElementById('menu-switcher');
@@ -29,4 +39,6 @@ document.addEventListener('DOMContentLoaded', function(_event) {
       this.parentElement.classList.toggle('active');
     });
   })
+
+  hljs.highlightAll();
 });
