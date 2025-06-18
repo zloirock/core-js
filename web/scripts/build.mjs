@@ -9,7 +9,8 @@ const exec = promisify(child_process.exec);
 
 const docsDir = 'docs/web/';
 const resultDir = 'web/dist/';
-const templatePath = 'web/templates/index.html';
+const templatesDir = 'web/templates/';
+const templatePath = `${templatesDir}index.html`;
 const docsMenuPath = 'web/src/docs-menu.html';
 const defaultBranch = 'web';
 const defaultVersion = '4.0';
@@ -36,6 +37,7 @@ async function getAllMdFiles(dir) {
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   const docsMenu = await fs.readFile(docsMenuPath, 'utf-8');
+  let sandbox = await fs.readFile(`${templatesDir}sandbox.html`, 'utf-8');
   let htmlFileName = '';
 
   const marked = new Marked();
@@ -88,6 +90,13 @@ async function build() {
     await fs.writeFile(htmlFilePath, resultHtml, 'utf-8');
     echo(chalk.green(`File created: ${htmlFilePath}`));
   }
+
+  sandbox = sandbox.replace('{base}', `${base}`);
+  sandbox = sandbox.replaceAll('{docs-version}', `${defaultVersion}`);
+  const sandboxFilePath = path.join(resultDir, 'sandbox.html');
+  await fs.mkdir(path.dirname(sandboxFilePath), { recursive: true });
+  await fs.writeFile(sandboxFilePath, sandbox, 'utf-8');
+  echo(chalk.green(`File created: ${sandboxFilePath}`));
 }
 
 async function getVersionTags() {

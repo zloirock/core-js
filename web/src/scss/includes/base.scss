@@ -70,7 +70,18 @@ ul {
     list-style-type: disc;
 }
 
+svg {
+    width: 100%;
+    height: auto;
+}
+
 .box {
     background-color: $box-color;
     border-radius: 1rem;
+}
+
+.icon {
+    display: block;
+    width: 24px;
+    height: 24px;
 }
