@@ -173,5 +173,21 @@ nav {
             right: 0;
             bottom: 0;
         }
+
+        .socials {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+
+            @include media("max", "lg") {
+                position: absolute;
+                top: 1rem;
+            }
+
+            @include media("min", "lg") {
+                border-left: 1px solid $link-color;
+                padding-left: 1rem;
+            }
+        }
     }
 }
