@@ -63,7 +63,7 @@ async function build() {
   });
 
   const mdFiles = await getAllMdFiles(docsDir);
-  const base = branch && branch !== defaultBranch ? `branches/${branch}` : '/';
+  const base = branch && branch !== defaultBranch ? `/branches/${branch}/` : '/';
   // const base = '/core-js-v4/web/dist/';
   for (const mdPath of mdFiles) {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
