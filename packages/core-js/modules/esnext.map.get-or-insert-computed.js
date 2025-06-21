@@ -10,7 +10,7 @@ var set = MapHelpers.set;
 
 // `Map.prototype.getOrInsertComputed` method
 // https://github.com/tc39/proposal-upsert
-$({ target: 'Map', proto: true, real: true, forced: true }, {
+$({ target: 'Map', proto: true, real: true }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aMap(this);
     aCallable(callbackfn);
