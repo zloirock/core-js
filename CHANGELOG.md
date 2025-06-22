@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Added missing dependencies to some entries of static `Iterator` methods
+- Added missing `/full/{ instance, number/virtual }/clamp` entries
 - Compat data improvements:
   - `Iterator` helpers marked as fixed and updated following the latest spec changes in Safari 26.0
   - `Set.prototype.{ difference, symmetricDifference, union }` marked as fixed in Safari 26.0

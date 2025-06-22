@@ -812,6 +812,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'map/some')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === true);
     ok(load(NS, 'map/update')(new Map([[1, 2]]), 1, it => it * 2).get(1) === 4);
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
+    ok(load(NS, 'number/virtual/clamp').call(6, 2, 4) === 4);
     ok(load(NS, 'number/from-string')('12', 3) === 5);
     ok(load(NS, 'number/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'object/iterate-entries')({}).next == 'function');
@@ -865,6 +866,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'weak-set/delete-all')(new WeakSet(), [], {}) === false);
     ok(load(NS, 'weak-set/from')([{}, []]) instanceof WeakSet);
     ok(load(NS, 'weak-set/of')({}, []) instanceof WeakSet);
+
+    const instanceClamp = load(NS, 'instance/clamp');
+    ok(typeof instanceClamp == 'function');
+    ok(instanceClamp({}) === undefined);
+    ok(typeof instanceClamp(6) == 'function');
+    ok(instanceClamp(6).call(6, 2, 4) === 4);
 
     const instanceCodePoints = load(NS, 'instance/code-points');
     ok(typeof instanceCodePoints == 'function');
