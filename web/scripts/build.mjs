@@ -72,7 +72,7 @@ async function build() {
     let mobileDocsMenu = '';
     if (isDocs) {
       const groups = mdPath.match(/\/(?<version>[^\/]+)\/docs\//).groups;
-      if (groups && groups.version) version = groups.version;
+      if (groups && groups.version && groups.version !== defaultBranch) version = groups.version;
       mobileDocsMenu = docsMenu;
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
