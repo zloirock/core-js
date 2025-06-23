@@ -71,7 +71,7 @@ async function build() {
     let version = '';
     let mobileDocsMenu = '';
     if (isDocs) {
-      const groups = mdPath.match(/(?<version>[^\/]+)\/docs\//);
+      const groups = mdPath.match(/\/(?<version>[^\/]+)\/docs\//).groups;
       if (groups && groups.version) version = groups.version;
       mobileDocsMenu = docsMenu;
     }
