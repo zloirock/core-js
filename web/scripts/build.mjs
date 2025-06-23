@@ -69,10 +69,10 @@ async function build() {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
     const isDocs = mdPath.indexOf('/docs') !== -1;
-    let version = defaultVersion;
+    let version = '';
     let mobileDocsMenu = '';
     if (isDocs) {
-      const groups = mdPath.match(/\/(?<version>[0-9.]+)/);
+      const groups = mdPath.match(/\/docs\/(?<version>[^\/]+\/)/);
       if (groups && groups.version) version = groups.version;
       mobileDocsMenu = docsMenu;
     }
@@ -83,7 +83,8 @@ async function build() {
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
-    resultHtml = resultHtml.replaceAll('{docs-version}', `${version}`);
+    version = version !== '' ? version + '/' : version;
+    resultHtml = resultHtml.replaceAll('{docs-version}/', `${version}`);
 
     await fs.mkdir(path.dirname(htmlFilePath), { recursive: true });
 
@@ -92,7 +93,7 @@ async function build() {
   }
 
   sandbox = sandbox.replace('{base}', `${base}`);
-  sandbox = sandbox.replaceAll('{docs-version}', `${defaultVersion}`);
+  sandbox = sandbox.replaceAll('{docs-version}', '');
   const sandboxFilePath = path.join(resultDir, 'sandbox.html');
   await fs.mkdir(path.dirname(sandboxFilePath), { recursive: true });
   await fs.writeFile(sandboxFilePath, sandbox, 'utf-8');
