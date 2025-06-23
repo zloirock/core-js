@@ -13,7 +13,6 @@ const templatesDir = 'web/templates/';
 const templatePath = `${templatesDir}index.html`;
 const docsMenuPath = 'web/src/docs-menu.html';
 const defaultBranch = 'web';
-const defaultVersion = '4.0';
 
 const args = process.argv;
 const lastArg = args[args.length - 1];
@@ -72,7 +71,7 @@ async function build() {
     let version = '';
     let mobileDocsMenu = '';
     if (isDocs) {
-      const groups = mdPath.match(/\/docs\/(?<version>[^\/]+\/)/);
+      const groups = mdPath.match(/(?<version>[^\/]+)\/docs\//);
       if (groups && groups.version) version = groups.version;
       mobileDocsMenu = docsMenu;
     }
