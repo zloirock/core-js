@@ -134,7 +134,7 @@ async function build() {
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
-    resultHtml = resultHtml.replaceAll('{docs-version}/', version);
+    resultHtml = resultHtml.replaceAll('{docs-version}', version);
     resultHtml = resultHtml.replaceAll('{default-version}', defaultVersion);
 
     await fs.mkdir(path.dirname(htmlFilePath), { recursive: true });
