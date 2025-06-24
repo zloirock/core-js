@@ -48,11 +48,12 @@ async function buildDocsMenu(item) {
 }
 
 async function buildMenuForVersion(version) {
-  console.log(`Building docs menu for version: ${version}`);
-  const jsonPath = version === defaultBranch ? `${docsDir}docs/menu.json` : `${docsDir}${version}/docs/menu.json`;
+  echo(chalk.green(`Building docs menu for version: ${version}`));
+  const jsonPath = `${docsDir}${version}/docs/menu.json`;
   try {
     await fs.access(jsonPath)
   } catch (err) {
+    echo(chalk.yellow(`Menu JSON file not found: ${jsonPath}`));
     return '';
   }
   const docsMenuJson = await fs.readFile(jsonPath, 'utf-8');
@@ -103,11 +104,6 @@ async function build() {
   // const base = '/core-js-v4/web/dist/';
   const versions = [];
   for (const mdPath of mdFiles) {
-    const isDocs = mdPath.indexOf('/docs') !== -1;
-    if (!isDocs) {
-      versions.push(defaultBranch);
-      continue;
-    }
     const match = mdPath.match(/\/web\/(?<version>[^\/]+)\/docs\//);
     if (match && match.groups && match.groups.version) {
       versions.push(match.groups.version);
@@ -138,8 +134,7 @@ async function build() {
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
-    const v = version !== defaultBranch ? version + '/' : '';
-    resultHtml = resultHtml.replaceAll('{docs-version}/', v);
+    resultHtml = resultHtml.replaceAll('{docs-version}/', version);
     resultHtml = resultHtml.replaceAll('{default-version}', defaultVersion);
 
     await fs.mkdir(path.dirname(htmlFilePath), { recursive: true });
