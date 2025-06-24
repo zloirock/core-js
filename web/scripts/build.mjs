@@ -99,7 +99,7 @@ async function build() {
   });
 
   const mdFiles = await getAllMdFiles(docsDir);
-  const base = branch && branch !== defaultBranch ? `/branches/${branch}/` : '/';
+  const base = branch ? `/branches/${branch}/` : '/';
   let prevVersion = null;
   // const base = '/core-js-v4/web/dist/';
   const versions = [];
