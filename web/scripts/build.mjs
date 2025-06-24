@@ -13,7 +13,7 @@ const templatesDir = 'web/templates/';
 const templatePath = `${templatesDir}index.html`;
 // const docsMenuPath = 'web/src/docs-menu.html';
 const defaultBranch = 'web';
-const defaultVersion = '.';
+const defaultVersion = 'web';
 
 const args = process.argv;
 const lastArg = args[args.length - 1];
@@ -100,20 +100,33 @@ async function build() {
   const base = branch && branch !== defaultBranch ? `/branches/${branch}/` : '/';
   let prevVersion = null;
   // const base = '/core-js-v4/web/dist/';
+  const versions = [];
   for (const mdPath of mdFiles) {
+    const isDocs = mdPath.indexOf('/docs') !== -1;
+    if (!isDocs) {
+      versions.push(defaultBranch);
+      continue;
+    }
+    const match = mdPath.match(/\/web\/(?<version>[^\/]+)\/docs\//);
+    if (match && match.groups && match.groups.version) {
+      versions.push(match.groups.version);
+    } else {
+      versions.push(defaultBranch);
+    }
+  }
+
+  for (const i in mdFiles) {
+    const mdPath = mdFiles[i];
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
     const isDocs = mdPath.indexOf('/docs') !== -1;
     let version = '';
     let mobileDocsMenu = '';
     if (isDocs) {
-      const groups = mdPath.match(/\/(?<version>[^\/]+)\/docs\//).groups;
-      if (groups && groups.version) {
-        prevVersion = version;
-        version = groups.version;
-        if (prevVersion !== version) {
-          docsMenu = await buildMenuForVersion(version);
-        }
+      prevVersion = version;
+      version = versions[i];
+      if (prevVersion !== version) {
+        docsMenu = await buildMenuForVersion(version);
       }
       mobileDocsMenu = docsMenu;
     }
