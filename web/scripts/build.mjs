@@ -11,8 +11,9 @@ const docsDir = 'docs/web/';
 const resultDir = 'web/dist/';
 const templatesDir = 'web/templates/';
 const templatePath = `${templatesDir}index.html`;
-const docsMenuPath = 'web/src/docs-menu.html';
+// const docsMenuPath = 'web/src/docs-menu.html';
 const defaultBranch = 'web';
+const defaultVersion = '.';
 
 const args = process.argv;
 const lastArg = args[args.length - 1];
@@ -33,9 +34,43 @@ async function getAllMdFiles(dir) {
   return files;
 }
 
+async function buildDocsMenu(item) {
+  if (item.hasOwnProperty('children')) {
+    let result = `<li class="collapsible"><a href="#">${item.title}</a><ul>`;
+    for (const child of item.children) {
+      result += await buildDocsMenu(child);
+    }
+    result += '</ul></li>';
+    return result;
+  }
+
+  return `<li><a href="${item.url}">${item.title}</a></li>`;
+}
+
+async function buildMenuForVersion(version) {
+  const jsonPath = version === defaultBranch ? `${docsDir}docs/menu.json` : `${docsDir}${version}/docs/menu.json`;
+  try {
+    await fs.access(jsonPath)
+  } catch (err) {
+    return '';
+  }
+  const docsMenuJson = await fs.readFile(jsonPath, 'utf-8');
+  try {
+    const docsMenu = JSON.parse(docsMenuJson.toString());
+    let menu = '<ul>';
+    for (const item of docsMenu) {
+      menu += await buildDocsMenu(item);
+    }
+    menu += '</ul>';
+    return menu;
+  } catch (err) {
+    return '';
+  }
+}
+
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
-  const docsMenu = await fs.readFile(docsMenuPath, 'utf-8');
+  let docsMenu = '';
   let sandbox = await fs.readFile(`${templatesDir}sandbox.html`, 'utf-8');
   let htmlFileName = '';
 
@@ -63,6 +98,7 @@ async function build() {
 
   const mdFiles = await getAllMdFiles(docsDir);
   const base = branch && branch !== defaultBranch ? `/branches/${branch}/` : '/';
+  let prevVersion = null;
   // const base = '/core-js-v4/web/dist/';
   for (const mdPath of mdFiles) {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
@@ -72,7 +108,13 @@ async function build() {
     let mobileDocsMenu = '';
     if (isDocs) {
       const groups = mdPath.match(/\/(?<version>[^\/]+)\/docs\//).groups;
-      if (groups && groups.version && groups.version !== defaultBranch) version = groups.version;
+      if (groups && groups.version) {
+        prevVersion = version;
+        version = groups.version;
+        if (prevVersion !== version) {
+          docsMenu = await buildMenuForVersion(version);
+        }
+      }
       mobileDocsMenu = docsMenu;
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
@@ -82,8 +124,9 @@ async function build() {
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
-    version = version !== '' ? version + '/' : version;
-    resultHtml = resultHtml.replaceAll('{docs-version}/', `${version}`);
+    const v = version !== defaultBranch ? version + '/' : '';
+    resultHtml = resultHtml.replaceAll('{docs-version}/', v);
+    resultHtml = resultHtml.replaceAll('{default-version}', defaultVersion);
 
     await fs.mkdir(path.dirname(htmlFilePath), { recursive: true });
 
@@ -93,6 +136,7 @@ async function build() {
 
   sandbox = sandbox.replace('{base}', `${base}`);
   sandbox = sandbox.replaceAll('{docs-version}', '');
+  sandbox = sandbox.replaceAll('{default-version}', defaultVersion);
   const sandboxFilePath = path.join(resultDir, 'sandbox.html');
   await fs.mkdir(path.dirname(sandboxFilePath), { recursive: true });
   await fs.writeFile(sandboxFilePath, sandbox, 'utf-8');
