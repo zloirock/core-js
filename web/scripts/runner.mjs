@@ -50,7 +50,7 @@ async function getTagsWithSiteDocs() {
     + `grep -q "docs/web/docs/"; then echo "$branch"; fi; done`,
     { cwd: buildSrcDir }
   );
-  const tags = tagsString['stdout'].split('\n').filter(tag => tag !== '' && tag !== `origin/${builderBranch}`)
+  const tags = tagsString['stdout'].split('\n').filter(tag => tag !== '')
     .map(branch => branch.replace('origin/', ''));
   console.timeEnd(`Got tags with site docs"`);
   console.log(`Found tags with site docs: ${tags.join(', ')}`);
@@ -109,9 +109,10 @@ async function switchToLatestBuild() {
 
 async function clearBuildDir() {
   console.log(`Clearing build directory "${buildSrcDir}"`);
-  console.time(`Cleared build directory ${buildSrcDir}`);
+  console.time(`Cleared build directories ${buildSrcDir} and ${builderDocsDir}`);
   await exec(`rm -rf ${buildSrcDir}`);
-  console.timeEnd(`Cleared build directory ${buildSrcDir}`);
+  await exec(`rm -rf ${builderDocsDir}`);
+  console.timeEnd(`Cleared build directories ${buildSrcDir} and ${builderDocsDir}`);
 }
 
 async function copyDocs(srcDir, destDir) {
@@ -146,6 +147,7 @@ async function prepareBuilder(branch) {
   console.time('Prepared builder');
   await exec(`git checkout origin/${branch}`, { cwd: buildSrcDir });
   await installDependencies();
+  if (!branch) await exec(`rm -rf ${buildSrcDir}docs/web/docs/`);
   console.timeEnd('Prepared builder');
 }
 
