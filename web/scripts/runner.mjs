@@ -57,11 +57,13 @@ async function getTagsWithSiteDocs() {
   return tags;
 }
 
-async function buildWeb(branch) {
-  console.log(`Building web for branch "${branch}"`);
-  console.time(`Built web for branch "${branch}"`);
-  const stdout = await exec(`npm run build-web -- branch=${branch}`, { cwd: buildSrcDir });
-  console.timeEnd(`Built web for branch "${branch}"`);
+async function buildWeb() {
+  console.log(`Building web`);
+  console.time(`Built web`);
+  let command = 'npm run build-web';
+  if (branch) command += ` branch=${branch}`;
+  const stdout = await exec(command, { cwd: buildSrcDir });
+  console.timeEnd(`Built web`);
   return stdout;
 }
 
@@ -142,10 +144,10 @@ async function copyBuilderDocs() {
   console.timeEnd('Copied builder docs');
 }
 
-async function prepareBuilder(branch) {
+async function prepareBuilder(targetBranch) {
   console.log('Preparing builder...');
   console.time('Prepared builder');
-  await exec(`git checkout origin/${branch}`, { cwd: buildSrcDir });
+  await exec(`git checkout origin/${targetBranch}`, { cwd: buildSrcDir });
   await installDependencies();
   if (!branch) await exec(`rm -rf ${buildSrcDir}docs/web/docs/`);
   console.timeEnd('Prepared builder');
