@@ -49,7 +49,7 @@ async function buildDocsMenu(item) {
 
 async function buildMenuForVersion(version) {
   echo(chalk.green(`Building docs menu for version: ${version}`));
-  const jsonPath = `${docsDir}${version}/docs/menu.json`;
+  const jsonPath = branch ? `${docsDir}docs/menu.json` : `${docsDir}${version}/docs/menu.json`;
   try {
     await fs.access(jsonPath)
   } catch (err) {
@@ -134,8 +134,14 @@ async function build() {
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
-    resultHtml = resultHtml.replaceAll('{docs-version}', version);
-    resultHtml = resultHtml.replaceAll('{default-version}', defaultVersion);
+
+    if (branch) {
+      resultHtml = resultHtml.replaceAll('{default-version}', '.');
+      resultHtml = resultHtml.replaceAll('{docs-version}', '.');
+    } else {
+      resultHtml = resultHtml.replaceAll('{default-version}', defaultVersion);
+      resultHtml = resultHtml.replaceAll('{docs-version}', version);
+    }
 
     await fs.mkdir(path.dirname(htmlFilePath), { recursive: true });
 
@@ -145,7 +151,11 @@ async function build() {
 
   sandbox = sandbox.replace('{base}', `${base}`);
   sandbox = sandbox.replaceAll('{docs-version}', '');
-  sandbox = sandbox.replaceAll('{default-version}', defaultVersion);
+  if (branch) {
+    sandbox = sandbox.replaceAll('{default-version}', '.');
+  } else {
+    sandbox = sandbox.replaceAll('{default-version}', defaultVersion);
+  }
   const sandboxFilePath = path.join(resultDir, 'sandbox.html');
   await fs.mkdir(path.dirname(sandboxFilePath), { recursive: true });
   await fs.writeFile(sandboxFilePath, sandbox, 'utf-8');
