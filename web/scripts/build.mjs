@@ -48,6 +48,7 @@ async function buildDocsMenu(item) {
 }
 
 async function buildMenuForVersion(version) {
+  console.log(`Building docs menu for version: ${version}`);
   const jsonPath = version === defaultBranch ? `${docsDir}docs/menu.json` : `${docsDir}${version}/docs/menu.json`;
   try {
     await fs.access(jsonPath)
