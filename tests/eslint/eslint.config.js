@@ -2096,8 +2096,6 @@ const packagesPackageJSON = {
   'package-json/require-version': ERROR,
   // enforce that package names are valid npm package names
   'package-json/valid-name': ERROR,
-  // enforce that package.json has all properties required by the npm spec
-  'package-json/valid-package-def': ERROR,
 };
 
 const nodeDependencies = {
