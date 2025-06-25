@@ -9,7 +9,7 @@ var getMethod = require('../internals/get-method');
 var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
 var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
-var iteratorCloseAll = require('./iterator-close-all');
+var iteratorCloseAll = require('../internals/iterator-close-all');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
