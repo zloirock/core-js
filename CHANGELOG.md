@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Fixed some cases of `Set.prototype.{ symmetricDifference, union }` detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added missing `/full/{ instance, number/virtual }/clamp` entries
 - Compat data improvements:
