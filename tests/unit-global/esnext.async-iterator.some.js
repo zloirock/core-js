@@ -1,5 +1,4 @@
 import { createIterator } from '../helpers/helpers.js';
-import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 QUnit.test('AsyncIterator#some', assert => {
   const { some } = AsyncIterator.prototype;
@@ -10,10 +9,8 @@ QUnit.test('AsyncIterator#some', assert => {
   assert.looksNative(some);
   assert.nonEnumerable(AsyncIterator.prototype, 'some');
 
-  if (STRICT) {
-    assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);
-    assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
-  }
+  assert.throws(() => some.call(undefined, () => { /* empty */ }), TypeError);
+  assert.throws(() => some.call(null, () => { /* empty */ }), TypeError);
 
   assert.throws(() => some.call(createIterator([1]), undefined), TypeError);
   assert.throws(() => some.call(createIterator([1]), null), TypeError);
@@ -25,7 +22,7 @@ QUnit.test('AsyncIterator#some', assert => {
   }).then(result => {
     assert.false(result, 'basic functionality, -');
     return some.call(createIterator([1]), function (arg, counter) {
-      assert.same(this, STRICT_THIS, 'this');
+      assert.same(this, undefined, 'this');
       assert.same(arguments.length, 2, 'arguments length');
       assert.same(arg, 1, 'argument');
       assert.same(counter, 0, 'counter');
