@@ -23,7 +23,7 @@ module.exports = function (METHOD_NAME) {
     };
     var result = baseSet[METHOD_NAME](setLike);
 
-    return result.size !== 1 || result.values().next().value !== 4;
+    return result.size === 1 && result.values().next().value === 4;
   } catch (error) {
     return false;
   }
