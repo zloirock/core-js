@@ -164,7 +164,7 @@ export const data = {
     chrome: '134',
     firefox: '138',
     // https://github.com/nodejs/node/issues/58134
-    node: false,
+    node: '24.3',
   },
   'es.error.to-string': {
     chrome: '33',
