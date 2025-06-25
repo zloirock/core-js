@@ -2073,6 +2073,8 @@ const packageJSON = {
   'package-json/valid-bin': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
   'package-json/valid-repository-directory': ERROR,
+  // enforce that the `type` property is valid
+  'package-json/valid-type': ERROR,
   // enforce that package versions are valid semver specifiers
   'package-json/valid-version': ERROR,
 };
