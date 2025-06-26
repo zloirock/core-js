@@ -779,7 +779,7 @@ const base = {
   // strings and non-strings should not be added
   'sonarjs/no-incorrect-string-concat': ERROR,
   // `await` should only be used with promises
-  // broken in eslint-plugin-sonarjs@3.0.3
+  // broken in eslint-plugin-sonarjs@3.0.3+
   // 'sonarjs/no-invalid-await': ERROR,
   // function returns should not be invariant
   'sonarjs/no-invariant-returns': ERROR,
