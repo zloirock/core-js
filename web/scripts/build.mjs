@@ -70,6 +70,28 @@ async function buildMenuForVersion(version) {
   }
 }
 
+async function buildVersionsMenuList(versions, currentVersion) {
+  let versionsMenuHtml = '';
+
+  versionsMenuHtml += '<div class="dropdown-block">';
+  for (const v of versions) {
+    if (v === currentVersion) {
+      versionsMenuHtml += `<a href="/${v}/docs/" class="active">${v}</a>`;
+    } else {
+      versionsMenuHtml += `<a href="/${v}/docs/">${v}</a>`;
+    }
+  }
+  versionsMenuHtml += '</div>';
+
+  return versionsMenuHtml;
+}
+
+async function buildVersionMenu(versions, currentVersion) {
+  const innerMenu = await buildVersionsMenuList(versions, currentVersion);
+
+  return `<div class="dropdown versions-menu"><a href="#" class="current">${currentVersion}</a>${innerMenu}</div>`;
+}
+
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   let docsMenu = '';
@@ -100,7 +122,6 @@ async function build() {
 
   const mdFiles = await getAllMdFiles(docsDir);
   const base = branch ? `/branches/${branch}/` : '/';
-  let prevVersion = null;
   // const base = '/core-js-v4/web/dist/';
   const versions = [];
   for (const mdPath of mdFiles) {
@@ -111,20 +132,25 @@ async function build() {
       versions.push(defaultBranch);
     }
   }
+  const uniqueVersions = [...new Set(versions)];
 
+  let prevVersion = null;
+  let version = '';
+  let versionsMenu = '';
   for (const i in mdFiles) {
     const mdPath = mdFiles[i];
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
     const isDocs = mdPath.indexOf('/docs') !== -1;
-    let version = '';
     let mobileDocsMenu = '';
-    if (isDocs) {
+
+    if (version !== versions[i]) {
       prevVersion = version;
       version = versions[i];
-      if (prevVersion !== version) {
-        docsMenu = await buildMenuForVersion(version);
-      }
+      docsMenu = await buildMenuForVersion(version);
+      versionsMenu = await buildVersionMenu(uniqueVersions, version);
+    }
+    if (isDocs) {
       mobileDocsMenu = docsMenu;
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
@@ -134,6 +160,8 @@ async function build() {
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
+    resultHtml = resultHtml.replace('{versions-menu}', `${versionsMenu}`);
+    resultHtml = resultHtml.replaceAll('{current-version}', version);
 
     if (branch) {
       resultHtml = resultHtml.replaceAll('{default-version}', '.');
