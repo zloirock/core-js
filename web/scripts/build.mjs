@@ -177,8 +177,11 @@ async function build() {
     echo(chalk.green(`File created: ${htmlFilePath}`));
   }
 
+  versionsMenu = await buildVersionMenu(uniqueVersions, defaultVersion);
   sandbox = sandbox.replace('{base}', `${base}`);
   sandbox = sandbox.replaceAll('{docs-version}', '');
+  sandbox = sandbox.replace('{versions-menu}', `${versionsMenu}`);
+  sandbox = sandbox.replaceAll('{current-version}', version);
   if (branch) {
     sandbox = sandbox.replaceAll('{default-version}', '.');
   } else {
