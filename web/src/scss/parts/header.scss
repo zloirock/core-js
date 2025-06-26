@@ -60,7 +60,7 @@ nav {
             align-items: center;
             overflow-y: auto;
 
-            .backdrop {
+            & > .backdrop {
                 display: block;
             }
 
@@ -191,35 +191,39 @@ nav {
         }
 
         .dropdown {
-            position: relative;
-
             a {
                 white-space: nowrap;
             }
 
-            & > a::after {
-                content: '';
-                display: inline-block;
-                width: 5px;
-                height: 5px;
-                margin: -4px 0 0 0.5rem;
-                vertical-align: middle;
-                border-right: 2px solid rgba(248, 248, 242, .7);
-                border-bottom: 2px solid rgba(248, 248, 242, .7);
-                rotate: 45deg;
-            }
+            .dropdown-wrapper {
+                position: relative;
 
-            .dropdown-block {
-                display: none;
+                & > a::after {
+                    content: '';
+                    display: inline-block;
+                    width: 5px;
+                    height: 5px;
+                    margin: -4px 0 0 0.5rem;
+                    vertical-align: middle;
+                    border-right: 2px solid rgba(248, 248, 242, .7);
+                    border-bottom: 2px solid rgba(248, 248, 242, .7);
+                    rotate: 45deg;
+                }
 
-                a {
-                    display: block;
+                .dropdown-block {
+                    display: none;
+
+                    a {
+                        display: block;
+                    }
                 }
             }
+
             &.active {
                 .dropdown-block {
                     display: block;
                     position: absolute;
+                    z-index: 1;
                     left: 0;
                     border: 1px solid $border-color-light;
                     padding: 0.5rem 1rem;
@@ -235,6 +239,10 @@ nav {
                         color: $link-color-hover;
                         font-weight: 500;
                     }
+                }
+
+                .backdrop {
+                    display: block;
                 }
             }
         }
