@@ -14,7 +14,9 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelectorAll(".menu .backdrop")[0];
   const menu = document.getElementsByClassName('menu')[0];
-  const collapsibleTrigger = document.querySelectorAll(".collapsible > a")
+  const collapsibleTrigger = document.querySelectorAll(".collapsible > a");
+  const dropdownTriggers = document.querySelectorAll(".dropdown > a");
+  const currentVersion = document.querySelector('.versions-menu a.current');
 
   function toggleMenu() {
     if (menu.classList.contains('active')) {
@@ -38,7 +40,18 @@ document.addEventListener('DOMContentLoaded', function(_event) {
       e.preventDefault();
       this.parentElement.classList.toggle('active');
     });
+  });
+
+  dropdownTriggers.forEach(el => {
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      this.parentElement.classList.toggle('active');
+    })
   })
+
+  currentVersion.addEventListener('click', function(e) {
+    e.preventDefault();
+  });
 
   hljs.highlightAll();
 });
