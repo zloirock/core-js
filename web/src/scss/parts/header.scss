@@ -189,5 +189,49 @@ nav {
                 padding-left: 1rem;
             }
         }
+
+        .dropdown {
+            position: relative;
+
+            & > a::after {
+                content: '';
+                display: inline-block;
+                width: 0;
+                height: 0;
+                margin: 2px 0 0 5px;
+                vertical-align: middle;
+                border: 5px solid transparent;
+                border-top: 5px solid $link-color;
+            }
+
+            .dropdown-block {
+                display: none;
+
+                a {
+                    display: block;
+                }
+            }
+            &.active {
+                .dropdown-block {
+                    display: block;
+                    position: absolute;
+                    left: 0;
+                    border: 1px solid $border-color-light;
+                    padding: 0.5rem 1rem;
+                    border-radius: 0.5rem;
+                    background-color: $background-color;
+
+                    @include media("min", "lg") {
+                        right: 0;
+                        left: auto;
+                    }
+
+                    a.active {
+                        color: $link-color-hover;
+                        font-weight: 500;
+                    }
+                }
+            }
+        }
     }
 }
