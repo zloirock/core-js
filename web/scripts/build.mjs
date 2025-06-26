@@ -89,7 +89,7 @@ async function buildVersionsMenuList(versions, currentVersion) {
 async function buildVersionMenu(versions, currentVersion) {
   const innerMenu = await buildVersionsMenuList(versions, currentVersion);
 
-  return `<div class="dropdown versions-menu"><a href="#" class="current">${currentVersion}</a>${innerMenu}</div>`;
+  return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${currentVersion}</a>${innerMenu}</div><div class="backdrop"></div></div>`;
 }
 
 async function build() {
