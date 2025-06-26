@@ -12,18 +12,15 @@ hljs.registerLanguage('sh', bash);
 
 document.addEventListener('DOMContentLoaded', function(_event) {
   const menuSwitcher = document.getElementById('menu-switcher');
-  const menuBackdrop = document.querySelectorAll(".menu .backdrop")[0];
+  const menuBackdrop = document.querySelector(".menu > .backdrop");
   const menu = document.getElementsByClassName('menu')[0];
   const collapsibleTrigger = document.querySelectorAll(".collapsible > a");
-  const dropdownTriggers = document.querySelectorAll(".dropdown > a");
+  const dropdownTriggers = document.querySelectorAll(".dropdown .dropdown-wrapper > a");
   const currentVersion = document.querySelector('.versions-menu a.current');
+  const dropdownBackdrop = document.querySelector('.dropdown .backdrop');
 
   function toggleMenu() {
-    if (menu.classList.contains('active')) {
-      menu.classList.remove('active');
-    } else {
-      menu.classList.add('active');
-    }
+    menu.classList.toggle('active');
   }
 
   menuBackdrop.addEventListener('click',function(_e) {
@@ -45,13 +42,17 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   dropdownTriggers.forEach(el => {
     el.addEventListener('click', function(e) {
       e.preventDefault();
-      this.parentElement.classList.toggle('active');
+      this.parentElement.parentElement.classList.toggle('active');
     })
   })
 
   currentVersion.addEventListener('click', function(e) {
     e.preventDefault();
   });
+
+  dropdownBackdrop.addEventListener('click', function(e) {
+    this.parentElement.classList.remove('active');
+  })
 
   hljs.highlightAll();
 });
