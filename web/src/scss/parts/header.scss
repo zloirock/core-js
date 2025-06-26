@@ -200,12 +200,13 @@ nav {
             & > a::after {
                 content: '';
                 display: inline-block;
-                width: 0;
-                height: 0;
-                margin: 2px 0 0 5px;
+                width: 5px;
+                height: 5px;
+                margin: -4px 0 0 0.5rem;
                 vertical-align: middle;
-                border: 5px solid transparent;
-                border-top: 5px solid $link-color;
+                border-right: 2px solid rgba(248, 248, 242, .7);
+                border-bottom: 2px solid rgba(248, 248, 242, .7);
+                rotate: 45deg;
             }
 
             .dropdown-block {
