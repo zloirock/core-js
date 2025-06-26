@@ -193,6 +193,10 @@ nav {
         .dropdown {
             position: relative;
 
+            a {
+                white-space: nowrap;
+            }
+
             & > a::after {
                 content: '';
                 display: inline-block;
