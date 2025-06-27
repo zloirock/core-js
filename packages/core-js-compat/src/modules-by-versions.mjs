@@ -299,4 +299,7 @@ export default {
     'esnext.iterator.zip-keyed',
     'esnext.number.clamp',
   ],
+  3.44: [
+    'esnext.iterator.sliding',
+  ],
 };
