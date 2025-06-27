@@ -5,6 +5,7 @@
 - Fixed some cases of `Set.prototype.{ symmetricDifference, union }` detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added missing `/full/{ instance, number/virtual }/clamp` entries
+- Added `sliding` method to `Iterator` chunking stage 2 proposal
 - Compat data improvements:
   - Added Electron 38 compat data mapping
   - `Iterator` helpers marked as fixed and updated following the latest spec changes in Safari 26.0
