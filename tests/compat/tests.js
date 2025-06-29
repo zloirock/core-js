@@ -2014,13 +2014,25 @@ GLOBAL.tests = {
     return Int8Array.prototype.uniqueBy;
   },
   'esnext.uint8-array.from-base64': function () {
-    return Uint8Array.fromBase64;
+    if (!Uint8Array.fromBase64) return false;
+    try {
+      Uint8Array.fromBase64('', null);
+    } catch (error) {
+      return true;
+    }
   },
   'esnext.uint8-array.from-hex': function () {
     return Uint8Array.fromHex;
   },
   'esnext.uint8-array.set-from-base64': function () {
+    if (!Uint8Array.prototype.setFromBase64) return false;
     var target = new Uint8Array([255, 255, 255, 255, 255]);
+    try {
+      target.setFromBase64('', null);
+      return false;
+    } catch (error) {
+      // error is expected, so continue
+    }
     try {
       target.setFromBase64('MjYyZg===');
     } catch (error) {
@@ -2031,10 +2043,22 @@ GLOBAL.tests = {
     return Uint8Array.prototype.setFromHex;
   },
   'esnext.uint8-array.to-base64': function () {
-    return Uint8Array.prototype.toBase64;
+    if (!Uint8Array.prototype.toBase64) return false;
+    try {
+      var target = new Uint8Array();
+      target.toBase64(null);
+    } catch (error) {
+      return true;
+    }
   },
   'esnext.uint8-array.to-hex': function () {
-    return Uint8Array.prototype.toHex;
+    if (!Uint8Array.prototype.toHex) return false;
+    try {
+      var target = new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]);
+      return target.toHex() === 'ffffffffffffffff';
+    } catch (error) {
+      return false;
+    }
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
