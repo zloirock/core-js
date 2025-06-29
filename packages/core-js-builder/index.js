@@ -7,6 +7,7 @@ const tmpdir = require('node:os').tmpdir();
 const webpack = promisify(require('webpack'));
 const compat = require('@core-js/compat/compat');
 const { banner } = require('./config');
+const { minify } = require('terser');
 
 function normalizeSummary(unit = {}) {
   let size, modules;
@@ -25,6 +26,7 @@ module.exports = async function ({
   format = 'bundle',
   filename = null,
   summary = {},
+  minified = false,
 } = {}) {
   if (!['bundle', 'cjs', 'esm'].includes(format)) throw new TypeError('Incorrect output type');
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
@@ -70,6 +72,7 @@ module.exports = async function ({
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
   if (summary.comment.modules) script += `/*\n * modules:\n${ list.map(it => ` * ${ it }\n`).join('') } */`;
   if (code) script += `\n${ code }`;
+  if (minified) script = await minify(script);
 
   if (summary.console.size) {
     console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${
