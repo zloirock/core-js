@@ -15,14 +15,14 @@ var charAt = uncurryThis(''.charAt);
 
 var Uint8Array = globalThis.Uint8Array;
 
-var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toBase64 || !(function () {
+var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toBase64 || !function () {
   try {
     var target = new Uint8Array();
     target.toBase64(null);
   } catch (error) {
     return true;
   }
-})();
+}();
 
 // `Uint8Array.prototype.toBase64` method
 // https://github.com/tc39/proposal-arraybuffer-base64

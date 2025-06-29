@@ -2025,14 +2025,11 @@ GLOBAL.tests = {
     return Uint8Array.fromHex;
   },
   'esnext.uint8-array.set-from-base64': function () {
-    if (!Uint8Array.prototype.setFromBase64) return false;
     var target = new Uint8Array([255, 255, 255, 255, 255]);
     try {
       target.setFromBase64('', null);
       return false;
-    } catch (error) {
-      // error is expected, so continue
-    }
+    } catch (error) { /* empty */ }
     try {
       target.setFromBase64('MjYyZg===');
     } catch (error) {
