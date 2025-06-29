@@ -9,6 +9,12 @@ var Uint8Array = globalThis.Uint8Array;
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.setFromBase64 || !(function () {
   var target = new Uint8Array([255, 255, 255, 255, 255]);
   try {
+    target.setFromBase64('', null);
+    return false;
+  } catch (error) {
+    // error is expected, so continue
+  }
+  try {
     target.setFromBase64('MjYyZg===');
   } catch (error) {
     return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
