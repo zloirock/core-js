@@ -75,7 +75,7 @@ module.exports = async function ({
   if (code) script += `\n${ code }`;
   if (minified)
   {
-    const {code, map} = await minify(script, {
+    const min_options = {
       ecma: 3,
       ie8: true,
       safari10: true,
@@ -97,10 +97,12 @@ module.exports = async function ({
         // https://v8.dev/blog/preparser#pife
         wrap_func_args: false,
       },
-      sourceMap: {
-        url: basename(sourcemap),
-      },
-    });
+    }
+    if (!(sourcemap === null || sourcemap === undefined))
+    {
+      min_options.sourceMap = {url: basename(sourcemap)};
+    }
+    const {code, map} = await minify(script, min_options);
     script = code;
     if (!(sourcemap === null || sourcemap === undefined))
     {
