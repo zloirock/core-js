@@ -7,7 +7,8 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.toHex', assert => {
   assert.name(toHex, 'toHex');
   assert.looksNative(toHex);
 
-  assert.same(new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]).toHex(), '48656c6c6f20576f726c64', 'proper result');
+  assert.same(new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]).toHex(), '48656c6c6f20576f726c64', 'proper result #1');
+  assert.same(new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]).toHex(), 'ffffffffffffffff', 'proper result #2');
 
   if (ArrayBuffer.prototype.transfer) {
     const array = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
