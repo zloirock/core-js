@@ -92,7 +92,7 @@ module.exports = async function ({
       },
       format: {
         max_line_len: 32000,
-        preamble: config.banner,
+        preamble: banner,
         webkit: true,
         // https://v8.dev/blog/preparser#pife
         wrap_func_args: false,
