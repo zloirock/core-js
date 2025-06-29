@@ -72,7 +72,7 @@ module.exports = async function ({
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
   if (summary.comment.modules) script += `/*\n * modules:\n${ list.map(it => ` * ${ it }\n`).join('') } */`;
   if (code) script += `\n${ code }`;
-  if (minified) script = await minify(script);
+  if (minified) script = (await minify(script)).code;
 
   if (summary.console.size) {
     console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${
