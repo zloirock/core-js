@@ -2,7 +2,7 @@
 /* eslint-disable no-console -- output */
 const { promisify } = require('node:util');
 const { mkdir, readFile, unlink, writeFile } = require('node:fs/promises');
-const { dirname, join } = require('node:path');
+const { dirname, join, basename } = require('node:path');
 const tmpdir = require('node:os').tmpdir();
 const webpack = promisify(require('webpack'));
 const compat = require('@core-js/compat/compat');
@@ -25,6 +25,7 @@ module.exports = async function ({
   targets = null,
   format = 'bundle',
   filename = null,
+  sourcemap = null,
   summary = {},
   minified = false,
 } = {}) {
@@ -72,7 +73,41 @@ module.exports = async function ({
   if (summary.comment.size) script += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
   if (summary.comment.modules) script += `/*\n * modules:\n${ list.map(it => ` * ${ it }\n`).join('') } */`;
   if (code) script += `\n${ code }`;
-  if (minified) script = (await minify(script)).code;
+  if (minified)
+  {
+    const {code, map} = await minify(script, {
+      ecma: 3,
+      ie8: true,
+      safari10: true,
+      keep_fnames: true,
+      compress: {
+        hoist_funs: true,
+        hoist_vars: true,
+        passes: 2,
+        pure_getters: true,
+        // document.all detection case
+        typeofs: false,
+        unsafe_proto: true,
+        unsafe_undefined: true,
+      },
+      format: {
+        max_line_len: 32000,
+        preamble: config.banner,
+        webkit: true,
+        // https://v8.dev/blog/preparser#pife
+        wrap_func_args: false,
+      },
+      sourceMap: {
+        url: basename(sourcemap),
+      },
+    });
+    script = code;
+    if (!(sourcemap === null || sourcemap === undefined))
+    {
+      await mkdir(dirname(sourcemap), { recursive: true });
+      await writeFile(sourcemap, map);
+    }
+  }
 
   if (summary.console.size) {
     console.log(`\u001B[32mbundling \u001B[36m${ TITLE }\u001B[32m, size: \u001B[36m${
