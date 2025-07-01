@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Use `Get` in `Iterator.zipKeyed`, following [proposal-joint-iteration#43](https://github.com/tc39/proposal-joint-iteration/pull/43)
+- Fixed [several V8 bugs](https://github.com/zloirock/core-js/issues/1439) in `Uint8Array.fromHex` and `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }`, thanks [**@brc-dd**](https://github.com/brc-dd)
 - Fixed some cases of `Set.prototype.{ symmetricDifference, union }` detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added missing `/full/{ instance, number/virtual }/clamp` entries
