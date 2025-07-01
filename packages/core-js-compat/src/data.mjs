@@ -2890,6 +2890,7 @@ export const data = {
   },
   'web.clear-immediate': {
     bun: '0.1.7',
+    deno: '2.4',
     ie: '10',
     node: '0.9.1',
   },
@@ -2939,6 +2940,7 @@ export const data = {
   'web.immediate': {
     // https://github.com/oven-sh/bun/issues/1633
     bun: '0.4.0', // '0.1.7',
+    deno: '2.4',
     ie: '10',
     node: '0.9.1',
   },
@@ -2967,6 +2969,7 @@ export const data = {
   'web.set-immediate': {
     // https://github.com/oven-sh/bun/issues/1633
     bun: '0.4.0', // '0.1.7',
+    deno: '2.4',
     ie: '10',
     node: '0.9.1',
   },
