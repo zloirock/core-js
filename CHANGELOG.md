@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Use `Get` in `Iterator.zipKeyed`, following [proposal-joint-iteration#43](https://github.com/tc39/proposal-joint-iteration/pull/43)
 - Fixed some cases of `Set.prototype.{ symmetricDifference, union }` detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added missing `/full/{ instance, number/virtual }/clamp` entries
