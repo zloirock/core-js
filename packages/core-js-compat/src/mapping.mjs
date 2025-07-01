@@ -117,6 +117,7 @@ export default {
     [134, '2.2'],
     [135, '2.3'],
     [137, '2.3.2'],
+    [137, '2.4'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
