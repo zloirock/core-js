@@ -1,42 +1,54 @@
 @use "../includes/variables" as *;
 @use "../includes/mixins" as *;
 
-.editor {
-  position: relative;
-  height: 30rem;
-  padding: 0;
-  border: none;
+.sandbox-wrapper {
+  display: flex;
+  gap: 1rem;
   margin: 2rem 0;
 
-  .input, .output {
-    box-sizing: border-box;
-    position: absolute;
-    height: 100%;
-    width: 90%;
+  .editor {
+    position: relative;
+    flex-basis: 800px;
+    flex-grow: 1;
 
-    font-family: monospace;
-    padding: 0.5em;
+    height: 30rem;
+    padding: 0;
     border: none;
-    font-size: 0.85rem;
-    line-height: 1.375rem;
-    white-space: pre;
-    word-wrap: break-word;
-    overflow: auto;
 
-    scrollbar-color: $secondary $highlight;
-    scrollbar-width: thin;
+    .input, .output {
+      box-sizing: border-box;
+      position: absolute;
+      height: 100%;
+      width: 100%;
+
+      font-family: monospace;
+      padding: 0.5em;
+      border: none;
+      font-size: 0.85rem;
+      line-height: 1.375rem;
+      white-space: pre;
+      word-wrap: break-word;
+      overflow: auto;
+
+      scrollbar-color: $secondary $highlight;
+      scrollbar-width: thin;
+    }
+
+    .input {
+      z-index: 1;
+      color: transparent;
+      caret-color: $foreground;
+      background-color: transparent;
+    }
+
+    .output {
+      z-index: 0;
+      background-color: $bg;
+      padding-bottom: 7px;
+    }
   }
-
-  .input {
-    z-index: 1;
-    color: transparent;
-    caret-color: $foreground;
-    background-color: transparent;
-  }
-
-  .output {
-    z-index: 0;
-    background-color: $bg;
-    padding-bottom: 7px;
+  .result {
+    flex-basis: 400px;
+    flex-shrink: 0;
   }
 }
