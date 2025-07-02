@@ -3,9 +3,10 @@
 
 $font-color: $foreground;
 $font-color-light: $white;
+$font-color-dark: $dark;
 
-$button-color: $green;
-$button-color-hover: $green;
+$button-color: $foreground;
+$button-color-hover: $selection;
 
 $box-color: $bg;
 $box-light: $selection;

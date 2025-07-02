@@ -2,16 +2,18 @@
 
 button {
     background-color: $button-color;
-    border: none;
-    border-radius: 1rem;
+    border: 1px solid $button-color;
+    border-radius: 0.5rem;
     cursor: pointer;
     padding: 1rem;
 
     font-weight: 600;
-    color: $font-color;
+    color: $font-color-dark;
 
     &:hover {
         background-color: $button-color-hover;
+        border-color: $font-color;
+        color: $font-color;
     }
 
     &.big {

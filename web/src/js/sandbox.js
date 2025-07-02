@@ -5,6 +5,8 @@ hljs.registerLanguage('javascript', javascript);
 
 const codeInput = document.querySelector('#code-input');
 const codeOutput = document.querySelector('#code-output');
+const runButton = document.querySelector('.run-button');
+const resultBlock = document.querySelector('.result');
 
 codeOutput.textContent = codeInput.value;
 hljs.highlightElement(codeOutput);
@@ -31,5 +33,21 @@ const resizeObserver = new ResizeObserver((entries) => {
     }
   }
 });
+
+// const originalConsoleLog = console.log;
+console.log = function (...args) {
+  args.forEach(function (arg) {
+    resultBlock.innerHTML += `<div class="console-log">${arg}</div>`;
+  });
+}
+runButton.addEventListener('click', (event) => {
+  resultBlock.innerHTML = '';
+  const code = codeInput.value;
+  try {
+    Function(code)();
+  } catch (e) {
+    console.log(e);
+  }
+})
 
 resizeObserver.observe(codeInput);
