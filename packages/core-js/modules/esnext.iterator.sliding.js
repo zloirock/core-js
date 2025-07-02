@@ -31,7 +31,7 @@ var IteratorProxy = createIteratorProxy(function () {
 }, false, true);
 
 // `Iterator.prototype.sliding` method
-// https://github.com/tc39/proposal-iterator-chunking/pull/21
+// https://github.com/tc39/proposal-iterator-chunking
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   sliding: function sliding(windowSize) {
     var O = anObject(this);
