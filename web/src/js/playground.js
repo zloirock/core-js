@@ -11,7 +11,7 @@ const resultBlock = document.querySelector('.result');
 codeOutput.textContent = codeInput.value;
 hljs.highlightElement(codeOutput);
 
-codeInput.addEventListener('input', (event) => {
+codeInput.addEventListener('input', () => {
   codeOutput.removeAttribute('data-highlighted');
   let val = codeInput.value;
   if (val[val.length - 1] === "\n") val += ' ';
@@ -19,7 +19,7 @@ codeInput.addEventListener('input', (event) => {
   hljs.highlightElement(codeOutput);
 });
 
-codeInput.addEventListener('scroll', (event) => {
+codeInput.addEventListener('scroll', () => {
   codeOutput.scrollTop = codeInput.scrollTop;
   codeOutput.scrollLeft = codeInput.scrollLeft;
 });
@@ -49,7 +49,7 @@ console.warn = function (...args) {
     resultBlock.innerHTML += `<div class="console warn">${arg}</div>`;
   });
 }
-runButton.addEventListener('click', (event) => {
+runButton.addEventListener('click', () => {
   resultBlock.innerHTML = '';
   const code = codeInput.value;
   try {
@@ -57,6 +57,19 @@ runButton.addEventListener('click', (event) => {
   } catch (e) {
     console.error(e);
   }
-})
+});
 
 resizeObserver.observe(codeInput);
+
+addEventListener("DOMContentLoaded", (event) => {
+  let hash = location.hash.slice(1);
+  if (hash) {
+    try {
+      hash = decodeURIComponent(hash);
+    } catch (error) {
+      hash = hash.replace(/%[0-F]{2}/ig, decodeURIComponent);
+    }
+    codeInput.value = hash;
+    codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+});
