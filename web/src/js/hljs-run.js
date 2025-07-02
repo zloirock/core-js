@@ -16,7 +16,7 @@ export default class RunButtonPlugin {
     runButton.addEventListener('click', (event) => {
       event.preventDefault();
       const hash = encodeURIComponent(text);
-      window.location.href = `.${this.playgroundUrl}?hash=${hash}`;
+      window.location.href = `.${this.playgroundUrl}#${hash}`;
     });
     const wrapper = document.createElement("div");
     wrapper.classList.add('hljs-run');
