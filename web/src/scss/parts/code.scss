@@ -1,4 +1,5 @@
 @use '../includes/variables' as *;
+@use '../includes/theme' as *;
 
 .hljs {
   display: block;
@@ -98,6 +99,7 @@
 }
 
 code {
+  position: relative;
   background: $selection;
   padding: 0 0.25rem;
 }
@@ -107,4 +109,18 @@ pre code {
   scrollbar-width: thin;
   font-size: 0.85rem;
   line-height: 1.375rem;
+}
+
+.hljs-run {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 24px;
+  height: 24px;
+
+  .hljs-run-button {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
 }

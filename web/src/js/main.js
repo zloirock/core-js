@@ -4,6 +4,7 @@ import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
 import json from 'highlight.js/lib/languages/json';
 import bash from 'highlight.js/lib/languages/bash';
+import RunButtonPlugin from './hljs-run.js';
 
 hljs.registerLanguage('js', javascript);
 hljs.registerLanguage('ts', typescript);
@@ -54,5 +55,6 @@ document.addEventListener('DOMContentLoaded', function(_event) {
     this.parentElement.classList.remove('active');
   })
 
+  hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
 });
