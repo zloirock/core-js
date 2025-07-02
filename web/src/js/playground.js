@@ -34,10 +34,19 @@ const resizeObserver = new ResizeObserver((entries) => {
   }
 });
 
-// const originalConsoleLog = console.log;
 console.log = function (...args) {
   args.forEach(function (arg) {
-    resultBlock.innerHTML += `<div class="console-log">${arg}</div>`;
+    resultBlock.innerHTML += `<div class="console log">${arg}</div>`;
+  });
+}
+console.error = function (...args) {
+  args.forEach(function (arg) {
+    resultBlock.innerHTML += `<div class="console error">${arg}</div>`;
+  });
+}
+console.warn = function (...args) {
+  args.forEach(function (arg) {
+    resultBlock.innerHTML += `<div class="console warn">${arg}</div>`;
   });
 }
 runButton.addEventListener('click', (event) => {
@@ -46,7 +55,7 @@ runButton.addEventListener('click', (event) => {
   try {
     Function(code)();
   } catch (e) {
-    console.log(e);
+    console.error(e);
   }
 })
 

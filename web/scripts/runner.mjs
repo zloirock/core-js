@@ -174,6 +174,19 @@ async function switchBranchToLatestBuild(branch) {
   console.timeEnd(`Switched branch "${branch}" to the latest build`);
 }
 
+async function buildAndCopyCoreJS() {
+  console.log(`Building and copying core-js...`);
+  console.time('Core JS bundle built');
+  await exec(`npm run bundle-package`, { cwd: buildSrcDir });
+  const bundlePath = `${buildSrcDir}packages/core-js-bundle/minified.js`
+  const destPath = `${buildSrcDir}web/src/js/minified.js`;
+  await cp(bundlePath, destPath, { }, err => { if (err) throw err; });
+  const bundleMapPath = `${buildSrcDir}packages/core-js-bundle/minified.js.map`;
+  const destMapPath = `${buildSrcDir}web/src/js/minified.js.map`;
+  await cp(bundleMapPath, destMapPath, { }, err => { if (err) throw err; });
+  console.timeEnd(`Core JS bundle built`);
+}
+
 async function run() {
   console.time('Finished in');
   await createBuildDir();
@@ -192,6 +205,7 @@ async function run() {
   }
 
   await prepareBuilder(targetBranch);
+  await buildAndCopyCoreJS();
   if (!branch) {
     await copyBuilderDocs();
   }

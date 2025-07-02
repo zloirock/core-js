@@ -1,0 +1,86 @@
+@use "../includes/theme" as *;
+@use "../includes/mixins" as *;
+
+.sandbox-wrapper {
+  margin: 2rem 0;
+
+  @include media("min", "lg") {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .editor {
+    position: relative;
+    flex-basis: 800px;
+    flex-grow: 1;
+
+    height: 30rem;
+    padding: 0;
+    border: none;
+
+    .input, .output {
+      box-sizing: border-box;
+      position: absolute;
+      height: 100%;
+      width: 100%;
+
+      font-family: monospace;
+      padding: 0.5em;
+      border: none;
+      font-size: 0.85rem;
+      line-height: 1.375rem;
+      white-space: pre;
+      word-wrap: break-word;
+      overflow: auto;
+
+      scrollbar-color: $background-light $background-highlight;
+      scrollbar-width: thin;
+    }
+
+    .input {
+      z-index: 1;
+      color: transparent;
+      caret-color: $font-color;
+      background-color: transparent;
+      resize: none;
+    }
+
+    .output {
+      z-index: 0;
+      background-color: $box-color;
+      padding-bottom: 7px;
+    }
+  }
+
+  .result {
+    margin-top: 2rem;
+    background-color: $box-color;
+    padding: 0.5em;
+
+    font-family: monospace;
+    font-size: 0.85rem;
+    line-height: 1.375rem;
+    white-space: pre;
+    word-wrap: break-word;
+
+    @include media("min", "lg") {
+      flex-basis: 400px;
+      flex-shrink: 0;
+      margin-top: 0;
+    }
+
+    .console {
+      &.log {
+        color: $font-success;
+      }
+
+      &.warn {
+        color: $font-warning;
+      }
+
+      &.error {
+        color: $font-error;
+      }
+    }
+  }
+}
