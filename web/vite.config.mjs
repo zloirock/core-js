@@ -21,7 +21,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'src/index.html',
-        sandbox: 'src/sandbox.html'
+        playground: 'src/playground.html'
       }
     },
     outDir: '../templates',
