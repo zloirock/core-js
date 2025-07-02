@@ -1,2 +1,4 @@
 templates
 dist
+src/js/minified.js
+src/js/minified.js.map

@@ -95,7 +95,7 @@ async function buildVersionMenu(versions, currentVersion) {
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   let docsMenu = '';
-  let sandbox = await fs.readFile(`${templatesDir}sandbox.html`, 'utf-8');
+  let playground = await fs.readFile(`${templatesDir}playground.html`, 'utf-8');
   let htmlFileName = '';
 
   const marked = new Marked();
@@ -178,19 +178,19 @@ async function build() {
   }
 
   versionsMenu = await buildVersionMenu(uniqueVersions, defaultVersion);
-  sandbox = sandbox.replace('{base}', `${base}`);
-  sandbox = sandbox.replaceAll('{docs-version}', '');
-  sandbox = sandbox.replace('{versions-menu}', `${versionsMenu}`);
-  sandbox = sandbox.replaceAll('{current-version}', version);
+  playground = playground.replace('{base}', `${base}`);
+  playground = playground.replaceAll('{docs-version}', '');
+  playground = playground.replace('{versions-menu}', `${versionsMenu}`);
+  playground = playground.replaceAll('{current-version}', version);
   if (branch) {
-    sandbox = sandbox.replaceAll('{default-version}', '.');
+    playground = playground.replaceAll('{default-version}', '.');
   } else {
-    sandbox = sandbox.replaceAll('{default-version}', defaultVersion);
+    playground = playground.replaceAll('{default-version}', defaultVersion);
   }
-  const sandboxFilePath = path.join(resultDir, 'sandbox.html');
-  await fs.mkdir(path.dirname(sandboxFilePath), { recursive: true });
-  await fs.writeFile(sandboxFilePath, sandbox, 'utf-8');
-  echo(chalk.green(`File created: ${sandboxFilePath}`));
+  const playgroundFilePath = path.join(resultDir, 'playground.html');
+  await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
+  await fs.writeFile(playgroundFilePath, playground, 'utf-8');
+  echo(chalk.green(`File created: ${playgroundFilePath}`));
 }
 
 async function getVersionTags() {
