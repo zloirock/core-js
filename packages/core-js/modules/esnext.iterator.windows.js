@@ -22,11 +22,9 @@ var IteratorProxy = createIteratorProxy(function () {
     done = this.done = !!result.done;
     if (done) return;
 
+    if (buffer.length === windowSize) this.buffer = buffer = slice(buffer, 1);
     push(buffer, result.value);
-    if (buffer.length === windowSize) {
-      this.buffer = slice(buffer, 1);
-      return buffer;
-    }
+    if (buffer.length === windowSize) return buffer;
   }
 });
 
