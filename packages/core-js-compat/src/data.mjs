@@ -2283,7 +2283,7 @@ export const data = {
   },
   'es.typed-array.with': {
     // It should truncate a negative fractional index to zero, but instead throws an error
-    // bun: '0.1.9',
+    bun: '1.2.18', // '0.1.9',
     chrome: '110',
     deno: '1.27',
     firefox: '115',
