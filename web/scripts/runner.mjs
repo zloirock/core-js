@@ -179,11 +179,8 @@ async function buildAndCopyCoreJS() {
   console.time('Core JS bundle built');
   await exec(`npm run bundle-package`, { cwd: buildSrcDir });
   const bundlePath = `${buildSrcDir}packages/core-js-bundle/minified.js`
-  const destPath = `${buildSrcDir}web/src/js/minified.js`;
+  const destPath = `${buildSrcDir}web/src/public/core-js-bundle.js`;
   await cp(bundlePath, destPath, { }, err => { if (err) throw err; });
-  const bundleMapPath = `${buildSrcDir}packages/core-js-bundle/minified.js.map`;
-  const destMapPath = `${buildSrcDir}web/src/js/minified.js.map`;
-  await cp(bundleMapPath, destMapPath, { }, err => { if (err) throw err; });
   console.timeEnd(`Core JS bundle built`);
 }
 
