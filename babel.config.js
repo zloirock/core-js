@@ -15,6 +15,7 @@ module.exports = {
     ['@babel/transform-computed-properties'],
     ['@babel/transform-destructuring'],
     ['@babel/transform-duplicate-named-capturing-groups-regex'],
+    ['@babel/transform-explicit-resource-management'],
     ['@babel/transform-exponentiation-operator'],
     ['@babel/transform-for-of'],
     ['@babel/transform-literals'],
