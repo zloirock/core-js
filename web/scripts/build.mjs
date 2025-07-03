@@ -182,17 +182,16 @@ async function build() {
     const isDocs = mdPath.indexOf('/docs') !== -1;
     const isBlog = mdPath.indexOf('/blog') !== -1;
     let mobileDocsMenu = '';
+    let mobileBlogMenu = '';
 
     if (version !== versions[i]) {
       prevVersion = version;
       version = versions[i];
+      docsMenu = await buildMenuForVersion(version);
       versionsMenu = await buildVersionMenu(uniqueVersions, version);
     }
     if (isDocs) {
-      mobileDocsMenu = docsMenu = await buildMenuForVersion(version);
-    }
-    if (isBlog) {
-      mobileDocsMenu = docsMenu = blogMenu;
+      mobileBlogMenu = blogMenu;
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
@@ -200,6 +199,7 @@ async function build() {
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
+    resultHtml = resultHtml.replace('{blog-menu}', `${mobileBlogMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
     resultHtml = resultHtml.replace('{versions-menu}', `${versionsMenu}`);
     resultHtml = resultHtml.replaceAll('{current-version}', version);
