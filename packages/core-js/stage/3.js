@@ -10,5 +10,6 @@ require('../proposals/array-grouping-stage-3');
 require('../proposals/array-grouping-stage-3-2');
 require('../proposals/change-array-by-copy');
 require('../proposals/iterator-helpers-stage-3');
+require('../proposals/temporal');
 
 module.exports = parent;
