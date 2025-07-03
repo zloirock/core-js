@@ -48,7 +48,10 @@ async function buildDocsMenu(item) {
   return `<li><a href="${item.url}">${item.title}</a></li>`;
 }
 
+let docsMenus = [];
 async function buildMenuForVersion(version) {
+  if (docsMenus[version]) return docsMenus[version];
+
   echo(chalk.green(`Building docs menu for version: ${version}`));
   const jsonPath = branch ? `${docsDir}docs/menu.json` : `${docsDir}${version}/docs/menu.json`;
   try {
@@ -65,6 +68,7 @@ async function buildMenuForVersion(version) {
       menu += await buildDocsMenu(item);
     }
     menu += '</ul>';
+    docsMenus[version] = menu;
     return menu;
   } catch (err) {
     return '';
@@ -182,11 +186,10 @@ async function build() {
     if (version !== versions[i]) {
       prevVersion = version;
       version = versions[i];
-      docsMenu = await buildMenuForVersion(version);
       versionsMenu = await buildVersionMenu(uniqueVersions, version);
     }
     if (isDocs) {
-      mobileDocsMenu = docsMenu;
+      mobileDocsMenu = docsMenu = await buildMenuForVersion(version);
     }
     if (isBlog) {
       mobileDocsMenu = docsMenu = blogMenu;
