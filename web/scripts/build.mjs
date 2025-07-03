@@ -132,6 +132,7 @@ async function buildBlogMenu() {
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   let docsMenu = '';
+  let isBlog = false;
   let playground = await fs.readFile(`${templatesDir}playground.html`, 'utf-8');
   let htmlFileName = '';
 
@@ -143,7 +144,7 @@ async function build() {
         return `
 <div class="wrapper">
     <div class="docs-menu">
-        ${docsMenu}
+        ${isBlog ? blogMenu : docsMenu}
     </div>
     <div class="content">
         ${html}
