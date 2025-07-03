@@ -181,7 +181,10 @@ nav {
 
             @include media("max", "lg") {
                 position: absolute;
-                top: 1rem;
+                left: 0;
+                bottom: 1rem;
+                width: 100%;
+                gap: 1.5rem;
             }
 
             @include media("min", "lg") {

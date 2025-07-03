@@ -69,17 +69,5 @@
   {
     "title": "Missing polyfills",
     "url": "{docs-version}/docs/missing.html"
-  },
-  {
-    "title": "Contributing",
-    "url": "{docs-version}/docs/contributing.html"
-  },
-  {
-    "title": "Security policy",
-    "url": "{docs-version}/docs/policy.html"
-  },
-  {
-    "title": "Changelog",
-    "url": "{docs-version}/docs/changelog.html"
   }
 ]
