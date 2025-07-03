@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import legacy from '@vitejs/plugin-legacy'
 import { resolve } from 'path';
 
 // const distDir = resolve(__dirname, './dist');
@@ -16,6 +17,7 @@ const distDir = '';
 
 export default defineConfig({
   root: 'src',
+  publicDir: 'public',
   base: distDir,
   build: {
     rollupOptions: {
@@ -27,5 +29,10 @@ export default defineConfig({
     outDir: '../templates',
     emptyOutDir: true,
   },
+  plugins: [
+    legacy({
+      targets: ['> 0.5%, last 2 versions, ie >= 11']
+    })
+  ],
   // plugins: [noAttr()]
 });
