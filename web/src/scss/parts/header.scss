@@ -72,7 +72,7 @@ nav {
                     position: absolute;
                     top: 0;
                     right: 0;
-                    min-height: 60vh;
+                    min-height: 40vh;
                     width: 75%;
                     max-height: 100vh;
                     max-width: 350px;
@@ -243,6 +243,12 @@ nav {
 
                 .backdrop {
                     display: block;
+                }
+            }
+
+            @include media("max", "lg") {
+                .backdrop {
+                    height: 100%;
                 }
             }
         }
