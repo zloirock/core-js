@@ -191,7 +191,10 @@ async function build() {
       versionsMenu = await buildVersionMenu(uniqueVersions, version);
     }
     if (isDocs) {
-      mobileBlogMenu = blogMenu;
+      mobileDocsMenu = blogMenu;
+    }
+    if (isBlog) {
+      mobileBlogMenu = docsMenu;
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
