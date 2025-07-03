@@ -140,6 +140,10 @@ main {
           border-left: 1px solid $border-color-lighter;
           padding: 0 0 0.5rem 1rem;
 
+          a {
+            display: block;
+          }
+
           .h3 {
             margin-left: 0.5rem;
           }

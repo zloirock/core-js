@@ -8,6 +8,7 @@ import path from 'path';
 const exec = promisify(child_process.exec);
 
 const docsDir = 'docs/web/';
+const blogDir = 'docs/web/blog/';
 const resultDir = 'web/dist/';
 const templatesDir = 'web/templates/';
 const templatePath = `${templatesDir}index.html`;
@@ -92,13 +93,44 @@ async function buildVersionMenu(versions, currentVersion) {
   return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${currentVersion}</a>${innerMenu}</div><div class="backdrop"></div></div>`;
 }
 
+const marked = new Marked();
+
+let blogMenu = '';
+async function buildBlogMenu() {
+  if (blogMenu !== '') return blogMenu;
+
+  let mdFiles = await getAllMdFiles(blogDir);
+  mdFiles.reverse();
+  let menu = '<ul>';
+  for (const mdPath of mdFiles) {
+    if (mdPath.endsWith('index.md')) continue;
+    const mdContent = await fs.readFile(mdPath, 'utf-8');
+    const content = mdContent.toString();
+    const tokens = marked.lexer(content);
+    const firstH1 = tokens.find(token => token.type === 'heading' && token.depth === 1);
+
+    if (!firstH1) {
+      echo(chalk.yellow(`H1 not found in ${mdPath}`));
+      continue;
+    }
+
+    const match = mdPath.match(/(\d{4}-\d{2}-\d{2})-/);
+    const date = match ? match[1] : null;
+    const htmlFileName = mdPath.replace(blogDir, '').replace(/\.md$/i, '.html');
+    menu += `<li><a href="./blog/${htmlFileName}">${firstH1.text} (${date})</a></li>`
+  }
+  menu += '</ul>';
+  blogMenu = menu;
+
+  return menu;
+}
+
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   let docsMenu = '';
   let playground = await fs.readFile(`${templatesDir}playground.html`, 'utf-8');
   let htmlFileName = '';
 
-  const marked = new Marked();
   const markedWithContents = new Marked();
   markedWithContents.use(gfmHeadingId({ prefix: 'block-' }), {
     hooks: {
@@ -134,6 +166,8 @@ async function build() {
   }
   const uniqueVersions = [...new Set(versions)];
 
+  const blogMenu = await buildBlogMenu();
+
   let prevVersion = null;
   let version = '';
   let versionsMenu = '';
@@ -142,6 +176,7 @@ async function build() {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
     const isDocs = mdPath.indexOf('/docs') !== -1;
+    const isBlog = mdPath.indexOf('/blog') !== -1;
     let mobileDocsMenu = '';
 
     if (version !== versions[i]) {
@@ -153,9 +188,12 @@ async function build() {
     if (isDocs) {
       mobileDocsMenu = docsMenu;
     }
+    if (isBlog) {
+      mobileDocsMenu = docsMenu = blogMenu;
+    }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
-    const htmlContent = isDocs ? markedWithContents.parse(content) : marked.parse(content);
+    const htmlContent = isDocs || isBlog ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
