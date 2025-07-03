@@ -36,7 +36,6 @@ const resizeObserver = new ResizeObserver((entries) => {
 
 function writeResult(text, type = 'log') {
   resultBlock.innerHTML += `<div class="console ${type}">${text}</div>`;
-
 }
 function runCode(code) {
   const console = {
