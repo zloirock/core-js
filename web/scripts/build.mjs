@@ -181,7 +181,7 @@ async function build() {
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
     const isDocs = mdPath.indexOf('/docs') !== -1;
-    const isBlog = mdPath.indexOf('/blog') !== -1;
+    isBlog = mdPath.indexOf('/blog') !== -1;
     let mobileDocsMenu = '';
     let mobileBlogMenu = '';
 
@@ -192,10 +192,10 @@ async function build() {
       versionsMenu = await buildVersionMenu(uniqueVersions, version);
     }
     if (isDocs) {
-      mobileDocsMenu = blogMenu;
+      mobileDocsMenu = docsMenu;
     }
     if (isBlog) {
-      mobileBlogMenu = docsMenu;
+      mobileBlogMenu = blogMenu;
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
