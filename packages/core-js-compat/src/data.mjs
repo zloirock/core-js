@@ -2598,6 +2598,7 @@ export const data = {
   'esnext.math.signbit': {
   },
   'esnext.math.sum-precise': {
+    bun: '1.2.18',
     firefox: '137',
   },
   // TODO: Remove from `core-js@4`

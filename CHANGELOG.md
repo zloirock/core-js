@@ -12,6 +12,7 @@
   - `SuppressedError` marked [as fixed](https://bugzilla.mozilla.org/show_bug.cgi?id=1971000) in FF141
   - `Error.isError` marked [as fixed](https://github.com/nodejs/node/pull/58691) in Node 24.3
   - `setImmediate` and `clearImmediate` marked as available [from Deno 2.4](https://github.com/denoland/deno/pull/29877)
+  - `Math.sumPrecise` marked as [shipped in Bun 1.2.18](https://github.com/oven-sh/bun/pull/20569)
   - `%TypedArray%.prototype.with` marked as fixed in Bun 1.2.18
 
 ##### [3.43.0 - 2025.06.09](https://github.com/zloirock/core-js/releases/tag/v3.43.0)
