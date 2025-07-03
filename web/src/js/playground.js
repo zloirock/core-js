@@ -34,34 +34,39 @@ const resizeObserver = new ResizeObserver((entries) => {
   }
 });
 
-console.log = function (...args) {
-  args.forEach(function (arg) {
-    resultBlock.innerHTML += `<div class="console log">${arg}</div>`;
-  });
+function writeResult(text, type = 'log') {
+  resultBlock.innerHTML += `<div class="console ${type}">${text}</div>`;
+
 }
-console.error = function (...args) {
-  args.forEach(function (arg) {
-    resultBlock.innerHTML += `<div class="console error">${arg}</div>`;
-  });
+function runCode(code) {
+  const console = {
+    log: (...args) => {
+      args.forEach((arg) => { writeResult(arg, 'log') });
+    },
+    warn: (...args) => {
+      args.forEach((arg) => { writeResult(arg, 'warn') });
+    },
+    error: (...args) => {
+      args.forEach((arg) => { writeResult(arg, 'error') });
+    },
+  }
+
+  const context = new Function('console', code);
+  try {
+    context(console);
+  } catch (error) {
+    writeResult(`Error: ${error.message}`, 'error');
+  }
 }
-console.warn = function (...args) {
-  args.forEach(function (arg) {
-    resultBlock.innerHTML += `<div class="console warn">${arg}</div>`;
-  });
-}
+
 runButton.addEventListener('click', () => {
   resultBlock.innerHTML = '';
-  const code = codeInput.value;
-  try {
-    Function(code)();
-  } catch (e) {
-    console.error(e);
-  }
+  runCode(codeInput.value);
 });
 
 resizeObserver.observe(codeInput);
 
-addEventListener("DOMContentLoaded", (event) => {
+addEventListener("DOMContentLoaded", () => {
   let hash = location.hash.slice(1);
   if (hash) {
     try {
