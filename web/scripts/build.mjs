@@ -143,13 +143,13 @@ async function build() {
         const headings = getHeadingList().filter(({ level }) => level > 1);
         return `
 <div class="wrapper">
-    <div class="docs-menu">
+    <div class="docs-menu sticky">
         ${isBlog ? blogMenu : docsMenu}
     </div>
     <div class="content">
         ${html}
     </div>
-    <div class="table-of-contents">
+    <div class="table-of-contents sticky">
         ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${htmlFileName}#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
     </div>
 </div>`;
