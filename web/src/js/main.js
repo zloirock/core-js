@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   const collapsibleTrigger = document.querySelectorAll(".collapsible > a");
   const dropdownTriggers = document.querySelectorAll(".dropdown .dropdown-wrapper > a");
   const currentVersion = document.querySelector('.versions-menu a.current');
-  const dropdownBackdrop = document.querySelector('.dropdown .backdrop');
+  const dropdownBackdrops = document.querySelectorAll('.dropdown .backdrop');
   const stickyBlocks = document.querySelectorAll('.sticky');
 
   function toggleMenu() {
@@ -52,9 +52,11 @@ document.addEventListener('DOMContentLoaded', function(_event) {
     e.preventDefault();
   });
 
-  dropdownBackdrop.addEventListener('click', function(e) {
-    this.parentElement.classList.remove('active');
-  })
+  dropdownBackdrops.forEach(el => {
+    el.addEventListener('click', function(e) {
+      this.parentElement.classList.remove('active');
+    })
+  });
 
   function addStuck() {
     stickyBlocks.forEach(stickyBlock => {
