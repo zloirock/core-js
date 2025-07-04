@@ -6,6 +6,7 @@ hljs.registerLanguage('javascript', javascript);
 const codeInput = document.querySelector('#code-input');
 const codeOutput = document.querySelector('#code-output');
 const runButton = document.querySelector('.run-button');
+const linkButton = document.querySelector('.link-button');
 const resultBlock = document.querySelector('.result');
 
 codeOutput.textContent = codeInput.value;
@@ -77,6 +78,10 @@ function serializeLog(it) {
 runButton.addEventListener('click', () => {
   resultBlock.innerHTML = '';
   runCode(codeInput.value);
+});
+
+linkButton.addEventListener('click', () => {
+  location.hash = encodeURIComponent(codeInput.value);
 });
 
 resizeObserver.observe(codeInput);
