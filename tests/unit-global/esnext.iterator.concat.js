@@ -81,7 +81,8 @@ QUnit.test('Iterator.concat', assert => {
   const iterResult = iterator.next();
   assert.same(iterResult.done, false);
   assert.same(iterResult.value, 123);
-  assert.same(iterResult, oldIterResult);
+  // https://github.com/tc39/proposal-iterator-sequencing/pull/26
+  assert.notSame(iterResult, oldIterResult);
 
   assert.throws(() => concat(createIterator([1, 2, 3])), TypeError, 'non-iterable iterator #1');
   assert.throws(() => concat([], createIterator([1, 2, 3])), TypeError, 'non-iterable iterator #2');
