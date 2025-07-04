@@ -63,7 +63,7 @@ async function buildMenuForVersion(version) {
   const docsMenuJson = await fs.readFile(jsonPath, 'utf-8');
   try {
     const docsMenu = JSON.parse(docsMenuJson.toString());
-    let menu = '<ul>';
+    let menu = '<ul><li>{versions-menu}</li>';
     for (const item of docsMenu) {
       menu += await buildDocsMenu(item);
     }
@@ -205,7 +205,7 @@ async function build() {
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
     resultHtml = resultHtml.replace('{blog-menu}', `${mobileBlogMenu}`);
     resultHtml = resultHtml.replace('{base}', `${base}`);
-    resultHtml = resultHtml.replace('{versions-menu}', `${versionsMenu}`);
+    resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{current-version}', version);
 
     if (branch) {
