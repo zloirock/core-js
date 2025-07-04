@@ -2484,6 +2484,8 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.reduce': null,
+  'esnext.iterator.sliding': {
+  },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.some': null,
   // TODO: Remove from `core-js@4`

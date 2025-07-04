@@ -1256,6 +1256,7 @@ const forbidCompletelyNonExistentBuiltIns = {
   ] }],
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
     'chunks',
+    'sliding',
     'toAsync',
     'windows',
     // TODO: drop from `core-js@4`

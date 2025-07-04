@@ -774,6 +774,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
+    ok(typeof load(NS, 'iterator/sliding') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/zip') == 'function');
     ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
