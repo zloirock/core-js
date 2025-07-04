@@ -64,10 +64,10 @@ main {
 
       .docs-menu {
         position: sticky;
-        top: 2rem;
+        top: 1rem;
         align-self: flex-start;
 
-        padding: 1rem 0.5rem 1rem 0;
+        padding: 0 0.5rem 1rem 0;
 
         font-size: 0.875rem;
         flex-basis: 20%;
@@ -75,6 +75,13 @@ main {
         line-height: 1.3;
 
         border-right: 1px solid $border-color-lighter;
+        height: calc(100vh - 170px);
+        overflow-y: auto;
+        scrollbar-width: none;
+
+        &.stuck {
+          height: calc(100vh - 2rem);
+        }
 
         @include media('max', 'lg') {
           display: none;
@@ -127,10 +134,17 @@ main {
 
       .table-of-contents {
         position: sticky;
-        top: 2rem;
+        top: 1rem;
         align-self: flex-start;
         font-size: 0.875rem;
         max-width: 20%;
+        height: calc(100vh - 170px);
+        overflow-y: auto;
+        scrollbar-width: none;
+
+        &.stuck {
+          height: calc(100vh - 2rem);
+        }
 
         @include media('max', 'xl') {
           display: none;
