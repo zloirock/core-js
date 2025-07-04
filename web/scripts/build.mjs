@@ -98,6 +98,19 @@ async function buildVersionMenu(versions, currentVersion) {
 }
 
 const marked = new Marked();
+const customRenderer = {
+  link({ href, text }) {
+    if (/!\[.*\]\(.*\)/.test(text)) {
+      text = marked.parseInline(text);
+    }
+    const isExternal = /^https?:\/\//.test(href);
+    let html = `<a href="${href}"`;
+    if (isExternal) html += ' target="_blank"';
+    html += `>${text}</a>`;
+    return html;
+  }
+};
+marked.use({ renderer: customRenderer });
 
 let blogMenu = '';
 async function buildBlogMenu() {
@@ -137,6 +150,7 @@ async function build() {
   let htmlFileName = '';
 
   const markedWithContents = new Marked();
+  markedWithContents.use({ renderer: customRenderer });
   markedWithContents.use(gfmHeadingId({ prefix: 'block-' }), {
     hooks: {
       postprocess(html) {
