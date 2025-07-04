@@ -35,7 +35,8 @@ const resizeObserver = new ResizeObserver((entries) => {
 });
 
 function writeResult(text, type = 'log') {
-  resultBlock.innerHTML += `<div class="console ${type}">${text}</div>`;
+  const serializedText = serializeLog(text);
+  resultBlock.innerHTML += `<div class="console ${type}">${serializedText}</div>`;
 }
 function runCode(code) {
   const console = {
@@ -56,6 +57,21 @@ function runCode(code) {
   } catch (error) {
     writeResult(`Error: ${error.message}`, 'error');
   }
+}
+
+function stringify(it) {
+  try {
+    return JSON.stringify(Array.from(it))
+  } catch (error) {
+    return String(it);
+  }
+}
+
+function serializeLog(it) {
+  const klass = ({}).toString.call(it).slice(8, -1);
+  if (['Array', 'Object'].includes(klass)) return stringify(it);
+  if (['Set', 'Map'].includes(klass)) return `${ klass } ${ stringify(Array.from(it)) }`;
+  return String(it);
 }
 
 runButton.addEventListener('click', () => {
