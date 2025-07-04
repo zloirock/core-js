@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   const dropdownTriggers = document.querySelectorAll(".dropdown .dropdown-wrapper > a");
   const currentVersion = document.querySelector('.versions-menu a.current');
   const dropdownBackdrop = document.querySelector('.dropdown .backdrop');
+  const stickyBlocks = document.querySelectorAll('.sticky');
 
   function toggleMenu() {
     menu.classList.toggle('active');
@@ -54,6 +55,29 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   dropdownBackdrop.addEventListener('click', function(e) {
     this.parentElement.classList.remove('active');
   })
+
+  function addStuck() {
+    stickyBlocks.forEach(stickyBlock => {
+      stickyBlock.classList.add('stuck');
+    });
+  }
+  function removeStuck() {
+    stickyBlocks.forEach(stickyBlock => {
+      stickyBlock.classList.remove('stuck');
+    });
+  }
+  let stuck = window.scrollY > 170;
+  if (stuck) addStuck();
+  window.addEventListener('scroll', () => {
+    if (!stuck && window.scrollY > 170) {
+      stuck = true;
+      addStuck();
+    }
+    if (stuck && window.scrollY <= 170) {
+      stuck = false;
+      removeStuck();
+    }
+  });
 
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
