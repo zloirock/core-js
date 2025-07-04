@@ -48,12 +48,12 @@ document.addEventListener('DOMContentLoaded', function(_event) {
     })
   })
 
-  currentVersion.addEventListener('click', function(e) {
+  currentVersion && currentVersion.addEventListener('click', function(e) {
     e.preventDefault();
   });
 
   dropdownBackdrops.forEach(el => {
-    el.addEventListener('click', function(e) {
+    el.addEventListener('click', function() {
       this.parentElement.classList.remove('active');
     })
   });
