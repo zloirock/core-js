@@ -1,10 +1,11 @@
 /* https://github.com/import-js/eslint-plugin-import/issues/2181 */
-import { dataWithIgnored as data, ignored, modules } from 'core-js-compat/src/data.mjs';
-import external from 'core-js-compat/src/external.mjs';
-import mappings from 'core-js-compat/src/mapping.mjs';
-import helpers from 'core-js-compat/helpers.js';
+import { dataWithIgnored as data, ignored, modules } from '@core-js/compat/src/data.mjs';
+import external from '@core-js/compat/src/external.mjs';
+import mappings from '@core-js/compat/src/mapping.mjs';
+import helpers from '@core-js/compat/helpers.js';
 
-const { compare, has, semver, sortObjectByKey } = helpers;
+const { compare, semver, sortObjectByKey } = helpers;
+const { hasOwn } = Object;
 
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
@@ -12,9 +13,9 @@ for (const scope of [data, external]) {
 
     function map(mappingKey) {
       const [engine, targetKey] = mappingKey.split('To')
-        .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>-$<upper>').toLowerCase());
+        .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>_$<upper>').toLowerCase());
       const version = module[engine];
-      if (!version || has(module, targetKey)) return;
+      if (!version || hasOwn(module, targetKey)) return;
       const mapping = mappings[mappingKey];
       if (typeof mapping == 'function') {
         return module[targetKey] = String(mapping(version));
@@ -31,7 +32,7 @@ for (const scope of [data, external]) {
       map('ChromeToDeno');
       map('ChromeToNode');
     }
-    if (!has(module, 'edge')) {
+    if (!hasOwn(module, 'edge')) {
       if (ie && !key.includes('immediate')) {
         module.edge = '12';
       } else if (chrome) {
@@ -42,36 +43,27 @@ for (const scope of [data, external]) {
       map('ChromeToElectron');
     }
     map('ChromeToOpera');
-    map('ChromeToChromeAndroid');
+    map('ChromeToChromeMobile');
     map('ChromeToAndroid');
-    if (!has(module, 'android') && module['chrome-android']) {
+    if (!hasOwn(module, 'android') && module.chrome_mobile) {
       // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-features-in-android-webview
-      module.android = String(Math.max(module['chrome-android'], 37));
+      module.android = String(Math.max(module.chrome_mobile, 37));
     }
-    if (!has(module, 'opera-android') && module.opera <= 42) {
-      module['opera-android'] = module.opera;
+    if (!hasOwn(module, 'opera_mobile') && module.opera <= 42) {
+      module.opera_mobile = module.opera;
     } else {
-      map('ChromeAndroidToOperaAndroid');
+      map('ChromeMobileToOperaMobile');
     }
-    // TODO: Remove from `core-js@4`
-    if (has(module, 'opera-android')) {
-      module.opera_mobile = module['opera-android'];
-    }
-    map('ChromeAndroidToQuest');
-    // TODO: Remove from `core-js@4`
-    if (has(module, 'quest')) {
-      module.oculus = module.quest;
-    }
-    map('ChromeAndroidToSamsung');
+    map('ChromeMobileToQuest');
+    map('ChromeMobileToSamsung');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }
-    map('FirefoxToFirefoxAndroid');
+    map('FirefoxToFirefoxMobile');
     map('SafariToIOS');
-    if (!has(module, 'ios') && has(module, 'safari')) {
+    if (!hasOwn(module, 'ios') && hasOwn(module, 'safari')) {
       module.ios = module.safari;
     }
-    map('SafariToPhantom');
     map('HermesToReactNative');
 
     for (const [engine, version] of Object.entries(module)) {

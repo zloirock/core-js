@@ -1,76 +1,80 @@
 'use strict';
 const browserslist = require('browserslist');
-const { compare, has } = require('./helpers');
+const { compare } = require('./helpers');
 const external = require('./external');
 
+const { entries, hasOwn } = Object;
+const { isArray } = Array;
+
 const aliases = new Map([
-  ['and_chr', 'chrome-android'],
-  ['and_ff', 'firefox-android'],
+  ['and_chr', 'chrome_mobile'],
+  ['chrome-android', 'chrome_mobile'],
+  ['and_ff', 'firefox_mobile'],
+  ['firefox-android', 'firefox_mobile'],
   ['ie_mob', 'ie'],
   ['ios_saf', 'ios'],
   ['oculus', 'quest'],
-  ['op_mob', 'opera-android'],
-  // TODO: Remove from `core-js@4`
-  ['opera_mobile', 'opera-android'],
-  ['react', 'react-native'],
-  ['reactnative', 'react-native'],
+  ['op_mob', 'opera_mobile'],
+  ['opera-android', 'opera_mobile'],
+  ['react', 'react_native'],
+  ['react-native', 'react_native'],
+  ['reactnative', 'react_native'],
 ]);
 
 const validTargets = new Set([
   'android',
   'bun',
   'chrome',
-  'chrome-android',
+  'chrome_mobile',
   'deno',
   'edge',
   'electron',
   'firefox',
-  'firefox-android',
+  'firefox_mobile',
   'hermes',
   'ie',
   'ios',
   'node',
   'opera',
-  'opera-android',
-  'phantom',
+  'opera_mobile',
   'quest',
-  'react-native',
+  'react_native',
   'rhino',
   'safari',
   'samsung',
 ]);
 
 const toLowerKeys = function (object) {
-  return Object.entries(object).reduce((accumulator, [key, value]) => {
+  return entries(object).reduce((accumulator, [key, value]) => {
     accumulator[key.toLowerCase()] = value;
     return accumulator;
   }, {});
 };
 
 module.exports = function (targets) {
-  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || Array.isArray(targets))
+  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || isArray(targets))
     ? { browsers: targets } : toLowerKeys(targets);
 
-  const list = Object.entries(rest);
+  const list = entries(rest);
 
   const normalizedESModules = esmodules === 'intersect' ? 'intersect' : !!esmodules;
 
   if (browsers && normalizedESModules !== true) {
-    if (typeof browsers == 'string' || Array.isArray(browsers)) {
+    if (typeof browsers == 'string' || isArray(browsers)) {
       list.push(...browserslist(browsers).map(it => it.split(' ')));
     } else {
-      list.push(...Object.entries(browsers));
+      list.push(...entries(browsers));
     }
   }
   if (normalizedESModules === true) {
-    list.push(...Object.entries(external.modules));
+    list.push(...entries(external.modules));
   }
   if (node) {
     list.push(['node', node === 'current' ? process.versions.node : node]);
   }
 
   const normalized = list.map(([engine, version]) => {
-    if (has(browserslist.aliases, engine)) {
+    if (hasOwn(browserslist.aliases, engine)) {
       engine = browserslist.aliases[engine];
     }
     if (aliases.has(engine)) {

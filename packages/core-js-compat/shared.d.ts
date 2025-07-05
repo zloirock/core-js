@@ -4,29 +4,22 @@ export type Target =
   | 'android'
   | 'bun'
   | 'chrome'
-  | 'chrome-android'
+  | 'chrome_mobile'
   | 'deno'
   | 'edge'
   | 'electron'
   | 'firefox'
-  | 'firefox-android'
+  | 'firefox_mobile'
   | 'hermes'
   | 'ie'
   | 'ios'
   | 'node'
   | 'opera'
-  | 'opera-android'
-  | 'phantom'
+  | 'opera_mobile'
   | 'quest'
-  | 'react-native'
+  | 'react_native'
   | 'rhino'
   | 'safari'
-  | 'samsung'
-  /** `quest` alias */
-  | 'oculus'
-  /** `react-native` alias */
-  | 'react'
-  /** @deprecated use `opera-android` instead */
-  | 'opera_mobile';
+  | 'samsung';
 
 export type TargetVersion = string;
