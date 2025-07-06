@@ -5,7 +5,7 @@ var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-intege
 var bind = require('../internals/function-bind-context');
 
 // `FlattenIntoArray` abstract operation
-// https://tc39.github.io/proposal-flatMap/#sec-FlattenIntoArray
+// https://tc39.es/ecma262/#sec-flattenintoarray
 var flattenIntoArray = function (target, original, source, sourceLen, start, depth, mapper, thisArg) {
   var targetIndex = start;
   var sourceIndex = 0;

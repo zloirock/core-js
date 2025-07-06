@@ -6,7 +6,7 @@ var getSetRecord = require('../internals/get-set-record');
 var iterateSimple = require('../internals/iterate-simple');
 
 // `Set.prototype.union` method
-// https://github.com/tc39/proposal-set-methods
+// https://tc39.es/ecma262/#sec-set.prototype.union
 module.exports = function union(other) {
   var O = aSet(this);
   var keysIter = getSetRecord(other).getIterator();

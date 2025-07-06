@@ -1,6 +1,4 @@
 'use strict';
-// https://github.com/tc39/proposal-iterator-helpers
-// https://github.com/tc39/proposal-array-from-async
 var call = require('../internals/function-call');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
@@ -82,9 +80,19 @@ var createMethod = function (TYPE) {
 };
 
 module.exports = {
+  // `Iterator.prototype.toArray` method
+  // https://tc39.es/ecma262/#sec-iterator.prototype.toarray
   toArray: createMethod(0),
+  // `Iterator.prototype.forEach` method
+  // https://tc39.es/ecma262/#sec-iterator.prototype.foreach
   forEach: createMethod(1),
+  // `Iterator.prototype.every` method
+  // https://tc39.es/ecma262/#sec-iterator.prototype.every
   every: createMethod(2),
+  // `Iterator.prototype.some` method
+  // https://tc39.es/ecma262/#sec-iterator.prototype.some
   some: createMethod(3),
+  // `Iterator.prototype.find` method
+  // https://tc39.es/ecma262/#sec-iterator.prototype.find
   find: createMethod(4)
 };

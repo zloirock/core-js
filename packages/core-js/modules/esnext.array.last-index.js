@@ -7,7 +7,7 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 
 // `Array.prototype.lastIndex` getter
-// https://github.com/keithamus/proposal-array-last
+// https://github.com/tc39/proposal-array-last
 if (DESCRIPTORS) {
   defineBuiltInAccessor(Array.prototype, 'lastIndex', {
     configurable: true,

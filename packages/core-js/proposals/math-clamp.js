@@ -1,3 +1,3 @@
 'use strict';
-// https://github.com/CanadaHonk/proposal-math-clamp
+// https://github.com/tc39/proposal-math-clamp
 require('../modules/esnext.math.clamp');

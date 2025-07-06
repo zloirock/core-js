@@ -7,7 +7,7 @@ var iterateSimple = require('../internals/iterate-simple');
 var iteratorClose = require('../internals/iterator-close');
 
 // `Set.prototype.isSupersetOf` method
-// https://tc39.github.io/proposal-set-methods/#Set.prototype.isSupersetOf
+// https://tc39.es/ecma262/#sec-set.prototype.issupersetof
 module.exports = function isSupersetOf(other) {
   var O = aSet(this);
   var otherRec = getSetRecord(other);
