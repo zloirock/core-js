@@ -1,13 +1,20 @@
 ## Changelog
 ##### Unreleased
-- `clamp` no longer throws an error on `NaN` as `min` or `max`, following [tc39/proposal-math-clamp#d2387791c265edf66fbe2455eab919016717ce6f](https://github.com/tc39/proposal-math-clamp/commit/d2387791c265edf66fbe2455eab919016717ce6f) 
-- `Iterator.concat` no longer reuses `IteratorResult` object of concatenated iterators, following [tc39/proposal-iterator-sequencing#26](https://github.com/tc39/proposal-iterator-sequencing/pull/26)
-- Use `Get` in `Iterator.zipKeyed`, following [tc39/proposal-joint-iteration#43](https://github.com/tc39/proposal-joint-iteration/pull/43)
-- Fixed [several V8 bugs](https://github.com/zloirock/core-js/issues/1439) in `Uint8Array.fromHex` and `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }`, thanks [**@brc-dd**](https://github.com/brc-dd)
+- [`Uint8Array` to / from base64 and hex stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-base64):
+  - Fixed [several V8 bugs](https://github.com/zloirock/core-js/issues/1439) in `Uint8Array.fromHex` and `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }`, thanks [**@brc-dd**](https://github.com/brc-dd)
+- [Joint iteration stage 2.7 proposal](https://github.com/tc39/proposal-joint-iteration):
+  - Uses `Get` in `Iterator.zipKeyed`, following [tc39/proposal-joint-iteration#43](https://github.com/tc39/proposal-joint-iteration/pull/43)
+- [`Iterator` sequencing stage 2.7 proposal](https://github.com/tc39/proposal-iterator-sequencing):
+  - `Iterator.concat` no longer reuses `IteratorResult` object of concatenated iterators, following [tc39/proposal-iterator-sequencing#26](https://github.com/tc39/proposal-iterator-sequencing/pull/26)
+- [`Iterator` chunking stage 2 proposal](https://github.com/tc39/proposal-iterator-chunking):
+  - Added built-ins:
+    - `Iterator.prototype.sliding`
+- [`Number.prototype.clamp` stage 2 proposal](https://github.com/tc39/proposal-math-clamp):
+  - `clamp` no longer throws an error on `NaN` as `min` or `max`, following [tc39/proposal-math-clamp#d2387791c265edf66fbe2455eab919016717ce6f](https://github.com/tc39/proposal-math-clamp/commit/d2387791c265edf66fbe2455eab919016717ce6f) 
 - Fixed some cases of `Set.prototype.{ symmetricDifference, union }` detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added missing `/full/{ instance, number/virtual }/clamp` entries
-- Added `sliding` method to `Iterator` chunking stage 2 proposal
+- Some minor stylistic changes
 - Compat data improvements:
   - Added Electron 38 and 39 compat data mapping
   - Added Oculus Quest Browser 38 and 39 compat data mapping
