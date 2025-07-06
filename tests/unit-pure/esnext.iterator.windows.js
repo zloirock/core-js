@@ -13,6 +13,7 @@ QUnit.test('Iterator#windows', assert => {
 
   assert.arrayEqual(from(windows.call(createIterator([1, 2, 3]), 2)), [[1, 2], [2, 3]], 'basic functionality #1');
   assert.arrayEqual(from(windows.call(createIterator([1, 2, 3, 4]), 2)), [[1, 2], [2, 3], [3, 4]], 'basic functionality #2');
+  assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3)), [], 'basic functionality #3');
   assert.arrayEqual(from(windows.call(createIterator([]), 2)), [], 'basic functionality on empty iterable');
 
   const it = createIterator([1, 2, 3]);
