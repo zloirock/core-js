@@ -151,6 +151,8 @@ async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   let docsMenu = '';
   let isBlog = false;
+  let isDocs = false;
+  let isChangelog = false;
   let playground = await fs.readFile(`${templatesDir}playground.html`, 'utf-8');
   let htmlFileName = '';
 
@@ -160,18 +162,17 @@ async function build() {
     hooks: {
       postprocess(html) {
         const headings = getHeadingList().filter(({ level }) => level > 1);
-        return `
-<div class="wrapper">
-    <div class="docs-menu sticky">
-        ${isBlog ? blogMenu : docsMenu}
-    </div>
-    <div class="content">
-        ${html}
-    </div>
-    <div class="table-of-contents sticky">
-        ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${htmlFileName}#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
-    </div>
-</div>`;
+        let result = '<div class="wrapper">';
+        if (isBlog) {
+          result += `<div class="blog-menu sticky">${blogMenu}</div>`;
+        } else if (isDocs) {
+          result += `<div class="docs-menu sticky">${docsMenu}</div>`;
+        }
+        result += `<div class="content">${html}</div>
+          <div class="table-of-contents sticky">
+              ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${htmlFileName}#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
+          </div>`;
+        return result;
       }
     }
   });
@@ -199,8 +200,10 @@ async function build() {
     const mdPath = mdFiles[i];
     const mdContent = await fs.readFile(mdPath, 'utf-8');
     const content = mdContent.toString();
-    const isDocs = mdPath.indexOf('/docs') !== -1;
+    isDocs = mdPath.indexOf('/docs') !== -1;
+    isChangelog = mdPath.indexOf('/changelog') !== -1;
     isBlog = mdPath.indexOf('/blog') !== -1;
+
     let mobileDocsMenu = '';
     let mobileBlogMenu = '';
 
@@ -218,7 +221,7 @@ async function build() {
     }
     htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(resultDir, htmlFileName);
-    const htmlContent = isDocs || isBlog ? markedWithContents.parse(content) : marked.parse(content);
+    const htmlContent = isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${htmlContent}`);
     resultHtml = resultHtml.replace('{docs-menu}', `${mobileDocsMenu}`);
