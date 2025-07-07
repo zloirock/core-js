@@ -1,11 +1,11 @@
 [
   {
     "title": "Usage",
-    "url": "{docs-version}/docs/usage.html"
+    "url": "{docs-version}/docs/usage"
   },
   {
     "title": "Supported engines and compatibility data",
-    "url": "{docs-version}/docs/engines.html"
+    "url": "{docs-version}/docs/engines"
   },
   {
     "title": "Features",
@@ -15,11 +15,11 @@
         "children": [
           {
             "title": "ECMAScript: Object",
-            "url": "{docs-version}/docs/features/ecmascript-object.html"
+            "url": "{docs-version}/docs/features/ecmascript-object"
           },
           {
             "title": "ECMAScript: Function",
-            "url": "{docs-version}/docs/features/ecmascript-function.html"
+            "url": "{docs-version}/docs/features/ecmascript-function"
           }
         ]
       },
@@ -28,46 +28,46 @@
         "children": [
           {
             "title": "Finished proposals",
-            "url": "{docs-version}/docs/features/finished-proposals.html"
+            "url": "{docs-version}/docs/features/finished-proposals"
           },
           {
             "title": "Stage 3 proposals",
-            "url": "{docs-version}/docs/features/stage-3-proposals.html"
+            "url": "{docs-version}/docs/features/stage-3-proposals"
           },
           {
             "title": "Stage 2.7 proposals",
-            "url": "{docs-version}/docs/features/stage-2-7-proposals.html"
+            "url": "{docs-version}/docs/features/stage-2-7-proposals"
           },
           {
             "title": "Stage 2 proposals",
-            "url": "{docs-version}/docs/features/stage-2-proposals.html"
+            "url": "{docs-version}/docs/features/stage-2-proposals"
           },
           {
             "title": "Stage 1 proposals",
-            "url": "{docs-version}/docs/features/stage-1-proposals.html"
+            "url": "{docs-version}/docs/features/stage-1-proposals"
           },
           {
             "title": "Stage 0 proposals",
-            "url": "{docs-version}/docs/features/stage-0-proposals.html"
+            "url": "{docs-version}/docs/features/stage-0-proposals"
           },
           {
             "title": "Pre-stage 0 proposals",
-            "url": "{docs-version}/docs/features/pre-stage-0-proposals.html"
+            "url": "{docs-version}/docs/features/pre-stage-0-proposals"
           }
         ]
       },
       {
         "title": "Web standards",
-        "url": "{docs-version}/docs/features/web-standards.html"
+        "url": "{docs-version}/docs/features/web-standards"
       },
       {
         "title": "Iteration helpers",
-        "url": "{docs-version}/docs/features/iterator-helpers.html"
+        "url": "{docs-version}/docs/features/iterator-helpers"
       }
     ]
   },
   {
     "title": "Missing polyfills",
-    "url": "{docs-version}/docs/missing.html"
+    "url": "{docs-version}/docs/missing"
   }
 ]
