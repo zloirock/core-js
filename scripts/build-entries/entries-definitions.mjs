@@ -1397,11 +1397,15 @@ export const features = {
   },
   'iterator/sliding': {
     modules: ['esnext.iterator.sliding'],
-    template: $prototype({ namespace: 'Iterator', method: 'sliding' }),
+    template: $prototype,
+    namespace: 'Iterator',
+    name: 'sliding',
   },
   'iterator/virtual/sliding': {
     modules: ['esnext.iterator.sliding'],
-    template: $virtual({ namespace: 'Iterator', method: 'sliding' }),
+    template: $virtual,
+    namespace: 'Iterator',
+    name: 'sliding',
   },
   'iterator/some': {
     modules: ['es.iterator.some'],
