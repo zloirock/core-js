@@ -3,7 +3,7 @@ name: Build web pages for branch
 on:
   push:
     branches:
-      - web
+      - web-not-exists
   workflow_dispatch:
 
 jobs:
