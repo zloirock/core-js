@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.44.0 - 2025.07.07](https://github.com/zloirock/core-js/releases/tag/v3.44.0)
+- Changes [v3.43.0...v3.44.0](https://github.com/zloirock/core-js/compare/v3.43.0...v3.44.0) (87 commits)
 - [`Uint8Array` to / from base64 and hex stage 3 proposal](https://github.com/tc39/proposal-arraybuffer-base64):
   - Fixed [several V8 bugs](https://github.com/zloirock/core-js/issues/1439) in `Uint8Array.fromHex` and `Uint8Array.prototype.{ setFromBase64, toBase64, toHex }`, thanks [**@brc-dd**](https://github.com/brc-dd)
 - [Joint iteration stage 2.7 proposal](https://github.com/tc39/proposal-joint-iteration):
