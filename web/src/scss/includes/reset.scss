@@ -13,16 +13,18 @@ article, aside, details, figcaption, figure, footer, header, hgroup, nav, sectio
 }
 
 table {
-    border-spacing: 0;
+    border-spacing: 1px;
+    margin: 1rem 0;
 
     th,
     td {
         vertical-align: middle;
+        padding: 0.25rem;
     }
 }
 
 caption, th {
-    text-align: center;
+    text-align: left;
 }
 
 ul, ol {
