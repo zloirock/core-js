@@ -35,8 +35,16 @@ const resizeObserver = new ResizeObserver((entries) => {
   }
 });
 
+const specSymbols =  {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&apos;'
+};
+
 function writeResult(text, type = 'log') {
-  const serializedText = serializeLog(text);
+  const serializedText = serializeLog(text).replace(/[&<>"']/g, it => specSymbols[it]);
   resultBlock.innerHTML += `<div class="console ${type}">${serializedText}</div>`;
 }
 function runCode(code) {
