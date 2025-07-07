@@ -132,7 +132,7 @@ async function buildBlogMenu() {
 
     const match = mdPath.match(/(\d{4}-\d{2}-\d{2})-/);
     const date = match ? match[1] : null;
-    const htmlFileName = mdPath.replace(blogDir, '').replace(/\.md$/i, '.html');
+    const htmlFileName = mdPath.replace(blogDir, '').replace(/\.md$/i, '');
     menu += `<li><a href="./blog/${htmlFileName}">${date}: ${firstH1.text}</a></li>`
   }
   menu += '</ul>';
