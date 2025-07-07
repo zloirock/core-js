@@ -98,15 +98,14 @@ async function buildVersionMenu(versions, currentVersion) {
 }
 
 const marked = new Marked();
+const markedInline = new Marked();
 const customRenderer = {
   link({ href, text }) {
-    if (/!\[.*\]\(.*\)/.test(text)) {
-      text = marked.parseInline(text);
-    }
+    const htmlContent = markedInline.parseInline(text);
     const isExternal = /^https?:\/\//.test(href);
     let html = `<a href="${href}"`;
     if (isExternal) html += ' target="_blank"';
-    html += `>${text}</a>`;
+    html += `>${htmlContent}</a>`;
     return html;
   }
 };
@@ -141,6 +140,12 @@ async function buildBlogMenu() {
 
   return menu;
 }
+
+async function getVersionTags() {
+  const tagsString = await exec('git tag | grep -E "^v[4-9]\\.[0-9]+\\.[0-9]+$" | sort -V');
+  return tagsString['stdout'].split('\n');
+}
+// console.log(await getVersionTags());
 
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
@@ -251,11 +256,5 @@ async function build() {
   await fs.writeFile(playgroundFilePath, playground, 'utf-8');
   echo(chalk.green(`File created: ${playgroundFilePath}`));
 }
-
-async function getVersionTags() {
-  const tagsString = await exec('git tag | grep -E "^v[4-9]\\.[0-9]+\\.[0-9]+$" | sort -V');
-  return tagsString['stdout'].split('\n');
-}
-// console.log(await getVersionTags());
 
 await build().catch(console.error);
