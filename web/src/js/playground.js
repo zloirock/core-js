@@ -60,8 +60,8 @@ function runCode(code) {
     },
   }
 
-  const context = new Function('console', code);
   try {
+    const context = new Function('console', code);
     context(console);
   } catch (error) {
     writeResult(`Error: ${error.message}`, 'error');
