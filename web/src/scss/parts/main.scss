@@ -105,6 +105,7 @@ main {
 
         ul {
           list-style: none;
+          padding: 0;
 
           li {
             padding: 0 0 0.75rem 0;
@@ -170,8 +171,6 @@ main {
   }
 }
 .dropdown {
-  margin-left: -1rem;
-
   a {
     white-space: nowrap;
   }
