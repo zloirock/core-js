@@ -164,7 +164,7 @@ async function build() {
         const headings = getHeadingList().filter(({ level }) => level > 1);
         let result = '<div class="wrapper">';
         if (isBlog) {
-          result += `<div class="blog-menu sticky">${blogMenu}</div>`;
+          result += `<div class="docs-menu sticky">${blogMenu}</div>`;
         } else if (isDocs) {
           result += `<div class="docs-menu sticky">${docsMenu}</div>`;
         }
