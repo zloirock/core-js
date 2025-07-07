@@ -6,6 +6,10 @@ header {
     justify-content: center;
 
     background-color: $background-color;
+
+    @include media("min", "xl") {
+        padding: 0 1rem;
+    }
 }
 nav {
     display: flex;
