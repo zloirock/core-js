@@ -75,6 +75,27 @@ svg {
     height: auto;
 }
 
+table {
+    tr {
+        &:nth-child(odd) {
+            background-color: $background-highlight;
+        }
+        &:nth-child(even) {
+            background-color: $background-light;
+        }
+
+        th {
+            padding: 0.25rem 0.375rem;
+        }
+    }
+
+    @include media("max", "lg") {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
+
 .box {
     background-color: $box-color;
     border-radius: 1rem;
