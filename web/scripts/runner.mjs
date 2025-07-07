@@ -184,6 +184,40 @@ async function buildAndCopyCoreJS() {
   console.timeEnd(`Core JS bundle built`);
 }
 
+async function getExcludedBuilds() {
+  const branchBuilds = await fs.readdir('./branches/');
+  const excluded = new Set();
+  for (const branch of branchBuilds) {
+    const link = await fs.readlink(`./branches/${branch}`);
+    if (!link) continue;
+    const parts = link.split('/');
+    const buildId = parts[parts.length - 2];
+    excluded.add(buildId);
+  }
+  const latestBuildLink = await fs.readlink(`./latest`);
+  if (latestBuildLink) {
+    const parts = latestBuildLink.split('/');
+    const buildId = parts[parts.length - 2];
+    excluded.add(buildId);
+  }
+
+  return Array.from(excluded);
+}
+
+async function clearOldBuilds() {
+  console.log(`Clearing old builds...`);
+  console.time(`Cleared old builds`);
+  const excluded = await getExcludedBuilds();
+  const builds = await fs.readdir(buildsRootDir);
+  for (const build of builds) {
+    if (!excluded.includes(build)) {
+      await exec(`rm -rf ${path.join('./', buildsRootDir, '/', build)}`);
+      console.log(`Build removed: "${path.join('./', buildsRootDir, '/', build)}"`);
+    }
+  }
+  console.timeEnd(`Cleared old builds`);
+}
+
 async function run() {
   console.time('Finished in');
   await createBuildDir();
@@ -216,6 +250,7 @@ async function run() {
     await switchBranchToLatestBuild(targetBranch);
   }
   await clearBuildDir();
+  await clearOldBuilds();
   console.timeEnd('Finished in');
 }
 
