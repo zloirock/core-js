@@ -2,7 +2,7 @@
 
 # So, what's next?
 
-Hi. I am (**[@zloirock](https://github.com/zloirock)**), a full-time open-source developer. I don't like to write long posts, but it seems it is high time to do it. Initially, this post was supposed to be a post about the start of active development of the new major version of `core-js` and the roadmap (it was moved to [the second half](#roadmap)), however, due to recent events, it became a really long post about many different things... I'm fucking tired. Free open-source software is fundamentally broken. I could stop working on this silently, but I want to give open-source one last chance.
+Hi. I am (**[@zloirock](https://github.com/zloirock)**), a full-time open-source developer. I don't like to write long posts, but it seems it is high time to do it. Initially, this post was supposed to be a post about the start of active development of the new major version of `core-js` and the roadmap (it was moved to [the second half](2023-02-14-so-whats-next#block-roadmap)), however, due to recent events, it became a really long post about many different things... I'm fucking tired. Free open-source software is fundamentally broken. I could stop working on this silently, but I want to give open-source one last chance.
 
 <details>
 <summary><b>🔻 Click to see how you can help 🔻</b></summary>
@@ -334,7 +334,7 @@ Ok guys, if you want it — let's use such an approach.
 
 - **Appropriate financial backing**
 
-  I hope that, at least after reading this post, corporations, small companies, and developers will finally think about the sustainability of their development stack and will properly back `core-js` development. In this case, `core-js` will be appropriately maintained and I'll be able to focus on adding [a new level of functionality](#roadmap).
+  I hope that, at least after reading this post, corporations, small companies, and developers will finally think about the sustainability of their development stack and will properly back `core-js` development. In this case, `core-js` will be appropriately maintained and I'll be able to focus on adding [a new level of functionality](2023-02-14-so-whats-next#block-roadmap).
 
   The scale of the necessary work goes through the roof, a single me is no longer enough — I can't work more physically. Some work, for example, improving test coverage or documentation, is simple enough and takes a lot of time, but it's not the kind of work that volunteers want to do — I don't remember any PRs with improvements for test coverage of existent features. So it makes sense to attract at least one or two developers (at least students, better — higher level) on a paid basis.
 
@@ -382,7 +382,7 @@ I still hope for the first outcome since `core-js` is one of the key components 
 
 Now let's move away from the negative to the second half of this post where we will talk about things that would be nice to implement in `core-js` and the problems of polyfilling in general.
 
-# Roadmap
+## Roadmap
 
 JavaScript, browsers, and web development are evolving at an amazing speed. The time when almost all of the `core-js` modules were required for all browsers is gone. The latest browsers have good standards support and, in the common use cases, they need only some percentage of the `core-js` modules for the most recent language features and bug fixes. Some companies are already dropping support for IE11 which was recently  "buried" once more. However, even without IE, old browsers will always be there, bugs will happen in modern browsers too, and new language features will appear regularly and they will appear in browsers with a delay anyway; so, if we want to use modern JS in development and minimize possible problems, polyfills stay with us for a long time, but they should continue to evolve.
 
