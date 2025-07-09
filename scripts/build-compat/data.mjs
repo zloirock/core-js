@@ -13,7 +13,7 @@ for (const scope of [data, external]) {
 
     function map(mappingKey) {
       const [engine, targetKey] = mappingKey.split('To')
-        .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>_$<upper>').toLowerCase());
+        .map(it => it.replace(/(?<lower>[a-z])(?<upper>[A-Z])/, '$<lower>-$<upper>').toLowerCase());
       const version = module[engine];
       if (!version || hasOwn(module, targetKey)) return;
       const mapping = mappings[mappingKey];
@@ -48,26 +48,26 @@ for (const scope of [data, external]) {
       module.opera = String(mappings.ChromeToOpera(chrome));
     }
     map('ChromeToOpera');
-    map('ChromeToChromeMobile');
+    map('ChromeToChromeAndroid');
     map('ChromeToAndroid');
-    if (!hasOwn(module, 'android') && module.chrome_mobile) {
+    if (!hasOwn(module, 'android') && module['chrome-android']) {
       // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/README.md#version-numbers-for-features-in-android-webview
-      module.android = String(Math.max(module.chrome_mobile, 37));
+      module.android = String(Math.max(module['chrome-android'], 37));
     }
-    if (!hasOwn(module, 'opera_mobile') && module.opera <= 42) {
-      module.opera_mobile = module.opera;
+    if (!hasOwn(module, 'opera-android') && module.opera <= 42) {
+      module['opera-android'] = module.opera;
     } else {
-      map('ChromeMobileToOperaMobile');
+      map('ChromeAndroidToOperaAndroid');
     }
-    map('ChromeMobileToQuest');
-    if (!hasOwn(module, 'quest') && module.chrome_mobile >= 143) {
-      module.quest = String(Math.ceil(module.chrome_mobile / 2) * 2);
+    map('ChromeAndroidToQuest');
+    if (!hasOwn(module, 'quest') && module['chrome-android'] >= 143) {
+      module.quest = String(Math.ceil(module['chrome-android'] / 2) * 2);
     }
-    map('ChromeMobileToSamsung');
+    map('ChromeAndroidToSamsung');
     if (/^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }
-    map('FirefoxToFirefoxMobile');
+    map('FirefoxToFirefoxAndroid');
     map('SafariToIOS');
     if (!hasOwn(module, 'ios') && hasOwn(module, 'safari')) {
       module.ios = module.safari;
