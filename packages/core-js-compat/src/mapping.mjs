@@ -194,14 +194,14 @@ export default {
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/chrome_android.json
   // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#version-numbers-for-chrome-for-android
-  ChromeToChromeMobile(chrome) {
+  ChromeToChromeAndroid(chrome) {
     return chrome <= 18 ? 18 : Math.max(chrome, 25);
   },
   // https://medium.com/samsung-internet-dev
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/samsunginternet_android.json
   // https://en.wikipedia.org/wiki/Samsung_Internet#History
   // https://github.com/mdn/browser-compat-data/blob/main/docs/matching-browser-releases/index.md#samsung-internet
-  ChromeMobileToSamsung: [
+  ChromeAndroidToSamsung: [
     [18, '1.0'],
     [28, '1.5'],
     [34, '2.0'],
@@ -235,7 +235,7 @@ export default {
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera_android.json
   // https://forums.opera.com/category/20/opera-for-android
-  ChromeMobileToOperaMobile: [
+  ChromeAndroidToOperaAndroid: [
     [59, 43],
     [60, 44],
     [61, 45],
@@ -290,7 +290,7 @@ export default {
   // https://www.meta.com/experiences/browser/1916519981771802/
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
   // https://whatmyuseragent.com/browser/oc/oculus-browser
-  ChromeMobileToQuest: [
+  ChromeAndroidToQuest: [
     [57, '3.0'],
     [61, '4.0'],
     [66, '5.0'],
@@ -330,7 +330,7 @@ export default {
     [136, '39.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/firefox_android.json
-  FirefoxToFirefoxMobile(firefox) {
+  FirefoxToFirefoxAndroid(firefox) {
     return Math.max(firefox, 4);
   },
   // https://github.com/oven-sh/bun/releases
