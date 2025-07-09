@@ -2070,6 +2070,8 @@ const packageJSON = {
   'package-json/unique-dependencies': ERROR,
   // enforce that the author field is a valid npm author specification
   'package-json/valid-author': ERROR,
+  // enforce that the `bundleDependencies` (or `bundledDependencies`) property is valid
+  'package-json/valid-bundleDependencies': ERROR,
   // enforce that the `bin` property is valid
   'package-json/valid-bin': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
