@@ -594,38 +594,6 @@ export const data = {
     firefox: '121',
     safari: '17.4',
   },
-  'es.math.log2': {
-    chrome: '38',
-    edge: '12',
-    firefox: '25',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '7.1',
-  },
-  'es.string.repeat': {
-    chrome: '41',
-    edge: '13',
-    firefox: '24',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '9.0',
-  },
-  'es.string.pad-end': {
-    chrome: '57',
-    edge: '15',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '11.0',
-  },
-  'es.string.pad-start': {
-    chrome: '57',
-    edge: '15',
-    firefox: '48',
-    hermes: '0.1',
-    rhino: '1.7.13',
-    safari: '11.0',
-  },
   // TODO: recheck
   'es.array.iterator': {
     chrome: '66',
@@ -1270,14 +1238,6 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
-  // TODO: recheck
-  'es.map.species': {
-    chrome: '51',
-    edge: '13',
-    firefox: '41',
-    rhino: '1.7.13',
-    safari: '10.0',
-  },
   'es.map.group-by': {
     // https://bugs.webkit.org/show_bug.cgi?id=271524
     bun: '1.1.2', // '1.0.19',
@@ -1601,14 +1561,6 @@ export const data = {
     firefox: '53',
     hermes: '0.13',
     'react-native': '0.73',
-    rhino: '1.7.13',
-    safari: '10.0',
-  },
-  // TODO: recheck
-  'es.set.species': {
-    chrome: '51',
-    edge: '13',
-    firefox: '41',
     rhino: '1.7.13',
     safari: '10.0',
   },
