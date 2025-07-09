@@ -610,13 +610,12 @@ GLOBAL.tests = {
     return Promise.withResolvers;
   }],
   'es.array.iterator': [SYMBOLS_SUPPORT, function () {
-    return [][Symbol.iterator] === [].values
+    var iterator = [][Symbol.iterator]();
+    return iterator.next()
+      && iterator[Symbol.iterator]() === iterator
+      && iterator[Symbol.toStringTag] === 'Array Iterator'
       && [][Symbol.iterator].name === 'values'
-      && [].entries()[Symbol.toStringTag] === 'Array Iterator'
-      && [].keys().next()
-      && [][Symbol.unscopables].keys
-      && [][Symbol.unscopables].values
-      && [][Symbol.unscopables].entries;
+      && [][Symbol.iterator] === [].values;
   }],
   'es.array.from-async': function () {
     // https://bugs.webkit.org/show_bug.cgi?id=271703
