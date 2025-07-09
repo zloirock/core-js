@@ -1,4 +1,4 @@
-/* eslint-disable prefer-regex-literals, es/no-nonstandard-number-prototype-properties -- required for testing */
+/* eslint-disable prefer-regex-literals -- required for testing */
 import { GLOBAL } from '../helpers/constants.js';
 import { patchRegExp$exec } from '../helpers/helpers.js';
 
