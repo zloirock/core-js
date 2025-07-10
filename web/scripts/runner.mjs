@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import path from 'path';
 
 const exec = promisify(child_process.exec);
-const { cp } = fs;
+const { cp, readdir } = fs;
 
 const srcDir = 'core-js';
 const buildsRootDir = 'builds';
@@ -117,10 +117,10 @@ async function clearBuildDir() {
   console.timeEnd(`Cleared build directories ${buildSrcDir} and ${builderDocsDir}`);
 }
 
-async function copyDocs(srcDir, destDir) {
+async function copyDocs(srcDir, destDir, recursive = true) {
   console.log(`Copying docs from "${srcDir}" to "${destDir}"`);
   console.time(`Copied docs from "${srcDir}" to "${destDir}"`);
-  await cp(srcDir, destDir, { recursive: true }, err => { if (err) throw err; });
+  await cp(srcDir, destDir, { recursive: recursive }, err => { if (err) throw err; });
   console.timeEnd(`Copied docs from "${srcDir}" to "${destDir}"`);
 }
 
@@ -185,7 +185,7 @@ async function buildAndCopyCoreJS() {
 }
 
 async function getExcludedBuilds() {
-  const branchBuilds = await fs.readdir('./branches/');
+  const branchBuilds = await readdir('./branches/');
   const excluded = new Set();
   for (const branch of branchBuilds) {
     const link = await fs.readlink(`./branches/${branch}`);
@@ -208,7 +208,7 @@ async function clearOldBuilds() {
   console.log(`Clearing old builds...`);
   console.time(`Cleared old builds`);
   const excluded = await getExcludedBuilds();
-  const builds = await fs.readdir(buildsRootDir);
+  const builds = await readdir(buildsRootDir);
   for (const build of builds) {
     if (!excluded.includes(build)) {
       await exec(`rm -rf ${path.join('./', buildsRootDir, '/', build)}`);
@@ -216,6 +216,22 @@ async function clearOldBuilds() {
     }
   }
   console.timeEnd(`Cleared old builds`);
+}
+
+async function copyBlogPosts() {
+  console.log(`Copying blog posts...`);
+  console.time(`Copied blog posts`);
+  const fromDir = `${buildSrcDir}docs/`;
+  const toDir = `${buildSrcDir}docs/web/blog/`;
+  const entries = await readdir(fromDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isFile()) {
+      const srcFile = path.join(fromDir, entry.name);
+      const destFile = path.join(toDir, entry.name);
+      await fs.copyFile(srcFile, destFile);
+    }
+  }
+  console.timeEnd(`Copied blog posts`);
 }
 
 async function run() {
@@ -237,6 +253,7 @@ async function run() {
 
   await prepareBuilder(targetBranch);
   await buildAndCopyCoreJS();
+  await copyBlogPosts();
   if (!branch) {
     await copyBuilderDocs();
   }
