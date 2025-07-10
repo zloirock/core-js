@@ -103,6 +103,8 @@ const customRenderer = {
   link({ href, text }) {
     const htmlContent = markedInline.parseInline(text);
     const isExternal = /^https?:\/\//.test(href);
+    const isAnchor = href.startsWith('#');
+    if (isAnchor) href = htmlFileName + href;
     let html = `<a href="${href}"`;
     if (isExternal) html += ' target="_blank"';
     html += `>${htmlContent}</a>`;
@@ -147,6 +149,7 @@ async function getVersionTags() {
 }
 // console.log(await getVersionTags());
 
+let htmlFileName = '';
 async function build() {
   const template = await fs.readFile(templatePath, 'utf-8');
   let docsMenu = '';
@@ -154,7 +157,6 @@ async function build() {
   let isDocs = false;
   let isChangelog = false;
   let playground = await fs.readFile(`${templatesDir}playground.html`, 'utf-8');
-  let htmlFileName = '';
 
   const markedWithContents = new Marked();
   markedWithContents.use({ renderer: customRenderer });
