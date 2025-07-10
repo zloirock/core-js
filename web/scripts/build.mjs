@@ -104,7 +104,7 @@ const customRenderer = {
     const htmlContent = markedInline.parseInline(text);
     const isExternal = /^https?:\/\//.test(href);
     const isAnchor = href.startsWith('#');
-    if (isAnchor) href = htmlFileName + href;
+    if (isAnchor) href = htmlFileName + href.replace('#', '#block-');
     let html = `<a href="${href}"`;
     if (isExternal) html += ' target="_blank"';
     html += `>${htmlContent}</a>`;
