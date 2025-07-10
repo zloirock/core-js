@@ -1590,6 +1590,7 @@ const forbidES2020BuiltIns = {
   'es/no-promise-all-settled': ERROR,
   'es/no-regexp-unicode-property-escapes-2020': ERROR,
   'es/no-string-prototype-matchall': ERROR,
+  'es/no-symbol-matchall': ERROR,
 };
 
 const forbidES2021BuiltIns = {
@@ -1666,6 +1667,8 @@ const forbidES2026BuiltIns = {
   'es/no-asyncdisposablestack': ERROR,
   'es/no-error-iserror': ERROR,
   'es/no-suppressederror': ERROR,
+  'es/no-symbol-asyncdispose': ERROR,
+  'es/no-symbol-dispose': ERROR,
 };
 
 const forbidES2016IntlBuiltIns = {
