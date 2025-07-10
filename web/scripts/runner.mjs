@@ -234,6 +234,17 @@ async function copyBlogPosts() {
   console.timeEnd(`Copied blog posts`);
 }
 
+async function copyCommonFiles() {
+  console.log(`Copying common files...`);
+  console.time(`Copied common files`);
+  const fromDir = `${buildSrcDir}`;
+  const toDir = `${buildSrcDir}docs/web/`;
+  await fs.copyFile(`${fromDir}CHANGELOG.md`, `${toDir}changelog.md`);
+  await fs.copyFile(`${fromDir}CONTRIBUTING.md`, `${toDir}contributing.md`);
+  await fs.copyFile(`${fromDir}SECURITY.md`, `${toDir}security.md`);
+  console.timeEnd(`Copied common files`);
+}
+
 async function run() {
   console.time('Finished in');
   await createBuildDir();
@@ -254,6 +265,7 @@ async function run() {
   await prepareBuilder(targetBranch);
   await buildAndCopyCoreJS();
   await copyBlogPosts();
+  await copyCommonFiles();
   if (!branch) {
     await copyBuilderDocs();
   }
