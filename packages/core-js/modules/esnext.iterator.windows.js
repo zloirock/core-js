@@ -1,3 +1,4 @@
+// types: proposals/iterator-chunking
 'use strict';
 var $ = require('../internals/export');
 var iteratorWindow = require('../internals/iterator-window');
