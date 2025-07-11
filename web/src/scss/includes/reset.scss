@@ -1,3 +1,5 @@
+@use "../includes/theme" as *;
+
 html, body, div, dl, dt, dd, ul, ol, li, h1, h2, h3, h4, h5, h6, pre, form, fieldset, input, textarea, p, blockquote, th, td, figure, figcaption, address {
     margin: 0;
     padding: 0;
@@ -47,10 +49,6 @@ a:hover, a:focus {
     text-decoration: none;
 }
 
-* {
-    outline: none !important;
-}
-
 input[type="text"],
 input[type="password"],
 input[type="number"],
@@ -81,4 +79,8 @@ svg {
 
 img {
     max-width: 100%;
+}
+
+*:focus {
+    outline: dashed $link-color-hover 1px;
 }
