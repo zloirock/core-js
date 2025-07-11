@@ -23,5 +23,5 @@ testTypedArrayUniqueBy(new Int32Array([1, 2, 3]), 1);
 testTypedArrayUniqueBy(new Uint32Array([1, 2, 3]), 1);
 testTypedArrayUniqueBy(new Float32Array([1.0, 2.2, 3.0]), 1);
 testTypedArrayUniqueBy(new Float64Array([1.0, 2.2, 3.0]), 1);
-testTypedArrayUniqueBy(new BigInt64Array([1n, 2n, 3n]), 1);
-testTypedArrayUniqueBy(new BigUint64Array([1n, 2n, 3n]), 1);
+testTypedArrayUniqueBy(new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)]), 1);
+testTypedArrayUniqueBy(new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)]), 1);

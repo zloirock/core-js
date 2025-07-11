@@ -4,6 +4,10 @@ interface SymbolConstructor {
   readonly metadata: unique symbol;
 }
 
+type DecoratorMetadataCoreJS = typeof globalThis extends { DecoratorMetadataObject: infer T }
+  ? T
+  : Record<PropertyKey, unknown> & object;
+
 interface Function {
-  [Symbol.metadata]?: object;
+  [Symbol.metadata]: DecoratorMetadataCoreJS | null;
 }
