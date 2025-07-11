@@ -84,11 +84,3 @@ img {
 * {
     outline: none;
 }
-
-a:focus,
-button:focus {
-    border: none;
-    border-radius: 0.25rem;
-    outline: solid 1px $link-color-hover;
-    outline-offset: 2px;
-}
