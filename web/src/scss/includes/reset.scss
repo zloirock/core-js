@@ -38,10 +38,10 @@ a {
 }
 
 a:link, a:visited, a:active {
-    -webkit-transition: 0.2s all ease;
-    -moz-transition: 0.2s all ease;
-    -o-transition: 0.2s all ease;
-    transition: 0.2s all ease;
+    -webkit-transition: 0.2s color ease;
+    -moz-transition: 0.2s color ease;
+    -o-transition: 0.2s color ease;
+    transition: 0.2s color ease;
 }
 
 a:hover, a:focus {
@@ -89,6 +89,6 @@ a:focus,
 button:focus {
     border: none;
     border-radius: 0.25rem;
-    outline: solid 1px $link-color2-hover;
+    outline: solid 1px $link-color-hover;
     outline-offset: 2px;
 }
