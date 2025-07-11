@@ -81,6 +81,14 @@ img {
     max-width: 100%;
 }
 
-*:focus {
-    outline: dashed $link-color-hover 1px;
+* {
+    outline: none;
+}
+
+a:focus,
+button:focus {
+    border: none;
+    border-radius: 0.25rem;
+    outline: solid 1px $link-color2-hover;
+    outline-offset: 2px;
 }
