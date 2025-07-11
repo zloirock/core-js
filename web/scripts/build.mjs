@@ -104,7 +104,7 @@ const customRenderer = {
     const htmlContent = markedInline.parseInline(text);
     const isExternal = /^https?:\/\//.test(href);
     const isAnchor = href.startsWith('#');
-    if (isAnchor) href = htmlFileName + href.replace('#', '#block-');
+    if (isAnchor) href = htmlFileName.replace('.html', '') + href.replace('#', '#block-');
     let html = `<a href="${href}"`;
     if (isExternal) html += ' target="_blank"';
     html += `>${htmlContent}</a>`;
@@ -172,7 +172,7 @@ async function build() {
         }
         result += `<div class="content">${html}</div>
           <div class="table-of-contents sticky">
-              ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${htmlFileName}#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
+              ${headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${htmlFileName.replace('.html', '')}#${id}" class="h${level}">${raw}</a></div>`).join('\n')}
           </div>`;
         return result;
       }
