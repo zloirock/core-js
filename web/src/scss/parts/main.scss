@@ -47,7 +47,7 @@ main {
   a {
     color: $link-color2;
 
-    &:hover {
+    &:hover, &:focus {
       color: $link-color2-hover;
     }
   }
@@ -105,10 +105,10 @@ main {
 
         ul {
           list-style: none;
-          padding: 0 0 0 1px;
+          padding: 0;
 
           li {
-            padding: 0 0 0.75rem 0;
+            padding: 0.25rem 0 0.5rem 0;
 
             &:last-child {
               padding-bottom: 0;
