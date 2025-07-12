@@ -58,7 +58,7 @@ async function buildEntry(entry, options) {
   let {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
-    template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation, necessaryModules,
+    template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
     buildBuiltInDefinitions, injectOn, globalModeOnly = false, rawEntry, name, namespace,
   } = options;
 
@@ -81,14 +81,11 @@ async function buildEntry(entry, options) {
       filter ??= ESWithProposalsSet;
   }
 
+  if (!enforceEntryCreation && !expandModules(modules[0], filter).length) return;
+
   const rawModules = modules;
 
   modules = expandModules(modules, filter);
-
-  if (!enforceEntryCreation) {
-    necessaryModules = necessaryModules ? expandModules(necessaryModules, filter) : modules;
-    if (!necessaryModules.length) return;
-  }
 
   const level = entry.split('/').length - 1;
 
