@@ -97,7 +97,7 @@ module.exports = async function ({
 
       await unlink(tempFile);
 
-      if (!(sourcemap === null || sourcemap === undefined)) {
+      if (!(sourcemap === null || sourcemap === undefined) && minified) {
         await copyFile(tempSourceMap, sourcemap);
       }
 
@@ -108,14 +108,14 @@ module.exports = async function ({
         code = `!function (undefined) { 'use strict'; ${
           // compress `__webpack_require__` with `keep_fnames` option
           String(file).replace(/function __webpack_require__/, 'var __webpack_require__ = function ')
-        } }();\n`;
+        }\n}();\n`;  // first \n is needed because of sourcemap location comment
       }
     } else {
       script = preamble;
       const template = it => format === 'esm'
         ? `import 'core-js/modules/${ it }.js';\n`
         : `require('core-js/modules/${ it }');\n`;
-      code = list.map(template).join(''); 
+      code = list.map(template).join('');
     }
   }
 
