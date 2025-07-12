@@ -38,7 +38,7 @@ module.exports = async function ({
 
   if (summary.comment.size) preamble += `/*\n * size: ${ (code.length / 1024).toFixed(2) }KB w/o comments\n */`;
   if (summary.comment.modules) preamble += `/*\n * modules:\n${ list.map(it => ` * ${ it }\n`).join('') } */`;
-  let script = "";
+  let script = '';
   let code = '';
 
   if (list.length) {
@@ -83,7 +83,7 @@ module.exports = async function ({
                   webkit: true,
                   // https://v8.dev/blog/preparser#pife
                   wrap_func_args: false,
-                  preamble: preamble,
+                  preamble,
                   comments: false,
                 },
               },
@@ -97,15 +97,13 @@ module.exports = async function ({
 
       await unlink(tempFile);
 
-      if (!(sourcemap === null || sourcemap === undefined))
+      if (!(sourcemap === null || sourcemap === undefined)) {
         await copyFile(tempSourceMap, sourcemap);
-
-      if (minified)
-      {
-        code = String(file)
       }
-      else
-      {
+
+      if (minified) {
+        code = String(file);
+      } else {
         script = preamble;
         code = `!function (undefined) { 'use strict'; ${
           // compress `__webpack_require__` with `keep_fnames` option
@@ -117,7 +115,7 @@ module.exports = async function ({
       const template = it => format === 'esm'
         ? `import 'core-js/modules/${ it }.js';\n`
         : `require('core-js/modules/${ it }');\n`;
-      code = list.map(template).join('');
+      code = list.map(template).join(''); 
     }
   }
 
