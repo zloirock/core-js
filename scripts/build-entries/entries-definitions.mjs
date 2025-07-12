@@ -130,10 +130,6 @@ const TypedArrayPrototypeMethods = [
   'es.typed-array.with',
   'esnext.typed-array.filter-reject',
   'esnext.typed-array.unique-by',
-];
-
-const Uint8ArrayPrototypeMethods = [
-  ...TypedArrayPrototypeMethods,
   'esnext.uint8-array.set-from-base64',
   'esnext.uint8-array.set-from-hex',
   'esnext.uint8-array.to-base64',
@@ -3118,7 +3114,7 @@ export const features = {
     injectOn: 'global',
   },
   'typed-array/uint8-array': {
-    modules: ['es.typed-array.uint8-array', ...Uint8ArrayPrototypeMethods],
+    modules: ['es.typed-array.uint8-array', ...TypedArrayMethods],
     template: $namespace,
     name: 'Uint8Array',
     injectOn: 'global',
@@ -3141,20 +3137,20 @@ export const features = {
     name: 'Uint32Array',
     injectOn: 'global',
   },
-  'typed-array/from': { // !!!!!!
-    modules: ['es.typed-array.from'],
+  'typed-array/from': {
+    modules: ['es.typed-array.from', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/from-base64': { // !!!!!!
-    modules: ['esnext.uint8-array.from-base64'],
+  'typed-array/from-base64': {
+    modules: ['esnext.uint8-array.from-base64', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/from-hex': { // !!!!!!
-    modules: ['esnext.uint8-array.from-hex'],
+  'typed-array/from-hex': {
+    modules: ['esnext.uint8-array.from-hex', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/of': { // !!!!!!
-    modules: ['es.typed-array.of'],
+  'typed-array/of': {
+    modules: ['es.typed-array.of', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
   'typed-array/at': {
