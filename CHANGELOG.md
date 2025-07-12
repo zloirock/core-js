@@ -2,6 +2,7 @@
 ##### Unreleased
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
+  - Updated Electron 38 compat data mapping
 
 ##### [3.44.0 - 2025.07.07](https://github.com/zloirock/core-js/releases/tag/v3.44.0)
 - Changes [v3.43.0...v3.44.0](https://github.com/zloirock/core-js/compare/v3.43.0...v3.44.0) (87 commits)
