@@ -26,6 +26,7 @@
   "types": "index.d.ts",
   "dependencies": {
     "@core-js/compat": "4.0.0-alpha.0",
+    "webpack": "^5.99.9",
     "core-js": "4.0.0-alpha.0",
     "konan": "^2.1.1",
     "terser-webpack-plugin": "^5.3.14"
