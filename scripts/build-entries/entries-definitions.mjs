@@ -20,6 +20,10 @@ import {
   $path,
 } from './templates.mjs';
 
+function unique(array) {
+  return [...new Set(array)];
+}
+
 const PromiseWithPrototype = [
   'es.promise.constructor',
   'es.promise.catch',
@@ -143,10 +147,15 @@ const Uint8ArrayPrototypeMethods = [
 const TypedArrayMethods = [
   'es.typed-array.from',
   'es.typed-array.of',
-  'es.uint8-array.from-base64',
-  'es.uint8-array.from-hex',
   ...TypedArrayPrototypeMethods,
 ];
+
+const Uint8ArrayMethods = unique([
+  ...TypedArrayMethods,
+  'es.uint8-array.from-base64',
+  'es.uint8-array.from-hex',
+  ...Uint8ArrayPrototypeMethods,
+]);
 
 export const features = {
   'aggregate-error/index': {
@@ -3106,7 +3115,7 @@ export const features = {
     injectOn: 'global',
   },
   'typed-array/uint8-array': {
-    modules: ['es.typed-array.uint8-array', ...Uint8ArrayPrototypeMethods],
+    modules: ['es.typed-array.uint8-array', ...Uint8ArrayMethods],
     template: $namespace,
     name: 'Uint8Array',
     injectOn: 'global',
@@ -3129,20 +3138,20 @@ export const features = {
     name: 'Uint32Array',
     injectOn: 'global',
   },
-  'typed-array/from': { // !!!!!!
-    modules: ['es.typed-array.from'],
+  'typed-array/from': {
+    modules: ['es.typed-array.from', ...Uint8ArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/from-base64': { // !!!!!!
-    modules: ['es.uint8-array.from-base64'],
+  'typed-array/from-base64': {
+    modules: ['es.uint8-array.from-base64', ...Uint8ArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/from-hex': { // !!!!!!
-    modules: ['es.uint8-array.from-hex'],
+  'typed-array/from-hex': {
+    modules: ['es.uint8-array.from-hex', ...Uint8ArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/of': { // !!!!!!
-    modules: ['es.typed-array.of'],
+  'typed-array/of': {
+    modules: ['es.typed-array.of', ...Uint8ArrayPrototypeMethods],
     template: $justImport,
   },
   'typed-array/at': {
