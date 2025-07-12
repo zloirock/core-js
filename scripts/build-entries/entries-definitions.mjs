@@ -130,10 +130,6 @@ const TypedArrayPrototypeMethods = [
   'es.typed-array.with',
   'esnext.typed-array.filter-reject',
   'esnext.typed-array.unique-by',
-];
-
-const Uint8ArrayPrototypeMethods = [
-  ...TypedArrayPrototypeMethods,
   'esnext.uint8-array.set-from-base64',
   'esnext.uint8-array.set-from-hex',
   'esnext.uint8-array.to-base64',
@@ -1537,7 +1533,6 @@ export const features = {
   },
   'map/from': {
     modules: ['esnext.map.from', ...MapWithPrototype],
-    necessaryModules: ['esnext.map.from'],
     template: $static,
     namespace: 'Map',
     name: 'from',
@@ -1552,7 +1547,6 @@ export const features = {
   },
   'map/of': {
     modules: ['esnext.map.of', ...MapWithPrototype],
-    necessaryModules: ['esnext.map.of'],
     template: $static,
     namespace: 'Map',
     name: 'of',
@@ -2341,7 +2335,6 @@ export const features = {
   },
   'set/from': {
     modules: ['esnext.set.from', ...SetWithPrototype],
-    necessaryModules: ['esnext.set.from'],
     template: $static,
     namespace: 'Set',
     name: 'from',
@@ -2397,7 +2390,6 @@ export const features = {
   },
   'set/of': {
     modules: ['esnext.set.of', ...SetWithPrototype],
-    necessaryModules: ['esnext.set.of'],
     template: $static,
     namespace: 'Set',
     name: 'of',
@@ -3122,7 +3114,7 @@ export const features = {
     injectOn: 'global',
   },
   'typed-array/uint8-array': {
-    modules: ['es.typed-array.uint8-array', ...Uint8ArrayPrototypeMethods],
+    modules: ['es.typed-array.uint8-array', ...TypedArrayMethods],
     template: $namespace,
     name: 'Uint8Array',
     injectOn: 'global',
@@ -3145,20 +3137,20 @@ export const features = {
     name: 'Uint32Array',
     injectOn: 'global',
   },
-  'typed-array/from': { // !!!!!!
-    modules: ['es.typed-array.from'],
+  'typed-array/from': {
+    modules: ['es.typed-array.from', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/from-base64': { // !!!!!!
-    modules: ['esnext.uint8-array.from-base64'],
+  'typed-array/from-base64': {
+    modules: ['esnext.uint8-array.from-base64', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/from-hex': { // !!!!!!
-    modules: ['esnext.uint8-array.from-hex'],
+  'typed-array/from-hex': {
+    modules: ['esnext.uint8-array.from-hex', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
-  'typed-array/of': { // !!!!!!
-    modules: ['es.typed-array.of'],
+  'typed-array/of': {
+    modules: ['es.typed-array.of', ...TypedArrayPrototypeMethods],
     template: $justImport,
   },
   'typed-array/at': {
@@ -3374,7 +3366,6 @@ export const features = {
   },
   'weak-map/from': {
     modules: ['esnext.weak-map.from', ...WeakMapWithPrototype],
-    necessaryModules: ['esnext.weak-map.from'],
     template: $static,
     namespace: 'WeakMap',
     name: 'from',
@@ -3382,7 +3373,6 @@ export const features = {
   },
   'weak-map/of': {
     modules: ['esnext.weak-map.of', ...WeakMapWithPrototype],
-    necessaryModules: ['esnext.weak-map.of'],
     template: $static,
     namespace: 'WeakMap',
     name: 'of',
@@ -3425,7 +3415,6 @@ export const features = {
   },
   'weak-set/from': {
     modules: ['esnext.weak-set.from', ...WeakSetWithPrototype],
-    necessaryModules: ['esnext.weak-set.from'],
     template: $static,
     namespace: 'WeakSet',
     name: 'from',
@@ -3433,7 +3422,6 @@ export const features = {
   },
   'weak-set/of': {
     modules: ['esnext.weak-set.of', ...WeakSetWithPrototype],
-    necessaryModules: ['esnext.weak-set.of'],
     template: $static,
     namespace: 'WeakSet',
     name: 'of',
