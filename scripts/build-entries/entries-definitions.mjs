@@ -1525,7 +1525,6 @@ export const features = {
   },
   'map/from': {
     modules: ['esnext.map.from', ...MapWithPrototype],
-    necessaryModules: ['esnext.map.from'],
     template: $static,
     namespace: 'Map',
     name: 'from',
@@ -1540,7 +1539,6 @@ export const features = {
   },
   'map/of': {
     modules: ['esnext.map.of', ...MapWithPrototype],
-    necessaryModules: ['esnext.map.of'],
     template: $static,
     namespace: 'Map',
     name: 'of',
@@ -2329,7 +2327,6 @@ export const features = {
   },
   'set/from': {
     modules: ['esnext.set.from', ...SetWithPrototype],
-    necessaryModules: ['esnext.set.from'],
     template: $static,
     namespace: 'Set',
     name: 'from',
@@ -2385,7 +2382,6 @@ export const features = {
   },
   'set/of': {
     modules: ['esnext.set.of', ...SetWithPrototype],
-    necessaryModules: ['esnext.set.of'],
     template: $static,
     namespace: 'Set',
     name: 'of',
@@ -3362,7 +3358,6 @@ export const features = {
   },
   'weak-map/from': {
     modules: ['esnext.weak-map.from', ...WeakMapWithPrototype],
-    necessaryModules: ['esnext.weak-map.from'],
     template: $static,
     namespace: 'WeakMap',
     name: 'from',
@@ -3370,7 +3365,6 @@ export const features = {
   },
   'weak-map/of': {
     modules: ['esnext.weak-map.of', ...WeakMapWithPrototype],
-    necessaryModules: ['esnext.weak-map.of'],
     template: $static,
     namespace: 'WeakMap',
     name: 'of',
@@ -3413,7 +3407,6 @@ export const features = {
   },
   'weak-set/from': {
     modules: ['esnext.weak-set.from', ...WeakSetWithPrototype],
-    necessaryModules: ['esnext.weak-set.from'],
     template: $static,
     namespace: 'WeakSet',
     name: 'from',
@@ -3421,7 +3414,6 @@ export const features = {
   },
   'weak-set/of': {
     modules: ['esnext.weak-set.of', ...WeakSetWithPrototype],
-    necessaryModules: ['esnext.weak-set.of'],
     template: $static,
     namespace: 'WeakSet',
     name: 'of',
