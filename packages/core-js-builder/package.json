@@ -27,7 +27,6 @@
   "dependencies": {
     "@core-js/compat": "4.0.0-alpha.0",
     "core-js": "4.0.0-alpha.0",
-    "konan": "^2.1.1",
     "terser-webpack-plugin": "^5.3.14",
     "webpack": "^5.100.1"
   },
