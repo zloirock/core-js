@@ -10,6 +10,7 @@ button {
     font-weight: 600;
     color: $font-color-dark;
 
+    &:focus,
     &:hover {
         background-color: $button-color-hover;
         border-color: $font-color;
