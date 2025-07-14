@@ -63,10 +63,15 @@
     white-space: pre;
     word-wrap: break-word;
 
+    scrollbar-color: $background-light $background-highlight;
+    scrollbar-width: thin;
+
     @include media("min", "lg") {
       flex-basis: 400px;
       flex-shrink: 0;
       margin-top: 0;
+      overflow: auto;
+      height: 30rem;
     }
 
     .console {
