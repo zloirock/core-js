@@ -1,10 +1,10 @@
 $sizes: (
-        "xs": 0px,
-        "sm": 480px,
-        "md": 767px,
-        "lg": 1024px,
-        "xl": 1439px,
-        "xxl": 1920px,
+  "xs": 0px,
+  "sm": 480px,
+  "md": 767px,
+  "lg": 1024px,
+  "xl": 1439px,
+  "xxl": 1920px,
 );
 
 @function getPreviousSize($currentSize) {

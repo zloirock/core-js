@@ -1,11 +1,15 @@
-@use "../includes/theme" as *;
 @use "../includes/mixins" as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
 
 header {
     display: flex;
     justify-content: center;
 
-    background-color: $background-color;
+    @include themify($themes) {
+        background-color: themed('background-color');
+    }
 
     @include media("min", "xl") {
         padding: 0 1rem;
@@ -84,13 +88,15 @@ nav {
 
                     overflow-y: auto;
 
-                    background-color: $box-color;
                     border-top-left-radius: 20px;
                     border-bottom-left-radius: 20px;
 
                     padding: 50px 20px 80px 30px;
 
-                    box-shadow: -1px 1px 5px $background-light;
+                    @include themify($themes) {
+                        background-color: themed('box-color');
+                        box-shadow: -1px 1px 5px themed('background-light');
+                    }
 
                     .mobile-docs-menu {
                         display: block;
@@ -107,6 +113,10 @@ nav {
 
                 .menu-item {
                     line-height: 2rem;
+
+                    a::after {
+                        top: 0.75rem;
+                    }
                 }
 
                 .burger {
@@ -121,8 +131,10 @@ nav {
                         -webkit-touch-callout: none;
 
                         span {
-                            background-color: $font-color;
                             height: 1px;
+                            @include themify($themes) {
+                                background-color: themed('font-color');
+                            }
 
                             &:nth-child(1) {
                                 margin-top: 11px;
@@ -161,7 +173,9 @@ nav {
                     width: 100%;
                     height: 2px;
                     border-radius: 2px;
-                    background-color: $link-color;
+                    @include themify($themes) {
+                        background-color: themed('link-color');
+                    }
                 }
             }
         }
@@ -194,9 +208,30 @@ nav {
             }
 
             @include media("min", "lg") {
-                border-left: 1px solid $link-color;
-                padding-left: 1rem;
+                padding: 0 1rem;
+                @include themify($themes) {
+                    border-left: 1px solid themed('link-color');
+                    border-right: 1px solid themed('link-color');
+                }
             }
         }
+    }
+}
+
+.theme-light {
+    .icon.light {
+        display: none;
+    }
+    .icon.dark {
+        display: block;
+    }
+}
+
+.theme-dark {
+    .icon.light {
+        display: block;
+    }
+    .icon.dark {
+        display: none;
     }
 }
