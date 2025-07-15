@@ -27,7 +27,7 @@
   "dependencies": {
     "core-js": "4.0.0-alpha.0",
     "@core-js/compat": "4.0.0-alpha.0",
-    "webpack": "^5.100.1"
+    "webpack": "^5.100.2"
   },
   "engines": {
     "node": "^18.12.0 || >=20.0.0"
