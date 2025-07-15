@@ -1,5 +1,7 @@
-@use "../includes/theme" as *;
 @use "../includes/mixins" as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
 
 .collapsible {
   a {
@@ -25,12 +27,15 @@
     position: absolute;
     width: 5px;
     height: 5px;
-    border-right: 1px solid $link-color;
-    border-bottom: 1px solid $link-color;
     rotate: 45deg;
     content: '';
     margin-left: 0.5rem;
     top: 0.375rem;
+
+    @include themify($themes) {
+      border-right: 1px solid themed('link-color');
+      border-bottom: 1px solid themed('link-color');
+    }
   }
 }
 
@@ -45,17 +50,22 @@ main {
   }
 
   a {
-    color: $link-color2;
+    @include themify($themes) {
+      color: themed('link-color2');
+    }
 
     &:hover, &:focus {
-      color: $link-color2-hover;
+      @include themify($themes) {
+        color: themed('link-color2-hover');
+      }
     }
   }
 
   .main {
     padding: 1rem 1rem;
-
-    background-color: $background-light;
+    @include themify($themes) {
+      background-color: themed('background-light');
+    }
 
     @include wrapper;
 
@@ -74,10 +84,13 @@ main {
         flex-shrink: 0;
         line-height: 1.3;
 
-        border-right: 1px solid $border-color-lighter;
+
         height: calc(100vh - 170px);
         overflow-y: auto;
         scrollbar-width: none;
+        @include themify($themes) {
+          border-right: 1px solid themed('border-color-lighter');
+        }
 
         &.stuck {
           height: calc(100vh - 2rem);
@@ -122,8 +135,10 @@ main {
         }
 
         .menu-item {
-          border-right: 1px solid $border-color-lighter;
           padding: 0 0.5rem 0.5rem 0.5rem;
+          @include themify($themes) {
+            border-right: 1px solid themed('border-color-lighter');
+          }
         }
       }
 
@@ -152,8 +167,10 @@ main {
         }
 
         .toc-link {
-          border-left: 1px solid $border-color-lighter;
           padding: 0 0 0.5rem 1rem;
+          @include themify($themes) {
+            border-left: 1px solid themed('border-color-lighter');
+          }
 
           a {
             display: block;
@@ -185,9 +202,11 @@ main {
       height: 5px;
       margin: -4px 0 0 0.5rem;
       vertical-align: middle;
-      border-right: 2px solid rgba(248, 248, 242, .7);
-      border-bottom: 2px solid rgba(248, 248, 242, .7);
       rotate: 45deg;
+      @include themify($themes) {
+        border-right: 2px solid themed('link-color');
+        border-bottom: 2px solid themed('link-color');
+      }
     }
 
     .dropdown-block {
@@ -207,14 +226,18 @@ main {
       z-index: 1;
       left: -1rem;
       margin-top: 0.625rem;
-      border: 1px solid $border-color-light;
       padding: 0.5rem 1rem;
       border-radius: 0.5rem;
-      background-color: $background-color;
+      @include themify($themes) {
+        border: 1px solid themed('border-color-lighter');
+        background-color: themed('background-color');
+      }
 
       a.active {
-        color: $link-color-hover;
         font-weight: 500;
+        @include themify($themes) {
+          color: themed('link-color-hover');
+        }
       }
     }
 
@@ -236,8 +259,10 @@ main {
 }
 .versions-menu {
   padding: 0.5rem 1rem;
-  border: 1px solid $border-color-lighter;
-  background-color: $background-light;
   border-radius: 0.5rem;
   max-width: fit-content;
+  @include themify($themes) {
+    border: 1px solid themed('border-color-lighter');
+    background-color: themed('background-light');
+  }
 }

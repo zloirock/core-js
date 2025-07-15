@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="theme-dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,16 @@
     <script type="module" src="js/main.js"></script>
     <script type="module" src="js/playground.js"></script>
     <base href="{base}" />
+    <script>
+      const theme = localStorage.getItem("theme") ?? 'theme-dark';
+      const html = document.querySelector('html');
+      setTheme(theme);
+      function setTheme(theme) {
+        localStorage.setItem('theme', theme);
+        html.className = '';
+        html.classList.add(theme);
+      }
+    </script>
 </head>
 <body>
 <header>

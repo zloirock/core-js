@@ -1,18 +1,23 @@
-@use '../includes/variables' as *;
-@use '../includes/theme' as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
 
 .hljs {
   display: block;
   overflow-x: auto;
-  background: $bg;
-  color: $foreground;
   padding: 0.5em;
+  @include themify($themes) {
+    background-color: themed('box-color');
+    color: themed('font-color');
+  }
 }
 
 .hljs-comment,
 .hljs-quote {
-  color: $comment;
   font-style: italic;
+  @include themify($themes) {
+    color: themed('comment-color');
+  }
 }
 
 .hljs-keyword,
@@ -20,7 +25,9 @@
 .hljs-literal,
 .hljs-section,
 .hljs-link {
-  color: $pink;
+  @include themify($themes) {
+    color: themed('section');
+  }
 }
 
 .hljs-string,
@@ -31,7 +38,9 @@
 .hljs-symbol,
 .hljs-bullet,
 .hljs-addition {
-  color: $green;
+  @include themify($themes) {
+    color: themed('success');
+  }
 }
 
 .hljs-number,
@@ -39,13 +48,17 @@
 .hljs-built_in,
 .hljs-builtin-name,
 .hljs-params {
-  color: $purple;
+  @include themify($themes) {
+    color: themed('meta');
+  }
 }
 
 .hljs-class .hljs-title,
 .hljs-strong {
   font-weight: bold;
-  color: $yellow;
+  @include themify($themes) {
+    color: themed('link-color2-hover');
+  }
 }
 
 .hljs-emphasis {
@@ -53,32 +66,44 @@
 }
 
 .hljs-function .hljs-title {
-  color: $cyan;
+  @include themify($themes) {
+    color: themed('function');
+  }
 }
 
 .hljs-tag,
 .hljs-deletion {
-  color: $red;
+  @include themify($themes) {
+    color: themed('font-error');
+  }
 }
 
 .hljs-variable,
 .hljs-template-variable,
 .hljs-selector-attr,
 .hljs-selector-pseudo {
-  color: $orange;
+  @include themify($themes) {
+    color: themed('font-warning');
+  }
 }
 
 .hljs-doctag {
-  color: $orange;
+  @include themify($themes) {
+    color: themed('font-warning');
+  }
 }
 
 .hljs-bullet {
-  color: $purple;
+  @include themify($themes) {
+    color: themed('meta');
+  }
 }
 
 .hljs-code,
 .hljs-formula {
-  color: $pink;
+  @include themify($themes) {
+    color: themed('section');
+  }
 }
 
 .hljs-link {
@@ -86,29 +111,39 @@
 }
 
 .hljs-selector-id {
-  color: $yellow;
+  @include themify($themes) {
+    color: themed('link-color2-hover');
+  }
 }
 
 .hljs-selector-class {
-  color: $cyan;
+  @include themify($themes) {
+    color: themed('function');
+  }
 }
 
 .hljs::selection,
 .hljs span::selection {
-  background: $selection;
+  @include themify($themes) {
+    background: themed('button-color-hover');
+  }
 }
 
 code {
   position: relative;
-  background: $selection;
   padding: 0 0.25rem;
+  @include themify($themes) {
+    background: themed('button-color-hover');
+  }
 }
 
 pre code {
-  scrollbar-color: $secondary $highlight;
   scrollbar-width: thin;
   font-size: 0.85rem;
   line-height: 1.375rem;
+  @include themify($themes) {
+    scrollbar-color: themed('background-light') themed('background-highlight');
+  }
 }
 
 .hljs-run {

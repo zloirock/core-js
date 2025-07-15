@@ -1,5 +1,3 @@
-@use "../includes/theme" as *;
-
 html, body, div, dl, dt, dd, ul, ol, li, h1, h2, h3, h4, h5, h6, pre, form, fieldset, input, textarea, p, blockquote, th, td, figure, figcaption, address {
     margin: 0;
     padding: 0;
@@ -55,8 +53,6 @@ input[type="number"],
 input[type="email"],
 input[type="tel"],
 textarea {
-    -webkit-appearance: none;
-    -moz-appearance: none;
     appearance: none;
     outline: none;
 }
