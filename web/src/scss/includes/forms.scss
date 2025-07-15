@@ -1,20 +1,27 @@
-@use "../includes/theme" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+@use "../includes/themed" as *;
 
 button {
-    background-color: $button-color;
-    border: 1px solid $button-color;
     border-radius: 0.5rem;
     cursor: pointer;
     padding: 1rem;
 
     font-weight: 600;
-    color: $font-color-dark;
+
+    @include themify($themes) {
+        background-color: themed('button-color');
+        border: 1px solid themed('button-color');
+        color: themed('font-color-dark');
+    }
 
     &:focus,
     &:hover {
-        background-color: $button-color-hover;
-        border-color: $font-color;
-        color: $font-color;
+        @include themify($themes) {
+            background-color: themed('button-color-hover');
+            border: 1px solid themed('font-color');
+            color: themed('font-color');
+        }
     }
 
     &.big {
@@ -33,13 +40,16 @@ input {
     padding: 0 2rem 0 0;
 
     font-size: 1rem;
-    color: $form-font-color;
     line-height: 3rem;
 
-    background-color: $background-light;
     border-radius: 8px;
     border: 0;
     outline: 0;
+
+    @include themify($themes) {
+        color: themed('form-font-color');
+        background-color: themed('background-light');
+    }
 }
 
 .form-item {
@@ -49,8 +59,11 @@ input {
     padding: 0 2rem;
     margin-bottom: 0.5rem;
 
-    background-color: $background-light;
     border-radius: 8px;
+
+    @include themify($themes) {
+        background-color: themed('background-light');
+    }
 
     .icon {
         width: 1.25rem;
@@ -60,22 +73,27 @@ input {
         svg {
             width: 100%;
             height: auto;
-            color: $form-font-color;
             opacity: 0.3;
+            @include themify($themes) {
+                color: themed('form-font-color');
+            }
         }
     }
 }
 select {
     width: 100%;
-
-    font-size: 1rem;
-    color: $form-font-color;
     height: 3rem;
 
-    background-color: $background-light;
+    font-size: 1rem;
+
     border-radius: 8px;
     border: 0;
     outline: 0;
 
     appearance: none;
+
+    @include themify($themes) {
+        color: themed('form-font-color');
+        background-color: themed('background-light');
+    }
 }

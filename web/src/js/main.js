@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   const currentVersion = document.querySelector('.versions-menu a.current');
   const dropdownBackdrops = document.querySelectorAll('.dropdown .backdrop');
   const stickyBlocks = document.querySelectorAll('.sticky');
+  const themeSwitcher = document.querySelector('.theme-switcher');
 
   function toggleMenu() {
     menu.classList.toggle('active');
@@ -79,6 +80,13 @@ document.addEventListener('DOMContentLoaded', function(_event) {
       stuck = false;
       removeStuck();
     }
+  });
+
+  themeSwitcher.addEventListener('click', (e) => {
+    e.preventDefault();
+    const html = document.querySelector('html');
+    const isDark = html.classList.contains('theme-dark');
+    isDark ? setTheme('theme-light') : setTheme('theme-dark');
   });
 
   hljs.addPlugin(new RunButtonPlugin());

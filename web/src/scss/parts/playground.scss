@@ -1,5 +1,7 @@
-@use "../includes/theme" as *;
 @use "../includes/mixins" as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
 
 .sandbox-wrapper {
   margin: 2rem 0;
@@ -33,28 +35,33 @@
       word-wrap: break-word;
       overflow: auto;
 
-      scrollbar-color: $background-light $background-highlight;
       scrollbar-width: thin;
+      @include themify($themes) {
+        scrollbar-color: themed('background-light') themed('background-highlight');
+      }
     }
 
     .input {
       z-index: 1;
       color: transparent;
-      caret-color: $font-color;
       background-color: transparent;
       resize: none;
+      @include themify($themes) {
+        caret-color: themed('font-color');
+      }
     }
 
     .output {
       z-index: 0;
-      background-color: $box-color;
       padding-bottom: 7px;
+      @include themify($themes) {
+        background-color: themed('box-color');
+      }
     }
   }
 
   .result {
     margin-top: 2rem;
-    background-color: $box-color;
     padding: 0.5em;
 
     font-family: monospace;
@@ -63,8 +70,11 @@
     white-space: pre;
     word-wrap: break-word;
 
-    scrollbar-color: $background-light $background-highlight;
     scrollbar-width: thin;
+    @include themify($themes) {
+      background-color: themed('box-color');
+      scrollbar-color: themed('background-light') themed('background-highlight');
+    }
 
     @include media("min", "lg") {
       flex-basis: 400px;
@@ -76,15 +86,21 @@
 
     .console {
       &.log {
-        color: $font-success;
+        @include themify($themes) {
+          color: themed('font-success');
+        }
       }
 
       &.warn {
-        color: $font-warning;
+        @include themify($themes) {
+          color: themed('font-warning');
+        }
       }
 
       &.error {
-        color: $font-error;
+        @include themify($themes) {
+          color: themed('font-error');
+        }
       }
     }
   }

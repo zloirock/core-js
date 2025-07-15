@@ -1,10 +1,11 @@
-@use "../includes/theme" as *;
 @use "../includes/mixins" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+@use "../includes/themed" as *;
 
 html {
     font-size: 14px;
     line-height: 1.8;
-    color: $font-color;
 
     @include media("min", "lg") {
         font-size: 16px;
@@ -22,20 +23,29 @@ body {
     font-family: Helvetica, sans-serif;
     font-weight: 400;
     font-style: normal;
-    background-color: $background-color;
+    @include themify($themes) {
+        background-color: themed('background-color');
+        color: themed('font-color');
+    }
 }
 a {
-    color: $link-color;
+    @include themify($themes) {
+        color: themed('link-color');
+    }
 
     &:hover, &:focus {
-        color: $link-color-hover;
+        @include themify($themes) {
+            color: themed('link-color-hover');
+        }
     }
 }
 
 h1, h2, h3, h4, h5, h6 {
     font-weight: 600;
-    color: $font-color-light;
     margin-top: 0.5rem;
+    @include themify($themes) {
+        color: themed('font-color-light');
+    }
 }
 h1 {
     font-size: 2.625rem;
@@ -59,10 +69,12 @@ pre {
 }
 
 blockquote {
-    background-color: $box-light;
-    border-left: 2px solid $success;
     padding: 0 1rem;
     margin-bottom: 1rem;
+    @include themify($themes) {
+        background-color: themed('box-light');
+        border-left: 1px solid themed('success');
+    }
 }
 
 ul {
@@ -78,10 +90,14 @@ svg {
 table {
     tr {
         &:nth-child(odd) {
-            background-color: $background-highlight;
+            @include themify($themes) {
+                background-color: themed('background-highlight');
+            }
         }
         &:nth-child(even) {
-            background-color: $background-light;
+            @include themify($themes) {
+                background-color: themed('background-light');
+            }
         }
 
         th {
@@ -97,8 +113,10 @@ table {
 }
 
 .box {
-    background-color: $box-color;
     border-radius: 1rem;
+    @include themify($themes) {
+        background-color: themed('box-color');
+    }
 }
 
 .icon {
