@@ -6,6 +6,7 @@
 header {
     display: flex;
     justify-content: center;
+    height: 87px;
 
     @include themify($themes) {
         background-color: themed('background-color');
