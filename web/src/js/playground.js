@@ -82,19 +82,6 @@ linkButton.addEventListener('click', () => {
   location.hash = encodeURIComponent(codeInput.value);
 });
 
-if (ResizeObserver) {
-  const resizeObserver = new ResizeObserver((entries) => {
-    for (let entry of entries) {
-      if (entry.target === codeInput) {
-        codeOutput.style.height = (codeInput.offsetHeight) + 'px';
-        codeOutput.style.width = (codeInput.offsetWidth) + 'px';
-        codeOutput.style.paddingRight = (codeInput.offsetWidth - codeInput.clientWidth) + 'px';
-      }
-    }
-  });
-  resizeObserver.observe(codeInput);
-}
-
 addEventListener("DOMContentLoaded", () => {
   let hash = location.hash.slice(1);
   if (hash) {
