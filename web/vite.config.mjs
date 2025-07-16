@@ -1,17 +1,5 @@
 import { defineConfig } from 'vite';
 import legacy from '@vitejs/plugin-legacy'
-import { resolve } from 'path';
-
-// const distDir = resolve(__dirname, './dist');
-//
-// const noAttr = () => {
-//   return {
-//     name: "no-crossorigin",
-//     transformIndexHtml(html) {
-//       return html.replace(` type="module" crossorigin`, '').replace(` crossorigin`, '');
-//     }
-//   }
-// }
 
 const distDir = '';
 
