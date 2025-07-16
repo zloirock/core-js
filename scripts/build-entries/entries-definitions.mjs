@@ -2282,7 +2282,7 @@ export const features = {
   },
   'regexp/exec': {
     modules: ['es.regexp.exec'],
-    template: $prototype,
+    template: $justImport,
     namespace: 'RegExp',
     name: 'exec',
     injectOn: 'instance',
@@ -2667,17 +2667,11 @@ export const features = {
   },
   'string/match': {
     modules: ['es.string.match'],
-    template: $prototype,
+    template: $justImport,
     namespace: 'String',
     name: 'match',
     injectOn: 'instance',
     globalModeOnly: true,
-  },
-  'string/virtual/match': {
-    modules: ['es.string.match'],
-    template: $virtual,
-    namespace: 'String',
-    name: 'match',
   },
   'string/match-all': {
     modules: ['es.string.match-all'],
@@ -2736,17 +2730,11 @@ export const features = {
   },
   'string/replace': {
     modules: ['es.string.replace'],
-    template: $prototype,
+    template: $justImport,
     namespace: 'String',
     name: 'replace',
     injectOn: 'instance',
     globalModeOnly: true,
-  },
-  'string/virtual/replace': {
-    modules: ['es.string.replace'],
-    template: $virtual,
-    namespace: 'String',
-    name: 'replace',
   },
   'string/replace-all': {
     modules: ['es.string.replace-all'],
@@ -2762,17 +2750,11 @@ export const features = {
   },
   'string/search': {
     modules: ['es.string.search'],
-    template: $prototype,
+    template: $justImport,
     namespace: 'String',
     name: 'search',
     injectOn: 'instance',
     globalModeOnly: true,
-  },
-  'string/virtual/search': {
-    modules: ['es.string.search'],
-    template: $virtual,
-    namespace: 'String',
-    name: 'search',
   },
   'string/small': {
     modules: ['es.string.small'],
@@ -2790,17 +2772,11 @@ export const features = {
   },
   'string/split': {
     modules: ['es.string.split'],
-    template: $prototype,
+    template: $justImport,
     namespace: 'String',
     name: 'split',
     injectOn: 'instance',
     globalModeOnly: true,
-  },
-  'string/virtual/split': {
-    modules: ['es.string.split'],
-    template: $virtual,
-    namespace: 'String',
-    name: 'split',
   },
   'string/starts-with': {
     modules: ['es.string.starts-with'],
@@ -3355,17 +3331,9 @@ export const features = {
     name: 'parse',
     injectOn: 'static',
   },
-  'url/to-json': { // <- ???
+  'url/to-json': {
     modules: ['web.url.to-json'],
-    template: $prototype,
-    namespace: 'URL',
-    name: 'toJSON',
-  },
-  'url/virtual/to-json': {
-    modules: ['web.url.to-json'],
-    template: $virtual,
-    namespace: 'URL',
-    name: 'toJSON',
+    template: $justImport,
   },
   'url-search-params/index': {
     modules: [/^web\.url-search-params\./],
