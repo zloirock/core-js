@@ -16,17 +16,6 @@
         html.className = '';
         html.classList.add(theme);
       }
-      !function(d) {
-        if (!d.currentScript) {
-          console.log('It is IE, loading stickybits polyfill');
-          const s = d.createElement('script');
-          s.src = './stickybits.min.js';
-          d.head.appendChild(s);
-          s.onload = function() {
-            stickybits('.sticky');
-          };
-        }
-      }(document);
     </script>
 </head>
 <body>

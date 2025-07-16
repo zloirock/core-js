@@ -22,5 +22,4 @@ export default defineConfig({
       targets: ['> 0.5%, last 2 versions, ie >= 11']
     })
   ],
-  // plugins: [noAttr()]
 });
