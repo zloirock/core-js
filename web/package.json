@@ -11,6 +11,7 @@
     "marked": "^15.0.12",
     "marked-gfm-heading-id": "^4.1.1",
     "sass": "^1.89.1",
+    "stickybits": "^3.7.11",
     "vite": "^7.0.0"
   }
 }

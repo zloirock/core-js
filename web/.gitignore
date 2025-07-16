@@ -1,3 +1,4 @@
 templates
 dist
 src/public/core-js-bundle.js
+src/public/stickybits.min.js
