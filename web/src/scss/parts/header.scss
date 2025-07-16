@@ -52,8 +52,28 @@ nav {
 
             @include media("min", "lg") {
                 display: flex;
-                gap: 1rem;
                 align-items: center;
+            }
+
+            .menu-item {
+                padding-right: 1rem;
+
+                &:last-child {
+                    padding-right: 0;
+                }
+
+                .theme-switcher {
+                    display: flex;
+                    align-items: center;
+                }
+
+                .theme-switcher-title {
+                    margin-right: 0.5rem;
+
+                    @include media("min", "lg") {
+                        display: none;
+                    }
+                }
             }
 
             a {
@@ -197,14 +217,13 @@ nav {
         .socials {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            margin-right: 1rem;
 
             @include media("max", "lg") {
                 position: absolute;
                 left: 0;
                 bottom: 1rem;
                 width: 100%;
-                gap: 1.5rem;
                 justify-content: center;
             }
 
