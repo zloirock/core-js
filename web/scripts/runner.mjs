@@ -71,7 +71,7 @@ async function copyWeb() {
   console.log(`Copying web...`);
   console.time(`Copied web`);
   const toDir = `${buildDir}${buildResultDir}/`;
-  await cp(siteFilesDir, toDir, { recursive: true }, err => { if (err) throw err; });
+  await cp(siteFilesDir, toDir, { recursive: true });
   console.timeEnd(`Copied web`);
 }
 
@@ -120,7 +120,7 @@ async function clearBuildDir() {
 async function copyDocs(srcDir, destDir, recursive = true) {
   console.log(`Copying docs from "${srcDir}" to "${destDir}"`);
   console.time(`Copied docs from "${srcDir}" to "${destDir}"`);
-  await cp(srcDir, destDir, { recursive: recursive }, err => { if (err) throw err; });
+  await cp(srcDir, destDir, { recursive: recursive });
   console.timeEnd(`Copied docs from "${srcDir}" to "${destDir}"`);
 }
 
@@ -180,7 +180,7 @@ async function buildAndCopyCoreJS() {
   await exec(`npm run bundle-package`, { cwd: buildSrcDir });
   const bundlePath = `${buildSrcDir}packages/core-js-bundle/minified.js`
   const destPath = `${buildSrcDir}web/src/public/core-js-bundle.js`;
-  await cp(bundlePath, destPath, { }, err => { if (err) throw err; });
+  await cp(bundlePath, destPath, { });
   console.timeEnd(`Core JS bundle built`);
 }
 
@@ -245,6 +245,15 @@ async function copyCommonFiles() {
   console.timeEnd(`Copied common files`);
 }
 
+async function copyStickyBits() {
+  console.log(`Copying stickybits...`);
+  console.time(`Copied stickybits`);
+  const fromDir = `${buildSrcDir}web/node_modules/stickybits/dist/stickybits.min.js`;
+  const toDir = `${buildSrcDir}docs/web/src/public/stickybits.min.js`;
+  await cp(fromDir, toDir, { recursive: true });
+  console.timeEnd(`Copied stickybits`);
+}
+
 async function run() {
   console.time('Finished in');
   await createBuildDir();
@@ -264,6 +273,7 @@ async function run() {
 
   await prepareBuilder(targetBranch);
   await buildAndCopyCoreJS();
+  await copyStickyBits();
   await copyBlogPosts();
   await copyCommonFiles();
   if (!branch) {
