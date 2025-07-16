@@ -8,7 +8,6 @@
 
   @include media("min", "lg") {
     display: flex;
-    gap: 1rem;
   }
 
   .editor {
@@ -19,6 +18,9 @@
     height: 30rem;
     padding: 0;
     border: none;
+    @include media("min", "lg") {
+      margin-right: 1rem;
+    }
 
     .input, .output {
       box-sizing: border-box;
