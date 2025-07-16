@@ -8,7 +8,8 @@
     <script type="module" src="js/playground.js"></script>
     <base href="{base}" />
     <script>
-      const theme = localStorage.getItem("theme") ?? 'theme-dark';
+      let theme = localStorage.getItem('theme');
+      if (theme === null) theme = 'theme-dark';
       const html = document.querySelector('html');
       setTheme(theme);
       function setTheme(theme) {
