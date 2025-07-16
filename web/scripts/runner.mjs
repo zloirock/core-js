@@ -245,15 +245,6 @@ async function copyCommonFiles() {
   console.timeEnd(`Copied common files`);
 }
 
-async function copyStickyBits() {
-  console.log(`Copying stickybits...`);
-  console.time(`Copied stickybits`);
-  const fromDir = `${buildSrcDir}web/node_modules/stickybits/dist/stickybits.min.js`;
-  const toDir = `${buildSrcDir}web/src/public/stickybits.min.js`;
-  await cp(fromDir, toDir, { recursive: true });
-  console.timeEnd(`Copied stickybits`);
-}
-
 async function run() {
   console.time('Finished in');
   await createBuildDir();
@@ -273,7 +264,6 @@ async function run() {
 
   await prepareBuilder(targetBranch);
   await buildAndCopyCoreJS();
-  await copyStickyBits();
   await copyBlogPosts();
   await copyCommonFiles();
   if (!branch) {
