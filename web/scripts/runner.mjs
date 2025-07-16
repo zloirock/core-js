@@ -249,7 +249,7 @@ async function copyStickyBits() {
   console.log(`Copying stickybits...`);
   console.time(`Copied stickybits`);
   const fromDir = `${buildSrcDir}web/node_modules/stickybits/dist/stickybits.min.js`;
-  const toDir = `${buildSrcDir}docs/web/src/public/stickybits.min.js`;
+  const toDir = `${buildSrcDir}web/src/public/stickybits.min.js`;
   await cp(fromDir, toDir, { recursive: true });
   console.timeEnd(`Copied stickybits`);
 }
