@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added missing dependencies to some entries of static `Iterator` methods
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
   - Updated Electron 38 compat data mapping

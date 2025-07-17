@@ -18,6 +18,7 @@ require('../../modules/esnext.iterator.chunks');
 // TODO: drop from core-js@4
 require('../../modules/esnext.iterator.constructor');
 require('../../modules/esnext.iterator.range');
+require('../../modules/esnext.iterator.sliding');
 require('../../modules/esnext.iterator.windows');
 require('../../modules/web.dom-collections.iterator');
 var path = require('../../internals/path');
