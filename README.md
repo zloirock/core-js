@@ -171,6 +171,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
+      - [`Iterator` chunking](#iterator-chunking)
       - [Joint iteration](#joint-iteration)
       - [`Map` upsert](#map-upsert)
     - [Stage 2 proposals](#stage-2-proposals)
@@ -181,7 +182,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
       - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
-      - [`Iterator` chunking](#iterator-chunking)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
       - [New collections methods](#new-collections-methods)
@@ -2767,6 +2767,34 @@ Iterator.concat([0, 1].values(), [2, 3], function * () {
 }()).toArray(); // => [0, 1, 2, 3, 4, 5]
 ```
 
+##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
+Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js), [`esnext.iterator.sliding`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.sliding.js)
+and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
+```ts
+class Iterator {
+  chunks(chunkSize: number): Iterator<any>;
+  sliding(windowSize: number): Iterator<any>;
+  windows(windowSize: number): Iterator<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-chunking
+core-js(-pure)/full/iterator/chunks
+core-js(-pure)/full/iterator/sliding
+core-js(-pure)/full/iterator/windows
+```
+[*Examples*](https://tinyurl.com/24xnkcnn)
+```js
+const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+
+let chunksOf2 = Array.from(digits().chunks(2));  // [ [0, 1], [2, 3], [4, 5], [6, 7], [8, 9] ]
+
+let slidingOf2 = Array.from(digits().sliding(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
+
+let windowsOf2 = Array.from(digits().windows(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
+```
+
 ##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
 Modules [esnext.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [esnext.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
 ```ts
@@ -3056,34 +3084,6 @@ class Symbol {
 ```
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher
-```
-
-##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
-Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js), [`esnext.iterator.sliding`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.sliding.js)
-and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
-```ts
-class Iterator {
-  chunks(chunkSize: number): Iterator<any>;
-  sliding(windowSize: number): Iterator<any>;
-  windows(windowSize: number): Iterator<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/iterator-chunking
-core-js(-pure)/full/iterator/chunks
-core-js(-pure)/full/iterator/sliding
-core-js(-pure)/full/iterator/windows
-```
-[*Examples*](https://tinyurl.com/24xnkcnn)
-```js
-const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
-
-let chunksOf2 = Array.from(digits().chunks(2));  // [ [0, 1], [2, 3], [4, 5], [6, 7], [8, 9] ]
-
-let slidingOf2 = Array.from(digits().sliding(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
-
-let windowsOf2 = Array.from(digits().windows(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
 ```
 
 #### Stage 1 proposals[⬆](#index)

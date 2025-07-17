@@ -1,5 +1,11 @@
 ## Changelog
 ##### Unreleased
+- [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
+  - Built-ins:
+    - `Iterator.prototype.chunks`
+    - `Iterator.prototype.sliding`
+    - `Iterator.prototype.windows`
+  - Moved to stage 2.7, July 2025 TC39 meeting
 - Added missing dependencies to some entries of static `Iterator` methods
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
