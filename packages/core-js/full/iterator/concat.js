@@ -16,6 +16,7 @@ require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
 require('../../modules/esnext.iterator.chunks');
 require('../../modules/esnext.iterator.concat');
+require('../../modules/esnext.iterator.sliding');
 require('../../modules/esnext.iterator.windows');
 require('../../modules/web.dom-collections.iterator');
 var path = require('../../internals/path');
