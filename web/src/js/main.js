@@ -11,9 +11,7 @@ hljs.registerLanguage('ts', typescript);
 hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
 
-console.log(document.readyState);
-document.addEventListener('DOMContentLoaded', function(_event) {
-  console.log('loaded');
+function init() {
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector(".menu > .backdrop");
   const menu = document.getElementsByClassName('menu')[0];
@@ -95,4 +93,15 @@ document.addEventListener('DOMContentLoaded', function(_event) {
 
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
+}
+
+console.log(document.readyState);
+document.addEventListener('DOMContentLoaded', function(_event) {
+  console.log('loaded from DOMContentLoaded');
+  init();
+});
+
+window.addEventListener('load', function() {
+  console.log('loaded from window load');
+  init();
 });
