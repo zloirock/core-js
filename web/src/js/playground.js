@@ -82,6 +82,11 @@ linkButton.addEventListener('click', () => {
   location.hash = encodeURIComponent(codeInput.value);
 });
 
+setInterval(() => {
+  console.log('Code save');
+  localStorage.setItem('code', codeInput.value);
+}, 2000);
+
 addEventListener("DOMContentLoaded", () => {
   let hash = location.hash.slice(1);
   if (hash) {
@@ -92,5 +97,11 @@ addEventListener("DOMContentLoaded", () => {
     }
     codeInput.value = hash;
     codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+  } else {
+    const code = localStorage.getItem('code');
+    if (code) {
+      codeInput.value = code;
+      codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }
 });
