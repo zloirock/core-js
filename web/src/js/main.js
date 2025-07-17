@@ -11,6 +11,7 @@ hljs.registerLanguage('ts', typescript);
 hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
 
+console.log(document.readyState);
 document.addEventListener('DOMContentLoaded', function(_event) {
   console.log('loaded');
   const menuSwitcher = document.getElementById('menu-switcher');
