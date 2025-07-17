@@ -4,7 +4,7 @@
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "author": {
     "name": "Denis Pushkarev",
     "email": "zloirock@zloirock.ru",
