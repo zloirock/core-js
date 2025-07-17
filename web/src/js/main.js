@@ -11,7 +11,10 @@ hljs.registerLanguage('ts', typescript);
 hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
 
+let initialized = false;
 function init() {
+  if (initialized) return;
+  initialized = true;
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector(".menu > .backdrop");
   const menu = document.getElementsByClassName('menu')[0];
