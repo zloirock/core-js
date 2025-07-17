@@ -26,7 +26,6 @@ function init() {
   const themeSwitcher = document.querySelector('.theme-switcher');
 
   function toggleMenu() {
-    console.log('toggle menu');
     menu.classList.toggle('active');
   }
 
@@ -35,7 +34,6 @@ function init() {
   }, false);
 
   menuSwitcher.addEventListener('click',function(e){
-    console.log('click on burger');
     e.preventDefault();
     toggleMenu();
   },false);
@@ -98,13 +96,5 @@ function init() {
   hljs.highlightAll();
 }
 
-console.log(document.readyState);
-document.addEventListener('DOMContentLoaded', function(_event) {
-  console.log('loaded from DOMContentLoaded');
-  init();
-});
-
-window.addEventListener('load', function() {
-  console.log('loaded from window load');
-  init();
-});
+document.addEventListener('DOMContentLoaded', init);
+window.addEventListener('load', init);  // fallback
