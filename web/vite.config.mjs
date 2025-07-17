@@ -19,7 +19,12 @@ export default defineConfig({
   },
   plugins: [
     legacy({
-      targets: ['> 0.5%, last 2 versions, ie >= 11']
+      targets: [
+        'IE 11',
+        'Chrome 38',
+        'Safari 7.1',
+        'Firefox 15'
+      ]
     })
   ],
 });
