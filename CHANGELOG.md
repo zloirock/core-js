@@ -2,7 +2,12 @@
 ##### Unreleased
 - [`Map` upsert stage 3 proposal](https://github.com/tc39/proposal-upsert):
   - Fixed [a FF `WeakMap.prototype.getOrInsertComputed` bug with callback calling before validation a key](https://bugzilla.mozilla.org/show_bug.cgi?id=1988369)
-- [`Iterator` chunking stage 2 proposal](https://github.com/tc39/proposal-iterator-chunking):
+- [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
+  - Built-ins:
+    - `Iterator.prototype.chunks`
+    - `Iterator.prototype.sliding`
+    - `Iterator.prototype.windows`
+  - Moved to stage 2.7, September 2025 TC39 meeting
   - `Iterator.prototype.sliding` method replaced with an extra parameter of `Iterator.prototype.windows` method, [tc39/proposal-iterator-chunking/#24](https://github.com/tc39/proposal-iterator-chunking/pull/24), [tc39/proposal-iterator-chunking/#26](https://github.com/tc39/proposal-iterator-chunking/pull/26)
 - Compat data improvements:
   - [`Map.prototype.{ getOrInsert, getOrInsertComputed }` and `WeakMap.prototype.getOrInsert`](https://github.com/tc39/proposal-upsert) marked as shipped from FF144
