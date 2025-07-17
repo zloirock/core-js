@@ -83,7 +83,6 @@ linkButton.addEventListener('click', () => {
 });
 
 setInterval(() => {
-  console.log('Code save');
   localStorage.setItem('code', codeInput.value);
 }, 2000);
 
