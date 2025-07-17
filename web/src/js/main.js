@@ -12,6 +12,7 @@ hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
 
 document.addEventListener('DOMContentLoaded', function(_event) {
+  console.log('loaded');
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector(".menu > .backdrop");
   const menu = document.getElementsByClassName('menu')[0];
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   const themeSwitcher = document.querySelector('.theme-switcher');
 
   function toggleMenu() {
+    console.log('toggle menu');
     menu.classList.toggle('active');
   }
 
@@ -31,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function(_event) {
   }, false);
 
   menuSwitcher.addEventListener('click',function(e){
+    console.log('click on burger');
     e.preventDefault();
     toggleMenu();
   },false);
