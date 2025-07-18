@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import legacy from '@vitejs/plugin-legacy'
+import legacy from '@vitejs/plugin-legacy';
 
 const distDir = '';
 
@@ -11,8 +11,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'src/index.html',
-        playground: 'src/playground.html'
-      }
+        playground: 'src/playground.html',
+      },
     },
     outDir: '../templates',
     emptyOutDir: true,
@@ -23,8 +23,8 @@ export default defineConfig({
         'IE 11',
         'Chrome 38',
         'Safari 7.1',
-        'Firefox 15'
-      ]
-    })
+        'Firefox 15',
+      ],
+    }),
   ],
 });
