@@ -12,13 +12,13 @@ const resultBlock = document.querySelector('.result');
 codeOutput.textContent = codeInput.value;
 hljs.highlightElement(codeOutput);
 
-let hash = location.hash.slice(1);
+const hash = globalThis.location.hash.slice(1);
 const pageParams = new URLSearchParams(hash);
 
 codeInput.addEventListener('input', () => {
   codeOutput.removeAttribute('data-highlighted');
   let val = codeInput.value;
-  if (val[val.length - 1] === "\n") val += ' ';
+  if (val.at(-1) === '\n') val += ' ';
   codeOutput.textContent = val;
   hljs.highlightElement(codeOutput);
 });
@@ -28,43 +28,44 @@ codeInput.addEventListener('scroll', () => {
   codeOutput.scrollLeft = codeInput.scrollLeft;
 });
 
-const specSymbols =  {
+const specSymbols = {
   '&': '&amp;',
   '<': '&lt;',
   '>': '&gt;',
   '"': '&quot;',
-  "'": '&apos;'
+  "'": '&apos;',
 };
 
 function writeResult(text, type = 'log') {
-  const serializedText = serializeLog(text).replace(/[&<>"']/g, it => specSymbols[it]);
-  resultBlock.innerHTML += `<div class="console ${type}">${serializedText}</div>`;
+  const serializedText = serializeLog(text).replaceAll(/["&'<>]/g, it => specSymbols[it]);
+  resultBlock.innerHTML += `<div class="console ${ type }">${ serializedText }</div>`;
 }
 function runCode(code) {
   const console = {
     log: (...args) => {
-      args.forEach((arg) => { writeResult(arg, 'log') });
+      args.forEach(arg => { writeResult(arg, 'log'); });
     },
     warn: (...args) => {
-      args.forEach((arg) => { writeResult(arg, 'warn') });
+      args.forEach(arg => { writeResult(arg, 'warn'); });
     },
     error: (...args) => {
-      args.forEach((arg) => { writeResult(arg, 'error') });
+      args.forEach(arg => { writeResult(arg, 'error'); });
     },
-  }
+  };
 
   try {
+    // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
     const context = new Function('console', code);
     context(console);
   } catch (error) {
-    writeResult(`Error: ${error.message}`, 'error');
+    writeResult(`Error: ${ error.message }`, 'error');
   }
 }
 
 function stringify(it) {
   try {
-    return JSON.stringify(Array.from(it))
-  } catch (error) {
+    return JSON.stringify(Array.from(it));
+  } catch {
     return String(it);
   }
 }
@@ -83,14 +84,14 @@ runButton.addEventListener('click', () => {
 
 linkButton.addEventListener('click', () => {
   pageParams.set('code', codeInput.value);
-  location.hash = pageParams.toString();
+  globalThis.location.hash = pageParams.toString();
 });
 
 setInterval(() => {
   localStorage.setItem('code', codeInput.value);
 }, 2000);
 
-addEventListener("DOMContentLoaded", () => {
+globalThis.addEventListener('DOMContentLoaded', () => {
   if (pageParams.has('code')) {
     codeInput.value = pageParams.get('code');
     codeInput.dispatchEvent(new Event('input', { bubbles: true }));
