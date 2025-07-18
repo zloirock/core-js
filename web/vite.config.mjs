@@ -1,3 +1,4 @@
+// eslint-disable import/no-unresolved -- dependencies are not installed
 import { defineConfig } from 'vite';
 import legacy from '@vitejs/plugin-legacy';
 
