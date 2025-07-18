@@ -16,10 +16,10 @@ function init() {
   if (initialized) return;
   initialized = true;
   const menuSwitcher = document.getElementById('menu-switcher');
-  const menuBackdrop = document.querySelector(".menu > .backdrop");
-  const menu = document.getElementsByClassName('menu')[0];
-  const collapsibleTrigger = document.querySelectorAll(".collapsible > a");
-  const dropdownTriggers = document.querySelectorAll(".dropdown .dropdown-wrapper > a");
+  const menuBackdrop = document.querySelector('.menu > .backdrop');
+  const [menu] = document.getElementsByClassName('menu');
+  const collapsibleTrigger = document.querySelectorAll('.collapsible > a');
+  const dropdownTriggers = document.querySelectorAll('.dropdown .dropdown-wrapper > a');
   const currentVersion = document.querySelector('.versions-menu a.current');
   const dropdownBackdrops = document.querySelectorAll('.dropdown .backdrop');
   const stickyBlocks = document.querySelectorAll('.sticky');
@@ -29,37 +29,37 @@ function init() {
     menu.classList.toggle('active');
   }
 
-  menuBackdrop.addEventListener('click',function(_e) {
+  menuBackdrop.addEventListener('click', () => {
     toggleMenu();
   }, false);
 
-  menuSwitcher.addEventListener('click',function(e){
+  menuSwitcher.addEventListener('click', e => {
     e.preventDefault();
     toggleMenu();
-  },false);
+  }, false);
 
   collapsibleTrigger.forEach(el => {
-    el.addEventListener('click', function(e) {
+    el.addEventListener('click', function (e) {
       e.preventDefault();
       this.parentElement.classList.toggle('active');
     });
   });
 
   dropdownTriggers.forEach(el => {
-    el.addEventListener('click', function(e) {
+    el.addEventListener('click', function (e) {
       e.preventDefault();
       this.parentElement.parentElement.classList.toggle('active');
-    })
-  })
+    });
+  });
 
-  currentVersion && currentVersion.addEventListener('click', function(e) {
+  currentVersion && currentVersion.addEventListener('click', e => {
     e.preventDefault();
   });
 
   dropdownBackdrops.forEach(el => {
-    el.addEventListener('click', function() {
+    el.addEventListener('click', function () {
       this.parentElement.classList.remove('active');
-    })
+    });
   });
 
   function addStuck() {
@@ -85,10 +85,11 @@ function init() {
     }
   });
 
-  themeSwitcher.addEventListener('click', (e) => {
+  themeSwitcher.addEventListener('click', e => {
     e.preventDefault();
     const html = document.querySelector('html');
     const isDark = html.classList.contains('theme-dark');
+    // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- global function
     isDark ? setTheme('theme-light') : setTheme('theme-dark');
   });
 
