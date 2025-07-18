@@ -1,5 +1,13 @@
 ## Changelog
 ##### Unreleased
+- [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
+  - Built-ins:
+    - `Map.prototype.getOrInsert`
+    - `Map.prototype.getOrInsertComputed`
+    - `WeakMap.prototype.getOrInsert`
+    - `WeakMap.prototype.getOrInsertComputed`
+  - Moved to stage 3, July 2025 TC39 meeting
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
