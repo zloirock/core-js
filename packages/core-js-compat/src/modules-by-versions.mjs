@@ -302,4 +302,7 @@ export default {
   3.44: [
     'esnext.iterator.sliding',
   ],
+  3.45: [
+    'es.math.sum-precise',
+  ],
 };

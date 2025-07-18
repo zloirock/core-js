@@ -1,4 +1,5 @@
 'use strict';
+require('../../modules/es.array.iterator');
 require('../../modules/es.math.acosh');
 require('../../modules/es.math.asinh');
 require('../../modules/es.math.atanh');
@@ -15,6 +16,7 @@ require('../../modules/es.math.log1p');
 require('../../modules/es.math.log2');
 require('../../modules/es.math.sign');
 require('../../modules/es.math.sinh');
+require('../../modules/es.math.sum-precise');
 require('../../modules/es.math.tanh');
 require('../../modules/es.math.to-string-tag');
 require('../../modules/es.math.trunc');

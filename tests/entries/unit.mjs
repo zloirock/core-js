@@ -156,6 +156,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'math/log2')(1) === 0);
     ok(load(NS, 'math/sign')(-2) === -1);
     ok(Object.is(load(NS, 'math/sinh')(-0), -0));
+    ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
     ok(load(NS, 'math/tanh')(Infinity) === 1);
     ok(load(NS, 'math/to-string-tag') === 'Math');
     ok(load(NS, 'math/trunc')(1.5) === 1);
@@ -713,7 +714,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'json/is-raw-json')({}) === false);
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
     ok(typeof load(NS, 'json/raw-json')(42) == 'object');
-    ok(load(NS, 'math/sum-precise')([1, 2, 3]) === 6);
     ok(load(NS, 'symbol/metadata'));
 
     const instanceGroup = load(NS, 'instance/group');
