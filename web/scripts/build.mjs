@@ -1,3 +1,4 @@
+// eslint-disable import/no-unresolved -- dependencies are not installed
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import { promisify } from 'node:util';
@@ -182,8 +183,8 @@ async function build() {
   });
 
   const mdFiles = await getAllMdFiles(docsDir);
-  const base = branch ? `/branches/${branch}/` : '/';
-  // const base = '/core-js-v4/web/dist/';
+  const base = branch ? `/branches/${ branch }/` : '/';
+
   const versions = [];
   for (const mdPath of mdFiles) {
     const match = mdPath.match(/\/web\/(?<version>[^/]+)\/docs\//);
