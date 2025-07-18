@@ -1,4 +1,4 @@
-// eslint-disable import/no-unresolved -- dependencies are not installed
+/* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import { promisify } from 'node:util';
