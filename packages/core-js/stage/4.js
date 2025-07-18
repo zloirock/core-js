@@ -12,6 +12,7 @@ require('../proposals/float16');
 require('../proposals/global-this');
 require('../proposals/is-error');
 require('../proposals/iterator-helpers-stage-3-2');
+require('../proposals/math-sum');
 require('../proposals/promise-all-settled');
 require('../proposals/promise-any');
 require('../proposals/promise-try');

@@ -1,5 +1,10 @@
 ## Changelog
 ##### Unreleased
+- [`Math.sumPrecise` proposal](https://github.com/tc39/proposal-math-sum):
+  - Built-ins:
+    - `Math.sumPrecise`
+  - Moved to stable ES, July 2025 TC39 meeting
+  - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - Added missing dependencies to some entries of static `Iterator` methods
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
