@@ -2289,7 +2289,7 @@ export const data = {
     firefox: '115',
     rhino: '1.8.0',
     // It should truncate a negative fractional index to zero, but instead throws an error
-    // safari: '16.4',
+    safari: '26.0', // '16.4',
   },
   'es.unescape': {
     chrome: '1',
