@@ -139,6 +139,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Array` grouping](#array-grouping)
       - [`Array.fromAsync`](#arrayfromasync)
       - [`ArrayBuffer.prototype.transfer` and friends](#arraybufferprototypetransfer-and-friends)
+      - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
       - [`Error.isError`](#erroriserror)
       - [Explicit Resource Management](#explicit-resource-management)
       - [`Float16` methods](#float16-methods)
@@ -167,7 +168,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
-      - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
@@ -1857,7 +1857,7 @@ core-js(-pure)/es|stable|actual|full/async-iterator/async-dispose
 #### ECMAScript: Typed Arrays[⬆](#index)
 Implementations and fixes for `ArrayBuffer`, `DataView`, Typed Arrays constructors, static and prototype methods. Typed arrays work only in environments with support descriptors (IE9+), `ArrayBuffer` and `DataView` should work anywhere.
 
-Modules [`es.array-buffer.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.constructor.js), [`es.array-buffer.is-view`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.is-view.js), [`esnext.array-buffer.detached`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.detached.js), [`es.array-buffer.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.slice.js), [`esnext.array-buffer.transfer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer.js), [`esnext.array-buffer.transfer-to-fixed-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer-to-fixed-length.js) [`es.data-view`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.js), [`es.data-view.get-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.get-float16.js), [`es.data-view.set-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.set-float16.js), [`es.typed-array.int8-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int8-array.js), [`es.typed-array.uint8-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint8-array.js), [`es.typed-array.uint8-clamped-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint8-clamped-array.js), [`es.typed-array.int16-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int16-array.js), [`es.typed-array.uint16-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint16-array.js), [`es.typed-array.int32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int32-array.js), [`es.typed-array.uint32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint32-array.js), [`es.typed-array.float32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.float32-array.js), [`es.typed-array.float64-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.float64-array.js), [`es.typed-array.copy-within`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.copy-within.js), [`es.typed-array.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.every.js), [`es.typed-array.fill`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.fill.js), [`es.typed-array.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.filter.js), [`es.typed-array.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find.js), [`es.typed-array.find-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-index.js), [`es.typed-array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last.js), [`es.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last-index.js), [`es.typed-array.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.for-each.js), [`es.typed-array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.from.js), [`es.typed-array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.includes.js), [`es.typed-array.index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.index-of.js), [`es.typed-array.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.iterator.js), [`es.typed-array.last-index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.last-index-of.js), [`es.typed-array.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.map.js), [`es.typed-array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.of.js), [`es.typed-array.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reduce.js), [`es.typed-array.reduce-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reduce-right.js), [`es.typed-array.reverse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reverse.js), [`es.typed-array.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.set.js), [`es.typed-array.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.slice.js), [`es.typed-array.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.some.js), [`es.typed-array.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.sort.js), [`es.typed-array.subarray`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.subarray.js), [`es.typed-array.to-locale-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-locale-string.js), [`es.typed-array.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-string.js), [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js), [`es.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-reversed.js), [`es.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-sorted.js), [`es.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.with.js).
+Modules [`es.array-buffer.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.constructor.js), [`es.array-buffer.is-view`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.is-view.js), [`esnext.array-buffer.detached`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.detached.js), [`es.array-buffer.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.array-buffer.slice.js), [`esnext.array-buffer.transfer`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer.js), [`esnext.array-buffer.transfer-to-fixed-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array-buffer.transfer-to-fixed-length.js) [`es.data-view`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.js), [`es.data-view.get-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.get-float16.js), [`es.data-view.set-float16`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.data-view.set-float16.js), [`es.typed-array.int8-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int8-array.js), [`es.typed-array.uint8-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint8-array.js), [`es.typed-array.uint8-clamped-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint8-clamped-array.js), [`es.typed-array.int16-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int16-array.js), [`es.typed-array.uint16-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint16-array.js), [`es.typed-array.int32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.int32-array.js), [`es.typed-array.uint32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.uint32-array.js), [`es.typed-array.float32-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.float32-array.js), [`es.typed-array.float64-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.float64-array.js), [`es.typed-array.copy-within`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.copy-within.js), [`es.typed-array.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.every.js), [`es.typed-array.fill`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.fill.js), [`es.typed-array.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.filter.js), [`es.typed-array.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find.js), [`es.typed-array.find-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-index.js), [`es.typed-array.find-last`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last.js), [`es.typed-array.find-last-index`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.find-last-index.js), [`es.typed-array.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.for-each.js), [`es.typed-array.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.from.js), [`es.typed-array.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.includes.js), [`es.typed-array.index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.index-of.js), [`es.typed-array.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.iterator.js), [`es.typed-array.last-index-of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.last-index-of.js), [`es.typed-array.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.map.js), [`es.typed-array.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.of.js), [`es.typed-array.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reduce.js), [`es.typed-array.reduce-right`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reduce-right.js), [`es.typed-array.reverse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.reverse.js), [`es.typed-array.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.set.js), [`es.typed-array.slice`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.slice.js), [`es.typed-array.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.some.js), [`es.typed-array.sort`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.sort.js), [`es.typed-array.subarray`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.subarray.js), [`es.typed-array.to-locale-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-locale-string.js), [`es.typed-array.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-string.js), [`es.typed-array.at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.at.js), [`es.typed-array.to-reversed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-reversed.js), [`es.typed-array.to-sorted`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.to-sorted.js), [`es.typed-array.with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.typed-array.with.js), [`es.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-base64.js), [`es.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.from-hex.js), [`es.uint8-array.set-from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.set-from-hex.js), [`es.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-base64.js), [`es.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.uint8-array.to-hex.js).
 ```ts
 class ArrayBuffer {
   constructor(length: any): ArrayBuffer;
@@ -1952,6 +1952,15 @@ class %TypedArray% {
   static of(...args: Array<mixed>): %TypedArray%;
   static BYTES_PER_ELEMENT: number;
 }
+
+class Uint8Array {
+  static fromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): Uint8Array;
+  static fromHex(string: string): Uint8Array;
+  setFromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): { read: uint, written: uint };
+  setFromHex(string: string): { read: uint, written: uint };
+  toBase64(options?: { alphabet?: 'base64' | 'base64url', omitPadding?: boolean }): string;
+  toHex(): string;
+}
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
@@ -1987,6 +1996,8 @@ core-js/es|stable|actual|full/typed-array/find-last
 core-js/es|stable|actual|full/typed-array/find-last-index
 core-js/es|stable|actual|full/typed-array/for-each
 core-js/es|stable|actual|full/typed-array/from
+core-js/es|stable|actual|full/typed-array/from-base64
+core-js/es|stable|actual|full/typed-array/from-hex
 core-js/es|stable|actual|full/typed-array/includes
 core-js/es|stable|actual|full/typed-array/index-of
 core-js/es|stable|actual|full/typed-array/iterator
@@ -1999,10 +2010,14 @@ core-js/es|stable|actual|full/typed-array/reduce
 core-js/es|stable|actual|full/typed-array/reduce-right
 core-js/es|stable|actual|full/typed-array/reverse
 core-js/es|stable|actual|full/typed-array/set
+core-js/es|stable|actual|full/typed-array/set-from-base64
+core-js/es|stable|actual|full/typed-array/set-from-hex
 core-js/es|stable|actual|full/typed-array/slice
 core-js/es|stable|actual|full/typed-array/some
 core-js/es|stable|actual|full/typed-array/sort
 core-js/es|stable|actual|full/typed-array/subarray
+core-js/es|stable|actual|full/typed-array/to-base64
+core-js/es|stable|actual|full/typed-array/to-hex
 core-js/es|stable|actual|full/typed-array/to-locale-string
 core-js/es|stable|actual|full/typed-array/to-reversed
 core-js/es|stable|actual|full/typed-array/to-sorted
@@ -2054,6 +2069,16 @@ console.log(buffer.detached); // => true
 console.log(newBuffer.byteLength); // => 4
 console.log(newBuffer.detached); // => false
 console.log([...new Int8Array(newBuffer)]); // => [1, 2, 3, 4]
+```
+
+*Base64 / Hex examples*:
+```js
+let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
+console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
+console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
+console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
+console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
+console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 ```
 
 > [!WARNING]
@@ -2284,6 +2309,22 @@ class ArrayBuffer {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-buffer-transfer
+```
+
+##### [`Uint8Array` to / from base64 and hex](https://github.com/tc39/proposal-arraybuffer-base64)[⬆](#index)
+```ts
+class Uint8Array {
+  static fromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): Uint8Array;
+  static fromHex(string: string): Uint8Array;
+  setFromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): { read: uint, written: uint };
+  setFromHex(string: string): { read: uint, written: uint };
+  toBase64(options?: { alphabet?: 'base64' | 'base64url', omitPadding?: boolean }): string;
+  toHex(): string;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/array-buffer-base64
 ```
 
 ##### [`Error.isError`](https://github.com/tc39/proposal-is-error)[⬆](#index)
@@ -2689,39 +2730,6 @@ JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // true
 
 const embedded = JSON.stringify({ tooBigForNumber }, bigIntToRawJSON);
 embedded === '{"tooBigForNumber":9007199254740993}'; // true
-```
-
-##### [`Uint8Array` to / from base64 and hex](https://github.com/tc39/proposal-arraybuffer-base64)[⬆](#index)
-Modules [`esnext.uint8-array.from-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.from-base64.js), [`esnext.uint8-array.from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.from-hex.js), [`esnext.uint8-array.set-from-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.set-from-hex.js), [`esnext.uint8-array.to-base64`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.to-base64.js), [`esnext.uint8-array.to-hex`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.uint8-array.to-hex.js).
-```ts
-class Uint8Array {
-  static fromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): Uint8Array;
-  static fromHex(string: string): Uint8Array;
-  setFromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): { read: uint, written: uint };
-  setFromHex(string: string): { read: uint, written: uint };
-  toBase64(options?: { alphabet?: 'base64' | 'base64url', omitPadding?: boolean }): string;
-  toHex(): string;
-}
-```
-
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/array-buffer-base64
-core-js(-pure)/actual|full/typed-array/from-base64
-core-js(-pure)/actual|full/typed-array/from-hex
-core-js(-pure)/actual|full/typed-array/set-from-base64
-core-js(-pure)/actual|full/typed-array/set-from-hex
-core-js(-pure)/actual|full/typed-array/to-base64
-core-js(-pure)/actual|full/typed-array/to-hex
-```
-*Example*:
-```js
-let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
-console.log(arr.toBase64()); // => 'SGVsbG8gV29ybGQ='
-console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
-console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
-console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
-console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 ```
 
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)

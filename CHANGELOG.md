@@ -1,12 +1,22 @@
 ## Changelog
 ##### Unreleased
+- [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64):
+  - Built-ins:
+    - `Uint8Array.fromBase64`
+    - `Uint8Array.fromHex`
+    - `Uint8Array.prototype.setFromBase64`
+    - `Uint8Array.prototype.setFromHex`
+    - `Uint8Array.prototype.toBase64`
+    - `Uint8Array.prototype.toHex`
+  - Moved to stable ES, July 2025 TC39 meeting
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+  - Added detection of a Webkit bug: `Uint8Array` fromBase64 / setFromBase64 does not throw an error on incorrect length of base64 string
 - [`Math.sumPrecise` proposal](https://github.com/tc39/proposal-math-sum):
   - Built-ins:
     - `Math.sumPrecise`
   - Moved to stable ES, [July 2025 TC39 meeting](https://github.com/tc39/proposals/commit/2616413ace9074bfd444adee9501fae4c8d66fcb)
   - Added `es.` namespace module, `/es/` and `/stable/` namespaces entries
 - Added missing dependencies to some entries of static `Iterator` methods
-- Added detection of Webkit bug: `Uint8Array` fromBase64 / setFromBase64 does not throw an error on incorrect length of base64 string
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
   - `%TypedArray%.prototype.with` marked as fixed in Safari 26.0

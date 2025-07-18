@@ -2295,6 +2295,46 @@ export const data = {
     // It should truncate a negative fractional index to zero, but instead throws an error
     safari: '26.0', // '16.4',
   },
+  'es.uint8-array.from-base64': {
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // bun: '1.1.22',
+    chrome: '140',
+    firefox: '133',
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // safari: '18.2',
+  },
+  'es.uint8-array.from-hex': {
+    bun: '1.1.22',
+    chrome: '140',
+    firefox: '133',
+    safari: '18.2',
+  },
+  'es.uint8-array.set-from-base64': {
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // bun: '1.1.22',
+    chrome: '140',
+    firefox: '133',
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // safari: '18.2',
+  },
+  'es.uint8-array.set-from-hex': {
+    bun: '1.1.22',
+    chrome: '140',
+    firefox: '133',
+    safari: '18.2',
+  },
+  'es.uint8-array.to-base64': {
+    bun: '1.1.22',
+    chrome: '140',
+    firefox: '133',
+    safari: '18.2',
+  },
+  'es.uint8-array.to-hex': {
+    bun: '1.1.22',
+    chrome: '140',
+    firefox: '133',
+    safari: '18.2',
+  },
   'es.unescape': {
     chrome: '1',
     firefox: '1',
@@ -2810,46 +2850,18 @@ export const data = {
   },
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.with': null,
-  'esnext.uint8-array.from-base64': {
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // bun: '1.1.22',
-    chrome: '140',
-    firefox: '133',
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // safari: '18.2',
-  },
-  'esnext.uint8-array.from-hex': {
-    bun: '1.1.22',
-    chrome: '140',
-    firefox: '133',
-    safari: '18.2',
-  },
-  'esnext.uint8-array.set-from-base64': {
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // bun: '1.1.22',
-    chrome: '140',
-    firefox: '133',
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // safari: '18.2',
-  },
-  'esnext.uint8-array.set-from-hex': {
-    bun: '1.1.22',
-    chrome: '140',
-    firefox: '133',
-    safari: '18.2',
-  },
-  'esnext.uint8-array.to-base64': {
-    bun: '1.1.22',
-    chrome: '140',
-    firefox: '133',
-    safari: '18.2',
-  },
-  'esnext.uint8-array.to-hex': {
-    bun: '1.1.22',
-    chrome: '140',
-    firefox: '133',
-    safari: '18.2',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.uint8-array.from-base64': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.uint8-array.from-hex': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.uint8-array.set-from-base64': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.uint8-array.set-from-hex': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.uint8-array.to-base64': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.uint8-array.to-hex': null,
   'esnext.weak-map.delete-all': {
   },
   'esnext.weak-map.from': {
@@ -3181,6 +3193,12 @@ export const renamed = new Map([
   ['esnext.typed-array.to-reversed', 'es.typed-array.to-reversed'],
   ['esnext.typed-array.to-sorted', 'es.typed-array.to-sorted'],
   ['esnext.typed-array.with', 'es.typed-array.with'],
+  ['esnext.uint8-array.from-base64', 'es.uint8-array.from-base64'],
+  ['esnext.uint8-array.from-hex', 'es.uint8-array.from-hex'],
+  ['esnext.uint8-array.set-from-base64', 'es.uint8-array.set-from-base64'],
+  ['esnext.uint8-array.set-from-hex', 'es.uint8-array.set-from-hex'],
+  ['esnext.uint8-array.to-base64', 'es.uint8-array.to-base64'],
+  ['esnext.uint8-array.to-hex', 'es.uint8-array.to-hex'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);

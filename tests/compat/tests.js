@@ -1724,6 +1724,58 @@ GLOBAL.tests = {
     var result = ta['with'](-0.5, 1);
     return result[0] === 1;
   }],
+  'es.uint8-array.from-base64': function () {
+    try {
+      Uint8Array.fromBase64('a');
+      return;
+    } catch (error) { /* empty */ }
+    if (!Uint8Array.fromBase64) return false;
+    try {
+      Uint8Array.fromBase64('', null);
+    } catch (error) {
+      return true;
+    }
+  },
+  'es.uint8-array.from-hex': function () {
+    return Uint8Array.fromHex;
+  },
+  'es.uint8-array.set-from-base64': function () {
+    var target = new Uint8Array([255, 255, 255, 255, 255]);
+    try {
+      target.setFromBase64('', null);
+      return false;
+    } catch (error) { /* empty */ }
+    try {
+      target.setFromBase64('a');
+      return;
+    } catch (error) { /* empty */ }
+    try {
+      target.setFromBase64('MjYyZg===');
+    } catch (error) {
+      return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
+    }
+  },
+  'es.uint8-array.set-from-hex': function () {
+    return Uint8Array.prototype.setFromHex;
+  },
+  'es.uint8-array.to-base64': function () {
+    if (!Uint8Array.prototype.toBase64) return false;
+    try {
+      var target = new Uint8Array();
+      target.toBase64(null);
+    } catch (error) {
+      return true;
+    }
+  },
+  'es.uint8-array.to-hex': function () {
+    if (!Uint8Array.prototype.toHex) return false;
+    try {
+      var target = new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]);
+      return target.toHex() === 'ffffffffffffffff';
+    } catch (error) {
+      return false;
+    }
+  },
   'es.unescape': function () {
     return unescape;
   },
@@ -2015,58 +2067,6 @@ GLOBAL.tests = {
   },
   'esnext.typed-array.unique-by': function () {
     return Int8Array.prototype.uniqueBy;
-  },
-  'esnext.uint8-array.from-base64': function () {
-    try {
-      Uint8Array.fromBase64('a');
-      return;
-    } catch (error) { /* empty */ }
-    if (!Uint8Array.fromBase64) return false;
-    try {
-      Uint8Array.fromBase64('', null);
-    } catch (error) {
-      return true;
-    }
-  },
-  'esnext.uint8-array.from-hex': function () {
-    return Uint8Array.fromHex;
-  },
-  'esnext.uint8-array.set-from-base64': function () {
-    var target = new Uint8Array([255, 255, 255, 255, 255]);
-    try {
-      target.setFromBase64('', null);
-      return false;
-    } catch (error) { /* empty */ }
-    try {
-      target.setFromBase64('a');
-      return;
-    } catch (error) { /* empty */ }
-    try {
-      target.setFromBase64('MjYyZg===');
-    } catch (error) {
-      return target[0] === 50 && target[1] === 54 && target[2] === 50 && target[3] === 255 && target[4] === 255;
-    }
-  },
-  'esnext.uint8-array.set-from-hex': function () {
-    return Uint8Array.prototype.setFromHex;
-  },
-  'esnext.uint8-array.to-base64': function () {
-    if (!Uint8Array.prototype.toBase64) return false;
-    try {
-      var target = new Uint8Array();
-      target.toBase64(null);
-    } catch (error) {
-      return true;
-    }
-  },
-  'esnext.uint8-array.to-hex': function () {
-    if (!Uint8Array.prototype.toHex) return false;
-    try {
-      var target = new Uint8Array([255, 255, 255, 255, 255, 255, 255, 255]);
-      return target.toHex() === 'ffffffffffffffff';
-    } catch (error) {
-      return false;
-    }
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;

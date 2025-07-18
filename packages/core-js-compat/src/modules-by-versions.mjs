@@ -304,5 +304,11 @@ export default {
   ],
   3.45: [
     'es.math.sum-precise',
+    'es.uint8-array.from-base64',
+    'es.uint8-array.from-hex',
+    'es.uint8-array.set-from-base64',
+    'es.uint8-array.set-from-hex',
+    'es.uint8-array.to-base64',
+    'es.uint8-array.to-hex',
   ],
 };
