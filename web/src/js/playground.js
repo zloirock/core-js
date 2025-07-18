@@ -12,6 +12,9 @@ const resultBlock = document.querySelector('.result');
 codeOutput.textContent = codeInput.value;
 hljs.highlightElement(codeOutput);
 
+let hash = location.hash.slice(1);
+const pageParams = new URLSearchParams(hash);
+
 codeInput.addEventListener('input', () => {
   codeOutput.removeAttribute('data-highlighted');
   let val = codeInput.value;
@@ -79,7 +82,8 @@ runButton.addEventListener('click', () => {
 });
 
 linkButton.addEventListener('click', () => {
-  location.hash = encodeURIComponent(codeInput.value);
+  pageParams.set('code', codeInput.value);
+  location.hash = pageParams.toString();
 });
 
 setInterval(() => {
@@ -87,14 +91,8 @@ setInterval(() => {
 }, 2000);
 
 addEventListener("DOMContentLoaded", () => {
-  let hash = location.hash.slice(1);
-  if (hash) {
-    try {
-      hash = decodeURIComponent(hash);
-    } catch (error) {
-      hash = hash.replace(/%[0-F]{2}/ig, decodeURIComponent);
-    }
-    codeInput.value = hash;
+  if (pageParams.has('code')) {
+    codeInput.value = pageParams.get('code');
     codeInput.dispatchEvent(new Event('input', { bubbles: true }));
   } else {
     const code = localStorage.getItem('code');
