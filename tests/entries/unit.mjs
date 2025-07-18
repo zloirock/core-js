@@ -1072,6 +1072,8 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   load(NS, 'typed-array/find-last-index');
   load(NS, 'typed-array/for-each');
   load(NS, 'typed-array/from');
+  load(NS, 'typed-array/from-base64');
+  load(NS, 'typed-array/from-hex');
   load(NS, 'typed-array/includes');
   load(NS, 'typed-array/index-of');
   load(NS, 'typed-array/iterator');
@@ -1084,10 +1086,14 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
   load(NS, 'typed-array/reduce-right');
   load(NS, 'typed-array/reverse');
   load(NS, 'typed-array/set');
+  load(NS, 'typed-array/set-from-base64');
+  load(NS, 'typed-array/set-from-hex');
   load(NS, 'typed-array/slice');
   load(NS, 'typed-array/some');
   load(NS, 'typed-array/sort');
   load(NS, 'typed-array/subarray');
+  load(NS, 'typed-array/to-base64');
+  load(NS, 'typed-array/to-hex');
   load(NS, 'typed-array/to-locale-string');
   load(NS, 'typed-array/to-reversed');
   load(NS, 'typed-array/to-sorted');
@@ -1099,12 +1105,6 @@ for (const NS of ['es', 'stable', 'actual', 'full', 'features']) {
 }
 
 for (const NS of ['actual', 'full', 'features']) {
-  load(NS, 'typed-array/from-base64');
-  load(NS, 'typed-array/from-hex');
-  load(NS, 'typed-array/set-from-base64');
-  load(NS, 'typed-array/set-from-hex');
-  load(NS, 'typed-array/to-base64');
-  load(NS, 'typed-array/to-hex');
   load(NS, 'typed-array/to-spliced');
 }
 
