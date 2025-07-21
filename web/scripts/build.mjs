@@ -207,8 +207,8 @@ async function build() {
     isDocs = mdPath.includes('/docs');
     isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
-    const match = content.match(/^# (.+)$/m);
-    const title = match ? `${match[1]} - ` : '';
+    const match = /^# (?<title>.+)$/m.exec(content);
+    const title = match && match.groups && match.groups.title ? `${ match.groups.title } - ` : '';
 
     let mobileDocsMenu = '';
     let mobileBlogMenu = '';
