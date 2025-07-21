@@ -207,6 +207,8 @@ async function build() {
     isDocs = mdPath.includes('/docs');
     isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
+    const match = content.match(/^# (.+)$/m);
+    const title = match ? `${match[1]} - ` : '';
 
     let mobileDocsMenu = '';
     let mobileBlogMenu = '';
@@ -227,6 +229,7 @@ async function build() {
     const htmlContent = isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${ htmlContent }`);
+    resultHtml = resultHtml.replace('{title}', title);
     resultHtml = resultHtml.replace('{docs-menu}', `${ mobileDocsMenu }`);
     resultHtml = resultHtml.replace('{blog-menu}', `${ mobileBlogMenu }`);
     resultHtml = resultHtml.replace('{base}', `${ base }`);
