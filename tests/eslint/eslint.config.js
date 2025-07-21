@@ -594,6 +594,8 @@ const base = {
   'unicorn/no-abusive-eslint-disable': ERROR,
   // disallow recursive access to `this` within getters and setters
   'unicorn/no-accessor-recursion': ERROR,
+  // prefer `Array#toReversed()` over `Array#reverse()`
+  'unicorn/no-array-reverse': ERROR,
   // disallow using `await` in `Promise` method parameters
   'unicorn/no-await-in-promise-methods': ERROR,
   // do not use leading/trailing space between `console.log` parameters
@@ -636,6 +638,8 @@ const base = {
   'unicorn/no-unreadable-iife': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
+  // disallow unnecessary `Error.captureStackTrace()`
+  'unicorn/no-useless-error-capture-stack-trace': ERROR,
   // forbid useless fallback when spreading in object literals
   'unicorn/no-useless-fallback-in-spread': ERROR,
   // disallow useless array length check
@@ -670,6 +674,8 @@ const base = {
   'unicorn/prefer-at': [ERROR, { checkAllIndexAccess: false }],
   // prefer `Blob#{ arrayBuffer, text }` over `FileReader#{ readAsArrayBuffer, readAsText }`
   'unicorn/prefer-blob-reading-methods': ERROR,
+  // prefer class field declarations over this assignments in constructors
+  'unicorn/prefer-class-fields': ERROR,
   // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
   'unicorn/prefer-date-now': ERROR,
   // prefer default parameters over reassignment
@@ -714,6 +720,8 @@ const base = {
   'unicorn/relative-url-style': [ERROR, ALWAYS],
   // enforce using the separator argument with `Array#join()`
   'unicorn/require-array-join-separator': ERROR,
+  // require non-empty specifier list in import and export statements
+  'unicorn/require-module-specifiers': ERROR,
   // enforce using the digits argument with `Number#toFixed()`
   'unicorn/require-number-to-fixed-digits-argument': ERROR,
   // enforce using the `targetOrigin`` argument with `window.postMessage()`
@@ -1133,6 +1141,8 @@ const useES3Syntax = {
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  // prefer class field declarations over this assignments in constructors
+  'unicorn/prefer-class-fields': OFF,
   // prefer default parameters over reassignment
   'unicorn/prefer-default-parameters': OFF,
   // prefer using a logical operator over a ternary
@@ -1622,6 +1632,8 @@ const forbidES2023BuiltIns = {
   'es/no-array-prototype-tospliced': ERROR,
   'es/no-array-prototype-with': ERROR,
   'es/no-regexp-unicode-property-escapes-2023': ERROR,
+  // prefer `Array#toReversed()` over `Array#reverse()`
+  'unicorn/no-array-reverse': OFF,
 };
 
 const forbidES2024BuiltIns = {
@@ -1810,6 +1822,8 @@ const nodePackages = {
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  // prefer class field declarations over this assignments in constructors
+  'unicorn/prefer-class-fields': OFF,
   // prefer using a logical operator over a ternary
   'unicorn/prefer-logical-operator-over-ternary': OFF,
   // prefer using the `node:` protocol when importing Node builtin modules
@@ -1904,6 +1918,8 @@ const tests = {
   'sonarjs/prefer-promise-shorthand': OFF,
   // enforce passing a message value when throwing a built-in error
   'unicorn/error-message': OFF,
+  // prefer `Array#toReversed()` over `Array#reverse()`
+  'unicorn/no-array-reverse': OFF,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
   // prefer `.at()` method for index access and `String#charAt()`
