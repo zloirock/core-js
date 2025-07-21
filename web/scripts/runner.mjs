@@ -11,6 +11,7 @@ const buildsRootDir = 'builds';
 const buildResultDir = 'result';
 const repo = 'https://github.com/zloirock/core-js.git';
 const builderBranch = 'web';
+const defaultVersion = 'web';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -230,6 +231,15 @@ async function copyCommonFiles() {
   console.timeEnd('Copied common files');
 }
 
+async function createLastDocsLink() {
+  console.log('Creating last docs link...');
+  console.time('Created last docs link');
+  const absoluteBuildPath = path.resolve(`${ buildDir }${ buildResultDir }/${ defaultVersion }/docs/`);
+  const absoluteLastDocsPath = path.resolve(`${ buildDir }${ buildResultDir }/docs/`);
+  await exec(`ln -s ${ absoluteBuildPath } ${ absoluteLastDocsPath }`);
+  console.timeEnd('Created last docs link');
+}
+
 async function run() {
   console.time('Finished in');
   await createBuildDir();
@@ -257,6 +267,7 @@ async function run() {
   await buildWeb();
 
   await copyWeb();
+  await createLastDocsLink();
 
   if (!branch) {
     await switchToLatestBuild();
