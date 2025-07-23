@@ -286,4 +286,7 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
   target = new Uint8Array([255, 255, 255, 255, 255]);
   assert.throws(() => target.setFromBase64('MjYyZg==='), SyntaxError, 'extra characters after padding');
   assert.arrayEqual(target, [50, 54, 50, 255, 255], 'decoding from MjYyZg=== should not write the last chunk because it has extra padding');
+
+  target = new Uint8Array([255, 255, 255, 255, 255]);
+  assert.throws(() => target.setFromBase64('a'), SyntaxError, 'throws error on incorrect length of base64 string');
 });

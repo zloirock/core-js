@@ -1,11 +1,13 @@
 ## Changelog
 ##### Unreleased
 - Added missing dependencies to some entries of static `Iterator` methods
+- Added detection of Webkit bug: `Uint8Array` fromBase64 / setFromBase64 does not throw an error on incorrect length of base64 string
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
   - `%TypedArray%.prototype.with` marked as fixed in Safari 26.0
   - Updated Electron 38 compat data mapping
   - Added Opera Android 91 compat data mapping
+  - `Uint8Array` fromBase64 / setFromBase64 marked as unsupported in Safari and Bun because of a bug: it does not throw an error on incorrect length of base64 string
 
 ##### [3.44.0 - 2025.07.07](https://github.com/zloirock/core-js/releases/tag/v3.44.0)
 - Changes [v3.43.0...v3.44.0](https://github.com/zloirock/core-js/compare/v3.43.0...v3.44.0) (87 commits)

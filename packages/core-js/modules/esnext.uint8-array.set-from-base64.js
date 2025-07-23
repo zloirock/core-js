@@ -12,6 +12,11 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.s
     target.setFromBase64('', null);
     return;
   } catch (error) { /* empty */ }
+  // Webkit not throw an error on odd length string
+  try {
+    target.setFromBase64('a');
+    return;
+  } catch (error) { /* empty */ }
   try {
     target.setFromBase64('MjYyZg===');
   } catch (error) {
