@@ -1,5 +1,13 @@
 ## Changelog
 ##### Unreleased
+- [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
+  - Built-ins:
+    - `Map.prototype.getOrInsert`
+    - `Map.prototype.getOrInsertComputed`
+    - `WeakMap.prototype.getOrInsert`
+    - `WeakMap.prototype.getOrInsertComputed`
+  - Moved to stage 3, July 2025 TC39 meeting
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added detection of Webkit bug: `Uint8Array` fromBase64 / setFromBase64 does not throw an error on incorrect length of base64 string
 - Compat data improvements:
