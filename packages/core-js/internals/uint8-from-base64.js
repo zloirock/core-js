@@ -81,6 +81,7 @@ module.exports = function (string, options, into, maxLength) {
 
   if (into) notDetached(into.buffer);
 
+  var stringLength = string.length;
   var bytes = into || [];
   var written = 0;
   var read = 0;
@@ -89,7 +90,7 @@ module.exports = function (string, options, into, maxLength) {
 
   if (maxLength) while (true) {
     index = skipAsciiWhitespace(string, index);
-    if (index === string.length) {
+    if (index === stringLength) {
       if (chunk.length > 0) {
         if (lastChunkHandling === 'stop-before-partial') {
           break;
@@ -103,7 +104,7 @@ module.exports = function (string, options, into, maxLength) {
           throw new SyntaxError('Missing padding');
         }
       }
-      read = string.length;
+      read = stringLength;
       break;
     }
     var chr = at(string, index);
@@ -114,7 +115,7 @@ module.exports = function (string, options, into, maxLength) {
       }
       index = skipAsciiWhitespace(string, index);
       if (chunk.length === 2) {
-        if (index === string.length) {
+        if (index === stringLength) {
           if (lastChunkHandling === 'stop-before-partial') {
             break;
           }
@@ -125,11 +126,11 @@ module.exports = function (string, options, into, maxLength) {
           index = skipAsciiWhitespace(string, index);
         }
       }
-      if (index < string.length) {
+      if (index < stringLength) {
         throw new SyntaxError('Unexpected character after padding');
       }
       written = writeBytes(bytes, decodeBase64Chunk(chunk, alphabet, lastChunkHandling === 'strict'), written);
-      read = string.length;
+      read = stringLength;
       break;
     }
     if (!hasOwn(alphabet, chr)) {
