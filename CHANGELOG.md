@@ -1,5 +1,11 @@
 ## Changelog
 ##### Unreleased
+- [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
+  - Built-ins:
+    - `Iterator.prototype.chunks`
+    - `Iterator.prototype.sliding`
+    - `Iterator.prototype.windows`
+  - Moved to stage 2.7, July 2025 TC39 meeting
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added detection of Webkit bug: `Uint8Array` fromBase64 / setFromBase64 does not throw an error on incorrect length of base64 string
 - Compat data improvements:
