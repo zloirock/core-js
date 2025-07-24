@@ -164,10 +164,10 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
       - [New `Set` methods](#new-set-methods)
+      - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Uint8Array` to / from base64 and hex](#uint8array-to--from-base64-and-hex)
-      - [`Math.sumPrecise`](#mathsumprecise)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
@@ -1186,7 +1186,7 @@ core-js(-pure)/es|stable|actual|full/parse-float
 core-js(-pure)/es|stable|actual|full/parse-int
 ```
 #### ECMAScript: Math[⬆](#index)
-Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.fround.js), [`es.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.f16round.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sinh.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.trunc.js).
+Modules [`es.math.acosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.acosh.js), [`es.math.asinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.asinh.js), [`es.math.atanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.atanh.js), [`es.math.cbrt`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cbrt.js), [`es.math.clz32`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.clz32.js), [`es.math.cosh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.cosh.js), [`es.math.expm1`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.expm1.js), [`es.math.fround`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.fround.js), [`es.math.f16round`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.f16round.js), [`es.math.hypot`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.hypot.js), [`es.math.imul`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.imul.js), [`es.math.log10`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log10.js), [`es.math.log1p`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log1p.js), [`es.math.log2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.log2.js), [`es.math.sign`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sign.js), [`es.math.sinh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.sinh.js), [`esnext.math.sum-precise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.sum-precise.js), [`es.math.tanh`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.tanh.js), [`es.math.trunc`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.math.trunc.js).
 ```ts
 namespace Math {
   acosh(number: number): number;
@@ -1205,6 +1205,7 @@ namespace Math {
   log2(number: number): number;
   sign(number: number): 1 | -1 | 0 | -0 | NaN;
   sinh(number: number): number;
+  sumPrecise(items: Iterable<number>): Number;
   tanh(number: number): number;
   trunc(number: number): number;
 }
@@ -1228,9 +1229,16 @@ core-js(-pure)/es|stable|actual|full/math/log10
 core-js(-pure)/es|stable|actual|full/math/log2
 core-js(-pure)/es|stable|actual|full/math/sign
 core-js(-pure)/es|stable|actual|full/math/sinh
+core-js(-pure)/es|stable|actual|full/math/sum-precise
 core-js(-pure)/es|stable|actual|full/math/tanh
 core-js(-pure)/es|stable|actual|full/math/trunc
 ```
+[*Examples*](https://tinyurl.com/2bd3nako):
+```js
+1e20 + 0.1 + -1e20; // => 0
+Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
+```
+
 #### ECMAScript: Date[⬆](#index)
 Modules [`es.date.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-string.js), ES5 features with fixes: [`es.date.now`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.now.js), [`es.date.to-iso-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-iso-string.js), [`es.date.to-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-json.js) and [`es.date.to-primitive`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-primitive.js).
 
@@ -2625,6 +2633,17 @@ class Set {
 core-js/proposals/set-methods-v2
 ```
 
+##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)
+```ts
+namespace Math {
+  sumPrecise(items: Iterable<number>): Number;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/math-sum
+```
+
 #### Stage 3 proposals[⬆](#index)
 
 [*CommonJS entry points:*](#commonjs-api)
@@ -2703,24 +2722,6 @@ console.log(arr.toBase64({ omitPadding: true })); // => 'SGVsbG8gV29ybGQ'
 console.log(arr.toHex()); // => '48656c6c6f20576f726c64'
 console.log(Uint8Array.fromBase64('SGVsbG8gV29ybGQ=')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
 console.log(Uint8Array.fromHex('48656c6c6f20576f726c64')); // => Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100])
-```
-
-##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)
-Module [`esnext.math.sum-precise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.math.sum-precise.js)
-```ts
-class Math {
-  static sumPrecise(items: Iterable<number>): Number;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/math-sum
-core-js(-pure)/full|actual/math/sum-precise
-```
-[*Examples*](https://tinyurl.com/2bd3nako):
-```js
-1e20 + 0.1 + -1e20; // => 0
-Math.sumPrecise([1e20, 0.1, -1e20]); // => 0.1
 ```
 
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)

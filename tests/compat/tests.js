@@ -925,6 +925,9 @@ GLOBAL.tests = {
   'es.math.sinh': function () {
     return Math.sinh(-2e-17) === -2e-17;
   },
+  'es.math.sum-precise': function () {
+    return Math.sumPrecise;
+  },
   'es.math.tanh': function () {
     return Math.tanh;
   },
@@ -1943,9 +1946,6 @@ GLOBAL.tests = {
   },
   'esnext.math.signbit': function () {
     return Math.signbit;
-  },
-  'esnext.math.sum-precise': function () {
-    return Math.sumPrecise;
   },
   'esnext.number.clamp': function () {
     return Number.prototype.clamp;

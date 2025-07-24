@@ -964,6 +964,10 @@ export const data = {
     rhino: '1.7.13',
     safari: '7.1',
   },
+  'es.math.sum-precise': {
+    bun: '1.2.18',
+    firefox: '137',
+  },
   'es.math.tanh': {
     chrome: '38',
     edge: '12',
@@ -2599,10 +2603,8 @@ export const data = {
   },
   'esnext.math.signbit': {
   },
-  'esnext.math.sum-precise': {
-    bun: '1.2.18',
-    firefox: '137',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.math.sum-precise': null,
   // TODO: Remove from `core-js@4`
   'esnext.math.umulh': {
   },
@@ -3151,6 +3153,7 @@ export const renamed = new Map([
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
   ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.math.f16round', 'es.math.f16round'],
+  ['esnext.math.sum-precise', 'es.math.sum-precise'],
   ['esnext.object.has-own', 'es.object.has-own'],
   ['esnext.object.group-by', 'es.object.group-by'],
   ['esnext.promise.all-settled', 'es.promise.all-settled'],
