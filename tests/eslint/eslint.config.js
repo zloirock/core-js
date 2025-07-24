@@ -2093,6 +2093,8 @@ const packageJSON = {
   'package-json/valid-bundleDependencies': ERROR,
   // enforce that the `bin` property is valid
   'package-json/valid-bin': ERROR,
+  // enforce that the `config` property is valid
+  'package-json/valid-config': ERROR,
   // enforce that the `license` property is valid
   'package-json/valid-license': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
