@@ -150,4 +150,6 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.fromBase64', assert => {
     assert.same(arr.buffer.byteLength, 1);
     assert.arrayEqual(arr, [102], `ascii whitespace: ${ name }`);
   });
+
+  assert.throws(() => Uint8Array.fromBase64('a'), SyntaxError, 'throws error on incorrect length of base64 string');
 });

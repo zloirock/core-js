@@ -2809,10 +2809,12 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.typed-array.with': null,
   'esnext.uint8-array.from-base64': {
-    bun: '1.1.22',
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // bun: '1.1.22',
     chrome: '140',
     firefox: '133',
-    safari: '18.2',
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // safari: '18.2',
   },
   'esnext.uint8-array.from-hex': {
     bun: '1.1.22',
@@ -2821,10 +2823,12 @@ export const data = {
     safari: '18.2',
   },
   'esnext.uint8-array.set-from-base64': {
-    bun: '1.1.22',
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // bun: '1.1.22',
     chrome: '140',
     firefox: '133',
-    safari: '18.2',
+    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // safari: '18.2',
   },
   'esnext.uint8-array.set-from-hex': {
     bun: '1.1.22',

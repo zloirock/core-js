@@ -2017,6 +2017,10 @@ GLOBAL.tests = {
     return Int8Array.prototype.uniqueBy;
   },
   'esnext.uint8-array.from-base64': function () {
+    try {
+      Uint8Array.fromBase64('a');
+      return;
+    } catch (error) { /* empty */ }
     if (!Uint8Array.fromBase64) return false;
     try {
       Uint8Array.fromBase64('', null);
@@ -2032,6 +2036,10 @@ GLOBAL.tests = {
     try {
       target.setFromBase64('', null);
       return false;
+    } catch (error) { /* empty */ }
+    try {
+      target.setFromBase64('a');
+      return;
     } catch (error) { /* empty */ }
     try {
       target.setFromBase64('MjYyZg===');
