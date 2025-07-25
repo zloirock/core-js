@@ -122,14 +122,16 @@ markedWithContents.use(gfmHeadingId({ prefix: 'block-' }), {
     postprocess(html) {
       const headings = getHeadingList().filter(({ level }) => level > 1);
       let result = '<div class="wrapper">';
+      let fileName = htmlFileName;
       if (isBlog) {
         result += `<div class="docs-menu sticky">${ blogMenu }</div>`;
       } else if (isDocs) {
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
+        fileName.startsWith(defaultVersion) && (fileName = fileName.replace(defaultVersion, '.'));
       }
       result += `<div class="content">${ html }</div>
           <div class="table-of-contents sticky">
-              ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${ htmlFileName.replace('.html', '') }#${ id }" class="h${ level }">${ raw }</a></div>`).join('\n') }
+              ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${ fileName.replace('.html', '') }#${ id }" class="h${ level }">${ raw }</a></div>`).join('\n') }
           </div>`;
       return result;
     },
@@ -254,11 +256,9 @@ async function build() {
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
-    if (branch) {
-      resultHtml = resultHtml.replaceAll('{default-version}', '.');
+    if (branch || currentVersion === defaultBranch) {
       resultHtml = resultHtml.replaceAll('{docs-version}', '.');
     } else {
-      resultHtml = resultHtml.replaceAll('{default-version}', defaultVersion);
       resultHtml = resultHtml.replaceAll('{docs-version}', currentVersion);
     }
 
