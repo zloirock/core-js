@@ -25,9 +25,10 @@
   "main": "index.js",
   "types": "index.d.ts",
   "dependencies": {
-    "core-js": "4.0.0-alpha.0",
+    "webpack": "^5.100.2",
     "@core-js/compat": "4.0.0-alpha.0",
-    "webpack": "^5.100.2"
+    "core-js": "4.0.0-alpha.0",
+    "terser-webpack-plugin": "^5.3.14"
   },
   "engines": {
     "node": "^18.12.0 || >=20.0.0"
