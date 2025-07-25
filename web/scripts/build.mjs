@@ -82,7 +82,8 @@ async function buildVersionsMenuList(versions, currentVersion) {
   versionsMenuHtml += '<div class="dropdown-block">';
   for (const v of versions) {
     if (v === currentVersion) {
-      versionsMenuHtml += `<a href="/${ v }/docs/" class="active">${ v }</a>`;
+      versionsMenuHtml += v === defaultVersion ? `<a href="docs/" class="active">${ v }</a>`
+        : `<a href="/${ v }/docs/" class="active">${ v }</a>`;
     } else {
       versionsMenuHtml += `<a href="/${ v }/docs/">${ v }</a>`;
     }
@@ -127,7 +128,7 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
         result += `<div class="docs-menu sticky">${ blogMenu }</div>`;
       } else if (isDocs) {
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
-        fileName.startsWith(`${defaultVersion}/`) && (fileName = fileName.replace(defaultVersion, '.'));
+        fileName.startsWith(`${ defaultVersion }/`) && (fileName = fileName.replace(defaultVersion, '.'));
       }
       result += `<div class="content">${ html }</div>
           <div class="table-of-contents sticky">
