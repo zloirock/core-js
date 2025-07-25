@@ -106,7 +106,7 @@ const customRenderer = {
     const htmlContent = markedInline.parseInline(text);
     const isExternal = /^https?:\/\//.test(href);
     const isAnchor = href.startsWith('#');
-    if (isAnchor) href = htmlFileName.replace('.html', '') + href.replace('#', '#block-');
+    if (isAnchor) href = htmlFileName.replace('.html', '') + href;
     let html = `<a href="${ href }"`;
     if (isExternal) html += ' target="_blank"';
     html += `>${ htmlContent }</a>`;
@@ -117,7 +117,7 @@ marked.use({ renderer: customRenderer });
 
 const markedWithContents = new Marked();
 markedWithContents.use({ renderer: customRenderer });
-markedWithContents.use(gfmHeadingId({ prefix: 'block-' }), {
+markedWithContents.use(gfmHeadingId({ prefix: '' }), {
   hooks: {
     postprocess(html) {
       const headings = getHeadingList().filter(({ level }) => level > 1);
