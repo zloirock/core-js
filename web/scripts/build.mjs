@@ -81,12 +81,9 @@ async function buildVersionsMenuList(versions, currentVersion) {
 
   versionsMenuHtml += '<div class="dropdown-block">';
   for (const v of versions) {
-    if (v === currentVersion) {
-      versionsMenuHtml += v === defaultVersion ? `<a href="docs/" class="active">${ v }</a>`
-        : `<a href="/${ v }/docs/" class="active">${ v }</a>`;
-    } else {
-      versionsMenuHtml += `<a href="/${ v }/docs/">${ v }</a>`;
-    }
+    const activityClass = v === currentVersion ? ' class="active"' : '';
+    const link = v === defaultVersion ? 'docs/' : `/${ v }/docs/`;
+    versionsMenuHtml += `<a href="${ link }"${ activityClass }>${ v }</a>`;
   }
   versionsMenuHtml += '</div>';
 
