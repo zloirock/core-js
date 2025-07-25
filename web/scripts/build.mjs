@@ -127,7 +127,7 @@ markedWithContents.use(gfmHeadingId({ prefix: 'block-' }), {
         result += `<div class="docs-menu sticky">${ blogMenu }</div>`;
       } else if (isDocs) {
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
-        fileName.startsWith(defaultVersion) && (fileName = fileName.replace(defaultVersion, '.'));
+        fileName.startsWith(defaultVersion + '/') && (fileName = fileName.replace(defaultVersion, '.'));
       }
       result += `<div class="content">${ html }</div>
           <div class="table-of-contents sticky">
