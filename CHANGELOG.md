@@ -1,5 +1,15 @@
 ## Changelog
 ##### Unreleased
+- [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64):
+  - Built-ins:
+    - `Uint8Array.fromBase64`
+    - `Uint8Array.fromHex`
+    - `Uint8Array.prototype.setFromBase64`
+    - `Uint8Array.prototype.setFromHex`
+    - `Uint8Array.prototype.toBase64`
+    - `Uint8Array.prototype.toHex`
+  - Moved to stable ES, July 2025 TC39 meeting
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Added missing dependencies to some entries of static `Iterator` methods
 - Added detection of Webkit bug: `Uint8Array` fromBase64 / setFromBase64 does not throw an error on incorrect length of base64 string
 - Compat data improvements:
