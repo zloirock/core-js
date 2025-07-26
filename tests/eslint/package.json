@@ -17,7 +17,7 @@
     "eslint-plugin-math": "^0.10.1",
     "eslint-plugin-n": "^17.21.0",
     "eslint-plugin-node-dependencies": "^1.1.2",
-    "eslint-plugin-package-json": "^0.46.0",
+    "eslint-plugin-package-json": "^0.47.0",
     "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-qunit": "^8.2.4",
     "eslint-plugin-redos": "^4.5.0",
