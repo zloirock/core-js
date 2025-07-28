@@ -54,9 +54,12 @@ function runCode(code) {
     },
   };
 
+  if (!Babel) return;
+
   try {
+    const output = Babel.transform(code, { presets: ["env"] }).code;
     // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
-    const context = new Function('console', code);
+    const context = new Function('console', output);
     context(console);
   } catch (error) {
     writeResult(`Error: ${ error.message }`, 'error');
