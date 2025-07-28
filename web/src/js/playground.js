@@ -98,7 +98,7 @@ function init() {
     event = new Event('input', { bubbles: true });
   } else {
     event = document.createEvent('Event');
-    event.initEvent('submit', true, true);
+    event.initEvent('input', true, true);
   }
   if (pageParams.has('code')) {
     codeInput.value = pageParams.get('code');
