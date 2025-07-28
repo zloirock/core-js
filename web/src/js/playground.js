@@ -93,14 +93,21 @@ setInterval(() => {
 }, 2000);
 
 function init() {
+  let event;
+  if (typeof(Event) === 'function') {
+    event = new Event('input', { bubbles: true });
+  } else {
+    event = document.createEvent('Event');
+    event.initEvent('submit', true, true);
+  }
   if (pageParams.has('code')) {
     codeInput.value = pageParams.get('code');
-    codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    codeInput.dispatchEvent(event);
   } else {
     const code = localStorage.getItem('code');
     if (code) {
       codeInput.value = code;
-      codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      codeInput.dispatchEvent(event);
     }
   }
 }
