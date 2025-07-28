@@ -8,7 +8,6 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <script type="module" src="js/main.js"></script>
-    <script type="module" src="js/playground.js"></script>
     <base href="{base}" />
     <script>
       let theme = localStorage.getItem('theme');
@@ -21,7 +20,6 @@
         html.classList.add(theme);
       }
     </script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
 <header>
@@ -115,5 +113,7 @@
     </div>
 </footer>
 <script src="/core-js-bundle.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="module" src="js/playground.js"></script>
 </body>
 </html>
