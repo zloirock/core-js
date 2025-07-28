@@ -92,7 +92,7 @@ setInterval(() => {
   localStorage.setItem('code', codeInput.value);
 }, 2000);
 
-globalThis.addEventListener('DOMContentLoaded', () => {
+function init() {
   if (pageParams.has('code')) {
     codeInput.value = pageParams.get('code');
     codeInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -103,4 +103,10 @@ globalThis.addEventListener('DOMContentLoaded', () => {
       codeInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
