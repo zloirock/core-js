@@ -98,5 +98,11 @@ function init() {
   hljs.highlightAll();
 }
 
-document.addEventListener('DOMContentLoaded', init);
-window.addEventListener('load', init);  // fallback
+if (document.readyState === 'loading') {
+  console.log('Document is still loading, waiting for DOMContentLoaded event...');
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  console.log('Document is already loaded, initializing now...');
+  init();
+}
+// window.addEventListener('load', init);  // fallback
