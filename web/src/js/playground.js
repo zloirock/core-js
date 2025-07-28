@@ -54,8 +54,6 @@ function runCode(code) {
     },
   };
 
-  if (!Babel) return;
-
   try {
     const output = Babel.transform(code, { presets: ["env"] }).code;
     // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
@@ -97,7 +95,7 @@ setInterval(() => {
 
 function init() {
   let event;
-  if (typeof(Event) === 'function') {
+  if (typeof Event === 'function') {
     event = new Event('input', { bubbles: true });
   } else {
     event = document.createEvent('Event');
@@ -115,8 +113,4 @@ function init() {
   }
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+init();
