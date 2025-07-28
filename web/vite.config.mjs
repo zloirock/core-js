@@ -17,6 +17,7 @@ export default defineConfig({
     },
     outDir: '../templates',
     emptyOutDir: true,
+    minify: false,
   },
   plugins: [
     legacy({
