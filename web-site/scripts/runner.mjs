@@ -22,7 +22,7 @@ const buildId = new Date().toISOString().replaceAll(/\D/g, '-') + Math.random().
 const buildDir = `${ buildsRootDir }/${ buildId }/`;
 const buildSrcDir = `${ buildDir }${ srcDir }/`;
 const builderDocsDir = `${ buildDir }builder/`;
-const siteFilesDir = `${ buildDir }${ srcDir }/web/dist/`;
+const siteFilesDir = `${ buildDir }${ srcDir }/web-site/dist/`;
 
 async function getTagsWithSiteDocs() {
   console.log('Getting tags with site docs...');
