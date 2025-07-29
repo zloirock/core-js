@@ -46,7 +46,7 @@ async function buildDocsMenu(item) {
     return result;
   }
 
-  return `<li><a href="${ item.url }" class="with-docs-version">${ item.title }</a></li>`;
+  return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ defaultVersion }">${ item.title }</a></li>`;
 }
 
 const docsMenus = [];
