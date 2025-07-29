@@ -2396,6 +2396,16 @@ export default [
     },
     rules: {
       ...transpiledAndPolyfilled,
+    },
+  },
+  {
+    files: [
+      'web-site/scripts/runner.mjs',
+    ],
+    languageOptions: {
+      sourceType: 'module',
+    },
+    rules: {
       ...nodeDev,
     },
   },

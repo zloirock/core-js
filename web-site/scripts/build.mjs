@@ -1,12 +1,6 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
-import { promisify } from 'node:util';
-import childProcess from 'node:child_process';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-
-const exec = promisify(childProcess.exec);
 
 const DOCS_DIR = 'docs/web/';
 const BLOG_DIR = 'docs/web/blog/';
@@ -93,7 +87,7 @@ async function buildVersionsMenuList(versions, currentVersion) {
 async function buildVersionsMenu(versions, currentVersion) {
   const innerMenu = await buildVersionsMenuList(versions, currentVersion);
 
-  return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${ 
+  return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${
     currentVersion }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
 }
 
@@ -133,8 +127,8 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
         <div class="table-of-contents sticky">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
-              level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
-                raw }</a></div>`).join('\n') }
+            level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
+            raw }</a></div>`).join('\n') }
         </div>`;
       return result;
     },
@@ -174,7 +168,7 @@ async function buildBlogMenu() {
 
 // eslint-disable-next-line no-unused-vars -- use it later
 async function getVersionTags() {
-  const tagsString = await exec('git tag | grep -E "^v[4-9]\\.[0-9]+\\.[0-9]+$" | sort -V');
+  const tagsString = await $`git tag | grep -E "^v[4-9]\\.[0-9]+\\.[0-9]+$" | sort -V`;
   return tagsString.stdout.split('\n');
 }
 
