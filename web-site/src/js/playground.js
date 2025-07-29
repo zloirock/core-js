@@ -42,15 +42,19 @@ function writeResult(text, type = 'log') {
   resultBlock.innerHTML += `<div class="console ${ type }">${ serializedText }</div>`;
 }
 function runCode(code) {
+  const origConsole = globalThis.console;
   const console = {
     log: (...args) => {
       args.forEach(arg => { writeResult(arg, 'log'); });
+      origConsole.log(...args);
     },
     warn: (...args) => {
       args.forEach(arg => { writeResult(arg, 'warn'); });
+      origConsole.warn(...args);
     },
     error: (...args) => {
       args.forEach(arg => { writeResult(arg, 'error'); });
+      origConsole.error(...args);
     },
   };
 
