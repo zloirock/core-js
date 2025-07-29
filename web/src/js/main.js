@@ -88,7 +88,7 @@ function init() {
     const path = getRelativePath();
     console.log(path);
     if (!path.includes('/docs')) return;
-    if (!path.startsWith('/docs')) return;
+    if (!path.startsWith('docs/')) return;
 
     docsVersionLinks.forEach(link => {
       const defaultVersion = link.getAttribute('data-default-version');
