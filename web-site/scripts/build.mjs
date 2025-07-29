@@ -10,8 +10,8 @@ const exec = promisify(childProcess.exec);
 
 const docsDir = 'docs/web/';
 const blogDir = 'docs/web/blog/';
-const resultDir = 'web/dist/';
-const templatesDir = 'web/templates/';
+const resultDir = 'web-site/dist/';
+const templatesDir = 'web-site/templates/';
 const templatePath = `${ templatesDir }index.html`;
 const defaultBranch = 'web';
 const defaultVersion = 'web';
@@ -126,10 +126,10 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
       }
       result += `<div class="content">${ html }</div>
         <div class="table-of-contents sticky">
-          ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
-          htmlFileName.replace('.html', '') }#${ id }" class="h${
-          level } with-docs-version" data-default-version="${ defaultVersion }">${
-          raw }</a></div>`).join('\n') }
+            ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
+            htmlFileName.replace('.html', '') }#${ id }" class="h${
+            level } with-docs-version" data-default-version="${ defaultVersion }">${
+            raw }</a></div>`).join('\n') }
         </div>`;
       return result;
     },

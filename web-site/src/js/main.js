@@ -100,10 +100,10 @@ function init() {
   }
 
   function setDefaultVersion() {
-    versionsMenu.forEach(menu => {
-      const currentVersion = menu.querySelector('a.current');
+    versionsMenu.forEach(menuItem => {
+      const currentVersion = menuItem.querySelector('a.current');
       currentVersion.innerHTML = `${ currentVersion.innerHTML } (default)`;
-      const versionsMenuLinks = menu.querySelectorAll('.dropdown-block a');
+      const versionsMenuLinks = menuItem.querySelectorAll('.dropdown-block a');
       versionsMenuLinks.forEach(link => link.classList.remove('active'));
       versionsMenuLinks[0].classList.add('active');
     });

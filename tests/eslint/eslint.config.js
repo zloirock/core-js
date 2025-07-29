@@ -2152,9 +2152,9 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/unit-@(global|pure)/index.js',
-      'web/dist/**',
-      'web/src/public/*',
-      'web/templates/**',
+      'web-site/dist/**',
+      'web-site/src/public/*',
+      'web-site/templates/**',
     ],
   },
   {
@@ -2313,7 +2313,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/**/*.mjs',
-      'web/scripts/*.mjs',
+      'web-site/scripts/*.mjs',
     ],
     languageOptions: {
       // zx
@@ -2389,7 +2389,7 @@ export default [
   },
   {
     files: [
-      'web/src/js/*',
+      'web-site/src/js/*',
     ],
     languageOptions: {
       sourceType: 'module',

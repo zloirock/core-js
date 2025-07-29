@@ -30,7 +30,7 @@ async function getTagsWithSiteDocs() {
   // const tagsString = await exec(
   //   `git tag --list | sort -V | while read t; do v=\${t#v}; IFS=. read -r M m p <<< "$v"; m=\${m:-0}; `
   //   + `if { [ "$M" -gt 3 ] || { [ "$M" -eq 3 ] && [ "$m" -gt 40 ]; }; }; `
-  //   + `then git ls-tree -r --name-only "$t" | grep --qxF "web/scripts/build.mjs" && echo "$t"; fi; done`,
+  //   + `then git ls-tree -r --name-only "$t" | grep --qxF "web-site/scripts/build.mjs" && echo "$t"; fi; done`,
   //   { cwd: buildSrcDir }
   // );
   const tagsString = await exec(
@@ -75,7 +75,7 @@ async function installDependencies() {
   console.log('Installing dependencies...');
   console.time('Installed dependencies');
   await exec('npm ci', { cwd: buildSrcDir });
-  await exec('npm ci', { cwd: `${ buildSrcDir }web/` });
+  await exec('npm ci', { cwd: `${ buildSrcDir }web-site/` });
   console.timeEnd('Installed dependencies');
 }
 
@@ -165,7 +165,7 @@ async function buildAndCopyCoreJS() {
   console.time('Core JS bundle built');
   await exec('npm run bundle-package', { cwd: buildSrcDir });
   const bundlePath = `${ buildSrcDir }packages/core-js-bundle/minified.js`;
-  const destPath = `${ buildSrcDir }web/src/public/core-js-bundle.js`;
+  const destPath = `${ buildSrcDir }web-site/src/public/core-js-bundle.js`;
   await cp(bundlePath, destPath, { });
   console.timeEnd('Core JS bundle built');
 }

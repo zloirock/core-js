@@ -55,6 +55,7 @@ function runCode(code) {
   };
 
   try {
+    // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
     const output = Babel.transform(code, { presets: ['env'] }).code;
     // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
     const context = new Function('console', output);
