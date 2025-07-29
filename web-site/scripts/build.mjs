@@ -8,13 +8,13 @@ import path from 'node:path';
 
 const exec = promisify(childProcess.exec);
 
-const docsDir = 'docs/web/';
-const blogDir = 'docs/web/blog/';
-const resultDir = 'web-site/dist/';
-const templatesDir = 'web-site/templates/';
-const templatePath = `${ templatesDir }index.html`;
-const defaultBranch = 'web';
-const defaultVersion = 'web';
+const DOCS_DIR = 'docs/web/';
+const BLOG_DIR = 'docs/web/blog/';
+const RESULT_DIR = 'web-site/dist/';
+const TEMPLATES_DIR = 'web-site/templates/';
+const TEMPLATE_PATH = `${ TEMPLATES_DIR }index.html`;
+const DEFAULT_BRANCH = 'web';
+const DEFAULT_VERSION = 'web';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -46,15 +46,16 @@ async function buildDocsMenu(item) {
     return result;
   }
 
-  return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ defaultVersion }">${ item.title }</a></li>`;
+  return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ DEFAULT_VERSION }">${ item.title }</a></li>`;
 }
 
 const docsMenus = [];
+
 async function buildDocsMenuForVersion(version) {
   if (docsMenus[version]) return docsMenus[version];
 
   echo(chalk.green(`Building docs menu for version: ${ version }`));
-  const jsonPath = branch ? `${ docsDir }docs/menu.json` : `${ docsDir }${ version }/docs/menu.json`;
+  const jsonPath = BRANCH ? `${ DOCS_DIR }docs/menu.json` : `${ DOCS_DIR }${ version }/docs/menu.json`;
   try {
     await fs.access(jsonPath);
   } catch {
@@ -77,7 +78,7 @@ async function buildDocsMenuForVersion(version) {
 }
 
 async function buildVersionsMenuList(versions, currentVersion) {
-  let versionsMenuHtml = `<div class="dropdown-block"><a href="./docs/">${ defaultVersion } (default)</a>`;
+  let versionsMenuHtml = `<div class="dropdown-block"><a href="./docs/">${ DEFAULT_VERSION } (default)</a>`;
   if (versions.length > 1) {
     for (const v of versions) {
       const activityClass = v === currentVersion ? ' class="active"' : '';
@@ -92,12 +93,14 @@ async function buildVersionsMenuList(versions, currentVersion) {
 async function buildVersionsMenu(versions, currentVersion) {
   const innerMenu = await buildVersionsMenuList(versions, currentVersion);
 
-  return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${ currentVersion }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
+  return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${ 
+    currentVersion }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
 }
 
 const markedInline = new Marked();
 
 const marked = new Marked();
+
 const customRenderer = {
   link({ href, text }) {
     const htmlContent = markedInline.parseInline(text);
@@ -110,10 +113,12 @@ const customRenderer = {
     return html;
   },
 };
+
 marked.use({ renderer: customRenderer });
 
 const markedWithContents = new Marked();
 markedWithContents.use({ renderer: customRenderer });
+
 markedWithContents.use(gfmHeadingId({ prefix: '' }), {
   hooks: {
     postprocess(html) {
@@ -128,7 +133,7 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
         <div class="table-of-contents sticky">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
-              level } with-docs-version" data-default-version="${ defaultVersion }">${
+              level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
                 raw }</a></div>`).join('\n') }
         </div>`;
       return result;
@@ -137,10 +142,11 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
 });
 
 let blogMenu = '';
+
 async function buildBlogMenu() {
   if (blogMenu !== '') return blogMenu;
 
-  const mdFiles = await getAllMdFiles(blogDir);
+  const mdFiles = await getAllMdFiles(BLOG_DIR);
   mdFiles.reverse();
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
@@ -157,7 +163,7 @@ async function buildBlogMenu() {
 
     const match = mdPath.match(/(?<date>\d{4}-\d{2}-\d{2})-/);
     const date = match && match.groups ? match.groups.date : null;
-    const htmlFileName = mdPath.replace(blogDir, '').replace(/\.md$/i, '');
+    const htmlFileName = mdPath.replace(BLOG_DIR, '').replace(/\.md$/i, '');
     menu += `<li><a href="./blog/${ htmlFileName }">${ date }: ${ firstH1.text }</a></li>`;
   }
   menu += '</ul>';
@@ -179,7 +185,7 @@ async function getVersionsFromMdFiles(mdFiles) {
     if (match && match.groups && match.groups.version) {
       versions.push(match.groups.version);
     } else {
-      versions.push(defaultBranch);
+      versions.push(DEFAULT_BRANCH);
     }
   }
 
@@ -192,15 +198,15 @@ async function readFile(filePath) {
 }
 
 async function processPlaygroundFile(currentVersion) {
-  let playground = await readFile(`${ templatesDir }playground.html`);
-  playground = playground.replace('{base}', `${ base }`);
+  let playground = await readFile(`${ TEMPLATES_DIR }playground.html`);
+  playground = playground.replace('{base}', `${ BASE }`);
   playground = playground.replaceAll('{current-version}', currentVersion);
-  if (branch) {
+  if (BRANCH) {
     playground = playground.replaceAll('{default-version}', '.');
   } else {
-    playground = playground.replaceAll('{default-version}', defaultVersion);
+    playground = playground.replaceAll('{default-version}', DEFAULT_VERSION);
   }
-  const playgroundFilePath = path.join(resultDir, 'playground.html');
+  const playgroundFilePath = path.join(RESULT_DIR, 'playground.html');
   await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
   await fs.writeFile(playgroundFilePath, playground, 'utf8');
 
@@ -212,9 +218,10 @@ let docsMenu = '';
 let isBlog = false;
 let isDocs = false;
 let isChangelog;
+
 async function build() {
-  const template = await readFile(templatePath);
-  const mdFiles = await getAllMdFiles(docsDir);
+  const template = await readFile(TEMPLATE_PATH);
+  const mdFiles = await getAllMdFiles(DOCS_DIR);
   const versions = await getVersionsFromMdFiles(mdFiles);
   const uniqueVersions = [...new Set(versions)];
 
@@ -242,15 +249,15 @@ async function build() {
     if (isDocs) mobileDocsMenu = docsMenu;
     if (isBlog) mobileBlogMenu = blogMenuHtml;
 
-    htmlFileName = mdPath.replace(docsDir, '').replace(/\.md$/i, '.html');
-    const htmlFilePath = path.join(resultDir, htmlFileName);
+    htmlFileName = mdPath.replace(DOCS_DIR, '').replace(/\.md$/i, '.html');
+    const htmlFilePath = path.join(RESULT_DIR, htmlFileName);
     const htmlContent = isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content);
 
     let resultHtml = template.replace('{content}', `${ htmlContent }`);
     resultHtml = resultHtml.replace('{title}', title);
     resultHtml = resultHtml.replace('{docs-menu}', `${ mobileDocsMenu }`);
     resultHtml = resultHtml.replace('{blog-menu}', `${ mobileBlogMenu }`);
-    resultHtml = resultHtml.replace('{base}', `${ base }`);
+    resultHtml = resultHtml.replace('{base}', `${ BASE }`);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 

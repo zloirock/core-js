@@ -91,7 +91,7 @@ linkButton.addEventListener('click', () => {
 });
 
 setInterval(() => {
-  localStorage.setItem('code', codeInput.value);
+  globalThis.localStorage.setItem('code', codeInput.value);
 }, 2000);
 
 function init() {

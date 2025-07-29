@@ -6,23 +6,23 @@ import path from 'node:path';
 const exec = promisify(childProcess.exec);
 const { cp, readdir } = fs;
 
-const srcDir = 'core-js';
-const buildsRootDir = 'builds';
-const buildResultDir = 'result';
-const repo = 'https://github.com/zloirock/core-js.git';
-const builderBranch = 'web';
-const defaultVersion = 'web';
+const SRC_DIR = 'core-js';
+const BUILDS_ROOT_DIR = 'builds';
+const BUILD_RESULT_DIR = 'result';
+const REPO = 'https://github.com/zloirock/core-js.git';
+const BUILDER_BRUNCH = 'web';
+const DEFAULT_VERSION = 'web';
 
 const args = process.argv;
 const lastArg = args.at(-1);
-const branch = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
+const BRANCH = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
 
-const buildId = new Date().toISOString().replaceAll(/\D/g, '-') + Math.random().toString(36).slice(2, 8);
+const BUILD_ID = new Date().toISOString().replaceAll(/\D/g, '-') + Math.random().toString(36).slice(2, 8);
 
-const buildDir = `${ buildsRootDir }/${ buildId }/`;
-const buildSrcDir = `${ buildDir }${ srcDir }/`;
-const builderDocsDir = `${ buildDir }builder/`;
-const siteFilesDir = `${ buildDir }${ srcDir }/web-site/dist/`;
+const BUILD_DIR = `${ BUILDS_ROOT_DIR }/${ BUILD_ID }/`;
+const BUILD_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/`;
+const BUILD_DOCS_DIR = `${ BUILD_DIR }builder/`;
+const SITE_FILES_DIR = `${ BUILD_DIR }${ SRC_DIR }/web-site/dist/`;
 
 async function getTagsWithSiteDocs() {
   console.log('Getting tags with site docs...');
@@ -31,12 +31,12 @@ async function getTagsWithSiteDocs() {
   //   `git tag --list | sort -V | while read t; do v=\${t#v}; IFS=. read -r M m p <<< "$v"; m=\${m:-0}; `
   //   + `if { [ "$M" -gt 3 ] || { [ "$M" -eq 3 ] && [ "$m" -gt 40 ]; }; }; `
   //   + `then git ls-tree -r --name-only "$t" | grep --qxF "web-site/scripts/build.mjs" && echo "$t"; fi; done`,
-  //   { cwd: buildSrcDir }
+  //   { cwd: BUILD_SRC_DIR }
   // );
   const tagsString = await exec(
     'git branch --remote --format="%(refname:short)" | while read branch; do if git ls-tree -r --name-only "$branch" | '
     + 'grep -q "docs/web/docs/"; then echo "$branch"; fi; done',
-    { cwd: buildSrcDir },
+    { cwd: BUILD_SRC_DIR },
   );
   const tags = tagsString.stdout.split('\n').filter(tag => tag !== '')
     .map(name => name.replace('origin/', ''));
@@ -49,8 +49,8 @@ async function buildWeb() {
   console.log('Building web');
   console.time('Built web');
   let command = 'npm run build-web';
-  if (branch) command += ` branch=${ branch }`;
-  const stdout = await exec(command, { cwd: buildSrcDir });
+  if (BRANCH) command += ` branch=${ BRANCH }`;
+  const stdout = await exec(command, { cwd: BUILD_SRC_DIR });
   console.timeEnd('Built web');
   return stdout;
 }
@@ -58,38 +58,38 @@ async function buildWeb() {
 async function copyWeb() {
   console.log('Copying web...');
   console.time('Copied web');
-  const toDir = `${ buildDir }${ buildResultDir }/`;
-  await cp(siteFilesDir, toDir, { recursive: true });
+  const toDir = `${ BUILD_DIR }${ BUILD_RESULT_DIR }/`;
+  await cp(SITE_FILES_DIR, toDir, { recursive: true });
   console.timeEnd('Copied web');
 }
 
 async function createBuildDir() {
-  console.log(`Creating build directory "${ buildDir }"`);
-  console.time(`Created build directory ${ buildDir }`);
-  await exec(`mkdir -p ${ buildDir }`);
-  await exec(`mkdir -p ${ builderDocsDir }`);
-  console.timeEnd(`Created build directory ${ buildDir }`);
+  console.log(`Creating build directory "${ BUILD_DIR }"`);
+  console.time(`Created build directory ${ BUILD_DIR }`);
+  await exec(`mkdir -p ${ BUILD_DIR }`);
+  await exec(`mkdir -p ${ BUILD_DOCS_DIR }`);
+  console.timeEnd(`Created build directory ${ BUILD_DIR }`);
 }
 
 async function installDependencies() {
   console.log('Installing dependencies...');
   console.time('Installed dependencies');
-  await exec('npm ci', { cwd: buildSrcDir });
-  await exec('npm ci', { cwd: `${ buildSrcDir }web-site/` });
+  await exec('npm ci', { cwd: BUILD_SRC_DIR });
+  await exec('npm ci', { cwd: `${ BUILD_SRC_DIR }web-site/` });
   console.timeEnd('Installed dependencies');
 }
 
 async function cloneRepo() {
   console.log('Cloning core-js repository...');
   console.time('Cloned core-js repository');
-  await exec(`git clone ${ repo } ${ srcDir }`, { cwd: buildDir });
+  await exec(`git clone ${ REPO } ${ SRC_DIR }`, { cwd: BUILD_DIR });
   console.timeEnd('Cloned core-js repository');
 }
 
 async function switchToLatestBuild() {
   console.log('Switching to the latest build...');
   console.time('Switched to the latest build');
-  const absoluteBuildPath = path.resolve(`${ buildDir }${ buildResultDir }`);
+  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
   const absoluteLatestPath = path.resolve('./latest');
   console.log(absoluteBuildPath, absoluteLatestPath);
   await exec('rm -f ./latest');
@@ -98,11 +98,11 @@ async function switchToLatestBuild() {
 }
 
 async function clearBuildDir() {
-  console.log(`Clearing build directory "${ buildSrcDir }"`);
-  console.time(`Cleared build directories ${ buildSrcDir } and ${ builderDocsDir }`);
-  await exec(`rm -rf ${ buildSrcDir }`);
-  await exec(`rm -rf ${ builderDocsDir }`);
-  console.timeEnd(`Cleared build directories ${ buildSrcDir } and ${ builderDocsDir }`);
+  console.log(`Clearing build directory "${ BUILD_SRC_DIR }"`);
+  console.time(`Cleared build directories ${ BUILD_SRC_DIR } and ${ BUILD_DOCS_DIR }`);
+  await exec(`rm -rf ${ BUILD_SRC_DIR }`);
+  await exec(`rm -rf ${ BUILD_DOCS_DIR }`);
+  console.timeEnd(`Cleared build directories ${ BUILD_SRC_DIR } and ${ BUILD_DOCS_DIR }`);
 }
 
 async function copyDocs(from, to, recursive = true) {
@@ -115,10 +115,10 @@ async function copyDocs(from, to, recursive = true) {
 async function copyDocsToBuilder(name) {
   console.log(`Copying docs to builder for branch/tag "${ name }"`);
   console.time(`Copied docs to builder for branch/tag "${ name }"`);
-  await exec(`git checkout origin/${ name }`, { cwd: buildSrcDir });
-  // await exec(`git checkout ${name}`, { cwd: buildSrcDir });  // uncomment for tags and comment the line above
-  const fromDir = `${ buildSrcDir }docs/web/docs/`;
-  const toDir = `${ builderDocsDir }${ name }/docs/`;
+  await exec(`git checkout origin/${ name }`, { cwd: BUILD_SRC_DIR });
+  // await exec(`git checkout ${name}`, { cwd: BUILD_SRC_DIR });  // uncomment for tags and comment the line above
+  const fromDir = `${ BUILD_SRC_DIR }docs/web/docs/`;
+  const toDir = `${ BUILD_DOCS_DIR }${ name }/docs/`;
   await copyDocs(fromDir, toDir);
   console.timeEnd(`Copied docs to builder for branch/tag "${ name }"`);
 }
@@ -126,8 +126,8 @@ async function copyDocsToBuilder(name) {
 async function copyBuilderDocs() {
   console.log('Copying builder docs...');
   console.time('Copied builder docs');
-  const fromDir = `${ builderDocsDir }`;
-  const toDir = `${ buildSrcDir }docs/web/`;
+  const fromDir = `${ BUILD_DOCS_DIR }`;
+  const toDir = `${ BUILD_SRC_DIR }docs/web/`;
   await copyDocs(fromDir, toDir);
   console.timeEnd('Copied builder docs');
 }
@@ -135,16 +135,16 @@ async function copyBuilderDocs() {
 async function prepareBuilder(targetBranch) {
   console.log('Preparing builder...');
   console.time('Prepared builder');
-  await exec(`git checkout origin/${ targetBranch }`, { cwd: buildSrcDir });
+  await exec(`git checkout origin/${ targetBranch }`, { cwd: BUILD_SRC_DIR });
   await installDependencies();
-  if (!branch) await exec(`rm -rf ${ buildSrcDir }docs/web/docs/`);
+  if (!BRANCH) await exec(`rm -rf ${ BUILD_SRC_DIR }docs/web/docs/`);
   console.timeEnd('Prepared builder');
 }
 
 async function hasDocsInBranch(name) {
   console.log(`Checking if docs exist in the branch "${ name }"...`);
   try {
-    await exec(`git ls-tree -r --name-only origin/${ name } | grep "docs/web/docs/"`, { cwd: buildSrcDir });
+    await exec(`git ls-tree -r --name-only origin/${ name } | grep "docs/web/docs/"`, { cwd: BUILD_SRC_DIR });
   } catch {
     throw new Error(`No docs found in the branch "${ name }".`);
   }
@@ -153,7 +153,7 @@ async function hasDocsInBranch(name) {
 async function switchBranchToLatestBuild(name) {
   console.log(`Switching branch "${ name }" to the latest build...`);
   console.time(`Switched branch "${ name }" to the latest build`);
-  const absoluteBuildPath = path.resolve(`${ buildDir }${ buildResultDir }`);
+  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
   const absoluteLatestPath = path.resolve(`./branches/${ name }`);
   await exec(`rm -f ./branches/${ name }`);
   await exec(`ln -sf ${ absoluteBuildPath } ${ absoluteLatestPath }`);
@@ -163,9 +163,9 @@ async function switchBranchToLatestBuild(name) {
 async function buildAndCopyCoreJS() {
   console.log('Building and copying core-js...');
   console.time('Core JS bundle built');
-  await exec('npm run bundle-package', { cwd: buildSrcDir });
-  const bundlePath = `${ buildSrcDir }packages/core-js-bundle/minified.js`;
-  const destPath = `${ buildSrcDir }web-site/src/public/core-js-bundle.js`;
+  await exec('npm run bundle-package', { cwd: BUILD_SRC_DIR });
+  const bundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
+  const destPath = `${ BUILD_SRC_DIR }web-site/src/public/core-js-bundle.js`;
   await cp(bundlePath, destPath, { });
   console.timeEnd('Core JS bundle built');
 }
@@ -194,11 +194,11 @@ async function clearOldBuilds() {
   console.log('Clearing old builds...');
   console.time('Cleared old builds');
   const excluded = await getExcludedBuilds();
-  const builds = await readdir(buildsRootDir);
+  const builds = await readdir(BUILDS_ROOT_DIR);
   for (const build of builds) {
     if (!excluded.includes(build)) {
-      await exec(`rm -rf ${ path.join('./', buildsRootDir, '/', build) }`);
-      console.log(`Build removed: "${ path.join('./', buildsRootDir, '/', build) }"`);
+      await exec(`rm -rf ${ path.join('./', BUILDS_ROOT_DIR, '/', build) }`);
+      console.log(`Build removed: "${ path.join('./', BUILDS_ROOT_DIR, '/', build) }"`);
     }
   }
   console.timeEnd('Cleared old builds');
@@ -207,8 +207,8 @@ async function clearOldBuilds() {
 async function copyBlogPosts() {
   console.log('Copying blog posts...');
   console.time('Copied blog posts');
-  const fromDir = `${ buildSrcDir }docs/`;
-  const toDir = `${ buildSrcDir }docs/web/blog/`;
+  const fromDir = `${ BUILD_SRC_DIR }docs/`;
+  const toDir = `${ BUILD_SRC_DIR }docs/web/blog/`;
   const entries = await readdir(fromDir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.isFile()) {
@@ -223,8 +223,8 @@ async function copyBlogPosts() {
 async function copyCommonFiles() {
   console.log('Copying common files...');
   console.time('Copied common files');
-  const fromDir = `${ buildSrcDir }`;
-  const toDir = `${ buildSrcDir }docs/web/`;
+  const fromDir = `${ BUILD_SRC_DIR }`;
+  const toDir = `${ BUILD_SRC_DIR }docs/web/`;
   await fs.copyFile(`${ fromDir }CHANGELOG.md`, `${ toDir }changelog.md`);
   await fs.copyFile(`${ fromDir }CONTRIBUTING.md`, `${ toDir }contributing.md`);
   await fs.copyFile(`${ fromDir }SECURITY.md`, `${ toDir }security.md`);
@@ -234,8 +234,8 @@ async function copyCommonFiles() {
 async function createLastDocsLink() {
   console.log('Creating last docs link...');
   console.time('Created last docs link');
-  const absoluteBuildPath = path.resolve(`${ buildDir }${ buildResultDir }/${ defaultVersion }/docs/`);
-  const absoluteLastDocsPath = path.resolve(`${ buildDir }${ buildResultDir }/docs/`);
+  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/${ DEFAULT_VERSION }/docs/`);
+  const absoluteLastDocsPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/docs/`);
   await exec(`ln -s ${ absoluteBuildPath } ${ absoluteLastDocsPath }`);
   console.timeEnd('Created last docs link');
 }
@@ -245,8 +245,8 @@ async function run() {
   await createBuildDir();
   await cloneRepo();
 
-  const targetBranch = branch || builderBranch;
-  if (!branch) {
+  const targetBranch = BRANCH || BUILDER_BRUNCH;
+  if (!BRANCH) {
     const tags = await getTagsWithSiteDocs();
     if (tags.length) {
       for (const tag of tags) {
@@ -261,7 +261,7 @@ async function run() {
   await buildAndCopyCoreJS();
   await copyBlogPosts();
   await copyCommonFiles();
-  if (!branch) {
+  if (!BRANCH) {
     await copyBuilderDocs();
   }
   await buildWeb();
@@ -269,7 +269,7 @@ async function run() {
   await copyWeb();
   await createLastDocsLink();
 
-  if (!branch) {
+  if (!BRANCH) {
     await switchToLatestBuild();
   } else {
     await switchBranchToLatestBuild(targetBranch);
