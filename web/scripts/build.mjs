@@ -46,7 +46,7 @@ async function buildDocsMenu(item) {
     return result;
   }
 
-  return `<li><a href="${ item.url }">${ item.title }</a></li>`;
+  return `<li><a href="${ item.url }" class="with-docs-version">${ item.title }</a></li>`;
 }
 
 const docsMenus = [];
@@ -77,13 +77,12 @@ async function buildDocsMenuForVersion(version) {
 }
 
 async function buildVersionsMenuList(versions, currentVersion) {
-  let versionsMenuHtml = '';
-
-  versionsMenuHtml += '<div class="dropdown-block">';
-  for (const v of versions) {
-    const activityClass = v === currentVersion ? ' class="active"' : '';
-    const link = v === defaultVersion ? 'docs/' : `/${ v }/docs/`;
-    versionsMenuHtml += `<a href="${ link }"${ activityClass }>${ v }</a>`;
+  let versionsMenuHtml = `<div class="dropdown-block"><a href="./docs/">${ defaultVersion } (default)</a>`;
+  if (versions.length > 1) {
+    for (const v of versions) {
+      const activityClass = v === currentVersion ? ' class="active"' : '';
+      versionsMenuHtml += `<a href="./${ v }/docs/"${ activityClass }>${ v }</a>`;
+    }
   }
   versionsMenuHtml += '</div>';
 
@@ -125,11 +124,13 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
         result += `<div class="docs-menu sticky">${ blogMenu }</div>`;
       } else if (isDocs) {
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
-        fileName.startsWith(`${ defaultVersion }/`) && (fileName = fileName.replace(defaultVersion, '.'));
       }
       result += `<div class="content">${ html }</div>
           <div class="table-of-contents sticky">
-              ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${ fileName.replace('.html', '') }#${ id }" class="h${ level }">${ raw }</a></div>`).join('\n') }
+              ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${ 
+                fileName.replace('.html', '') }#${ id }" class="h${ 
+                level } with-docs-version" data-default-version="${ defaultVersion }">${ 
+                raw }</a></div>`).join('\n') }
           </div>`;
       return result;
     },
@@ -254,11 +255,7 @@ async function build() {
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
-    if (branch || currentVersion === defaultBranch) {
-      resultHtml = resultHtml.replaceAll('{docs-version}', '.');
-    } else {
-      resultHtml = resultHtml.replaceAll('{docs-version}', currentVersion);
-    }
+    resultHtml = resultHtml.replaceAll('{docs-version}', currentVersion);
 
     await fs.mkdir(path.dirname(htmlFilePath), { recursive: true });
 
