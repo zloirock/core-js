@@ -1,6 +1,6 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { defineConfig } from 'vite';
-import babel from 'vite-plugin-babel';
+import legacy from '@vitejs/plugin-legacy'
 
 export default defineConfig({
   root: 'src',
@@ -15,11 +15,19 @@ export default defineConfig({
     },
     outDir: '../templates',
     emptyOutDir: true,
+    minify: false,
     cssTarget: [
       'ie11',
     ],
   },
   plugins: [
-    babel(),
+    legacy({
+      targets: [
+        'IE 11',
+        'Chrome 38',
+        'Safari 7.1',
+        'Firefox 15',
+      ],
+    }),
   ],
 });
