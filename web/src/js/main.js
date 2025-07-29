@@ -77,7 +77,7 @@ function init() {
   }
 
   function getRelativePath() {
-    const path = location.pathname;
+    const path = globalThis.location.pathname;
     const base = document.querySelector('base')?.getAttribute('href') || '';
     console.log(base);
 
@@ -92,8 +92,10 @@ function init() {
 
     docsVersionLinks.forEach(link => {
       const defaultVersion = link.getAttribute('data-default-version');
-      const re = new RegExp(`${defaultVersion}/`);
-      link.href = link.href.replace(re, '');
+      const re = new RegExp(`${ defaultVersion }/`);
+      const newLink = link.getAttribute('href').replace(re, '');
+      console.log(newLink);
+      link.setAttribute('href', newLink);
     });
   }
 
