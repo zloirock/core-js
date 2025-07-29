@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "web-site",
   "type": "module",
   "scripts": {
     "build": "vite build",
