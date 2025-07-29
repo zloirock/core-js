@@ -18,8 +18,8 @@ const DEFAULT_VERSION = 'web';
 
 const args = process.argv;
 const lastArg = args.at(-1);
-const branch = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
-const base = branch ? `/branches/${ branch }/` : '/';
+const BRANCH = lastArg.startsWith('BRANCH=') ? lastArg.slice('BRANCH='.length) : undefined;
+const BASE = BRANCH ? `/branches/${ BRANCH }/` : '/';
 
 async function getAllMdFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
