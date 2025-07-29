@@ -19,7 +19,7 @@
 - [`Iterator` sequencing proposal](https://github.com/tc39/proposal-iterator-sequencing):
   - Built-ins:
     - `Iterator.concat`
-  - Moved to stage 3, July 2025 TC39 meeting
+  - Moved to stage 3, [July 2025 TC39 meeting](https://github.com/tc39/proposals/commit/3eebab0f8594673dd08bc709d68c011016074c2e)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Compat data improvements:
