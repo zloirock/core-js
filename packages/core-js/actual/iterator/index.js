@@ -2,6 +2,7 @@
 var parent = require('../../stable/iterator');
 require('../../modules/es.promise');
 require('../../modules/esnext.iterator.constructor');
+require('../../modules/esnext.iterator.concat');
 require('../../modules/esnext.iterator.dispose');
 require('../../modules/esnext.iterator.drop');
 require('../../modules/esnext.iterator.every');
