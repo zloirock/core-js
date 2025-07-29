@@ -27,7 +27,7 @@
     - `Map.prototype.getOrInsertComputed`
     - `WeakMap.prototype.getOrInsert`
     - `WeakMap.prototype.getOrInsertComputed`
-  - Moved to stage 3, July 2025 TC39 meeting
+  - Moved to stage 3, [July 2025 TC39 meeting](https://github.com/tc39/proposals/commit/a9c0dfa4e00ffb69aa4df91d8c0c26b064d67108)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Added missing dependencies to some entries of static `Iterator` methods
 - Fixed [Joint Iteration proposal](https://github.com/tc39/proposal-joint-iteration) in `/stage/` entries
