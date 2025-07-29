@@ -8,7 +8,7 @@
     - `Uint8Array.prototype.setFromHex`
     - `Uint8Array.prototype.toBase64`
     - `Uint8Array.prototype.toHex`
-  - Moved to stable ES, July 2025 TC39 meeting
+  - Moved to stable ES, [July 2025 TC39 meeting](https://github.com/tc39/proposals/commit/d41fe182cdb90da3076ab711aae3944ed86bcf18)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
   - Added detection of a Webkit bug: `Uint8Array` fromBase64 / setFromBase64 does not throw an error on incorrect length of base64 string
 - [`Math.sumPrecise` proposal](https://github.com/tc39/proposal-math-sum):
