@@ -25,6 +25,7 @@ function init() {
   const dropdownBackdrops = document.querySelectorAll('.dropdown .backdrop');
   const stickyBlocks = document.querySelectorAll('.sticky');
   const themeSwitcher = document.querySelector('.theme-switcher');
+  const docsVersionLinks = document.querySelectorAll('.with-docs-version');
 
   function toggleMenu() {
     menu.classList.toggle('active');
@@ -68,11 +69,34 @@ function init() {
       stickyBlock.classList.add('stuck');
     });
   }
+
   function removeStuck() {
     stickyBlocks.forEach(stickyBlock => {
       stickyBlock.classList.remove('stuck');
     });
   }
+
+  function getRelativePath() {
+    const path = location.pathname;
+    const base = document.querySelector('base')?.getAttribute('href') || '';
+    console.log(base);
+
+    return path.replace(base, '');
+  }
+
+  function processDocsVersions() {
+    const path = getRelativePath();
+    console.log(path);
+    if (!path.includes('/docs')) return;
+    if (!path.startsWith('/docs')) return;
+
+    docsVersionLinks.forEach(link => {
+      const defaultVersion = link.getAttribute('data-default-version');
+      const re = new RegExp(`${defaultVersion}/`);
+      link.href = link.href.replace(re, '');
+    });
+  }
+
   let stuck = window.scrollY > 170;
   if (stuck) addStuck();
   window.addEventListener('scroll', () => {
@@ -96,6 +120,8 @@ function init() {
 
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
+
+  processDocsVersions();
 }
 
 if (document.readyState === 'loading') {
