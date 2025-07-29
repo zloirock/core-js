@@ -21,7 +21,16 @@
     - `Iterator.concat`
   - Moved to stage 3, [July 2025 TC39 meeting](https://github.com/tc39/proposals/commit/3eebab0f8594673dd08bc709d68c011016074c2e)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
+- [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
+  - Built-ins:
+    - `Map.prototype.getOrInsert`
+    - `Map.prototype.getOrInsertComputed`
+    - `WeakMap.prototype.getOrInsert`
+    - `WeakMap.prototype.getOrInsertComputed`
+  - Moved to stage 3, [July 2025 TC39 meeting](https://github.com/tc39/proposals/commit/a9c0dfa4e00ffb69aa4df91d8c0c26b064d67108)
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Added missing dependencies to some entries of static `Iterator` methods
+- Fixed [Joint Iteration proposal](https://github.com/tc39/proposal-joint-iteration) in `/stage/` entries
 - Compat data improvements:
   - [`Uint8Array` to / from base64 and hex proposal](https://github.com/tc39/proposal-arraybuffer-base64) features marked as [supported from V8 ~ Chromium 140](https://issues.chromium.org/issues/42204568#comment37)
   - `%TypedArray%.prototype.with` marked as fixed in Safari 26.0

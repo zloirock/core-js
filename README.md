@@ -168,11 +168,11 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
       - [`Iterator` sequencing](#iterator-sequencing)
+      - [`Map` upsert](#map-upsert)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [Joint iteration](#joint-iteration)
-      - [`Map` upsert](#map-upsert)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2712,6 +2712,42 @@ Iterator.concat([0, 1].values(), [2, 3], function * () {
 }()).toArray(); // => [0, 1, 2, 3, 4, 5]
 ```
 
+##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
+Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
+```ts
+class Map {
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
+}
+
+class WeakMap {
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/map-upsert-v4
+core-js(-pure)/actual|full/map/get-or-insert
+core-js(-pure)/actual|full/map/get-or-insert-computed
+core-js(-pure)/actual|full/weak-map/get-or-insert
+core-js(-pure)/actual|full/weak-map/get-or-insert-computed
+```
+[*Examples*](https://tinyurl.com/2a54u5ux):
+```js
+const map = new Map([['a', 1]]);
+
+map.getOrInsert('a', 2); // => 1
+
+map.getOrInsert('b', 3); // => 3
+
+map.getOrInsertComputed('a', key => key); // => 1
+
+map.getOrInsertComputed('c', key => key); // => 'c'
+
+console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
+```
+
 ##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)
 Modules [`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
 ```ts
@@ -2825,42 +2861,6 @@ Iterator.zipKeyed({
   { a: undefined, b: 6, c: 10 },
 ];
  */
-```
-
-##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
-Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
-```ts
-class Map {
-  getOrInsert(key: any, value: any): any;
-  getOrInsertComputed(key: any, (key: any) => value: any): any;
-}
-
-class WeakMap {
-  getOrInsert(key: any, value: any): any;
-  getOrInsertComputed(key: any, (key: any) => value: any): any;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/map-upsert-v4
-core-js(-pure)/full/map/get-or-insert
-core-js(-pure)/full/map/get-or-insert-computed
-core-js(-pure)/full/weak-map/get-or-insert
-core-js(-pure)/full/weak-map/get-or-insert-computed
-```
-[*Examples*](https://tinyurl.com/2a54u5ux):
-```js
-const map = new Map([['a', 1]]);
-
-map.getOrInsert('a', 2); // => 1
-
-map.getOrInsert('b', 3); // => 3
-
-map.getOrInsertComputed('a', key => key); // => 1
-
-map.getOrInsertComputed('c', key => key); // => 'c'
-
-console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
 ```
 
 #### Stage 2 proposals[⬆](#index)
