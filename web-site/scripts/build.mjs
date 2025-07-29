@@ -126,10 +126,10 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
       }
       result += `<div class="content">${ html }</div>
         <div class="table-of-contents sticky">
-            ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
-            htmlFileName.replace('.html', '') }#${ id }" class="h${
-            level } with-docs-version" data-default-version="${ defaultVersion }">${
-            raw }</a></div>`).join('\n') }
+              ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
+              htmlFileName.replace('.html', '') }#${ id }" class="h${
+              level } with-docs-version" data-default-version="${ defaultVersion }">${
+              raw }</a></div>`).join('\n') }
         </div>`;
       return result;
     },
