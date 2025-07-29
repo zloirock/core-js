@@ -21,11 +21,13 @@ function init() {
   const [menu] = document.getElementsByClassName('menu');
   const collapsibleTrigger = document.querySelectorAll('.collapsible > a');
   const dropdownTriggers = document.querySelectorAll('.dropdown .dropdown-wrapper > a');
-  const currentVersion = document.querySelector('.versions-menu a.current');
+  const versionsMenu = document.querySelectorAll('.versions-menu');
+  const currentVersions = document.querySelectorAll('.versions-menu a.current');
   const dropdownBackdrops = document.querySelectorAll('.dropdown .backdrop');
   const stickyBlocks = document.querySelectorAll('.sticky');
   const themeSwitcher = document.querySelector('.theme-switcher');
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
+  let isDocs, docsVersion;
 
   function toggleMenu() {
     menu.classList.toggle('active');
@@ -54,8 +56,10 @@ function init() {
     });
   });
 
-  currentVersion && currentVersion.addEventListener('click', e => {
-    e.preventDefault();
+  currentVersions.length && currentVersions.forEach(version => {
+    version.addEventListener('click', e => {
+      e.preventDefault();
+    });
   });
 
   dropdownBackdrops.forEach(el => {
@@ -79,22 +83,42 @@ function init() {
   function getRelativePath() {
     const path = globalThis.location.pathname;
     const base = document.querySelector('base')?.getAttribute('href') || '';
-    console.log(base);
 
     return path.replace(base, '');
   }
 
+  function isDocsPage() {
+    if (isDocs !== undefined) return isDocs;
+    isDocs = getRelativePath().includes('docs/');
+    return isDocs;
+  }
+
+  function hasDocsVersion() {
+    if (docsVersion !== undefined) return docsVersion;
+    docsVersion = !getRelativePath().startsWith('docs/');
+    return docsVersion;
+  }
+
+  function setDefaultVersion() {
+    versionsMenu.forEach(menu => {
+      const currentVersion = menu.querySelector('a.current');
+      currentVersion.innerHTML = `${ currentVersion.innerHTML } (default)`;
+      const versionsMenuLinks = menu.querySelectorAll('.dropdown-block a');
+      versionsMenuLinks.forEach(link => link.classList.remove('active'));
+      versionsMenuLinks[0].classList.add('active');
+    });
+  }
+
   function processDocsVersions() {
-    const path = getRelativePath();
-    console.log(path);
-    if (!path.includes('docs/')) return;
-    if (!path.startsWith('docs/')) return;
+    const hasVersion = hasDocsVersion();
+    if (!hasVersion) setDefaultVersion();
+    if (!isDocsPage()) return;
+    if (hasVersion) return;
 
     docsVersionLinks.forEach(link => {
       const defaultVersion = link.getAttribute('data-default-version');
       const re = new RegExp(`${ defaultVersion }/`);
       const newLink = link.getAttribute('href').replace(re, '');
-      console.log(newLink);
       link.setAttribute('href', newLink);
     });
   }
