@@ -87,7 +87,7 @@ function init() {
   function processDocsVersions() {
     const path = getRelativePath();
     console.log(path);
-    if (!path.includes('/docs')) return;
+    if (!path.includes('docs/')) return;
     if (!path.startsWith('docs/')) return;
 
     docsVersionLinks.forEach(link => {
