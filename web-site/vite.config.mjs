@@ -1,6 +1,6 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { defineConfig } from 'vite';
-import legacy from '@vitejs/plugin-legacy'
+import legacy from '@vitejs/plugin-legacy';
 
 export default defineConfig({
   root: 'src',
@@ -15,19 +15,14 @@ export default defineConfig({
     },
     outDir: '../templates',
     emptyOutDir: true,
-    minify: false,
+    minify: true,
     cssTarget: [
       'ie11',
     ],
   },
   plugins: [
     legacy({
-      targets: [
-        'IE 11',
-        'Chrome 38',
-        'Safari 7.1',
-        'Firefox 15',
-      ],
+      polyfills: false,
     }),
   ],
 });
