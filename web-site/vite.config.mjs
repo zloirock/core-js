@@ -16,8 +16,8 @@ export default defineConfig({
     outDir: '../templates',
     emptyOutDir: true,
     cssTarget: [
-      'ie11'
-    ]
+      'ie11',
+    ],
   },
   plugins: [
     babel(),
