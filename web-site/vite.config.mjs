@@ -1,13 +1,11 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { defineConfig } from 'vite';
-import legacy from '@vitejs/plugin-legacy';
-
-const distDir = '';
+import babel from 'vite-plugin-babel';
 
 export default defineConfig({
   root: 'src',
   publicDir: 'public',
-  base: distDir,
+  base: '',
   build: {
     rollupOptions: {
       input: {
@@ -17,16 +15,8 @@ export default defineConfig({
     },
     outDir: '../templates',
     emptyOutDir: true,
-    minify: false,
   },
   plugins: [
-    legacy({
-      targets: [
-        'IE 11',
-        'Chrome 38',
-        'Safari 7.1',
-        'Firefox 15',
-      ],
-    }),
+    babel(),
   ],
 });
