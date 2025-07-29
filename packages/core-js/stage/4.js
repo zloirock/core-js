@@ -1,6 +1,7 @@
 'use strict';
 // TODO: Remove this entry from `core-js@4`
 require('../proposals/accessible-object-hasownproperty');
+require('../proposals/array-buffer-base64');
 require('../proposals/array-buffer-transfer');
 require('../proposals/array-find-from-last');
 require('../proposals/array-from-async-stage-2');
