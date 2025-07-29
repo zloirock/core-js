@@ -159,12 +159,12 @@ nav {
 
                             &:nth-child(1) {
                                 margin-top: 11px;
-                                rotate: -45deg;
+                                transform: rotate(-45deg);
                             }
 
                             &:nth-child(2) {
                                 margin-top: -1px;
-                                rotate: 45deg;
+                                transform: rotate(45deg);
                             }
 
                             &:nth-child(3) {

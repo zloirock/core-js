@@ -12,7 +12,7 @@ const DEFAULT_VERSION = 'web';
 
 const args = process.argv;
 const lastArg = args.at(-1);
-const BRANCH = lastArg.startsWith('BRANCH=') ? lastArg.slice('BRANCH='.length) : undefined;
+const BRANCH = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
 const BASE = BRANCH ? `/branches/${ BRANCH }/` : '/';
 
 async function getAllMdFiles(dir) {
