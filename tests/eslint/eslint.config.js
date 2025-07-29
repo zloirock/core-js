@@ -2401,6 +2401,9 @@ export default [
     languageOptions: {
       sourceType: 'module',
     },
-    rules: transpiledAndPolyfilled,
+    rules: {
+      ...transpiledAndPolyfilled,
+      ...nodeDev,
+    },
   },
 ];
