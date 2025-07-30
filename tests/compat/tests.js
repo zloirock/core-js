@@ -874,12 +874,15 @@ GLOBAL.tests = {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
     return Math.floor(Math.acosh(Number.MAX_VALUE)) === 710
       // Tor Browser bug: Math.acosh(Infinity) -> NaN
+      // eslint-disable-next-line math/no-static-infinity-calculations -- testing
       && Math.acosh(Infinity) === Infinity;
   },
   'es.math.asinh': function () {
+    // eslint-disable-next-line math/no-static-infinity-calculations -- testing
     return 1 / Math.asinh(0) > 0;
   },
   'es.math.atanh': function () {
+    // eslint-disable-next-line math/no-static-infinity-calculations -- testing
     return 1 / Math.atanh(-0) < 0;
   },
   'es.math.cbrt': function () {
@@ -905,6 +908,7 @@ GLOBAL.tests = {
     return Math.f16round;
   },
   'es.math.hypot': function () {
+    // eslint-disable-next-line math/no-static-infinity-calculations -- testing
     return Math.hypot && Math.hypot(Infinity, NaN) === Infinity;
   },
   'es.math.imul': function () {
