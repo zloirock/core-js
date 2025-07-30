@@ -885,6 +885,8 @@ const base = {
   'math/prefer-math-sqrt1-2': ERROR,
   // enforce the use of `Math.SQRT2` instead of other ways
   'math/prefer-math-sqrt2': ERROR,
+  // enforce the use of `Math.sumPrecise()` instead of other summation methods
+  'math/prefer-math-sum-precise': ERROR,
   // enforce the use of `Math.trunc()` instead of other truncations
   'math/prefer-math-trunc': [ERROR, { reportBitwise: false }],
   // enforce the use of `Number.EPSILON` instead of other ways
@@ -1681,6 +1683,8 @@ const forbidES2026BuiltIns = {
   'es/no-suppressederror': ERROR,
   'es/no-symbol-asyncdispose': ERROR,
   'es/no-symbol-dispose': ERROR,
+  // enforce the use of `Math.sumPrecise` instead of other summation methods
+  'math/prefer-math-sum-precise': OFF,
 };
 
 const forbidES2016IntlBuiltIns = {
