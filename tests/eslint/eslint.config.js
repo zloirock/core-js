@@ -2313,7 +2313,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/**/*.mjs',
-      'web-site/scripts/*.mjs',
+      'web-site/*.mjs',
     ],
     languageOptions: {
       // zx
@@ -2400,7 +2400,7 @@ export default [
   },
   {
     files: [
-      'web-site/scripts/runner.mjs',
+      'web-site/runner.mjs',
     ],
     languageOptions: {
       sourceType: 'module',
