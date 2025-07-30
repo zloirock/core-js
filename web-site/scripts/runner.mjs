@@ -4,7 +4,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 
 const exec = promisify(childProcess.exec);
-// eslint-disable-next-line node/no-unsupported-features/node-builtins -- it is needed
+// eslint-disable-next-line no-console -- needed for logging
 const { cp, readdir } = fs;
 
 const SRC_DIR = 'core-js';
