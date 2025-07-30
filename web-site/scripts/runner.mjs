@@ -1,10 +1,10 @@
+/* eslint-disable no-console -- needed for logging */
 import childProcess from 'node:child_process';
 import fs from 'node:fs/promises';
 import { promisify } from 'node:util';
 import path from 'node:path';
 
 const exec = promisify(childProcess.exec);
-// eslint-disable-next-line no-console -- needed for logging
 const { cp, readdir } = fs;
 
 const SRC_DIR = 'core-js';
