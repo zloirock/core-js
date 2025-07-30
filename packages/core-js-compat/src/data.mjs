@@ -2297,7 +2297,7 @@ export const data = {
   },
   'es.uint8-array.from-base64': {
     // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // bun: '1.1.22',
+    bun: '1.2.20', // '1.1.22',
     chrome: '140',
     firefox: '133',
     // Because of a bug: it doesn't throw an error on incorrect length of base64 string
@@ -2311,7 +2311,7 @@ export const data = {
   },
   'es.uint8-array.set-from-base64': {
     // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // bun: '1.1.22',
+    bun: '1.2.20', // '1.1.22',
     chrome: '140',
     firefox: '133',
     // Because of a bug: it doesn't throw an error on incorrect length of base64 string
