@@ -76,7 +76,6 @@ async function installDependencies() {
   console.log('Installing dependencies...');
   console.time('Installed dependencies');
   await exec('npm ci', { cwd: BUILD_SRC_DIR });
-  await exec('npm ci', { cwd: `${ BUILD_SRC_DIR }web-site/` });
   console.timeEnd('Installed dependencies');
 }
 
