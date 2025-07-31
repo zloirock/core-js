@@ -6,4 +6,4 @@ const { script } = await builder({
   targets: { esmodules: true },
 });
 const { code } = await minify(script);
-await fs.writeFile(`website/src/public/core-js-bundle-modern.js`, code, 'utf8');
+await fs.writeFile('website/src/public/core-js-bundle-modern.js', code, 'utf8');
