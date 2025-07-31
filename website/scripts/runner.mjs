@@ -11,7 +11,7 @@ const SRC_DIR = 'core-js';
 const BUILDS_ROOT_DIR = 'builds';
 const BUILD_RESULT_DIR = 'result';
 const REPO = 'https://github.com/zloirock/core-js.git';
-const BUILDER_BRUNCH = 'web';
+const BUILDER_BRANCH = 'web';
 const DEFAULT_VERSION = 'web';
 
 const args = process.argv;
@@ -31,7 +31,7 @@ async function getTagsWithSiteDocs() {
   // const tagsString = await exec(
   //   `git tag --list | sort -V | while read t; do v=\${t#v}; IFS=. read -r M m p <<< "$v"; m=\${m:-0}; `
   //   + `if { [ "$M" -gt 3 ] || { [ "$M" -eq 3 ] && [ "$m" -gt 40 ]; }; }; `
-  //   + `then git ls-tree -r --name-only "$t" | grep --qxF "web-site/scripts/build.mjs" && echo "$t"; fi; done`,
+  //   + `then git ls-tree -r --name-only "$t" | grep --qxF "website/scripts/build.mjs" && echo "$t"; fi; done`,
   //   { cwd: BUILD_SRC_DIR }
   // );
   const tagsString = await exec(
@@ -245,7 +245,7 @@ async function run() {
   await createBuildDir();
   await cloneRepo();
 
-  const targetBranch = BRANCH || BUILDER_BRUNCH;
+  const targetBranch = BRANCH || BUILDER_BRANCH;
   if (!BRANCH) {
     const tags = await getTagsWithSiteDocs();
     if (tags.length) {

@@ -4,8 +4,8 @@ import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 
 const DOCS_DIR = 'docs/web/';
 const BLOG_DIR = 'docs/web/blog/';
-const RESULT_DIR = 'web-site/dist/';
-const TEMPLATES_DIR = 'web-site/templates/';
+const RESULT_DIR = 'website/dist/';
+const TEMPLATES_DIR = 'website/templates/';
 const TEMPLATE_PATH = `${ TEMPLATES_DIR }index.html`;
 const DEFAULT_BRANCH = 'web';
 const DEFAULT_VERSION = 'web';
