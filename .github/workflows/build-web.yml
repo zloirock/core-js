@@ -27,6 +27,7 @@ jobs:
           local: website/scripts/runner.mjs
           remote: /var/www/core-js/runner.mjs
           host: ${{ secrets.REMOTE_HOST }}
+          username: ci
           privateKey: ${{ secrets.CI_SSH_KEY }}
 
       - name: Setup SSH
