@@ -276,7 +276,6 @@ async function run() {
   }
   await clearBuildDir();
   await clearOldBuilds();
-  console.log('Updated script');
   console.timeEnd('Finished in');
 }
 
