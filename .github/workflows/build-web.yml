@@ -11,8 +11,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@${{ steps.extract_branch.outputs.branch }}
+
+      - name: Copy runner file to remote server
+        uses: garygrossgarten/github-action-scp@release
+        with:
+          local: website/scripts/runner.mjs
+          remote: /var/www/core-js/runner.mjs
+          host: ${{ secrets.REMOTE_HOST }}
+          privateKey: ${{ secrets.CI_SSH_KEY }}
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.8.0
