@@ -48,4 +48,4 @@ node_modules/
 /tests/unit-pure/index.js
 /website/templates
 /website/dist
-/website/src/public/core-js-bundle.js
+/website/src/public/*
