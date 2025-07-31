@@ -1,5 +1,5 @@
 /* eslint-disable no-console -- needed for logging */
-import builder from '@core-js/builder';
+import builder from 'packages/core-js-builder/index.js';
 import { minify } from 'terser';
 import childProcess from 'node:child_process';
 import fs from 'node:fs/promises';
