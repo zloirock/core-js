@@ -1,6 +1,4 @@
 /* eslint-disable no-console -- needed for logging */
-import builder from 'packages/core-js-builder/index.js';
-import { minify } from 'terser';
 import childProcess from 'node:child_process';
 import fs from 'node:fs/promises';
 import { promisify } from 'node:util';
@@ -169,13 +167,6 @@ async function buildAndCopyCoreJS() {
   const bundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
   const destPath = `${ BUILD_SRC_DIR }website/src/public/core-js-bundle.js`;
   await cp(bundlePath, destPath, { });
-
-  const { script } = await builder({
-    modules: 'core-js/full',
-    targets: { esmodules: true },
-  });
-  const { code } = await minify(script);
-  await fs.writeFile(`${ BUILD_SRC_DIR }website/src/public/core-js-bundle-modern.js`, code);
   console.timeEnd('Core JS bundle built');
 }
 
