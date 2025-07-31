@@ -192,7 +192,7 @@ async function readFile(filePath) {
 }
 
 async function processPlaygroundFile(currentVersion, template) {
-  let playgroundContent = await readFile(`${ TEMPLATES_DIR }playground.html`);
+  const playgroundContent = await readFile(`${ TEMPLATES_DIR }playground.html`);
   let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
   const playgroundFilePath = path.join(RESULT_DIR, 'playground.html');

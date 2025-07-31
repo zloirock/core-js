@@ -165,7 +165,7 @@ async function buildAndCopyCoreJS() {
   console.time('Core JS bundle built');
   await exec('npm run bundle-package', { cwd: BUILD_SRC_DIR });
   const bundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
-  const destPath = `${ BUILD_SRC_DIR }web-site/src/public/core-js-bundle.js`;
+  const destPath = `${ BUILD_SRC_DIR }website/src/public/core-js-bundle.js`;
   await cp(bundlePath, destPath, { });
   console.timeEnd('Core JS bundle built');
 }
