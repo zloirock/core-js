@@ -191,15 +191,10 @@ async function readFile(filePath) {
   return content.toString();
 }
 
-async function processPlaygroundFile(currentVersion) {
-  let playground = await readFile(`${ TEMPLATES_DIR }playground.html`);
+async function processPlaygroundFile(currentVersion, template) {
+  let playgroundContent = await readFile(`${ TEMPLATES_DIR }playground.html`);
+  let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
-  playground = playground.replaceAll('{current-version}', currentVersion);
-  if (BRANCH) {
-    playground = playground.replaceAll('{default-version}', '.');
-  } else {
-    playground = playground.replaceAll('{default-version}', DEFAULT_VERSION);
-  }
   const playgroundFilePath = path.join(RESULT_DIR, 'playground.html');
   await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
   await fs.writeFile(playgroundFilePath, playground, 'utf8');
@@ -263,7 +258,7 @@ async function build() {
     echo(chalk.green(`File created: ${ htmlFilePath }`));
   }
 
-  await processPlaygroundFile(currentVersion);
+  await processPlaygroundFile(currentVersion, template);
 }
 
 await build().catch(console.error);
