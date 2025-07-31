@@ -44,6 +44,6 @@ node_modules/
 /tests/compat/compat-data.js
 /tests/unit-global/index.js
 /tests/unit-pure/index.js
-/web-site/templates
-/web-site/dist
-/web-site/src/public/core-js-bundle.js
+/website/templates
+/website/dist
+/website/src/public/core-js-bundle.js
