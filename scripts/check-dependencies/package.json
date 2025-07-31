@@ -1,6 +1,6 @@
 {
   "name": "scripts/check-dependencies",
   "devDependencies": {
-    "updates": "16.4.4"
+    "updates": "16.5.2"
   }
 }
