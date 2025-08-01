@@ -10,7 +10,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'src/index.html',
-        playground: 'src/playground.html',
       },
     },
     outDir: '../templates',
