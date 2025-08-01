@@ -7,9 +7,7 @@
     "@playwright/browser-webkit": "^1.54.1",
     "karma": "^6.4.4",
     "karma-ie-launcher": "^1.0.0",
-    "karma-phantomjs-launcher": "~1.0.4",
     "karma-qunit": "^4.2.1",
-    "phantomjs-prebuilt": "~2.1.16",
     "playwright": "^1.54.1",
     "qunit": "^2.24.1",
     "which": "^5.0.0"
