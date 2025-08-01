@@ -6,6 +6,7 @@ const DOCS_DIR = 'docs/web/';
 const BLOG_DIR = 'docs/web/blog/';
 const RESULT_DIR = 'website/dist/';
 const TEMPLATES_DIR = 'website/templates/';
+const SRC_DIR = 'website/src/';
 const TEMPLATE_PATH = `${ TEMPLATES_DIR }index.html`;
 const DEFAULT_BRANCH = 'web';
 const DEFAULT_VERSION = 'web';
@@ -192,7 +193,7 @@ async function readFile(filePath) {
 }
 
 async function processPlaygroundFile(currentVersion, template) {
-  const playgroundContent = await readFile(`${ TEMPLATES_DIR }playground.html`);
+  const playgroundContent = await readFile(`${ SRC_DIR }playground.html`);
   let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
   playground = playground.replace('{blog-menu}', '');
