@@ -99,6 +99,7 @@ let initialized = false;
 function init() {
   if (initialized) return;
   initialized = true;
+  if (!codeInput) return;
   codeOutput.textContent = codeInput.value;
   hljs.highlightElement(codeOutput);
   let event;
