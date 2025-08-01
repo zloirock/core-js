@@ -14,7 +14,11 @@ hljs.registerLanguage('sh', bash);
 
 let initialized = false;
 function init() {
-  if (initialized) return;
+  console.log('init');
+  if (initialized) {
+    console.log('already initialized');
+    return;
+  }
   initialized = true;
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector('.menu > .backdrop');
@@ -41,6 +45,7 @@ function init() {
     e.preventDefault();
     toggleMenu();
   }, false);
+  console.log('menuSwitcher initialized');
 
   collapsibleTrigger.forEach(el => {
     el.addEventListener('click', function (e) {
