@@ -196,6 +196,9 @@ async function processPlaygroundFile(currentVersion, template) {
   const playgroundContent = await readFile(`${ SRC_DIR }playground.html`);
   let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
+  playground = playground.replace('{blog-menu}', '');
+  playground = playground.replace('{docs-menu}', '');
+  playground = playground.replace('{base}', `${ BASE }`);
   const playgroundFilePath = path.join(RESULT_DIR, 'playground.html');
   await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
   await fs.writeFile(playgroundFilePath, playground, 'utf8');
