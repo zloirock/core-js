@@ -98,7 +98,10 @@ setInterval(() => {
   globalThis.localStorage.setItem('code', codeInput.value);
 }, 2000);
 
+let initialized = false;
 function init() {
+  if (initialized) return;
+  initialized = true;
   let event;
   if (typeof Event === 'function') {
     event = new Event('input', { bubbles: true });
