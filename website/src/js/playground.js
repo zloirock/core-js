@@ -19,6 +19,13 @@ let initialized = false;
 function init() {
   if (initialized) return;
   initialized = true;
+
+  const codeInput = document.querySelector('#code-input');
+  const codeOutput = document.querySelector('#code-output');
+  const runButton = document.querySelector('.run-button');
+  const linkButton = document.querySelector('.link-button');
+  const resultBlock = document.querySelector('.result');
+
   if (!codeInput) return;
 
   function writeResult(text, type = 'log') {
@@ -67,12 +74,6 @@ function init() {
     if (['Set', 'Map'].includes(klass)) return `${ klass } ${ stringify(Array.from(it)) }`;
     return String(it);
   }
-
-  const codeInput = document.querySelector('#code-input');
-  const codeOutput = document.querySelector('#code-output');
-  const runButton = document.querySelector('.run-button');
-  const linkButton = document.querySelector('.link-button');
-  const resultBlock = document.querySelector('.result');
 
   codeInput.addEventListener('input', () => {
     codeOutput.removeAttribute('data-highlighted');
