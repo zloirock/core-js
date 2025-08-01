@@ -4,27 +4,8 @@ import javascript from 'highlight.js/lib/languages/javascript';
 
 hljs.registerLanguage('javascript', javascript);
 
-const codeInput = document.querySelector('#code-input');
-const codeOutput = document.querySelector('#code-output');
-const runButton = document.querySelector('.run-button');
-const linkButton = document.querySelector('.link-button');
-const resultBlock = document.querySelector('.result');
-
 const hash = globalThis.location.hash.slice(1);
 const pageParams = new URLSearchParams(hash);
-
-codeInput.addEventListener('input', () => {
-  codeOutput.removeAttribute('data-highlighted');
-  let val = codeInput.value;
-  if (val.at(-1) === '\n') val += ' ';
-  codeOutput.textContent = val;
-  hljs.highlightElement(codeOutput);
-});
-
-codeInput.addEventListener('scroll', () => {
-  codeOutput.scrollTop = codeInput.scrollTop;
-  codeOutput.scrollLeft = codeInput.scrollLeft;
-});
 
 const specSymbols = {
   '&': '&amp;',
@@ -34,72 +15,92 @@ const specSymbols = {
   "'": '&apos;',
 };
 
-function writeResult(text, type = 'log') {
-  const serializedText = serializeLog(text).replaceAll(/["&'<>]/g, it => specSymbols[it]);
-  resultBlock.innerHTML += `<div class="console ${ type }">${ serializedText }</div>`;
-}
-function runCode(code) {
-  const origConsole = globalThis.console;
-  const console = {
-    log: (...args) => {
-      args.forEach(arg => { writeResult(arg, 'log'); });
-      origConsole.log(...args);
-    },
-    warn: (...args) => {
-      args.forEach(arg => { writeResult(arg, 'warn'); });
-      origConsole.warn(...args);
-    },
-    error: (...args) => {
-      args.forEach(arg => { writeResult(arg, 'error'); });
-      origConsole.error(...args);
-    },
-  };
-
-  try {
-    // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
-    const output = Babel.transform(code, { presets: ['env'] }).code;
-    // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
-    const context = new Function('console', output);
-    context(console);
-  } catch (error) {
-    writeResult(`Error: ${ error.message }`, 'error');
-  }
-}
-
-function stringify(it) {
-  try {
-    return JSON.stringify(Array.from(it));
-  } catch {
-    return String(it);
-  }
-}
-
-function serializeLog(it) {
-  const klass = ({}).toString.call(it).slice(8, -1);
-  if (['Array', 'Object'].includes(klass)) return stringify(it);
-  if (['Set', 'Map'].includes(klass)) return `${ klass } ${ stringify(Array.from(it)) }`;
-  return String(it);
-}
-
-runButton.addEventListener('click', () => {
-  resultBlock.innerHTML = '';
-  runCode(codeInput.value);
-});
-
-linkButton.addEventListener('click', () => {
-  pageParams.set('code', codeInput.value);
-  globalThis.location.hash = pageParams.toString();
-});
-
-setInterval(() => {
-  globalThis.localStorage.setItem('code', codeInput.value);
-}, 2000);
-
 let initialized = false;
 function init() {
   if (initialized) return;
   initialized = true;
   if (!codeInput) return;
+
+  function writeResult(text, type = 'log') {
+    const serializedText = serializeLog(text).replaceAll(/["&'<>]/g, it => specSymbols[it]);
+    resultBlock.innerHTML += `<div class="console ${ type }">${ serializedText }</div>`;
+  }
+  function runCode(code) {
+    const origConsole = globalThis.console;
+    const console = {
+      log: (...args) => {
+        args.forEach(arg => { writeResult(arg, 'log'); });
+        origConsole.log(...args);
+      },
+      warn: (...args) => {
+        args.forEach(arg => { writeResult(arg, 'warn'); });
+        origConsole.warn(...args);
+      },
+      error: (...args) => {
+        args.forEach(arg => { writeResult(arg, 'error'); });
+        origConsole.error(...args);
+      },
+    };
+
+    try {
+      // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
+      const output = Babel.transform(code, { presets: ['env'] }).code;
+      // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
+      const context = new Function('console', output);
+      context(console);
+    } catch (error) {
+      writeResult(`Error: ${ error.message }`, 'error');
+    }
+  }
+
+  function stringify(it) {
+    try {
+      return JSON.stringify(Array.from(it));
+    } catch {
+      return String(it);
+    }
+  }
+
+  function serializeLog(it) {
+    const klass = ({}).toString.call(it).slice(8, -1);
+    if (['Array', 'Object'].includes(klass)) return stringify(it);
+    if (['Set', 'Map'].includes(klass)) return `${ klass } ${ stringify(Array.from(it)) }`;
+    return String(it);
+  }
+
+  const codeInput = document.querySelector('#code-input');
+  const codeOutput = document.querySelector('#code-output');
+  const runButton = document.querySelector('.run-button');
+  const linkButton = document.querySelector('.link-button');
+  const resultBlock = document.querySelector('.result');
+
+  codeInput.addEventListener('input', () => {
+    codeOutput.removeAttribute('data-highlighted');
+    let val = codeInput.value;
+    if (val.at(-1) === '\n') val += ' ';
+    codeOutput.textContent = val;
+    hljs.highlightElement(codeOutput);
+  });
+
+  codeInput.addEventListener('scroll', () => {
+    codeOutput.scrollTop = codeInput.scrollTop;
+    codeOutput.scrollLeft = codeInput.scrollLeft;
+  });
+
+  runButton.addEventListener('click', () => {
+    resultBlock.innerHTML = '';
+    runCode(codeInput.value);
+  });
+
+  linkButton.addEventListener('click', () => {
+    pageParams.set('code', codeInput.value);
+    globalThis.location.hash = pageParams.toString();
+  });
+
+  setInterval(() => {
+    globalThis.localStorage.setItem('code', codeInput.value);
+  }, 2000);
+
   codeOutput.textContent = codeInput.value;
   hljs.highlightElement(codeOutput);
   let event;
