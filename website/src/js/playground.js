@@ -10,9 +10,6 @@ const runButton = document.querySelector('.run-button');
 const linkButton = document.querySelector('.link-button');
 const resultBlock = document.querySelector('.result');
 
-codeOutput.textContent = codeInput.value;
-hljs.highlightElement(codeOutput);
-
 const hash = globalThis.location.hash.slice(1);
 const pageParams = new URLSearchParams(hash);
 
@@ -102,6 +99,8 @@ let initialized = false;
 function init() {
   if (initialized) return;
   initialized = true;
+  codeOutput.textContent = codeInput.value;
+  hljs.highlightElement(codeOutput);
   let event;
   if (typeof Event === 'function') {
     event = new Event('input', { bubbles: true });
