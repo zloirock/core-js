@@ -56,7 +56,7 @@
     "downloads": "npm run zxi scripts/downloads-by-versions.mjs",
     "usage": "npm run zxi scripts/usage/usage.mjs",
     "update-version": "npm run zxi scripts/update-version.mjs",
-    "publish": "npm publish --workspaces --tag alpha",
+    "publish": "npm run zxi scripts/prepublish.mjs && npm publish --workspaces --tag alpha",
     "c": "npm run check",
     "r": "npm run refresh",
     "u": "npm run update-version"
