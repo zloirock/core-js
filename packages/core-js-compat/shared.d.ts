@@ -1,3 +1,5 @@
+export type EntryName = string;
+
 export type ModuleName = string;
 
 export type Target =
