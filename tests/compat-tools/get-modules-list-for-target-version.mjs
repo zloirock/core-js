@@ -4,8 +4,8 @@ import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for
 const modules = await fs.readJson('packages/core-js-compat/modules.json');
 const modulesByVersions = await fs.readJson('packages/core-js-compat/modules-by-versions.json');
 
-const modules40 = modulesByVersions['4.0'];
-const filter = new Set([...modules40, ...modulesByVersions['4.1'] ?? []]);
+const [modules40] = Object.values(modulesByVersions);
+const filter = new Set([...modules40, ...modulesByVersions['4.1.0'] ?? []]);
 const modules41 = modules.filter(it => filter.has(it));
 
 deepEqual(getModulesListForTargetVersion('4.0'), modules40, '4.0');
