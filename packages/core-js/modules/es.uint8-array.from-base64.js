@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable es/no-uint8array-frombase64 -- safe */
 var $ = require('../internals/export');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 var $fromBase64 = require('../internals/uint8-from-base64');
