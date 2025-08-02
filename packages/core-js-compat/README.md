@@ -128,6 +128,9 @@ require('@core-js/compat/modules'); // => Array<ModuleName>
 // or
 require('@core-js/compat').modules; // => Array<ModuleName>
 
+// the subset of entries which available in the passed `core-js` version:
+require('@core-js/compat/get-entries-list-for-target-version')('4.0'); // => Array<EntryName>
+
 // the subset of modules which available in the passed `core-js` version:
 require('@core-js/compat/get-modules-list-for-target-version')('4.0'); // => Array<ModuleName>
 // or
