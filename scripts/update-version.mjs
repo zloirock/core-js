@@ -1,5 +1,8 @@
+import coerce from 'semver/functions/coerce.js';
+
 const { readJson, readFile, writeJson, writeFile } = fs;
-const { green, red } = chalk;
+const { cyan, green, red } = chalk;
+
 const [PREV_VERSION, NEW_VERSION] = (await Promise.all([
   readJson('packages/core-js/package.json'),
   readJson('package.json'),
@@ -83,3 +86,14 @@ if (NEW_VERSION !== PREV_VERSION) echo(green('the version updated'));
 else if (CURRENT_YEAR === OLD_YEAR) echo(red('bump is not required'));
 
 await $`npm run build-compat`;
+
+const modulesByVersions = await readJson('packages/core-js-compat/modules-by-versions.json');
+
+const UNRELEASED_TAG = `${ coerce(PREV_VERSION) }-unreleased`;
+
+if (modulesByVersions[UNRELEASED_TAG]) {
+  modulesByVersions[NEW_VERSION] = modulesByVersions[UNRELEASED_TAG];
+  delete modulesByVersions[UNRELEASED_TAG];
+  await writeJson('packages/core-js-compat/modules-by-versions.json', modulesByVersions, { spaces: '  ' });
+  echo(green('modules-by-versions updated'));
+} else echo(cyan('modules-by-versions update is not required'));
