@@ -50,6 +50,7 @@
     "test-unit-bun": "npm run zxi time cd tests/unit-bun/runner.mjs",
     "test-promises": "npm run zxi time cd tests/promises/runner.mjs",
     "test-entries": "npm run zxi tests/entries/index.mjs",
+    "test-babel-plugin": "npm run zxi time cd tests/babel-plugin/index.mjs",
     "test-builder": "npm run zxi tests/builder/builder.mjs",
     "test-compat-data": "npm run zxi tests/compat-data/index.mjs",
     "test-compat-tools": "npm run zxi tests/compat-tools/index.mjs",
