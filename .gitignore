@@ -17,6 +17,7 @@ node_modules/
 /packages/core-js/stage/
 /packages/core-js/index.js
 /packages/core-js/LICENSE
+/packages/core-js-babel-plugin/LICENSE
 /packages/core-js-builder/LICENSE
 /packages/core-js-bundle/LICENSE
 /packages/core-js-bundle/index.js
