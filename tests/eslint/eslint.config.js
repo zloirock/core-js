@@ -2324,6 +2324,7 @@ export default [
       'packages/core-js-bundle/*.js',
       'packages/core-js-compat/!(package).json',
       'packages/core-js-pure/override/**',
+      'tests/babel-plugin/fixtures/**/*.mjs',
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/unit-@(global|pure)/index.js',
@@ -2469,7 +2470,7 @@ export default [
   },
   {
     files: [
-      `packages/core-js-@(builder|compat)/**/${ jsFile }`,
+      `packages/core-js-@(babel-plugin|builder|compat)/**/${ jsFile }`,
     ],
     ignores: ['packages/core-js-compat/src/**'],
     rules: nodePackages,
