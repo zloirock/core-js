@@ -61,11 +61,10 @@ async function getDocsMenuItems(version) {
   const docsMenuJson = await readFile(jsonPath);
   try {
     docsMenuItems[version] = JSON.parse(docsMenuJson.toString());
-    return docsMenuItems;
   } catch {
-    docsMenuItems = [];
-    return [];
+    docsMenuItems[version] = [];
   }
+  return docsMenuItems[version];
 }
 
 async function buildDocsMenuForVersion(version) {
