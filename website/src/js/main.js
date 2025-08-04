@@ -27,7 +27,9 @@ function init() {
   const stickyBlocks = document.querySelectorAll('.sticky');
   const themeSwitcher = document.querySelector('.theme-switcher');
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
+  const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
   let isDocs, docsVersion;
+  const currentPath = getRelativePath();
 
   function toggleMenu() {
     menu.classList.toggle('active');
@@ -88,13 +90,13 @@ function init() {
 
   function isDocsPage() {
     if (isDocs !== undefined) return isDocs;
-    isDocs = getRelativePath().includes('docs/');
+    isDocs = currentPath.includes('docs/');
     return isDocs;
   }
 
   function hasDocsVersion() {
     if (docsVersion !== undefined) return docsVersion;
-    docsVersion = !getRelativePath().startsWith('docs/');
+    docsVersion = !currentPath.startsWith('docs/');
     return docsVersion;
   }
 
@@ -119,6 +121,28 @@ function init() {
       const re = new RegExp(`${ defaultVersion }/`);
       const newLink = link.getAttribute('href').replace(re, '');
       link.setAttribute('href', newLink);
+    });
+  }
+
+  function setActiveDocsMenuItem(item) {
+    item.classList.add('active');
+    let parent = item.parentElement;
+    while (parent && !parent.classList.contains('docs-menu')) {
+      if (parent.tagName === 'LI' && parent.classList.contains('collapsible')) {
+        parent.classList.add('active');
+      }
+      parent = parent.parentElement;
+    }
+  }
+
+  function highlightActiveMenuItem() {
+    if (!isDocsPage()) return;
+
+    docsMenuItems.forEach(link => {
+      const href = link.getAttribute('href');
+      if (href && href.startsWith(currentPath)) {
+        setActiveDocsMenuItem(link);
+      }
     });
   }
 
@@ -147,6 +171,7 @@ function init() {
   hljs.highlightAll();
 
   processDocsVersions();
+  highlightActiveMenuItem();
 }
 
 if (document.readyState === 'loading') {
