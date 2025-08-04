@@ -100,6 +100,14 @@ main {
           display: none;
         }
 
+        a {
+          &.active {
+            @include themify($themes) {
+              color: themed('link-color2-hover');
+            }
+          }
+        }
+
         .collapsible {
           & > ul {
             padding: 0.75rem 0 0 1rem;
