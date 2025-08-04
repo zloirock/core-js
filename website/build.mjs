@@ -235,7 +235,7 @@ async function createDocsIndexes(versions) {
   for (const version of versions) {
     const menuItems = await getDocsMenuItems(version);
     const firstDocPath = path.join(RESULT_DIR, `${ menuItems[0].url }.html`.replace('{docs-version}', version));
-    const indexFilePath = path.join(RESULT_DIR, `docs/${ version }/`, 'index.html');
+    const indexFilePath = path.join(RESULT_DIR, `${ version }/docs/`, 'index.html');
     await fs.copy(firstDocPath, indexFilePath);
     echo(chalk.green(`File created: ${ indexFilePath }`));
   }
