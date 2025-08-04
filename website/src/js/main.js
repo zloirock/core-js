@@ -138,12 +138,15 @@ function init() {
   function highlightActiveMenuItem() {
     if (!isDocsPage()) return;
 
-    docsMenuItems.forEach(link => {
+    for (const link of docsMenuItems) {
       const href = link.getAttribute('href');
       if (href && href.startsWith(currentPath)) {
         setActiveDocsMenuItem(link);
+        return;
       }
-    });
+    }
+
+    setActiveDocsMenuItem(docsMenuItems[0]);
   }
 
   let stuck = window.scrollY > 170;
