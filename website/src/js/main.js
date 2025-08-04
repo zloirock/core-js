@@ -140,7 +140,7 @@ function init() {
 
     for (const link of docsMenuItems) {
       const href = link.getAttribute('href');
-      if (href && href.startsWith(currentPath)) {
+      if (href && href === currentPath) {
         setActiveDocsMenuItem(link);
         return;
       }
