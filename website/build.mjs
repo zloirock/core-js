@@ -45,11 +45,12 @@ async function buildDocsMenu(item) {
 }
 
 const docsMenus = [];
+let docsMenuItems = [];
 
-async function buildDocsMenuForVersion(version) {
-  if (docsMenus[version]) return docsMenus[version];
+async function getDocsMenuItems(version) {
+  if (docsMenuItems[version]) return docsMenuItems[version];
 
-  echo(chalk.green(`Building docs menu for version: ${ version }`));
+  echo(chalk.green(`Getting menu items from file for version: ${ version }`));
   const jsonPath = BRANCH ? `${ DOCS_DIR }docs/menu.json` : `${ DOCS_DIR }${ version }/docs/menu.json`;
   try {
     await fs.access(jsonPath);
@@ -59,17 +60,27 @@ async function buildDocsMenuForVersion(version) {
   }
   const docsMenuJson = await readFile(jsonPath);
   try {
-    const docsMenu = JSON.parse(docsMenuJson.toString());
-    let menu = '<ul><li>{versions-menu}</li>';
-    for (const item of docsMenu) {
-      menu += await buildDocsMenu(item);
-    }
-    menu += '</ul>';
-    docsMenus[version] = menu;
-    return menu;
+    docsMenuItems[version] = JSON.parse(docsMenuJson.toString());
+    return docsMenuItems;
   } catch {
-    return '';
+    docsMenuItems = [];
+    return [];
   }
+}
+
+async function buildDocsMenuForVersion(version) {
+  if (docsMenus[version]) return docsMenus[version];
+
+  echo(chalk.green(`Building docs menu for version: ${ version }`));
+  const docsMenu = await getDocsMenuItems(version);
+  if (!docsMenu.length) return '';
+  let menu = '<ul><li>{versions-menu}</li>';
+  for (const item of docsMenu) {
+    menu += await buildDocsMenu(item);
+  }
+  menu += '</ul>';
+  docsMenus[version] = menu;
+  return menu;
 }
 
 async function buildVersionsMenuList(versions, currentVersion) {
@@ -173,7 +184,11 @@ async function getVersionTags() {
   return tagsString.stdout.split('\n');
 }
 
+let versionsCache = [];
+
 async function getVersionsFromMdFiles(mdFiles) {
+  if (versionsCache.length) return versionsCache;
+
   const versions = [];
   for (const mdPath of mdFiles) {
     const match = mdPath.match(/\/web\/(?<version>[^/]+)\/docs\//);
@@ -183,6 +198,7 @@ async function getVersionsFromMdFiles(mdFiles) {
       versions.push(DEFAULT_BRANCH);
     }
   }
+  versionsCache = versions;
 
   return versions;
 }
@@ -192,7 +208,7 @@ async function readFile(filePath) {
   return content.toString();
 }
 
-async function processPlaygroundFile(currentVersion, template) {
+async function processPlaygroundFile(template) {
   const playgroundContent = await readFile(`${ SRC_DIR }playground.html`);
   let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
@@ -205,6 +221,25 @@ async function processPlaygroundFile(currentVersion, template) {
   await fs.writeFile(playgroundFilePath, playground, 'utf8');
 
   echo(chalk.green(`File created: ${ playgroundFilePath }`));
+}
+
+async function createDocsIndexes(versions) {
+  if (BRANCH) {
+    const menuItems = await getDocsMenuItems(BRANCH);
+    const firstDocPath = path.join(RESULT_DIR, `${ menuItems[0].url }.html`.replace('{docs-version}/', ''));
+    const indexFilePath = path.join(RESULT_DIR, 'docs/', 'index.html');
+    await fs.copy(firstDocPath, indexFilePath);
+    echo(chalk.green(`File created: ${ indexFilePath }`));
+    return;
+  }
+
+  for (const version of versions) {
+    const menuItems = await getDocsMenuItems(version);
+    const firstDocPath = path.join(RESULT_DIR, `${ menuItems[0].url }.html`.replace('{docs-version}', version));
+    const indexFilePath = path.join(RESULT_DIR, `docs/${ version }/`, 'index.html');
+    await fs.copy(firstDocPath, indexFilePath);
+    echo(chalk.green(`File created: ${ indexFilePath }`));
+  }
 }
 
 let htmlFileName = '';
@@ -263,7 +298,8 @@ async function build() {
     echo(chalk.green(`File created: ${ htmlFilePath }`));
   }
 
-  await processPlaygroundFile(currentVersion, template);
+  await processPlaygroundFile(template);
+  await createDocsIndexes(uniqueVersions);
 }
 
 await build().catch(console.error);
