@@ -274,10 +274,10 @@ import "core-js/stage/2";
 > - `core-js` is extremely modular and uses a lot of very tiny modules, because of that for usage in browsers bundle up `core-js` instead of a usage loader for each file, otherwise, you will have hundreds of requests.
 
 #### CommonJS and prototype methods without global namespace pollution[⬆](#index)
-In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and virtual methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/virtual/` entry points. Example:
+In the `pure` version, we can't pollute prototypes of native constructors. Because of that, prototype methods transformed into static methods like in examples above. But with transpilers, we can use one more trick - [bind operator and prototype methods](https://github.com/tc39/proposal-bind-operator). Special for that, available `/prototype/` entry points. Example:
 ```ts
-import fill from '@core-js/pure/actual/array/virtual/fill';
-import findIndex from '@core-js/pure/actual/array/virtual/find-index';
+import fill from '@core-js/pure/actual/array/prototype/fill';
+import findIndex from '@core-js/pure/actual/array/prototype/find-index';
 
 Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // => 4
 ```
@@ -705,38 +705,38 @@ core-js(-pure)/es|stable|actual|full/array
 core-js(-pure)/es|stable|actual|full/array/from
 core-js(-pure)/es|stable|actual|full/array/from-async
 core-js(-pure)/es|stable|actual|full/array/of
-core-js(-pure)/es|stable|actual|full/array(/virtual)/at
-core-js(-pure)/es|stable|actual|full/array(/virtual)/concat
-core-js(-pure)/es|stable|actual|full/array(/virtual)/copy-within
-core-js(-pure)/es|stable|actual|full/array(/virtual)/entries
-core-js(-pure)/es|stable|actual|full/array(/virtual)/fill
-core-js(-pure)/es|stable|actual|full/array(/virtual)/filter
-core-js(-pure)/es|stable|actual|full/array(/virtual)/find
-core-js(-pure)/es|stable|actual|full/array(/virtual)/find-index
-core-js(-pure)/es|stable|actual|full/array(/virtual)/find-last
-core-js(-pure)/es|stable|actual|full/array(/virtual)/find-last-index
-core-js(-pure)/es|stable|actual|full/array(/virtual)/flat
-core-js(-pure)/es|stable|actual|full/array(/virtual)/flat-map
-core-js(-pure)/es|stable|actual|full/array(/virtual)/includes
-core-js(-pure)/es|stable|actual|full/array(/virtual)/index-of
-core-js(-pure)/es|stable|actual|full/array(/virtual)/iterator
-core-js(-pure)/es|stable|actual|full/array(/virtual)/join
-core-js(-pure)/es|stable|actual|full/array(/virtual)/keys
-core-js(-pure)/es|stable|actual|full/array(/virtual)/last-index-of
-core-js(-pure)/es|stable|actual|full/array(/virtual)/map
-core-js(-pure)/es|stable|actual|full/array(/virtual)/push
-core-js(-pure)/es|stable|actual|full/array(/virtual)/reduce
-core-js(-pure)/es|stable|actual|full/array(/virtual)/reduce-right
-core-js(-pure)/es|stable|actual|full/array(/virtual)/reverse
-core-js(-pure)/es|stable|actual|full/array(/virtual)/slice
-core-js(-pure)/es|stable|actual|full/array(/virtual)/sort
-core-js(-pure)/es|stable|actual|full/array(/virtual)/splice
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-sorted
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-spliced
-core-js(-pure)/es|stable|actual|full/array(/virtual)/unshift
-core-js(-pure)/es|stable|actual|full/array(/virtual)/values
-core-js(-pure)/es|stable|actual|full/array(/virtual)/with
+core-js(-pure)/es|stable|actual|full/array(/prototype)/at
+core-js(-pure)/es|stable|actual|full/array(/prototype)/concat
+core-js(-pure)/es|stable|actual|full/array(/prototype)/copy-within
+core-js(-pure)/es|stable|actual|full/array(/prototype)/entries
+core-js(-pure)/es|stable|actual|full/array(/prototype)/fill
+core-js(-pure)/es|stable|actual|full/array(/prototype)/filter
+core-js(-pure)/es|stable|actual|full/array(/prototype)/find
+core-js(-pure)/es|stable|actual|full/array(/prototype)/find-index
+core-js(-pure)/es|stable|actual|full/array(/prototype)/find-last
+core-js(-pure)/es|stable|actual|full/array(/prototype)/find-last-index
+core-js(-pure)/es|stable|actual|full/array(/prototype)/flat
+core-js(-pure)/es|stable|actual|full/array(/prototype)/flat-map
+core-js(-pure)/es|stable|actual|full/array(/prototype)/includes
+core-js(-pure)/es|stable|actual|full/array(/prototype)/index-of
+core-js(-pure)/es|stable|actual|full/array(/prototype)/iterator
+core-js(-pure)/es|stable|actual|full/array(/prototype)/join
+core-js(-pure)/es|stable|actual|full/array(/prototype)/keys
+core-js(-pure)/es|stable|actual|full/array(/prototype)/last-index-of
+core-js(-pure)/es|stable|actual|full/array(/prototype)/map
+core-js(-pure)/es|stable|actual|full/array(/prototype)/push
+core-js(-pure)/es|stable|actual|full/array(/prototype)/reduce
+core-js(-pure)/es|stable|actual|full/array(/prototype)/reduce-right
+core-js(-pure)/es|stable|actual|full/array(/prototype)/reverse
+core-js(-pure)/es|stable|actual|full/array(/prototype)/slice
+core-js(-pure)/es|stable|actual|full/array(/prototype)/sort
+core-js(-pure)/es|stable|actual|full/array(/prototype)/splice
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-reversed
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-sorted
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-spliced
+core-js(-pure)/es|stable|actual|full/array(/prototype)/unshift
+core-js(-pure)/es|stable|actual|full/array(/prototype)/values
+core-js(-pure)/es|stable|actual|full/array(/prototype)/with
 ```
 [*Examples*](https://tinyurl.com/2oaa8x2x):
 ```js
@@ -938,37 +938,37 @@ core-js/es|stable|actual|full/string/match
 core-js/es|stable|actual|full/string/replace
 core-js/es|stable|actual|full/string/search
 core-js/es|stable|actual|full/string/split
-core-js(-pure)/es|stable|actual/string(/virtual)/at
-core-js(-pure)/es|stable|actual|full/string(/virtual)/code-point-at
-core-js(-pure)/es|stable|actual|full/string(/virtual)/ends-with
-core-js(-pure)/es|stable|actual|full/string(/virtual)/includes
-core-js(-pure)/es|stable|actual|full/string(/virtual)/starts-with
-core-js(-pure)/es|stable|actual|full/string(/virtual)/match-all
-core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-start
-core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-end
-core-js(-pure)/es|stable|actual|full/string(/virtual)/repeat
-core-js(-pure)/es|stable|actual|full/string(/virtual)/replace-all
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-start
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-end
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-left
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-right
-core-js(-pure)/es|stable|actual|full/string(/virtual)/is-well-formed
-core-js(-pure)/es|stable|actual|full/string(/virtual)/to-well-formed
-core-js(-pure)/es|stable|actual|full/string(/virtual)/anchor
-core-js(-pure)/es|stable|actual|full/string(/virtual)/big
-core-js(-pure)/es|stable|actual|full/string(/virtual)/blink
-core-js(-pure)/es|stable|actual|full/string(/virtual)/bold
-core-js(-pure)/es|stable|actual|full/string(/virtual)/fixed
-core-js(-pure)/es|stable|actual|full/string(/virtual)/fontcolor
-core-js(-pure)/es|stable|actual|full/string(/virtual)/fontsize
-core-js(-pure)/es|stable|actual|full/string(/virtual)/italics
-core-js(-pure)/es|stable|actual|full/string(/virtual)/link
-core-js(-pure)/es|stable|actual|full/string(/virtual)/small
-core-js(-pure)/es|stable|actual|full/string(/virtual)/strike
-core-js(-pure)/es|stable|actual|full/string(/virtual)/sub
-core-js(-pure)/es|stable|actual|full/string(/virtual)/sup
-core-js(-pure)/es|stable|actual|full/string(/virtual)/iterator
+core-js(-pure)/es|stable|actual/string(/prototype)/at
+core-js(-pure)/es|stable|actual|full/string(/prototype)/code-point-at
+core-js(-pure)/es|stable|actual|full/string(/prototype)/ends-with
+core-js(-pure)/es|stable|actual|full/string(/prototype)/includes
+core-js(-pure)/es|stable|actual|full/string(/prototype)/starts-with
+core-js(-pure)/es|stable|actual|full/string(/prototype)/match-all
+core-js(-pure)/es|stable|actual|full/string(/prototype)/pad-start
+core-js(-pure)/es|stable|actual|full/string(/prototype)/pad-end
+core-js(-pure)/es|stable|actual|full/string(/prototype)/repeat
+core-js(-pure)/es|stable|actual|full/string(/prototype)/replace-all
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-start
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-end
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-left
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-right
+core-js(-pure)/es|stable|actual|full/string(/prototype)/is-well-formed
+core-js(-pure)/es|stable|actual|full/string(/prototype)/to-well-formed
+core-js(-pure)/es|stable|actual|full/string(/prototype)/anchor
+core-js(-pure)/es|stable|actual|full/string(/prototype)/big
+core-js(-pure)/es|stable|actual|full/string(/prototype)/blink
+core-js(-pure)/es|stable|actual|full/string(/prototype)/bold
+core-js(-pure)/es|stable|actual|full/string(/prototype)/fixed
+core-js(-pure)/es|stable|actual|full/string(/prototype)/fontcolor
+core-js(-pure)/es|stable|actual|full/string(/prototype)/fontsize
+core-js(-pure)/es|stable|actual|full/string(/prototype)/italics
+core-js(-pure)/es|stable|actual|full/string(/prototype)/link
+core-js(-pure)/es|stable|actual|full/string(/prototype)/small
+core-js(-pure)/es|stable|actual|full/string(/prototype)/strike
+core-js(-pure)/es|stable|actual|full/string(/prototype)/sub
+core-js(-pure)/es|stable|actual|full/string(/prototype)/sup
+core-js(-pure)/es|stable|actual|full/string(/prototype)/iterator
 core-js/es|stable|actual|full/regexp
 core-js/es|stable|actual|full/regexp/constructor
 core-js(-pure)/es|stable|actual|full/regexp/escape
@@ -1111,8 +1111,8 @@ core-js(-pure)/es|stable|actual|full/number/parse-int
 core-js(-pure)/es|stable|actual|full/number/epsilon
 core-js(-pure)/es|stable|actual|full/number/max-safe-integer
 core-js(-pure)/es|stable|actual|full/number/min-safe-integer
-core-js(-pure)/es|stable|actual|full/number(/virtual)/to-exponential
-core-js(-pure)/es|stable|actual|full/number(/virtual)/to-fixed
+core-js(-pure)/es|stable|actual|full/number(/prototype)/to-exponential
+core-js(-pure)/es|stable|actual|full/number(/prototype)/to-fixed
 core-js(-pure)/es|stable|actual|full/parse-float
 core-js(-pure)/es|stable|actual|full/parse-int
 ```
@@ -2164,10 +2164,10 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/change-array-by-copy
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-sorted
-core-js(-pure)/es|stable|actual|full/array(/virtual)/to-spliced
-core-js(-pure)/es|stable|actual|full/array(/virtual)/with
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-reversed
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-sorted
+core-js(-pure)/es|stable|actual|full/array(/prototype)/to-spliced
+core-js(-pure)/es|stable|actual|full/array(/prototype)/with
 core-js/es|stable|actual|full/typed-array/to-reversed
 core-js/es|stable|actual|full/typed-array/to-sorted
 core-js/es|stable|actual|full/typed-array/with
@@ -3056,7 +3056,7 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-filtering
-core-js(-pure)/full/array(/virtual)/filter-reject
+core-js(-pure)/full/array(/prototype)/filter-reject
 core-js/full/typed-array/filter-reject
 ```
 [*Examples*](https://is.gd/jJcoWw):
@@ -3077,7 +3077,7 @@ class %TypedArray% {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js/proposals/array-unique
-core-js(-pure)/full/array(/virtual)/unique-by
+core-js(-pure)/full/array(/prototype)/unique-by
 core-js/full/typed-array/unique-by
 ```
 [*Examples*](https://is.gd/lilNPu):
@@ -3164,7 +3164,7 @@ class Function {
 ```
 core-js/proposals/function-demethodize
 core-js(-pure)/full/function/demethodize
-core-js(-pure)/full/function/virtual/demethodize
+core-js(-pure)/full/function/prototype/demethodize
 ```
 [*Examples*](https://tinyurl.com/2ltmohgl):
 ```js
