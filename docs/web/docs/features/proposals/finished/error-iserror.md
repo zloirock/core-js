@@ -1,0 +1,14 @@
+# [`Error.isError`](https://github.com/tc39/proposal-is-error)
+```ts
+class Error {
+  static isError(value: any): boolean;
+}
+```
+
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+```
+core-js/proposals/is-error
+```
+
+> [!WARNING]
+> We have no bulletproof way to polyfill this `Error.isError` / check if the object is an error, so it's an enough naive implementation.
