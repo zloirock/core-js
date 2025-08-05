@@ -1,5 +1,5 @@
 import Symbol from '@core-js/pure/es/symbol';
-import isWellFormed from '@core-js/pure/es/string/virtual/is-well-formed';
+import isWellFormed from '@core-js/pure/es/string/prototype/is-well-formed';
 
 QUnit.test('String#isWellFormed', assert => {
   assert.isFunction(isWellFormed);
