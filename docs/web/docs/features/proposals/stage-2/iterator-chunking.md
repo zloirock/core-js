@@ -13,7 +13,7 @@ class Iterator {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/iterator-chunking
 core-js(-pure)/full/iterator/chunks

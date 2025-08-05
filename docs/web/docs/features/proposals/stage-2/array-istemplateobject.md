@@ -10,7 +10,7 @@ class Array {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/array-is-template-object
 core-js(-pure)/full/array/is-template-object

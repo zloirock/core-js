@@ -10,7 +10,7 @@ class Number {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/math-clamp-v2
 core-js(-pure)/full/number/clamp

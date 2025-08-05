@@ -2,7 +2,7 @@
 Specification: [tc39/proposal-joint-iteration](https://github.com/tc39/proposal-joint-iteration)
 
 ## Modules
-[esnext.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [esnext.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
+[`esnext.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [`esnext.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
 
 ```ts
 class Iterator {

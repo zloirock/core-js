@@ -11,7 +11,7 @@ class Symbol {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/symbol-predicates-v2
 core-js(-pure)/full/symbol/is-registered-symbol

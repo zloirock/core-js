@@ -10,7 +10,7 @@ class Symbol {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher

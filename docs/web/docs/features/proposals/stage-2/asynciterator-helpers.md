@@ -26,7 +26,7 @@ class AsyncIterator {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/async-iterator-helpers
 core-js(-pure)/actual|full/async-iterator

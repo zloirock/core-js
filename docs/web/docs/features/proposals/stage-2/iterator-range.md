@@ -11,7 +11,7 @@ class Iterator {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/number-range
 core-js(-pure)/full/iterator/range
