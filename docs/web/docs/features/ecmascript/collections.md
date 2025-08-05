@@ -20,7 +20,8 @@ class Map {
   static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+
+### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/map
 core-js(-pure)/es|stable|actual|full/map/group-by
@@ -88,7 +89,8 @@ class Set {
   readonly attribute size: number;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+
+### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/set
 core-js(-pure)/es|stable|actual|full/set/difference
@@ -144,7 +146,7 @@ class WeakMap {
   set(key: Object, val: any): this;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
 ```
@@ -191,7 +193,8 @@ class WeakSet {
   has(key: Object): boolean;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+
+### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```

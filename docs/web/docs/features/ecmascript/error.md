@@ -1,5 +1,7 @@
 # ECMAScript: Error
-Modules [`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
+## Modules 
+[`es.aggregate-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.js), [`es.aggregate-error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.aggregate-error.cause.js), [`es.error.cause`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.cause.js), [`es.error.is-error`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.is-error.js), [`es.suppressed-error.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.suppressed-error.constructor.js), [`es.error.to-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.error.to-string.js).
+
 ```ts
 class Error {
   static isError(value: any): boolean;
@@ -35,7 +37,8 @@ class SuppressedError extends Error {
   message: string;
 }
 ```
-[*CommonJS entry points:*](#commonjs-api)
+
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```
 core-js/es|stable|actual|full/error
 core-js/es|stable|actual|full/error/constructor
@@ -44,7 +47,8 @@ core-js/es|stable|actual|full/error/to-string
 core-js(-pure)/es|stable|actual|full/aggregate-error
 core-js(-pure)/es|stable|actual|full/suppressed-error
 ```
-## Example
+
+## Examples
 ```js
 const error1 = new TypeError('Error 1');
 const error2 = new TypeError('Error 2');
@@ -59,7 +63,7 @@ error.cause === cause; // => true
 Error.prototype.toString.call({ message: 1, name: 2 }) === '2: 1'; // => true
 ```
 
-## Example
+## `Error.isError` examples
 ```js
 Error.isError(new Error('error')); // => true
 Error.isError(new TypeError('error')); // => true

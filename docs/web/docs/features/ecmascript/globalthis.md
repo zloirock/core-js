@@ -1,10 +1,14 @@
 # ECMAScript: globalThis
-Module [`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js).
+
+## Modules
+[`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js).
+
 ```ts
 let globalThis: GlobalThisValue;
 ```
-[*CommonJS entry points:*](#commonjs-api)
-```
+
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+```ts
 core-js(-pure)/es|stable|actual|full/global-this
 ```
 

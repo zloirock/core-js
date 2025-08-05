@@ -144,11 +144,11 @@ import 'core-js/modules/esnext.set.union';
 ```
 
 - `useBuiltIns: 'usage'` adds to the top of each file import of polyfills for features used in this file and not supported by target environments, so for:
-```js
+```ts
 // first file:
 let set = new Set([1, 2, 3]);
 ```
-```js
+```ts
 // second file:
 let array = Array.of(1, 2, 3);
 ```

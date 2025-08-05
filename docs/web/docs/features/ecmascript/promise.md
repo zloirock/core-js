@@ -1,5 +1,8 @@
 # ECMAScript: Promise
-Modules [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js), [`es.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.try.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
+
+## Modules
+[`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js), [`es.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.try.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
+
 ```ts
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
@@ -16,6 +19,7 @@ class Promise {
   static withResolvers(): { promise: Promise, resolve: function, reject: function };
 }
 ```
+
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/promise
@@ -133,7 +137,7 @@ d.resolve(42);
 d.promise.then(console.log); // => 42
 ```
 
-## Example with async functions:
+## Example with async functions
 ```js
 let delay = time => new Promise(resolve => setTimeout(resolve, time));
 
@@ -179,7 +183,7 @@ let promise = Promise.reject(42);
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 // handled [object Promise]
 ```
-In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, [*example*](https://tinyurl.com/5n6nj2e8):
+In a browser on rejection, by default, you will see notify in the console, or you can add a custom handler and a handler on handling unhandled, example:
 ```js
 globalThis.addEventListener('unhandledrejection', e => console.log('unhandled', e.reason, e.promise));
 globalThis.addEventListener('rejectionhandled', e => console.log('handled', e.reason, e.promise));
