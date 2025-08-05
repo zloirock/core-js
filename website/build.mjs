@@ -45,7 +45,7 @@ async function buildDocsMenu(item) {
 }
 
 const docsMenus = [];
-let docsMenuItems = [];
+const docsMenuItems = [];
 
 async function getDocsMenuItems(version) {
   if (docsMenuItems[version]) return docsMenuItems[version];
