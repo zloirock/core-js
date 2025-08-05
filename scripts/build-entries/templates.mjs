@@ -21,7 +21,7 @@ function isAllowedFunctionName(name) {
 
 export const $justImport = t(p => importModules(p));
 
-export const $virtual = t(p => dedent`
+export const $prototype = t(p => dedent`
   ${ importModules(p) }
 
   var getBuiltInPrototypeMethod = ${ importInternal('get-built-in-prototype-method', p.level) }
@@ -29,7 +29,7 @@ export const $virtual = t(p => dedent`
   module.exports = getBuiltInPrototypeMethod('${ p.namespace }', '${ p.name }');
 `);
 
-export const $virtualIterator = t(p => dedent`
+export const $prototypeIterator = t(p => dedent`
   ${ importModules(p) }
 
   var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
@@ -37,7 +37,7 @@ export const $virtualIterator = t(p => dedent`
   module.exports = getIteratorMethod(${ p.source });
 `);
 
-export const $prototype = t(p => dedent`
+export const $uncurried = t(p => dedent`
   ${ importModules(p) }
 
   var entryUnbind = ${ importInternal('entry-unbind', p.level) }
@@ -45,7 +45,7 @@ export const $prototype = t(p => dedent`
   module.exports = entryUnbind('${ p.namespace }', '${ p.name }');
 `);
 
-export const $prototypeIterator = t(p => dedent`
+export const $uncurriedIterator = t(p => dedent`
   ${ importModules(p) }
 
   var uncurryThis = ${ importInternal('function-uncurry-this', p.level) }
@@ -114,7 +114,7 @@ export const $path = t(p => dedent`
 
 export const $instanceArray = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var arrayMethod = require('../array/virtual/${ basename(p.entry) }');
+  var arrayMethod = require('../array/prototype/${ basename(p.entry) }');
 
   var ArrayPrototype = Array.prototype;
 
@@ -127,7 +127,7 @@ export const $instanceArray = t(p => dedent`
 
 export const $instanceNumber = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var numberMethod = require('../number/virtual/${ basename(p.entry) }');
+  var numberMethod = require('../number/prototype/${ basename(p.entry) }');
 
   var NumberPrototype = Number.prototype;
 
@@ -141,7 +141,7 @@ export const $instanceNumber = t(p => dedent`
 
 export const $instanceString = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var stringMethod = require('../string/virtual/${ basename(p.entry) }');
+  var stringMethod = require('../string/prototype/${ basename(p.entry) }');
 
   var StringPrototype = String.prototype;
 
@@ -155,7 +155,7 @@ export const $instanceString = t(p => dedent`
 
 export const $instanceFunction = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var functionMethod = require('../function/virtual/${ basename(p.entry) }');
+  var functionMethod = require('../function/prototype/${ basename(p.entry) }');
 
   var FunctionPrototype = Function.prototype;
 
@@ -189,8 +189,8 @@ export const $instanceDOMIterables = t(p => dedent`
 
 export const $instanceArrayString = t(p => dedent`
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var arrayMethod = require('../array/virtual/${ basename(p.entry) }');
-  var stringMethod = require('../string/virtual/${ basename(p.entry) }');
+  var arrayMethod = require('../array/prototype/${ basename(p.entry) }');
+  var stringMethod = require('../string/prototype/${ basename(p.entry) }');
 
   var ArrayPrototype = Array.prototype;
   var StringPrototype = String.prototype;
@@ -210,7 +210,7 @@ export const $instanceArrayDOMIterables = t(p => dedent`
   var classof = require('../../internals/classof');
   var hasOwn = require('../../internals/has-own-property');
   var isPrototypeOf = require('../../internals/object-is-prototype-of');
-  var arrayMethod = require('../array/virtual/${ basename(p.entry) }');
+  var arrayMethod = require('../array/prototype/${ basename(p.entry) }');
 
   var ArrayPrototype = Array.prototype;
 

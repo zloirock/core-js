@@ -1,6 +1,6 @@
 import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
 
-import unshift from '@core-js/pure/es/array/virtual/unshift';
+import unshift from '@core-js/pure/es/array/prototype/unshift';
 
 const { defineProperty } = Object;
 
