@@ -11,7 +11,7 @@ class Function {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/function-is-callable-is-constructor
 core-js(-pure)/full/function/is-callable

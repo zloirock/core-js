@@ -18,7 +18,7 @@ namespace Reflect {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/reflect-metadata
 core-js(-pure)/full/reflect/define-metadata

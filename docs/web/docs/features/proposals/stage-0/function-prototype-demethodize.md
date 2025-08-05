@@ -10,7 +10,7 @@ class Function {
 }
 ```
 
-[*CommonJS entry points:*](#commonjs-api)
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
 ```ts
 core-js/proposals/function-demethodize
 core-js(-pure)/full/function/demethodize
