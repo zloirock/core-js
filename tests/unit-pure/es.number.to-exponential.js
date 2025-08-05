@@ -1,4 +1,4 @@
-import toExponential from '@core-js/pure/es/number/virtual/to-exponential';
+import toExponential from '@core-js/pure/es/number/prototype/to-exponential';
 
 QUnit.test('Number#toExponential', assert => {
   assert.isFunction(toExponential);

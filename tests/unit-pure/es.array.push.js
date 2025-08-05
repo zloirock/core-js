@@ -1,6 +1,6 @@
 import { REDEFINABLE_ARRAY_LENGTH_DESCRIPTOR } from '../helpers/constants.js';
 
-import push from '@core-js/pure/es/array/virtual/push';
+import push from '@core-js/pure/es/array/prototype/push';
 
 const { defineProperty } = Object;
 
