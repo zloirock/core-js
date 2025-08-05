@@ -1,8 +1,8 @@
 import {
+  $uncurried,
+  $uncurriedIterator,
   $prototype,
   $prototypeIterator,
-  $virtual,
-  $virtualIterator,
   $static,
   $staticWithContext,
   $patchableStatic,
@@ -176,157 +176,157 @@ export const features = {
   },
   'array/at': {
     modules: ['es.array.at'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'at',
   },
-  'array/virtual/at': {
+  'array/prototype/at': {
     modules: ['es.array.at'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'at',
   },
   'array/concat': {
     modules: ['es.array.concat'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'concat',
   },
-  'array/virtual/concat': {
+  'array/prototype/concat': {
     modules: ['es.array.concat'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'concat',
   },
   'array/copy-within': {
     modules: ['es.array.copy-within'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'copyWithin',
   },
-  'array/virtual/copy-within': {
+  'array/prototype/copy-within': {
     modules: ['es.array.copy-within'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'copyWithin',
   },
   'array/entries': {
     modules: ['es.array.entries'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'entries',
   },
-  'array/virtual/entries': {
+  'array/prototype/entries': {
     modules: ['es.array.entries'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'entries',
   },
   'array/fill': {
     modules: ['es.array.fill'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'fill',
   },
-  'array/virtual/fill': {
+  'array/prototype/fill': {
     modules: ['es.array.fill'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'fill',
   },
   'array/filter': {
     modules: ['es.array.filter'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'filter',
   },
-  'array/virtual/filter': {
+  'array/prototype/filter': {
     modules: ['es.array.filter'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'filter',
   },
   'array/filter-reject': {
     modules: ['esnext.array.filter-reject'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'filterReject',
   },
-  'array/virtual/filter-reject': {
+  'array/prototype/filter-reject': {
     modules: ['esnext.array.filter-reject'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'filterReject',
   },
   'array/find': {
     modules: ['es.array.find'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'find',
   },
-  'array/virtual/find': {
+  'array/prototype/find': {
     modules: ['es.array.find'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'find',
   },
   'array/find-index': {
     modules: ['es.array.find-index'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'findIndex',
   },
-  'array/virtual/find-index': {
+  'array/prototype/find-index': {
     modules: ['es.array.find-index'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'findIndex',
   },
   'array/find-last': {
     modules: ['es.array.find-last'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'findLast',
   },
-  'array/virtual/find-last': {
+  'array/prototype/find-last': {
     modules: ['es.array.find-last'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'findLast',
   },
   'array/find-last-index': {
     modules: ['es.array.find-last-index'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'findLastIndex',
   },
-  'array/virtual/find-last-index': {
+  'array/prototype/find-last-index': {
     modules: ['es.array.find-last-index'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'findLastIndex',
   },
   'array/flat': {
     modules: ['es.array.flat'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'flat',
   },
-  'array/virtual/flat': {
+  'array/prototype/flat': {
     modules: ['es.array.flat'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'flat',
   },
   'array/flat-map': {
     modules: ['es.array.flat-map'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'flatMap',
   },
-  'array/virtual/flat-map': {
+  'array/prototype/flat-map': {
     modules: ['es.array.flat-map'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'flatMap',
   },
@@ -346,25 +346,25 @@ export const features = {
   },
   'array/includes': {
     modules: ['es.array.includes'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'includes',
   },
-  'array/virtual/includes': {
+  'array/prototype/includes': {
     modules: ['es.array.includes'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'includes',
   },
   'array/index-of': {
     modules: ['es.array.index-of'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'indexOf',
   },
-  'array/virtual/index-of': {
+  'array/prototype/index-of': {
     modules: ['es.array.index-of'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'indexOf',
   },
@@ -377,59 +377,59 @@ export const features = {
   },
   'array/iterator': {
     modules: ['es.array.iterator'],
-    template: $prototypeIterator,
+    template: $uncurriedIterator,
     source: '[]',
   },
-  'array/virtual/iterator': {
+  'array/prototype/iterator': {
     modules: ['es.array.iterator'],
-    template: $virtualIterator,
+    template: $prototypeIterator,
     source: '[]',
   },
   'array/join': {
     modules: ['es.array.join'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'join',
   },
-  'array/virtual/join': {
+  'array/prototype/join': {
     modules: ['es.array.join'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'join',
   },
   'array/keys': {
     modules: ['es.array.keys'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'keys',
   },
-  'array/virtual/keys': {
+  'array/prototype/keys': {
     modules: ['es.array.keys'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'keys',
   },
   'array/last-index-of': {
     modules: ['es.array.last-index-of'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'lastIndexOf',
   },
-  'array/virtual/last-index-of': {
+  'array/prototype/last-index-of': {
     modules: ['es.array.last-index-of'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'lastIndexOf',
   },
   'array/map': {
     modules: ['es.array.map'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'map',
   },
-  'array/virtual/map': {
+  'array/prototype/map': {
     modules: ['es.array.map'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'map',
   },
@@ -442,169 +442,169 @@ export const features = {
   },
   'array/push': {
     modules: ['es.array.push'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'push',
   },
-  'array/virtual/push': {
+  'array/prototype/push': {
     modules: ['es.array.push'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'push',
   },
   'array/reduce': {
     modules: ['es.array.reduce'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'reduce',
   },
-  'array/virtual/reduce': {
+  'array/prototype/reduce': {
     modules: ['es.array.reduce'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'reduce',
   },
   'array/reduce-right': {
     modules: ['es.array.reduce-right'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'reduceRight',
   },
-  'array/virtual/reduce-right': {
+  'array/prototype/reduce-right': {
     modules: ['es.array.reduce-right'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'reduceRight',
   },
   'array/reverse': {
     modules: ['es.array.reverse'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'reverse',
   },
-  'array/virtual/reverse': {
+  'array/prototype/reverse': {
     modules: ['es.array.reverse'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'reverse',
   },
   'array/slice': {
     modules: ['es.array.slice'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'slice',
   },
-  'array/virtual/slice': {
+  'array/prototype/slice': {
     modules: ['es.array.slice'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'slice',
   },
   'array/sort': {
     modules: ['es.array.sort'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'sort',
   },
-  'array/virtual/sort': {
+  'array/prototype/sort': {
     modules: ['es.array.sort'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'sort',
   },
   'array/splice': {
     modules: ['es.array.splice'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'splice',
   },
-  'array/virtual/splice': {
+  'array/prototype/splice': {
     modules: ['es.array.splice'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'splice',
   },
   'array/to-reversed': {
     modules: ['es.array.to-reversed'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'toReversed',
   },
-  'array/virtual/to-reversed': {
+  'array/prototype/to-reversed': {
     modules: ['es.array.to-reversed'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'toReversed',
   },
   'array/to-sorted': {
     modules: ['es.array.to-sorted'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'toSorted',
   },
-  'array/virtual/to-sorted': {
+  'array/prototype/to-sorted': {
     modules: ['es.array.to-sorted'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'toSorted',
   },
   'array/to-spliced': {
     modules: ['es.array.to-spliced'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'toSpliced',
   },
-  'array/virtual/to-spliced': {
+  'array/prototype/to-spliced': {
     modules: ['es.array.to-spliced'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'toSpliced',
   },
   'array/unshift': {
     modules: ['es.array.unshift'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'unshift',
   },
-  'array/virtual/unshift': {
+  'array/prototype/unshift': {
     modules: ['es.array.unshift'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'unshift',
   },
   'array/unique-by': {
     modules: ['esnext.array.unique-by'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'uniqueBy',
   },
-  'array/virtual/unique-by': {
+  'array/prototype/unique-by': {
     modules: ['esnext.array.unique-by'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'uniqueBy',
   },
   'array/values': {
     modules: ['es.array.values'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'values',
   },
-  'array/virtual/values': {
+  'array/prototype/values': {
     modules: ['es.array.values'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'values',
   },
   'array/with': {
     modules: ['es.array.with'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Array',
     name: 'with',
   },
-  'array/virtual/with': {
+  'array/prototype/with': {
     modules: ['es.array.with'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Array',
     name: 'with',
   },
@@ -675,133 +675,133 @@ export const features = {
   },
   'async-iterator/drop': {
     modules: ['esnext.async-iterator.drop'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'drop',
   },
-  'async-iterator/virtual/drop': {
+  'async-iterator/prototype/drop': {
     modules: ['esnext.async-iterator.drop'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'drop',
   },
   'async-iterator/every': {
     modules: ['esnext.async-iterator.every'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'every',
   },
-  'async-iterator/virtual/every': {
+  'async-iterator/prototype/every': {
     modules: ['esnext.async-iterator.every'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'every',
   },
   'async-iterator/filter': {
     modules: ['esnext.async-iterator.filter'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'filter',
   },
-  'async-iterator/virtual/filter': {
+  'async-iterator/prototype/filter': {
     modules: ['esnext.async-iterator.filter'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'filter',
   },
   'async-iterator/find': {
     modules: ['esnext.async-iterator.find'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'find',
   },
-  'async-iterator/virtual/find': {
+  'async-iterator/prototype/find': {
     modules: ['esnext.async-iterator.find'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'find',
   },
   'async-iterator/flat-map': {
     modules: ['esnext.async-iterator.flat-map'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'flatMap',
   },
-  'async-iterator/virtual/flat-map': {
+  'async-iterator/prototype/flat-map': {
     modules: ['esnext.async-iterator.flat-map'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'flatMap',
   },
   'async-iterator/for-each': {
     modules: ['esnext.async-iterator.for-each'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'forEach',
   },
-  'async-iterator/virtual/for-each': {
+  'async-iterator/prototype/for-each': {
     modules: ['esnext.async-iterator.for-each'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'forEach',
   },
   'async-iterator/map': {
     modules: ['esnext.async-iterator.map'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'map',
   },
-  'async-iterator/virtual/map': {
+  'async-iterator/prototype/map': {
     modules: ['esnext.async-iterator.map'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'map',
   },
   'async-iterator/reduce': {
     modules: ['esnext.async-iterator.reduce'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'reduce',
   },
-  'async-iterator/virtual/reduce': {
+  'async-iterator/prototype/reduce': {
     modules: ['esnext.async-iterator.reduce'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'reduce',
   },
   'async-iterator/some': {
     modules: ['esnext.async-iterator.some'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'some',
   },
-  'async-iterator/virtual/some': {
+  'async-iterator/prototype/some': {
     modules: ['esnext.async-iterator.some'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'some',
   },
   'async-iterator/take': {
     modules: ['esnext.async-iterator.take'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'take',
   },
-  'async-iterator/virtual/take': {
+  'async-iterator/prototype/take': {
     modules: ['esnext.async-iterator.take'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'take',
   },
   'async-iterator/to-array': {
     modules: ['esnext.async-iterator.to-array'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'AsyncIterator',
     name: 'toArray',
   },
-  'async-iterator/virtual/to-array': {
+  'async-iterator/prototype/to-array': {
     modules: ['esnext.async-iterator.to-array'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'AsyncIterator',
     name: 'toArray',
   },
@@ -852,13 +852,13 @@ export const features = {
   },
   'date/to-json': {
     modules: ['es.date.to-json'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Date',
     name: 'toJSON',
   },
-  'date/virtual/to-json': {
+  'date/prototype/to-json': {
     modules: ['es.date.to-json'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Date',
     name: 'toJSON',
   },
@@ -930,13 +930,13 @@ export const features = {
   },
   'function/demethodize': {
     modules: ['esnext.function.demethodize'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Function',
     name: 'demethodize',
   },
-  'function/virtual/demethodize': {
+  'function/prototype/demethodize': {
     modules: ['esnext.function.demethodize'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Function',
     name: 'demethodize',
   },
@@ -1298,169 +1298,169 @@ export const features = {
   },
   'iterator/chunks': {
     modules: ['esnext.iterator.chunks'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'chunks',
   },
-  'iterator/virtual/chunks': {
+  'iterator/prototype/chunks': {
     modules: ['esnext.iterator.chunks'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'chunks',
   },
   'iterator/drop': {
     modules: ['es.iterator.drop'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'drop',
   },
-  'iterator/virtual/drop': {
+  'iterator/prototype/drop': {
     modules: ['es.iterator.drop'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'drop',
   },
   'iterator/every': {
     modules: ['es.iterator.every'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'every',
   },
-  'iterator/virtual/every': {
+  'iterator/prototype/every': {
     modules: ['es.iterator.every'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'every',
   },
   'iterator/filter': {
     modules: ['es.iterator.filter'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'filter',
   },
-  'iterator/virtual/filter': {
+  'iterator/prototype/filter': {
     modules: ['es.iterator.filter'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'filter',
   },
   'iterator/find': {
     modules: ['es.iterator.find'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'find',
   },
-  'iterator/virtual/find': {
+  'iterator/prototype/find': {
     modules: ['es.iterator.find'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'find',
   },
   'iterator/flat-map': {
     modules: ['es.iterator.flat-map'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'flatMap',
   },
-  'iterator/virtual/flat-map': {
+  'iterator/prototype/flat-map': {
     modules: ['es.iterator.flat-map'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'flatMap',
   },
   'iterator/for-each': {
     modules: ['es.iterator.for-each'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'forEach',
   },
-  'iterator/virtual/for-each': {
+  'iterator/prototype/for-each': {
     modules: ['es.iterator.for-each'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'forEach',
   },
   'iterator/map': {
     modules: ['es.iterator.map'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'map',
   },
-  'iterator/virtual/map': {
+  'iterator/prototype/map': {
     modules: ['es.iterator.map'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'map',
   },
   'iterator/reduce': {
     modules: ['es.iterator.reduce'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'reduce',
   },
-  'iterator/virtual/reduce': {
+  'iterator/prototype/reduce': {
     modules: ['es.iterator.reduce'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'reduce',
   },
   'iterator/some': {
     modules: ['es.iterator.some'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'some',
   },
-  'iterator/virtual/some': {
+  'iterator/prototype/some': {
     modules: ['es.iterator.some'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'some',
   },
   'iterator/take': {
     modules: ['es.iterator.take'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'take',
   },
-  'iterator/virtual/take': {
+  'iterator/prototype/take': {
     modules: ['es.iterator.take'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'take',
   },
   'iterator/to-array': {
     modules: ['es.iterator.to-array'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'toArray',
   },
-  'iterator/virtual/to-array': {
+  'iterator/prototype/to-array': {
     modules: ['es.iterator.to-array'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'toArray',
   },
   'iterator/to-async': {
     modules: ['esnext.iterator.to-async'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'toAsync',
   },
-  'iterator/virtual/to-async': {
+  'iterator/prototype/to-async': {
     modules: ['esnext.iterator.to-async'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'toAsync',
   },
   'iterator/windows': {
     modules: ['esnext.iterator.windows'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Iterator',
     name: 'windows',
   },
-  'iterator/virtual/windows': {
+  'iterator/prototype/windows': {
     modules: ['esnext.iterator.windows'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Iterator',
     name: 'windows',
   },
@@ -1510,25 +1510,25 @@ export const features = {
   },
   'map/get-or-insert': {
     modules: ['es.map.get-or-insert'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Map',
     name: 'getOrInsert',
   },
-  'map/virtual/get-or-insert': {
+  'map/prototype/get-or-insert': {
     modules: ['es.map.get-or-insert'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Map',
     name: 'getOrInsert',
   },
   'map/get-or-insert-computed': {
     modules: ['es.map.get-or-insert-computed'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Map',
     name: 'getOrInsertComputed',
   },
-  'map/virtual/get-or-insert-computed': {
+  'map/prototype/get-or-insert-computed': {
     modules: ['es.map.get-or-insert-computed'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Map',
     name: 'getOrInsertComputed',
   },
@@ -1705,13 +1705,13 @@ export const features = {
   },
   'number/clamp': {
     modules: ['esnext.number.clamp'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Number',
     name: 'clamp',
   },
-  'number/virtual/clamp': {
+  'number/prototype/clamp': {
     modules: ['esnext.number.clamp'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Number',
     name: 'clamp',
   },
@@ -1780,29 +1780,29 @@ export const features = {
   },
   'number/to-exponential': {
     modules: ['es.number.to-exponential'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Number',
     name: 'toExponential',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'number/virtual/to-exponential': {
+  'number/prototype/to-exponential': {
     modules: ['es.number.to-exponential'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Number',
     name: 'toExponential',
   },
   'number/to-fixed': {
     modules: ['es.number.to-fixed'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Number',
     name: 'toFixed',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'number/virtual/to-fixed': {
+  'number/prototype/to-fixed': {
     modules: ['es.number.to-fixed'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Number',
     name: 'toFixed',
   },
@@ -1844,29 +1844,29 @@ export const features = {
   },
   'object/define-getter': {
     modules: ['es.object.define-getter'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Object',
     name: '__defineGetter__',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'object/virtual/define-getter': {
+  'object/prototype/define-getter': {
     modules: ['es.object.define-getter'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Object',
     name: '__defineGetter__',
   },
   'object/define-setter': {
     modules: ['es.object.define-setter'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Object',
     name: '__defineSetter__',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'object/virtual/define-setter': {
+  'object/prototype/define-setter': {
     modules: ['es.object.define-setter'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Object',
     name: '__defineSetter__',
   },
@@ -1977,29 +1977,29 @@ export const features = {
   },
   'object/lookup-getter': {
     modules: ['es.object.lookup-getter'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Object',
     name: '__lookupGetter__',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'object/virtual/lookup-getter': {
+  'object/prototype/lookup-getter': {
     modules: ['es.object.lookup-getter'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Object',
     name: '__lookupGetter__',
   },
   'object/lookup-setter': {
     modules: ['es.object.lookup-setter'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Object',
     name: '__lookupSetter__',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'object/virtual/lookup-setter': {
+  'object/prototype/lookup-setter': {
     modules: ['es.object.lookup-setter'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Object',
     name: '__lookupSetter__',
   },
@@ -2033,13 +2033,13 @@ export const features = {
   },
   'object/to-string': {
     modules: ['es.object.to-string'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Object',
     name: 'toString',
   },
-  'object/virtual/to-string': {
+  'object/prototype/to-string': {
     modules: ['es.object.to-string'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Object',
     name: 'toString',
   },
@@ -2084,27 +2084,27 @@ export const features = {
   },
   'promise/catch': {
     modules: ['es.promise.catch'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Promise',
     name: 'catch',
   },
-  'promise/virtual/catch': {
+  'promise/prototype/catch': {
     modules: ['es.promise.catch'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Promise',
     name: 'catch',
   },
   'promise/finally': {
     modules: ['es.promise.finally'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Promise',
     name: 'finally',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'promise/virtual/finally': {
+  'promise/prototype/finally': {
     modules: ['es.promise.finally'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Promise',
     name: 'finally',
   },
@@ -2301,7 +2301,7 @@ export const features = {
   },
   'regexp/test': {
     modules: ['es.regexp.test'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'RegExp',
     name: 'test',
     injectOn: 'instance',
@@ -2324,13 +2324,13 @@ export const features = {
   },
   'set/difference': {
     modules: ['es.set.difference'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Set',
     name: 'difference',
   },
-  'set/virtual/difference': {
+  'set/prototype/difference': {
     modules: ['es.set.difference'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Set',
     name: 'difference',
   },
@@ -2343,49 +2343,49 @@ export const features = {
   },
   'set/intersection': {
     modules: ['es.set.intersection'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Set',
     name: 'intersection',
   },
-  'set/virtual/intersection': {
+  'set/prototype/intersection': {
     modules: ['es.set.intersection'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Set',
     name: 'intersection',
   },
   'set/is-disjoint-from': {
     modules: ['es.set.is-disjoint-from'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Set',
     name: 'isDisjointFrom',
   },
-  'set/virtual/is-disjoint-from': {
+  'set/prototype/is-disjoint-from': {
     modules: ['es.set.is-disjoint-from'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Set',
     name: 'isDisjointFrom',
   },
   'set/is-subset-of': {
     modules: ['es.set.is-subset-of'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Set',
     name: 'isSubsetOf',
   },
-  'set/virtual/is-subset-of': {
+  'set/prototype/is-subset-of': {
     modules: ['es.set.is-subset-of'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Set',
     name: 'isSubsetOf',
   },
   'set/is-superset-of': {
     modules: ['es.set.is-superset-of'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Set',
     name: 'isSupersetOf',
   },
-  'set/virtual/is-superset-of': {
+  'set/prototype/is-superset-of': {
     modules: ['es.set.is-superset-of'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Set',
     name: 'isSupersetOf',
   },
@@ -2398,25 +2398,25 @@ export const features = {
   },
   'set/symmetric-difference': {
     modules: ['es.set.symmetric-difference'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Set',
     name: 'symmetricDifference',
   },
-  'set/virtual/symmetric-difference': {
+  'set/prototype/symmetric-difference': {
     modules: ['es.set.symmetric-difference'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Set',
     name: 'symmetricDifference',
   },
   'set/union': {
     modules: ['es.set.union'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'Set',
     name: 'union',
   },
-  'set/virtual/union': {
+  'set/prototype/union': {
     modules: ['es.set.union'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'Set',
     name: 'union',
   },
@@ -2427,81 +2427,81 @@ export const features = {
   },
   'string/anchor': {
     modules: ['es.string.anchor'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'anchor',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/anchor': {
+  'string/prototype/anchor': {
     modules: ['es.string.anchor'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'anchor',
   },
   'string/at': {
     modules: ['es.string.at'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'at',
   },
-  'string/virtual/at': {
+  'string/prototype/at': {
     modules: ['es.string.at'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'at',
   },
   'string/big': {
     modules: ['es.string.big'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'big',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/big': {
+  'string/prototype/big': {
     modules: ['es.string.big'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'big',
   },
   'string/blink': {
     modules: ['es.string.blink'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'blink',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/blink': {
+  'string/prototype/blink': {
     modules: ['es.string.blink'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'blink',
   },
   'string/bold': {
     modules: ['es.string.bold'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'bold',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/bold': {
+  'string/prototype/bold': {
     modules: ['es.string.bold'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'bold',
   },
   'string/code-point-at': {
     modules: ['es.string.code-point-at'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'codePointAt',
   },
-  'string/virtual/code-point-at': {
+  'string/prototype/code-point-at': {
     modules: ['es.string.code-point-at'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'codePointAt',
   },
@@ -2521,55 +2521,55 @@ export const features = {
   },
   'string/ends-with': {
     modules: ['es.string.ends-with'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'endsWith',
   },
-  'string/virtual/ends-with': {
+  'string/prototype/ends-with': {
     modules: ['es.string.ends-with'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'endsWith',
   },
   'string/fixed': {
     modules: ['es.string.fixed'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'fixed',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/fixed': {
+  'string/prototype/fixed': {
     modules: ['es.string.fixed'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'fixed',
   },
   'string/fontcolor': {
     modules: ['es.string.fontcolor'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'fontcolor',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/fontcolor': {
+  'string/prototype/fontcolor': {
     modules: ['es.string.fontcolor'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'fontcolor',
   },
   'string/fontsize': {
     modules: ['es.string.fontsize'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'fontsize',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/fontsize': {
+  'string/prototype/fontsize': {
     modules: ['es.string.fontsize'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'fontsize',
   },
@@ -2581,63 +2581,63 @@ export const features = {
   },
   'string/includes': {
     modules: ['es.string.includes'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'includes',
   },
-  'string/virtual/includes': {
+  'string/prototype/includes': {
     modules: ['es.string.includes'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'includes',
   },
   'string/is-well-formed': {
     modules: ['es.string.is-well-formed'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'isWellFormed',
   },
-  'string/virtual/is-well-formed': {
+  'string/prototype/is-well-formed': {
     modules: ['es.string.is-well-formed'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'isWellFormed',
   },
   'string/italics': {
     modules: ['es.string.italics'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'italics',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/italics': {
+  'string/prototype/italics': {
     modules: ['es.string.italics'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'italics',
   },
   'string/iterator': {
     modules: ['es.string.iterator'],
-    template: $prototypeIterator,
+    template: $uncurriedIterator,
     source: "''",
   },
-  'string/virtual/iterator': {
+  'string/prototype/iterator': {
     modules: ['es.string.iterator'],
-    template: $virtualIterator,
+    template: $prototypeIterator,
     source: "''",
   },
   'string/link': {
     modules: ['es.string.link'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'link',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/link': {
+  'string/prototype/link': {
     modules: ['es.string.link'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'link',
   },
@@ -2651,37 +2651,37 @@ export const features = {
   },
   'string/match-all': {
     modules: ['es.string.match-all'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'matchAll',
   },
-  'string/virtual/match-all': {
+  'string/prototype/match-all': {
     modules: ['es.string.match-all'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'matchAll',
   },
   'string/pad-end': {
     modules: ['es.string.pad-end'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'padEnd',
   },
-  'string/virtual/pad-end': {
+  'string/prototype/pad-end': {
     modules: ['es.string.pad-end'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'padEnd',
   },
   'string/pad-start': {
     modules: ['es.string.pad-start'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'padStart',
   },
-  'string/virtual/pad-start': {
+  'string/prototype/pad-start': {
     modules: ['es.string.pad-start'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'padStart',
   },
@@ -2694,13 +2694,13 @@ export const features = {
   },
   'string/repeat': {
     modules: ['es.string.repeat'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'repeat',
   },
-  'string/virtual/repeat': {
+  'string/prototype/repeat': {
     modules: ['es.string.repeat'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'repeat',
   },
@@ -2714,13 +2714,13 @@ export const features = {
   },
   'string/replace-all': {
     modules: ['es.string.replace-all'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'replaceAll',
   },
-  'string/virtual/replace-all': {
+  'string/prototype/replace-all': {
     modules: ['es.string.replace-all'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'replaceAll',
   },
@@ -2734,15 +2734,15 @@ export const features = {
   },
   'string/small': {
     modules: ['es.string.small'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'small',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/small': {
+  'string/prototype/small': {
     modules: ['es.string.small'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'small',
   },
@@ -2756,127 +2756,127 @@ export const features = {
   },
   'string/starts-with': {
     modules: ['es.string.starts-with'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'startsWith',
   },
-  'string/virtual/starts-with': {
+  'string/prototype/starts-with': {
     modules: ['es.string.starts-with'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'startsWith',
   },
   'string/strike': {
     modules: ['es.string.strike'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'strike',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/strike': {
+  'string/prototype/strike': {
     modules: ['es.string.strike'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'strike',
   },
   'string/sub': {
     modules: ['es.string.sub'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'sub',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/sub': {
+  'string/prototype/sub': {
     modules: ['es.string.sub'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'sub',
   },
   'string/sup': {
     modules: ['es.string.sup'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'sup',
     injectOn: 'instance',
     globalModeOnly: true,
   },
-  'string/virtual/sup': {
+  'string/prototype/sup': {
     modules: ['es.string.sup'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'sup',
   },
   'string/to-well-formed': {
     modules: ['es.string.to-well-formed'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'toWellFormed',
   },
-  'string/virtual/to-well-formed': {
+  'string/prototype/to-well-formed': {
     modules: ['es.string.to-well-formed'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'toWellFormed',
   },
   'string/trim': {
     modules: ['es.string.trim'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'trim',
   },
-  'string/virtual/trim': {
+  'string/prototype/trim': {
     modules: ['es.string.trim'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'trim',
   },
   'string/trim-end': {
     modules: ['es.string.trim-end'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'trimEnd',
   },
-  'string/virtual/trim-end': {
+  'string/prototype/trim-end': {
     modules: ['es.string.trim-end'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'trimEnd',
   },
   'string/trim-left': {
     modules: ['es.string.trim-left'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'trimLeft',
   },
-  'string/virtual/trim-left': {
+  'string/prototype/trim-left': {
     modules: ['es.string.trim-left'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'trimLeft',
   },
   'string/trim-right': {
     modules: ['es.string.trim-right'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'trimRight',
   },
-  'string/virtual/trim-right': {
+  'string/prototype/trim-right': {
     modules: ['es.string.trim-right'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'trimRight',
   },
   'string/trim-start': {
     modules: ['es.string.trim-start'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'String',
     name: 'trimStart',
   },
-  'string/virtual/trim-start': {
+  'string/prototype/trim-start': {
     modules: ['es.string.trim-start'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'String',
     name: 'trimStart',
   },
@@ -3349,25 +3349,25 @@ export const features = {
   },
   'weak-map/get-or-insert': {
     modules: ['es.weak-map.get-or-insert'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'WeakMap',
     name: 'getOrInsert',
   },
-  'weak-map/virtual/get-or-insert': {
+  'weak-map/prototype/get-or-insert': {
     modules: ['es.weak-map.get-or-insert'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'WeakMap',
     name: 'getOrInsert',
   },
   'weak-map/get-or-insert-computed': {
     modules: ['es.weak-map.get-or-insert-computed'],
-    template: $prototype,
+    template: $uncurried,
     namespace: 'WeakMap',
     name: 'getOrInsertComputed',
   },
-  'weak-map/virtual/get-or-insert-computed': {
+  'weak-map/prototype/get-or-insert-computed': {
     modules: ['es.weak-map.get-or-insert-computed'],
-    template: $virtual,
+    template: $prototype,
     namespace: 'WeakMap',
     name: 'getOrInsertComputed',
   },
