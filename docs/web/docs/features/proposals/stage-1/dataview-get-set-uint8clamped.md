@@ -1,0 +1,26 @@
+# `DataView` get / set `Uint8Clamped` methods
+Specification: [proposal-dataview-get-set-uint8clamped](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)
+
+## Modules
+[`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
+
+```ts
+class DataView {
+  getUint8Clamped(offset: any): uint8
+  setUint8Clamped(offset: any, value: any): void;
+}
+```
+
+## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+```ts
+core-js/proposals/data-view-get-set-uint8-clamped
+core-js/full/dataview/get-uint8-clamped
+core-js/full/dataview/set-uint8-clamped
+```
+
+## Examples
+```js
+const view = new DataView(new ArrayBuffer(1));
+view.setUint8Clamped(0, 100500);
+console.log(view.getUint8Clamped(0)); // => 255
+```
