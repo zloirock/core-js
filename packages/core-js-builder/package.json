@@ -8,6 +8,9 @@
     "url": "git+https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-builder"
   },
+  "bugs": {
+    "url": "https://github.com/zloirock/core-js/issues"
+  },
   "funding": {
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"

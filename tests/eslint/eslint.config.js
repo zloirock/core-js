@@ -2120,6 +2120,8 @@ const packagesPackageJSON = {
   'package-json/repository-shorthand': [ERROR, { form: 'object' }],
   // requires the `author` property to be present
   'package-json/require-author': ERROR,
+  // requires the `bugs`` property to be present
+  'package-json/require-bugs': ERROR,
   // requires the `description` property to be present
   'package-json/require-description': ERROR,
   // requires the `engines` property to be present
