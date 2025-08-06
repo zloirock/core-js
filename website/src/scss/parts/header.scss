@@ -149,6 +149,10 @@ nav {
                     a::after {
                         top: 1rem;
                     }
+
+                    .collapsible.active a {
+                        top: 0.75rem;
+                    }
                 }
 
                 .burger {
