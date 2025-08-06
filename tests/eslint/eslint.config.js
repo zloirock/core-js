@@ -2101,6 +2101,8 @@ const packageJSON = {
   'package-json/valid-config': ERROR,
   // enforce that the `cpu` property is valid
   'package-json/valid-cpu': ERROR,
+  // enforce that the `dependencies` property is valid
+  'package-json/valid-dependencies': ERROR,
   // enforce that the `license` property is valid
   'package-json/valid-license': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
