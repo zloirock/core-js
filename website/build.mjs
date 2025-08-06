@@ -1,6 +1,7 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
+import markedAlert from 'marked-alert';
 
 const DOCS_DIR = 'docs/web/';
 const BLOG_DIR = 'docs/web/blog/';
@@ -105,6 +106,7 @@ async function buildVersionsMenu(versions, currentVersion) {
 const markedInline = new Marked();
 
 const marked = new Marked();
+marked.use(markedAlert());
 
 const customRenderer = {
   link({ href, text }) {
@@ -123,6 +125,7 @@ marked.use({ renderer: customRenderer });
 
 const markedWithContents = new Marked();
 markedWithContents.use({ renderer: customRenderer });
+markedWithContents.use(markedAlert());
 
 markedWithContents.use(gfmHeadingId({ prefix: '' }), {
   hooks: {

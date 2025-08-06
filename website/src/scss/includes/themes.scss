@@ -30,6 +30,9 @@ $themes: (
     'form-hint-color': dark.$foreground,
 
     'success': dark.$green,
+    'warning': dark.$orange,
+    'error': dark.$red,
+    'neutral': dark.$comment,
     'section': dark.$pink,
     'meta': dark.$purple,
     'function': dark.$cyan,
@@ -61,6 +64,9 @@ $themes: (
     'form-hint-color': light.$foreground,
 
     'success': light.$green,
+    'warning': dark.$orange,
+    'error': dark.$red,
+    'neutral': dark.$comment,
     'section': light.$pink,
     'meta': light.$purple,
     'function': light.$cyan,
