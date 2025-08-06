@@ -278,7 +278,6 @@ main {
 .versions-menu {
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
-  max-width: fit-content;
   @include themify($themes) {
     border: 1px solid themed('border-color-lighter');
     background-color: themed('background-light');
