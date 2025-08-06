@@ -139,24 +139,28 @@ function init() {
   function highlightActiveMenuItem() {
     if (!isDocsPage()) return;
 
+    let found = false;
     for (const link of docsMenuItems) {
       const href = link.getAttribute('href');
       if (href && href === currentPath) {
         setActiveDocsMenuItem(link);
-        return;
+        found = true;
+        break;
       }
     }
 
+    let mobileFound = false;
     for (const link of mobileDocsMenuItems) {
       const href = link.getAttribute('href');
       if (href && href === currentPath) {
         setActiveDocsMenuItem(link);
-        return;
+        mobileFound = true;
+        break;
       }
     }
 
-    setActiveDocsMenuItem(docsMenuItems[0]);
-    setActiveDocsMenuItem(mobileDocsMenuItems[0]);
+    !found && setActiveDocsMenuItem(docsMenuItems[0]);
+    !mobileFound && setActiveDocsMenuItem(mobileDocsMenuItems[0]);
   }
 
   let stuck = window.scrollY > 170;
