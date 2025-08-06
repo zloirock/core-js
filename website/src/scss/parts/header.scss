@@ -112,7 +112,7 @@ nav {
                     border-top-left-radius: 20px;
                     border-bottom-left-radius: 20px;
 
-                    padding: 50px 20px 80px 30px;
+                    padding: 50px 20px 30px 30px;
 
                     @include themify($themes) {
                         background-color: themed('box-color');
@@ -220,11 +220,10 @@ nav {
             margin-right: 1rem;
 
             @include media("max", "lg") {
-                position: absolute;
-                left: 0;
-                bottom: 1rem;
                 width: 100%;
                 justify-content: center;
+                margin: 30px 0 0;
+                order: 99;
             }
 
             @include media("min", "lg") {
