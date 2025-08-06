@@ -205,17 +205,25 @@ main {
   .dropdown-wrapper {
     position: relative;
 
-    & > a::after {
-      content: '';
-      display: inline-block;
-      width: 5px;
-      height: 5px;
-      margin: -4px 0 0 0.5rem;
-      vertical-align: middle;
-      transform: rotate(45deg);
-      @include themify($themes) {
-        border-right: 2px solid themed('link-color');
-        border-bottom: 2px solid themed('link-color');
+    & > a {
+      display: block;
+      width: 100%;
+
+      &::after {
+        content: '';
+
+        width: 5px;
+        height: 5px;
+
+        transform: rotate(45deg);
+
+        position: absolute;
+        right: 5px;
+        top: 3px;
+        @include themify($themes) {
+          border-right: 2px solid themed('link-color');
+          border-bottom: 2px solid themed('link-color');
+        }
       }
     }
 
