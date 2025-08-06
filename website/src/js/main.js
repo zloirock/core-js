@@ -28,6 +28,7 @@ function init() {
   const themeSwitcher = document.querySelector('.theme-switcher');
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
   const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
+  const mobileDocsMenuItems = document.querySelectorAll('.mobile-docs-menu li > a');
   let isDocs, docsVersion;
   const currentPath = getRelativePath();
 
@@ -146,7 +147,16 @@ function init() {
       }
     }
 
+    for (const link of mobileDocsMenuItems) {
+      const href = link.getAttribute('href');
+      if (href && href === currentPath) {
+        setActiveDocsMenuItem(link);
+        return;
+      }
+    }
+
     setActiveDocsMenuItem(docsMenuItems[0]);
+    setActiveDocsMenuItem(mobileDocsMenuItems[0]);
   }
 
   let stuck = window.scrollY > 170;

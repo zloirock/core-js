@@ -80,6 +80,12 @@ nav {
                 font-size: 1.25rem;
                 display: block;
                 overflow-wrap: break-word;
+
+                &.active {
+                    @include themify($themes) {
+                        color: themed('link-color-hover');
+                    }
+                }
             }
 
             .mobile-docs-menu {
