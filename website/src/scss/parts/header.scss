@@ -108,6 +108,10 @@ nav {
                     max-width: 350px;
 
                     overflow-y: auto;
+                    scrollbar-width: thin;
+                    @include themify($themes) {
+                        scrollbar-color: themed('background-light') themed('background-highlight');
+                    }
 
                     border-top-left-radius: 20px;
                     border-bottom-left-radius: 20px;
