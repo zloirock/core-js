@@ -151,13 +151,15 @@ markedWithContents.use({
       } else if (isDocs) {
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
       }
-      result += `<div class="content">${ html }</div>
-        <div class="table-of-contents sticky">
-          ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
-            htmlFileName.replace('.html', '') }#${ id }" class="h${
-            level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
-            raw }</a></div>`).join('\n') }
+      result += `<div class="content">${ html }</div>`;
+      if (headings.length) {
+        result += `<div class="table-of-contents sticky">
+          ${headings.map(({id, raw, level}) => `<div class="toc-link"><a href="${
+          htmlFileName.replace('.html', '')}#${id}" class="h${
+          level} with-docs-version" data-default-version="${DEFAULT_VERSION}">${
+          raw}</a></div>`).join('\n')}
         </div>`;
+      }
       return result;
     },
   },
@@ -189,7 +191,7 @@ async function buildBlogMenu() {
     const date = match && match.groups ? match.groups.date : null;
     const htmlFileName = mdPath.replace(BLOG_DIR, '').replace(/\.md$/i, '');
     menu += `<li><a href="./blog/${ htmlFileName }">${ date }: ${ firstH1.text }</a></li>`;
-    index += `# [${ firstH1.text }](./blog/${ htmlFileName })\n\n${ date }\n\n${ fileMetadata.preview ?? '' }\n`;
+    index += `# [${ firstH1.text }](./blog/${ htmlFileName })\n\n*${ date }*\n\n${ fileMetadata.preview ?? '' }\n\n`;
   }
   menu += '</ul>';
   blogMenuCache = menu;
@@ -272,11 +274,10 @@ let isChangelog;
 
 async function build() {
   const template = await readFile(TEMPLATE_PATH);
+  const blogMenuHtml = await buildBlogMenu();
   const mdFiles = await getAllMdFiles(DOCS_DIR);
   const versions = await getVersionsFromMdFiles(mdFiles);
   const uniqueVersions = [...new Set(versions)];
-
-  const blogMenuHtml = await buildBlogMenu();
 
   let currentVersion = '';
   let versionsMenu = '';
