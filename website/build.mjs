@@ -154,10 +154,10 @@ markedWithContents.use({
       result += `<div class="content">${ html }</div>`;
       if (headings.length) {
         result += `<div class="table-of-contents sticky">
-          ${headings.map(({id, raw, level}) => `<div class="toc-link"><a href="${
-          htmlFileName.replace('.html', '')}#${id}" class="h${
-          level} with-docs-version" data-default-version="${DEFAULT_VERSION}">${
-          raw}</a></div>`).join('\n')}
+          ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
+            htmlFileName.replace('.html', '') }#${ id }" class="h${
+            level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
+            raw }</a></div>`).join('\n') }
         </div>`;
       }
       return result;
