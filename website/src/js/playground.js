@@ -32,6 +32,31 @@ function init() {
     const serializedText = serializeLog(text).replaceAll(/["&'<>]/g, it => specSymbols[it]);
     resultBlock.innerHTML += `<div class="console ${ type }">${ serializedText }</div>`;
   }
+
+  function consolePlugin(babel) {
+    const { types: t } = babel;
+    return {
+      visitor: {
+        ExpressionStatement(path) {
+          const { expression, trailingComments } = path.node;
+          if (trailingComments && trailingComments[0] && trailingComments[0].value.startsWith(' =>')) {
+            if (
+              t.isCallExpression(expression) &&
+              t.isMemberExpression(expression.callee) &&
+              expression.callee.object.name === 'console'
+            ) return;
+            path.replaceWith(
+              t.callExpression(
+                t.memberExpression(t.identifier('console'), t.identifier('log')),
+                [t.clone(expression)],
+              )
+            );
+          }
+        }
+      }
+    };
+  }
+
   function runCode(code) {
     const origConsole = globalThis.console;
     const console = {
@@ -51,7 +76,9 @@ function init() {
 
     try {
       // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
-      const output = Babel.transform(code, { presets: ['env'] }).code;
+      Babel.registerPlugin('console-plugin', consolePlugin);
+      // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
+      const output = Babel.transform(code, { presets: ['env'], plugins: ['console-plugin'] }).code;
       // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
       const context = new Function('console', output);
       context(console);
