@@ -109,7 +109,7 @@ const markedInline = new Marked();
 function preprocess(markdown) {
   const { attributes, body } = fm(markdown);
   fileMetadata = {};
-  for (const prop in attributes) {
+  for (const prop of Object.keys(attributes)) {
     fileMetadata[prop] = attributes[prop];
   }
   return body;
@@ -189,7 +189,7 @@ async function buildBlogMenu() {
     const date = match && match.groups ? match.groups.date : null;
     const htmlFileName = mdPath.replace(BLOG_DIR, '').replace(/\.md$/i, '');
     menu += `<li><a href="./blog/${ htmlFileName }">${ date }: ${ firstH1.text }</a></li>`;
-    index += `# [${ firstH1.text }](./blog/${ htmlFileName })\n\n${ date }\n\n${ fileMetadata['preview'] ?? '' }\n`;
+    index += `# [${ firstH1.text }](./blog/${ htmlFileName })\n\n${ date }\n\n${ fileMetadata.preview ?? '' }\n`;
   }
   menu += '</ul>';
   blogMenuCache = menu;
