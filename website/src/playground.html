@@ -12,30 +12,28 @@
 </div>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script>
-  const consolePlugin = function (babel) {
-    const { types: t } = babel;
-
-    return {
-      visitor: {
-        ExpressionStatement(path) {
-          const { expression, trailingComments } = path.node;
-          if (trailingComments && trailingComments[0] && trailingComments[0].value.startsWith(' ->')) {
-            if (
-              expression.type === 'CallExpression' &&
-              expression.callee.type === 'MemberExpression' &&
-              expression.callee.object.name === 'console'
-            ) return;
-            path.replaceWith(
-              t.callExpression(
-                t.memberExpression(t.identifier('console'), t.identifier('log')),
-                [t.clone(expression)],
-              )
-            );
-          }
-        }
+const consolePlugin = function (babel) {
+const { types: t } = babel;
+return {
+  visitor: {
+    ExpressionStatement(path) {
+      const { expression, trailingComments } = path.node;
+      if (trailingComments && trailingComments[0] && trailingComments[0].value.startsWith(' =>')) {
+        if (
+          expression.type === 'CallExpression' &&
+          expression.callee.type === 'MemberExpression' &&
+          expression.callee.object.name === 'console'
+        ) return;
+        path.replaceWith(
+          t.callExpression(
+            t.memberExpression(t.identifier('console'), t.identifier('log')),
+            [t.clone(expression)],
+          )
+        );
       }
-    };
+    }
   }
-
-  Babel.registerPlugin('console-plugin', consolePlugin);
+};
+}
+Babel.registerPlugin('console-plugin', consolePlugin);
 </script>
