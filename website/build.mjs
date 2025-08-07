@@ -1,4 +1,5 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
+import fm from 'front-matter';
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import markedAlert from 'marked-alert';
@@ -105,8 +106,18 @@ async function buildVersionsMenu(versions, currentVersion) {
 
 const markedInline = new Marked();
 
+function preprocess(markdown) {
+  const { attributes, body } = fm(markdown);
+  fileMetadata = {};
+  for (const prop in attributes) {
+    fileMetadata[prop] = attributes[prop];
+  }
+  return body;
+}
+
 const marked = new Marked();
 marked.use(markedAlert());
+marked.use({ hooks: { preprocess } });
 
 const customRenderer = {
   link({ href, text }) {
@@ -123,17 +134,20 @@ const customRenderer = {
 
 marked.use({ renderer: customRenderer });
 
+let fileMetadata = {};
 const markedWithContents = new Marked();
 markedWithContents.use({ renderer: customRenderer });
 markedWithContents.use(markedAlert());
+markedWithContents.use(gfmHeadingId({ prefix: '' }));
+markedWithContents.use({ hooks: { preprocess } });
 
-markedWithContents.use(gfmHeadingId({ prefix: '' }), {
+markedWithContents.use({
   hooks: {
     postprocess(html) {
       const headings = getHeadingList().filter(({ level }) => level > 1);
       let result = '<div class="wrapper">';
       if (isBlog) {
-        result += `<div class="docs-menu sticky">${ blogMenu }</div>`;
+        result += `<div class="docs-menu sticky">${ blogMenuCache }</div>`;
       } else if (isDocs) {
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
       }
@@ -149,19 +163,21 @@ markedWithContents.use(gfmHeadingId({ prefix: '' }), {
   },
 });
 
-let blogMenu = '';
+let blogMenuCache = '';
 
 async function buildBlogMenu() {
-  if (blogMenu !== '') return blogMenu;
+  if (blogMenuCache !== '') return blogMenuCache;
 
   const mdFiles = await getAllMdFiles(BLOG_DIR);
   mdFiles.reverse();
+  let index = '';
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
     if (mdPath.endsWith('index.md')) continue;
     const mdContent = await readFile(mdPath);
     const content = mdContent.toString();
     const tokens = marked.lexer(content);
+    marked.parse(content);
     const firstH1 = tokens.find(token => token.type === 'heading' && token.depth === 1);
 
     if (!firstH1) {
@@ -173,9 +189,13 @@ async function buildBlogMenu() {
     const date = match && match.groups ? match.groups.date : null;
     const htmlFileName = mdPath.replace(BLOG_DIR, '').replace(/\.md$/i, '');
     menu += `<li><a href="./blog/${ htmlFileName }">${ date }: ${ firstH1.text }</a></li>`;
+    index += `# [${ firstH1.text }](./blog/${ htmlFileName })\n\n${ date }\n\n${ fileMetadata['preview'] ?? '' }\n`;
   }
   menu += '</ul>';
-  blogMenu = menu;
+  blogMenuCache = menu;
+  const blogIndexPath = path.join(BLOG_DIR, 'index.md');
+  await fs.writeFile(blogIndexPath, index, 'utf8');
+  echo(chalk.green(`File created: ${ blogIndexPath }`));
 
   return menu;
 }

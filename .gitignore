@@ -49,3 +49,4 @@ node_modules/
 /website/templates
 /website/dist
 /website/src/public/*
+/docs/web/blog/index.md
