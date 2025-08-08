@@ -32,34 +32,32 @@ core-js(-pure)/es|stable|actual|full/promise/with-resolvers
 
 ## Basic example
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
 function sleepRandom(time) {
   return new Promise((resolve, reject) => {
     setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3);
   });
 }
 
-console.log('Run');                    // => Run
+console.log('Run');                    // -> Run
 sleepRandom(5).then(result => {
-  console.log(result);                 // => 869, after 5 sec.
+  console.log(result);                 // -> 869, after 5 sec.
   return sleepRandom(10);
 }).then(result => {
-  console.log(result);                 // => 202, after 10 sec.
+  console.log(result);                 // -> 202, after 10 sec.
 }).then(() => {
-  console.log('immediately after');    // => immediately after
+  console.log('immediately after');    // -> immediately after
   throw new Error('Irror!');
 }).then(() => {
   console.log('will not be displayed');
-}).catch(error => console.log(error)); // => => Error: Irror!
+}).catch(error => console.log(error)); // -> Error: Irror!
 ```
 
 ## `Promise.resolve` and `Promise.reject` example
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
-Promise.resolve(42).then(x => console.log(x));         // => 42
-Promise.reject(42).catch(error => console.log(error)); // => 42
+Promise.resolve(42).then(x => console.log(x));         // -> 42
+Promise.reject(42).catch(error => console.log(error)); // -> 42
 
-Promise.resolve($.getJSON('/data.json')); // => ES promise
+Promise.resolve($.getJSON('/data.json')); // -> ES promise
 ```
 
 ## `Promise#finally` example
@@ -71,24 +69,31 @@ Promise.reject(42).finally(() => console.log('You will see it anyway'));
 
 ## `Promise.all` example
 ```js
+function sleepRandom(time) {
+  return new Promise(resolve => setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3));
+}
+
 Promise.all([
   'foo',
   sleepRandom(5),
   sleepRandom(15),
   sleepRandom(10),            // after 15 sec:
-]).then(x => console.log(x)); // => ['foo', 956, 85, 382]
+]).then(x => console.log(x)); // -> ['foo', 956, 85, 382]
 ```
 
 ## `Promise.race` example
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
+function sleepRandom(time) {
+  return new Promise(resolve => setTimeout(resolve, time * 1e3, 0 | Math.random() * 1e3));
+}
+
 function timeLimit(promise, time) {
   return Promise.race([promise, new Promise((resolve, reject) => {
     setTimeout(reject, time * 1e3, new Error(`Await > ${ time } sec`));
   })]);
 }
 
-timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // => 853, after 5 sec.
+timeLimit(sleepRandom(5), 10).then(x => console.log(x));           // -> 853, after 5 sec.
 timeLimit(sleepRandom(15), 10).catch(error => console.log(error)); // Error: Await > 10 sec
 ```
 
@@ -98,7 +103,7 @@ Promise.allSettled([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // => [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
+]).then(console.log); // -> [{ value: 1, status: 'fulfilled' }, { reason: 2, status: 'rejected' }, { value: 3, status: 'fulfilled' }]
 ```
 
 ## `Promise.any` example
@@ -107,18 +112,17 @@ Promise.any([
   Promise.resolve(1),
   Promise.reject(2),
   Promise.resolve(3),
-]).then(console.log); // => 1
+]).then(console.log); // -> 1
 
 Promise.any([
   Promise.reject(1),
   Promise.reject(2),
   Promise.reject(3),
-]).catch(({ errors }) => console.log(errors)); // => [1, 2, 3]
+]).catch(({ errors }) => console.log(errors)); // -> [1, 2, 3]
 ```
 
 ## `Promise.try` examples
 ```js
-/* eslint-disable promise/prefer-await-to-callbacks -- example */
 Promise.try(() => 42).then(it => console.log(`Promise, resolved as ${ it }`));
 
 Promise.try(() => { throw new Error('42'); }).catch(error => console.log(`Promise, rejected as ${ error }`));
@@ -134,7 +138,7 @@ Promise.try(it => it, 42).then(it => console.log(`Promise, resolved as ${ it }`)
 ```js
 const d = Promise.withResolvers();
 d.resolve(42);
-d.promise.then(console.log); // => 42
+d.promise.then(console.log); // -> 42
 ```
 
 ## Example with async functions

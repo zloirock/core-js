@@ -90,8 +90,8 @@ for (let key in person) console.log(key); // => nothing, symbols are not enumera
 ## `Symbol.for` & `Symbol.keyFor` example
 ```js
 let symbol = Symbol.for('key');
-symbol === Symbol.for('key'); // true
-Symbol.keyFor(symbol);        // 'key'
+symbol === Symbol.for('key'); // => true
+Symbol.keyFor(symbol);        // => 'key'
 ```
 
 ## Example with methods for getting own object keys
