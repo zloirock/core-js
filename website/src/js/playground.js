@@ -49,11 +49,11 @@ function init() {
               t.callExpression(
                 t.memberExpression(t.identifier('console'), t.identifier('log')),
                 [t.clone(expression)],
-              )
+              ),
             );
           }
-        }
-      }
+        },
+      },
     };
   }
 

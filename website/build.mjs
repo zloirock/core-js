@@ -152,7 +152,7 @@ markedWithContents.use({
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
       }
       result += `<div class="content">${ html }</div>`;
-      if (headings.length && !fileMetadata.hasOwnProperty('disableContentMenu')) {
+      if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
         result += `<div class="table-of-contents sticky">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
