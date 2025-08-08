@@ -90,7 +90,7 @@ function init() {
 
   function stringify(it) {
     try {
-      return JSON.stringify(Array.from(it));
+      return JSON.stringify(it);
     } catch {
       return String(it);
     }
