@@ -39,7 +39,7 @@ function init() {
       visitor: {
         ExpressionStatement(path) {
           const { expression, trailingComments } = path.node;
-          if (trailingComments && trailingComments[0] && trailingComments[0].value.startsWith(' =>')) {
+          if (trailingComments?.[0]?.value.startsWith(' =>')) {
             if (
               t.isCallExpression(expression) &&
               t.isMemberExpression(expression.callee) &&
@@ -56,6 +56,9 @@ function init() {
       }
     };
   }
+
+  // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
+  Babel.registerPlugin('console-plugin', consolePlugin);
 
   function runCode(code) {
     const origConsole = globalThis.console;
@@ -75,8 +78,6 @@ function init() {
     };
 
     try {
-      // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
-      Babel.registerPlugin('console-plugin', consolePlugin);
       // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
       const output = Babel.transform(code, { presets: ['env'], plugins: ['console-plugin'] }).code;
       // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
