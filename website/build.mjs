@@ -152,7 +152,7 @@ markedWithContents.use({
         result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
       }
       result += `<div class="content">${ html }</div>`;
-      if (headings.length) {
+      if (headings.length && !fileMetadata.hasOwnProperty('disableContentMenu')) {
         result += `<div class="table-of-contents sticky">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
@@ -172,7 +172,7 @@ async function buildBlogMenu() {
 
   const mdFiles = await getAllMdFiles(BLOG_DIR);
   mdFiles.reverse();
-  let index = '';
+  let index = '---\ndisableContentMenu: true\n---\n# Blog\n\n';
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
     if (mdPath.endsWith('index.md')) continue;
@@ -191,7 +191,8 @@ async function buildBlogMenu() {
     const date = match && match.groups ? match.groups.date : null;
     const htmlFileName = mdPath.replace(BLOG_DIR, '').replace(/\.md$/i, '');
     menu += `<li><a href="./blog/${ htmlFileName }">${ date }: ${ firstH1.text }</a></li>`;
-    index += `# [${ firstH1.text }](./blog/${ htmlFileName })\n\n*${ date }*\n\n${ fileMetadata.preview ?? '' }\n\n`;
+    index += `## [${ firstH1.text }](./blog/${
+      htmlFileName })\n\n*${ date }*\n\n${ fileMetadata.preview ?? '' }\n\n`;
   }
   menu += '</ul>';
   blogMenuCache = menu;
