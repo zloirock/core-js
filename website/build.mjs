@@ -306,7 +306,8 @@ async function build() {
     const htmlFilePath = path.join(RESULT_DIR, htmlFileName);
     const htmlContent = isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content);
 
-    let resultHtml = template.replace('{content}', `${ htmlContent }`);
+    let resultHtml = template.replace('{content}', `${ htmlContent.replaceAll('$', '&#36;') }`);
+
     resultHtml = resultHtml.replace('{title}', title);
     resultHtml = resultHtml.replace('{docs-menu}', `${ mobileDocsMenu }`);
     resultHtml = resultHtml.replace('{blog-menu}', `${ mobileBlogMenu }`);
