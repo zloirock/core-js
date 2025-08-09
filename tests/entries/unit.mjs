@@ -473,6 +473,12 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof instanceIndexOf([]) == 'function');
     ok(instanceIndexOf([]).call([1, 2, 3], 2) === 1);
 
+    const instanceJoin = load(NS, 'instance/join');
+    ok(typeof instanceJoin == 'function');
+    ok(instanceJoin({}) === undefined);
+    ok(typeof instanceJoin([]) == 'function');
+    ok(instanceJoin([]).call('qwe', 1) === 'q1w1e');
+
     const instanceKeys = load(NS, 'instance/keys');
     ok(typeof instanceKeys == 'function');
     ok(instanceKeys({}) === undefined);
