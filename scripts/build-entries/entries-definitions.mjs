@@ -1030,6 +1030,11 @@ export const features = {
     template: $instanceString,
     name: 'isWellFormed',
   },
+  'instance/join': {
+    modules: ['es.array.join'],
+    template: $instanceArray,
+    name: 'join',
+  },
   'instance/keys': {
     modules: ['es.array.keys', 'web.dom-collections.keys'],
     template: $instanceArray,
