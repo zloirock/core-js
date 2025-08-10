@@ -36,7 +36,7 @@ const exportsFields = {
 };
 
 const entriesMap = AllModules.reduce((memo, it) => {
-  memo[`core-js/modules/${ it }`] = [it];
+  memo[`modules/${ it }`] = [it];
   return memo;
 }, {});
 
@@ -103,7 +103,7 @@ async function buildEntry(entry, options) {
     exportsFields[`./${ entrySlice2 }/*.js`] = `./${ entrySlice2 }/*.js`;
   }
 
-  entriesMap[`core-js/${ entry }`.replace(/\/index$/, '')] = modules;
+  entriesMap[entry.replace(/\/index$/, '')] = modules;
 }
 
 async function writeExportsField(path) {
