@@ -9,7 +9,7 @@ let PATH;
 function load(...components) {
   const path = [PATH, ...components].join('/');
   tested.add(path);
-  expected.delete(path);
+  expected.delete(components.join('/'));
   return require(path);
 }
 
