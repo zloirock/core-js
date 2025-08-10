@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from Bun 1.2.20
 
 ##### [3.45.0 - 2025.08.04](https://github.com/zloirock/core-js/releases/tag/v3.45.0)
 - Changes [v3.44.0...v3.45.0](https://github.com/zloirock/core-js/compare/v3.44.0...v3.45.0) (70 commits)

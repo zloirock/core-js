@@ -2581,8 +2581,10 @@ export const data = {
   'esnext.map.from': {
   },
   'esnext.map.get-or-insert': {
+    bun: '1.2.20',
   },
   'esnext.map.get-or-insert-computed': {
+    bun: '1.2.20',
   },
   // TODO: Remove from `core-js@4`
   'esnext.map.group-by': null,
@@ -2872,8 +2874,10 @@ export const data = {
   'esnext.weak-map.emplace': {
   },
   'esnext.weak-map.get-or-insert': {
+    bun: '1.2.20',
   },
   'esnext.weak-map.get-or-insert-computed': {
+    bun: '1.2.20',
   },
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.upsert': {
