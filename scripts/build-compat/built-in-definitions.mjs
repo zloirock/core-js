@@ -13,7 +13,7 @@ function dict() {
 function unfoldDependencies(data) {
   if (!data) return;
   const dependencies = typeof data == 'string' ? [data] : data;
-  for (const entry of dependencies) if (!entries.has(`core-js/full/${ entry }`)) {
+  for (const entry of dependencies) if (!entries.has(`full/${ entry }`)) {
     throw new Error(`incorrect dependency: ${ entry }`);
   }
   return dependencies;

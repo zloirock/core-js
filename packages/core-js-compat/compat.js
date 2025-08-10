@@ -6,7 +6,7 @@ const getModulesListForTargetVersion = require('./get-modules-list-for-target-ve
 const allModules = require('./modules');
 const targetsParser = require('./targets-parser');
 
-const actualModules = entries['core-js/actual'];
+const { actual } = entries;
 
 const { hasOwn } = Object;
 
@@ -70,7 +70,7 @@ module.exports = function ({
 
   exclude = normalizeModules(exclude);
 
-  modules = modules ? [...normalizeModules(modules)] : actualModules;
+  modules = modules ? [...normalizeModules(modules)] : actual;
 
   if (exclude.size) modules = modules.filter(it => !exclude.has(it));
 
