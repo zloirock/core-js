@@ -11,7 +11,7 @@ function log(kind, name, code) {
 }
 
 async function bundle({ bundled, minified, options = {} }) {
-  const { script } = await builder({ modules: 'core-js/full', ...options });
+  const { script } = await builder({ modules: 'full', ...options });
 
   log('bundling', bundled, script);
   await fs.writeFile(`${ PATH }${ bundled }.js`, script);
