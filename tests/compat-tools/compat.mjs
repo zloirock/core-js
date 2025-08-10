@@ -3,7 +3,7 @@ import compat from '@core-js/compat/compat.js';
 
 deepEqual(compat({
   modules: [
-    'core-js/es/math',
+    'es/math',
     'es.array.at',
     /^es\.reflect/,
   ],
@@ -102,12 +102,12 @@ deepEqual(compat({
 
 deepEqual(
   compat({ targets: { chrome: 93 } }),
-  compat({ modules: 'core-js', targets: { chrome: 93 } }),
+  compat({ modules: 'actual', targets: { chrome: 93 } }),
   'no modules',
 );
 
 deepEqual(compat({
-  modules: 'core-js/es/math',
+  modules: 'es/math',
   targets: {
     chrome: 40,
     firefox: 27,
@@ -146,7 +146,7 @@ ok(!inverted1.includes('esnext.iterator.range'), 'inverse #2');
 // TODO: enable after adding new stabilized aliases in `core-js@4`
 // ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
 
-const { list: inverted2 } = compat({ modules: 'core-js/es/math', targets: { esmodules: true }, inverse: true });
+const { list: inverted2 } = compat({ modules: 'es/math', targets: { esmodules: true }, inverse: true });
 
 ok(inverted2.includes('es.math.acosh'), 'inverse #4');
 ok(!inverted2.includes('es.map.constructor'), 'inverse #5');
