@@ -1,4 +1,6 @@
-# [`RegExp` `s` (`dotAll`) flag](https://github.com/tc39/proposal-regexp-dotall-flag)
+# `RegExp` `s` (`dotAll`) flag
+[Specification](https://github.com/tc39/proposal-regexp-dotall-flag)
+
 ```ts
 // patched for support `RegExp` dotAll (`s`) flag:
 class RegExp {
@@ -10,6 +12,6 @@ class RegExp {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/regexp-dotall-flag
 ```

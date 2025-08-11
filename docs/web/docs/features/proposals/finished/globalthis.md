@@ -1,4 +1,5 @@
-# [`globalThis`](https://github.com/tc39/proposal-global)
+# `globalThis`
+[Specification](https://github.com/tc39/proposal-global)
 
 ```ts
 let globalThis: GlobalThisValue;

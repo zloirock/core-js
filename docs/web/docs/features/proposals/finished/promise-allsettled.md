@@ -1,4 +1,6 @@
-# [`Promise.allSettled`](https://github.com/tc39/proposal-promise-allSettled)
+# `Promise.allSettled`
+[Specification](https://github.com/tc39/proposal-promise-allSettled)
+
 ```ts
 class Promise {
   static allSettled(iterable: Iterable): Promise;
@@ -6,6 +8,6 @@ class Promise {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/promise-all-settled
 ```

@@ -1,4 +1,6 @@
-# [`Promise.any`](https://github.com/tc39/proposal-promise-any)
+# `Promise.any`
+[Specification](https://github.com/tc39/proposal-promise-any)
+
 ```ts
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;
@@ -12,6 +14,6 @@ class Promise {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/promise-any
 ```

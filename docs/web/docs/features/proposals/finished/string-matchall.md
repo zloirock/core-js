@@ -1,4 +1,6 @@
-# [`String#matchAll`](https://github.com/tc39/proposal-string-matchall).
+# `String#matchAll`
+[Specification](https://github.com/tc39/proposal-string-matchall)
+
 ```ts
 class String {
   matchAll(regexp: RegExp): Iterator;
@@ -6,6 +8,6 @@ class String {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/string-match-all
 ```

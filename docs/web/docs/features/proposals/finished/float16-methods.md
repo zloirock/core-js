@@ -1,4 +1,6 @@
-# [`Float16` methods](https://github.com/tc39/proposal-float16array)
+# `Float16` methods
+[Specification](https://github.com/tc39/proposal-float16array)
+
 ```ts
 class DataView {
   getFloat16(offset: any, littleEndian?: boolean = false): float16
@@ -11,6 +13,6 @@ namespace Math {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/float16
 ```

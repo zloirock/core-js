@@ -1,4 +1,6 @@
-# [`Error.isError`](https://github.com/tc39/proposal-is-error)
+# `Error.isError`
+[Specification](https://github.com/tc39/proposal-is-error)
+
 ```ts
 class Error {
   static isError(value: any): boolean;
@@ -6,7 +8,7 @@ class Error {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/is-error
 ```
 

@@ -1,4 +1,6 @@
-# [`Array` grouping](https://github.com/tc39/proposal-array-grouping)
+# `Array` grouping
+[Specification](https://github.com/tc39/proposal-array-grouping)
+
 ```ts
 class Object {
   static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): { [key]: Array<mixed> };

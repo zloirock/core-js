@@ -1,4 +1,6 @@
-# [Well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify)
+# Well-formed `JSON.stringify`
+[Specification](https://github.com/tc39/proposal-well-formed-stringify)
+
 ```ts
 namespace JSON {
   stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
@@ -6,6 +8,6 @@ namespace JSON {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/well-formed-stringify
 ```

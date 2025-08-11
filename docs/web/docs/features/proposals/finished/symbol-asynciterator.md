@@ -1,4 +1,6 @@
-# [`Symbol.asyncIterator` for asynchronous iteration](https://github.com/tc39/proposal-async-iteration)
+# `Symbol.asyncIterator` for asynchronous iteration
+[Specification](https://github.com/tc39/proposal-async-iteration)
+
 ```ts
 class Symbol {
   static asyncIterator: @@asyncIterator;

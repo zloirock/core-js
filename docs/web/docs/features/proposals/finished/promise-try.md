@@ -1,4 +1,6 @@
-# [`Promise.try`](https://github.com/tc39/proposal-promise-try)
+# `Promise.try`
+[Specification](https://github.com/tc39/proposal-promise-try)
+
 ```ts
 class Promise {
   static try(callbackfn: Function, ...args?: Array<mixed>): Promise;

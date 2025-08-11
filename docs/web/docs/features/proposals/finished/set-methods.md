@@ -1,4 +1,6 @@
-# [New `Set` methods](https://github.com/tc39/proposal-set-methods)
+# New `Set` methods
+[Specification](https://github.com/tc39/proposal-set-methods)
+
 ```ts
 class Set {
   difference(other: SetLike<mixed>): Set;
@@ -12,6 +14,6 @@ class Set {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/set-methods-v2
 ```

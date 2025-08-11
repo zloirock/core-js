@@ -1,4 +1,6 @@
-# [`Iterator` helpers](https://github.com/tc39/proposal-iterator-helpers)
+# `Iterator` helpers
+[Specification](https://github.com/tc39/proposal-iterator-helpers)
+
 ```ts
 class Iterator {
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
@@ -18,6 +20,6 @@ class Iterator {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/iterator-helpers-stage-3-2
 ```

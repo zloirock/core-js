@@ -1,4 +1,6 @@
-# [`RegExp` escaping](https://github.com/tc39/proposal-regex-escaping)
+# `RegExp` escaping
+[Specification](https://github.com/tc39/proposal-regex-escaping)
+
 ```ts
 class RegExp {
   static escape(value: string): string
@@ -6,6 +8,6 @@ class RegExp {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/regexp-escaping
 ```

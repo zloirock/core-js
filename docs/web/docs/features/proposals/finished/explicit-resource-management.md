@@ -1,4 +1,6 @@
-# [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management)
+# Explicit Resource Management
+[Specification](https://github.com/tc39/proposal-explicit-resource-management)
+
 > [!NOTE]
 > This is only built-ins for this Explicit Resource Management, `using` syntax support requires [transpiler support](https://babeljs.io/docs/babel-plugin-syntax-explicit-resource-management).
 ```ts
@@ -47,6 +49,6 @@ class AsyncIterator {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/explicit-resource-management
 ```

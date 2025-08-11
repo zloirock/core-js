@@ -1,4 +1,6 @@
-# [`Promise.prototype.finally`](https://github.com/tc39/proposal-promise-finally)
+# `Promise.prototype.finally`
+[Specification](https://github.com/tc39/proposal-promise-finally)
+
 ```ts
 class Promise {
   finally(onFinally: Function): Promise;

@@ -1,4 +1,6 @@
-# [Array find from last](https://github.com/tc39/proposal-array-find-from-last)
+# Array find from last
+[Specification](https://github.com/tc39/proposal-array-find-from-last)
+
 ```ts
 class Array {
   findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;

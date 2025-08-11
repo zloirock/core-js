@@ -1,4 +1,6 @@
-# [`RegExp` named capture groups](https://github.com/tc39/proposal-regexp-named-groups)
+# `RegExp` named capture groups
+[Specification](https://github.com/tc39/proposal-regexp-named-groups)
+
 ```ts
 // patched for support `RegExp` named capture groups:
 class RegExp {
@@ -9,6 +11,6 @@ class RegExp {
 ```
 
 ## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
-```
+```ts
 core-js/proposals/regexp-named-groups
 ```
