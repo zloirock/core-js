@@ -21,7 +21,7 @@ const {
   targets: '> 1%',            // browserslist query or object of minimum environment versions to support, see below
   modules: [                  // optional list / filter of modules - regex, string or an array of them:
     'actual',                 // - an entry point
-    'esnext.array.unique-by', // - a module name (or just a start of a module name)
+    'esnext.array.unique-by', // - a module name
     /^web\./,                 // - regex that a module name must satisfy
   ],
   exclude: [                  // optional list / filter of modules to exclude, the signature is similar to `modules` option
