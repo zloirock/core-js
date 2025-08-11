@@ -1,5 +1,6 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
 import fm from 'front-matter';
+import { JSDOM } from 'jsdom';
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import markedAlert from 'marked-alert';
@@ -315,10 +316,15 @@ async function build() {
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
     if (isDocs || isBlog || isChangelog) {
-      // eslint-disable-next-line redos/no-vulnerable -- is necessary here
-      resultHtml = resultHtml.replaceAll(/<h\d id="(?<id>[^"]+)">(?<text>.*?)<\/h\d>/g, (res, id, text) => {
-        return res.replace(text, `<a class="anchor" href="${
-          htmlFileName.replace('.html', '') }#${ id }"></a>${ text }`);
+      const resultDOM = new JSDOM(resultHtml);
+      const document = resultDOM.window.document;
+      document.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]').forEach(heading => {
+        const newHeading = heading.cloneNode(true);
+        const anchor = document.createElement('a');
+        anchor.className = 'anchor';
+        anchor.href = `${ htmlFileName.replace('.html', '') }#${ newHeading.id }`;
+        newHeading.insertBefore(anchor, newHeading.firstChild);
+        resultHtml = resultHtml.replace(heading.outerHTML, newHeading.outerHTML);
       });
     }
 
