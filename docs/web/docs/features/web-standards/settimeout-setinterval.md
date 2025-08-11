@@ -17,7 +17,7 @@ core-js(-pure)/stable|actual|full/set-interval
 ## Examples
 ```js
 // Before:
-setTimeout(log.bind(null, 42), 1000);
+setTimeout(console.log.bind(null, 41), 1000);
 // After:
-setTimeout(log, 1000, 42);
+setTimeout(console.log, 1000, 42);
 ```

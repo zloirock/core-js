@@ -1,5 +1,6 @@
 # Base64 utility methods
 [Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob)
+
 [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64)
 
 ## Modules 

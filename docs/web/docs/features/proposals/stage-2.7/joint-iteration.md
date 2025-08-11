@@ -45,7 +45,7 @@ Iterator.zipKeyed({
   mode: 'longest',
   padding: { c: 10 },
 }).toArray();
-/*
+/* =>
 [
   { a: 0,         b: 3, c: 7  },
   { a: 1,         b: 4, c: 8  },

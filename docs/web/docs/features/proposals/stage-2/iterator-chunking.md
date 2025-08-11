@@ -25,9 +25,9 @@ core-js(-pure)/full/iterator/windows
 ```js
 const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
 
-let chunksOf2 = Array.from(digits().chunks(2));  // [ [0, 1], [2, 3], [4, 5], [6, 7], [8, 9] ]
+let chunksOf2 = Array.from(digits().chunks(2));  // => [ [0, 1], [2, 3], [4, 5], [6, 7], [8, 9] ]
 
-let slidingOf2 = Array.from(digits().sliding(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
+let slidingOf2 = Array.from(digits().sliding(2));  // => [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
 
-let windowsOf2 = Array.from(digits().windows(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
+let windowsOf2 = Array.from(digits().windows(2));  // => [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
 ```

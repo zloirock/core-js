@@ -15,6 +15,5 @@ core-js(-pure)/stable|actual|full/self
 
 ## Examples
 ```js
-// eslint-disable-next-line no-restricted-globals -- example
 self.Array === Array; // => true
 ```

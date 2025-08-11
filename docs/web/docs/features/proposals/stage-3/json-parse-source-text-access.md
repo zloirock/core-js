@@ -35,11 +35,11 @@ function bigIntToRawJSON(key, val) {
 }
 
 const tooBigForNumber = BigInt(Number.MAX_SAFE_INTEGER) + 2n;
-JSON.parse(String(tooBigForNumber), digitsToBigInt) === tooBigForNumber; // true
+JSON.parse(String(tooBigForNumber), digitsToBigInt) === tooBigForNumber; // => true
 
 const wayTooBig = BigInt(`1${ '0'.repeat(1000) }`);
-JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // true
+JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // => true
 
 const embedded = JSON.stringify({ tooBigForNumber }, bigIntToRawJSON);
-embedded === '{"tooBigForNumber":9007199254740993}'; // true
+embedded === '{"tooBigForNumber":9007199254740993}'; // => true
 ```
