@@ -8,23 +8,23 @@ const targetsParser = require('./targets-parser');
 
 const { actual } = entries;
 
+const allModulesSet = new Set(allModules);
+
 const { hasOwn } = Object;
 
 function throwInvalidFilter(filter) {
   throw new TypeError(`Specified invalid module name or pattern: ${ filter }`);
 }
 
-function atLeastSomeModules(modules, filter) {
-  if (!modules.length) throwInvalidFilter(filter);
-  return modules;
-}
-
 function getModules(filter) {
   if (typeof filter == 'string') {
+    if (allModulesSet.has(filter)) return [filter];
     if (hasOwn(entries, filter)) return entries[filter];
-    return atLeastSomeModules(allModules.filter(it => it.startsWith(filter)), filter);
+  } else if (filter instanceof RegExp) {
+    const modules = allModules.filter(it => filter.test(it));
+    if (!modules.length) throwInvalidFilter(filter);
+    return modules;
   }
-  if (filter instanceof RegExp) return atLeastSomeModules(allModules.filter(it => filter.test(it)), filter);
   throwInvalidFilter(filter);
 }
 
