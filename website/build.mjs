@@ -106,7 +106,7 @@ async function buildVersionsMenu(versions, currentVersion) {
 
 const markedInline = new Marked();
 
-function preprocess(markdown) {
+function metadata(markdown) {
   const { attributes, body } = fm(markdown);
   fileMetadata = {};
   for (const prop of Object.keys(attributes)) {
@@ -115,11 +115,7 @@ function preprocess(markdown) {
   return body;
 }
 
-const marked = new Marked();
-marked.use(markedAlert());
-marked.use({ hooks: { preprocess } });
-
-const customRenderer = {
+const linkRenderer = {
   link({ href, text }) {
     const htmlContent = markedInline.parseInline(text);
     const isExternal = /^https?:\/\//.test(href);
@@ -129,40 +125,43 @@ const customRenderer = {
     if (isExternal) html += ' target="_blank"';
     html += `>${ htmlContent }</a>`;
     return html;
-  },
+  }
 };
 
-marked.use({ renderer: customRenderer });
+function buildMenus(html) {
+  const headings = getHeadingList().filter(({ level }) => level > 1);
+  let result = '<div class="wrapper">';
+  if (isBlog) {
+    result += `<div class="docs-menu sticky">${ blogMenuCache }</div>`;
+  } else if (isDocs) {
+    result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
+  }
+  result += `<div class="content">${ html }</div>`;
+  if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
+    result += `<div class="table-of-contents sticky">
+          ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
+      htmlFileName.replace('.html', '') }#${ id }" class="h${
+      level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
+      raw }</a></div>`).join('\n') }
+        </div>`;
+  }
+  return result;
+}
+
+const marked = new Marked();
+marked.use(markedAlert());
+marked.use({ hooks: { preprocess: metadata } });
+marked.use({ renderer: linkRenderer });
 
 let fileMetadata = {};
 const markedWithContents = new Marked();
-markedWithContents.use({ renderer: customRenderer });
-markedWithContents.use(markedAlert());
-markedWithContents.use(gfmHeadingId({ prefix: '' }));
-markedWithContents.use({ hooks: { preprocess } });
-
+markedWithContents.use(markedAlert(), gfmHeadingId({ prefix: '' }));
 markedWithContents.use({
   hooks: {
-    postprocess(html) {
-      const headings = getHeadingList().filter(({ level }) => level > 1);
-      let result = '<div class="wrapper">';
-      if (isBlog) {
-        result += `<div class="docs-menu sticky">${ blogMenuCache }</div>`;
-      } else if (isDocs) {
-        result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
-      }
-      result += `<div class="content">${ html }</div>`;
-      if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
-        result += `<div class="table-of-contents sticky">
-          ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
-            htmlFileName.replace('.html', '') }#${ id }" class="h${
-            level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
-            raw }</a></div>`).join('\n') }
-        </div>`;
-      }
-      return result;
-    },
+    preprocess: metadata,
+    postprocess: buildMenus
   },
+  renderer: linkRenderer
 });
 
 let blogMenuCache = '';
@@ -314,6 +313,12 @@ async function build() {
     resultHtml = resultHtml.replace('{base}', `${ BASE }`);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
+
+    if (isDocs || isBlog || isChangelog) {
+      resultHtml = resultHtml.replaceAll(/<h\d id="(.*)">(.*)<\/h\d>/g, function (match, id, text) {
+        return match.replace(text, `<a class="anchor" href="${ htmlFileName }#${ id }"></a>${ text }`);
+      });
+    }
 
     resultHtml = resultHtml.replaceAll('{docs-version}', currentVersion);
 
