@@ -2,7 +2,7 @@ import builder from '@core-js/builder';
 import { minify } from 'terser';
 
 const { script } = await builder({
-  modules: 'core-js/full',
+  modules: 'full',
   targets: { esmodules: true },
 });
 const { code } = await minify(script);
