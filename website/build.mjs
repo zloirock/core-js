@@ -315,7 +315,8 @@ async function build() {
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
     if (isDocs || isBlog || isChangelog) {
-      resultHtml = resultHtml.replaceAll(/<h\d id="(?<id>[^"]+)">(?<text>[\s\S]*?)<\/h\d>/g, (res, id, text) => {
+      // eslint-disable-next-line redos/no-vulnerable -- is necessary here
+      resultHtml = resultHtml.replaceAll(/<h\d id="(?<id>[^"]+)">(?<text>.*?)<\/h\d>/g, (res, id, text) => {
         return res.replace(text, `<a class="anchor" href="${
           htmlFileName.replace('.html', '') }#${ id }"></a>${ text }`);
       });
