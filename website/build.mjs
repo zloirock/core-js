@@ -125,7 +125,7 @@ const linkRenderer = {
     if (isExternal) html += ' target="_blank"';
     html += `>${ htmlContent }</a>`;
     return html;
-  }
+  },
 };
 
 function buildMenus(html) {
@@ -140,9 +140,9 @@ function buildMenus(html) {
   if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
     result += `<div class="table-of-contents sticky">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
-      htmlFileName.replace('.html', '') }#${ id }" class="h${
-      level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
-      raw }</a></div>`).join('\n') }
+            htmlFileName.replace('.html', '') }#${ id }" class="h${
+            level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
+            raw }</a></div>`).join('\n') }
         </div>`;
   }
   return result;
@@ -159,9 +159,9 @@ markedWithContents.use(markedAlert(), gfmHeadingId({ prefix: '' }));
 markedWithContents.use({
   hooks: {
     preprocess: metadata,
-    postprocess: buildMenus
+    postprocess: buildMenus,
   },
-  renderer: linkRenderer
+  renderer: linkRenderer,
 });
 
 let blogMenuCache = '';
@@ -315,8 +315,9 @@ async function build() {
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
     if (isDocs || isBlog || isChangelog) {
-      resultHtml = resultHtml.replaceAll(/<h\d id="(.*)">(.*)<\/h\d>/g, function (match, id, text) {
-        return match.replace(text, `<a class="anchor" href="${ htmlFileName }#${ id }"></a>${ text }`);
+      resultHtml = resultHtml.replaceAll(/<h\d id="(?<id>[^"]+)">(?<text>.*?)<\/h\d>/g, (res, id, text) => {
+        return res.replace(text, `<a class="anchor" href="${ 
+          htmlFileName.replace('.html', '') }#${ id }"></a>${ text }`);
       });
     }
 
