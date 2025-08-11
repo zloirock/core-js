@@ -1,5 +1,5 @@
-import AggregateError from 'core-js-pure/es/aggregate-error';
-import Promise from 'core-js-pure/es/promise';
+import AggregateError from '@core-js/pure/es/aggregate-error';
+import Promise from '@core-js/pure/es/promise';
 
 QUnit.test('Promise.any', assert => {
   assert.isFunction(Promise.any);

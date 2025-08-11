@@ -4,20 +4,22 @@ var anObject = require('../internals/an-object');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
-var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var propertyIsEnumerableModule = require('../internals/object-property-is-enumerable');
 var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var getModeOption = require('../internals/get-mode-option');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
 
-var create = getBuiltIn('Object', 'create');
-var ownKeys = getBuiltIn('Reflect', 'ownKeys');
+var create = Object.create;
+// dependency: es.reflect.own-keys
+var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 var push = uncurryThis([].push);
 var THROW = 'throw';
 
 // `Iterator.zipKeyed` method
 // https://github.com/tc39/proposal-joint-iteration
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: true }, {
   zipKeyed: function zipKeyed(iterables /* , options */) {
     anObject(iterables);
@@ -66,5 +68,5 @@ $({ target: 'Iterator', stat: true, forced: true }, {
       }
       return obj;
     });
-  }
+  },
 });
