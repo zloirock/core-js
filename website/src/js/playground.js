@@ -91,8 +91,8 @@ function init() {
   function serializeLog(value, visited = new WeakSet()) {
     if (value === null) return 'null';
     if (typeof value === 'string') return JSON.stringify(value);
-    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'undefined') return String(value);
-    if (typeof value === 'function') return `[Function ${value.name || 'anonymous'}]`;
+    if (typeof value === 'number' || typeof value === 'boolean' || value === undefined) return String(value);
+    if (typeof value === 'function') return `[Function ${ value.name || 'anonymous' }]`;
 
     if (typeof value === 'object') {
       if (visited.has(value)) return '[Circular]';
@@ -100,20 +100,21 @@ function init() {
     }
 
     if (value instanceof Set) {
-      const arr = Array.from(value).map(v => serializeLog(v, visited));
+      const arr = Array.from(value, v => serializeLog(v, visited));
       return `Set {${ arr.join(', ') }}`;
     }
 
     if (value instanceof Map) {
-      const arr = Array.from(value.entries())
-        .map(([k, v]) => `${ serializeLog(k, visited) } => ${ serializeLog(v, visited) }`);
+      const arr = Array.from(
+        value.entries(),
+        ([k, v]) => `${ serializeLog(k, visited) } => ${ serializeLog(v, visited) }`,
+      );
       return `Map {${ arr.join(', ') }}`;
     }
 
     if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
       const type = value.constructor.name;
-      let objFormat = Array.from(value)
-        .map((v, i) => `"${ i }": ${ serializeLog(v, visited) }`);
+      const objFormat = Array.from(value, (v, i) => `"${ i }": ${ serializeLog(v, visited) }`);
       return `${ type } {${ objFormat.join(', ') }}`;
     }
 
@@ -134,9 +135,7 @@ function init() {
     if (typeof value === 'object') {
       const keys = Object.keys(value);
       if (!keys.length) return '{}';
-      const props = keys.map(k =>
-        `${ JSON.stringify(k) }: ${ serializeLog(value[k], visited) }`
-      );
+      const props = keys.map(k => `${ JSON.stringify(k) }: ${ serializeLog(value[k], visited) }`);
       return `{${ props.join(', ') }}`;
     }
 
