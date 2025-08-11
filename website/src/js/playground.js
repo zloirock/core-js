@@ -88,19 +88,59 @@ function init() {
     }
   }
 
-  function stringify(it) {
-    try {
-      return JSON.stringify(it);
-    } catch {
-      return String(it);
-    }
-  }
+  function serializeLog(value, visited = new WeakSet()) {
+    if (value === null) return 'null';
+    if (typeof value === 'string') return JSON.stringify(value);
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'undefined') return String(value);
+    if (typeof value === 'function') return `[Function ${value.name || 'anonymous'}]`;
 
-  function serializeLog(it) {
-    const klass = ({}).toString.call(it).slice(8, -1);
-    if (['Array', 'Object'].includes(klass)) return stringify(it);
-    if (['Set', 'Map'].includes(klass)) return `${ klass } ${ stringify(Array.from(it)) }`;
-    return String(it);
+    if (typeof value === 'object') {
+      if (visited.has(value)) return '[Circular]';
+      visited.add(value);
+    }
+
+    if (value instanceof Set) {
+      const arr = Array.from(value).map(v => serializeLog(v, visited));
+      return `Set {${ arr.join(', ') }}`;
+    }
+
+    if (value instanceof Map) {
+      const arr = Array.from(value.entries())
+        .map(([k, v]) => `${ serializeLog(k, visited) } => ${ serializeLog(v, visited) }`);
+      return `Map {${ arr.join(', ') }}`;
+    }
+
+    if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+      const type = value.constructor.name;
+      let objFormat = Array.from(value)
+        .map((v, i) => `"${ i }": ${ serializeLog(v, visited) }`);
+      return `${ type } {${ objFormat.join(', ') }}`;
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '[]';
+      const arr = value.map(v => serializeLog(v, visited));
+      return `[${ arr.join(', ') }]`;
+    }
+
+    if (value instanceof Date) {
+      return `Date "${ value.toISOString() }"`;
+    }
+
+    if (value instanceof RegExp) {
+      return value.toString();
+    }
+
+    if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      if (!keys.length) return '{}';
+      const props = keys.map(k =>
+        `${ JSON.stringify(k) }: ${ serializeLog(value[k], visited) }`
+      );
+      return `{${ props.join(', ') }}`;
+    }
+
+    return String(value);
   }
 
   codeInput.addEventListener('input', () => {
