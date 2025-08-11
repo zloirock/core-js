@@ -318,7 +318,7 @@ async function build() {
     if (isDocs || isBlog || isChangelog) {
       const resultDOM = new JSDOM(resultHtml);
       const document = resultDOM.window.document;
-      document.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]').forEach(heading => {
+      document.querySelectorAll('h2[id], h3[id], h4[id], h5[id], h6[id]').forEach(heading => {
         const newHeading = heading.cloneNode(true);
         const anchor = document.createElement('a');
         anchor.className = 'anchor';
