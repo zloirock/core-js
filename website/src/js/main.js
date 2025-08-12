@@ -186,7 +186,7 @@ function init() {
     isDark ? setTheme('theme-light') : setTheme('theme-dark');
   });
 
-  contentMenuTrigger.addEventListener('click', e => {
+  contentMenuTrigger && contentMenuTrigger.addEventListener('click', e => {
     e.preventDefault();
     contentMenu.classList.toggle('active');
   });
