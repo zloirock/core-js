@@ -182,7 +182,7 @@ main {
           right: 1rem;
           bottom: 0;
           top: auto;
-          min-width: 1rem;
+          min-width: 1.75rem;
           z-index: 3;
           @include themify($themes) {
             background-color: themed('background-light');
@@ -194,9 +194,10 @@ main {
             display: flex;
             top: 0;
             bottom: 0;
-            width: 1.25rem;
+            width: 1.75rem;
             cursor: pointer;
             align-items: center;
+            justify-content: center;
 
             &:after {
               content: '';
@@ -206,15 +207,15 @@ main {
               height: 10px;
               margin-left: 5px;
               @include themify($themes) {
-                border-right: 1px solid themed('link-color');
-                border-bottom: 1px solid themed('link-color');
+                border-right: 2px solid themed('link-color');
+                border-bottom: 2px solid themed('link-color');
               }
             }
             &:hover {
               &:after {
                 @include themify($themes) {
-                  border-right: 1px solid themed('link-color-hover');
-                  border-bottom: 1px solid themed('link-color-hover');
+                  border-right: 2px solid themed('link-color-hover');
+                  border-bottom: 2px solid themed('link-color-hover');
                 }
               }
             }
@@ -225,6 +226,7 @@ main {
 
             .toc-link {
               display: block;
+              padding-left: 2rem;
             }
 
             .mobile-trigger {
