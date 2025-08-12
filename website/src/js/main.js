@@ -30,7 +30,7 @@ function init() {
   const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
   const mobileDocsMenuItems = document.querySelectorAll('.mobile-docs-menu li > a');
   const contentMenu = document.querySelector('.table-of-contents');
-  const contentMenuTrigger = contentMenu.querySelector('.mobile-trigger');
+  const contentMenuTrigger = document.querySelector('.table-of-contents .mobile-trigger');
   let isDocs, docsVersion;
   const currentPath = getRelativePath();
 
@@ -165,14 +165,14 @@ function init() {
     !mobileFound && setActiveDocsMenuItem(mobileDocsMenuItems[0]);
   }
 
-  let stuck = window.scrollY > 170;
+  let stuck = window.pageYOffset > 170;
   if (stuck) addStuck();
   window.addEventListener('scroll', () => {
-    if (!stuck && window.scrollY > 170) {
+    if (!stuck && window.pageYOffset > 170) {
       stuck = true;
       addStuck();
     }
-    if (stuck && window.scrollY <= 170) {
+    if (stuck && window.pageYOffset <= 170) {
       stuck = false;
       removeStuck();
     }
@@ -189,7 +189,7 @@ function init() {
   contentMenuTrigger.addEventListener('click', e => {
     e.preventDefault();
     contentMenu.classList.toggle('active');
-  })
+  });
 
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();

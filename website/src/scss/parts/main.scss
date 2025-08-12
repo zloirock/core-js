@@ -167,6 +167,7 @@ main {
         height: calc(100vh - 150px);
         overflow-y: auto;
         scrollbar-width: none;
+        -ms-overflow-style: none;
 
         &.stuck {
           height: calc(100vh - 2rem);
