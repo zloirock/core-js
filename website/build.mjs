@@ -139,7 +139,7 @@ function buildMenus(html) {
   }
   result += `<div class="content">${ html }</div>`;
   if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
-    result += `<div class="table-of-contents sticky">
+    result += `<div class="table-of-contents sticky"><div class="mobile-trigger"></div>
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
             level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${

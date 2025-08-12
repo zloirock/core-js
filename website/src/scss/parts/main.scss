@@ -164,7 +164,7 @@ main {
         font-size: 0.875rem;
         max-width: 20%;
         min-width: 20%;
-        height: calc(100vh - 170px);
+        height: calc(100vh - 150px);
         overflow-y: auto;
         scrollbar-width: none;
 
@@ -172,14 +172,89 @@ main {
           height: calc(100vh - 2rem);
         }
 
-        @include media('max', 'xl') {
+        .mobile-trigger {
           display: none;
+        }
+
+        @include media('max', 'xl') {
+          position: fixed;
+          right: 1rem;
+          bottom: 0;
+          top: auto;
+          min-width: 1rem;
+          z-index: 3;
+          @include themify($themes) {
+            background-color: themed('background-light');
+            box-shadow: -5px 5px 7px -6px themed('background-highlight');
+          }
+
+          .mobile-trigger {
+            position: absolute;
+            display: flex;
+            top: 0;
+            bottom: 0;
+            width: 1.25rem;
+            cursor: pointer;
+            align-items: center;
+
+            &:after {
+              content: '';
+              display: block;
+              transform: rotate(135deg);
+              width: 10px;
+              height: 10px;
+              margin-left: 5px;
+              @include themify($themes) {
+                border-right: 1px solid themed('link-color');
+                border-bottom: 1px solid themed('link-color');
+              }
+            }
+            &:hover {
+              &:after {
+                @include themify($themes) {
+                  border-right: 1px solid themed('link-color-hover');
+                  border-bottom: 1px solid themed('link-color-hover');
+                }
+              }
+            }
+          }
+
+          &.active {
+            min-width: 180px;
+
+            .toc-link {
+              display: block;
+            }
+
+            .mobile-trigger {
+              &:after {
+                transform: rotate(-45deg);
+                margin-left: -2px;
+              }
+            }
+          }
+
+          &.stuck {
+            height: calc(100vh);
+            padding-top: 1rem;
+          }
+        }
+
+        @include media('max', 'sm') {
+          right: 0;
         }
 
         .toc-link {
           padding: 0 0 0.5rem 1rem;
           @include themify($themes) {
             border-left: 1px solid themed('border-color-lighter');
+          }
+
+          @include media('max', 'xl') {
+            display: none;
+            @include themify($themes) {
+              border-left: none;
+            }
           }
 
           a {

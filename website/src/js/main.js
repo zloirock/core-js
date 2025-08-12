@@ -29,6 +29,8 @@ function init() {
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
   const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
   const mobileDocsMenuItems = document.querySelectorAll('.mobile-docs-menu li > a');
+  const contentMenu = document.querySelector('.table-of-contents');
+  const contentMenuTrigger = contentMenu.querySelector('.mobile-trigger');
   let isDocs, docsVersion;
   const currentPath = getRelativePath();
 
@@ -183,6 +185,11 @@ function init() {
     // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- global function
     isDark ? setTheme('theme-light') : setTheme('theme-dark');
   });
+
+  contentMenuTrigger.addEventListener('click', e => {
+    e.preventDefault();
+    contentMenu.classList.toggle('active');
+  })
 
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
