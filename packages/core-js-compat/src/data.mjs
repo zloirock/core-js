@@ -594,6 +594,7 @@ export const data = {
     chrome: '66',
     edge: '15',
     firefox: '60',
+    hermes: '0.1',
     // Array.prototype.values is still disabled in NodeJS 10.8.
     node: '10.9',
     rhino: '1.8.0',
