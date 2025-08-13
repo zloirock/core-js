@@ -54,10 +54,14 @@ sleepRandom(5).then(result => {
 
 ## `Promise.resolve` and `Promise.reject` example
 ```js
+const getJson = () => new Promise(resolve => {
+  resolve({ message: "Hello, world!", success: true });
+});
+
 Promise.resolve(42).then(x => console.log(x));         // -> 42
 Promise.reject(42).catch(error => console.log(error)); // -> 42
 
-Promise.resolve($.getJSON('/data.json')); // -> ES promise
+Promise.resolve(getJson()); // => ES promise
 ```
 
 ## `Promise#finally` example

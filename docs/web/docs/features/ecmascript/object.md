@@ -102,10 +102,16 @@ for (let [key, value] of Object.entries({ a: 1, b: 2, c: 3 })) {
   console.log(value); // => 1, 2, 3
 }
 
+const object = { a: "1" };
+Object.defineProperty(object, 'notWritable', { value: true, writable: false });
 // Shallow object cloning with prototype and descriptors:
-let copy = Object.create(Object.getPrototypeOf(object), Object.getOwnPropertyDescriptors(object));
+Object.create(Object.getPrototypeOf(object), Object.getOwnPropertyDescriptors(object)); // => {"a": "1", "notWritable": true}
+
+const target = { a: "9" };
+const source = { b: "8" };
+Object.defineProperty(source, 'notWritable', { value: true, writable: false });
 // Mixin:
-Object.defineProperties(target, Object.getOwnPropertyDescriptors(source));
+Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); // => {"a": "9", "b": "8", "notWritable": true}
 
 const map = new Map([['a', 1], ['b', 2]]);
 Object.fromEntries(map); // => { a: 1, b: 2 }

@@ -108,7 +108,6 @@ Reflect.ownKeys(object);              // => ['a', 'b', Symbol(c)]
 ## Symbol#description getter example
 ```js
 Symbol('foo').description; // => 'foo'
-// eslint-disable-next-line symbol-description -- example
 Symbol().description;      // => undefined
 ```
 
