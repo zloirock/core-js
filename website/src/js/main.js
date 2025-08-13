@@ -171,7 +171,7 @@ function init() {
   }
 
   if (stickyBlocks) {
-    const contentMenuPosition = contentMenu && window.getComputedStyle(contentMenu).position;
+    const contentMenuPosition = contentMenu && globalThis.getComputedStyle(contentMenu).position;
     let stuck = window.pageYOffset > 150;
     if (stuck) addStuck();
     window.addEventListener('scroll', () => {
