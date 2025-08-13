@@ -94,13 +94,13 @@ function init() {
     if (typeof value === 'number' || typeof value === 'boolean' || value === undefined) return String(value);
     if (typeof value === 'function') return `[Function ${ value.name || 'anonymous' }]`;
 
+    if (value instanceof Promise) {
+      return 'Promise { <pending> }';
+    }
+
     if (typeof value === 'object') {
       if (visited.has(value)) return '[Circular]';
       visited.add(value);
-    }
-
-    if (value instanceof Promise) {
-      return 'Promise { <pending> }';
     }
 
     if (value instanceof Set) {
@@ -141,13 +141,31 @@ function init() {
     }
 
     if (typeof value === 'object') {
-      const keys = Array.from(new Set([
+      const isPlain = value.constructor === Object || Object.getPrototypeOf(value) === null;
+      const allKeysSet = new Set([
         ...Object.getOwnPropertyNames(value),
-        ...Object.getOwnPropertySymbols(value)
-      ]));
-      if (!keys.length) return '{}';
-      const props = keys.map(k => `${ JSON.stringify(k) }: ${ serializeLog(value[k], visited) }`);
-      return `{${ props.join(', ') }}`;
+        ...Object.getOwnPropertySymbols(value),
+      ]);
+      // eslint-disable-next-line no-restricted-syntax -- needed to enumerate prototype properties
+      for (const k in value) allKeysSet.add(k);
+      const keys = Array.from(allKeysSet);
+      if (!keys.length) return isPlain ? '{}' : `${ value.constructor?.name || 'Object' } {}`;
+      const props = keys.map(k => {
+        const displayKey = typeof k === 'symbol' ? k.toString() : JSON.stringify(k);
+        try {
+          const v = value[k];
+          if (typeof v === 'object' && v !== null) {
+            if (Array.isArray(v)) return `${ displayKey }: [Array(${ v.length })]`;
+            return `${ displayKey }: [object ${ v.constructor?.name || 'Object' }]`;
+          }
+          return `${ displayKey }: ${ serializeLog(v, visited) }`;
+        } catch {
+          return `${ displayKey }: [Thrown error]`;
+        }
+      });
+      return isPlain
+        ? `{${ props.join(', ') }}`
+        : `${ value.constructor?.name || 'Object' } {${ props.join(', ') }}`;
     }
 
     return String(value);
