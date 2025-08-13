@@ -16,6 +16,7 @@ let initialized = false;
 function init() {
   if (initialized) return;
   initialized = true;
+  const CONTENT_MENU_TOP = 150;
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector('.menu > .backdrop');
   const [menu] = document.getElementsByClassName('menu');
@@ -165,18 +166,29 @@ function init() {
     !mobileFound && setActiveDocsMenuItem(mobileDocsMenuItems[0]);
   }
 
-  let stuck = window.pageYOffset > 170;
-  if (stuck) addStuck();
-  window.addEventListener('scroll', () => {
-    if (!stuck && window.pageYOffset > 170) {
-      stuck = true;
-      addStuck();
-    }
-    if (stuck && window.pageYOffset <= 170) {
-      stuck = false;
-      removeStuck();
-    }
-  });
+  function fixContentMenuPosition(scroll) {
+    contentMenu.style.top = scroll <= CONTENT_MENU_TOP ? `${ CONTENT_MENU_TOP - scroll }px` : 'unset';
+  }
+
+  if (stickyBlocks) {
+    const contentMenuPosition = contentMenu && window.getComputedStyle(contentMenu).position;
+    let stuck = window.pageYOffset > 150;
+    if (stuck) addStuck();
+    window.addEventListener('scroll', () => {
+      const yScroll = window.pageYOffset;
+      if (!stuck && yScroll > 150) {
+        stuck = true;
+        addStuck();
+      }
+      if (stuck && yScroll <= 150) {
+        stuck = false;
+        removeStuck();
+      }
+      if (contentMenuPosition === 'fixed') {
+        fixContentMenuPosition(yScroll);
+      }
+    });
+  }
 
   themeSwitcher.addEventListener('click', e => {
     e.preventDefault();
