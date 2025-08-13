@@ -99,6 +99,10 @@ function init() {
       visited.add(value);
     }
 
+    if (value instanceof Promise) {
+      return 'Promise { <pending> }';
+    }
+
     if (value instanceof Set) {
       const arr = Array.from(value, v => serializeLog(v, visited));
       return `Set {${ arr.join(', ') }}`;
@@ -124,6 +128,10 @@ function init() {
       return `[${ arr.join(', ') }]`;
     }
 
+    if (value instanceof Error) {
+      return `${ value.name || 'Error' }: ${ value.message }`;
+    }
+
     if (value instanceof Date) {
       return `Date "${ value.toISOString() }"`;
     }
@@ -133,7 +141,10 @@ function init() {
     }
 
     if (typeof value === 'object') {
-      const keys = Object.keys(value);
+      const keys = Array.from(new Set([
+        ...Object.getOwnPropertyNames(value),
+        ...Object.getOwnPropertySymbols(value)
+      ]));
       if (!keys.length) return '{}';
       const props = keys.map(k => `${ JSON.stringify(k) }: ${ serializeLog(value[k], visited) }`);
       return `{${ props.join(', ') }}`;
