@@ -11,7 +11,7 @@ const RESULT_DIR = 'website/dist/';
 const TEMPLATES_DIR = 'website/templates/';
 const SRC_DIR = 'website/src/';
 const TEMPLATE_PATH = `${ TEMPLATES_DIR }index.html`;
-const DEFAULT_VERSION = 'docs-v3';
+const DEFAULT_VERSION = 'v3.45-docs';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -86,7 +86,7 @@ async function buildDocsMenuForVersion(version) {
 
 async function buildVersionsMenuList(versions, currentVersion) {
   let versionsMenuHtml = `<div class="dropdown-block"><a href="./docs/">${ DEFAULT_VERSION } (default)</a>`;
-  if (versions.length > 1) {
+  if (versions.length >= 1) {
     for (const v of versions) {
       const activityClass = v === currentVersion ? ' class="active"' : '';
       versionsMenuHtml += `<a href="./${ v }/docs/"${ activityClass }>${ v }</a>`;
