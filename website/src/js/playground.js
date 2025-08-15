@@ -89,13 +89,12 @@ function init() {
   }
 
   function serializeLog(value, visited = new WeakSet()) {
-    if (value === null) return 'null';
-    if (typeof value === 'string') return JSON.stringify(value);
-    if (typeof value === 'number' || typeof value === 'boolean' || value === undefined) return String(value);
-    if (typeof value === 'function') return `[Function ${ value.name || 'anonymous' }]`;
+    if (typeof value == 'string') return JSON.stringify(value);
+    if (typeof value == 'function') return `[Function ${ value.name || 'anonymous' }]`;
+    if (typeof value != 'object' || value === null) return String(value);
 
     if (value instanceof Promise) {
-      return 'Promise { <pending> }';
+      return 'Promise { <value> }';
     }
 
     if (typeof value === 'object') {
@@ -105,25 +104,32 @@ function init() {
 
     if (value instanceof Set) {
       const arr = Array.from(value, v => serializeLog(v, visited));
-      return `Set {${ arr.join(', ') }}`;
+      return `Set { ${ arr.join(', ') } }`;
     }
 
     if (value instanceof Map) {
       const arr = Array.from(
-        value.entries(),
+        value,
         ([k, v]) => `${ serializeLog(k, visited) } => ${ serializeLog(v, visited) }`,
       );
-      return `Map {${ arr.join(', ') }}`;
+      return `Map { ${ arr.join(', ') } }`;
     }
 
-    if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+    if (value instanceof ArrayBuffer) {
+      return `ArrayBuffer(${ value.byteLength })`;
+    }
+
+    if (value instanceof DataView) {
+      return `DataView(${ value.byteLength })`;
+    }
+
+    if (ArrayBuffer.isView(value)) {
       const type = value.constructor.name;
       const objFormat = Array.from(value, (v, i) => `"${ i }": ${ serializeLog(v, visited) }`);
-      return `${ type } {${ objFormat.join(', ') }}`;
+      return `${ type } { ${ objFormat.join(', ') } }`;
     }
 
     if (Array.isArray(value)) {
-      if (value.length === 0) return '[]';
       const arr = value.map(v => serializeLog(v, visited));
       return `[${ arr.join(', ') }]`;
     }
@@ -133,39 +139,25 @@ function init() {
     }
 
     if (value instanceof Date) {
-      return `Date "${ value.toISOString() }"`;
+      return `Date "${ value.toString() }"`;
     }
 
     if (value instanceof RegExp) {
-      return value.toString();
+      return `RegExp ${ value.toString() }`;
     }
 
     if (typeof value === 'object') {
-      const isPlain = value.constructor === Object || Object.getPrototypeOf(value) === null;
-      const allKeysSet = new Set([
-        ...Object.getOwnPropertyNames(value),
-        ...Object.getOwnPropertySymbols(value),
-      ]);
-      // eslint-disable-next-line no-restricted-syntax -- needed to enumerate prototype properties
-      for (const k in value) allKeysSet.add(k);
-      const keys = Array.from(allKeysSet);
-      if (!keys.length) return isPlain ? '{}' : `${ value.constructor?.name || 'Object' } {}`;
+      const isPlain = Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null;
+      const keys = Reflect.ownKeys(value);
       const props = keys.map(k => {
-        const displayKey = typeof k === 'symbol' ? k.toString() : JSON.stringify(k);
-        try {
-          const v = value[k];
-          if (typeof v === 'object' && v !== null) {
-            if (Array.isArray(v)) return `${ displayKey }: [Array(${ v.length })]`;
-            return `${ displayKey }: [object ${ v.constructor?.name || 'Object' }]`;
-          }
-          return `${ displayKey }: ${ serializeLog(v, visited) }`;
-        } catch {
-          return `${ displayKey }: [Thrown error]`;
-        }
+        const displayKey = Object(k) instanceof Symbol ? `[${ k.toString() }]` : k;
+        return `${ displayKey }: ${ serializeLog(value[k], visited) }`;
       });
+      if (visited.has(value)) visited.delete(value);
+
       return isPlain
-        ? `{${ props.join(', ') }}`
-        : `${ value.constructor?.name || 'Object' } {${ props.join(', ') }}`;
+        ? `{ ${ props.join(', ') } }`
+        : `${ value.constructor?.name || 'Object' } { ${ props.join(', ') } }`;
     }
 
     return String(value);
