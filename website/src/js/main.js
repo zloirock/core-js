@@ -29,6 +29,7 @@ function init() {
   const themeSwitcher = document.querySelector('.theme-switcher');
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
   const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
+  const docsCollapsibleMenuItems = document.querySelectorAll('.docs-menu > ul > li.collapsible');
   const mobileDocsMenuItems = document.querySelectorAll('.mobile-docs-menu li > a');
   const contentMenu = document.querySelector('.table-of-contents');
   const contentMenuTrigger = document.querySelector('.table-of-contents .mobile-trigger');
@@ -170,6 +171,11 @@ function init() {
     contentMenu.style.top = scroll <= CONTENT_MENU_TOP ? `${ CONTENT_MENU_TOP - scroll }px` : 'unset';
   }
 
+  function openFirstCollapsibleMenuItem() {
+    if (!isDocsPage()) return;
+    docsCollapsibleMenuItems[0].classList.add('active');
+  }
+
   if (stickyBlocks) {
     const contentMenuPosition = contentMenu && globalThis.getComputedStyle(contentMenu).position;
     let stuck = window.pageYOffset > 150;
@@ -208,6 +214,7 @@ function init() {
 
   processDocsVersions();
   highlightActiveMenuItem();
+  openFirstCollapsibleMenuItem();
 }
 
 if (document.readyState === 'loading') {
