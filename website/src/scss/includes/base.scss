@@ -48,11 +48,32 @@ h1, h2, h3, h4, h5, h6 {
         color: themed('font-color-light');
     }
 
-    .anchor {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        z-index: 2;
+    &.with-anchor {
+        display: flex;
+        flex-direction: row-reverse;
+        justify-content: start;
+        gap: 0.5rem;
+
+        .anchor {
+            display: none;
+            width: 1.2rem;
+
+            svg {
+                @include themify($themes) {
+                    fill: themed('link-color2');
+                }
+            }
+
+            &:hover svg {
+                @include themify($themes) {
+                    fill: themed('link-color2-hover');
+                }
+            }
+        }
+
+        &:hover .anchor {
+            display: block;
+        }
     }
 }
 h1 {
