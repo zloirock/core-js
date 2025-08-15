@@ -57,22 +57,20 @@ function init() {
     };
   }
 
-  function importPlugin(babel) {
+  function importPlugin() {
     return {
       visitor: {
         ImportDeclaration(path) {
           const { node } = path;
-          if (!node.specifiers.length && /^core-js(\/|$)/.test(node.source.value)) {
+          if (!node.specifiers.length && /^core-js\/|$/.test(node.source.value)) {
             path.remove();
           }
-        }
-      }
+        },
+      },
     };
   }
 
-  // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
   Babel.registerPlugin('console-plugin', consolePlugin);
-  // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
   Babel.registerPlugin('import-plugin', importPlugin);
 
   function runCode(code) {
