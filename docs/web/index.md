@@ -1,17 +1,16 @@
+# core-js
+
 <div align="center">
 
 [![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js.svg)](https://www.npmjs.com/package/core-js) [![core-js downloads](https://img.shields.io/npm/dm/core-js.svg?label=npm%20i%20core-js)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18) [![@core-js/pure downloads](https://img.shields.io/npm/dm/@core-js/pure.svg?label=npm%20i%20@core-js/pure)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18) [![jsDelivr](https://data.jsdelivr.com/v1/package/npm/@core-js/bundle/badge?style=rounded)](https://www.jsdelivr.com/package/npm/@core-js/bundle)
 
 </div>
 
-**I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
 ---
 
-> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2024](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](#web-standards) like [`URL`](#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+> Modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2024: [promises](/docs/features/ecmascript/promise), [symbols](/docs/features/ecmascript/symbol), [collections](/docs/features/ecmascript/collections), iterators, [typed arrays](/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](/docs/features/web-standards/url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
 
 **If you are looking for documentation for obsolete `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
-
-## [core-js@3, babel and a look into the future](https://github.com/zloirock/core-js/tree/master/docs/2019-03-19-core-js-3-babel-and-a-look-into-the-future.md)
 
 ## Raising funds
 
