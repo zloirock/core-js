@@ -278,10 +278,10 @@ main {
       display: flex;
 
       a {
-        flex-basis: 50%;
+        flex-basis: 25%;
 
         @include media("min", "md") {
-          flex-basis: 25%;
+          flex-basis: 50%;
         }
       }
     }
