@@ -11,8 +11,7 @@ const RESULT_DIR = 'website/dist/';
 const TEMPLATES_DIR = 'website/templates/';
 const SRC_DIR = 'website/src/';
 const TEMPLATE_PATH = `${ TEMPLATES_DIR }index.html`;
-const DEFAULT_BRANCH = 'web';
-const DEFAULT_VERSION = 'web';
+const DEFAULT_VERSION = 'docs-v3';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -220,7 +219,7 @@ async function getVersionsFromMdFiles(mdFiles) {
     if (match && match.groups && match.groups.version) {
       versions.push(match.groups.version);
     } else {
-      versions.push(DEFAULT_BRANCH);
+      versions.push(DEFAULT_VERSION);
     }
   }
   versionsCache = versions;
