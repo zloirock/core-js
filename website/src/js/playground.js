@@ -123,6 +123,14 @@ function init() {
       return `DataView(${ value.byteLength })`;
     }
 
+    if (value instanceof Blob) {
+      return `Blob { size: ${ value.size }, type: "${ value.type }" }`;
+    }
+
+    if (value instanceof DOMPoint) {
+      return `DOMPoint { x: ${ value.x }, y: ${ value.y }, z: ${ value.z }, w: ${ value.w } }`;
+    }
+
     if (ArrayBuffer.isView(value)) {
       const type = value.constructor.name;
       const objFormat = Array.from(value, (v, i) => `"${ i }": ${ serializeLog(v, visited) }`);
@@ -150,6 +158,7 @@ function init() {
       const isPlain = Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null;
       const keys = Reflect.ownKeys(value);
       const props = keys.map(k => {
+        // eslint-disable-next-line unicorn/no-instanceof-builtins -- it's needed here
         const displayKey = Object(k) instanceof Symbol ? `[${ k.toString() }]` : k;
         return `${ displayKey }: ${ serializeLog(value[k], visited) }`;
       });
