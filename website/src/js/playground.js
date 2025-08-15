@@ -57,8 +57,23 @@ function init() {
     };
   }
 
+  function importPlugin(babel) {
+    return {
+      visitor: {
+        ImportDeclaration(path) {
+          const { node } = path;
+          if (!node.specifiers.length && /^core-js(\/|$)/.test(node.source.value)) {
+            path.remove();
+          }
+        }
+      }
+    };
+  }
+
   // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
   Babel.registerPlugin('console-plugin', consolePlugin);
+  // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
+  Babel.registerPlugin('import-plugin', importPlugin);
 
   function runCode(code) {
     const origConsole = globalThis.console;
@@ -79,7 +94,7 @@ function init() {
 
     try {
       // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
-      const output = Babel.transform(code, { presets: ['env'], plugins: ['console-plugin'] }).code;
+      const output = Babel.transform(code, { presets: ['env'], plugins: ['console-plugin', 'import-plugin'] }).code;
       // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
       const context = new Function('console', output);
       context(console);
