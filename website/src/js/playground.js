@@ -70,7 +70,9 @@ function init() {
     };
   }
 
+  // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
   Babel.registerPlugin('console-plugin', consolePlugin);
+  // eslint-disable-next-line no-undef, sonarjs/no-reference-error -- babel global added to page
   Babel.registerPlugin('import-plugin', importPlugin);
 
   function runCode(code) {
