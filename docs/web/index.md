@@ -4,6 +4,8 @@
 
 </div>
 
+> Modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2025: [promises](/docs/features/ecmascript/promise), [symbols](/docs/features/ecmascript/symbol), [collections](/docs/features/ecmascript/collections), [iterators](/docs/features/ecmascript/iterator), [typed arrays](/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](/docs/features/web-standards/url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+
 <div class="features">
     <div class="feature">
         <div class="title">
@@ -54,8 +56,6 @@
 </div>
 
 ---
-
-> Modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2025: [promises](/docs/features/ecmascript/promise), [symbols](/docs/features/ecmascript/symbol), [collections](/docs/features/ecmascript/collections), [iterators](/docs/features/ecmascript/iterator), [typed arrays](/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](/docs/features/web-standards/url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
 
 ## Example of usage global version
 
