@@ -286,6 +286,61 @@ main {
         }
       }
     }
+
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      align-content: stretch;
+      align-items: stretch;
+      justify-content: center;
+      margin: 1rem 0;
+      text-align: start;
+      gap: 2rem;
+
+      .feature {
+        flex-basis: 100%;
+        padding: 1rem;
+        border-radius: 1rem;
+
+        @include themify($themes) {
+          background-color: themed('box-color');
+          border: 1px solid themed('box-light');
+        }
+
+        @include media("min", "md") {
+          flex-basis: 48%;
+        }
+
+        @include media("min", "lg") {
+          flex-basis: 31%;
+        }
+
+        @include media("min", "xl") {
+          flex-basis: 23%;
+        }
+
+        @include media("min", "xxl") {
+          flex-basis: 18%;
+        }
+
+        .title {
+          font-size: 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+
+          svg {
+            @include themify($themes) {
+              color: themed('font-success');
+            }
+          }
+        }
+
+        .desc {
+
+        }
+      }
+    }
   }
 }
 .dropdown {
