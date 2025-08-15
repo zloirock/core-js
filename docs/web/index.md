@@ -57,7 +57,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 
 You can use it without global namespace pollution:
 
-```js
+```ts
 import Promise from 'core-js-pure/actual/promise';
 import Set from 'core-js-pure/actual/set';
 import Iterator from 'core-js-pure/actual/iterator';
