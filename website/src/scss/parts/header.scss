@@ -80,6 +80,9 @@ nav {
                 font-size: 1.25rem;
                 display: block;
                 overflow-wrap: break-word;
+                @include themify($themes) {
+                    color: themed('link-color');
+                }
 
                 &.active {
                     @include themify($themes) {
