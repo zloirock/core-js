@@ -276,12 +276,13 @@ main {
 
     .sponsors {
       display: flex;
+      flex-wrap: wrap;
 
       a {
-        flex-basis: 25%;
+        flex-basis: 33%;
 
         @include media("min", "md") {
-          flex-basis: 50%;
+          flex-basis: 25%;
         }
       }
     }
