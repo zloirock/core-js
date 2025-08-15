@@ -49,14 +49,12 @@ h1, h2, h3, h4, h5, h6 {
     }
 
     &.with-anchor {
-        display: flex;
-        flex-direction: row-reverse;
-        justify-content: start;
-        gap: 0.5rem;
+        display: inline-block;
 
         .anchor {
             display: none;
             width: 1.2rem;
+            margin-left: 0.5rem;
 
             svg {
                 @include themify($themes) {
@@ -72,7 +70,7 @@ h1, h2, h3, h4, h5, h6 {
         }
 
         &:hover .anchor {
-            display: block;
+            display: inline-block;
         }
     }
 }
