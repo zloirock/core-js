@@ -66,7 +66,7 @@
 
 ---
 
-Example of usage
+Example of usage:
 
 ```js
 import 'core-js/actual';
