@@ -4,7 +4,7 @@
 
 </div>
 
-> Modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2025: [promises](/docs/features/ecmascript/promise), [symbols](/docs/features/ecmascript/symbol), [collections](/docs/features/ecmascript/collections), [iterators](/docs/features/ecmascript/iterator), [typed arrays](/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](/docs/features/web-standards/url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+> Modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2025, ECMAScript proposals and some cross-platform WHATWG / W3C features.
 
 <div class="features">
     <div class="feature">
@@ -66,7 +66,7 @@
 
 ---
 
-## Example of usage global version
+Example of usage
 
 ```js
 import 'core-js/actual';
@@ -111,9 +111,7 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-## Example of usage pure version
-
-You can use it without global namespace pollution:
+or use it without global namespace pollution:
 
 ```ts
 import Promise from 'core-js-pure/actual/promise';
@@ -150,11 +148,11 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 
 ---
 
-<details>
-    <summary>More backers</summary>
-    <div align="center">
+<div align="center">
+    <details>
+        <summary>More backers</summary>
         <a href="https://opencollective.com/core-js#backers" target="_blank"><img src="https://opencollective.com/core-js/backers.svg?width=890"></a>
-    </div>
-</details>
+    </details>
+</div>
 
 ---
