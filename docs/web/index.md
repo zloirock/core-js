@@ -10,39 +10,48 @@
     <div class="feature">
         <div class="title">
             <span class="icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0 4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0-5.571 3-5.571-3"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z"></path>
             </svg></span>
-            <span>Modularity</span>
+            <span>Maximum Coverage</span>
         </div>
-        <div class="desc">Import only the polyfills you need for a smaller bundle</div>
+        <div class="desc">Delivers the most complete support for modern and upcoming JavaScript features</div>
     </div>
     <div class="feature">
         <div class="title">
             <span class="icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 12.75c1.148 0 2.278.08 3.383.237 1.037.146 1.866.966 1.866 2.013 0 3.728-2.35 6.75-5.25 6.75S6.75 18.728 6.75 15c0-1.046.83-1.867 1.866-2.013A24.204 24.204 0 0 1 12 12.75Zm0 0c2.883 0 5.647.508 8.207 1.44a23.91 23.91 0 0 1-1.152 6.06M12 12.75c-2.883 0-5.647.508-8.208 1.44.125 2.104.52 4.136 1.153 6.06M12 12.75a2.25 2.25 0 0 0 2.248-2.354M12 12.75a2.25 2.25 0 0 1-2.248-2.354M12 8.25c.995 0 1.971-.08 2.922-.236.403-.066.74-.358.795-.762a3.778 3.778 0 0 0-.399-2.25M12 8.25c-.995 0-1.97-.08-2.922-.236-.402-.066-.74-.358-.795-.762a3.734 3.734 0 0 1 .4-2.253M12 8.25a2.25 2.25 0 0 0-2.248 2.146M12 8.25a2.25 2.25 0 0 1 2.248 2.146M8.683 5a6.032 6.032 0 0 1-1.155-1.002c.07-.63.27-1.222.574-1.747m.581 2.749A3.75 3.75 0 0 1 15.318 5m0 0c.427-.283.815-.62 1.155-.999a4.471 4.471 0 0 0-.575-1.752M4.921 6a24.048 24.048 0 0 0-.392 3.314c1.668.546 3.416.914 5.223 1.082M19.08 6c.205 1.08.337 2.187.392 3.314a23.882 23.882 0 0 1-5.223 1.082"></path>
             </svg></span>
-            <span>No Global Pollution</span>
+            <span>Spec Compliance</span>
         </div>
-        <div class="desc">Keeps the global scope clean and conflict-free</div>
+        <div class="desc">Strictly follows ECMAScript standards and fixes engine bugs for consistent behavior</div>
+    </div>
+    <div class="feature">
+        <div class="title">
+            <span class="icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.429 9.75 2.25 12l4.179 2.25m0-4.5 5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0 4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0-5.571 3-5.571-3"></path>
+            </svg></span>
+            <span>Modularity</span>
+        </div>
+        <div class="desc">Import only the polyfills you need for smaller bundles and faster loading</div>
     </div>
     <div class="feature">
         <div class="title">
             <span class="icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008Z"></path>
             </svg></span>
-            <span>Easy Integration</span>
+            <span>Easy to Optimize</span>
         </div>
-        <div class="desc">Works seamlessly with Babel, SWC, and build tools</div>
+        <div class="desc">It can be automatically injected and optimized by tools like Babel and SWC</div>
     </div>
     <div class="feature">
         <div class="title">
             <span class="icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z"></path>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 0 0 .495-7.468 5.99 5.99 0 0 0-1.925 3.547 5.975 5.975 0 0 1-2.133-1.001A3.75 3.75 0 0 0 12 18Z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"></path>
             </svg></span>
-            <span>Maximum Coverage</span>
+            <span>Pure Version</span>
         </div>
-        <div class="desc">Delivers the most complete support for modern JavaScript and web standards</div>
+        <div class="desc">It can be used without global pollution to avoid conflicts</div>
     </div>
     <div class="feature">
         <div class="title">
@@ -51,7 +60,7 @@
             </svg></span>
             <span>Widely Used</span>
         </div>
-        <div class="desc">Trusted by millions for consistent cross-browser support</div>
+        <div class="desc">Trusted by most of the popular websites for ensuring cross-browser compatibility</div>
     </div>
 </div>
 
@@ -62,13 +71,13 @@
 ```js
 import 'core-js/actual';
 
-Promise.resolve(42).then(it => console.log(it)); // -> 42
+Promise.try(() => 42).then(it => console.log(it)); // -> 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
 [1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]
 
-(function * (i) { while (true) yield i++; })(1)
+Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .drop(1).take(5)
   .filter(it => it % 2)
   .map(it => it ** 2)
@@ -87,13 +96,13 @@ import 'core-js/actual/array/from';
 import 'core-js/actual/array/flat-map';
 import 'core-js/actual/structured-clone';
 
-Promise.resolve(42).then(it => console.log(it)); // -> 42
+Promise.try(() => 42).then(it => console.log(it)); // -> 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
 [1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]
 
-(function * (i) { while (true) yield i++; })(1)
+Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .drop(1).take(5)
   .filter(it => it % 2)
   .map(it => it ** 2)
@@ -114,13 +123,13 @@ import from from 'core-js-pure/actual/array/from';
 import flatMap from 'core-js-pure/actual/array/flat-map';
 import structuredClone from 'core-js-pure/actual/structured-clone';
 
-Promise.resolve(42).then(it => console.log(it)); // -> 42
+Promise.try(() => 42).then(it => console.log(it)); // -> 42
 
 from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
 flatMap([1, 2], it => [it, it]); // => [1, 1, 2, 2]
 
-Iterator.from(function * (i) { while (true) yield i++; }(1))
+Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .drop(1).take(5)
   .filter(it => it % 2)
   .map(it => it ** 2)
@@ -141,8 +150,11 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 
 ---
 
-<div align="center">
-    <a href="https://opencollective.com/core-js#backers" target="_blank"><img src="https://opencollective.com/core-js/backers.svg?width=890"></a>
-</div>
+<details>
+    <summary>More backers</summary>
+    <div align="center">
+        <a href="https://opencollective.com/core-js#backers" target="_blank"><img src="https://opencollective.com/core-js/backers.svg?width=890"></a>
+    </div>
+</details>
 
 ---

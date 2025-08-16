@@ -152,3 +152,47 @@ table {
     width: 24px;
     height: 24px;
 }
+
+details {
+    summary {
+        cursor: pointer;
+
+        @include themify($themes) {
+            color: themed('link-color2');
+        }
+    }
+
+    summary:after {
+        content: '';
+        display: inline-block;
+        line-height: 0;
+        width: 0.5rem;
+        height: 0.5rem;
+        transform: rotate(45deg);
+        margin-left: 0.5rem;
+        vertical-align: 2px;
+
+        @include themify($themes) {
+            border-right: 2px solid themed('link-color2');
+            border-bottom: 2px solid themed('link-color2');
+        }
+    }
+
+    &[open] summary:after {
+        vertical-align: -3px;
+        transform: rotate(-135deg);
+    }
+
+    summary:hover {
+        @include themify($themes) {
+            color: themed('link-color2-hover');
+        }
+
+        &:after {
+            @include themify($themes) {
+                border-right: 2px solid themed('link-color2-hover');
+                border-bottom: 2px solid themed('link-color2-hover');
+            }
+        }
+    }
+}

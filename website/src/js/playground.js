@@ -92,9 +92,10 @@ function init() {
     };
 
     try {
-      const output = Babel.transform(code, { presets: ['env'], plugins: ['console-plugin', 'import-plugin'] }).code;
+      code = Babel.transform(code, { plugins: ['console-plugin', 'import-plugin'] }).code;
+      code = Babel.transform(`(async function () { ${ code } })().catch(console.error)`, { presets: ['env'] }).code;
       // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
-      const context = new Function('console', output);
+      const context = new Function('console', code);
       context(console);
     } catch (error) {
       writeResult(`Error: ${ error.message }`, 'error');
