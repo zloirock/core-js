@@ -176,24 +176,26 @@ function init() {
     docsCollapsibleMenuItems[0].classList.add('active');
   }
 
-  if (stickyBlocks) {
-    const contentMenuPosition = contentMenu && globalThis.getComputedStyle(contentMenu).position;
-    let stuck = window.pageYOffset > 150;
-    if (stuck) addStuck();
-    window.addEventListener('scroll', () => {
-      const yScroll = window.pageYOffset;
-      if (!stuck && yScroll > 150) {
-        stuck = true;
-        addStuck();
-      }
-      if (stuck && yScroll <= 150) {
-        stuck = false;
-        removeStuck();
-      }
-      if (contentMenuPosition === 'fixed') {
-        fixContentMenuPosition(yScroll);
-      }
-    });
+  function processStickyBlocks() {
+    if (stickyBlocks) {
+      const contentMenuPosition = contentMenu && globalThis.getComputedStyle(contentMenu).position;
+      let stuck = window.pageYOffset > 150;
+      if (stuck) addStuck();
+      window.addEventListener('scroll', () => {
+        const yScroll = window.pageYOffset;
+        if (!stuck && yScroll > 150) {
+          stuck = true;
+          addStuck();
+        }
+        if (stuck && yScroll <= 150) {
+          stuck = false;
+          removeStuck();
+        }
+        if (contentMenuPosition === 'fixed') {
+          fixContentMenuPosition(yScroll);
+        }
+      });
+    }
   }
 
   themeSwitcher.addEventListener('click', e => {
@@ -212,6 +214,7 @@ function init() {
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
 
+  processStickyBlocks();
   processDocsVersions();
   highlightActiveMenuItem();
   openFirstCollapsibleMenuItem();

@@ -390,7 +390,7 @@ const base = {
     ignoreRegExpLiterals: true,
     ignoreTemplateLiterals: true,
     ignoreUrls: true,
-    ignorePattern: '/<svg.*<\/svg>/s',
+    ignorePattern: '<svg[\\s\\S]*?</svg>',
   }],
   // enforce a maximum number of statements allowed per line
   '@stylistic/max-statements-per-line': [ERROR, { max: 2 }],
