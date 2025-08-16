@@ -1,5 +1,6 @@
 ## Changelog
 ##### Unreleased
+- Added `bugs` fields to `package.json` of all packages
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from Bun 1.2.20
   - Added Samsung Internet 29 compat data mapping
