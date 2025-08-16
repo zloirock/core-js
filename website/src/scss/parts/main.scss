@@ -316,12 +316,8 @@ main {
           flex-basis: 31%;
         }
 
-        @include media("min", "xl") {
-          flex-basis: 23%;
-        }
-
         @include media("min", "xxl") {
-          flex-basis: 18%;
+          flex-basis: 23%;
         }
 
         .title {
