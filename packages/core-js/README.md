@@ -25,17 +25,17 @@
 
 ---
 
-[*Example of usage*](https://tinyurl.com/2mknex43):
+[*Example of usage*](https://tinyurl.com/28zqjbun):
 ```js
 import 'core-js/actual';
 
-Promise.resolve(42).then(it => console.log(it)); // => 42
+Promise.try(() => 42).then(it => console.log(it)); // => 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
 [1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]
 
-(function * (i) { while (true) yield i++; })(1)
+Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .drop(1).take(5)
   .filter(it => it % 2)
   .map(it => it ** 2)
@@ -53,13 +53,13 @@ import 'core-js/actual/array/from';
 import 'core-js/actual/array/flat-map';
 import 'core-js/actual/structured-clone';
 
-Promise.resolve(42).then(it => console.log(it)); // => 42
+Promise.try(() => 42).then(it => console.log(it)); // => 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
 [1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]
 
-(function * (i) { while (true) yield i++; })(1)
+Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .drop(1).take(5)
   .filter(it => it % 2)
   .map(it => it ** 2)
@@ -77,13 +77,13 @@ import from from 'core-js-pure/actual/array/from';
 import flatMap from 'core-js-pure/actual/array/flat-map';
 import structuredClone from 'core-js-pure/actual/structured-clone';
 
-Promise.resolve(42).then(it => console.log(it)); // => 42
+Promise.try(() => 42).then(it => console.log(it)); // => 42
 
 from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
 flatMap([1, 2], it => [it, it]); // => [1, 1, 2, 2]
 
-Iterator.from(function * (i) { while (true) yield i++; }(1))
+Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
   .drop(1).take(5)
   .filter(it => it % 2)
   .map(it => it ** 2)
