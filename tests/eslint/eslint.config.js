@@ -2152,6 +2152,7 @@ const nodeDependencies = {
 };
 
 const markdown = {
+  ...base,
   ...disable(forbidModernBuiltIns),
   ...forbidCompletelyNonExistentBuiltIns,
   // allow use of console
@@ -2449,18 +2450,18 @@ export default [
     processor: 'markdown/markdown',
   },
   {
-    files: ['**/*.md/*'],
-    rules: {
-      // enforce a case style for filenames
-      'unicorn/filename-case': OFF,
-    },
-  },
-  {
     files: ['**/*.md/*.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
     },
     rules: markdown,
+  },
+  {
+    files: ['**/*.md/*'],
+    rules: {
+      // enforce a case style for filenames
+      'unicorn/filename-case': OFF,
+    },
   },
 ];
