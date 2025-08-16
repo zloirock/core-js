@@ -93,7 +93,9 @@ function init() {
 
     try {
       code = Babel.transform(code, { plugins: ['console-plugin', 'import-plugin'] }).code;
-      code = Babel.transform(`(async function () { ${ code } })().catch(console.error)`, { presets: ['env'] }).code;
+      console.log(code);
+      code = Babel.transform(`(async function () { ${ code } \n})().catch(console.error)`, { presets: ['env'] }).code;
+      console.log(code);
       // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
       const context = new Function('console', code);
       context(console);
