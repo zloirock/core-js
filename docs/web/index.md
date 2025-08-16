@@ -71,7 +71,7 @@ Example of usage:
 ```js
 import 'core-js/actual';
 
-Promise.try(() => 42).then(it => console.log(it)); // -> 42
+await Promise.try(() => 42); // => 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
@@ -96,7 +96,7 @@ import 'core-js/actual/array/from';
 import 'core-js/actual/array/flat-map';
 import 'core-js/actual/structured-clone';
 
-Promise.try(() => 42).then(it => console.log(it)); // -> 42
+await Promise.try(() => 42); // => 42
 
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
@@ -121,7 +121,7 @@ import from from 'core-js-pure/actual/array/from';
 import flatMap from 'core-js-pure/actual/array/flat-map';
 import structuredClone from 'core-js-pure/actual/structured-clone';
 
-Promise.try(() => 42).then(it => console.log(it)); // -> 42
+await Promise.try(() => 42); // => 42
 
 from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]
 
