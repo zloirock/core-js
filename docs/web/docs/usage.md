@@ -1,5 +1,5 @@
 # Usage
-## Installation:
+## Installation
 ```sh
 // global version
 npm install --save core-js@3.45.0
@@ -10,16 +10,6 @@ npm install --save core-js-bundle@3.45.0
 ```
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
-
-## `postinstall` message
-The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
-```sh
-ADBLOCK=true npm install
-// or
-DISABLE_OPENCOLLECTIVE=true npm install
-// or
-npm install --loglevel silent
-```
 
 ## CommonJS API
 You can import only-required-for-you polyfills, like in the examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
@@ -238,3 +228,13 @@ It does not work with some features. Also, if you change the default behavior, e
 ## Custom build
 
 For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
+
+## `postinstall` message
+The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
+```sh
+ADBLOCK=true npm install
+// or
+DISABLE_OPENCOLLECTIVE=true npm install
+// or
+npm install --loglevel silent
+```
