@@ -369,7 +369,7 @@
             "children": [
               {
                 "title": "Reflect metadata",
-                "url": "{docs-version}/docs/features/proposals/pre-reflect-metadata"
+                "url": "{docs-version}/docs/features/proposals/reflect-metadata"
               }
             ]
           }
