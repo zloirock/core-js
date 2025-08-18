@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [`esnext.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Iterator {
   zip<T extends readonly Iterable<unknown>[]>(
@@ -25,7 +25,7 @@ class Iterator {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/joint-iteration
 core-js(-pure)/full/iterator/zip

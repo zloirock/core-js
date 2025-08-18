@@ -1,14 +1,14 @@
 # `String#matchAll`
 [Proposal repo](https://github.com/tc39/proposal-string-matchall)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class String {
   matchAll(regexp: RegExp): Iterator;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/string-match-all
 ```

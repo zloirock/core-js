@@ -4,7 +4,7 @@
 ## Modules
 [`esnext.function.is-callable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-callable.js), [`esnext.function.is-constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-constructor.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Function {
   static isCallable(value: any): boolean;
@@ -12,7 +12,7 @@ class Function {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/function-is-callable-is-constructor
 core-js(-pure)/full/function/is-callable

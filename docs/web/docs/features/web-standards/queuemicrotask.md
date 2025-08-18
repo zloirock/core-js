@@ -4,12 +4,12 @@
 ## Module 
 [`web.queue-microtask`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.queue-microtask.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 function queueMicrotask(fn: Function): void;
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js(-pure)/stable|actual|full/queue-microtask
 ```

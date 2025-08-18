@@ -11,7 +11,7 @@ npm install --save core-js-bundle@3.45.0
 
 Or you can use `core-js` [from CDN](https://www.jsdelivr.com/package/npm/core-js-bundle).
 
-## CommonJS API
+## Entry points
 You can import only-required-for-you polyfills, like in the examples at the top of `README.md`. Available CommonJS entry points for all polyfilled methods / constructors and namespaces. Just some examples:
 
 ```ts

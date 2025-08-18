@@ -5,13 +5,13 @@
 ## Modules 
 [`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 function atob(data: string): string;
 function btoa(data: string): string;
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js(-pure)/stable|actual|full/atob
 core-js(-pure)/stable|actual|full/btoa

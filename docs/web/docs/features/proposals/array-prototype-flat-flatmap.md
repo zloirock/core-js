@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-flatMap/)\
 [Proposal repo](https://github.com/tc39/proposal-flatMap)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Array {
   flat(depthArg?: number = 1): Array<mixed>;
@@ -10,7 +10,7 @@ class Array {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/array-flat-map
 ```

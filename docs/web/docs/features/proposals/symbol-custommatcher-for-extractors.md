@@ -5,14 +5,14 @@
 ## Module 
 [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Symbol {
   static customMatcher: @@customMatcher;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher

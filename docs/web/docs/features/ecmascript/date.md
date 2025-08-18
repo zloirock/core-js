@@ -4,7 +4,7 @@
 
 Annex B methods. Modules [`es.date.get-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.get-year.js), [`es.date.set-year`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.set-year.js) and [`es.date.to-gmt-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.date.to-gmt-string.js).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Date {
   getYear(): int;
@@ -18,7 +18,7 @@ class Date {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js/es|stable|actual|full/date
 core-js/es|stable|actual|full/date/to-string

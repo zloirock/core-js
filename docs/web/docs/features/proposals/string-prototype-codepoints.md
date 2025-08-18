@@ -5,14 +5,14 @@
 ## Module 
 [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class String {
   codePoints(): Iterator<{ codePoint, position }>;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/string-code-points
 core-js(-pure)/full/string/code-points

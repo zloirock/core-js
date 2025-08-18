@@ -2,14 +2,14 @@
 [Specification](https://tc39.es/proposal-string-replaceall/)\
 [Proposal repo](https://github.com/tc39/proposal-string-replace-all)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class String {
   replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/string-replace-all-stage-4
 ```

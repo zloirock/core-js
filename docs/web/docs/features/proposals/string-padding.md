@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-string-pad-start-end/)\
 [Proposal repo](https://github.com/tc39/proposal-string-pad-start-end)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class String {
   padStart(length: number, fillStr?: string = ' '): string;
@@ -11,7 +11,7 @@ class String {
 
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/string-padding
 ```

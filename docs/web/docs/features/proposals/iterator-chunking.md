@@ -6,7 +6,7 @@
 [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js), [`esnext.iterator.sliding`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.sliding.js)
 and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Iterator {
   chunks(chunkSize: number): Iterator<any>;
@@ -15,7 +15,7 @@ class Iterator {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/iterator-chunking
 core-js(-pure)/full/iterator/chunks

@@ -5,14 +5,14 @@
 ## Modules
 [`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class String {
   static dedent(templateOrTag: { raw: Array<string> } | function, ...substitutions: Array<string>): string | function;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/string-dedent
 core-js(-pure)/full/string/dedent

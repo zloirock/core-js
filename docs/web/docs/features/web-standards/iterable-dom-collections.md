@@ -4,7 +4,7 @@ Some DOM collections should have [iterable interface](https://heycam.github.io/w
 ## Modules 
 [`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js), [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class [
   CSSRuleList,
@@ -49,7 +49,7 @@ class [DOMTokenList, NodeList] {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js(-pure)/stable|actual|full/dom-collections/iterator
 core-js/stable|actual|full/dom-collections/for-each

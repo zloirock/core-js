@@ -4,14 +4,14 @@
 ## Module
 [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Number {
   fromString(string: string, radix: number): number;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/number-from-string
 core-js(-pure)/full/number/from-string

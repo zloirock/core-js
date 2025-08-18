@@ -2,14 +2,14 @@
 [Specification](https://tc39.es/proposal-is-error/)\
 [Proposal repo](https://github.com/tc39/proposal-is-error)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Error {
   static isError(value: any): boolean;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/is-error
 ```

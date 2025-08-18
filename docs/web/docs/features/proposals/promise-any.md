@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-promise-any/)\
 [Proposal repo](https://github.com/tc39/proposal-promise-any)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;
@@ -15,7 +15,7 @@ class Promise {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/promise-any
 ```

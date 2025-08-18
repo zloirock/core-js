@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.symbol.is-registered-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered-symbol.js), [`esnext.symbol.is-well-known-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known-symbol.js).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Symbol {
   static isRegisteredSymbol(value: any): boolean;
@@ -13,7 +13,7 @@ class Symbol {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/symbol-predicates-v2
 core-js(-pure)/full/symbol/is-registered-symbol

@@ -2,14 +2,14 @@
 [Specification](https://tc39.es/proposal-object-from-entries/)\
 [Proposal repo](https://github.com/tc39/proposal-object-from-entries)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Object {
   static fromEntries(iterable: Iterable<[key, value]>): Object;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/object-from-entries
 ```

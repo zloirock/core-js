@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 namespace JSON {
   isRawJSON(O: any): boolean;
@@ -17,7 +17,7 @@ namespace JSON {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/json-parse-with-source
 core-js(-pure)/actual|full/json/is-raw-json

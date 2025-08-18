@@ -2,14 +2,14 @@
 [Specification](https://tc39.es/proposal-well-formed-stringify/)\
 [Proposal repo](https://github.com/tc39/proposal-well-formed-stringify)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 namespace JSON {
   stringify(target: any, replacer?: Function | Array, space?: string | number): string | void;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/well-formed-stringify
 ```

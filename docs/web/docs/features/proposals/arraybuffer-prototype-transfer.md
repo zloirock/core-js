@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-arraybuffer-transfer/)\
 [Proposal repo](https://github.com/tc39/proposal-arraybuffer-transfer)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class ArrayBuffer {
   readonly attribute detached: boolean;
@@ -11,7 +11,7 @@ class ArrayBuffer {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/array-buffer-transfer
 ```

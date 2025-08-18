@@ -4,7 +4,7 @@
 > [!NOTE]
 > This is only built-ins for this Explicit Resource Management, `using` syntax support requires [transpiler support](https://babeljs.io/docs/babel-plugin-syntax-explicit-resource-management).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Symbol {
   static asyncDispose: @@asyncDispose;
@@ -50,7 +50,7 @@ class AsyncIterator {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/explicit-resource-management
 ```

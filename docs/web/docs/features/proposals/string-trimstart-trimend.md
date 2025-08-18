@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-string-left-right-trim/)\
 [Proposal repo](https://github.com/tc39/proposal-string-left-right-trim)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class String {
   trimLeft(): string;
@@ -12,7 +12,7 @@ class String {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/string-left-right-trim
 ```

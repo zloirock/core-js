@@ -2,14 +2,14 @@
 [Specification](https://tc39.es/proposal-accessible-object-hasownproperty/)\
 [Proposal repo](https://github.com/tc39/proposal-accessible-object-hasownproperty)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Object {
   static hasOwn(object: object, key: PropertyKey): boolean;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/accessible-object-hasownproperty
 ```

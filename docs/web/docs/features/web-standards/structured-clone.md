@@ -4,12 +4,12 @@
 ## Module 
 [`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js(-pure)/stable|actual|full/structured-clone
 ```

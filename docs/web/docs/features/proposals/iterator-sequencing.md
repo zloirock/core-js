@@ -5,14 +5,14 @@
 ## Modules 
 [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Iterator {
   concat(...items: Array<IterableObject>): Iterator<any>;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/iterator-sequencing
 core-js(-pure)/actual|full/iterator/concat

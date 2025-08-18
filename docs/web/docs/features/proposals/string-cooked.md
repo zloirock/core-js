@@ -5,14 +5,14 @@
 ## Module
 [`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class String {
   static cooked(template: Array<string>, ...substitutions: Array<string>): string;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked

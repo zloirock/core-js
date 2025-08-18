@@ -2,14 +2,14 @@
 [Specification](https://tc39.es/proposal-promise-with-resolvers/)\
 [Proposal repo](https://github.com/tc39/proposal-promise-with-resolvers)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Promise {
   static withResolvers(): { promise: Promise, resolve: function, reject: function };
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/promise-with-resolvers
 ```

@@ -1,14 +1,14 @@
 # Iteration helpers
 Helpers for checking iterability / get iterator in the `pure` version or, for example, for `arguments` object
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 function isIterable(value: any): boolean;
 function getIterator(value: any): Object;
 function getIteratorMethod(value: any): Function | void;
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js-pure/es|stable|actual|full/is-iterable
 core-js-pure/es|stable|actual|full/get-iterator

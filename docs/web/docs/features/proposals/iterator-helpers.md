@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-iterator-helpers/)\
 [Proposal repo](https://github.com/tc39/proposal-iterator-helpers)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Iterator {
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
@@ -21,7 +21,7 @@ class Iterator {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/iterator-helpers-stage-3-2
 ```

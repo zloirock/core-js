@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-relative-indexing-method/)\
 [Proposal repo](https://github.com/tc39/proposal-relative-indexing-method)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Array {
   at(index: int): any;
@@ -17,7 +17,7 @@ class %TypedArray% {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js/proposals/relative-indexing-method
 ```

@@ -5,14 +5,14 @@
 ## Module
 [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Array {
   static isTemplateObject(value: any): boolean
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/array-is-template-object
 core-js(-pure)/full/array/is-template-object

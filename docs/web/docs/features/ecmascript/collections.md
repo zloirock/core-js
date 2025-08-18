@@ -5,7 +5,7 @@
 ### Modules 
 [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js), [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
 
-### Built-ins Signatures
+### Built-ins signatures
 ```ts
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
@@ -24,7 +24,7 @@ class Map {
 }
 ```
 
-### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+### [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/map
 core-js(-pure)/es|stable|actual|full/map/group-by
@@ -72,7 +72,7 @@ map.get(0); // => [2, 4]
 ### Modules 
 [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js)
 
-### Built-ins Signatures
+### Built-ins signatures
 ```ts
 class Set {
   constructor(iterable?: Iterable<value>): Set;
@@ -96,7 +96,7 @@ class Set {
 }
 ```
 
-### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+### [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/set
 core-js(-pure)/es|stable|actual|full/set/difference
@@ -146,7 +146,7 @@ new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ### Modules
 [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
 
-### Built-ins Signatures
+### Built-ins signatures
 ```ts
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
@@ -156,7 +156,7 @@ class WeakMap {
   set(key: Object, val: any): this;
 }
 ```
-### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+### [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
 ```
@@ -197,7 +197,7 @@ for (let key in person) console.log(key); // => only 'getName'
 ### Modules 
 [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
 
-### Built-ins Signatures
+### Built-ins signatures
 ```ts
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;
@@ -207,7 +207,7 @@ class WeakSet {
 }
 ```
 
-### [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+### [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```

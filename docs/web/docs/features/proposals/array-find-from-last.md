@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-array-find-from-last/index.html)\
 [Proposal repo](https://github.com/tc39/proposal-array-find-from-last)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Array {
   findLast(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): any;
@@ -15,7 +15,7 @@ class %TypedArray% {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/array-find-from-last
 ```

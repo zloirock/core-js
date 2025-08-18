@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-regexp-dotall-flag/)\
 [Proposal repo](https://github.com/tc39/proposal-regexp-dotall-flag)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 // patched for support `RegExp` dotAll (`s`) flag:
 class RegExp {
@@ -13,7 +13,7 @@ class RegExp {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/regexp-dotall-flag
 ```

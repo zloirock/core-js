@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-arraybuffer-base64/)\
 [Proposal repo](https://github.com/tc39/proposal-arraybuffer-base64)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Uint8Array {
   static fromBase64(string: string, options?: { alphabet?: 'base64' | 'base64url', lastChunkHandling?: 'loose' | 'strict' | 'stop-before-partial' }): Uint8Array;
@@ -14,7 +14,7 @@ class Uint8Array {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/array-buffer-base64
 ```

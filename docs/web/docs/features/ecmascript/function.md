@@ -3,7 +3,7 @@
 ## Modules
 [`es.function.name`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.name.js), [`es.function.has-instance`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.has-instance.js). Just ES5: [`es.function.bind`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.function.bind.js).
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Function {
   name: string;
@@ -12,7 +12,7 @@ class Function {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js/es|stable|actual|full/function
 core-js/es|stable|actual|full/function/name

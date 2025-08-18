@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js), [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Observable {
   constructor(subscriber: Function): Observable;
@@ -21,7 +21,7 @@ class Symbol {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/observable
 core-js(-pure)/full/observable

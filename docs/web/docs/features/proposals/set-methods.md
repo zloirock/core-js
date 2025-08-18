@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-set-methods/)\
 [Proposal repo](https://github.com/tc39/proposal-set-methods)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Set {
   difference(other: SetLike<mixed>): Set;
@@ -15,7 +15,7 @@ class Set {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/set-methods-v2
 ```

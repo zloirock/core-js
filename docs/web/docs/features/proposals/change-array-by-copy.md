@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-change-array-by-copy/)\
 [Proposal repo](https://github.com/tc39/proposal-change-array-by-copy)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class Array {
   toReversed(): Array<mixed>;
@@ -18,7 +18,7 @@ class %TypedArray% {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```
 core-js/proposals/change-array-by-copy-stage-4
 core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed

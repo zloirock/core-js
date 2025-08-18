@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-float16array/)\
 [Proposal repo](https://github.com/tc39/proposal-float16array)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 class DataView {
   getFloat16(offset: any, littleEndian?: boolean = false): float16
@@ -14,7 +14,7 @@ namespace Math {
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/float16
 ```

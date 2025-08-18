@@ -2,14 +2,14 @@
 [Specification](https://tc39.es/proposal-math-sum/)\
 [Proposal repo](https://github.com/tc39/proposal-math-sum)
 
-## Built-ins Signatures
+## Built-ins signatures
 ```ts
 namespace Math {
   sumPrecise(items: Iterable<number>): Number;
 }
 ```
 
-## [CommonJS entry points]({docs-version}/docs/usage#commonjs-api)
+## [Entry points]({docs-version}/docs/usage#entry-points)
 ```ts
 core-js/proposals/math-sum
 ```
