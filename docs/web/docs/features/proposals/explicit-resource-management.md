@@ -4,7 +4,7 @@
 > [!NOTE]
 > This is only built-ins for this Explicit Resource Management, `using` syntax support requires [transpiler support](https://babeljs.io/docs/babel-plugin-syntax-explicit-resource-management).
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Symbol {
   static asyncDispose: @@asyncDispose;

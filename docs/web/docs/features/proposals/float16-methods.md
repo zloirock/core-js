@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-float16array/)\
 [Proposal repo](https://github.com/tc39/proposal-float16array)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class DataView {
   getFloat16(offset: any, littleEndian?: boolean = false): float16

@@ -5,7 +5,7 @@
 ## Module 
 [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class String {
   codePoints(): Iterator<{ codePoint, position }>;

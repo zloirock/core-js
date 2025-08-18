@@ -4,7 +4,7 @@
 ## Module 
 [`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Function {
   demethodize(): Function;

@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class DataView {
   getUint8Clamped(offset: any): uint8

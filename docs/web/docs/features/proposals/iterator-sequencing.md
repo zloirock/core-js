@@ -5,7 +5,7 @@
 ## Modules 
 [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Iterator {
   concat(...items: Array<IterableObject>): Iterator<any>;

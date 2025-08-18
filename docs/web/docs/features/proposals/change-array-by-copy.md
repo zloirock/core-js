@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-change-array-by-copy/)\
 [Proposal repo](https://github.com/tc39/proposal-change-array-by-copy)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Array {
   toReversed(): Array<mixed>;

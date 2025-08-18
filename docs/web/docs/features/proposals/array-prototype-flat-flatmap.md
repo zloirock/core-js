@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-flatMap/)\
 [Proposal repo](https://github.com/tc39/proposal-flatMap)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Array {
   flat(depthArg?: number = 1): Array<mixed>;

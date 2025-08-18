@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-string-left-right-trim/)\
 [Proposal repo](https://github.com/tc39/proposal-string-left-right-trim)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class String {
   trimLeft(): string;

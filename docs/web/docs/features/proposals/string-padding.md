@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-string-pad-start-end/)\
 [Proposal repo](https://github.com/tc39/proposal-string-pad-start-end)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class String {
   padStart(length: number, fillStr?: string = ' '): string;

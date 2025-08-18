@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-arraybuffer-transfer/)\
 [Proposal repo](https://github.com/tc39/proposal-arraybuffer-transfer)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class ArrayBuffer {
   readonly attribute detached: boolean;

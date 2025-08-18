@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.number.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.clamp.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Number {
   clamp(min: number, max: number): number;

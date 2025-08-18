@@ -4,7 +4,7 @@
 ## Modules 
 [`esnext.symbol.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.metadata.js) and [`esnext.function.metadata`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.metadata.js).
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Symbol {
   static metadata: @@metadata;

@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-promise-any/)\
 [Proposal repo](https://github.com/tc39/proposal-promise-any)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;

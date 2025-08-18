@@ -5,7 +5,7 @@
 ## Module
 [`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class String {
   static cooked(template: Array<string>, ...substitutions: Array<string>): string;

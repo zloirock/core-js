@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-relative-indexing-method/)\
 [Proposal repo](https://github.com/tc39/proposal-relative-indexing-method)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Array {
   at(index: int): any;

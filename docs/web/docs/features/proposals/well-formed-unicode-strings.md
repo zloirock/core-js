@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-is-usv-string/)\
 [Proposal repo](https://github.com/tc39/proposal-is-usv-string)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class String {
   isWellFormed(): boolean;

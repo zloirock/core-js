@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-promise-with-resolvers/)\
 [Proposal repo](https://github.com/tc39/proposal-promise-with-resolvers)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Promise {
   static withResolvers(): { promise: Promise, resolve: function, reject: function };

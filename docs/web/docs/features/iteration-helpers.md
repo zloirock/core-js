@@ -1,7 +1,7 @@
 # Iteration helpers
 Helpers for checking iterability / get iterator in the `pure` version or, for example, for `arguments` object
 
-## Signature
+## Built-ins Signatures
 ```ts
 function isIterable(value: any): boolean;
 function getIterator(value: any): Object;

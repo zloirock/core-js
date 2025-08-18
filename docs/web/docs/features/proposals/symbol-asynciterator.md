@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-async-iteration/)\
 [Proposal repo](https://github.com/tc39/proposal-async-iteration)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Symbol {
   static asyncIterator: @@asyncIterator;

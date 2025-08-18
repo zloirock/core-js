@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-iterator-helpers/)\
 [Proposal repo](https://github.com/tc39/proposal-iterator-helpers)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Iterator {
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;

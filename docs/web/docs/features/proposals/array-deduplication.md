@@ -4,7 +4,7 @@
 ## Modules
 [`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js), [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Array {
   uniqueBy(resolver?: (item: any) => any): Array<mixed>;

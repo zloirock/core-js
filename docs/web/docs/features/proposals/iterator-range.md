@@ -5,7 +5,7 @@
 ## Module
 [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Iterator {
   range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;

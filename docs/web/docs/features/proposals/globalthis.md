@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-global/)\
 [Proposal repo](https://github.com/tc39/proposal-global)
 
-## Signature
+## Built-ins Signatures
 ```ts
 let globalThis: GlobalThisValue;
 ```

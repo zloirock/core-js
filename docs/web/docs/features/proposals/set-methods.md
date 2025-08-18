@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-set-methods/)\
 [Proposal repo](https://github.com/tc39/proposal-set-methods)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Set {
   difference(other: SetLike<mixed>): Set;

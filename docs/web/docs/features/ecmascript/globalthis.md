@@ -3,7 +3,7 @@
 ## Modules
 [`es.global-this`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.global-this.js).
 
-## Signature
+## Built-ins Signatures
 ```ts
 let globalThis: GlobalThisValue;
 ```

@@ -4,7 +4,7 @@
 ## Module
 [`esnext.number.from-string`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.from-string.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Number {
   fromString(string: string, radix: number): number;

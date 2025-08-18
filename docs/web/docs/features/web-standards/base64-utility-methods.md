@@ -5,7 +5,7 @@
 ## Modules 
 [`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js).
 
-## Signature
+## Built-ins Signatures
 ```ts
 function atob(data: string): string;
 function btoa(data: string): string;

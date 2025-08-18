@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-promise-finally/index.html)\
 [Proposal repo](https://github.com/tc39/proposal-promise-finally)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Promise {
   finally(onFinally: Function): Promise;

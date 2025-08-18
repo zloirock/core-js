@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js), [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Observable {
   constructor(subscriber: Function): Observable;

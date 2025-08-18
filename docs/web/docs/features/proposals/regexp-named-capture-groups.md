@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-regexp-named-groups/)\
 [Proposal repo](https://github.com/tc39/proposal-regexp-named-groups)
 
-## Signature
+## Built-ins Signatures
 ```ts
 // patched for support `RegExp` named capture groups:
 class RegExp {

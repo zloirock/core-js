@@ -1,7 +1,7 @@
 # `Array.prototype.includes`
 [Proposal repo](https://github.com/tc39/proposal-Array.prototype.includes)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Array {
   includes(searchElement: any, from?: number): boolean;

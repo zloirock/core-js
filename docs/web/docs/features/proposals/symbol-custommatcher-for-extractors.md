@@ -5,7 +5,7 @@
 ## Module 
 [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Symbol {
   static customMatcher: @@customMatcher;

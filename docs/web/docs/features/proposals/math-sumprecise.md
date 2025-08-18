@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-math-sum/)\
 [Proposal repo](https://github.com/tc39/proposal-math-sum)
 
-## Signature
+## Built-ins Signatures
 ```ts
 namespace Math {
   sumPrecise(items: Iterable<number>): Number;

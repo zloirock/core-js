@@ -5,7 +5,7 @@
 ## Modules
 [`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class String {
   static dedent(templateOrTag: { raw: Array<string> } | function, ...substitutions: Array<string>): string | function;

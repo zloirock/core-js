@@ -2,7 +2,7 @@
 [Specification](https://tc39.es/proposal-string-replaceall/)\
 [Proposal repo](https://github.com/tc39/proposal-string-replace-all)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class String {
   replaceAll(searchValue: string | RegExp, replaceString: string | (searchValue, index, this) => string): string;

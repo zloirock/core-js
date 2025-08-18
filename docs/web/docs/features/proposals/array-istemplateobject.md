@@ -5,7 +5,7 @@
 ## Module
 [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
 
-## Signature
+## Built-ins Signatures
 ```ts
 class Array {
   static isTemplateObject(value: any): boolean
