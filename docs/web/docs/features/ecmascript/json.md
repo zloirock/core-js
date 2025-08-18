@@ -4,6 +4,7 @@ Since `JSON` object is missed only in very old engines like IE7-, `core-js` does
 ## Modules
 [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js).
 
+## Signature
 ```ts
 namespace JSON {
   stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;

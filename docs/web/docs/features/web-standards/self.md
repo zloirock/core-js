@@ -4,6 +4,7 @@
 ## Module 
 [`web.self`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.self.js)
 
+## Signature
 ```ts
 getter self: GlobalThisValue;
 ```

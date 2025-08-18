@@ -4,6 +4,7 @@
 ## Module 
 [`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)
 
+## Signature
 ```ts
 function structuredClone(value: Serializable, { transfer?: Sequence<Transferable> }): any;
 ```

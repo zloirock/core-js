@@ -5,6 +5,7 @@
 ## Modules 
 [`es.disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.disposable-stack.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.async-disposable-stack.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.async-disposable-stack.constructor.js), [`es.async-iterator.async-dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.async-iterator.async-dispose.js).
 
+## Signature
 ```ts
 class Symbol {
   static asyncDispose: @@asyncDispose;

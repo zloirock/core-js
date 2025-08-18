@@ -9,6 +9,7 @@ Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-j
 
 `RegExp` features: modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.escape.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.flags.js), [`es.regexp.sticky`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.sticky.js) and [`es.regexp.test`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.test.js).
 
+## Signature
 ```ts
 class String {
   static fromCodePoint(...codePoints: Array<number>): string;

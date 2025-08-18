@@ -1,11 +1,11 @@
 # Base64 utility methods
-[Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob)
-
+[Specification](https://html.spec.whatwg.org/multipage/webappapis.html#atob)\
 [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64)
 
 ## Modules 
 [`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js).
 
+## Signature
 ```ts
 function atob(data: string): string;
 function btoa(data: string): string;

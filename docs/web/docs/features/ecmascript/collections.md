@@ -2,7 +2,10 @@
 `core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in the old environment uses fast polyfill (O(1) lookup).
 
 ## Map
-Modules [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js) and [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
+### Modules 
+[`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js), [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
+
+### Signature
 ```ts
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
@@ -66,7 +69,10 @@ map.get(0); // => [2, 4]
 ```
 
 ## Set
-Modules [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js)
+### Modules 
+[`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js)
+
+### Signature
 ```ts
 class Set {
   constructor(iterable?: Iterable<value>): Set;
@@ -136,7 +142,11 @@ new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
 
 ## WeakMap
-Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
+
+### Modules
+[`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
+
+### Signature
 ```ts
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
@@ -184,7 +194,10 @@ for (let key in person) console.log(key); // => only 'getName'
 ```
 
 ## WeakSet
-Module [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
+### Modules 
+[`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
+
+### Signature
 ```ts
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;

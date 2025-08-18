@@ -3,6 +3,7 @@
 ## Modules
 [`es.promise`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.js), [`es.promise.all-settled`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.all-settled.js), [`es.promise.any`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.any.js), [`es.promise.finally`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.finally.js), [`es.promise.try`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.try.js) and [`es.promise.with-resolvers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.promise.with-resolvers.js).
 
+## Signature
 ```ts
 class Promise {
   constructor(executor: (resolve: Function, reject: Function) => void): Promise;
@@ -187,7 +188,6 @@ process.on('rejectionHandled', promise => console.log('handled', promise));
 let promise = Promise.reject(42);
 // unhandled 42 [object Promise]
 
-// eslint-disable-next-line promise/prefer-await-to-then -- example
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 // handled [object Promise]
 ```
@@ -202,7 +202,6 @@ globalThis.onrejectionhandled = e => console.log('handled', e.reason, e.promise)
 let promise = Promise.reject(42);
 // => unhandled 42 [object Promise]
 
-// eslint-disable-next-line promise/prefer-await-to-then -- example
 setTimeout(() => promise.catch(() => { /* empty */ }), 1e3);
 // => handled 42 [object Promise]
 ```
