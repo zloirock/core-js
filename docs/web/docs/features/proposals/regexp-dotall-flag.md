@@ -1,6 +1,8 @@
 # `RegExp` `s` (`dotAll`) flag
-[Specification](https://github.com/tc39/proposal-regexp-dotall-flag)
+[Specification](https://tc39.es/proposal-regexp-dotall-flag/)\
+[Proposal repo](https://github.com/tc39/proposal-regexp-dotall-flag)
 
+## Signature
 ```ts
 // patched for support `RegExp` dotAll (`s`) flag:
 class RegExp {

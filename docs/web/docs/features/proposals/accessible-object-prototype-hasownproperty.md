@@ -1,6 +1,8 @@
 # Accessible `Object.prototype.hasOwnProperty`
-[Specification](https://github.com/tc39/proposal-accessible-object-hasownproperty)
+[Specification](https://tc39.es/proposal-accessible-object-hasownproperty/)\
+[Proposal repo](https://github.com/tc39/proposal-accessible-object-hasownproperty)
 
+## Signature
 ```ts
 class Object {
   static hasOwn(object: object, key: PropertyKey): boolean;

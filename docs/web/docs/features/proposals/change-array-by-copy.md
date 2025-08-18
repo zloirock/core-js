@@ -1,6 +1,8 @@
 # Change `Array` by copy
-[Specification](https://github.com/tc39/proposal-change-array-by-copy)
+[Specification](https://tc39.es/proposal-change-array-by-copy/)\
+[Proposal repo](https://github.com/tc39/proposal-change-array-by-copy)
 
+## Signature
 ```ts
 class Array {
   toReversed(): Array<mixed>;

@@ -1,9 +1,11 @@
 # String.prototype.codePoints
-Specification: [proposal-string-prototype-codepoints](https://github.com/tc39/proposal-string-prototype-codepoints)
+[Specification](https://tc39.es/proposal-string-prototype-codepoints/)\
+[Proposal repo](https://github.com/tc39/proposal-string-prototype-codepoints)
 
 ## Module 
 [`esnext.string.code-points`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.code-points.js)
 
+## Signature
 ```ts
 class String {
   codePoints(): Iterator<{ codePoint, position }>;

@@ -1,9 +1,11 @@
 # Observable
-Specification: [es-observable](https://github.com/zenparsing/es-observable)
+[Specification](https://tc39.es/proposal-observable/)\
+[Proposal repo](https://github.com/zenparsing/es-observable)
 
 ## Modules
-[`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js) and [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
+[`esnext.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.observable.js), [`esnext.symbol.observable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.observable.js)
 
+## Signature
 ```ts
 class Observable {
   constructor(subscriber: Function): Observable;

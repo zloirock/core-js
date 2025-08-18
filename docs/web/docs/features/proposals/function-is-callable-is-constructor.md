@@ -1,9 +1,10 @@
 # Function.{ isCallable, isConstructor }
-Specification: [tc39-reflect-isconstructor-iscallable](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md)
+[Proposal repo](https://github.com/caitp/TC39-Proposals/blob/trunk/tc39-reflect-isconstructor-iscallable.md)
 
 ## Modules
 [`esnext.function.is-callable`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-callable.js), [`esnext.function.is-constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.is-constructor.js)
 
+## Signature
 ```ts
 class Function {
   static isCallable(value: any): boolean;

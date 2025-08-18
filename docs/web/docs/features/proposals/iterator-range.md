@@ -1,9 +1,11 @@
 # Iterator.range
-Specification: [proposal-Number.range](https://github.com/tc39/proposal-Number.range)
+[Specification](https://tc39.es/proposal-iterator.range/)\
+[Proposal repo](https://github.com/tc39/proposal-Number.range)
 
 ## Module
 [`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
 
+## Signature
 ```ts
 class Iterator {
   range(start: number, end: number, options: { step: number = 1, inclusive: boolean = false } | step: number = 1): NumericRangeIterator;

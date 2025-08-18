@@ -1,9 +1,11 @@
 # Symbol.customMatcher for extractors
-Specification: [proposal-extractors](https://github.com/tc39/proposal-extractors)
+[Specification](https://tc39.es/proposal-extractors/)\
+[Proposal repo](https://github.com/tc39/proposal-extractors)
 
 ## Module 
 [`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
 
+## Signature
 ```ts
 class Symbol {
   static customMatcher: @@customMatcher;

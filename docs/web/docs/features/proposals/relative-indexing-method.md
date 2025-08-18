@@ -1,6 +1,8 @@
 # Relative indexing method
-[Specification](https://github.com/tc39/proposal-relative-indexing-method)
+[Specification](https://tc39.es/proposal-relative-indexing-method/)\
+[Proposal repo](https://github.com/tc39/proposal-relative-indexing-method)
 
+## Signature
 ```ts
 class Array {
   at(index: int): any;

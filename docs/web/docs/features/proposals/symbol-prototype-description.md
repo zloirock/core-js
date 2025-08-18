@@ -1,6 +1,8 @@
 # `Symbol.prototype.description`
-[Specification](https://github.com/tc39/proposal-Symbol-description)
+[Specification](https://tc39.es/proposal-Symbol-description/)\
+[Proposal repo](https://github.com/tc39/proposal-Symbol-description)
 
+## Signature
 ```ts
 class Symbol {
   readonly attribute description: string | void;

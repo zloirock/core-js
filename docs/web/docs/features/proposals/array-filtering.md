@@ -1,9 +1,11 @@
 # Array filtering
-Specification: [proposal-array-filtering](https://github.com/tc39/proposal-array-filtering)
+[Specification](https://tc39.es/proposal-array-filtering/)\
+[Proposal repo](https://github.com/tc39/proposal-array-filtering)
 
 ## Modules
-[`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js) and [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js).
+[`esnext.array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.filter-reject.js), [`esnext.typed-array.filter-reject`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.filter-reject.js).
 
+## Signature
 ```ts
 class Array {
   filterReject(callbackfn: (value: any, index: number, target: any) => boolean, thisArg?: any): Array<mixed>;

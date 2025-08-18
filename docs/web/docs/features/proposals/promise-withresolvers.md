@@ -1,6 +1,8 @@
 # `Promise.withResolvers`
-[Specification](https://github.com/tc39/proposal-promise-with-resolvers)
+[Specification](https://tc39.es/proposal-promise-with-resolvers/)\
+[Proposal repo](https://github.com/tc39/proposal-promise-with-resolvers)
 
+## Signature
 ```ts
 class Promise {
   static withResolvers(): { promise: Promise, resolve: function, reject: function };

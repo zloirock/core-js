@@ -1,9 +1,10 @@
 # `compositeKey` and `compositeSymbol`
-Specification: [proposal-richer-keys](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)
+[Proposal repo](https://github.com/tc39/proposal-richer-keys/tree/master/compositeKey)
 
 ## Modules
 [`esnext.composite-key`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-key.js) and [`esnext.composite-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.composite-symbol.js)
 
+## Signature
 ```ts
 function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;

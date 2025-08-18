@@ -1,6 +1,8 @@
 # `Error.isError`
-[Specification](https://github.com/tc39/proposal-is-error)
+[Specification](https://tc39.es/proposal-is-error/)\
+[Proposal repo](https://github.com/tc39/proposal-is-error)
 
+## Signature
 ```ts
 class Error {
   static isError(value: any): boolean;

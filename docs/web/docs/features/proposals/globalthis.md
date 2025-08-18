@@ -1,6 +1,8 @@
 # `globalThis`
-[Specification](https://github.com/tc39/proposal-global)
+[Specification](https://tc39.es/proposal-global/)\
+[Proposal repo](https://github.com/tc39/proposal-global)
 
+## Signature
 ```ts
 let globalThis: GlobalThisValue;
 ```

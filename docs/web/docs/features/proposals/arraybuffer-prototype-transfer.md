@@ -1,6 +1,8 @@
 # `ArrayBuffer.prototype.transfer` and friends
-[Specification](https://github.com/tc39/proposal-arraybuffer-transfer)
+[Specification](https://tc39.es/proposal-arraybuffer-transfer/)\
+[Proposal repo](https://github.com/tc39/proposal-arraybuffer-transfer)
 
+## Signature
 ```ts
 class ArrayBuffer {
   readonly attribute detached: boolean;

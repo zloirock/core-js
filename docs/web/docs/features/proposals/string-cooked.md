@@ -1,9 +1,11 @@
 # String.cooked
-Specification: [proposal-string-cooked](https://github.com/tc39/proposal-string-cooked)
+[Specification](https://tc39.es/proposal-string-cooked/)\
+[Proposal repo](https://github.com/tc39/proposal-string-cooked)
 
 ## Module
 [`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
 
+## Signature
 ```ts
 class String {
   static cooked(template: Array<string>, ...substitutions: Array<string>): string;

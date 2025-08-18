@@ -1,9 +1,11 @@
 # `Iterator` sequencing
-Specification: [proposal-iterator-sequencing](https://github.com/tc39/proposal-iterator-sequencing)
+[Specification](https://tc39.es/proposal-iterator-sequencing/)\
+[Proposal repo](https://github.com/tc39/proposal-iterator-sequencing)
 
 ## Modules 
 [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
 
+## Signature
 ```ts
 class Iterator {
   concat(...items: Array<IterableObject>): Iterator<any>;

@@ -1,6 +1,8 @@
 # `Promise.allSettled`
-[Specification](https://github.com/tc39/proposal-promise-allSettled)
+[Specification](https://tc39.es/proposal-promise-allSettled/)\
+[Proposal repo](https://github.com/tc39/proposal-promise-allSettled)
 
+## Signature
 ```ts
 class Promise {
   static allSettled(iterable: Iterable): Promise;

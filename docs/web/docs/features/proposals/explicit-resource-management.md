@@ -1,8 +1,10 @@
 # Explicit Resource Management
-[Specification](https://github.com/tc39/proposal-explicit-resource-management)
+[Proposal repo](https://github.com/tc39/proposal-explicit-resource-management)
 
 > [!NOTE]
 > This is only built-ins for this Explicit Resource Management, `using` syntax support requires [transpiler support](https://babeljs.io/docs/babel-plugin-syntax-explicit-resource-management).
+
+## Signature
 ```ts
 class Symbol {
   static asyncDispose: @@asyncDispose;

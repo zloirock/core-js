@@ -1,9 +1,10 @@
 # Array deduplication
-Specification: [proposal-array-unique](https://github.com/tc39/proposal-array-unique)
+[Proposal repo](https://github.com/tc39/proposal-array-unique)
 
 ## Modules
-[`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js) and [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
+[`esnext.array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.unique-by.js), [`esnext.typed-array.unique-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.typed-array.unique-by.js)
 
+## Signature
 ```ts
 class Array {
   uniqueBy(resolver?: (item: any) => any): Array<mixed>;

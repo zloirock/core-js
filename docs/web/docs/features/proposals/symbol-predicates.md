@@ -1,9 +1,11 @@
 # Symbol predicates
-Specification: [proposal-symbol-predicates](https://github.com/tc39/proposal-symbol-predicates)
+[Specification](https://tc39.es/proposal-symbol-predicates/)\
+[Proposal repo](https://github.com/tc39/proposal-symbol-predicates)
 
 ## Modules
 [`esnext.symbol.is-registered-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered-symbol.js), [`esnext.symbol.is-well-known-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known-symbol.js).
 
+## Signature
 ```ts
 class Symbol {
   static isRegisteredSymbol(value: any): boolean;

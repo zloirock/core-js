@@ -1,6 +1,8 @@
 # `Array.fromAsync`
-[Specification](https://github.com/tc39/proposal-array-from-async)
+[Specification](https://tc39.es/proposal-array-from-async/)\
+[Proposal repo](https://github.com/tc39/proposal-array-from-async)
 
+## Signature
 ```ts
 class Array {
   static fromAsync(asyncItems: AsyncIterable | Iterable | ArrayLike, mapfn?: (value: any, index: number) => any, thisArg?: any): Array;

@@ -1,6 +1,8 @@
 # `Promise.try`
-[Specification](https://github.com/tc39/proposal-promise-try)
+[Specification](https://tc39.es/proposal-promise-try/)\
+[Proposal repo](https://github.com/tc39/proposal-promise-try)
 
+## Signature
 ```ts
 class Promise {
   static try(callbackfn: Function, ...args?: Array<mixed>): Promise;

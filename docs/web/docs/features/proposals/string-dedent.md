@@ -1,9 +1,11 @@
 # String.dedent
-Specification: [proposal-string-dedent](https://github.com/tc39/proposal-string-dedent)
+[Specification](https://tc39.es/proposal-string-dedent/)\
+[Proposal repo](https://github.com/tc39/proposal-string-dedent)
 
 ## Modules
 [`esnext.string.dedent`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.dedent.js)
 
+## Signature
 ```ts
 class String {
   static dedent(templateOrTag: { raw: Array<string> } | function, ...substitutions: Array<string>): string | function;

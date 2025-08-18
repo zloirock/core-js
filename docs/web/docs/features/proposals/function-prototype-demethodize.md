@@ -1,9 +1,10 @@
 # Function.prototype.demethodize
-Specification: [proposal-function-demethodize](https://github.com/js-choi/proposal-function-demethodize)
+[Proposal repo](https://github.com/js-choi/proposal-function-demethodize)
 
 ## Module 
 [`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js)
 
+## Signature
 ```ts
 class Function {
   demethodize(): Function;

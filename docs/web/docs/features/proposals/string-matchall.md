@@ -1,6 +1,7 @@
 # `String#matchAll`
-[Specification](https://github.com/tc39/proposal-string-matchall)
+[Proposal repo](https://github.com/tc39/proposal-string-matchall)
 
+## Signature
 ```ts
 class String {
   matchAll(regexp: RegExp): Iterator;

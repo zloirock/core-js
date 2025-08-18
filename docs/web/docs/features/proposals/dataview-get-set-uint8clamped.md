@@ -1,9 +1,11 @@
 # `DataView` get / set `Uint8Clamped` methods
-Specification: [proposal-dataview-get-set-uint8clamped](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)
+[Specification](https://tc39.es/proposal-dataview-get-set-uint8clamped/)\
+[Proposal repo](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)
 
 ## Modules
 [`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
 
+## Signature
 ```ts
 class DataView {
   getUint8Clamped(offset: any): uint8

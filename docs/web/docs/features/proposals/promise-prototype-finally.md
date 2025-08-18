@@ -1,6 +1,8 @@
 # `Promise.prototype.finally`
-[Specification](https://github.com/tc39/proposal-promise-finally)
+[Specification](https://tc39.es/proposal-promise-finally/index.html)\
+[Proposal repo](https://github.com/tc39/proposal-promise-finally)
 
+## Signature
 ```ts
 class Promise {
   finally(onFinally: Function): Promise;

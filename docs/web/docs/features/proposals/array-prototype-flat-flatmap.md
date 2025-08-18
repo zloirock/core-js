@@ -1,6 +1,8 @@
 # `Array.prototype.flat` / `Array.prototype.flatMap`
-[Specification](https://github.com/tc39/proposal-flatMap)
+[Specification](https://tc39.es/proposal-flatMap/)\
+[Proposal repo](https://github.com/tc39/proposal-flatMap)
 
+## Signature
 ```ts
 class Array {
   flat(depthArg?: number = 1): Array<mixed>;

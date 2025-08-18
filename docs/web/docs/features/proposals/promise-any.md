@@ -1,6 +1,8 @@
 # `Promise.any`
-[Specification](https://github.com/tc39/proposal-promise-any)
+[Specification](https://tc39.es/proposal-promise-any/)\
+[Proposal repo](https://github.com/tc39/proposal-promise-any)
 
+## Signature
 ```ts
 class AggregateError {
   constructor(errors: Iterable, message: string): AggregateError;

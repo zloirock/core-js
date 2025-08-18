@@ -1,9 +1,11 @@
 # `JSON.parse` source text access
-Specification: [proposal-json-parse-with-source](https://github.com/tc39/proposal-json-parse-with-source)
+[Specification](https://tc39.es/proposal-json-parse-with-source/)\
+[Proposal repo](https://github.com/tc39/proposal-json-parse-with-source)
 
 ## Modules
 [`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
 
+## Signature
 ```ts
 namespace JSON {
   isRawJSON(O: any): boolean;

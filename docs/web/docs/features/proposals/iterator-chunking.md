@@ -1,10 +1,12 @@
 # Iterator chunking
-Specification: [proposal-iterator-chunking](https://github.com/tc39/proposal-iterator-chunking)
+[Specification](https://tc39.es/proposal-iterator-chunking/)\
+[Proposal repo](https://github.com/tc39/proposal-iterator-chunking)
 
 ## Modules 
 [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js), [`esnext.iterator.sliding`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.sliding.js)
 and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
 
+## Signature
 ```ts
 class Iterator {
   chunks(chunkSize: number): Iterator<any>;

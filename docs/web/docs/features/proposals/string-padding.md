@@ -1,6 +1,8 @@
 # `String` padding
-[Specification](https://github.com/tc39/proposal-string-pad-start-end)
+[Specification](https://tc39.es/proposal-string-pad-start-end/)\
+[Proposal repo](https://github.com/tc39/proposal-string-pad-start-end)
 
+## Signature
 ```ts
 class String {
   padStart(length: number, fillStr?: string = ' '): string;

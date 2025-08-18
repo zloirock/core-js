@@ -1,9 +1,11 @@
 # Array.isTemplateObject
-Specification: [proposal-array-is-template-object](https://github.com/tc39/proposal-array-is-template-object)
+[Specification](https://tc39.es/proposal-array-is-template-object/)\
+[Proposal repo](https://github.com/tc39/proposal-array-is-template-object)
 
 ## Module
 [`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
 
+## Signature
 ```ts
 class Array {
   static isTemplateObject(value: any): boolean
