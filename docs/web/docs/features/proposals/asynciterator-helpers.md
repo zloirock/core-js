@@ -49,16 +49,14 @@ core-js(-pure)/actual|full/iterator/to-async
 
 ## Examples
 ```js
-(async () => {
-  await AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
-    .drop(1)
-    .take(5)
-    .filter(it => it % 2)
-    .map(it => it ** 2)
-    .toArray();  // => [9, 25]
+await AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
+  .drop(1)
+  .take(5)
+  .filter(it => it % 2)
+  .map(it => it ** 2)
+  .toArray();  // => [9, 25]
 
-  await [1, 2, 3].values().toAsync().map(async it => it ** 2).toArray(); // => [1, 4, 9]
-})();
+await [1, 2, 3].values().toAsync().map(async it => it ** 2).toArray(); // => [1, 4, 9]
 ```
 
 ## Caveats:
