@@ -26,6 +26,7 @@ if ! ln -s "$$" "$LOCK_FILE" 2>/dev/null; then
     exit 1
 fi
 
+
 CLEANED=0
 cleanup() {
     if [ "$CLEANED" -eq 0 ]; then
