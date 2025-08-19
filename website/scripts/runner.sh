@@ -26,8 +26,6 @@ if ! ln -s "$$" "$LOCK_FILE" 2>/dev/null; then
     exit 1
 fi
 
-echo "$$" > "$PID_FILE"
-
 CLEANED=0
 cleanup() {
     if [ "$CLEANED" -eq 0 ]; then
@@ -46,6 +44,7 @@ echo "Lock acquired by $$, starting build..."
 
 setsid node ./runner.mjs &
 NODE_PID=$!
+echo "$NODE_PID" > "$PID_FILE"
 
 wait $NODE_PID
 EXIT_CODE=$?
