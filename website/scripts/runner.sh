@@ -24,16 +24,11 @@ echo "$$" > "$PID_FILE"
 cleanup() {
     echo "Cleaning up..."
     rm -f "$LOCK_FILE" "$PID_FILE"
-    if [ -n "$NODE_PID" ]; then
-        kill "$NODE_PID" 2>/dev/null || true
-    fi
+    pkill -P $$
 }
 trap cleanup EXIT HUP INT TERM
 
-node ./runner.mjs &
-NODE_PID=$!
-
-wait $NODE_PID
+node ./runner.mjs
 EXIT_CODE=$?
 
 exit $EXIT_CODE
