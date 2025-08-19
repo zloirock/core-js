@@ -15,7 +15,6 @@ kill_old_build() {
             fi
         fi
         rm -f "$LOCK_FILE" "$PID_FILE"
-        ps -o pid,ppid,pgid,cmd | grep -E '(runner|node)'
     fi
 }
 
@@ -26,7 +25,6 @@ if ! ln -s "$$" "$LOCK_FILE" 2>/dev/null; then
     exit 1
 fi
 
-
 CLEANED=0
 cleanup() {
     if [ "$CLEANED" -eq 0 ]; then
@@ -35,7 +33,6 @@ cleanup() {
         rm -f "$LOCK_FILE" "$PID_FILE"
         kill -TERM -$$ 2>/dev/null || true
         kill -KILL -$$ 2>/dev/null || true
-        ps -o pid,ppid,pgid,cmd | grep node
     fi
 }
 
