@@ -18,6 +18,7 @@ kill_old_build() {
     fi
 }
 
+
 kill_old_build
 
 if ! ln -s "$$" "$LOCK_FILE" 2>/dev/null; then
