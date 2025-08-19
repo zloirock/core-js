@@ -31,8 +31,10 @@ cleanup() {
         CLEANED=1
         echo "Cleaning up from $$"
         rm -f "$LOCK_FILE" "$PID_FILE"
-        kill -TERM -$$ 2>/dev/null || true
-        kill -KILL -$$ 2>/dev/null || true
+        if [ -n "$NODE_PID" ] && ps -p "$NODE_PID" > /dev/null 2>&1; then
+            kill -TERM -"$NODE_PID" 2>/dev/null || true
+            kill -KILL -"$NODE_PID" 2>/dev/null || true
+        fi
     fi
 }
 
