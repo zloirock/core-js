@@ -44,7 +44,7 @@
   - [`Uint8Array.{ fromBase64, prototype.setFromBase64 }`](https://github.com/tc39/proposal-arraybuffer-base64) marked as unsupported in Safari and supported only from Bun 1.2.20 because of a bug: it does not throw an error on incorrect length of base64 string
   - `%TypedArray%.prototype.with` marked as fixed in Safari 26.0
   - Updated Electron 38 compat data mapping
-  - Added Opera Android 91 compat data mapping
+  - Added [Opera Android 91](https://forums.opera.com/topic/86005/opera-for-android-91) compat data mapping
 
 ##### [3.44.0 - 2025.07.07](https://github.com/zloirock/core-js/releases/tag/v3.44.0)
 - Changes [v3.43.0...v3.44.0](https://github.com/zloirock/core-js/compare/v3.43.0...v3.44.0) (87 commits)
