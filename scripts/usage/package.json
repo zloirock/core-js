@@ -1,9 +1,9 @@
 {
   "name": "scripts/usage",
   "devDependencies": {
-    "@playwright/browser-chromium": "^1.54.2",
+    "@playwright/browser-chromium": "^1.55.0",
     "jszip": "^3.10.1",
-    "playwright": "^1.54.2",
+    "playwright": "^1.55.0",
     "playwright-extra": "^4.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
