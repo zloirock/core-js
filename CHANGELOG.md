@@ -1,6 +1,6 @@
 ## Changelog
 ##### Unreleased
-- Fixed a conflict of native methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) with polyfilled methods
+- Fixed a conflict of native methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) with polyfilled methods in the pure version
 - Added `bugs` fields to `package.json` of all packages
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from Bun 1.2.20
