@@ -18,7 +18,7 @@ core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
 
-## Example
+## Examples
 ```js
 JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}'
 ```

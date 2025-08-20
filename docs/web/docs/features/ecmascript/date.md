@@ -31,7 +31,7 @@ core-js(-pure)/es|stable|actual|full/date/to-json
 core-js(-pure)/es|stable|actual|full/date/to-primitive
 ```
 
-## Example
+## Examples
 ```js
 new Date(NaN).toString(); // => 'Invalid Date'
 ```

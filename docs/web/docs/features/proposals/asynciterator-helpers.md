@@ -59,7 +59,7 @@ await AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
 await [1, 2, 3].values().toAsync().map(async it => it ** 2).toArray(); // => [1, 4, 9]
 ```
 
-## Caveats:
+## Caveats
 - For preventing prototypes pollution, in the `pure` version, new `%AsyncIteratorPrototype%` methods are not added to the real `%AsyncIteratorPrototype%`, they available only on wrappers - instead of `[].values().toAsync().map(fn)` use `AsyncIterator.from([]).map(fn)`.
 - Now, we have access to the real `%AsyncIteratorPrototype%` only with usage async generators syntax. So, for compatibility of the library with old browsers, we should use `Function` constructor. However, that breaks compatibility with CSP. So, if you wanna use the real `%AsyncIteratorPrototype%`, you should set `USE_FUNCTION_CONSTRUCTOR` option in the `core-js/configurator` to `true`:
 ```ts
