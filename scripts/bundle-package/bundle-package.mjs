@@ -4,6 +4,7 @@ import config from 'core-js-builder/config.js';
 
 const { cyan, green } = chalk;
 const DENO = argv._.includes('deno');
+const ESMODULES = argv._.includes('esmodules');
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
@@ -77,4 +78,5 @@ await bundle(DENO ? {
 } : {
   bundled: 'index',
   minified: 'minified',
+  options: ESMODULES ? { targets: { esmodules: true } } : {},
 });
