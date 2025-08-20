@@ -1,5 +1,9 @@
 ## Changelog
 ##### Unreleased
+- Nothing
+
+##### [3.45.1 - 2025.08.20](https://github.com/zloirock/core-js/releases/tag/v3.45.1)
+- Changes [v3.45.0...v3.45.1](https://github.com/zloirock/core-js/compare/v3.45.0...v3.45.1) (30 commits)
 - Fixed a conflict of native methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) with polyfilled methods in the pure version
 - Added `bugs` fields to `package.json` of all packages
 - Compat data improvements:

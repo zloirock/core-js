@@ -1,7 +1,7 @@
 /**
- * core-js 3.45.0
+ * core-js 3.45.1
  * © 2014-2025 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.45.0/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.45.1/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -579,10 +579,10 @@ var SHARED = '__core-js_shared__';
 var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, {});
 
 (store.versions || (store.versions = [])).push({
-  version: '3.45.0',
+  version: '3.45.1',
   mode: IS_PURE ? 'pure' : 'global',
   copyright: '© 2014-2025 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.45.0/LICENSE',
+  license: 'https://github.com/zloirock/core-js/blob/v3.45.1/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -13572,6 +13572,7 @@ module.exports = function (C, adder, ENTRY) {
 var $ = __webpack_require__(49);
 var aMap = __webpack_require__(376);
 var MapHelpers = __webpack_require__(175);
+var IS_PURE = __webpack_require__(16);
 
 var get = MapHelpers.get;
 var has = MapHelpers.has;
@@ -13579,7 +13580,7 @@ var set = MapHelpers.set;
 
 // `Map.prototype.getOrInsert` method
 // https://github.com/tc39/proposal-upsert
-$({ target: 'Map', proto: true, real: true }, {
+$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   getOrInsert: function getOrInsert(key, value) {
     if (has(aMap(this), key)) return get(this, key);
     set(this, key, value);
@@ -13598,6 +13599,7 @@ var $ = __webpack_require__(49);
 var aCallable = __webpack_require__(38);
 var aMap = __webpack_require__(376);
 var MapHelpers = __webpack_require__(175);
+var IS_PURE = __webpack_require__(16);
 
 var get = MapHelpers.get;
 var has = MapHelpers.has;
@@ -13605,7 +13607,7 @@ var set = MapHelpers.set;
 
 // `Map.prototype.getOrInsertComputed` method
 // https://github.com/tc39/proposal-upsert
-$({ target: 'Map', proto: true, real: true }, {
+$({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aMap(this);
     aCallable(callbackfn);
@@ -16248,6 +16250,7 @@ $({ target: 'WeakMap', proto: true, real: true, forced: true }, {
 var $ = __webpack_require__(49);
 var aWeakMap = __webpack_require__(473);
 var WeakMapHelpers = __webpack_require__(453);
+var IS_PURE = __webpack_require__(16);
 
 var get = WeakMapHelpers.get;
 var has = WeakMapHelpers.has;
@@ -16255,7 +16258,7 @@ var set = WeakMapHelpers.set;
 
 // `WeakMap.prototype.getOrInsert` method
 // https://github.com/tc39/proposal-upsert
-$({ target: 'WeakMap', proto: true, real: true }, {
+$({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
   getOrInsert: function getOrInsert(key, value) {
     if (has(aWeakMap(this), key)) return get(this, key);
     set(this, key, value);
@@ -16275,6 +16278,7 @@ var aCallable = __webpack_require__(38);
 var aWeakMap = __webpack_require__(473);
 var aWeakKey = __webpack_require__(479);
 var WeakMapHelpers = __webpack_require__(453);
+var IS_PURE = __webpack_require__(16);
 
 var get = WeakMapHelpers.get;
 var has = WeakMapHelpers.has;
@@ -16282,7 +16286,7 @@ var set = WeakMapHelpers.set;
 
 // `WeakMap.prototype.getOrInsertComputed` method
 // https://github.com/tc39/proposal-upsert
-$({ target: 'WeakMap', proto: true, real: true }, {
+$({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aWeakMap(this);
     aWeakKey(key);
