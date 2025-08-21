@@ -119,7 +119,7 @@ Symbol().description;      // => undefined
 - By default, to hide the keys, `Symbol` polyfill defines a setter in `Object.prototype`. For this reason, an uncontrolled creation of symbols can cause a memory leak and the `in` operator is not working correctly with `Symbol` polyfill: `Symbol() in {} // => true`.
 
 You can disable defining setters in `Object.prototype`. *Example*:
-```js
+```ts
 Symbol.useSimple();
 let symbol1 = Symbol('symbol1');
 let object1 = {};
