@@ -95,7 +95,7 @@ function init() {
 
   function isDocsPage() {
     if (isDocs !== undefined) return isDocs;
-    isDocs = currentPath.includes('docs/');
+    isDocs = currentPath.startsWith('docs/') || currentPath.includes('/docs/');
     return isDocs;
   }
 

@@ -1,5 +1,7 @@
 export default class RunButtonPlugin {
-  BASE_URL = document.querySelector('base')?.href || globalThis.location.origin;
+  PATH = globalThis.location.pathname;
+  BASE_URL = document.querySelector('base')?.getAttribute('href') || globalThis.location.origin;
+  RELATIVE_PATH = this.PATH.replace(this.BASE_URL, '');
   PLAYGROUND_URL = 'playground';
 
   text = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">' +
@@ -19,7 +21,8 @@ export default class RunButtonPlugin {
       const urlParams = new URLSearchParams();
       urlParams.set('code', text);
       const hash = urlParams.toString();
-      globalThis.location.href = `${ this.BASE_URL }${ this.PLAYGROUND_URL }#${ hash }`;
+      const version = this.RELATIVE_PATH.startsWith('docs/') ? '' : `${ this.RELATIVE_PATH.split('/')[0] }/`;
+      globalThis.location.href = `${ this.BASE_URL }${ version }${ this.PLAYGROUND_URL }#${ hash }`;
     });
     const wrapper = document.createElement('div');
     wrapper.classList.add('hljs-run');

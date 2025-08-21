@@ -1,15 +1,17 @@
 /* eslint-disable no-console -- needed for logging */
 import childProcess from 'node:child_process';
+import { constants } from 'node:fs';
 import fs from 'node:fs/promises';
 import { promisify } from 'node:util';
 import path from 'node:path';
 
 const exec = promisify(childProcess.exec);
-const { cp, readdir } = fs;
+const { cp, readdir, access } = fs;
 
 const SRC_DIR = 'core-js';
 const BUILDS_ROOT_DIR = 'builds';
 const BUILD_RESULT_DIR = 'result';
+const BUNDLES_DIR = 'bundles';
 const REPO = 'https://github.com/zloirock/core-js.git';
 const BUILDER_BRANCH = 'web';
 const DEFAULT_VERSION = 'v3.45-docs';
@@ -24,6 +26,15 @@ const BUILD_DIR = `${ BUILDS_ROOT_DIR }/${ BUILD_ID }/`;
 const BUILD_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/`;
 const BUILD_DOCS_DIR = `${ BUILD_DIR }builder/`;
 const SITE_FILES_DIR = `${ BUILD_DIR }${ SRC_DIR }/website/dist/`;
+
+async function isExists(path) {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function getTagsWithSiteDocs() {
   console.log('Getting tags with site docs...');
@@ -160,14 +171,39 @@ async function switchBranchToLatestBuild(name) {
   console.timeEnd(`Switched branch "${ name }" to the latest build`);
 }
 
-async function buildAndCopyCoreJS() {
-  console.log('Building and copying core-js...');
-  console.time('Core JS bundle built');
+async function buildAndCopyCoreJS(target, isBranch = true) {
+  console.log(`Building and copying core-js for ${ target }`);
+  const targetBundlePath = `${ BUNDLES_DIR }/${ target }/`;
+
+  if (await isExists(targetBundlePath)) {
+    console.time('Core JS bundles copied');
+    const bundlePath = `${ targetBundlePath }core-js-bundle.js`;
+    const destBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle.js`;
+    const esmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
+    const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle-esmodules.js`;
+    await cp(bundlePath, destBundlePath);
+    await cp(esmodulesBundlePath, esmodulesDestBundlePath);
+    console.timeEnd('Core JS bundles copied');
+    return;
+  }
+
+  console.time('Core JS bundles built');
+  if (isBranch) {
+    await exec(`git checkout origin/${ target }`, { cwd: BUILD_SRC_DIR });
+  } else {
+    await exec(`git checkout ${ target }`, { cwd: BUILD_SRC_DIR });
+  }
+  await installDependencies();
   await exec('npm run bundle-package', { cwd: BUILD_SRC_DIR });
   const bundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
-  const destPath = `${ BUILD_SRC_DIR }website/src/public/core-js-bundle.js`;
-  await cp(bundlePath, destPath, { });
-  console.timeEnd('Core JS bundle built');
+  const destPath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle.js`;
+  await cp(bundlePath, destPath);
+
+  await exec('npm run bundle-package esmodules', { cwd: BUILD_SRC_DIR });
+  const esmodulesBundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
+  const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle-esmodules.js`;
+  await cp(esmodulesBundlePath, esmodulesDestBundlePath);
+  console.timeEnd('Core JS bundles built');
 }
 
 async function getExcludedBuilds() {
@@ -251,14 +287,15 @@ async function run() {
     if (tags.length) {
       for (const tag of tags) {
         await copyDocsToBuilder(tag);
+        await buildAndCopyCoreJS(tag);  // todo add second argument for tags
       }
     }
   } else {
     await hasDocsInBranch(targetBranch);
+    await buildAndCopyCoreJS(targetBranch);
   }
 
   await prepareBuilder(targetBranch);
-  await buildAndCopyCoreJS();
   await copyBlogPosts();
   await copyCommonFiles();
   if (!BRANCH) {

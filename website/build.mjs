@@ -12,6 +12,9 @@ const TEMPLATES_DIR = 'website/templates/';
 const SRC_DIR = 'website/src/';
 const TEMPLATE_PATH = `${ TEMPLATES_DIR }index.html`;
 const DEFAULT_VERSION = 'v3.45-docs';
+const BUNDLES_PATH = './bundles';
+const BUNDLE_NAME = 'core-js-bundle.js';
+const BUNDLE_NAME_ESMODULES = 'core-js-bundle-esmodules.js';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -232,7 +235,15 @@ async function readFile(filePath) {
   return content.toString();
 }
 
-async function processPlaygroundFile(template) {
+async function buildPlaygrounds(template, versions) {
+  for (const version of versions) {
+    await buildPlayground(template, version);
+  }
+}
+
+async function buildPlayground(template, version) {
+  const bundleScript = `<script nomodule src="${ BUNDLES_PATH }/${ version }/${ BUNDLE_NAME }"></script>`;
+  const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ version }/${ BUNDLE_NAME_ESMODULES }"></script>`;
   const playgroundContent = await readFile(`${ SRC_DIR }playground.html`);
   let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
@@ -240,9 +251,16 @@ async function processPlaygroundFile(template) {
   playground = playground.replace('{docs-menu}', '');
   playground = playground.replace('{title}', 'Playground - ');
   playground = playground.replace('{base}', `${ BASE }`);
-  const playgroundFilePath = path.join(RESULT_DIR, 'playground.html');
+  playground = playground.replace('{core-js-bundle}', `${ bundleScript }`);
+  playground = playground.replace('{core-js-bundle-esmodules}', `${ bundleESModulesScript }`);
+  const playgroundFilePath = path.join(RESULT_DIR, version, 'playground.html');
   await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
   await fs.writeFile(playgroundFilePath, playground, 'utf8');
+  if (version === DEFAULT_VERSION) {
+    const defaultPlaygroundPath = path.join(RESULT_DIR, 'playground.html');
+    await fs.writeFile(defaultPlaygroundPath, playground, 'utf8');
+    echo(chalk.green(`File created: ${ defaultPlaygroundPath }`));
+  }
 
   echo(chalk.green(`File created: ${ playgroundFilePath }`));
 }
@@ -278,6 +296,8 @@ async function build() {
   const mdFiles = await getAllMdFiles(DOCS_DIR);
   const versions = await getVersionsFromMdFiles(mdFiles);
   const uniqueVersions = [...new Set(versions)];
+  const bundleScript = `<script nomodule src="${ BUNDLES_PATH }/${ DEFAULT_VERSION }/${ BUNDLE_NAME }"></script>`;
+  const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ DEFAULT_VERSION }/${ BUNDLE_NAME_ESMODULES }"></script>`;
 
   let currentVersion = '';
   let versionsMenu = '';
@@ -311,6 +331,8 @@ async function build() {
     resultHtml = resultHtml.replace('{docs-menu}', `${ mobileDocsMenu }`);
     resultHtml = resultHtml.replace('{blog-menu}', `${ mobileBlogMenu }`);
     resultHtml = resultHtml.replace('{base}', `${ BASE }`);
+    resultHtml = resultHtml.replace('{core-js-bundle}', `${ bundleScript }`);
+    resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', `${ bundleESModulesScript }`);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
@@ -337,7 +359,7 @@ async function build() {
     echo(chalk.green(`File created: ${ htmlFilePath }`));
   }
 
-  await processPlaygroundFile(template);
+  await buildPlaygrounds(template, uniqueVersions);
   await createDocsIndexes(uniqueVersions);
 }
 
