@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var arrayWith = require('../internals/array-with');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 
 var $Array = Array;
 
@@ -9,7 +9,7 @@ var $Array = Array;
 var INCORRECT_EXCEPTION_ON_COERCION_FAIL = (function () {
   try {
     // eslint-disable-next-line es/no-array-prototype-with, no-throw-literal -- needed for testing
-    []['with']({ valueOf: function () { throw 4; } }, null);
+    [].with({ valueOf: function () { throw 4; } }, null);
   } catch (error) {
     return error !== 4;
   }
@@ -18,7 +18,7 @@ var INCORRECT_EXCEPTION_ON_COERCION_FAIL = (function () {
 // `Array.prototype.with` method
 // https://tc39.es/ecma262/#sec-array.prototype.with
 $({ target: 'Array', proto: true, forced: INCORRECT_EXCEPTION_ON_COERCION_FAIL }, {
-  'with': function (index, value) {
-    return arrayWith(toIndexedObject(this), $Array, index, value);
-  }
+  with: function (index, value) {
+    return arrayWith(toObject(this), $Array, index, value);
+  },
 });
