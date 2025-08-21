@@ -27,9 +27,9 @@ const BUILD_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/`;
 const BUILD_DOCS_DIR = `${ BUILD_DIR }builder/`;
 const SITE_FILES_DIR = `${ BUILD_DIR }${ SRC_DIR }/website/dist/`;
 
-async function isExists(path) {
+async function isExists(target) {
   try {
-    await access(path, constants.F_OK);
+    await access(target, constants.F_OK);
     return true;
   } catch {
     return false;
