@@ -87,6 +87,20 @@ async function buildDocsMenuForVersion(version) {
   return menu;
 }
 
+async function buildPlaygroundMenuForVersion(versions, currentVersion) {
+  let versionsMenuHtml = `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${
+    currentVersion }</a><div class="dropdown-block"><a href="./playground">${ DEFAULT_VERSION } (default)</a>`;
+  if (versions.length >= 1) {
+    for (const v of versions) {
+      const activityClass = v === currentVersion ? ' class="active"' : '';
+      versionsMenuHtml += `<a href="./${ v }/playground"${ activityClass }>${ v }</a>`;
+    }
+  }
+  versionsMenuHtml += '</div></div><div class="backdrop"></div></div>';
+
+  return versionsMenuHtml;
+}
+
 async function buildVersionsMenuList(versions, currentVersion) {
   let versionsMenuHtml = `<div class="dropdown-block"><a href="./docs/">${ DEFAULT_VERSION } (default)</a>`;
   if (versions.length >= 1) {
@@ -237,14 +251,15 @@ async function readFile(filePath) {
 
 async function buildPlaygrounds(template, versions) {
   for (const version of versions) {
-    await buildPlayground(template, version);
+    await buildPlayground(template, version, versions);
   }
 }
 
-async function buildPlayground(template, version) {
+async function buildPlayground(template, version, versions) {
   const bundleScript = `<script nomodule src="${ BUNDLES_PATH }/${ version }/${ BUNDLE_NAME }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ version }/${ BUNDLE_NAME_ESMODULES }"></script>`;
   const playgroundContent = await readFile(`${ SRC_DIR }playground.html`);
+  const versionsMenu = await buildPlaygroundMenuForVersion(versions, version);
   let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
   playground = playground.replace('{blog-menu}', '');
@@ -253,6 +268,7 @@ async function buildPlayground(template, version) {
   playground = playground.replace('{base}', `${ BASE }`);
   playground = playground.replace('{core-js-bundle}', `${ bundleScript }`);
   playground = playground.replace('{core-js-bundle-esmodules}', `${ bundleESModulesScript }`);
+  playground = playground.replace('{versions-menu}', `${ versionsMenu }`);
   const playgroundFilePath = path.join(RESULT_DIR, version, 'playground.html');
   await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
   await fs.writeFile(playgroundFilePath, playground, 'utf8');
