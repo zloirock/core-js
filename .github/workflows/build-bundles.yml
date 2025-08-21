@@ -30,23 +30,29 @@ jobs:
       - name: Build bundle
         run: npm run bundle-package
 
+      - name: Rename file
+        run: mv packages/core-js-bundle/minified.js /core-js-bundle.js
+
       - name: Copy files to server over SSH
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ci
           key: ${{ secrets.CI_SSH_KEY }}
-          source: "packages/core-js-bundle/minified.js"
-          target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/core-js-bundle.js"
+          source: "/core-js-bundle.js"
+          target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
 
       - name: Build esmodules bundle
         run: npm run bundle-package esmodules
 
+      - name: Rename file
+        run: mv packages/core-js-bundle/minified.js /core-js-bundle-esmodules.js
+
       - name: Copy files to server over SSH
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.REMOTE_HOST }}
           username: ci
           key: ${{ secrets.CI_SSH_KEY }}
-          source: "packages/core-js-bundle/minified.js"
-          target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/core-js-bundle-esmodules.js"
+          source: "/core-js-bundle-esmodules.js"
+          target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
