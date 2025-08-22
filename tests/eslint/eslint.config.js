@@ -1065,7 +1065,7 @@ const base = {
   // use the `i` flag if it simplifies the pattern
   'regexp/use-ignore-case': ERROR,
   // ReDoS vulnerability check
-  'redos/no-vulnerable': [ERROR, { timeout: 1e3, cache: { strategy: 'aggressive' } }],
+  'redos/no-vulnerable': [ERROR, { timeout: 1e3 }],
 
   // disallow function declarations in if statement clauses without using blocks
   'es/no-function-declarations-in-if-statement-clauses-without-block': ERROR,
