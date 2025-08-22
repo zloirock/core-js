@@ -16,7 +16,6 @@ import pluginNodeDependencies from 'eslint-plugin-node-dependencies';
 import * as pluginPackageJSON from 'eslint-plugin-package-json';
 import pluginPromise from 'eslint-plugin-promise';
 import pluginQUnit from 'eslint-plugin-qunit';
-import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
@@ -1064,8 +1063,6 @@ const base = {
   'regexp/unicode-escape': ERROR,
   // use the `i` flag if it simplifies the pattern
   'regexp/use-ignore-case': ERROR,
-  // ReDoS vulnerability check
-  'redos/no-vulnerable': [ERROR, { timeout: 1e3, cache: { strategy: 'aggressive' } }],
 
   // disallow function declarations in if statement clauses without using blocks
   'es/no-function-declarations-in-if-statement-clauses-without-block': ERROR,
@@ -1876,8 +1873,6 @@ const nodeDev = {
   'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
-  // ReDoS vulnerability check
-  'redos/no-vulnerable': OFF,
   // prefer top-level await
   'unicorn/prefer-top-level-await': ERROR,
   ...forbidSomeES2025Syntax,
@@ -1930,8 +1925,6 @@ const tests = {
   'unicorn/prefer-at': OFF,
   // prefer `.includes()` over `.indexOf()` and `Array#some()` when checking for existence or non-existence
   'unicorn/prefer-includes': OFF,
-  // ReDoS vulnerability check
-  'redos/no-vulnerable': OFF,
   // allow Annex B methods for testing
   ...disable(forbidESAnnexBBuiltIns),
 };
@@ -2261,7 +2254,6 @@ export default [
       'package-json': pluginPackageJSON,
       promise: pluginPromise,
       qunit: pluginQUnit,
-      redos: pluginReDoS,
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
       unicorn: pluginUnicorn,
