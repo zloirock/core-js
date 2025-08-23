@@ -1,9 +1,10 @@
 const { transformAsync } = require('@babel/core');
 const { strictEqual } = require('node:assert');
 
+const { _: args } = argv;
 const { access, readdir, readFile, readJson, stat, writeFile } = fs;
 const { join } = path;
-const { cyan, green, yellow } = chalk;
+const { cyan, green, red, yellow } = chalk;
 
 const { OVERWRITE } = process.env;
 const UTF8 = { encoding: 'utf8' };
@@ -30,8 +31,8 @@ async function handleDirectory(directory) {
     return echo`${ cyan(expected) } ${ yellow('created') }`;
   }
 
-  strictEqual(String(await readFile(expected, UTF8)), result);
+  strictEqual(String(await readFile(expected, UTF8)), result, red(directory));
   echo`${ cyan(directory) } ${ green('passed') }`;
 }
 
-await handleDirectory('./fixtures');
+await handleDirectory(args.length ? `./fixtures/${ args[0] }` : './fixtures');
