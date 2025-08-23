@@ -33,6 +33,8 @@ module.exports = defineProvider(({
   const modulesListForTargetVersion = getModulesListForTargetVersion(version);
   const injectedModules = new Set();
 
+  if (!Object.keys(targets).length) targets = null;
+
   const resolve = createMetaResolver({
     global: Globals,
     static: StaticProperties,
@@ -52,15 +54,14 @@ module.exports = defineProvider(({
   }
 
   function getModulesForCoreJSEntry(entry) {
-    return compat({ modules: entries[entry], targets }).list;
+    return compat({ modules: entries[entry], targets, version }).list;
   }
 
   function injectCoreJSModulesForEntry(entry, utils) {
     for (const moduleName of getModulesForCoreJSEntry(entry)) {
-      if (injectedModules.has(moduleName)) continue;
-      injectedModules.add(moduleName);
-      const modulePath = `${ pkg }/modules/${ moduleName }`;
-      utils.injectGlobalImport(modulePath, moduleName);
+      const moduleEntry = `modules/${ moduleName }`;
+      utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
+      injectedModules.add(moduleEntry);
       debug(moduleName);
     }
   }
@@ -70,7 +71,7 @@ module.exports = defineProvider(({
     polyfills: modulesListForTargetVersion,
     entryGlobal({ source }, utils, path) {
       const entry = getCoreJSEntry(source);
-      if (entry === null) return;
+      if (entry === null || injectedModules.has(entry)) return;
       injectCoreJSModulesForEntry(entry, utils);
       path.remove();
     },
