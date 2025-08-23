@@ -88,4 +88,4 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
+      - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder test-babel-plugin
