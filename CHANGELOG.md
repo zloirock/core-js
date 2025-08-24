@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
-- Nothing
+- Compat data improvements:
+  - Added Oculus Quest Browser 40 compat data mapping
 
 ##### [3.45.1 - 2025.08.20](https://github.com/zloirock/core-js/releases/tag/v3.45.1)
 - Changes [v3.45.0...v3.45.1](https://github.com/zloirock/core-js/compare/v3.45.0...v3.45.1) (30 commits)
