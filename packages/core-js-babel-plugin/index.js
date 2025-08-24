@@ -7,6 +7,8 @@ const { Globals, StaticProperties, InstanceProperties } = require('@core-js/comp
 
 const DEFAULT_COREJS_PACKAGES = ['core-js'];
 
+const { hasOwn } = Object;
+
 function normalizeImportPath(path) {
   if (typeof path == 'string') return path
     .replaceAll('\\', '/')
@@ -47,7 +49,7 @@ module.exports = defineProvider(({
       if (source === $pkg) return '';
       if (source.startsWith(`${ $pkg }/`)) {
         const entry = source.slice($pkg.length + 1);
-        if (Object.hasOwn(entries, entry)) return entry;
+        if (hasOwn(entries, entry)) return entry;
       }
     }
     return null;
@@ -78,9 +80,14 @@ module.exports = defineProvider(({
     usageGlobal(meta, utils) {
       const resolved = resolve(meta);
       if (!resolved) return;
-      const { kind, desc: { global: desc } } = resolved;
-      const { dependencies } = kind === 'instance' ? desc.common : desc;
-      for (const entry of dependencies) {
+      let { kind, desc: { global: desc } } = resolved;
+      if (kind === 'instance') {
+        const { object } = meta;
+        if (object === 'Array' && hasOwn(desc, 'array')) desc = desc.array;
+        else if (object === 'String' && hasOwn(desc, 'string')) desc = desc.string;
+        else desc = desc.common;
+      }
+      for (const entry of desc.dependencies) {
         injectCoreJSModulesForEntry(`${ mode }/${ entry }`, utils);
       }
       return true;
