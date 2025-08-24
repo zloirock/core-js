@@ -279,7 +279,7 @@ export const InstanceProperties = {
   fontcolor: { global: 'string/fontcolor' },
   fontsize: { global: 'string/fontsize' },
   forEach: { pure: 'instance/for-each', global: ['instance/for-each', 'iterator/for-each'] },
-  includes: 'instance/includes',
+  includes: { common: 'instance/includes', array: 'array/includes', string: 'string/includes' },
   indexOf: 'instance/index-of',
   isWellFormed: 'instance/is-well-formed',
   italics: { global: 'string/italics' },
