@@ -186,6 +186,17 @@ function init() {
     return String(value);
   }
 
+  function elementInViewport(el) {
+    const rect = el.getBoundingClientRect();
+
+    return (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+      rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+    );
+  }
+
   codeInput.addEventListener('input', () => {
     codeOutput.removeAttribute('data-highlighted');
     let val = codeInput.value;
@@ -204,6 +215,12 @@ function init() {
       e.preventDefault();
       resultBlock.innerHTML = '';
       runCode(codeInput.value);
+      if (!elementInViewport(resultBlock)) {
+        scrollTo({
+          top: resultBlock.getBoundingClientRect().top,
+          behavior: 'smooth',
+        });
+      }
     });
   });
 
