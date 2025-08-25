@@ -5,7 +5,7 @@ const compat = require('@core-js/compat/compat');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
 
-const DEFAULT_COREJS_PACKAGES = ['core-js'];
+const defaultCoreJSPackages = ['core-js'];
 
 const { hasOwn } = Object;
 
@@ -14,6 +14,26 @@ function normalizeImportPath(path) {
     .replaceAll('\\', '/')
     .replace(/(?:\/(?:index)?)?(?:\.js)?$/i, '')
     .toLowerCase();
+}
+
+const hints = new Set([
+  'array',
+  'string',
+  'regexp',
+  'object',
+  'function',
+]);
+
+function resolveHint(desc, meta) {
+  const { placement, object } = meta;
+  const hint = String(object).toLowerCase();
+  if (placement !== 'prototype' || !hints.has(hint)) return desc.common;
+  let required = true;
+  for (const $hint of hints) if (hasOwn(desc, $hint)) {
+    if (hint === $hint) return desc[hint];
+    required = false;
+  }
+  if (required) return desc.common;
 }
 
 module.exports = defineProvider(({
@@ -30,7 +50,7 @@ module.exports = defineProvider(({
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
 
-  const packages = pkgs ? [...DEFAULT_COREJS_PACKAGES, ...pkgs] : [...DEFAULT_COREJS_PACKAGES];
+  const packages = pkgs ? [...defaultCoreJSPackages, ...pkgs] : [...defaultCoreJSPackages];
 
   const modulesListForTargetVersion = getModulesListForTargetVersion(version);
   const injectedModules = new Set();
@@ -82,10 +102,8 @@ module.exports = defineProvider(({
       if (!resolved) return;
       let { kind, desc: { global: desc } } = resolved;
       if (kind === 'instance') {
-        const { object } = meta;
-        if (object === 'Array' && hasOwn(desc, 'array')) desc = desc.array;
-        else if (object === 'String' && hasOwn(desc, 'string')) desc = desc.string;
-        else desc = desc.common;
+        desc = resolveHint(desc, meta);
+        if (!desc) return true;
       }
       for (const entry of desc.dependencies) {
         injectCoreJSModulesForEntry(`${ mode }/${ entry }`, utils);
