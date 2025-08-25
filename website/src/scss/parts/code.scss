@@ -1,0 +1,161 @@
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+
+.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0.5em;
+  @include themify($themes) {
+    background-color: themed('box-color');
+    color: themed('font-color');
+  }
+}
+
+.hljs-comment,
+.hljs-quote {
+  font-style: italic;
+  @include themify($themes) {
+    color: themed('comment-color');
+  }
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link {
+  @include themify($themes) {
+    color: themed('section');
+  }
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-name,
+.hljs-type,
+.hljs-attribute,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+  @include themify($themes) {
+    color: themed('success');
+  }
+}
+
+.hljs-number,
+.hljs-meta,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-params {
+  @include themify($themes) {
+    color: themed('meta');
+  }
+}
+
+.hljs-class .hljs-title,
+.hljs-strong {
+  font-weight: bold;
+  @include themify($themes) {
+    color: themed('link-color2-hover');
+  }
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-function .hljs-title {
+  @include themify($themes) {
+    color: themed('function');
+  }
+}
+
+.hljs-tag,
+.hljs-deletion {
+  @include themify($themes) {
+    color: themed('font-error');
+  }
+}
+
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  @include themify($themes) {
+    color: themed('font-warning');
+  }
+}
+
+.hljs-doctag {
+  @include themify($themes) {
+    color: themed('font-warning');
+  }
+}
+
+.hljs-bullet {
+  @include themify($themes) {
+    color: themed('meta');
+  }
+}
+
+.hljs-code,
+.hljs-formula {
+  @include themify($themes) {
+    color: themed('section');
+  }
+}
+
+.hljs-link {
+  text-decoration: underline;
+}
+
+.hljs-selector-id {
+  @include themify($themes) {
+    color: themed('link-color2-hover');
+  }
+}
+
+.hljs-selector-class {
+  @include themify($themes) {
+    color: themed('function');
+  }
+}
+
+.hljs::selection,
+.hljs span::selection {
+  @include themify($themes) {
+    background: themed('button-color-hover');
+  }
+}
+
+code {
+  position: relative;
+  padding: 0 0.25rem;
+  @include themify($themes) {
+    background: themed('button-color-hover');
+  }
+}
+
+pre code {
+  scrollbar-width: thin;
+  font-size: 0.85rem;
+  line-height: 1.375rem;
+  @include themify($themes) {
+    scrollbar-color: themed('background-light') themed('background-highlight');
+  }
+}
+
+.hljs-run {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 24px;
+  height: 24px;
+
+  .hljs-run-button {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}

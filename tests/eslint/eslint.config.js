@@ -391,6 +391,7 @@ const base = {
     ignoreRegExpLiterals: true,
     ignoreTemplateLiterals: true,
     ignoreUrls: true,
+    ignorePattern: '<svg[\\s\\S]*?</svg>',
   }],
   // enforce a maximum number of statements allowed per line
   '@stylistic/max-statements-per-line': [ERROR, { max: 2 }],
@@ -2247,6 +2248,9 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/unit-@(global|pure)/index.js',
+      'website/dist/**',
+      'website/src/public/*',
+      'website/templates/**',
     ],
   },
   {
@@ -2412,6 +2416,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/**/*.mjs',
+      'website/*.mjs',
     ],
     languageOptions: {
       // zx
@@ -2488,6 +2493,28 @@ export default [
     rules: {
       // enforce a case style for filenames
       'unicorn/filename-case': OFF,
+    },
+  },
+  {
+    files: [
+      'website/src/js/*',
+    ],
+    languageOptions: {
+      sourceType: 'module',
+    },
+    rules: {
+      ...transpiledAndPolyfilled,
+    },
+  },
+  {
+    files: [
+      'website/runner.mjs',
+    ],
+    languageOptions: {
+      sourceType: 'module',
+    },
+    rules: {
+      ...nodeDev,
     },
   },
 ];

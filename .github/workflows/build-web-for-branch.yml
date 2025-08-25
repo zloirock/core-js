@@ -1,0 +1,53 @@
+name: Build web pages for branch
+
+on:
+  push:
+    branches:
+      - web-3-not-exists
+  workflow_dispatch:
+
+jobs:
+  run-on-server:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.extract_branch.outputs.branch }}
+
+      - name: Copy runner file to remote server
+        uses: garygrossgarten/github-action-scp@0.9.0
+        with:
+          local: website/scripts/runner.mjs
+          remote: /var/www/core-js/runner.mjs
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ci
+          privateKey: ${{ secrets.CI_SSH_KEY }}
+
+      - name: Copy runner wrapper file to remote server
+        uses: garygrossgarten/github-action-scp@0.9.0
+        with:
+          local: website/scripts/runner.sh
+          remote: /var/www/core-js/runner.sh
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ci
+          privateKey: ${{ secrets.CI_SSH_KEY }}
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.CI_SSH_KEY }}
+
+      - name: Make runner.sh executable on remote
+        run: |
+          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "chmod +x /var/www/core-js/runner.sh"
+
+      - name: Run node runner.mjs on remote server
+        run: |
+          ssh -o StrictHostKeyChecking=no ci@${{ secrets.REMOTE_HOST }} "cd /var/www/core-js/ && ./runner.sh ${{ steps.extract_branch.outputs.branch }}"

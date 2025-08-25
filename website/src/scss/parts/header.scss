@@ -1,0 +1,271 @@
+@use "../includes/mixins" as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+
+header {
+    display: flex;
+    justify-content: center;
+    height: 87px;
+
+    @include themify($themes) {
+        background-color: themed('background-color');
+    }
+
+    @include media("min", "xl") {
+        padding: 0 1rem;
+    }
+}
+nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding: 0.5rem 1rem;
+
+    @include wrapper;
+
+    .logo {
+        max-width: 60%;
+
+        @include media('min', 'sm') {
+            width: 300px;
+            max-width: unset;
+        }
+
+        a {
+            display: flex;
+
+            img {
+                width: 100%;
+                height: auto;
+            }
+        }
+    }
+
+    .menu {
+        display: flex;
+        align-items: center;
+
+        .menu-items {
+            display: none;
+
+            @include media("min", "lg") {
+                display: flex;
+                align-items: center;
+            }
+
+            .menu-item {
+                padding-right: 1rem;
+
+                &:last-child {
+                    padding-right: 0;
+                }
+
+                .theme-switcher {
+                    display: flex;
+                    align-items: center;
+                }
+
+                .theme-switcher-title {
+                    margin-right: 0.5rem;
+
+                    @include media("min", "lg") {
+                        display: none;
+                    }
+                }
+            }
+
+            a {
+                font-size: 1.25rem;
+                display: block;
+                overflow-wrap: break-word;
+                @include themify($themes) {
+                    color: themed('link-color');
+                }
+
+                &.active {
+                    @include themify($themes) {
+                        color: themed('link-color-hover');
+                    }
+                }
+            }
+
+            .mobile-docs-menu {
+                display: none;
+            }
+        }
+
+        &.active {
+            align-items: center;
+            overflow-y: auto;
+
+            & > .backdrop {
+                display: block;
+            }
+
+            @include media("max", "lg") {
+                .menu-items {
+                    z-index: 5;
+                    display: flex;
+                    flex-direction: column;
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    min-height: 40vh;
+                    width: 75%;
+                    max-height: 100vh;
+                    max-width: 350px;
+
+                    overflow-y: auto;
+                    scrollbar-width: thin;
+                    @include themify($themes) {
+                        scrollbar-color: themed('background-light') themed('background-highlight');
+                    }
+
+                    border-top-left-radius: 20px;
+                    border-bottom-left-radius: 20px;
+
+                    padding: 50px 20px 30px 30px;
+
+                    @include themify($themes) {
+                        background-color: themed('box-color');
+                        box-shadow: -1px 1px 5px themed('background-light');
+                    }
+
+                    .mobile-docs-menu {
+                        display: block;
+
+                        ul {
+                            list-style: circle;
+                        }
+
+                        .menu-header {
+                            font-size: 1.25rem;
+                        }
+                    }
+                }
+
+                .menu-item {
+                    line-height: 2rem;
+
+                    a::after {
+                        top: 0.75rem;
+                    }
+                }
+
+                .burger {
+                    position: absolute;
+                    top: 25px;
+                    right: 15px;
+                    z-index: 3;
+
+                    a {
+                        display: block;
+                        -webkit-tap-highlight-color: transparent;
+                        -webkit-touch-callout: none;
+
+                        span {
+                            height: 1px;
+                            @include themify($themes) {
+                                background-color: themed('font-color');
+                            }
+
+                            &:nth-child(1) {
+                                margin-top: 11px;
+                                transform: rotate(-45deg);
+                            }
+
+                            &:nth-child(2) {
+                                margin-top: -1px;
+                                transform: rotate(45deg);
+                            }
+
+                            &:nth-child(3) {
+                                display: none;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        .burger {
+            @include media("min", "lg") {
+                display: none;
+            }
+
+            a {
+                display: flex;
+                width: 26px;
+                height: 22px;
+                padding: 5px;
+                flex-direction: column;
+                justify-content: space-between;
+
+                span {
+                    display: block;
+                    width: 100%;
+                    height: 2px;
+                    border-radius: 2px;
+                    @include themify($themes) {
+                        background-color: themed('link-color');
+                    }
+                }
+            }
+        }
+
+        .backdrop {
+            display: none;
+
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100vh;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 4;
+        }
+
+        .socials {
+            display: flex;
+            align-items: center;
+            margin-right: 1rem;
+
+            @include media("max", "lg") {
+                width: 100%;
+                justify-content: center;
+                margin: 30px 0 0;
+                order: 99;
+            }
+
+            @include media("min", "lg") {
+                padding: 0 1rem;
+                @include themify($themes) {
+                    border-left: 1px solid themed('link-color');
+                    border-right: 1px solid themed('link-color');
+                }
+            }
+        }
+    }
+}
+
+.theme-light {
+    .icon.light {
+        display: none;
+    }
+    .icon.dark {
+        display: block;
+    }
+}
+
+.theme-dark {
+    .icon.light {
+        display: block;
+    }
+    .icon.dark {
+        display: none;
+    }
+}

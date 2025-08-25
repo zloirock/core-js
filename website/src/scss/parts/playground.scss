@@ -1,0 +1,158 @@
+@use "../includes/mixins" as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+
+.sandbox-wrapper {
+  margin: 2rem 0;
+
+  @include media("min", "lg") {
+    display: flex;
+  }
+
+  .editor {
+    position: relative;
+    flex-basis: 800px;
+    flex-grow: 1;
+
+    height: 30rem;
+    padding: 0;
+    border: none;
+    @include media("min", "lg") {
+      margin-right: 1rem;
+    }
+
+    .input, .output {
+      box-sizing: border-box;
+      position: absolute;
+      height: 100%;
+      width: 100%;
+
+      font-family: monospace;
+      padding: 0.5em;
+      border: none;
+      font-size: 0.85rem;
+      line-height: 1.375rem;
+      white-space: pre;
+      word-wrap: break-word;
+      overflow: auto;
+
+      scrollbar-width: thin;
+      @include themify($themes) {
+        scrollbar-color: themed('background-light') themed('background-highlight');
+      }
+    }
+
+    .input {
+      z-index: 1;
+      color: transparent;
+      background-color: transparent;
+      resize: none;
+      @include themify($themes) {
+        caret-color: themed('font-color');
+      }
+    }
+
+    .output {
+      z-index: 0;
+      padding-bottom: 7px;
+      @include themify($themes) {
+        background-color: themed('box-color');
+      }
+    }
+
+    .controls-float {
+      position: sticky;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      top: 0.25rem;
+      right: 0.25rem;
+      padding-right: 0.25rem;
+      padding-top: 0.25rem;
+      z-index: 3;
+
+      @include media("min", "lg") {
+        display: none;
+      }
+
+      a {
+        display: block;
+        width: 24px;
+        height: 24px;
+
+        &.link-button {
+          width: 22px;
+          height: 22px;
+        }
+      }
+    }
+  }
+
+  .result {
+    margin-top: 2rem;
+    padding: 0.5em;
+
+    font-family: monospace;
+    font-size: 0.85rem;
+    line-height: 1.375rem;
+    white-space: pre;
+    word-wrap: break-word;
+
+    scrollbar-width: thin;
+    @include themify($themes) {
+      background-color: themed('box-color');
+      scrollbar-color: themed('background-light') themed('background-highlight');
+    }
+
+    @include media("min", "lg") {
+      flex-basis: 400px;
+      flex-shrink: 0;
+      margin-top: 0;
+      overflow: auto;
+      height: 30rem;
+    }
+
+    .console {
+      &.log {
+        @include themify($themes) {
+          color: themed('font-success');
+        }
+      }
+
+      &.warn {
+        @include themify($themes) {
+          color: themed('font-warning');
+        }
+      }
+
+      &.error {
+        @include themify($themes) {
+          color: themed('font-error');
+        }
+      }
+    }
+  }
+}
+
+.controls-static {
+  display: none;
+
+  @include media("min", "lg") {
+    display: block;
+  }
+}
+
+.playground-versions {
+  @include media("min", "md") {
+    max-width: 200px;
+  }
+
+  .dropdown .dropdown-wrapper > a:after {
+    top: 8px;
+  }
+
+  .backdrop {
+    z-index: 3;
+  }
+}
