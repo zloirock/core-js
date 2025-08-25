@@ -1,0 +1,110 @@
+@use "../includes/mixins" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+@use "../includes/themed" as *;
+
+.markdown-alert {
+  padding-left: 1rem;
+  margin-bottom: 1rem;
+
+  &.markdown-alert-note {
+    @include themify($themes) {
+      border-left: 1px solid themed('neutral');
+    }
+
+    .markdown-alert-title {
+      @include themify($themes) {
+        color: themed('neutral');
+      }
+    }
+
+    svg {
+      @include themify($themes) {
+        fill: themed('neutral');
+      }
+    }
+  }
+
+  &.markdown-alert-tip {
+    @include themify($themes) {
+      border-left: 1px solid themed('success');
+    }
+
+    .markdown-alert-title {
+      @include themify($themes) {
+        color: themed('success');
+      }
+    }
+
+    svg {
+      @include themify($themes) {
+        fill: themed('success');
+      }
+    }
+  }
+
+  &.markdown-alert-important {
+    @include themify($themes) {
+      border-left: 1px solid themed('success');
+    }
+
+    .markdown-alert-title {
+      @include themify($themes) {
+        color: themed('success');
+      }
+    }
+
+    svg {
+      @include themify($themes) {
+        fill: themed('success');
+      }
+    }
+  }
+
+  &.markdown-alert-warning {
+    @include themify($themes) {
+      border-left: 1px solid themed('warning');
+    }
+
+    .markdown-alert-title {
+      @include themify($themes) {
+        color: themed('warning');
+      }
+    }
+
+    svg {
+      @include themify($themes) {
+        fill: themed('warning');
+      }
+    }
+  }
+
+  &.markdown-alert-caution {
+    @include themify($themes) {
+      border-left: 1px solid themed('warning');
+    }
+
+    .markdown-alert-title {
+      @include themify($themes) {
+        color: themed('warning');
+      }
+    }
+
+    svg {
+      @include themify($themes) {
+        fill: themed('warning');
+      }
+    }
+  }
+
+  .markdown-alert-title {
+    font-weight: 700;
+    vertical-align: middle;
+
+    svg {
+      width: 16px;
+      height: 16px;
+      padding-right: 0.5rem;
+    }
+  }
+}

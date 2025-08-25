@@ -1,0 +1,428 @@
+@use "../includes/mixins" as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+
+.collapsible {
+  a {
+    position: relative;
+  }
+
+  & > ul {
+    display: none;
+  }
+
+  &.active {
+    & > a::after {
+      transform: rotate(-135deg);
+      top: 0.625rem;
+    }
+
+    & > ul {
+      display: block;
+    }
+  }
+
+  & > a::after {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    transform: rotate(45deg);
+    content: '';
+    margin-left: 0.5rem;
+    top: 0.375rem;
+
+    @include themify($themes) {
+      border-right: 1px solid themed('link-color');
+      border-bottom: 1px solid themed('link-color');
+    }
+  }
+}
+
+main {
+  display: flex;
+  justify-content: center;
+  flex-grow: 1;
+  margin: 2rem 0;
+
+  @include media('min', 'sm') {
+    padding: 1rem;
+  }
+
+  a {
+    @include themify($themes) {
+      color: themed('link-color2');
+    }
+
+    &:hover, &:focus {
+      @include themify($themes) {
+        color: themed('link-color2-hover');
+      }
+    }
+  }
+
+  .main {
+    padding: 1rem 1rem;
+    @include themify($themes) {
+      background-color: themed('background-light');
+    }
+
+    @include wrapper;
+
+    .wrapper {
+      display: flex;
+
+      .docs-menu {
+        position: sticky;
+        top: 1rem;
+        align-self: flex-start;
+
+        padding: 0 0.5rem 1rem 0;
+
+        font-size: 0.875rem;
+        flex-basis: 20%;
+        flex-shrink: 0;
+        line-height: 1.3;
+
+
+        height: calc(100vh - 170px);
+        overflow-y: auto;
+        scrollbar-width: none;
+        @include themify($themes) {
+          border-right: 1px solid themed('border-color-lighter');
+        }
+
+        &.stuck {
+          height: calc(100vh - 2rem);
+        }
+
+        @include media('max', 'lg') {
+          display: none;
+        }
+
+        a {
+          &.active {
+            @include themify($themes) {
+              color: themed('link-color2-hover');
+            }
+          }
+        }
+
+        .collapsible {
+          & > ul {
+            padding: 0.75rem 0 0 1rem;
+          }
+
+          &.active {
+            & > a::after {
+              top: 0.5rem;
+            }
+          }
+
+          & > a::after {
+            top: 0.125rem;
+          }
+        }
+
+        ul {
+          list-style: none;
+          padding: 0;
+
+          li {
+            padding: 0.25rem 0 0.5rem 0;
+
+            &:last-child {
+              padding-bottom: 0;
+            }
+          }
+        }
+
+        .menu-header {
+          padding: 0 0 0.75rem 0;
+          font-weight: 600;
+        }
+
+        .menu-item {
+          padding: 0 0.5rem 0.5rem 0.5rem;
+          @include themify($themes) {
+            border-right: 1px solid themed('border-color-lighter');
+          }
+        }
+      }
+
+      .content {
+        width: 100%;
+        padding: 0 1rem;
+        min-width: 0;
+        text-align: justify;
+      }
+
+      .table-of-contents {
+        position: sticky;
+        top: 1rem;
+        align-self: flex-start;
+        font-size: 0.875rem;
+        max-width: 20%;
+        min-width: 20%;
+        height: calc(100vh - 150px);
+        overflow-y: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+
+        &.stuck {
+          height: calc(100vh - 2rem);
+        }
+
+        .mobile-trigger {
+          display: none;
+        }
+
+        @include media('max', 'xl') {
+          position: fixed;
+          right: 1rem;
+          bottom: 0;
+          top: auto;
+          min-width: 1.75rem;
+          z-index: 3;
+          @include themify($themes) {
+            background-color: themed('background-light');
+            box-shadow: -5px 5px 7px -6px themed('background-highlight');
+          }
+
+          .mobile-trigger {
+            position: absolute;
+            display: flex;
+            top: 0;
+            bottom: 0;
+            width: 1.75rem;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+
+            &:after {
+              content: '';
+              display: block;
+              transform: rotate(135deg);
+              width: 10px;
+              height: 10px;
+              margin-left: 5px;
+              @include themify($themes) {
+                border-right: 2px solid themed('link-color');
+                border-bottom: 2px solid themed('link-color');
+              }
+            }
+            &:hover {
+              &:after {
+                @include themify($themes) {
+                  border-right: 2px solid themed('link-color-hover');
+                  border-bottom: 2px solid themed('link-color-hover');
+                }
+              }
+            }
+          }
+
+          &.active {
+            min-width: 180px;
+
+            .toc-link {
+              display: block;
+              padding-left: 2rem;
+            }
+
+            .mobile-trigger {
+              &:after {
+                transform: rotate(-45deg);
+                margin-left: -2px;
+              }
+            }
+          }
+
+          &.stuck {
+            height: calc(100vh);
+            padding-top: 1rem;
+          }
+        }
+
+        @include media('max', 'sm') {
+          right: 0;
+        }
+
+        .toc-link {
+          padding: 0 0 0.5rem 1rem;
+          @include themify($themes) {
+            border-left: 1px solid themed('border-color-lighter');
+          }
+
+          @include media('max', 'xl') {
+            display: none;
+            @include themify($themes) {
+              border-left: none;
+            }
+          }
+
+          a {
+            display: block;
+          }
+
+          .h3 {
+            margin-left: 0.5rem;
+          }
+          .h4, .h5, .h6, .h7 {
+            margin-left: 1rem;
+          }
+        }
+      }
+    }
+
+    .sponsors {
+      display: flex;
+      flex-wrap: wrap;
+
+      a {
+        flex-basis: 33%;
+
+        @include media("min", "md") {
+          flex-basis: 25%;
+        }
+      }
+    }
+
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      align-content: stretch;
+      align-items: stretch;
+      justify-content: center;
+      margin: 1rem 0;
+      text-align: start;
+      gap: 2rem;
+
+      .feature {
+        flex-basis: 100%;
+        padding: 1rem;
+        border-radius: 1rem;
+        max-width: 400px;
+
+        @include themify($themes) {
+          background-color: themed('box-color');
+          border: 1px solid themed('box-light');
+        }
+
+        @include media("min", "md") {
+          flex-basis: 48%;
+        }
+
+        @include media("min", "lg") {
+          flex-basis: 31%;
+        }
+
+        @include media("min", "xxl") {
+          flex-basis: 23%;
+        }
+
+        .title {
+          font-size: 1.5rem;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+
+          svg {
+            @include themify($themes) {
+              color: themed('font-success');
+            }
+          }
+        }
+
+        .desc {
+
+        }
+      }
+    }
+  }
+}
+.dropdown {
+  a {
+    white-space: nowrap;
+  }
+
+  .dropdown-wrapper {
+    position: relative;
+
+    & > a {
+      display: block;
+      width: 100%;
+
+      &::after {
+        content: '';
+
+        width: 5px;
+        height: 5px;
+
+        transform: rotate(45deg);
+
+        position: absolute;
+        right: 5px;
+        top: 3px;
+        @include themify($themes) {
+          border-right: 2px solid themed('link-color');
+          border-bottom: 2px solid themed('link-color');
+        }
+      }
+    }
+
+    .dropdown-block {
+      display: none;
+
+      a {
+        display: block;
+        line-height: 2;
+      }
+    }
+  }
+
+  &.active {
+    .dropdown-block {
+      display: block;
+      position: absolute;
+      z-index: 6;
+      left: -1rem;
+      margin-top: 0.625rem;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      @include themify($themes) {
+        border: 1px solid themed('border-color-lighter');
+        background-color: themed('background-color');
+      }
+
+      a.active {
+        font-weight: 500;
+        @include themify($themes) {
+          color: themed('link-color-hover');
+        }
+      }
+    }
+
+    .backdrop {
+      display: block;
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+    }
+  }
+
+  @include media("max", "lg") {
+    .backdrop {
+      height: 100%;
+    }
+  }
+}
+.versions-menu {
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  @include themify($themes) {
+    border: 1px solid themed('border-color-lighter');
+    background-color: themed('background-light');
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "web-site",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@vitejs/plugin-legacy": "^7.1.0",
+    "front-matter": "^4.0.2",
+    "highlight.js": "^11.11.1",
+    "jsdom": "^26.1.0",
+    "marked": "^15.0.12",
+    "marked-alert": "^2.1.2",
+    "marked-gfm-heading-id": "^4.1.1",
+    "sass": "^1.89.1",
+    "vite": "^7.0.0"
+  }
+}

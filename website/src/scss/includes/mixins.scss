@@ -1,0 +1,49 @@
+$sizes: (
+  "xs": 0px,
+  "sm": 480px,
+  "md": 767px,
+  "lg": 1024px,
+  "xl": 1439px,
+  "xxl": 1920px,
+);
+
+@function getPreviousSize($currentSize) {
+  $keys: map-keys($sizes);
+  $index: index($keys, $currentSize) - 1;
+  $value: map-values($sizes);
+  @return nth($value, $index);
+}
+
+@mixin media($minmax, $media) {
+  @each $size, $resolution in $sizes {
+    @if $media == $size {
+      @if ($minmax == "max") {
+        @media only screen and (#{$minmax}-width: $resolution) {
+          @content;
+        }
+      } @else if ($minmax == "min") {
+        @media only screen and (#{$minmax}-width: $resolution + 1) {
+          @content;
+        }
+      } @else {
+        @if (index(map-keys($sizes), $media) > 1) {
+          @media only screen and (min-width: getPreviousSize($media) + 1) and (max-width: $resolution + 1) {
+            @content;
+          }
+        } @else {
+          @media only screen and (max-width: $resolution) {
+            @content;
+          }
+        }
+      }
+    }
+  }
+}
+
+@mixin wrapper() {
+  width: 100%;
+
+  @include media('min', 'xl') {
+    max-width: 90%;
+  }
+}
