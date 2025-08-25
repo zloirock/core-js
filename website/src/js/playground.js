@@ -216,7 +216,7 @@ function init() {
       resultBlock.innerHTML = '';
       runCode(codeInput.value);
       if (!elementInViewport(resultBlock)) {
-        scrollTo({
+        globalThis.scrollTo({
           top: resultBlock.getBoundingClientRect().top,
           behavior: 'smooth',
         });
