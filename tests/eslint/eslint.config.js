@@ -2102,6 +2102,8 @@ const packageJSON = {
   'package-json/valid-dependencies': ERROR,
   // enforce that the `description` property is valid
   'package-json/valid-description': ERROR,
+  // enforce that the `directories` property is valid
+  'package-json/valid-directories': ERROR,
   // enforce that the `exports` property is valid
   'package-json/valid-exports': ERROR,
   // enforce that the `license` property is valid
