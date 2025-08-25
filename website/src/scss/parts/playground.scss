@@ -60,6 +60,33 @@
         background-color: themed('box-color');
       }
     }
+
+    .controls-float {
+      position: sticky;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      top: 0.25rem;
+      right: 0.25rem;
+      padding-right: 0.25rem;
+      padding-top: 0.25rem;
+      z-index: 3;
+
+      @include media("min", "lg") {
+        display: none;
+      }
+
+      a {
+        display: block;
+        width: 24px;
+        height: 24px;
+
+        &.link-button {
+          width: 22px;
+          height: 22px;
+        }
+      }
+    }
   }
 
   .result {
@@ -107,6 +134,15 @@
     }
   }
 }
+
+.controls-static {
+  display: none;
+
+  @include media("min", "lg") {
+    display: block;
+  }
+}
+
 .playground-versions {
   @include media("min", "md") {
     max-width: 200px;

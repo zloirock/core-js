@@ -23,8 +23,8 @@ function init() {
 
   const codeInput = document.querySelector('#code-input');
   const codeOutput = document.querySelector('#code-output');
-  const runButton = document.querySelector('.run-button');
-  const linkButton = document.querySelector('.link-button');
+  const runButtons = document.querySelectorAll('.run-button');
+  const linkButtons = document.querySelectorAll('.link-button');
   const resultBlock = document.querySelector('.result');
 
   if (!codeInput) return;
@@ -199,14 +199,20 @@ function init() {
     codeOutput.scrollLeft = codeInput.scrollLeft;
   });
 
-  runButton.addEventListener('click', () => {
-    resultBlock.innerHTML = '';
-    runCode(codeInput.value);
+  runButtons.forEach(runButton => {
+    runButton.addEventListener('click', e => {
+      e.preventDefault();
+      resultBlock.innerHTML = '';
+      runCode(codeInput.value);
+    });
   });
 
-  linkButton.addEventListener('click', () => {
-    pageParams.set('code', codeInput.value);
-    globalThis.location.hash = pageParams.toString();
+  linkButtons.forEach(linkButton => {
+    linkButton.addEventListener('click', e => {
+      e.preventDefault();
+      pageParams.set('code', codeInput.value);
+      globalThis.location.hash = pageParams.toString();
+    });
   });
 
   setInterval(() => {
