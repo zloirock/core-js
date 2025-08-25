@@ -88,8 +88,13 @@ async function buildDocsMenuForVersion(version) {
 }
 
 async function buildPlaygroundMenuForVersion(versions, currentVersion) {
+  let defaultVersionTag = `<a href="./playground">${ DEFAULT_VERSION } (default)</a>`;
+  if (currentVersion === '') {
+    currentVersion = `${ DEFAULT_VERSION } (default)`;
+    defaultVersionTag = `<a href="./playground" class="active">${ DEFAULT_VERSION } (default)</a>`;
+  }
   let versionsMenuHtml = `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${
-    currentVersion }</a><div class="dropdown-block"><a href="./playground">${ DEFAULT_VERSION } (default)</a>`;
+    currentVersion }</a><div class="dropdown-block">${ defaultVersionTag }`;
   if (versions.length >= 1) {
     for (const v of versions) {
       const activityClass = v === currentVersion ? ' class="active"' : '';
@@ -268,13 +273,15 @@ async function buildPlayground(template, version, versions) {
   playground = playground.replace('{base}', `${ BASE }`);
   playground = playground.replace('{core-js-bundle}', `${ bundleScript }`);
   playground = playground.replace('{core-js-bundle-esmodules}', `${ bundleESModulesScript }`);
-  playground = playground.replace('{versions-menu}', `${ versionsMenu }`);
+  const playgroundWithVersion = playground.replace('{versions-menu}', `${ versionsMenu }`);
   const playgroundFilePath = path.join(RESULT_DIR, version, 'playground.html');
   await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
-  await fs.writeFile(playgroundFilePath, playground, 'utf8');
+  await fs.writeFile(playgroundFilePath, playgroundWithVersion, 'utf8');
   if (version === DEFAULT_VERSION) {
+    const defaultVersionsMenu = await buildPlaygroundMenuForVersion(versions, '');
+    const defaultVersionPlayground = playground.replace('{versions-menu}', `${ defaultVersionsMenu }`);
     const defaultPlaygroundPath = path.join(RESULT_DIR, 'playground.html');
-    await fs.writeFile(defaultPlaygroundPath, playground, 'utf8');
+    await fs.writeFile(defaultPlaygroundPath, defaultVersionPlayground, 'utf8');
     echo(chalk.green(`File created: ${ defaultPlaygroundPath }`));
   }
 
