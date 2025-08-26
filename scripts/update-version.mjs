@@ -59,7 +59,7 @@ if (NEW_VERSION !== PREV_VERSION) {
   const CURRENT_DATE = `${ CURRENT_YEAR }.${ String(NOW.getMonth() + 1).padStart(2, '0') }.${ String(NOW.getDate()).padStart(2, '0') }`;
   const NUMBER_OF_COMMITS = Number(await $`git rev-list "v${ PREV_VERSION }"..HEAD --count`) + 1;
   const changelog = await readFile(CHANGELOG, 'utf8');
-  await writeFile(CHANGELOG, changelog.replaceAll('##### Unreleased', `##### Unreleased\n- Nothing\n\n##### [${
+  await writeFile(CHANGELOG, changelog.replaceAll('### Unreleased', `### Unreleased\n- Nothing\n\n### [${
     NEW_VERSION
   } - ${
     CURRENT_DATE
