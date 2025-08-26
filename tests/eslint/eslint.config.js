@@ -1677,9 +1677,16 @@ const forbidES2026BuiltIns = {
   'es/no-array-fromasync': ERROR,
   'es/no-asyncdisposablestack': ERROR,
   'es/no-error-iserror': ERROR,
+  'es/no-math-sumprecise': ERROR,
   'es/no-suppressederror': ERROR,
   'es/no-symbol-asyncdispose': ERROR,
   'es/no-symbol-dispose': ERROR,
+  'es/no-uint8array-frombase64': ERROR,
+  'es/no-uint8array-fromhex': ERROR,
+  'es/no-uint8array-prototype-setfrombase64': ERROR,
+  'es/no-uint8array-prototype-setfromhex': ERROR,
+  'es/no-uint8array-prototype-tobase64': ERROR,
+  'es/no-uint8array-prototype-tohex': ERROR,
   // enforce the use of `Math.sumPrecise` instead of other summation methods
   'math/prefer-math-sum-precise': OFF,
 };
