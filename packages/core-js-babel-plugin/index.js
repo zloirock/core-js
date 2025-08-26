@@ -33,7 +33,7 @@ function resolveHint(desc, meta) {
     if (hint === $hint) return desc[hint];
     required = false;
   }
-  if (required) return desc.common;
+  return required ? desc.common : null;
 }
 
 module.exports = defineProvider(({
@@ -41,6 +41,7 @@ module.exports = defineProvider(({
   debug,
   method,
   targets,
+  babel: { types: t },
 }, {
   pkg,
   pkgs,
@@ -88,6 +89,17 @@ module.exports = defineProvider(({
     }
   }
 
+  function filter(name, args, path) {
+    const { node, parent } = path;
+    // eslint-disable-next-line sonarjs/no-small-switch -- tba
+    switch (name) {
+      case 'min-args':
+        if (!t.isCallExpression(parent, { callee: node }) && !t.isNewExpression(parent, { callee: node })) return false;
+        if (parent.arguments.length >= args[0]) return false;
+        return parent.arguments.every(arg => !t.isSpreadElement(arg));
+    }
+  }
+
   return {
     name: 'core-js@4',
     polyfills: modulesListForTargetVersion,
@@ -97,15 +109,17 @@ module.exports = defineProvider(({
       injectCoreJSModulesForEntry(entry, utils);
       path.remove();
     },
-    usageGlobal(meta, utils) {
+    usageGlobal(meta, utils, path) {
       const resolved = resolve(meta);
       if (!resolved) return;
       let { kind, desc: { global: desc } } = resolved;
       if (kind === 'instance') {
         desc = resolveHint(desc, meta);
-        if (!desc) return true;
+        if (desc === null) return true;
       }
-      for (const entry of desc.dependencies) {
+      const { dependencies, filters } = desc;
+      if (filters?.some(([name, ...args]) => filter(name, args, path))) return true;
+      for (const entry of dependencies) {
         injectCoreJSModulesForEntry(`${ mode }/${ entry }`, utils);
       }
       return true;

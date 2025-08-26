@@ -1,8 +1,11 @@
-const ErrorConstructorDependencies = { global: 'error/constructor' };
+const ErrorConstructor = { global: {
+  dependencies: 'error/constructor',
+  filters: [['min-args', 2]],
+} };
 
-const ErrorStaticDependencies = { isError: 'error/is-error' };
+const ErrorStatic = { isError: 'error/is-error' };
 
-const TypedArrayStaticMethods = {
+const TypedArrayStatic = {
   from: { global: 'typed-array/from' },
   of: { global: 'typed-array/of' },
 };
@@ -15,8 +18,8 @@ export const Globals = {
   DataView: { global: 'data-view/constructor' },
   DOMException: { global: 'dom-exception/constructor' },
   DisposableStack: 'disposable-stack/constructor',
-  Error: ErrorConstructorDependencies,
-  EvalError: ErrorConstructorDependencies,
+  Error: ErrorConstructor,
+  EvalError: ErrorConstructor,
   Float32Array: 'typed-array/float32-array',
   Float64Array: 'typed-array/float64-array',
   Int8Array: 'typed-array/int8-array',
@@ -30,16 +33,16 @@ export const Globals = {
   Map: 'map/constructor',
   Number: { global: 'number/constructor' },
   Promise: 'promise/constructor',
-  RangeError: ErrorConstructorDependencies,
-  ReferenceError: ErrorConstructorDependencies,
+  RangeError: ErrorConstructor,
+  ReferenceError: ErrorConstructor,
   Reflect: undefined,
   RegExp: { global: 'regexp/constructor' },
   Set: 'set/constructor',
   SuppressedError: 'suppressed-error/constructor',
   Symbol: 'symbol/constructor',
-  SyntaxError: ErrorConstructorDependencies,
-  TypeError: ErrorConstructorDependencies,
-  URIError: ErrorConstructorDependencies,
+  SyntaxError: ErrorConstructor,
+  TypeError: ErrorConstructor,
+  URIError: ErrorConstructor,
   URL: 'url/constructor',
   URLSearchParams: 'url-search-params/constructor',
   WeakMap: 'weak-map/constructor',
@@ -70,8 +73,8 @@ export const StaticProperties = {
   ArrayBuffer: {
     isView: { global: 'array-buffer/is-view' },
   },
-  Error: ErrorStaticDependencies,
-  EvalError: ErrorStaticDependencies,
+  Error: ErrorStatic,
+  EvalError: ErrorStatic,
   Iterator: {
     concat: 'iterator/concat',
     from: 'iterator/from',
@@ -155,8 +158,8 @@ export const StaticProperties = {
     try: 'promise/try',
     withResolvers: 'promise/with-resolvers',
   },
-  RangeError: ErrorStaticDependencies,
-  ReferenceError: ErrorStaticDependencies,
+  RangeError: ErrorStatic,
+  ReferenceError: ErrorStatic,
   Reflect: {
     apply: 'reflect/apply',
     construct: 'reflect/construct',
@@ -208,9 +211,9 @@ export const StaticProperties = {
     toStringTag: 'symbol/to-string-tag',
     unscopables: 'symbol/unscopables',
   },
-  SyntaxError: ErrorStaticDependencies,
-  TypeError: ErrorStaticDependencies,
-  URIError: ErrorStaticDependencies,
+  SyntaxError: ErrorStatic,
+  TypeError: ErrorStatic,
+  URIError: ErrorStatic,
   URL: {
     canParse: 'url/can-parse',
     parse: 'url/parse',
@@ -223,23 +226,23 @@ export const StaticProperties = {
     from: 'weak-set/from',
     of: 'weak-set/of',
   },
-  Float32Array: TypedArrayStaticMethods,
-  Float64Array: TypedArrayStaticMethods,
-  Int8Array: TypedArrayStaticMethods,
-  Int16Array: TypedArrayStaticMethods,
-  Int32Array: TypedArrayStaticMethods,
+  Float32Array: TypedArrayStatic,
+  Float64Array: TypedArrayStatic,
+  Int8Array: TypedArrayStatic,
+  Int16Array: TypedArrayStatic,
+  Int32Array: TypedArrayStatic,
   Uint8Array: {
-    ...TypedArrayStaticMethods,
+    ...TypedArrayStatic,
     fromBase64: 'typed-array/from-base64',
     fromHex: 'typed-array/from-hex',
   },
-  Uint8ClampedArray: TypedArrayStaticMethods,
-  Uint16Array: TypedArrayStaticMethods,
-  Uint32Array: TypedArrayStaticMethods,
+  Uint8ClampedArray: TypedArrayStatic,
+  Uint16Array: TypedArrayStatic,
+  Uint32Array: TypedArrayStatic,
   WebAssembly: {
-    CompileError: ErrorConstructorDependencies,
-    LinkError: ErrorConstructorDependencies,
-    RuntimeError: ErrorConstructorDependencies,
+    CompileError: ErrorConstructor,
+    LinkError: ErrorConstructor,
+    RuntimeError: ErrorConstructor,
   },
 };
 
