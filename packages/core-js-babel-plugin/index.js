@@ -89,14 +89,27 @@ module.exports = defineProvider(({
     }
   }
 
+  function isCallOrNew(node, callee) {
+    return t.isCallExpression(node, { callee }) || t.isNewExpression(node, { callee });
+  }
+
   function filter(name, args, path) {
     const { node, parent } = path;
-    // eslint-disable-next-line sonarjs/no-small-switch -- tba
     switch (name) {
-      case 'min-args':
-        if (!t.isCallExpression(parent, { callee: node }) && !t.isNewExpression(parent, { callee: node })) return false;
-        if (parent.arguments.length >= args[0]) return false;
+      case 'min-args': {
+        if (!isCallOrNew(parent, node)) return false;
+        const [index] = args;
+        if (parent.arguments.length >= index) return false;
         return parent.arguments.every(arg => !t.isSpreadElement(arg));
+      }
+      case 'arg-is-string': {
+        if (!isCallOrNew(parent, node)) return false;
+        const [index] = args;
+        if (parent.arguments.length < index + 1) return false;
+        if (parent.arguments.slice(0, index + 1).some(arg => t.isSpreadElement(arg))) return false;
+        const arg = parent.arguments[index];
+        return t.isStringLiteral(arg) || t.isTemplateLiteral(arg);
+      }
     }
   }
 
