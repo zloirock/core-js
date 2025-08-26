@@ -93,6 +93,19 @@ module.exports = defineProvider(({
     return t.isCallExpression(node, { callee }) || t.isNewExpression(node, { callee });
   }
 
+  function isStringLiteral(arg) {
+    return t.isStringLiteral(arg) || t.isTemplateLiteral(arg);
+  }
+
+  function isNonPrimitiveLiteral(arg) {
+    return t.isObjectExpression(arg) ||
+      t.isArrayExpression(arg) ||
+      t.isFunctionExpression(arg) ||
+      t.isArrowFunctionExpression(arg) ||
+      t.isClassExpression(arg) ||
+      t.isRegExpLiteral(arg);
+  }
+
   function filter(name, args, path) {
     const { node, parent } = path;
     switch (name) {
@@ -107,8 +120,14 @@ module.exports = defineProvider(({
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
         if (parent.arguments.slice(0, index + 1).some(arg => t.isSpreadElement(arg))) return false;
-        const arg = parent.arguments[index];
-        return t.isStringLiteral(arg) || t.isTemplateLiteral(arg);
+        return isStringLiteral(parent.arguments[index]);
+      }
+      case 'arg-is-object': {
+        if (!isCallOrNew(parent, node)) return false;
+        const [index] = args;
+        if (parent.arguments.length < index + 1) return false;
+        if (parent.arguments.slice(0, index + 1).some(arg => t.isSpreadElement(arg))) return false;
+        return isNonPrimitiveLiteral(parent.arguments[index]);
       }
     }
   }
