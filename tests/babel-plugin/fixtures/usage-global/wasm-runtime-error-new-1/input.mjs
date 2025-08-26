@@ -1,0 +1,1 @@
+new WebAssembly.RuntimeError(msg);
