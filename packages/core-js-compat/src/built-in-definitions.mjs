@@ -84,7 +84,7 @@ export const StaticProperties = {
   },
   JSON: {
     isRawJSON: 'json/is-raw-json',
-    parse: 'json/parse',
+    parse: { dependencies: 'json/parse', filters: [['min-args', 2]] },
     rawJSON: 'json/raw-json',
     stringify: 'json/stringify',
   },
