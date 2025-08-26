@@ -312,7 +312,10 @@ export const InstanceProperties = {
   some: { global: 'iterator/some' },
   sort: 'instance/sort',
   splice: 'instance/splice',
-  split: undefined,
+  split: { global: {
+    common: { dependencies: 'string/split', filters: [['arg-is-string', 0]] },
+    string: { dependencies: 'string/split', filters: [['arg-is-string', 0]] },
+  } },
   startsWith: 'instance/starts-with',
   sticky: { global: 'regexp/sticky' },
   strike: { global: 'string/strike' },
