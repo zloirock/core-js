@@ -889,7 +889,7 @@ export const features = {
     template: $path,
   },
   'error/constructor': {
-    modules: [/^(?:es|esnext)\.error\./],
+    modules: ['es.error.cause'],
     template: $path, // !!!!!!!
   },
   'error/is-error': {
