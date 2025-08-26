@@ -857,7 +857,6 @@ GLOBAL.tests = {
     return Array.prototype[Symbol.unscopables].flatMap;
   },
   'es.array.unshift': function () {
-    if ([].unshift(0) !== 1) return false;
     try {
       Object.defineProperty([], 'length', { writable: false }).unshift();
     } catch (error) {
