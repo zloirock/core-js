@@ -26,6 +26,8 @@ function init() {
   const runButtons = document.querySelectorAll('.run-button');
   const linkButtons = document.querySelectorAll('.link-button');
   const resultBlock = document.querySelector('.result');
+  const backLinkBlock = document.querySelector('.back-link');
+  const backLink = document.querySelector('.back-link a');
 
   if (!codeInput) return;
 
@@ -254,6 +256,14 @@ function init() {
       codeInput.value = code;
       codeInput.dispatchEvent(event);
     }
+  }
+
+  if (document.referrer !== '') {
+    backLinkBlock.style.display = 'block';
+    backLink.addEventListener('click', e => {
+      e.preventDefault();
+      globalThis.history.back();
+    });
   }
 }
 
