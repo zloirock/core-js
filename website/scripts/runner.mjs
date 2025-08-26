@@ -13,7 +13,7 @@ const BUILDS_ROOT_DIR = 'builds';
 const BUILD_RESULT_DIR = 'result';
 const BUNDLES_DIR = 'bundles';
 const REPO = 'https://github.com/zloirock/core-js.git';
-const BUILDER_BRANCH = 'web';
+const BUILDER_BRANCH = 'web-3';
 const DEFAULT_VERSION = 'v3.45-docs';
 
 const args = process.argv;
