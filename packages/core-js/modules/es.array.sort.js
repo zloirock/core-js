@@ -17,10 +17,6 @@ var WEBKIT = require('../internals/environment-webkit-version');
 var nativeSort = uncurryThis([].sort);
 var push = uncurryThis([].push);
 
-// IE8-
-var FAILS_ON_UNDEFINED = fails(function () {
-  [].sort(undefined);
-});
 // V8 bug
 var FAILS_ON_NULL = fails(function () {
   [].sort(null);
@@ -64,7 +60,7 @@ var STABLE_SORT = !fails(function () {
   return result !== 'DGBEFHACIJK';
 });
 
-var FORCED = FAILS_ON_UNDEFINED || !FAILS_ON_NULL || !STRICT_METHOD || !STABLE_SORT;
+var FORCED = !FAILS_ON_NULL || !STRICT_METHOD || !STABLE_SORT;
 
 var getSortCompare = function (comparefn) {
   return function (x, y) {
