@@ -53,7 +53,7 @@ var ILL_FORMED_UNICODE = fails(function () {
 var stringifyWithProperSymbolsConversion = WRONG_SYMBOLS_CONVERSION ? function (it, replacer) {
   var args = arraySlice(arguments);
   var $replacer = getReplacerFunction(replacer);
-  if (!isCallable($replacer) && (it === undefined || isSymbol(it))) return; // IE8 returns string on undefined
+  if (!isCallable($replacer) && isSymbol(it)) return;
   args[1] = function (key, value) {
     // some old implementations (like WebKit) could pass numbers as keys
     if (isCallable($replacer)) value = call($replacer, this, $String(key), value);
