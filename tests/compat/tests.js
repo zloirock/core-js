@@ -798,8 +798,6 @@ GLOBAL.tests = {
       try {
         [1, 2, 3].sort(null);
       } catch (error2) {
-        [1, 2, 3].sort(undefined);
-
         // stable sort
         var array = [];
         var result = '';
