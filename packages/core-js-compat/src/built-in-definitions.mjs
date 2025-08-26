@@ -324,7 +324,9 @@ export const InstanceProperties = {
   test: { global: 'regexp/test' },
   toArray: { global: 'iterator/to-array' },
   toAsync: undefined,
-  toExponential: undefined,
+  toExponential: { global: {
+    common: { dependencies: 'number/to-exponential', filters: [['min-args', 1]] },
+  } },
   toFixed: undefined,
   toJSON: { global: 'date/to-json' },
   toReversed: 'instance/to-reversed',
