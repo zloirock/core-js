@@ -1,0 +1,1 @@
+new Error(msg, opts);
