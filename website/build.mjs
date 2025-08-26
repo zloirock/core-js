@@ -45,7 +45,7 @@ async function buildDocsMenu(item) {
     result += '</ul></li>';
     return result;
   }
-  const defaultVersion = BRANCH ? BRANCH : DEFAULT_VERSION;
+  const defaultVersion = BRANCH || DEFAULT_VERSION;
 
   return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ defaultVersion }">${ item.title }</a></li>`;
 }
@@ -89,7 +89,7 @@ async function buildDocsMenuForVersion(version) {
 }
 
 async function buildPlaygroundMenuForVersion(versions, currentVersion) {
-  const defaultVersion = BRANCH ? BRANCH : DEFAULT_VERSION;
+  const defaultVersion = BRANCH || DEFAULT_VERSION;
   let defaultVersionTag = `<a href="./playground">${ defaultVersion } (default)</a>`;
   if (currentVersion === '') {
     currentVersion = `${ defaultVersion } (default)`;
@@ -110,7 +110,7 @@ async function buildPlaygroundMenuForVersion(versions, currentVersion) {
 }
 
 async function buildVersionsMenuList(versions, currentVersion) {
-  const defaultVersion = BRANCH ? BRANCH : DEFAULT_VERSION;
+  const defaultVersion = BRANCH || DEFAULT_VERSION;
   let versionsMenuHtml = `<div class="dropdown-block"><a href="./docs/">${ defaultVersion } (default)</a>`;
   if (versions.length >= 1) {
     for (const v of versions) {
@@ -156,7 +156,7 @@ const linkRenderer = {
 };
 
 function buildMenus(html) {
-  const defaultVersion = BRANCH ? BRANCH : DEFAULT_VERSION;
+  const defaultVersion = BRANCH || DEFAULT_VERSION;
   const headings = getHeadingList().filter(({ level }) => level > 1);
   let result = '<div class="wrapper">';
   if (isBlog) {
@@ -241,7 +241,7 @@ let versionsCache = [];
 async function getVersionsFromMdFiles(mdFiles) {
   if (versionsCache.length) return versionsCache;
 
-  const defaultVersion = BRANCH ? BRANCH : DEFAULT_VERSION;
+  const defaultVersion = BRANCH || DEFAULT_VERSION;
   const versions = [];
   for (const mdPath of mdFiles) {
     const match = mdPath.match(/\/web\/(?<version>[^/]+)\/docs\//);
@@ -288,7 +288,7 @@ async function buildPlayground(template, version, versions) {
     echo(chalk.green(`File created: ${ playgroundFilePath }`));
   }
 
-  const defaultVersion = BRANCH ? BRANCH : DEFAULT_VERSION;
+  const defaultVersion = BRANCH || DEFAULT_VERSION;
   if (version === defaultVersion) {
     const defaultVersionsMenu = await buildPlaygroundMenuForVersion(versions, '');
     const defaultVersionPlayground = playground.replace('{versions-menu}', `${ defaultVersionsMenu }`);
@@ -329,7 +329,7 @@ async function build() {
   const mdFiles = await getAllMdFiles(DOCS_DIR);
   const versions = await getVersionsFromMdFiles(mdFiles);
   const uniqueVersions = [...new Set(versions)];
-  const defaultVersion = BRANCH ? BRANCH : DEFAULT_VERSION;
+  const defaultVersion = BRANCH || DEFAULT_VERSION;
   const bundleScript = `<script nomodule src="${ BUNDLES_PATH }/${ defaultVersion }/${ BUNDLE_NAME }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ defaultVersion }/${ BUNDLE_NAME_ESMODULES }"></script>`;
 
