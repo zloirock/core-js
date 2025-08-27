@@ -184,7 +184,8 @@ export default {
     return chrome <= 28 ? 15
          : chrome <= 82 ? chrome - 13
          : chrome <= 129 ? chrome - 14
-         : chrome - 15;
+         : chrome <= 135 ? chrome - 15
+         : chrome - 16;
   },
   ChromeToAndroid: [
     [9, '3.0'],
