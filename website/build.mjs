@@ -160,9 +160,9 @@ function buildMenus(html) {
   const headings = getHeadingList().filter(({ level }) => level > 1);
   let result = '<div class="wrapper">';
   if (isBlog) {
-    result += `<div class="docs-menu sticky">${ blogMenuCache }</div>`;
+    result += `<div class="docs-menu sticky"><div class="mobile-trigger"></div>${ blogMenuCache }</div>`;
   } else if (isDocs) {
-    result += `<div class="docs-menu sticky">${ docsMenu }</div>`;
+    result += `<div class="docs-menu sticky"><div class="mobile-trigger"></div>${ docsMenu }</div>`;
   }
   result += `<div class="content">${ html }</div>`;
   if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
@@ -274,8 +274,6 @@ async function buildPlayground(template, version, versions) {
   const versionsMenu = await buildPlaygroundMenuForVersion(versions, version);
   let playground = template.replace('{content}', `${ playgroundContent }`);
   playground = playground.replace('{base}', `${ BASE }`);
-  playground = playground.replace('{blog-menu}', '');
-  playground = playground.replace('{docs-menu}', '');
   playground = playground.replace('{title}', 'Playground - ');
   playground = playground.replace('{base}', `${ BASE }`);
   playground = playground.replace('{core-js-bundle}', `${ bundleScript }`);
@@ -325,7 +323,7 @@ let isChangelog;
 
 async function build() {
   const template = await readFile(TEMPLATE_PATH);
-  const blogMenuHtml = await buildBlogMenu();
+  await buildBlogMenu();
   const mdFiles = await getAllMdFiles(DOCS_DIR);
   const versions = await getVersionsFromMdFiles(mdFiles);
   const uniqueVersions = [...new Set(versions)];
@@ -345,15 +343,11 @@ async function build() {
     const match = /^# (?<title>.+)$/m.exec(content);
     const title = match && match.groups && match.groups.title ? `${ match.groups.title } - ` : '';
 
-    let mobileDocsMenu = '';
-    let mobileBlogMenu = '';
     if (currentVersion !== versions[i]) {
       currentVersion = versions[i];
       docsMenu = await buildDocsMenuForVersion(currentVersion);
       versionsMenu = await buildVersionsMenu(uniqueVersions, currentVersion);
     }
-    if (isDocs) mobileDocsMenu = docsMenu;
-    if (isBlog) mobileBlogMenu = blogMenuHtml;
 
     htmlFileName = mdPath.replace(DOCS_DIR, '').replace(/\.md$/i, '.html');
     const htmlFilePath = path.join(RESULT_DIR, htmlFileName);
@@ -362,8 +356,6 @@ async function build() {
     let resultHtml = template.replace('{content}', `${ htmlContent.replaceAll('$', '&#36;') }`);
 
     resultHtml = resultHtml.replace('{title}', title);
-    resultHtml = resultHtml.replace('{docs-menu}', `${ mobileDocsMenu }`);
-    resultHtml = resultHtml.replace('{blog-menu}', `${ mobileBlogMenu }`);
     resultHtml = resultHtml.replace('{base}', `${ BASE }`);
     resultHtml = resultHtml.replace('{core-js-bundle}', `${ bundleScript }`);
     resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', `${ bundleESModulesScript }`);
