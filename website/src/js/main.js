@@ -13,10 +13,12 @@ hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
 
 let initialized = false;
+// eslint-disable-next-line max-statements -- a lot of browser logic here
 function init() {
   if (initialized) return;
   initialized = true;
   const CONTENT_MENU_TOP = 150;
+  const SECTION_MENU_TOP = 150;
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector('.menu > .backdrop');
   const [menu] = document.getElementsByClassName('menu');
@@ -30,9 +32,10 @@ function init() {
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
   const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
   const docsCollapsibleMenuItems = document.querySelectorAll('.docs-menu > ul > li.collapsible');
-  const mobileDocsMenuItems = document.querySelectorAll('.mobile-docs-menu li > a');
   const contentMenu = document.querySelector('.table-of-contents');
   const contentMenuTrigger = document.querySelector('.table-of-contents .mobile-trigger');
+  const sectionMenu = document.querySelector('.docs-menu');
+  const sectionMenuTrigger = document.querySelector('.docs-menu .mobile-trigger');
   let isDocs, docsVersion;
   const currentPath = getRelativePath();
 
@@ -153,22 +156,15 @@ function init() {
       }
     }
 
-    let mobileFound = false;
-    for (const link of mobileDocsMenuItems) {
-      const href = link.getAttribute('href');
-      if (href && href === currentPath) {
-        setActiveDocsMenuItem(link);
-        mobileFound = true;
-        break;
-      }
-    }
-
     !found && setActiveDocsMenuItem(docsMenuItems[0]);
-    !mobileFound && setActiveDocsMenuItem(mobileDocsMenuItems[0]);
   }
 
   function fixContentMenuPosition(scroll) {
     contentMenu.style.top = scroll <= CONTENT_MENU_TOP ? `${ CONTENT_MENU_TOP - scroll }px` : 'unset';
+  }
+
+  function fixSectionMenuPosition(scroll) {
+    sectionMenu.style.top = scroll <= SECTION_MENU_TOP ? `${ SECTION_MENU_TOP - scroll }px` : 'unset';
   }
 
   function openFirstCollapsibleMenuItem() {
@@ -179,6 +175,7 @@ function init() {
   function processStickyBlocks() {
     if (stickyBlocks) {
       const contentMenuPosition = contentMenu && globalThis.getComputedStyle(contentMenu).position;
+      const sectionMenuPosition = sectionMenu && globalThis.getComputedStyle(sectionMenu).position;
       let stuck = window.pageYOffset > 150;
       if (stuck) addStuck();
       window.addEventListener('scroll', () => {
@@ -193,6 +190,9 @@ function init() {
         }
         if (contentMenuPosition === 'fixed') {
           fixContentMenuPosition(yScroll);
+        }
+        if (sectionMenuPosition === 'fixed') {
+          fixSectionMenuPosition(yScroll);
         }
       });
     }
@@ -209,6 +209,17 @@ function init() {
   contentMenuTrigger && contentMenuTrigger.addEventListener('click', e => {
     e.preventDefault();
     contentMenu.classList.toggle('active');
+    if (contentMenu.classList.contains('active') && sectionMenu && sectionMenu.classList.contains('active')) {
+      sectionMenu.classList.remove('active');
+    }
+  });
+
+  sectionMenuTrigger && sectionMenuTrigger.addEventListener('click', e => {
+    e.preventDefault();
+    sectionMenu.classList.toggle('active');
+    if (sectionMenu.classList.contains('active') && contentMenu && contentMenu.classList.contains('active')) {
+      contentMenu.classList.remove('active');
+    }
   });
 
   hljs.addPlugin(new RunButtonPlugin());

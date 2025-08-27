@@ -84,8 +84,8 @@ main {
         flex-shrink: 0;
         line-height: 1.3;
 
-
-        height: calc(100vh - 170px);
+        height: calc(100vh - 150px);
+        height: calc(100dvh - 150px);
         overflow-y: auto;
         scrollbar-width: none;
         @include themify($themes) {
@@ -94,10 +94,87 @@ main {
 
         &.stuck {
           height: calc(100vh - 2rem);
+          height: calc(100dvh - 2rem);
         }
 
-        @include media('max', 'lg') {
-          display: none;
+        @include media('max', 'xl') {
+          position: fixed;
+          left: 1rem;
+          bottom: 0;
+          top: auto;
+          min-width: 1.75rem;
+          z-index: 3;
+          @include themify($themes) {
+            background-color: themed('background-light');
+            box-shadow: 5px 5px 7px -6px themed('background-highlight');
+            border-right: 0;
+          }
+
+          .mobile-trigger {
+            position: absolute;
+            display: flex;
+            top: 0;
+            bottom: 0;
+            width: 1.75rem;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            right: 0;
+
+            &:after {
+              content: '';
+              display: block;
+              width: 10px;
+              height: 10px;
+              transform: rotate(-45deg);
+              margin-left: -2px;
+              @include themify($themes) {
+                border-right: 2px solid themed('link-color');
+                border-bottom: 2px solid themed('link-color');
+              }
+            }
+            &:hover {
+              &:after {
+                @include themify($themes) {
+                  border-right: 2px solid themed('link-color-hover');
+                  border-bottom: 2px solid themed('link-color-hover');
+                }
+              }
+            }
+          }
+
+          li {
+            @include media('max', 'xl') {
+              display: none;
+            }
+          }
+
+          &.active {
+            min-width: 180px;
+            max-width: 270px;
+            padding-left: 1rem;
+
+            li {
+              display: block;
+            }
+
+            .mobile-trigger {
+              &:after {
+                transform: rotate(135deg);
+                margin-left: 5px;
+              }
+            }
+          }
+
+          &.stuck {
+            height: 100vh;
+            height: 100dvh;
+            padding-top: 1rem;
+          }
+        }
+
+        @include media('max', 'sm') {
+          left: 0;
         }
 
         a {
@@ -152,9 +229,13 @@ main {
 
       .content {
         width: 100%;
-        padding: 0 1rem;
+        padding: 1rem 1rem 0;
         min-width: 0;
         text-align: justify;
+
+        @include media("min", "md") {
+          padding: 0 1rem;
+        }
       }
 
       .table-of-contents {
@@ -165,12 +246,14 @@ main {
         max-width: 20%;
         min-width: 20%;
         height: calc(100vh - 150px);
+        height: calc(100dvh - 150px);
         overflow-y: auto;
         scrollbar-width: none;
         -ms-overflow-style: none;
 
         &.stuck {
           height: calc(100vh - 2rem);
+          height: calc(100dvh - 2rem);
         }
 
         .mobile-trigger {
@@ -238,7 +321,8 @@ main {
           }
 
           &.stuck {
-            height: calc(100vh);
+            height: 100vh;
+            height: 100dvh;
             padding-top: 1rem;
           }
         }
