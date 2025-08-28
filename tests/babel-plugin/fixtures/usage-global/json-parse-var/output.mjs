@@ -1,2 +1,2 @@
-import "core-js/modules/esnext.json.parse";
+import "core-js/modules/es.json.parse";
 JSON.parse;
