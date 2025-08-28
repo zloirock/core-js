@@ -70,6 +70,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
+    "@babel/plugin-syntax-decorators": "^7.29.7",
     "@babel/plugin-transform-arrow-functions": "^7.29.7",
     "@babel/plugin-transform-block-scoped-functions": "^7.29.7",
     "@babel/plugin-transform-block-scoping": "^7.29.7",

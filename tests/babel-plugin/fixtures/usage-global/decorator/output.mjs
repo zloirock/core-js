@@ -312,3 +312,7 @@ import "core-js/modules/web.url-search-params.constructor";
 import "core-js/modules/web.url-search-params.delete";
 import "core-js/modules/web.url-search-params.has";
 import "core-js/modules/web.url-search-params.size";
+class C {
+  @dec
+  foo = 2;
+}
