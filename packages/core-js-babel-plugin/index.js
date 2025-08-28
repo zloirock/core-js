@@ -37,11 +37,12 @@ function resolveHint(desc, meta) {
 }
 
 module.exports = defineProvider(({
+  babel,
   createMetaResolver,
   debug,
+  getUtils,
   method,
   targets,
-  babel: { types: t },
 }, {
   pkg,
   pkgs,
@@ -50,6 +51,9 @@ module.exports = defineProvider(({
 }) => {
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
+
+  const t = babel.types;
+  const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
 
   const packages = pkgs ? [...defaultCoreJSPackages, ...pkgs] : [...defaultCoreJSPackages];
 
@@ -157,5 +161,47 @@ module.exports = defineProvider(({
       return true;
     },
     usagePure() { /* empty */ },
+    visitor: method === 'usage-global' && {
+      // import('foo')
+      CallExpression(path) {
+        if (path.get('callee').isImport()) {
+          const utils = getUtils(path);
+          if (isWebpack) {
+            // Webpack uses `Promise.all` to handle dynamic import.
+            injectCoreJSModulesForEntry(`${ mode }/promise/all`, utils);
+          } else {
+            injectCoreJSModulesForEntry(`${ mode }/promise/constructor`, utils);
+          }
+        }
+      },
+      // (async function () { }).finally(...)
+      Function(path) {
+        if (path.node.async) {
+          injectCoreJSModulesForEntry(`${ mode }/promise/constructor`, getUtils(path));
+        }
+      },
+      // for-of, [a, b] = c
+      'ForOfStatement|ArrayPattern'(path) {
+        injectCoreJSModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+      },
+      // [...spread]
+      SpreadElement(path) {
+        if (!path.parentPath.isObjectExpression()) {
+          injectCoreJSModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+        }
+      },
+      // yield *
+      YieldExpression(path) {
+        if (path.node.delegate) {
+          injectCoreJSModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+        }
+      },
+      // decorators metadata
+      Class(path) {
+        if (path.node.decorators?.length || path.node.body.body.some(el => el.decorators?.length)) {
+          injectCoreJSModulesForEntry(`${ mode }/symbol/metadata`, getUtils(path));
+        }
+      },
+    },
   };
 });
