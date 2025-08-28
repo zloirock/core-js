@@ -300,7 +300,6 @@ import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.iterator.chunks";
 import "core-js/modules/esnext.iterator.concat";
 import "core-js/modules/esnext.iterator.range";
-import "core-js/modules/esnext.iterator.sliding";
 import "core-js/modules/esnext.iterator.to-async";
 import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/esnext.iterator.zip";
