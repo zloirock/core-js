@@ -307,7 +307,6 @@ export const InstanceProperties = {
   setFloat16: undefined,
   setUint8Clamped: undefined,
   slice: 'instance/slice',
-  sliding: { global: 'iterator/sliding' },
   small: { global: 'string/small' },
   some: { global: 'iterator/some' },
   sort: 'instance/sort',
