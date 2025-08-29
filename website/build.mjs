@@ -66,7 +66,7 @@ async function getDocsMenuItems(version) {
   }
   const docsMenuJson = await readFile(jsonPath);
   try {
-    docsMenuItems[version] = JSON.parse(docsMenuJson.toString());
+    docsMenuItems[version] = JSON.parse(docsMenuJson);
   } catch {
     docsMenuItems[version] = [];
   }
@@ -203,8 +203,7 @@ async function buildBlogMenu() {
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
     if (mdPath.endsWith('index.md')) continue;
-    const mdContent = await readFile(mdPath);
-    const content = mdContent.toString();
+    const content = await readFile(mdPath);
     const tokens = marked.lexer(content);
     marked.parse(content);
     const firstH1 = tokens.find(token => token.type === 'heading' && token.depth === 1);
@@ -272,13 +271,13 @@ async function buildPlayground(template, version, versions) {
   const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ version }/${ BUNDLE_NAME_ESMODULES }"></script>`;
   const playgroundContent = await readFile(`${ SRC_DIR }playground.html`);
   const versionsMenu = await buildPlaygroundMenuForVersion(versions, version);
-  let playground = template.replace('{content}', `${ playgroundContent }`);
-  playground = playground.replace('{base}', `${ BASE }`);
+  let playground = template.replace('{content}', playgroundContent);
+  playground = playground.replace('{base}', BASE);
   playground = playground.replace('{title}', 'Playground - ');
-  playground = playground.replace('{base}', `${ BASE }`);
-  playground = playground.replace('{core-js-bundle}', `${ bundleScript }`);
-  playground = playground.replace('{core-js-bundle-esmodules}', `${ bundleESModulesScript }`);
-  const playgroundWithVersion = playground.replace('{versions-menu}', `${ versionsMenu }`);
+  playground = playground.replace('{base}', BASE);
+  playground = playground.replace('{core-js-bundle}', bundleScript);
+  playground = playground.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
+  const playgroundWithVersion = playground.replace('{versions-menu}', versionsMenu);
   const playgroundFilePath = path.join(RESULT_DIR, version, 'playground.html');
   if (version !== BRANCH) {
     await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
@@ -289,7 +288,7 @@ async function buildPlayground(template, version, versions) {
   const defaultVersion = BRANCH || DEFAULT_VERSION;
   if (version === defaultVersion) {
     const defaultVersionsMenu = await buildPlaygroundMenuForVersion(versions, '');
-    const defaultVersionPlayground = playground.replace('{versions-menu}', `${ defaultVersionsMenu }`);
+    const defaultVersionPlayground = playground.replace('{versions-menu}', defaultVersionsMenu);
     const defaultPlaygroundPath = path.join(RESULT_DIR, 'playground.html');
     await fs.writeFile(defaultPlaygroundPath, defaultVersionPlayground, 'utf8');
     echo(chalk.green(`File created: ${ defaultPlaygroundPath }`));
@@ -335,8 +334,7 @@ async function build() {
   let versionsMenu = '';
   for (let i = 0; i < mdFiles.length; i++) {
     const mdPath = mdFiles[i];
-    const mdContent = await readFile(mdPath);
-    const content = mdContent.toString();
+    const content = await readFile(mdPath);
     isDocs = mdPath.includes('/docs');
     isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
@@ -353,12 +351,12 @@ async function build() {
     const htmlFilePath = path.join(RESULT_DIR, htmlFileName);
     const htmlContent = isDocs || isBlog || isChangelog ? markedWithContents.parse(content) : marked.parse(content);
 
-    let resultHtml = template.replace('{content}', `${ htmlContent.replaceAll('$', '&#36;') }`);
+    let resultHtml = template.replace('{content}', htmlContent.replaceAll('$', '&#36;'));
 
     resultHtml = resultHtml.replace('{title}', title);
-    resultHtml = resultHtml.replace('{base}', `${ BASE }`);
-    resultHtml = resultHtml.replace('{core-js-bundle}', `${ bundleScript }`);
-    resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', `${ bundleESModulesScript }`);
+    resultHtml = resultHtml.replace('{base}', BASE);
+    resultHtml = resultHtml.replace('{core-js-bundle}', bundleScript);
+    resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
     resultHtml = resultHtml.replaceAll('{versions-menu}', versionsMenu);
     resultHtml = resultHtml.replaceAll('{current-version}', currentVersion);
 
