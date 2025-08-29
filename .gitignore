@@ -8,6 +8,7 @@ node_modules/
 .DS_Store
 .idea
 
+/docs/web/blog/index.md
 /packages/core-js/features/
 /packages/core-js/es/index.js
 /packages/core-js/full/index.js
@@ -44,7 +45,6 @@ node_modules/
 /tests/compat/compat-data.js
 /tests/unit-global/index.js
 /tests/unit-pure/index.js
-/website/templates
-/website/dist
-/website/src/public/*
-/docs/web/blog/index.md
+/website/templates/
+/website/dist/
+/website/src/public/
