@@ -1,0 +1,11 @@
+[
+  {
+    "label": "v3.4",
+    "default": true,
+    "branch": "v3.45-docs"
+  },
+  {
+    "label": "v3.4",
+    "branch": "v3.45-docs"
+  }
+]

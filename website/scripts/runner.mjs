@@ -14,7 +14,8 @@ const BUILD_RESULT_DIR = 'result';
 const BUNDLES_DIR = 'bundles';
 const REPO = 'https://github.com/zloirock/core-js.git';
 const BUILDER_BRANCH = 'web-3';
-const DEFAULT_VERSION = 'v3.45-docs';
+const DEFAULT_VERSION = await getDefaultVersion();
+const VERSIONS_FILE = 'website/config/versions.json';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -27,6 +28,11 @@ const BUILD_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/`;
 const BUILD_DOCS_DIR = `${ BUILD_DIR }builder/`;
 const SITE_FILES_DIR = `${ BUILD_DIR }${ SRC_DIR }/website/dist/`;
 
+async function getDefaultVersion() {
+  const versions = await readJSON(VERSIONS_FILE);
+  return versions.find(v => v.default)?.label;
+}
+
 async function isExists(target) {
   try {
     await access(target, constants.F_OK);
@@ -36,26 +42,26 @@ async function isExists(target) {
   }
 }
 
-async function getTagsWithSiteDocs() {
-  console.log('Getting tags with site docs...');
-  console.time('Got tags with site docs');
-  // const tagsString = await exec(
-  //   `git tag --list | sort -V | while read t; do v=\${t#v}; IFS=. read -r M m p <<< "$v"; m=\${m:-0}; `
-  //   + `if { [ "$M" -gt 3 ] || { [ "$M" -eq 3 ] && [ "$m" -gt 40 ]; }; }; `
-  //   + `then git ls-tree -r --name-only "$t" | grep --qxF "website/scripts/build.mjs" && echo "$t"; fi; done`,
-  //   { cwd: BUILD_SRC_DIR }
-  // );
-  const tagsString = await exec(
-    'git branch --remote --format="%(refname:short)" | while read branch; do if git ls-tree -r --name-only "$branch" | '
-    + 'grep -q "docs/web/docs/"; then echo "$branch"; fi; done',
-    { cwd: BUILD_SRC_DIR },
-  );
-  const tags = tagsString.stdout.split('\n').filter(tag => tag !== '')
-    .map(name => name.replace('origin/', ''));
-  console.timeEnd('Got tags with site docs');
-  console.log(`Found tags with site docs: ${ tags.join(', ') }`);
-  return tags;
-}
+// async function getTagsWithSiteDocs() {
+//   console.log('Getting tags with site docs...');
+//   console.time('Got tags with site docs');
+//   // const tagsString = await exec(
+//   //   `git tag --list | sort -V | while read t; do v=\${t#v}; IFS=. read -r M m p <<< "$v"; m=\${m:-0}; `
+//   //   + `if { [ "$M" -gt 3 ] || { [ "$M" -eq 3 ] && [ "$m" -gt 40 ]; }; }; `
+//   //   + `then git ls-tree -r --name-only "$t" | grep --qxF "website/scripts/build.mjs" && echo "$t"; fi; done`,
+//   //   { cwd: BUILD_SRC_DIR }
+//   // );
+//   const tagsString = await exec(
+//     'git branch --remote --format="%(refname:short)" | while read branch; do if git ls-tree -r --name-only "$branch" | '
+//     + 'grep -q "docs/web/docs/"; then echo "$branch"; fi; done',
+//     { cwd: BUILD_SRC_DIR },
+//   );
+//   const tags = tagsString.stdout.split('\n').filter(tag => tag !== '')
+//     .map(name => name.replace('origin/', ''));
+//   console.timeEnd('Got tags with site docs');
+//   console.log(`Found tags with site docs: ${ tags.join(', ') }`);
+//   return tags;
+// }
 
 async function buildWeb() {
   console.log('Building web');
@@ -123,15 +129,15 @@ async function copyDocs(from, to, recursive = true) {
   console.timeEnd(`Copied docs from "${ from }" to "${ to }"`);
 }
 
-async function copyDocsToBuilder(name) {
-  console.log(`Copying docs to builder for branch/tag "${ name }"`);
-  console.time(`Copied docs to builder for branch/tag "${ name }"`);
-  await exec(`git checkout origin/${ name }`, { cwd: BUILD_SRC_DIR });
-  // await exec(`git checkout ${name}`, { cwd: BUILD_SRC_DIR });  // uncomment for tags and comment the line above
+async function copyDocsToBuilder(version) {
+  const target = version.branch ?? version.tag;
+  console.log(`Copying docs to builder for "${ target }"`);
+  console.time(`Copied docs to builder for "${ target }"`);
+  await checkoutVersion(version);
   const fromDir = `${ BUILD_SRC_DIR }docs/web/docs/`;
-  const toDir = `${ BUILD_DOCS_DIR }${ name }/docs/`;
+  const toDir = `${ BUILD_DOCS_DIR }${ target }/docs/`;
   await copyDocs(fromDir, toDir);
-  console.timeEnd(`Copied docs to builder for branch/tag "${ name }"`);
+  console.timeEnd(`Copied docs to builder for "${ target }"`);
 }
 
 async function copyBuilderDocs() {
@@ -152,12 +158,13 @@ async function prepareBuilder(targetBranch) {
   console.timeEnd('Prepared builder');
 }
 
-async function hasDocsInBranch(name) {
-  console.log(`Checking if docs exist in the branch "${ name }"...`);
+async function hasDocs(version) {
+  const target = version.branch ? `origin/${ version.branch }` : version.tag;
+  console.log(`Checking if docs exist in "${ target }"...`);
   try {
-    await exec(`git ls-tree -r --name-only origin/${ name } | grep "docs/web/docs/"`, { cwd: BUILD_SRC_DIR });
+    await exec(`git ls-tree -r --name-only ${ target } | grep "docs/web/docs/"`, { cwd: BUILD_SRC_DIR });
   } catch {
-    throw new Error(`No docs found in the branch "${ name }".`);
+    throw new Error(`No docs found in "${ target }".`);
   }
 }
 
@@ -171,7 +178,16 @@ async function switchBranchToLatestBuild(name) {
   console.timeEnd(`Switched branch "${ name }" to the latest build`);
 }
 
-async function buildAndCopyCoreJS(target, isBranch = true) {
+async function checkoutVersion(version) {
+  if (version.branch) {
+    await exec(`git checkout origin/${ version.branch }`, { cwd: BUILD_SRC_DIR });
+  } else {
+    await exec(`git checkout ${ version.tag }`, { cwd: BUILD_SRC_DIR });
+  }
+}
+
+async function buildAndCopyCoreJS(version) {
+  const target = version.branch ?? version.tag;
   console.log(`Building and copying core-js for ${ target }`);
   const targetBundlePath = `${ BUNDLES_DIR }/${ target }/`;
 
@@ -188,21 +204,21 @@ async function buildAndCopyCoreJS(target, isBranch = true) {
   }
 
   console.time('Core JS bundles built');
-  if (isBranch) {
-    await exec(`git checkout origin/${ target }`, { cwd: BUILD_SRC_DIR });
-  } else {
-    await exec(`git checkout ${ target }`, { cwd: BUILD_SRC_DIR });
-  }
+  await checkoutVersion(version);
   await installDependencies();
   await exec('npm run bundle-package', { cwd: BUILD_SRC_DIR });
   const bundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
   const destPath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle.js`;
+  const destBundlePath = `${ targetBundlePath }core-js-bundle.js`;
   await cp(bundlePath, destPath);
+  await cp(bundlePath, destBundlePath);
 
   await exec('npm run bundle-package esmodules', { cwd: BUILD_SRC_DIR });
   const esmodulesBundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
   const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle-esmodules.js`;
+  const destEsmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
   await cp(esmodulesBundlePath, esmodulesDestBundlePath);
+  await cp(esmodulesBundlePath, destEsmodulesBundlePath);
   console.timeEnd('Core JS bundles built');
 }
 
@@ -276,6 +292,29 @@ async function createLastDocsLink() {
   console.timeEnd('Created last docs link');
 }
 
+async function readFile(filePath) {
+  const content = await fs.readFile(filePath, 'utf8');
+  return content.toString();
+}
+
+async function readJSON(filePath) {
+  const json = await readFile(filePath);
+  try {
+    return JSON.parse(json);
+  } catch {
+    return '';
+  }
+}
+
+async function getVersions() {
+  console.log('Getting versions...');
+  console.time('Got versions');
+  const versions = await readJSON(`${ BUILD_SRC_DIR }${ VERSIONS_FILE }`);
+  console.timeEnd('Got versions');
+
+  return versions;
+}
+
 async function run() {
   console.time('Finished in');
   await createBuildDir();
@@ -283,16 +322,15 @@ async function run() {
 
   const targetBranch = BRANCH || BUILDER_BRANCH;
   if (!BRANCH) {
-    const tags = await getTagsWithSiteDocs();
-    if (tags.length) {
-      for (const tag of tags) {
-        await copyDocsToBuilder(tag);
-        await buildAndCopyCoreJS(tag);  // todo add second argument for tags
-      }
+    const versions = await getVersions();
+    for (const version of versions) {
+      await copyDocsToBuilder(version);
+      await buildAndCopyCoreJS(version);
     }
   } else {
-    await hasDocsInBranch(targetBranch);
-    await buildAndCopyCoreJS(targetBranch);
+    const version = { branch: targetBranch };
+    await hasDocs(version);
+    await buildAndCopyCoreJS(version);
   }
 
   await prepareBuilder(targetBranch);
