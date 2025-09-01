@@ -1,4 +1,4 @@
-const { readdir, readJson, readFile, writeJson, writeFile } = fs;
+const { readJson, readFile, writeJson, writeFile } = fs;
 const { green, red } = chalk;
 const [PREV_VERSION, NEW_VERSION] = (await Promise.all([
   readJson('packages/core-js/package.json'),
@@ -40,16 +40,19 @@ await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
 await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
-const packages = await readdir('packages');
-for (const PATH of await glob('packages/*/package.json')) {
-  const pkg = await readJson(PATH, 'utf8');
+const packages = await Promise.all((await glob('packages/*/package.json')).map(async path => {
+  const pkg = await readJson(path, 'utf8');
+  return ({ path, pkg });
+}));
+
+for (const { path, pkg } of packages) {
   pkg.version = NEW_VERSION;
   for (const field of ['dependencies', 'devDependencies']) {
-    if (pkg[field]) for (const dependency of packages) {
-      if (pkg[field][dependency]) pkg[field][dependency] = NEW_VERSION;
+    if (pkg[field]) for (const { pkg: { name } } of packages) {
+      if (pkg[field][name]) pkg[field][name] = NEW_VERSION;
     }
   }
-  await writeJson(PATH, pkg, { spaces: '  ' });
+  await writeJson(path, pkg, { spaces: '  ' });
 }
 
 if (NEW_VERSION !== PREV_VERSION) {
