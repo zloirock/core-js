@@ -10,8 +10,8 @@ const BLOG_DIR = 'docs/web/blog/';
 const RESULT_DIR = 'website/dist/';
 const TEMPLATES_DIR = 'website/templates/';
 const SRC_DIR = 'website/src/';
+const VERSIONS_FILE = 'website/config/versions.json';
 const TEMPLATE_PATH = `${ TEMPLATES_DIR }index.html`;
-const DEFAULT_VERSION = 'v3.45-docs';
 const BUNDLES_PATH = './bundles';
 const BUNDLE_NAME = 'core-js-bundle.js';
 const BUNDLE_NAME_ESMODULES = 'core-js-bundle-esmodules.js';
@@ -19,7 +19,15 @@ const BUNDLE_NAME_ESMODULES = 'core-js-bundle-esmodules.js';
 const args = process.argv;
 const lastArg = args.at(-1);
 const BRANCH = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
+const DEFAULT_VERSION = await getDefaultVersion();
 const BASE = BRANCH ? `/branches/${ BRANCH }/` : '/';
+
+async function getDefaultVersion() {
+  if (BRANCH) return BRANCH;
+
+  const versions = await readJSON(VERSIONS_FILE);
+  return versions.find(v => v.default)?.label;
+}
 
 async function getAllMdFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -50,6 +58,16 @@ async function buildDocsMenu(item) {
   return `<li><a href="${ item.url }" class="with-docs-version" data-default-version="${ defaultVersion }">${ item.title }</a></li>`;
 }
 
+async function isExists(target) {
+  try {
+    const absolutePath = path.resolve(target);
+    await fs.access(absolutePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const docsMenus = [];
 const docsMenuItems = [];
 
@@ -58,18 +76,13 @@ async function getDocsMenuItems(version) {
 
   echo(chalk.green(`Getting menu items from file for version: ${ version }`));
   const jsonPath = BRANCH ? `${ DOCS_DIR }docs/menu.json` : `${ DOCS_DIR }${ version }/docs/menu.json`;
-  try {
-    await fs.access(jsonPath);
-  } catch {
+  const exists = await isExists(jsonPath);
+  if (!exists) {
     echo(chalk.yellow(`Menu JSON file not found: ${ jsonPath }`));
     return '';
   }
-  const docsMenuJson = await readFile(jsonPath);
-  try {
-    docsMenuItems[version] = JSON.parse(docsMenuJson);
-  } catch {
-    docsMenuItems[version] = [];
-  }
+  const docsMenuJson = await readJSON(jsonPath);
+  docsMenuItems[version] = docsMenuJson === '' ? [] : docsMenuJson;
   return docsMenuItems[version];
 }
 
@@ -88,44 +101,21 @@ async function buildDocsMenuForVersion(version) {
   return menu;
 }
 
-async function buildPlaygroundMenuForVersion(versions, currentVersion) {
-  const defaultVersion = BRANCH || DEFAULT_VERSION;
-  let defaultVersionTag = `<a href="./playground">${ defaultVersion } (default)</a>`;
-  if (currentVersion === '') {
-    currentVersion = `${ defaultVersion } (default)`;
-    defaultVersionTag = `<a href="./playground" class="active">${ defaultVersion } (default)</a>`;
-  }
-  let versionsMenuHtml = `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${
-    currentVersion }</a><div class="dropdown-block">${ defaultVersionTag }`;
-  if (versions.length >= 1) {
-    for (const v of versions) {
-      if (v === BRANCH) continue;
-      const activityClass = v === currentVersion ? ' class="active"' : '';
-      versionsMenuHtml += `<a href="./${ v }/playground"${ activityClass }>${ v }</a>`;
-    }
-  }
-  versionsMenuHtml += '</div></div><div class="backdrop"></div></div>';
-
-  return versionsMenuHtml;
-}
-
-async function buildVersionsMenuList(versions, currentVersion) {
-  const defaultVersion = BRANCH || DEFAULT_VERSION;
-  let versionsMenuHtml = `<div class="dropdown-block"><a href="./docs/">${ defaultVersion } (default)</a>`;
-  if (versions.length >= 1) {
-    for (const v of versions) {
-      if (v === BRANCH) continue;
-      const activityClass = v === currentVersion ? ' class="active"' : '';
-      versionsMenuHtml += `<a href="./${ v }/docs/"${ activityClass }>${ v }</a>`;
-    }
+async function buildVersionsMenuList(versions, currentVersion, section) {
+  let versionsMenuHtml = '<div class="dropdown-block">';
+  for (const v of versions) {
+    const activityClass = v.label === currentVersion ? ' class="active"' : '';
+    const defaultBadge = v.default ? ' (default)' : '';
+    const versionPath = v.default ? '' : `${ v.label }/`;
+    versionsMenuHtml += `<a href="./${ versionPath }${ section }/"${ activityClass }>${ v.label }${ defaultBadge }</a>`;
   }
   versionsMenuHtml += '</div>';
 
   return versionsMenuHtml;
 }
 
-async function buildVersionsMenu(versions, currentVersion) {
-  const innerMenu = await buildVersionsMenuList(versions, currentVersion);
+async function buildVersionsMenu(versions, currentVersion, section) {
+  const innerMenu = await buildVersionsMenuList(versions, currentVersion, section);
 
   return `<div class="dropdown versions-menu"><div class="dropdown-wrapper"><a href="#" class="current">${
     currentVersion }</a>${ innerMenu }</div><div class="backdrop"></div></div>`;
@@ -235,24 +225,12 @@ async function getVersionTags() {
   return tagsString.stdout.split('\n');
 }
 
-let versionsCache = [];
-
-async function getVersionsFromMdFiles(mdFiles) {
-  if (versionsCache.length) return versionsCache;
-
-  const defaultVersion = BRANCH || DEFAULT_VERSION;
-  const versions = [];
-  for (const mdPath of mdFiles) {
-    const match = mdPath.match(/\/web\/(?<version>[^/]+)\/docs\//);
-    if (match && match.groups && match.groups.version) {
-      versions.push(match.groups.version);
-    } else {
-      versions.push(defaultVersion);
-    }
+async function getVersionFromMdFile(mdPath) {
+  const match = mdPath.match(/\/web\/(?<version>[^/]+)\/docs\//);
+  if (match && match.groups && match.groups.version) {
+    return match.groups.version
   }
-  versionsCache = versions;
-
-  return versions;
+  return DEFAULT_VERSION;
 }
 
 async function readFile(filePath) {
@@ -267,10 +245,10 @@ async function buildPlaygrounds(template, versions) {
 }
 
 async function buildPlayground(template, version, versions) {
-  const bundleScript = `<script nomodule src="${ BUNDLES_PATH }/${ version }/${ BUNDLE_NAME }"></script>`;
-  const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ version }/${ BUNDLE_NAME_ESMODULES }"></script>`;
+  const bundleScript = `<script nomodule src="${ BUNDLES_PATH }/${ version.label }/${ BUNDLE_NAME }"></script>`;
+  const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ version.label }/${ BUNDLE_NAME_ESMODULES }"></script>`;
   const playgroundContent = await readFile(`${ SRC_DIR }playground.html`);
-  const versionsMenu = await buildPlaygroundMenuForVersion(versions, version);
+  const versionsMenu = await buildVersionsMenu(versions, version, 'playground');
   let playground = template.replace('{content}', playgroundContent);
   playground = playground.replace('{base}', BASE);
   playground = playground.replace('{title}', 'Playground - ');
@@ -278,20 +256,18 @@ async function buildPlayground(template, version, versions) {
   playground = playground.replace('{core-js-bundle}', bundleScript);
   playground = playground.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
   const playgroundWithVersion = playground.replace('{versions-menu}', versionsMenu);
-  const playgroundFilePath = path.join(RESULT_DIR, version, 'playground.html');
-  if (version !== BRANCH) {
-    await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
-    await fs.writeFile(playgroundFilePath, playgroundWithVersion, 'utf8');
-    echo(chalk.green(`File created: ${ playgroundFilePath }`));
-  }
+  const playgroundFilePath = path.join(RESULT_DIR, version.label, 'playground.html');
 
-  const defaultVersion = BRANCH || DEFAULT_VERSION;
-  if (version === defaultVersion) {
-    const defaultVersionsMenu = await buildPlaygroundMenuForVersion(versions, '');
+  if (version.default) {
+    const defaultVersionsMenu = await buildVersionsMenu(versions, version, 'playground');
     const defaultVersionPlayground = playground.replace('{versions-menu}', defaultVersionsMenu);
     const defaultPlaygroundPath = path.join(RESULT_DIR, 'playground.html');
     await fs.writeFile(defaultPlaygroundPath, defaultVersionPlayground, 'utf8');
     echo(chalk.green(`File created: ${ defaultPlaygroundPath }`));
+  } else {
+    await fs.mkdir(path.dirname(playgroundFilePath), { recursive: true });
+    await fs.writeFile(playgroundFilePath, playgroundWithVersion, 'utf8');
+    echo(chalk.green(`File created: ${ playgroundFilePath }`));
   }
 }
 
@@ -306,12 +282,39 @@ async function createDocsIndexes(versions) {
   }
 
   for (const version of versions) {
-    const menuItems = await getDocsMenuItems(version);
-    const firstDocPath = path.join(RESULT_DIR, `${ menuItems[0].url }.html`.replace('{docs-version}', version));
-    const indexFilePath = path.join(RESULT_DIR, `${ version }/docs/`, 'index.html');
+    const menuItems = await getDocsMenuItems(version.label);
+    const firstDocPath = path.join(RESULT_DIR, `${ menuItems[0].url }.html`.replace('{docs-version}', version.label));
+    const indexFilePath = path.join(RESULT_DIR, `${ version.label }/docs/`, 'index.html');
     await fs.copy(firstDocPath, indexFilePath);
     echo(chalk.green(`File created: ${ indexFilePath }`));
   }
+}
+
+async function readJSON(filePath) {
+  const json = await readFile(filePath);
+  try {
+    return JSON.parse(json);
+  } catch {
+    return '';
+  }
+}
+
+async function getVersions() {
+  if (BRANCH) {
+    return [{
+      label: BRANCH,
+      default: true,
+    }];
+  }
+  const versions = await readJSON(VERSIONS_FILE);
+  echo(chalk.green('Got versions from file'));
+
+  return versions;
+}
+
+function getTitle(content) {
+  const match = /^# (?<title>.+)$/m.exec(content);
+  return match && match.groups && match.groups.title ? `${ match.groups.title } - ` : '';
 }
 
 let htmlFileName = '';
@@ -324,8 +327,7 @@ async function build() {
   const template = await readFile(TEMPLATE_PATH);
   await buildBlogMenu();
   const mdFiles = await getAllMdFiles(DOCS_DIR);
-  const versions = await getVersionsFromMdFiles(mdFiles);
-  const uniqueVersions = [...new Set(versions)];
+  const versions = await getVersions();
   const defaultVersion = BRANCH || DEFAULT_VERSION;
   const bundleScript = `<script nomodule src="${ BUNDLES_PATH }/${ defaultVersion }/${ BUNDLE_NAME }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ BUNDLES_PATH }/${ defaultVersion }/${ BUNDLE_NAME_ESMODULES }"></script>`;
@@ -338,13 +340,14 @@ async function build() {
     isDocs = mdPath.includes('/docs');
     isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
-    const match = /^# (?<title>.+)$/m.exec(content);
-    const title = match && match.groups && match.groups.title ? `${ match.groups.title } - ` : '';
 
-    if (currentVersion !== versions[i]) {
-      currentVersion = versions[i];
+    const title = getTitle(content);
+
+    const versionFromMdFile = await getVersionFromMdFile(mdPath);
+    if (currentVersion !== versionFromMdFile) {
+      currentVersion = versionFromMdFile;
       docsMenu = await buildDocsMenuForVersion(currentVersion);
-      versionsMenu = await buildVersionsMenu(uniqueVersions, currentVersion);
+      versionsMenu = await buildVersionsMenu(versions, currentVersion, 'docs');
     }
 
     htmlFileName = mdPath.replace(DOCS_DIR, '').replace(/\.md$/i, '.html');
@@ -383,8 +386,8 @@ async function build() {
     echo(chalk.green(`File created: ${ htmlFilePath }`));
   }
 
-  await buildPlaygrounds(template, uniqueVersions);
-  await createDocsIndexes(uniqueVersions);
+  await buildPlaygrounds(template, versions);
+  await createDocsIndexes(versions);
 }
 
 await build().catch(console.error);
