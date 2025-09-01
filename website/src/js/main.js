@@ -102,9 +102,9 @@ function init() {
     return isDocs;
   }
 
-  function hasDocsVersion() {
+  function hasCurrentVersion() {
     if (docsVersion !== undefined) return docsVersion;
-    docsVersion = !currentPath.startsWith('docs/');
+    docsVersion = !currentPath.startsWith('docs/') && !currentPath.startsWith('playground');
     return docsVersion;
   }
 
@@ -118,8 +118,8 @@ function init() {
     });
   }
 
-  function processDocsVersions() {
-    const hasVersion = hasDocsVersion();
+  function processVersions() {
+    const hasVersion = hasCurrentVersion();
     if (!hasVersion) setDefaultVersion();
     if (!isDocsPage()) return;
     if (hasVersion) return;
@@ -143,7 +143,7 @@ function init() {
     }
   }
 
-  function highlightActiveMenuItem() {
+  function highlightActiveDocsMenuItem() {
     if (!isDocsPage()) return;
 
     let found = false;
@@ -226,8 +226,8 @@ function init() {
   hljs.highlightAll();
 
   processStickyBlocks();
-  processDocsVersions();
-  highlightActiveMenuItem();
+  processVersions();
+  highlightActiveDocsMenuItem();
   openFirstCollapsibleMenuItem();
 }
 

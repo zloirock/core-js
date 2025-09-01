@@ -14,8 +14,6 @@ const BUILD_RESULT_DIR = 'result';
 const BUNDLES_DIR = 'bundles';
 const REPO = 'https://github.com/zloirock/core-js.git';
 const BUILDER_BRANCH = 'web-3';
-const DEFAULT_VERSION = await getDefaultVersion();
-const VERSIONS_FILE = 'website/config/versions.json';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -26,7 +24,8 @@ const BUILD_ID = new Date().toISOString().replaceAll(/\D/g, '-') + Math.random()
 const BUILD_DIR = `${ BUILDS_ROOT_DIR }/${ BUILD_ID }/`;
 const BUILD_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/`;
 const BUILD_DOCS_DIR = `${ BUILD_DIR }builder/`;
-const SITE_FILES_DIR = `${ BUILD_DIR }${ SRC_DIR }/website/dist/`;
+const SITE_FILES_DIR = `${ BUILD_SRC_DIR }/website/dist/`;
+const VERSIONS_FILE = `${ BUILD_SRC_DIR }website/config/versions.json`;
 
 async function getDefaultVersion() {
   const versions = await readJSON(VERSIONS_FILE);
@@ -135,7 +134,7 @@ async function copyDocsToBuilder(version) {
   console.time(`Copied docs to builder for "${ target }"`);
   await checkoutVersion(version);
   const fromDir = `${ BUILD_SRC_DIR }docs/web/docs/`;
-  const toDir = `${ BUILD_DOCS_DIR }${ target }/docs/`;
+  const toDir = `${ BUILD_DOCS_DIR }${ version.label }/docs/`;
   await copyDocs(fromDir, toDir);
   console.timeEnd(`Copied docs to builder for "${ target }"`);
 }
@@ -188,15 +187,16 @@ async function checkoutVersion(version) {
 
 async function buildAndCopyCoreJS(version) {
   const target = version.branch ?? version.tag;
+  const name = version.label;
   console.log(`Building and copying core-js for ${ target }`);
   const targetBundlePath = `${ BUNDLES_DIR }/${ target }/`;
 
   if (await isExists(targetBundlePath)) {
     console.time('Core JS bundles copied');
     const bundlePath = `${ targetBundlePath }core-js-bundle.js`;
-    const destBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle.js`;
+    const destBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle.js`;
     const esmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
-    const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle-esmodules.js`;
+    const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle-esmodules.js`;
     await cp(bundlePath, destBundlePath);
     await cp(esmodulesBundlePath, esmodulesDestBundlePath);
     console.timeEnd('Core JS bundles copied');
@@ -208,14 +208,14 @@ async function buildAndCopyCoreJS(version) {
   await installDependencies();
   await exec('npm run bundle-package', { cwd: BUILD_SRC_DIR });
   const bundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
-  const destPath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle.js`;
+  const destPath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle.js`;
   const destBundlePath = `${ targetBundlePath }core-js-bundle.js`;
   await cp(bundlePath, destPath);
   await cp(bundlePath, destBundlePath);
 
   await exec('npm run bundle-package esmodules', { cwd: BUILD_SRC_DIR });
   const esmodulesBundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
-  const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ target }/core-js-bundle-esmodules.js`;
+  const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle-esmodules.js`;
   const destEsmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
   await cp(esmodulesBundlePath, esmodulesDestBundlePath);
   await cp(esmodulesBundlePath, destEsmodulesBundlePath);
@@ -286,7 +286,8 @@ async function copyCommonFiles() {
 async function createLastDocsLink() {
   console.log('Creating last docs link...');
   console.time('Created last docs link');
-  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/${ DEFAULT_VERSION }/docs/`);
+  const defaultVersion = await getDefaultVersion();
+  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/${ defaultVersion }/docs/`);
   const absoluteLastDocsPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/docs/`);
   await exec(`ln -s ${ absoluteBuildPath } ${ absoluteLastDocsPath }`);
   console.timeEnd('Created last docs link');
@@ -306,10 +307,11 @@ async function readJSON(filePath) {
   }
 }
 
-async function getVersions() {
+async function getVersions(targetBranch) {
   console.log('Getting versions...');
   console.time('Got versions');
-  const versions = await readJSON(`${ BUILD_SRC_DIR }${ VERSIONS_FILE }`);
+  await exec(`git checkout origin/${ targetBranch }`, { cwd: BUILD_SRC_DIR });
+  const versions = await readJSON(VERSIONS_FILE);
   console.timeEnd('Got versions');
 
   return versions;
@@ -322,7 +324,7 @@ async function run() {
 
   const targetBranch = BRANCH || BUILDER_BRANCH;
   if (!BRANCH) {
-    const versions = await getVersions();
+    const versions = await getVersions(targetBranch);
     for (const version of versions) {
       await copyDocsToBuilder(version);
       await buildAndCopyCoreJS(version);

@@ -81,6 +81,7 @@ main {
 
         font-size: 0.875rem;
         flex-basis: 20%;
+        min-width: 160px;
         flex-shrink: 0;
         line-height: 1.3;
 
@@ -97,7 +98,7 @@ main {
           height: calc(100dvh - 2rem);
         }
 
-        @include media('max', 'xl') {
+        @include media('max', 'md') {
           position: fixed;
           left: 1rem;
           bottom: 0;
@@ -144,7 +145,7 @@ main {
           }
 
           li {
-            @include media('max', 'xl') {
+            @include media('max', 'md') {
               display: none;
             }
           }
@@ -481,7 +482,7 @@ main {
       a.active {
         font-weight: 500;
         @include themify($themes) {
-          color: themed('link-color-hover');
+          color: themed('link-color2-hover');
         }
       }
     }

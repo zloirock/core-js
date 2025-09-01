@@ -1,11 +1,11 @@
 [
   {
-    "label": "v3.4",
+    "label": "v3.45",
     "default": true,
     "branch": "v3.45-docs"
   },
   {
-    "label": "v3.4",
+    "label": "v3.45",
     "branch": "v3.45-docs"
   }
 ]
