@@ -1,6 +1,5 @@
-import { STRICT } from '../helpers/constants.js';
-import Symbol from 'core-js-pure/es/symbol';
-import isWellFormed from 'core-js-pure/es/string/virtual/is-well-formed';
+import Symbol from '@core-js/pure/es/symbol';
+import isWellFormed from '@core-js/pure/es/string/prototype/is-well-formed';
 
 QUnit.test('String#isWellFormed', assert => {
   assert.isFunction(isWellFormed);
@@ -32,10 +31,8 @@ QUnit.test('String#isWellFormed', assert => {
     },
   }), 'conversion #2');
 
-  if (STRICT) {
-    assert.throws(() => isWellFormed.call(null), TypeError, 'coercible #1');
-    assert.throws(() => isWellFormed.call(undefined), TypeError, 'coercible #2');
-  }
+  assert.throws(() => isWellFormed.call(null), TypeError, 'coercible #1');
+  assert.throws(() => isWellFormed.call(undefined), TypeError, 'coercible #2');
 
   assert.throws(() => isWellFormed.call(Symbol('isWellFormed test')), 'throws on symbol context');
 });
