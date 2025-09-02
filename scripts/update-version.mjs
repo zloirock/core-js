@@ -42,7 +42,7 @@ await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR)
 
 const packages = await Promise.all((await glob('packages/*/package.json')).map(async path => {
   const pkg = await readJson(path, 'utf8');
-  return ({ path, pkg });
+  return { path, pkg };
 }));
 
 for (const { path, pkg } of packages) {

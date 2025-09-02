@@ -12,7 +12,7 @@ async function getModulesForEntryPoint(path, parent) {
 
   if (!await fs.pathExists(entry)) return [];
 
-  const file = await fs.readFile(entry);
+  const file = await fs.readFile(entry, 'utf8');
   const result = await Promise.all(konan(String(file)).strings.map(dependency => {
     return getModulesForEntryPoint(dependency, entry);
   }));
