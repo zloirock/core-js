@@ -74,6 +74,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 h1 {
     font-size: 2.25rem;
+    margin-bottom: 1rem;
+    text-align: center;
+    @include themify($themes) {
+        border-bottom: 1px solid themed('border-color-lighter');
+    }
 }
 h2 {
     font-size: 2rem;

@@ -22,7 +22,6 @@ footer {
 
     @include media('min', 'sm') {
       flex-direction: row;
-      align-items: center;
     }
 
     .title {
@@ -30,6 +29,17 @@ footer {
       font-weight: 600;
       @include themify($themes) {
         color: themed('font-color');
+      }
+    }
+
+    .copyright {
+      order: 3;
+      margin-top: 1rem;
+
+      @include media('min', 'sm') {
+        order: unset;
+        align-self: center;
+        margin-top: 0;
       }
     }
   }
