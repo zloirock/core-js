@@ -17,8 +17,8 @@ let initialized = false;
 function init() {
   if (initialized) return;
   initialized = true;
-  const CONTENT_MENU_TOP = 150;
-  const SECTION_MENU_TOP = 150;
+  const CONTENT_MENU_TOP = 108;
+  const SECTION_MENU_TOP = 108;
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector('.menu > .backdrop');
   const [menu] = document.getElementsByClassName('menu');
@@ -176,15 +176,15 @@ function init() {
     if (stickyBlocks) {
       const contentMenuPosition = contentMenu && globalThis.getComputedStyle(contentMenu).position;
       const sectionMenuPosition = sectionMenu && globalThis.getComputedStyle(sectionMenu).position;
-      let stuck = window.pageYOffset > 150;
+      let stuck = window.pageYOffset > CONTENT_MENU_TOP;
       if (stuck) addStuck();
       window.addEventListener('scroll', () => {
         const yScroll = window.pageYOffset;
-        if (!stuck && yScroll > 150) {
+        if (!stuck && yScroll > CONTENT_MENU_TOP) {
           stuck = true;
           addStuck();
         }
-        if (stuck && yScroll <= 150) {
+        if (stuck && yScroll <= CONTENT_MENU_TOP) {
           stuck = false;
           removeStuck();
         }

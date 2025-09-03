@@ -43,10 +43,10 @@ main {
   display: flex;
   justify-content: center;
   flex-grow: 1;
-  margin: 2rem 0;
+  margin-bottom: 2rem;
 
   @include media('min', 'sm') {
-    padding: 1rem;
+    padding: 0 1rem 1rem;
   }
 
   a {
@@ -85,8 +85,8 @@ main {
         flex-shrink: 0;
         line-height: 1.3;
 
-        height: calc(100vh - 150px);
-        height: calc(100dvh - 150px);
+        height: calc(100vh - 108px);
+        height: calc(100dvh - 108px);
         overflow-y: auto;
         scrollbar-width: none;
         @include themify($themes) {
@@ -246,8 +246,8 @@ main {
         font-size: 0.875rem;
         max-width: 20%;
         min-width: 20%;
-        height: calc(100vh - 150px);
-        height: calc(100dvh - 150px);
+        height: calc(100vh - 108px);
+        height: calc(100dvh - 108px);
         overflow-y: auto;
         scrollbar-width: none;
         -ms-overflow-style: none;
