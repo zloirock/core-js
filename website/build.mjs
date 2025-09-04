@@ -138,18 +138,18 @@ function buildMenus(html) {
   const headings = getHeadingList().filter(({ level }) => level > 1);
   let result = '<div class="wrapper">';
   if (isBlog) {
-    result += `<div class="docs-menu sticky"><div class="mobile-trigger"></div>${ blogMenuCache }</div>`;
+    result += `<div class="docs-menu sticky"><div class="container"><div class="docs-links">${ blogMenuCache }</div><div class="mobile-trigger"></div></div></div>`;
   } else if (isDocs) {
-    result += `<div class="docs-menu sticky"><div class="mobile-trigger"></div>${ docsMenu }</div>`;
+    result += `<div class="docs-menu sticky"><div class="container"><div class="docs-links">${ docsMenu }</div><div class="mobile-trigger"></div></div></div>`;
   }
   result += `<div class="content">${ html }</div>`;
   if (headings.length && !Object.hasOwn(fileMetadata, 'disableContentMenu')) {
-    result += `<div class="table-of-contents sticky"><div class="mobile-trigger"></div>
+    result += `<div class="table-of-contents sticky"><div class="container"><div class="mobile-trigger"></div><div class="toc-links">
           ${ headings.map(({ id, raw, level }) => `<div class="toc-link"><a href="${
             htmlFileName.replace('.html', '') }#${ id }" class="h${
             level } with-docs-version" data-default-version="${ DEFAULT_VERSION }">${
             raw }</a></div>`).join('\n') }
-        </div>`;
+        </div></div></div>`;
   }
   return result;
 }

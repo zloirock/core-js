@@ -84,7 +84,8 @@ nav {
                     color: themed('link-color');
                 }
 
-                &.active {
+                &.active,
+                &:hover {
                     @include themify($themes) {
                         color: themed('link-color-hover');
                     }
@@ -237,8 +238,9 @@ nav {
             @include media("max", "lg") {
                 width: 100%;
                 justify-content: center;
-                margin: 30px 0 0;
+                margin: auto 0 0;
                 order: 99;
+                padding-top: 2rem;
             }
 
             @include media("min", "lg") {

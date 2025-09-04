@@ -131,9 +131,15 @@
 
 code {
   position: relative;
+  overflow-x: auto;
+  max-width: 100%;
+  display: inline-block;
+  vertical-align: middle;
+  scrollbar-width: thin;
   padding: 0 0.25rem;
   @include themify($themes) {
     background: themed('button-color-hover');
+    scrollbar-color: themed('background-light') themed('button-color-hover');
   }
 }
 
