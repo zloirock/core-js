@@ -17,8 +17,6 @@ let initialized = false;
 function init() {
   if (initialized) return;
   initialized = true;
-  const CONTENT_MENU_TOP = 108;
-  const SECTION_MENU_TOP = 108;
   const menuSwitcher = document.getElementById('menu-switcher');
   const menuBackdrop = document.querySelector('.menu > .backdrop');
   const [menu] = document.getElementsByClassName('menu');
@@ -27,11 +25,10 @@ function init() {
   const versionsMenu = document.querySelectorAll('.versions-menu');
   const currentVersions = document.querySelectorAll('.versions-menu a.current');
   const dropdownBackdrops = document.querySelectorAll('.dropdown .backdrop');
-  const stickyBlocks = document.querySelectorAll('.sticky');
   const themeSwitcher = document.querySelector('.theme-switcher');
   const docsVersionLinks = document.querySelectorAll('.with-docs-version');
   const docsMenuItems = document.querySelectorAll('.docs-menu li > a');
-  const docsCollapsibleMenuItems = document.querySelectorAll('.docs-menu > ul > li.collapsible');
+  const docsCollapsibleMenuItems = document.querySelectorAll('.docs-menu .docs-links ul > li.collapsible');
   const contentMenu = document.querySelector('.table-of-contents');
   const contentMenuTrigger = document.querySelector('.table-of-contents .mobile-trigger');
   const sectionMenu = document.querySelector('.docs-menu');
@@ -76,18 +73,6 @@ function init() {
       this.parentElement.classList.remove('active');
     });
   });
-
-  function addStuck() {
-    stickyBlocks.forEach(stickyBlock => {
-      stickyBlock.classList.add('stuck');
-    });
-  }
-
-  function removeStuck() {
-    stickyBlocks.forEach(stickyBlock => {
-      stickyBlock.classList.remove('stuck');
-    });
-  }
 
   function getRelativePath() {
     const path = globalThis.location.pathname;
@@ -159,43 +144,9 @@ function init() {
     !found && setActiveDocsMenuItem(docsMenuItems[0]);
   }
 
-  function fixContentMenuPosition(scroll) {
-    contentMenu.style.top = scroll <= CONTENT_MENU_TOP ? `${ CONTENT_MENU_TOP - scroll }px` : 'unset';
-  }
-
-  function fixSectionMenuPosition(scroll) {
-    sectionMenu.style.top = scroll <= SECTION_MENU_TOP ? `${ SECTION_MENU_TOP - scroll }px` : 'unset';
-  }
-
   function openFirstCollapsibleMenuItem() {
     if (!isDocsPage()) return;
     docsCollapsibleMenuItems[0].classList.add('active');
-  }
-
-  function processStickyBlocks() {
-    if (stickyBlocks) {
-      const contentMenuPosition = contentMenu && globalThis.getComputedStyle(contentMenu).position;
-      const sectionMenuPosition = sectionMenu && globalThis.getComputedStyle(sectionMenu).position;
-      let stuck = window.pageYOffset > CONTENT_MENU_TOP;
-      if (stuck) addStuck();
-      window.addEventListener('scroll', () => {
-        const yScroll = window.pageYOffset;
-        if (!stuck && yScroll > CONTENT_MENU_TOP) {
-          stuck = true;
-          addStuck();
-        }
-        if (stuck && yScroll <= CONTENT_MENU_TOP) {
-          stuck = false;
-          removeStuck();
-        }
-        if (contentMenuPosition === 'fixed') {
-          fixContentMenuPosition(yScroll);
-        }
-        if (sectionMenuPosition === 'fixed') {
-          fixSectionMenuPosition(yScroll);
-        }
-      });
-    }
   }
 
   themeSwitcher.addEventListener('click', e => {
@@ -225,7 +176,6 @@ function init() {
   hljs.addPlugin(new RunButtonPlugin());
   hljs.highlightAll();
 
-  processStickyBlocks();
   processVersions();
   highlightActiveDocsMenuItem();
   openFirstCollapsibleMenuItem();
