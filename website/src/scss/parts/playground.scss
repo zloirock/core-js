@@ -72,10 +72,6 @@
       padding-top: 0.25rem;
       z-index: 3;
 
-      @include media("min", "lg") {
-        display: none;
-      }
-
       a {
         display: block;
         width: 24px;
@@ -143,9 +139,25 @@
   }
 }
 
+.playground-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  @include media("min", "md") {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
 .playground-versions {
+  min-width: 200px;
+  width: 100%;
+
   @include media("min", "md") {
     max-width: 200px;
+    margin-left: auto;
   }
 
   .dropdown .dropdown-wrapper > a:after {
