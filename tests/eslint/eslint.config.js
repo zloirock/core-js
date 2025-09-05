@@ -20,7 +20,7 @@ import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
-import pluginUnicorn from 'eslint-plugin-unicorn-x';
+import pluginUnicorn from 'eslint-plugin-unicorn';
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^18.12';
@@ -672,10 +672,14 @@ const base = {
   'unicorn/prefer-array-some': ERROR,
   // prefer `.at()` method for index access and `String#charAt()`
   'unicorn/prefer-at': [ERROR, { checkAllIndexAccess: false }],
+  // prefer `BigInt` literals over the constructor
+  'unicorn/prefer-bigint-literals': ERROR,
   // prefer `Blob#{ arrayBuffer, text }` over `FileReader#{ readAsArrayBuffer, readAsText }`
   'unicorn/prefer-blob-reading-methods': ERROR,
   // prefer class field declarations over this assignments in constructors
   'unicorn/prefer-class-fields': ERROR,
+  // prefer using `Element#classList.toggle()` to toggle class names
+  'unicorn/prefer-classlist-toggle': ERROR,
   // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
   'unicorn/prefer-date-now': ERROR,
   // prefer default parameters over reassignment
@@ -1600,6 +1604,8 @@ const forbidES2020BuiltIns = {
   'es/no-regexp-unicode-property-escapes-2020': ERROR,
   'es/no-string-prototype-matchall': ERROR,
   'es/no-symbol-matchall': ERROR,
+  // prefer `BigInt` literals over the constructor
+  'unicorn/prefer-bigint-literals': OFF,
 };
 
 const forbidES2021BuiltIns = {
@@ -1812,6 +1818,8 @@ const transpiledAndPolyfilled = {
   'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
   // enforce using named capture group in regular expression
   'regexp/prefer-named-capture-group': OFF,
+  // prefer `BigInt` literals over the constructor
+  'unicorn/prefer-bigint-literals': OFF,
   ...forbidSomeES2025Syntax,
   ...forbidCompletelyNonExistentBuiltIns,
 };
