@@ -2,6 +2,7 @@
 /* global Babel -- global scope directive */
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
+import { createPopper } from '@popperjs/core';
 
 hljs.registerLanguage('javascript', javascript);
 
@@ -28,6 +29,8 @@ function init() {
   const resultBlock = document.querySelector('.result');
   const backLinkBlock = document.querySelector('.back-link');
   const backLink = document.querySelector('.back-link a');
+  const tooltip = document.querySelector('#tooltip');
+  const tooltipText = document.querySelector('#tooltip-text');
 
   if (!codeInput) return;
 
@@ -199,6 +202,41 @@ function init() {
     );
   }
 
+  function copyToClipboard(text) {
+    if (navigator.clipboard && globalThis.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) return Promise.resolve();
+      return Promise.reject(new Error('Copy command was unsuccessful'));
+    } catch (err) {
+      document.body.removeChild(textArea);
+      return Promise.reject(err);
+    }
+  }
+
+  function showTooltip(element, message, time = 3000) {
+    tooltipText.innerHTML = message;
+    tooltip.setAttribute('data-show', '');
+    createPopper(element, tooltip, { placement: 'bottom' });
+    setTimeout(() => {
+      tooltip.removeAttribute('data-show');
+    }, time);
+  }
+
   codeInput.addEventListener('input', () => {
     codeOutput.removeAttribute('data-highlighted');
     let val = codeInput.value;
@@ -231,6 +269,9 @@ function init() {
       e.preventDefault();
       pageParams.set('code', codeInput.value);
       globalThis.location.hash = pageParams.toString();
+      copyToClipboard(globalThis.location.toString())
+        .then(() => showTooltip(linkButton, 'Link copied'))
+        .catch(() => showTooltip(linkButton, 'Can\'t copy link. Please copy the link manually'));
     });
   });
 
