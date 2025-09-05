@@ -24,6 +24,10 @@ footer {
       flex-direction: row;
     }
 
+    .footer-logo {
+      width: 144px;
+    }
+
     .title {
       font-size: 1.125rem;
       font-weight: 600;
@@ -38,7 +42,6 @@ footer {
 
       @include media('min', 'sm') {
         order: unset;
-        align-self: center;
         margin-top: 0;
       }
     }

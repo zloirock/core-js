@@ -6,7 +6,6 @@
 header {
     display: flex;
     justify-content: center;
-    height: 87px;
 
     @include themify($themes) {
         background-color: themed('background-color');
@@ -21,7 +20,7 @@ nav {
     justify-content: space-between;
     align-items: center;
 
-    padding: 0.5rem 1rem;
+    padding: 1rem 1rem;
 
     @include wrapper;
 
@@ -29,7 +28,7 @@ nav {
         max-width: 60%;
 
         @include media('min', 'sm') {
-            width: 300px;
+            width: 360px;
             max-width: unset;
         }
 
@@ -77,7 +76,7 @@ nav {
             }
 
             a {
-                font-size: 1.25rem;
+                font-size: 1.5rem;
                 display: block;
                 overflow-wrap: break-word;
                 @include themify($themes) {
@@ -89,6 +88,11 @@ nav {
                     @include themify($themes) {
                         color: themed('link-color-hover');
                     }
+                }
+
+                .icon {
+                    width: 26px;
+                    height: 26px;
                 }
             }
 
