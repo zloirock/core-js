@@ -11,17 +11,16 @@ button {
     font-weight: 600;
 
     @include themify($themes) {
-        background-color: themed('button-color');
-        border: 1px solid themed('button-color');
-        color: themed('font-color-dark');
+        background-color: themed('box-color');
+        border: 1px solid themed('link-color');
+        color: themed('link-color');
     }
 
     &:focus,
     &:hover {
         @include themify($themes) {
             background-color: themed('button-color-hover');
-            border: 1px solid themed('font-color');
-            color: themed('font-color');
+            color: themed('link-color-hover');
         }
     }
 
