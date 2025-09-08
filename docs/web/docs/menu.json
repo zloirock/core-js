@@ -425,5 +425,13 @@
   {
     "title": "Missing polyfills",
     "url": "{docs-version}/docs/missing-polyfills"
+  },
+  {
+    "title": "Contributing",
+    "url": "contributing"
+  },
+  {
+    "title": "Security Policy",
+    "url": "security"
   }
 ]
