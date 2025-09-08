@@ -51,7 +51,7 @@ jobs:
         with:
           path: ${{ matrix.branch }}
           key: ${{ env.CACHE_KEY }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         with:
           node-version: 24
