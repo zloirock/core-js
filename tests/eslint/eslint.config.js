@@ -21,6 +21,7 @@ import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
 import pluginUnicorn from 'eslint-plugin-unicorn';
+import { yaml as pluginYaml } from 'eslint-yaml';
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^18.12';
@@ -2017,6 +2018,11 @@ const qunit = {
   'qunit/resolve-async': ERROR,
 };
 
+const yaml = {
+  // disallow empty mapping values
+  'yaml/no-empty-mapping-value': ERROR,
+};
+
 const json = {
   // enforce spacing inside array brackets
   'jsonc/array-bracket-spacing': [ERROR, NEVER],
@@ -2279,6 +2285,7 @@ export default [
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
       unicorn: pluginUnicorn,
+      yaml: pluginYaml,
     },
     rules: {
       ...base,
@@ -2440,6 +2447,11 @@ export default [
       // ensure that filenames match a convention
       'canonical/filename-match-regex': [ERROR, { regex: '^(?:es|esnext|helpers|web)(?:\\.[a-z][\\d\\-a-z]*[\\da-z])+$' }],
     },
+  },
+  {
+    language: 'yaml/yaml',
+    files: ['*.yaml', '*.yml'],
+    rules: yaml,
   },
   {
     files: ['**/*.json'],
