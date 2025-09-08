@@ -21,6 +21,7 @@
     "bundle-package": "npm run zxi time scripts/bundle-package/bundle-package.mjs",
     "bundle-tests": "npm run zxi time cd scripts/bundle-tests/bundle-tests.mjs",
     "check": "run-s check-v8-protectors check-unused-modules check-mapping check-dependencies",
+    "check-actions": "npm run zxi time scripts/check-actions/check-actions.mjs",
     "check-dependencies": "npm run zxi time scripts/check-dependencies/check-dependencies.mjs",
     "check-mapping": "npm run zxi time scripts/check-compat-data-mapping.mjs",
     "check-unused-modules": "npm run zxi scripts/check-unused-modules.mjs",
