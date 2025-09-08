@@ -12,7 +12,7 @@ button {
 
     @include themify($themes) {
         background-color: themed('box-color');
-        border: 1px solid themed('link-color');
+        border: 1px solid themed('background-highlight');
         color: themed('link-color');
     }
 

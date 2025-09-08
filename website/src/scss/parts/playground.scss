@@ -148,12 +148,34 @@
     gap: 2rem;
 
     .back-link {
-      display: none;
+      width: 68px;
 
       a {
-        display: flex;
         align-items: center;
         gap: 0.5rem;
+        display: none;
+      }
+
+      .dummy {
+        width: 36px;
+        height: 36px;
+        margin-left: auto;
+
+        svg {
+          @include themify($themes) {
+            fill: themed('font-color');
+          }
+        }
+      }
+
+      &.active {
+        a {
+          display: flex;
+        }
+
+        .dummy {
+          display: none;
+        }
       }
     }
 

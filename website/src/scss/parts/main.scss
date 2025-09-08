@@ -90,6 +90,7 @@ main {
         height: 100dvh;
         overflow-y: auto;
         scrollbar-width: none;
+        margin-top: 3.5rem;
         @include themify($themes) {
           border-right: 1px solid themed('border-color-lighter');
         }
@@ -107,11 +108,6 @@ main {
           }
         }
 
-        &.stuck {
-          height: calc(100vh - 2rem);
-          height: calc(100dvh - 2rem);
-        }
-
         @include media('max', 'md') {
           position: absolute;
           left: -1rem;
@@ -125,7 +121,6 @@ main {
           @include themify($themes) {
             background-color: themed('background-light');
             box-shadow: 5px 5px 7px -6px themed('background-highlight');
-            border-right: 0;
           }
 
           .container {
@@ -197,11 +192,6 @@ main {
               }
             }
           }
-
-          &.stuck {
-            height: 100%;
-            padding-top: 1rem;
-          }
         }
 
         a {
@@ -263,14 +253,9 @@ main {
         height: 100dvh;
         overflow-y: auto;
         scrollbar-width: none;
-        -ms-overflow-style: none;
+        margin-top: 3.5rem;
         @include themify($themes) {
           border-left: 1px solid themed('border-color-lighter');
-        }
-
-        &.stuck {
-          height: calc(100vh - 2rem);
-          height: calc(100dvh - 2rem);
         }
 
         .mobile-trigger {
@@ -289,7 +274,6 @@ main {
           @include themify($themes) {
             background-color: themed('background-light');
             box-shadow: -5px 5px 7px -6px themed('background-highlight');
-            border-left: 0;
           }
 
           .container {
@@ -354,11 +338,6 @@ main {
                 margin-left: -2px;
               }
             }
-          }
-
-          &.stuck {
-            height: 100%;
-            padding-top: 1rem;
           }
         }
 

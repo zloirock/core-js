@@ -300,7 +300,7 @@ function init() {
   }
 
   if (document.referrer !== '') {
-    backLinkBlock.style.display = 'block';
+    backLinkBlock.classList.add('active');
     backLink.addEventListener('click', e => {
       e.preventDefault();
       globalThis.history.back();
