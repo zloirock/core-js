@@ -183,20 +183,23 @@ async function buildBlogMenu() {
     if (mdPath.endsWith('index.md')) continue;
     const content = await readFile(mdPath);
     const tokens = marked.lexer(content);
-    marked.parse(content);
     const firstH1 = tokens.find(token => token.type === 'heading' && token.depth === 1);
 
     if (!firstH1) {
       echo(chalk.yellow(`H1 not found in ${ mdPath }`));
       continue;
     }
+    let htmlContent = await marked.parse(content);
+    htmlContent = htmlContent.replace(/<h1.*<\/h1>/, '');
+    const res = htmlContent.match(/(?<preview>[\s\S]*?)<hr>/i);
+    const preview = res?.groups?.preview.trim() ?? '';
 
     const match = mdPath.match(/(?<date>\d{4}-\d{2}-\d{2})-/);
     const date = match && match.groups ? match.groups.date : null;
     const htmlFileName = mdPath.replace(config.blogDir, '').replace(/\.md$/i, '');
     menu += `<li><a href="./blog/${ htmlFileName }">${ date }: ${ firstH1.text }</a></li>`;
     index += `## [${ firstH1.text }](./blog/${
-      htmlFileName })\n\n*${ date }*\n\n${ fileMetadata.preview ?? '' }\n\n`;
+      htmlFileName })\n\n*${ date }*\n\n${ preview }\n\n`;
   }
   menu += '</ul>';
   blogMenuCache = menu;
