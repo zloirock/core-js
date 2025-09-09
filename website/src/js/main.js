@@ -33,6 +33,7 @@ function init() {
   const contentMenuTrigger = document.querySelector('.table-of-contents .mobile-trigger');
   const sectionMenu = document.querySelector('.docs-menu');
   const sectionMenuTrigger = document.querySelector('.docs-menu .mobile-trigger');
+  const mainMenuItems = document.querySelectorAll('.menu-item.highlightable > a');
   let isDocs, docsVersion;
   const currentPath = getRelativePath();
 
@@ -149,6 +150,17 @@ function init() {
     docsCollapsibleMenuItems[0].classList.add('active');
   }
 
+  function highlightMainMenu() {
+    const path = getRelativePath();
+    for (const item of mainMenuItems) {
+      const href = item.getAttribute('href').replace('./', '');
+      if (path.includes(href)) {
+        item.classList.add('active');
+        return;
+      }
+    }
+  }
+
   themeSwitcher.addEventListener('click', e => {
     e.preventDefault();
     const html = document.querySelector('html');
@@ -179,6 +191,7 @@ function init() {
   processVersions();
   highlightActiveDocsMenuItem();
   openFirstCollapsibleMenuItem();
+  highlightMainMenu();
 }
 
 if (document.readyState === 'loading') {
