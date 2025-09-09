@@ -11,7 +11,7 @@ button {
     font-weight: 600;
 
     @include themify($themes) {
-        background-color: themed('box-color');
+        background-color: transparent;
         border: 1px solid themed('background-highlight');
         color: themed('link-color');
     }

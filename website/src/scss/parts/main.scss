@@ -90,7 +90,6 @@ main {
         height: 100dvh;
         overflow-y: auto;
         scrollbar-width: none;
-        margin-top: 3.5rem;
         @include themify($themes) {
           border-right: 1px solid themed('border-color-lighter');
         }
@@ -253,7 +252,6 @@ main {
         height: 100dvh;
         overflow-y: auto;
         scrollbar-width: none;
-        margin-top: 3.5rem;
         @include themify($themes) {
           border-left: 1px solid themed('border-color-lighter');
         }
