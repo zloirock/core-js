@@ -177,7 +177,7 @@ async function buildBlogMenu() {
 
   const mdFiles = await getAllMdFiles(config.blogDir);
   mdFiles.reverse();
-  let index = '---\ndisableContentMenu: true\n---\n# Blog\n\n';
+  let index = '---\ndisableContentMenu: true\n---\n';
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
     if (mdPath.endsWith('index.md')) continue;
@@ -190,9 +190,9 @@ async function buildBlogMenu() {
       continue;
     }
     let htmlContent = await marked.parse(content);
-    htmlContent = htmlContent.replace(/<h1.*<\/h1>/, '');
-    const res = htmlContent.match(/(?<preview>[\s\S]*?)<hr>/i);
-    const preview = res?.groups?.preview.trim() ?? '';
+    htmlContent = htmlContent.replace(/<h1>[^<]*<\/h1>/i, '');
+    const hrIndex = htmlContent.search(/<hr>/i);
+    const preview = hrIndex !== -1 ? htmlContent.slice(0, hrIndex) : htmlContent;
 
     const match = mdPath.match(/(?<date>\d{4}-\d{2}-\d{2})-/);
     const date = match && match.groups ? match.groups.date : null;

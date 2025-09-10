@@ -148,7 +148,8 @@
     gap: 2rem;
 
     .back-link {
-      width: 68px;
+      flex-basis: 68px;
+      flex-shrink: 0;
 
       a {
         align-items: center;
