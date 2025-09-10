@@ -83,10 +83,15 @@ nav {
                     color: themed('link-color');
                 }
 
-                &.active,
                 &:hover {
                     @include themify($themes) {
                         color: themed('link-color-hover');
+                    }
+                }
+
+                &.active {
+                    @include themify($themes) {
+                        color: themed('link-color2');
                     }
                 }
 
