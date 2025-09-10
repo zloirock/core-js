@@ -1,6 +1,7 @@
 ## Changelog
 ##### Unreleased
 - Compat data improvements:
+  - Added [Deno 2.5](https://github.com/denoland/deno/releases/tag/v2.5.0) compat data mapping
   - Updated Opera 121+ compat data mapping
   - Added Oculus Quest Browser 40 compat data mapping
 
