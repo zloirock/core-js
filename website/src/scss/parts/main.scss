@@ -53,8 +53,13 @@ main {
     @include themify($themes) {
       color: themed('link-color2');
     }
+    &:focus {
+      @include themify($themes) {
+        color: themed('link-color2');
+      }
+    }
 
-    &:hover, &:focus {
+    &:hover {
       @include themify($themes) {
         color: themed('link-color2-hover');
       }
@@ -348,6 +353,14 @@ main {
 
           a {
             display: block;
+          }
+
+          &.active {
+            a {
+              @include themify($themes) {
+                  color: themed('link-color2-hover');
+              }
+            }
           }
 
           .h3 {
