@@ -2079,7 +2079,14 @@ GLOBAL.tests = {
     return WeakMap.prototype.getOrInsert;
   },
   'esnext.weak-map.get-or-insert-computed': function () {
-    return WeakMap.prototype.getOrInsertComputed;
+    if (!WeakMap.prototype.getOrInsertComputed) return;
+    try {
+      new WeakMap().getOrInsertComputed(1, function () { throw 1; });
+    } catch (error) {
+      // FF144 bug
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
+      return error instanceof TypeError;
+    }
   },
   'esnext.weak-map.from': function () {
     return WeakMap.from;

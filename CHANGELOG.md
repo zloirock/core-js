@@ -1,7 +1,9 @@
 ## Changelog
 ##### Unreleased
+- [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
+  - Fixed [a FF `WeakMap.prototype.getOrInsertComputed` bug with callback calling before validation a key](https://bugzilla.mozilla.org/show_bug.cgi?id=1988369)
 - Compat data improvements:
-  - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from FF144
+  - [`Map.prototype.{ getOrInsert, getOrInsertComputed }` and `WeakMap.prototype.getOrInsert`](https://github.com/tc39/proposal-upsert) marked as shipped from FF144
   - Added [Deno 2.5](https://github.com/denoland/deno/releases/tag/v2.5.0) compat data mapping
   - Updated Opera 121+ compat data mapping
   - Added Oculus Quest Browser 40 compat data mapping
