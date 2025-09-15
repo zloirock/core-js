@@ -604,6 +604,8 @@
     "./proposals/object-values-entries.js": "./proposals/object-values-entries.js",
     "./proposals/pattern-matching": "./proposals/pattern-matching.js",
     "./proposals/pattern-matching.js": "./proposals/pattern-matching.js",
+    "./proposals/promise-all-keyed": "./proposals/promise-all-keyed.js",
+    "./proposals/promise-all-keyed.js": "./proposals/promise-all-keyed.js",
     "./proposals/promise-all-settled": "./proposals/promise-all-settled.js",
     "./proposals/promise-all-settled.js": "./proposals/promise-all-settled.js",
     "./proposals/promise-any": "./proposals/promise-any.js",
