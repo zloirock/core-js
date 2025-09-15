@@ -8,8 +8,11 @@ var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
+var uncurryThis = require('../internals/function-uncurry-this');
 
 var create = Object.create;
+var forEach = uncurryThis([].forEach);
+// @dependency: es.reflect.own-keys
 var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 
 // `Promise.allKeyed` method
@@ -17,6 +20,10 @@ var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 $({ target: 'Promise', stat: true }, {
   allKeyed: function allKeyed(promises) {
     var C = this;
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
+    // @dependency: es.promise.resolve
     var capability = newPromiseCapabilityModule.f(C);
     var resolve = capability.resolve;
     var reject = capability.reject;
@@ -27,7 +34,7 @@ $({ target: 'Promise', stat: true }, {
       var values = [];
       var remaining = 1;
       var counter = 0;
-      for (var i = 0; i < allKeys.length; i++) (function (key) {
+      forEach(allKeys, function (key) {
         var desc = getOwnPropertyDescriptor.f(promises, key);
         if (desc && desc.enumerable) {
           var index = counter;
@@ -42,16 +49,19 @@ $({ target: 'Promise', stat: true }, {
             --remaining;
             if (remaining === 0) {
               var res = create(null);
-              for (var j = 0; j < keys.length; j++) createProperty(res, keys[j], values[j]);
+              forEach(keys, function (k, i) {
+                createProperty(res, k, values[i]);
+              });
               resolve(res);
             }
           }, reject);
           counter++;
         }
-      })(allKeys[i]);
+      });
       --remaining || resolve(create(null));
     });
     if (result.error) reject(result.value);
     return capability.promise;
   },
 });
+
