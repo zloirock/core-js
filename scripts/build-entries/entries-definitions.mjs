@@ -1942,6 +1942,12 @@ export const features = {
     namespace: 'Promise',
     name: 'all',
   },
+  'promise/all-keyed': {
+    modules: ['esnext.promise.all-keyed'],
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'allKeyed',
+  },
   'promise/all-settled': {
     modules: ['es.promise.all-settled'],
     template: $staticWithContext,
@@ -3568,6 +3574,13 @@ export const proposals = {
     stage: 1,
     modules: [
       'esnext.symbol.custom-matcher',
+    ],
+  },
+  'promise-all-keyed': {
+    link: 'https://github.com/tc39/proposal-await-dictionary',
+    stage: 1,
+    modules: [
+      'esnext.promise.all-keyed',
     ],
   },
   'promise-all-settled': {
