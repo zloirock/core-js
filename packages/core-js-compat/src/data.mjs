@@ -2387,6 +2387,8 @@ export const data = {
   },
   'esnext.number.clamp': {
   },
+  'esnext.promise.all-keyed': {
+  },
   'esnext.set.from': {
   },
   'esnext.set.of': {
