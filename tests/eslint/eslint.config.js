@@ -1341,6 +1341,9 @@ const forbidCompletelyNonExistentBuiltIns = {
     'iterateKeys',
     'iterateValues',
   ] }],
+  'es/no-nonstandard-promise-properties': [ERROR, { allow: [
+    'allKeyed',
+  ] }],
   'es/no-nonstandard-reflect-properties': [ERROR, { allow: [
     // TODO: drop from `core-js@4`
     'defineMetadata',
