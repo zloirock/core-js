@@ -4,7 +4,6 @@
   - Fixed [a FF `WeakMap.prototype.getOrInsertComputed` bug with callback calling before validation a key](https://bugzilla.mozilla.org/show_bug.cgi?id=1988369)
 - [`Iterator` chunking stage 2 proposal](https://github.com/tc39/proposal-iterator-chunking):
   - `Iterator.prototype.sliding` method replaced with an extra parameter of `Iterator.prototype.windows` method, [tc39/proposal-iterator-chunking/#24](https://github.com/tc39/proposal-iterator-chunking/pull/24)
-- Added [Await dictionary of Promises](https://github.com/tc39/proposal-await-dictionary) stage 1 proposal
 - Compat data improvements:
   - [`Map.prototype.{ getOrInsert, getOrInsertComputed }` and `WeakMap.prototype.getOrInsert`](https://github.com/tc39/proposal-upsert) marked as shipped from FF144
   - Added [Deno 2.5](https://github.com/denoland/deno/releases/tag/v2.5.0) compat data mapping
