@@ -897,7 +897,6 @@ export const features = {
     template: $static,
     namespace: 'Error',
     name: 'isError',
-    injectOn: 'static',
   },
   'function/index': {
     modules: [/^(?:es|esnext)\.function\./],
