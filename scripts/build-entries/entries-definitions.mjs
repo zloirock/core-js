@@ -1944,7 +1944,9 @@ export const features = {
   },
   'promise/all-keyed': {
     modules: ['esnext.promise.all-keyed'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'allKeyed' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'allKeyed',
   },
   'promise/all-settled': {
     modules: ['es.promise.all-settled'],
@@ -1954,7 +1956,9 @@ export const features = {
   },
   'promise/all-settled-keyed': {
     modules: ['esnext.promise.all-settled-keyed'],
-    template: $staticWithContext({ namespace: 'Promise', method: 'allSettledKeyed' }),
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'allSettledKeyed',
   },
   'promise/any': {
     modules: ['es.promise.any'],
@@ -3584,6 +3588,13 @@ export const proposals = {
     stage: 1,
     modules: [
       'esnext.symbol.custom-matcher',
+    ],
+  },
+  'promise-all-keyed': {
+    link: 'https://github.com/tc39/proposal-await-dictionary',
+    stage: 1,
+    modules: [
+      'esnext.promise.all-keyed',
     ],
   },
   'promise-all-settled': {
