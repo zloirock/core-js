@@ -1909,6 +1909,9 @@ GLOBAL.tests = {
   'esnext.number.clamp': function () {
     return Number.prototype.clamp;
   },
+  'esnext.promise.all-keyed': function () {
+    return Promise.allKeyed;
+  },
   'esnext.set.from': function () {
     return Set.from;
   },
