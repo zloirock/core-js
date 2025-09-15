@@ -73,8 +73,8 @@ QUnit.test('Promise.allSettledKeyed, synchronous callbacks', assert => {
     assert.deepEqual(result.a, { status: 'fulfilled', value: 1 }, 'synchronous fulfillment');
     assert.deepEqual(result.b, { status: 'rejected', reason: -2 }, 'synchronous rejection');
     assert.deepEqual(result[symbol], { status: 'fulfilled', value: 3 }, 'symbol key');
-    assert.deepEqual(keys(result), ['a', 'b'], 'key order');
-    assert.same(getPrototypeOf(result), null, 'null prototype');
+    assert.deepEqual(Object.keys(result), ['a', 'b'], 'key order');
+    assert.same(Object.getPrototypeOf(result), null, 'null prototype');
   });
 });
 
@@ -94,7 +94,7 @@ QUnit.test('Promise.allSettledKeyed, mixed synchronous and asynchronous callback
       b: { status: 'fulfilled', value: 2 },
       c: { status: 'fulfilled', value: 3 },
     }), 'preserves all entries');
-    assert.deepEqual(keys(result), ['a', 'b', 'c'], 'key order');
+    assert.deepEqual(Object.keys(result), ['a', 'b', 'c'], 'key order');
   });
 });
 

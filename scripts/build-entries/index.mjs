@@ -51,7 +51,13 @@ async function buildEntry(entry, options) {
   let {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
-    template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
+    template,
+    templateStable = template,
+    templateActual = templateStable,
+    templateFull = templateActual,
+    filter,
+    modules,
+    enforceEntryCreation,
   } = options;
 
   switch (subset) {
@@ -60,14 +66,14 @@ async function buildEntry(entry, options) {
       break;
     case 'stable':
       filter ??= StableSet;
-      template = templateStable ?? template;
+      template = templateStable;
       break;
     case 'actual':
       filter ??= ActualSet;
-      template = templateActual ?? templateStable ?? template;
+      template = templateActual;
       break;
     case 'full':
-      template = templateFull ?? templateActual ?? templateStable ?? template;
+      template = templateFull;
       break;
     case 'es-stage':
       filter ??= ESWithProposalsSet;
