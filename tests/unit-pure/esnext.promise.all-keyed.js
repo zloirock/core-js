@@ -40,8 +40,8 @@ QUnit.test('Promise.allKeyed, synchronous callbacks', assert => {
     assert.same(result.a, 1, 'first string key');
     assert.same(result.b, 2, 'second string key');
     assert.same(result[symbol], 3, 'symbol key');
-    assert.deepEqual(keys(result), ['a', 'b'], 'key order');
-    assert.same(getPrototypeOf(result), null, 'null prototype');
+    assert.deepEqual(Object.keys(result), ['a', 'b'], 'key order');
+    assert.same(Object.getPrototypeOf(result), null, 'null prototype');
   });
 });
 
@@ -57,7 +57,7 @@ QUnit.test('Promise.allKeyed, mixed synchronous and asynchronous callbacks', ass
   };
   return Promise.allKeyed.call(CustomPromise, { a: 1, b: 2, c: 3 }).then(result => {
     assert.deepEqual(result, nullProto({ a: 1, b: 2, c: 3 }), 'preserves all entries');
-    assert.deepEqual(keys(result), ['a', 'b', 'c'], 'key order');
+    assert.deepEqual(Object.keys(result), ['a', 'b', 'c'], 'key order');
   });
 });
 
