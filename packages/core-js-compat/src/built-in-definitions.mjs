@@ -152,6 +152,7 @@ export const StaticProperties = {
   },
   Promise: {
     all: 'promise/all',
+    allKeyed: 'promise/all-keyed',
     allSettled: 'promise/all-settled',
     any: 'promise/any',
     race: 'promise/race',
