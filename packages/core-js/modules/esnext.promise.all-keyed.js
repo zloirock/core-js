@@ -3,23 +3,17 @@ var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var call = require('../internals/function-call');
+var createProperty = require('../internals/create-property');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
-var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor').f;
+var getOwnPropertyDescriptor = require('../internals/object-get-own-property-descriptor');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
 var perform = require('../internals/perform');
 var uncurryThis = require('../internals/function-uncurry-this');
 
+var create = Object.create;
 var forEach = uncurryThis([].forEach);
 // dependency: es.reflect.own-keys
-var objectKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
-
-var wrapResolve = function (resolve, keys, values) {
-  var result = Object.create(null);
-  forEach(keys, function (key, index) {
-    result[key] = values[index];
-  });
-  call(resolve, undefined, result);
-};
+var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 
 // `Promise.allKeyed` method
 // https://tc39.es/proposal-await-dictionary
@@ -34,15 +28,14 @@ $({ target: 'Promise', stat: true, forced: true }, {
     var resolve = capability.resolve;
     var reject = capability.reject;
     var result = perform(function () {
-      anObject(promises);
       var promiseResolve = aCallable(C.resolve);
-      var allKeys = objectKeys(promises);
+      var allKeys = ownKeys(anObject(promises));
       var keys = [];
       var values = [];
       var remaining = 1;
       var counter = 0;
       forEach(allKeys, function (key) {
-        var desc = getOwnPropertyDescriptor(promises, key);
+        var desc = getOwnPropertyDescriptor.f(promises, key);
         if (desc && desc.enumerable) {
           var index = counter;
           var alreadyCalled = false;
@@ -53,12 +46,19 @@ $({ target: 'Promise', stat: true, forced: true }, {
             if (alreadyCalled) return;
             alreadyCalled = true;
             values[index] = value;
-            --remaining || wrapResolve(resolve, keys, values);
+            --remaining;
+            if (remaining === 0) {
+              var res = create(null);
+              forEach(keys, function (k, idx) {
+                createProperty(res, k, values[idx]);
+              });
+              resolve(res);
+            }
           }, reject);
           counter++;
         }
       });
-      --remaining || wrapResolve(resolve, keys, values);
+      --remaining || resolve(create(null));
     });
     if (result.error) reject(result.value);
     return capability.promise;
