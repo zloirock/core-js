@@ -29,6 +29,7 @@ const ignore = new Set([
   'esnext.function.un-this',
   'esnext.iterator.as-indexed-pairs',
   'esnext.iterator.indexed',
+  'esnext.iterator.sliding',
   'esnext.map.emplace',
   'esnext.map.update-or-insert',
   'esnext.map.upsert',

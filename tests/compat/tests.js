@@ -1903,9 +1903,6 @@ GLOBAL.tests = {
   'esnext.iterator.range': function () {
     return Iterator.range;
   },
-  'esnext.iterator.sliding': function () {
-    return Iterator.prototype.sliding;
-  },
   'esnext.iterator.to-async': function () {
     return Iterator.prototype.toAsync;
   },

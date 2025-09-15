@@ -16,12 +16,12 @@ var IteratorProxy = createIteratorProxy(function () {
   var next = this.next;
   var buffer = this.buffer;
   var windowSize = this.windowSize;
-  var sliding = this.sliding;
+  var allowPartial = this.allowPartial;
   var result, done;
   while (true) {
     result = anObject(call(next, iterator));
     done = this.done = !!result.done;
-    if (sliding && done && buffer.length && buffer.length < windowSize) return createIterResultObject(buffer, false);
+    if (allowPartial && done && buffer.length && buffer.length < windowSize) return createIterResultObject(buffer, false);
     if (done) return createIterResultObject(undefined, true);
 
     if (buffer.length === windowSize) this.buffer = buffer = slice(buffer, 1);
@@ -30,16 +30,16 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 }, false, true);
 
-// `Iterator.prototype.sliding` and `Iterator.prototype.windows` methods
+// `Iterator.prototype.windows` and obsolete `Iterator.prototype.sliding` methods
 // https://github.com/tc39/proposal-iterator-chunking
-module.exports = function (O, windowSize, sliding) {
+module.exports = function (O, windowSize, allowPartial) {
   anObject(O);
   if (typeof windowSize != 'number' || !windowSize || windowSize >>> 0 !== windowSize) {
-    return iteratorClose(O, 'throw', new $RangeError('windowSize must be integer in [1, 2^32-1]'));
+    return iteratorClose(O, 'throw', new $RangeError('`windowSize` must be integer in [1, 2^32-1]'));
   }
   return new IteratorProxy(getIteratorDirect(O), {
     windowSize: windowSize,
     buffer: [],
-    sliding: sliding
+    allowPartial: allowPartial
   });
 };

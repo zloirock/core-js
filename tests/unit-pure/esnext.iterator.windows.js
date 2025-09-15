@@ -16,6 +16,9 @@ QUnit.test('Iterator#windows', assert => {
   assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3)), [], 'basic functionality #3');
   assert.arrayEqual(from(windows.call(createIterator([]), 2)), [], 'basic functionality on empty iterable');
 
+  assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3, 'only full')), [], 'undersized #1');
+  assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3, 'allow partial')), [[1, 2]], 'undersized #2');
+
   const it = createIterator([1, 2, 3]);
   const result = windows.call(it, 3);
   assert.isIterable(result, 'returns iterable');
@@ -44,4 +47,7 @@ QUnit.test('Iterator#windows', assert => {
   const itObservable = createIterator([1, 2, 3], observableReturn);
   assert.throws(() => windows.call(itObservable, 0x100000000), RangeError, 'throws on argument more then 2^32 - 1');
   assert.true(itObservable.called, 'iterator closed on argument validation error');
+
+  assert.throws(() => windows.call(createIterator([1]), 2, null), TypeError, 'incorrect `undersized` argument #1');
+  assert.throws(() => windows.call(createIterator([1]), 2, 'allowpartial'), TypeError, 'incorrect `undersized` argument #2');
 });

@@ -3068,31 +3068,31 @@ core-js(-pure)/full/symbol/custom-matcher
 ```
 
 ##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
-Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js), [`esnext.iterator.sliding`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.sliding.js)
+Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js)
 and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
 ```ts
 class Iterator {
   chunks(chunkSize: number): Iterator<any>;
-  sliding(windowSize: number): Iterator<any>;
-  windows(windowSize: number): Iterator<any>;
+  windows(windowSize: number, undersized?: 'only full' | 'allow partial' | undefined): Iterator<any>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
-core-js/proposals/iterator-chunking
+core-js/proposals/iterator-chunking-v2
 core-js(-pure)/full/iterator/chunks
-core-js(-pure)/full/iterator/sliding
 core-js(-pure)/full/iterator/windows
 ```
 [*Examples*](https://tinyurl.com/24xnkcnn)
 ```js
 const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
 
-let chunksOf2 = Array.from(digits().chunks(2));  // [ [0, 1], [2, 3], [4, 5], [6, 7], [8, 9] ]
+let chunks = Array.from(digits().chunks(2));  // [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
 
-let slidingOf2 = Array.from(digits().sliding(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
+let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
 
-let windowsOf2 = Array.from(digits().windows(2));  // [ [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9] ]
+let windowsPartial = Array.from([0, 1].values().windows(3, 'allow partial'));  // [[0, 1]]
+
+let windowsFull = Array.from([0, 1].values().windows(3));  // []
 ```
 
 #### Stage 1 proposals[⬆](#index)

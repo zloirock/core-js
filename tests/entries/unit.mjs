@@ -955,6 +955,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
   load('proposals/iterator-range');
   load('proposals/iterator-sequencing');
   load('proposals/iterator-chunking');
+  load('proposals/iterator-chunking-v2');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/keys-composition');
