@@ -2345,6 +2345,8 @@ export const data = {
   },
   'esnext.iterator.chunks': {
   },
+  'esnext.iterator.concat': {
+  },
   'esnext.iterator.range': {
   },
   'esnext.iterator.to-async': {
