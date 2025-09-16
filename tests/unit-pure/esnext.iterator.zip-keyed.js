@@ -38,5 +38,21 @@ QUnit.test('Iterator.zipKeyed', assert => {
     defineProperty(obj, 'b', { get: () => { throw new Error(); }, enumerable: true });
     assert.throws(() => from(zipKeyed(obj)), Error);
     assert.true(it.called, 'iterator return called');
+
+    const foo = Symbol('foo');
+    const bar = Symbol('bar');
+    const zipped = zipKeyed({ [foo]: [1, 2, 3], [bar]: [4, 5, 6], baz: [7, 8, 9] });
+    result = from(zipped);
+    assert.same(result[0][foo], 1);
+    assert.same(result[0][bar], 4);
+    assert.same(result[0].baz, 7);
+
+    assert.same(result[1][foo], 2);
+    assert.same(result[1][bar], 5);
+    assert.same(result[1].baz, 8);
+
+    assert.same(result[2][foo], 3);
+    assert.same(result[2][bar], 6);
+    assert.same(result[2].baz, 9);
   }
 });
