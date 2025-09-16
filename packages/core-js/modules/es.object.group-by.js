@@ -1,5 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
+var createProperty = require('../internals/create-property');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');
@@ -33,7 +34,7 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
       // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
       // but since it's a `null` prototype object, we can safely use `in`
       if (key in obj) push(obj[key], value);
-      else obj[key] = [value];
+      else createProperty(obj, key, [value]);
     });
     return obj;
   }

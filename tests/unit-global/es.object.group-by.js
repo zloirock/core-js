@@ -23,4 +23,13 @@ QUnit.test('Object.groupBy', assert => {
     assert.same(it, element);
     assert.same(i, 0);
   });
+
+  const even = Symbol('even');
+  const odd = Symbol('odd');
+  const grouped = Object.groupBy([1, 2, 3, 4, 5, 6], num => {
+    if (num % 2 === 0) return even;
+    return odd;
+  });
+  assert.deepEqual(grouped[even], [2, 4, 6]);
+  assert.deepEqual(grouped[odd], [1, 3, 5]);
 });

@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
+var createProperty = require('../internals/create-property');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var getBuiltIn = require('../internals/get-built-in');
@@ -62,7 +63,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
     return iteratorZip(iters, mode, padding, function (results) {
       var obj = create(null);
       for (var j = 0; j < iterCount; j++) {
-        obj[keys[j]] = results[j];
+        createProperty(obj, keys[j], results[j]);
       }
       return obj;
     });

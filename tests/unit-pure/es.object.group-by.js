@@ -2,6 +2,7 @@ import { createIterable } from '../helpers/helpers.js';
 import groupBy from 'core-js-pure/es/object/group-by';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 import entries from 'core-js-pure/es/object/entries';
+import Symbol from 'core-js-pure/full/symbol';
 
 QUnit.test('Object.groupBy', assert => {
   assert.isFunction(groupBy);
@@ -22,4 +23,13 @@ QUnit.test('Object.groupBy', assert => {
     assert.same(it, element);
     assert.same(i, 0);
   });
+
+  const even = Symbol('even');
+  const odd = Symbol('odd');
+  const grouped = groupBy([1, 2, 3, 4, 5, 6], num => {
+    if (num % 2 === 0) return even;
+    return odd;
+  });
+  assert.deepEqual(grouped[even], [2, 4, 6]);
+  assert.deepEqual(grouped[odd], [1, 3, 5]);
 });
