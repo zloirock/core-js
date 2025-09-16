@@ -25,6 +25,6 @@
   "main": "index.js",
   "types": "index.d.ts",
   "dependencies": {
-    "browserslist": "^4.26.0"
+    "browserslist": "^4.26.2"
   }
 }
