@@ -16,8 +16,8 @@ QUnit.test('Iterator#windows', assert => {
   assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3)), [], 'basic functionality #3');
   assert.arrayEqual(from(windows.call(createIterator([]), 2)), [], 'basic functionality on empty iterable');
 
-  assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3, 'only full')), [], 'undersized #1');
-  assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3, 'allow partial')), [[1, 2]], 'undersized #2');
+  assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3, 'only-full')), [], 'undersized #1');
+  assert.arrayEqual(from(windows.call(createIterator([1, 2]), 3, 'allow-partial')), [[1, 2]], 'undersized #2');
 
   const it = createIterator([1, 2, 3]);
   const result = windows.call(it, 3);

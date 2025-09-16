@@ -3073,7 +3073,7 @@ and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/
 ```ts
 class Iterator {
   chunks(chunkSize: number): Iterator<any>;
-  windows(windowSize: number, undersized?: 'only full' | 'allow partial' | undefined): Iterator<any>;
+  windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): Iterator<any>;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -3090,7 +3090,7 @@ let chunks = Array.from(digits().chunks(2));  // [[0, 1], [2, 3], [4, 5], [6, 7]
 
 let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
 
-let windowsPartial = Array.from([0, 1].values().windows(3, 'allow partial'));  // [[0, 1]]
+let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // [[0, 1]]
 
 let windowsFull = Array.from([0, 1].values().windows(3));  // []
 ```

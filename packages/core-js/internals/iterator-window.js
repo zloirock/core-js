@@ -11,7 +11,7 @@ var $RangeError = RangeError;
 var $TypeError = TypeError;
 var push = uncurryThis([].push);
 var slice = uncurryThis([].slice);
-var ALLOW_PARTIAL = 'allow partial';
+var ALLOW_PARTIAL = 'allow-partial';
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
@@ -39,7 +39,7 @@ module.exports = function (O, windowSize, undersized) {
   if (typeof windowSize != 'number' || !windowSize || windowSize >>> 0 !== windowSize) {
     return iteratorClose(O, 'throw', new $RangeError('`windowSize` must be integer in [1, 2^32-1]'));
   }
-  if (undersized !== undefined && undersized !== 'only full' && undersized !== ALLOW_PARTIAL) {
+  if (undersized !== undefined && undersized !== 'only-full' && undersized !== ALLOW_PARTIAL) {
     return iteratorClose(O, 'throw', new $TypeError('Incorrect `undersized` argument'));
   }
   return new IteratorProxy(getIteratorDirect(O), {
