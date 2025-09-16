@@ -1,9 +1,9 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
-import concat from 'core-js-pure/actual/iterator/concat';
-import Iterator from 'core-js-pure/actual/iterator';
-import Symbol from 'core-js-pure/es/symbol';
-import from from 'core-js-pure/es/array/from';
+import concat from '@core-js/pure/actual/iterator/concat';
+import Iterator from '@core-js/pure/actual/iterator';
+import Symbol from '@core-js/pure/es/symbol';
+import from from '@core-js/pure/es/array/from';
 
 QUnit.test('Iterator.concat', assert => {
   assert.isFunction(concat);

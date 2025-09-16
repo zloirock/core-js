@@ -12,7 +12,7 @@ var set = WeakMapHelpers.set;
 
 var FORCED = IS_PURE || !function () {
   try {
-    // eslint-disable-next-line es/no-weak-map, no-throw-literal -- testing
+    // eslint-disable-next-line no-throw-literal -- testing
     if (WeakMap.prototype.getOrInsertComputed) new WeakMap().getOrInsertComputed(1, function () { throw 1; });
   } catch (error) {
     // FF144 bug
@@ -32,5 +32,5 @@ $({ target: 'WeakMap', proto: true, real: true, forced: FORCED }, {
     var value = callbackfn(key);
     set(this, key, value);
     return value;
-  }
+  },
 });
