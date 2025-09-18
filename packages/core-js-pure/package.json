@@ -72,8 +72,5 @@
   "sideEffects": [
     "./modules/*.js"
   ],
-  "main": "index.js",
-  "scripts": {
-    "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
-  }
+  "main": "index.js"
 }
