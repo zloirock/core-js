@@ -1,33 +1,70 @@
-import { NATIVE } from '../helpers/constants.js';
-
 QUnit.test('Promise.resolve', assert => {
   const { resolve } = Promise;
   assert.isFunction(resolve);
-  if (NATIVE) assert.arity(resolve, 1);
+  assert.arity(resolve, 1);
   assert.name(resolve, 'resolve');
   assert.looksNative(resolve);
   assert.nonEnumerable(Promise, 'resolve');
-  assert.throws(() => {
-    resolve.call(null, 1).catch(() => { /* empty */ });
-  }, TypeError, 'throws without context');
-  function FakePromise1(executor) {
+  assert.true(Promise.resolve(42) instanceof Promise, 'returns a promise');
+});
+
+QUnit.test('Promise.resolve, resolves with value', assert => {
+  return Promise.resolve(42).then(result => {
+    assert.same(result, 42, 'resolved with a correct value');
+  });
+});
+
+QUnit.test('Promise.resolve, resolves with thenable', assert => {
+  const thenable = {
+    // eslint-disable-next-line unicorn/no-thenable -- safe
+    then(resolve) { resolve('foo'); },
+  };
+  return Promise.resolve(thenable).then(result => {
+    assert.same(result, 'foo', 'resolved with a correct value');
+  });
+});
+
+QUnit.test('Promise.resolve, returns input if input is already promise', assert => {
+  const p = Promise.resolve('ok');
+  assert.same(Promise.resolve(p), p, 'resolved with a correct value');
+});
+
+QUnit.test('Promise.resolve, resolves with undefined', assert => {
+  return Promise.resolve().then(result => {
+    assert.same(result, undefined, 'resolved with a correct value');
+  });
+});
+
+QUnit.test('Promise.resolve, subclassing', assert => {
+  const { resolve } = Promise;
+  function SubPromise(executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   }
-  FakePromise1[Symbol.species] = function (executor) {
+  SubPromise[Symbol.species] = function (executor) {
     executor(() => { /* empty */ }, () => { /* empty */ });
   };
-  assert.true(resolve.call(FakePromise1, 42) instanceof FakePromise1, 'subclassing, `this` pattern');
+  assert.true(resolve.call(SubPromise, 42) instanceof SubPromise, 'subclassing, `this` pattern');
+
+  function FakePromise1() { /* empty */ }
+  function FakePromise2(executor) {
+    executor(null, () => { /* empty */ });
+  }
+  function FakePromise3(executor) {
+    executor(() => { /* empty */ }, null);
+  }
   assert.throws(() => {
-    resolve.call(() => { /* empty */ }, 42);
+    resolve.call(FakePromise1, 42);
   }, 'NewPromiseCapability validations, #1');
   assert.throws(() => {
-    resolve.call(executor => {
-      executor(null, () => { /* empty */ });
-    }, 42);
+    resolve.call(FakePromise2, 42);
   }, 'NewPromiseCapability validations, #2');
   assert.throws(() => {
-    resolve.call(executor => {
-      executor(() => { /* empty */ }, null);
-    }, 42);
+    resolve.call(FakePromise3, 42);
   }, 'NewPromiseCapability validations, #3');
+});
+
+QUnit.test('Promise.resolve, without constructor context', assert => {
+  const { resolve } = Promise;
+  assert.throws(() => resolve(''), TypeError, 'Throws if called without a constructor context');
+  assert.throws(() => resolve.call(null, ''), TypeError, 'Throws if called with null as this');
 });
