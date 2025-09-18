@@ -6,15 +6,6 @@ QUnit.test('Promise.allKeyed', assert => {
   assert.true(Promise.allKeyed({}) instanceof Promise, 'returns a promise');
 });
 
-QUnit.test('Promise.allKeyed, rejected on incorrect input', assert => {
-  return Promise.allKeyed('string').then(() => {
-    assert.avoid();
-  }, error => {
-    assert.true(error instanceof TypeError, 'error is TypeError');
-    assert.required('rejected as expected');
-  });
-});
-
 QUnit.test('Promise.allKeyed, resolved', assert => {
   return Promise.allKeyed({
     a: Promise.resolve(1),
@@ -56,6 +47,15 @@ QUnit.test('Promise.allKeyed, resolved with hidden attributes', assert => {
   });
 });
 
+QUnit.test('Promise.allKeyed, rejected on incorrect input', assert => {
+  return Promise.allKeyed('string').then(() => {
+    assert.avoid();
+  }, error => {
+    assert.true(error instanceof TypeError, 'error is TypeError');
+    assert.required('rejected as expected');
+  });
+});
+
 QUnit.test('Promise.allKeyed, resolved with timeouts', assert => {
   return Promise.allKeyed({
     a: Promise.resolve(1),
@@ -67,6 +67,52 @@ QUnit.test('Promise.allKeyed, resolved with timeouts', assert => {
       b: 2,
       c: 3,
     }, 'keeps correct mapping, even with delays');
+  });
+});
+
+QUnit.test('Promise.allKeyed, subclassing', assert => {
+  const { allKeyed, resolve } = Promise;
+  function SubPromise(executor) {
+    executor(() => { /* empty */ }, () => { /* empty */ });
+  }
+  SubPromise.resolve = resolve.bind(Promise);
+  assert.true(allKeyed.call(SubPromise, { a: Promise.resolve(1) }) instanceof SubPromise, 'subclassing, `this` pattern');
+
+  function FakePromise1() { /* empty */ }
+  function FakePromise2(executor) {
+    executor(null, () => { /* empty */ });
+  }
+  function FakePromise3(executor) {
+    executor(() => { /* empty */ }, null);
+  }
+  FakePromise1.resolve = FakePromise2.resolve = FakePromise3.resolve = resolve.bind(Promise);
+  assert.throws(() => {
+    allKeyed.call(FakePromise1, { a: Promise.resolve(1) });
+  }, 'NewPromiseCapability validations, #1');
+  assert.throws(() => {
+    allKeyed.call(FakePromise2, { a: Promise.resolve(1) });
+  }, 'NewPromiseCapability validations, #2');
+  assert.throws(() => {
+    allKeyed.call(FakePromise3, { a: Promise.resolve(1) });
+  }, 'NewPromiseCapability validations, #3');
+});
+
+QUnit.test('Promise.allKeyed, without constructor context', assert => {
+  const { allKeyed } = Promise;
+  assert.throws(() => allKeyed({ a: Promise.resolve(1) }), TypeError, 'Throws if called without a constructor context');
+  assert.throws(() => allKeyed.call(null, { a: Promise.resolve(1) }), TypeError, 'Throws if called with null as this');
+});
+
+QUnit.test('Promise.allKeyed, result object has null prototype', assert => {
+  return Promise.allKeyed({
+    a: Promise.resolve(1),
+    b: Promise.resolve(2),
+  }).then(result => {
+    assert.strictEqual(
+      Object.getPrototypeOf(result),
+      null,
+      'Result object has null prototype',
+    );
   });
 });
 
@@ -92,36 +138,5 @@ QUnit.test('Promise.allKeyed, keys order', assert => {
   }).then(it => {
     const actualKeys = Object.keys(it);
     assert.deepEqual(actualKeys, ['a', 'b', 'c'], 'correct order in the case when promises resolves in different order');
-  });
-});
-
-QUnit.test('Promise.allKeyed, without constructor context', assert => {
-  const { allKeyed } = Promise;
-  assert.throws(() => allKeyed({ a: 1 }), TypeError, 'Throws if called without a constructor context');
-  assert.throws(() => allKeyed.call(null, { a: 1 }), TypeError, 'Throws if called with null as this');
-});
-
-QUnit.test('Promise.allKeyed, fake promises', assert => {
-  const { allKeyed } = Promise;
-  const FakePromise1 = function (executor) {
-    executor(() => { /* empty */ }, () => { /* empty */ });
-  };
-  const FakePromise2 = FakePromise1[Symbol.species] = function (executor) {
-    executor(() => { /* empty */ }, () => { /* empty */ });
-  };
-  FakePromise1.resolve = FakePromise2.resolve = Promise.resolve.bind(Promise);
-  assert.true(allKeyed.call(FakePromise1, { a: Promise.resolve(1) }) instanceof FakePromise1, 'subclassing, `this` pattern');
-});
-
-QUnit.test('Promise.allKeyed, result object has null prototype', assert => {
-  return Promise.allKeyed({
-    a: Promise.resolve(1),
-    b: Promise.resolve(2),
-  }).then(result => {
-    assert.strictEqual(
-      Object.getPrototypeOf(result),
-      null,
-      'Result object has null prototype',
-    );
   });
 });
