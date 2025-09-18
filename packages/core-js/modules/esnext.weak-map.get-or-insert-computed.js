@@ -15,7 +15,7 @@ var FORCED = IS_PURE || !function () {
     // eslint-disable-next-line es/no-weak-map, no-throw-literal -- testing
     if (WeakMap.prototype.getOrInsertComputed) new WeakMap().getOrInsertComputed(1, function () { throw 1; });
   } catch (error) {
-    // FF144 bug
+    // FF144 Nightly bug
     // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
     return error instanceof TypeError;
   }

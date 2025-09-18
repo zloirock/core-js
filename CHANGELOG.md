@@ -6,7 +6,7 @@
   - `Iterator.prototype.sliding` method replaced with an extra parameter of `Iterator.prototype.windows` method, [tc39/proposal-iterator-chunking/#24](https://github.com/tc39/proposal-iterator-chunking/pull/24), [tc39/proposal-iterator-chunking/#26](https://github.com/tc39/proposal-iterator-chunking/pull/26)
 - Fixed work of `Object.groupBy` and `Iterator.zipKeyed` together with `Symbol` polyfill - some cases of symbol keys on result `null`-prototype object were able to leak out to `for-in`
 - Compat data improvements:
-  - [`Map.prototype.{ getOrInsert, getOrInsertComputed }` and `WeakMap.prototype.getOrInsert`](https://github.com/tc39/proposal-upsert) marked as shipped from FF144
+  - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from FF144
   - Added [Deno 2.5](https://github.com/denoland/deno/releases/tag/v2.5.0) compat data mapping
   - Updated Opera 121+ compat data mapping
   - Added Oculus Quest Browser 40 compat data mapping

@@ -2881,8 +2881,7 @@ export const data = {
   },
   'esnext.weak-map.get-or-insert-computed': {
     bun: '1.2.20',
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
-    // firefox: '144',
+    firefox: '144',
   },
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.upsert': {
