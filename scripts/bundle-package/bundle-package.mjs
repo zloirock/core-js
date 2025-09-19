@@ -5,6 +5,8 @@ import config from 'core-js-builder/config.js';
 const { cyan, green } = chalk;
 const DENO = argv._.includes('deno');
 const ESMODULES = argv._.includes('esmodules');
+const BUNDLED_NAME = argv._.includes('bundled-name') ? argv._[argv._.indexOf('bundled-name') + 1] : 'index';
+const MINIFIED_NAME = argv._.includes('minified-name') ? argv._[argv._.indexOf('minified-name') + 1] : 'minified';
 const PATH = DENO ? 'deno/corejs/' : 'packages/core-js-bundle/';
 
 function log(kind, name, code) {
@@ -53,7 +55,7 @@ async function bundle({ bundled, minified, options = {} }) {
 }
 
 await bundle(DENO ? {
-  bundled: 'index',
+  bundled: BUNDLED_NAME,
   options: {
     targets: { deno: '1.0' },
     exclude: [
@@ -76,7 +78,7 @@ await bundle(DENO ? {
     ],
   },
 } : {
-  bundled: 'index',
-  minified: 'minified',
+  bundled: BUNDLED_NAME,
+  minified: MINIFIED_NAME,
   options: ESMODULES ? { targets: { esmodules: true } } : {},
 });
