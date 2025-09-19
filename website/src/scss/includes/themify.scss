@@ -3,7 +3,6 @@
 
 @mixin themify($themes: $themes) {
   @each $theme, $map in $themes {
-
     .theme-#{$theme} & {
       $theme-map: () !global;
       @each $key, $submap in $map {

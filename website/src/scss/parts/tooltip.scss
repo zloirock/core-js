@@ -4,6 +4,7 @@
 @use "../includes/themify" as *;
 
 #tooltip {
+  position: absolute;
   font-weight: bold;
   padding: 4px 8px;
   border-radius: 4px;
@@ -18,8 +19,7 @@
     opacity: 1;
   }
 
-  #tooltip-arrow,
-  #tooltip-arrow::before {
+  #tooltip-arrow, #tooltip-arrow::before {
     position: absolute;
     width: 8px;
     height: 8px;

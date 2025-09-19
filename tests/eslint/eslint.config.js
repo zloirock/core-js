@@ -2217,6 +2217,10 @@ const globalsZX = {
   YAML: READONLY,
 };
 
+const browser = {
+  ...base,
+};
+
 export default [
   {
     ignores: [
@@ -2477,7 +2481,9 @@ export default [
       sourceType: 'module',
     },
     rules: {
-      ...transpiledAndPolyfilled,
+      ...browser,
+      'no-restricted-globals': 'off',
+      'unicorn/prefer-global-this': 'off',
     },
   },
   {

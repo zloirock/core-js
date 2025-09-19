@@ -6,8 +6,18 @@ import { createPopper } from '@popperjs/core';
 
 hljs.registerLanguage('javascript', javascript);
 
-const hash = globalThis.location.hash.slice(1);
+const hash = location.hash.slice(1);
 const pageParams = new URLSearchParams(hash);
+const defaultCode = 'import \'core-js/actual\';\n\n' +
+  'await Promise.try(() => 42); // => 42\n\n' +
+  'Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]\n\n' +
+  '[1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]\n\n' +
+  'Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))\n' +
+  '  .drop(1).take(5)\n' +
+  '  .filter(it => it % 2)\n' +
+  '  .map(it => it ** 2)\n' +
+  '  .toArray(); // => [9, 25]\n\n' +
+  'structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])';
 
 const specSymbols = {
   '&': '&amp;',
@@ -39,7 +49,7 @@ function init() {
     resultBlock.innerHTML += `<div class="console ${ type }">${ serializedText }</div>`;
   }
 
-  function consolePlugin(babel) {
+  Babel.registerPlugin('playground-plugin', babel => {
     const { types: t } = babel;
     return {
       visitor: {
@@ -59,13 +69,6 @@ function init() {
             );
           }
         },
-      },
-    };
-  }
-
-  function importPlugin() {
-    return {
-      visitor: {
         ImportDeclaration(path) {
           const { node } = path;
           if (!node.specifiers.length && /^core-js\/|$/.test(node.source.value)) {
@@ -74,10 +77,7 @@ function init() {
         },
       },
     };
-  }
-
-  Babel.registerPlugin('console-plugin', consolePlugin);
-  Babel.registerPlugin('import-plugin', importPlugin);
+  });
 
   function runCode(code) {
     const origConsole = globalThis.console;
@@ -97,11 +97,11 @@ function init() {
     };
 
     try {
-      code = Babel.transform(code, { plugins: ['console-plugin', 'import-plugin'] }).code;
+      code = Babel.transform(code, { plugins: ['playground-plugin'] }).code;
       code = Babel.transform(`(async function () { ${ code } \n})().catch(console.error)`, { presets: ['env'] }).code;
       // eslint-disable-next-line no-new-func -- it's needed to run code with monkey-patched console
-      const context = new Function('console', code);
-      context(console);
+      const executeCode = new Function('console', code);
+      executeCode(console);
     } catch (error) {
       writeResult(`Error: ${ error.message }`, 'error');
     }
@@ -203,7 +203,7 @@ function init() {
   }
 
   function copyToClipboard(text) {
-    if (navigator.clipboard && globalThis.isSecureContext) {
+    if (navigator.clipboard && window.isSecureContext) {
       return navigator.clipboard.writeText(text);
     }
 
@@ -256,7 +256,7 @@ function init() {
       resultBlock.innerHTML = '';
       runCode(codeInput.value);
       if (!elementInViewport(resultBlock)) {
-        globalThis.scrollTo({
+        window.scrollTo({
           top: resultBlock.getBoundingClientRect().top,
           behavior: 'smooth',
         });
@@ -268,15 +268,18 @@ function init() {
     linkButton.addEventListener('click', e => {
       e.preventDefault();
       pageParams.set('code', codeInput.value);
-      globalThis.location.hash = pageParams.toString();
-      copyToClipboard(globalThis.location.toString())
-        .then(() => showTooltip(linkButton, 'Link copied'))
-        .catch(() => showTooltip(linkButton, 'Can\'t copy link. Please copy the link manually'));
+      location.hash = pageParams.toString();
+      try {
+        copyToClipboard(location.toString());
+        showTooltip(linkButton, 'Link copied');
+      } catch {
+        showTooltip(linkButton, 'Can\'t copy link. Please copy the link manually');
+      }
     });
   });
 
   setInterval(() => {
-    globalThis.localStorage.setItem('code', codeInput.value);
+    localStorage.setItem('code', codeInput.value);
   }, 2000);
 
   codeOutput.textContent = codeInput.value;
@@ -293,17 +296,15 @@ function init() {
     codeInput.dispatchEvent(event);
   } else {
     const code = localStorage.getItem('code');
-    if (code) {
-      codeInput.value = code;
-      codeInput.dispatchEvent(event);
-    }
+    codeInput.value = code && code !== '' ? code : defaultCode;
+    codeInput.dispatchEvent(event);
   }
 
   if (document.referrer !== '') {
     backLinkBlock.classList.add('active');
     backLink.addEventListener('click', e => {
       e.preventDefault();
-      globalThis.history.back();
+      history.back();
     });
   }
 }

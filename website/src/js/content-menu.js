@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const target = document.querySelector(hash);
       if (target) {
         scrollToElement(target, offset);
-        globalThis.history.pushState(null, null, href);
+        history.pushState(null, null, href);
       }
     }, false);
   });

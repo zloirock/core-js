@@ -4,7 +4,7 @@
 @use "../includes/themify" as *;
 
 .sandbox-wrapper {
-  margin: 1rem 0;
+  margin: 1rem 0 0;
 
   @include media("min", "lg") {
     display: flex;
