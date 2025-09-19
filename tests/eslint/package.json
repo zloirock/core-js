@@ -4,9 +4,9 @@
   "devDependencies": {
     "@eslint/markdown": "^7.2.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
-    "@stylistic/eslint-plugin": "5.2.3",
+    "@stylistic/eslint-plugin": "^5.4.0",
     "confusing-browser-globals": "^1.0.11",
-    "eslint": "^9.35.0",
+    "eslint": "^9.36.0",
     "eslint-plugin-array-func": "^5.0.2",
     "eslint-plugin-ascii": "^2.0.0",
     "eslint-plugin-canonical": "^5.1.3",
