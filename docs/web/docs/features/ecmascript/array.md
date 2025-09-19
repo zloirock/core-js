@@ -165,6 +165,9 @@ correctionNeeded; // => [1, 1, 3]
 ```
 
 ## `Array.fromAsync` example
-```ts
-await Array.fromAsync((async function * () { yield * [1, 2, 3]; })(), i => i ** 2); // => [1, 4, 9]
+```js
+await Array.fromAsync(
+  (async function * () { yield * [1, 2, 3]; })(), 
+  i => i ** 2
+); // => [1, 4, 9]
 ```
