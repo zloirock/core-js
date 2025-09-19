@@ -14,6 +14,7 @@ const BUILD_RESULT_DIR = 'result';
 const BUNDLES_DIR = 'bundles';
 const REPO = 'https://github.com/zloirock/core-js.git';
 const BUILDER_BRANCH = 'web-3';
+const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -23,6 +24,7 @@ const BUILD_ID = new Date().toISOString().replaceAll(/\D/g, '-') + Math.random()
 
 const BUILD_DIR = `${ BUILDS_ROOT_DIR }/${ BUILD_ID }/`;
 const BUILD_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/`;
+const BUILD_WEBSITE_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/website`;
 const BUILD_DOCS_DIR = `${ BUILD_DIR }builder/`;
 const SITE_FILES_DIR = `${ BUILD_SRC_DIR }/website/dist/`;
 const VERSIONS_FILE = `${ BUILD_SRC_DIR }website/config/versions.json`;
@@ -88,10 +90,10 @@ async function createBuildDir() {
   console.timeEnd(`Created build directory ${ BUILD_DIR }`);
 }
 
-async function installDependencies() {
+async function installDependencies(dir = BUILD_SRC_DIR) {
   console.log('Installing dependencies...');
   console.time('Installed dependencies');
-  await exec('npm ci', { cwd: BUILD_SRC_DIR });
+  await exec('npm ci', { cwd: dir });
   console.timeEnd('Installed dependencies');
 }
 
@@ -222,6 +224,16 @@ async function buildAndCopyCoreJS(version) {
   console.timeEnd('Core JS bundles built');
 }
 
+async function copyBabelStandalone() {
+  console.log('Copying Babel standalone');
+  await installDependencies(BUILD_WEBSITE_SRC_DIR);
+  console.time('Copied Babel standalone');
+  const babelPath = `${ BUILD_SRC_DIR }${ BABEL_PATH }`;
+  const destPath = `${ BUILD_SRC_DIR }website/src/public/babel.min.js`;
+  await cp(babelPath, destPath);
+  console.timeEnd('Copied Babel standalone');
+}
+
 async function getExcludedBuilds() {
   const branchBuilds = await readdir('./branches/');
   const excluded = new Set();
@@ -332,6 +344,7 @@ try {
   }
 
   await prepareBuilder(targetBranch);
+  await copyBabelStandalone();
   await copyBlogPosts();
   await copyCommonFiles();
   if (!BRANCH) {

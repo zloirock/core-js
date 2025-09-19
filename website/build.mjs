@@ -238,6 +238,7 @@ async function buildPlaygrounds(template, versions) {
 async function buildPlayground(template, version, versions) {
   const bundleScript = `<script nomodule src="${ config.bundlesPath }/${ version.label }/${ config.bundleName }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ config.bundlesPath }/${ version.label }/${ config.bundleNameESModules }"></script>`;
+  const babelScript = '<script src="./babel.min.js"></script>';
   const playgroundContent = await readFile(`${ config.srcDir }playground.html`);
   const versionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
   let playground = template.replace('{content}', playgroundContent);
@@ -246,6 +247,7 @@ async function buildPlayground(template, version, versions) {
   playground = playground.replace('{base}', BASE);
   playground = playground.replace('{core-js-bundle}', bundleScript);
   playground = playground.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
+  playground = playground.replace('{babel-script}', babelScript);
   const playgroundWithVersion = playground.replace('{versions-menu}', versionsMenu);
   const playgroundFilePath = path.join(config.resultDir, version.label, 'playground.html');
 
