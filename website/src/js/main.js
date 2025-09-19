@@ -13,13 +13,12 @@ hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
 
 let initialized = false;
-// eslint-disable-next-line max-statements -- a lot of browser logic here
 function init() {
   if (initialized) return;
   initialized = true;
   const menuSwitcher = document.getElementById('menu-switcher');
-  const menuBackdrop = document.querySelector('.menu > .backdrop');
-  const [menu] = document.getElementsByClassName('menu');
+  const menuBackdrop = document.querySelector('#menu > .backdrop');
+  const menu = document.querySelector('#menu');
   const collapsibleTrigger = document.querySelectorAll('.collapsible > a');
   const dropdownTriggers = document.querySelectorAll('.dropdown .dropdown-wrapper > a');
   const versionsMenu = document.querySelectorAll('.versions-menu');
@@ -49,6 +48,7 @@ function init() {
     e.preventDefault();
     toggleMenu();
   }, false);
+
   collapsibleTrigger.forEach(el => {
     el.addEventListener('click', function (e) {
       e.preventDefault();
@@ -76,7 +76,7 @@ function init() {
   });
 
   function getRelativePath() {
-    const path = globalThis.location.pathname;
+    const path = location.pathname;
     const base = document.querySelector('base')?.getAttribute('href') || '';
 
     return path.replace(base, '');

@@ -161,7 +161,7 @@ marked.use({ renderer: linkRenderer });
 
 let fileMetadata = {};
 const markedWithContents = new Marked();
-markedWithContents.use(markedAlert(), gfmHeadingId({ prefix: '' }));
+markedWithContents.use(markedAlert(), gfmHeadingId({ prefix: 'h-' }));
 markedWithContents.use({
   hooks: {
     preprocess: metadata,

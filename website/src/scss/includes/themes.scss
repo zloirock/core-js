@@ -64,9 +64,9 @@ $themes: (
     'form-hint-color': light.$foreground,
 
     'success': light.$green,
-    'warning': dark.$orange,
-    'error': dark.$red,
-    'neutral': dark.$comment,
+    'warning': light.$orange,
+    'error': light.$red,
+    'neutral': light.$comment,
     'section': light.$pink,
     'meta': light.$purple,
     'function': light.$cyan,

@@ -12,49 +12,32 @@
   }
 }
 
-.hljs-comment,
-.hljs-quote {
+.hljs-comment, .hljs-quote {
   font-style: italic;
   @include themify($themes) {
     color: themed('comment-color');
   }
 }
 
-.hljs-keyword,
-.hljs-selector-tag,
-.hljs-literal,
-.hljs-section,
-.hljs-link {
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link {
   @include themify($themes) {
     color: themed('section');
   }
 }
 
-.hljs-string,
-.hljs-title,
-.hljs-name,
-.hljs-type,
-.hljs-attribute,
-.hljs-symbol,
-.hljs-bullet,
-.hljs-addition {
+.hljs-string, .hljs-title, .hljs-name, .hljs-type, .hljs-attribute, .hljs-symbol, .hljs-bullet, .hljs-addition {
   @include themify($themes) {
     color: themed('success');
   }
 }
 
-.hljs-number,
-.hljs-meta,
-.hljs-built_in,
-.hljs-builtin-name,
-.hljs-params {
+.hljs-number, .hljs-meta, .hljs-built_in, .hljs-builtin-name, .hljs-params {
   @include themify($themes) {
     color: themed('meta');
   }
 }
 
-.hljs-class .hljs-title,
-.hljs-strong {
+.hljs-class .hljs-title, .hljs-strong {
   font-weight: bold;
   @include themify($themes) {
     color: themed('link-color2-hover');
@@ -71,17 +54,13 @@
   }
 }
 
-.hljs-tag,
-.hljs-deletion {
+.hljs-tag, .hljs-deletion {
   @include themify($themes) {
     color: themed('font-error');
   }
 }
 
-.hljs-variable,
-.hljs-template-variable,
-.hljs-selector-attr,
-.hljs-selector-pseudo {
+.hljs-variable, .hljs-template-variable, .hljs-selector-attr, .hljs-selector-pseudo {
   @include themify($themes) {
     color: themed('font-warning');
   }
@@ -99,8 +78,7 @@
   }
 }
 
-.hljs-code,
-.hljs-formula {
+.hljs-code, .hljs-formula {
   @include themify($themes) {
     color: themed('section');
   }
@@ -122,8 +100,7 @@
   }
 }
 
-.hljs::selection,
-.hljs span::selection {
+.hljs::selection, .hljs span::selection {
   @include themify($themes) {
     background: themed('button-color-hover');
   }

@@ -293,13 +293,9 @@ async function createLastDocsLink() {
   console.timeEnd('Created last docs link');
 }
 
-async function readFile(filePath) {
-  const content = await fs.readFile(filePath, 'utf8');
-  return content.toString();
-}
-
 async function readJSON(filePath) {
-  const json = await readFile(filePath);
+  const content = await fs.readFile(filePath, 'utf8');
+  const json = content.toString();
   try {
     return JSON.parse(json);
   } catch {
@@ -317,7 +313,7 @@ async function getVersions(targetBranch) {
   return versions;
 }
 
-async function run() {
+try {
   console.time('Finished in');
   await createBuildDir();
   await cloneRepo();
@@ -354,6 +350,6 @@ async function run() {
   await clearBuildDir();
   await clearOldBuilds();
   console.timeEnd('Finished in');
+} catch (error) {
+  console.error(error);
 }
-
-await run().catch(console.error);

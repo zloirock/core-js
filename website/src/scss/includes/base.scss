@@ -4,202 +4,209 @@
 @use "../includes/themed" as *;
 
 html {
-    font-size: 14px;
-    line-height: 1.8;
+  font-size: 14px;
+  line-height: 1.8;
 
-    @include media("min", "lg") {
-        font-size: 16px;
-    }
+  @include media("min", "lg") {
+    font-size: 16px;
+  }
 
-    @include media("min", "xxl") {
-        font-size: 18px;
-    }
+  @include media("min", "xxl") {
+    font-size: 18px;
+  }
 }
+
 body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 
-    font-family: Helvetica, sans-serif;
-    font-weight: 400;
-    font-style: normal;
-    @include themify($themes) {
-        background-color: themed('background-color');
-        color: themed('font-color');
-    }
+  font-family: Helvetica, sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  @include themify($themes) {
+    background-color: themed('background-color');
+    color: themed('font-color');
+  }
 }
-a {
-    @include themify($themes) {
-        color: themed('link-color');
-    }
 
-    &:hover, &:focus {
-        @include themify($themes) {
-            color: themed('link-color-hover');
-        }
+a {
+  @include themify($themes) {
+    color: themed('link-color');
+  }
+
+  &:hover, &:focus {
+    @include themify($themes) {
+      color: themed('link-color-hover');
     }
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {
-    position: relative;
-    font-weight: 600;
-    text-align: left;
-    @include themify($themes) {
-        color: themed('font-color-light');
+  position: relative;
+  font-weight: 600;
+  text-align: left;
+  @include themify($themes) {
+    color: themed('font-color-light');
+  }
+
+  &.with-anchor {
+    .anchor {
+      display: none;
+      width: 1.2rem;
+      margin-left: 0.5rem;
+
+      svg {
+        @include themify($themes) {
+          fill: themed('link-color2');
+        }
+      }
+
+      &:hover svg {
+        @include themify($themes) {
+          fill: themed('link-color2-hover');
+        }
+      }
     }
 
-    &.with-anchor {
-        .anchor {
-            display: none;
-            width: 1.2rem;
-            margin-left: 0.5rem;
-
-            svg {
-                @include themify($themes) {
-                    fill: themed('link-color2');
-                }
-            }
-
-            &:hover svg {
-                @include themify($themes) {
-                    fill: themed('link-color2-hover');
-                }
-            }
-        }
-
-        &:hover .anchor {
-            display: inline-block;
-        }
+    &:hover .anchor {
+      display: inline-block;
     }
+  }
 }
+
 h1 {
-    font-size: 2.25rem;
-    margin:0 1rem 1rem;
-    text-align: center;
-    @include themify($themes) {
-        border-bottom: 1px solid themed('border-color-lighter');
-    }
+  font-size: 2.25rem;
+  margin: 0 1rem 1rem;
+  text-align: center;
+  @include themify($themes) {
+    border-bottom: 1px solid themed('border-color-lighter');
+  }
 }
+
 h2 {
-    font-size: 2rem;
+  font-size: 2rem;
 }
+
 h3 {
-    font-size: 1.875rem;
+  font-size: 1.875rem;
 }
+
 h4 {
-    font-size: 1.5rem;
+  font-size: 1.5rem;
 }
 
 p {
-    padding: 0.5rem 0;
+  padding: 0.5rem 0;
 }
 
 pre {
-    padding: 1rem 0;
+  padding: 1rem 0;
 }
 
 blockquote {
-    padding: 0 1rem;
-    margin-bottom: 1rem;
-    @include themify($themes) {
-        background-color: themed('box-light');
-        border-left: 1px solid themed('success');
-    }
+  padding: 0 1rem;
+  margin-bottom: 1rem;
+  @include themify($themes) {
+    background-color: themed('box-light');
+    border-left: 1px solid themed('success');
+  }
 }
 
 ul {
-    padding-left: 1rem;
-    list-style-type: disc;
+  padding-left: 1rem;
+  list-style-type: disc;
 }
 
 svg {
-    width: 100%;
-    height: auto;
+  width: 100%;
+  height: auto;
 }
 
 table {
-    tr {
-        &:nth-child(odd) {
-            @include themify($themes) {
-                background-color: themed('background-highlight');
-            }
-        }
-        &:nth-child(even) {
-            @include themify($themes) {
-                background-color: themed('background-light');
-            }
-        }
-
-        th {
-            padding: 0.25rem 0.375rem;
-        }
+  tr {
+    &:nth-child(odd) {
+      @include themify($themes) {
+        background-color: themed('background-highlight');
+      }
     }
 
-    @include media("max", "lg") {
-        display: block;
-        overflow-x: auto;
-        white-space: nowrap;
+    &:nth-child(even) {
+      @include themify($themes) {
+        background-color: themed('background-light');
+      }
     }
+
+    th {
+      padding: 0.25rem 0.375rem;
+    }
+  }
+
+  @include media("max", "lg") {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
 }
 
 .box {
-    border-radius: 1rem;
-    @include themify($themes) {
-        background-color: themed('box-color');
-    }
+  border-radius: 1rem;
+  @include themify($themes) {
+    background-color: themed('box-color');
+  }
 }
 
 .icon {
-    display: block;
-    line-height: 0;
-    width: 24px;
-    height: 24px;
+  display: block;
+  line-height: 0;
+  width: 24px;
+  height: 24px;
 }
 
 details {
-    summary {
-        cursor: pointer;
+  summary {
+    cursor: pointer;
 
-        @include themify($themes) {
-            color: themed('link-color2');
-        }
+    @include themify($themes) {
+      color: themed('link-color2');
+    }
+  }
+
+  summary:after {
+    content: '';
+    display: inline-block;
+    line-height: 0;
+    width: 0.5rem;
+    height: 0.5rem;
+    transform: rotate(45deg);
+    margin-left: 0.5rem;
+    vertical-align: 2px;
+
+    @include themify($themes) {
+      border-right: 2px solid themed('link-color2');
+      border-bottom: 2px solid themed('link-color2');
+    }
+  }
+
+  &[open] summary:after {
+    vertical-align: -3px;
+    transform: rotate(-135deg);
+  }
+
+  summary:hover {
+    @include themify($themes) {
+      color: themed('link-color2-hover');
     }
 
-    summary:after {
-        content: '';
-        display: inline-block;
-        line-height: 0;
-        width: 0.5rem;
-        height: 0.5rem;
-        transform: rotate(45deg);
-        margin-left: 0.5rem;
-        vertical-align: 2px;
-
-        @include themify($themes) {
-            border-right: 2px solid themed('link-color2');
-            border-bottom: 2px solid themed('link-color2');
-        }
+    &:after {
+      @include themify($themes) {
+        border-right: 2px solid themed('link-color2-hover');
+        border-bottom: 2px solid themed('link-color2-hover');
+      }
     }
-
-    &[open] summary:after {
-        vertical-align: -3px;
-        transform: rotate(-135deg);
-    }
-
-    summary:hover {
-        @include themify($themes) {
-            color: themed('link-color2-hover');
-        }
-
-        &:after {
-            @include themify($themes) {
-                border-right: 2px solid themed('link-color2-hover');
-                border-bottom: 2px solid themed('link-color2-hover');
-            }
-        }
-    }
+  }
 }
 
 hr {
-    margin: 2rem;
+  margin: 2rem;
 }

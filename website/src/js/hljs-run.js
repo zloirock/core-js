@@ -1,6 +1,6 @@
 export default class RunButtonPlugin {
-  ORIGIN = globalThis.location.origin;
-  PATH = globalThis.location.pathname;
+  ORIGIN = location.origin;
+  PATH = location.pathname;
   BASE_URL = document.querySelector('base')?.getAttribute('href');
   RELATIVE_PATH = this.PATH.replace(this.BASE_URL, '');
   PLAYGROUND_URL = 'playground';
@@ -24,7 +24,7 @@ export default class RunButtonPlugin {
       const hash = urlParams.toString();
       const hasVersion = this.RELATIVE_PATH !== '' && !this.RELATIVE_PATH.startsWith('docs/') && !this.RELATIVE_PATH.startsWith('index');
       const version = hasVersion ? `${ this.RELATIVE_PATH.split('/')[0] }/` : '';
-      globalThis.location.href = `${ this.ORIGIN }${ this.BASE_URL }${ version }${ this.PLAYGROUND_URL }#${ hash }`;
+      location.href = `${ this.ORIGIN }${ this.BASE_URL }${ version }${ this.PLAYGROUND_URL }#${ hash }`;
     });
     const wrapper = document.createElement('div');
     wrapper.classList.add('hljs-run');

@@ -28,10 +28,7 @@ jobs:
         run: npm ci
 
       - name: Build bundle
-        run: npm run bundle-package
-
-      - name: Rename file
-        run: mv packages/core-js-bundle/minified.js packages/core-js-bundle/core-js-bundle.js
+        run: npm run bundle-package minified-name core-js-bundle
 
       - name: Copy files to server over SSH
         uses: appleboy/scp-action@v1
@@ -44,10 +41,7 @@ jobs:
           strip_components: 2
 
       - name: Build esmodules bundle
-        run: npm run bundle-package esmodules
-
-      - name: Rename file
-        run: mv packages/core-js-bundle/minified.js packages/core-js-bundle/core-js-bundle-esmodules.js
+        run: npm run bundle-package esmodules minified-name core-js-bundle-esmodules
 
       - name: Copy files to server over SSH
         uses: appleboy/scp-action@v1
