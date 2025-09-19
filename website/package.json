@@ -6,6 +6,7 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@babel/standalone": "^7.28.4",
     "@popperjs/core": "^2.11.8",
     "@vitejs/plugin-legacy": "^7.1.0",
     "front-matter": "^4.0.2",
