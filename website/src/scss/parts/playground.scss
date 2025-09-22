@@ -62,10 +62,10 @@
     }
 
     .controls-float {
+      position: absolute;
       position: sticky;
       display: flex;
       justify-content: flex-end;
-      gap: 0.5rem;
       top: 0.25rem;
       right: 0.25rem;
       padding-right: 0.25rem;
@@ -76,6 +76,8 @@
         display: block;
         width: 24px;
         height: 24px;
+
+        margin-right: 0.5rem;
 
         &.link-button {
           width: 22px;
@@ -135,21 +137,24 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
 
   @include media("min", "md") {
     flex-direction: row;
-    gap: 2rem;
   }
 
   .title {
     display: flex;
     align-items: center;
-    gap: 2rem;
+    margin-bottom: 1rem;
+
+    @include media("min", "md") {
+      margin: 0 2rem 0 0;
+    }
 
     .back-link {
       flex-basis: 68px;
       flex-shrink: 0;
+      margin-right: 2rem;
 
       a {
         align-items: center;
@@ -205,6 +210,13 @@
 
   .playground-controls {
     display: flex;
-    gap: 1rem;
+
+    button {
+      margin-right: 1rem;
+
+      &:last-child {
+        margin-right: 0;
+      }
+    }
   }
 }

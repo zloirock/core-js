@@ -39,15 +39,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function isIE() {
+    return window.MSInputMethodContext && document.documentMode;
+  }
+
   triggers.forEach(trigger => {
     trigger.addEventListener('click', function (e) {
-      e.preventDefault();
-      const { hash } = this.dataset;
-      const href = this.getAttribute('href');
-      const target = document.querySelector(hash);
-      if (target) {
-        scrollToElement(target, offset);
-        history.pushState(null, null, href);
+      if (!isIE()) {
+        e.preventDefault();
+        const { hash } = this.dataset;
+        const href = this.getAttribute('href');
+        const target = document.querySelector(hash);
+        if (target) {
+          scrollToElement(target, offset);
+          history.pushState(null, null, href);
+        }
       }
     }, false);
   });

@@ -2480,6 +2480,7 @@ export default [
       ...transpiledAndPolyfilled,
       'no-restricted-globals': 'off',
       'unicorn/prefer-global-this': 'off',
+      '@stylistic/quotes': [ERROR, 'single', { allowTemplateLiterals: ALWAYS }],
     },
   },
   {
