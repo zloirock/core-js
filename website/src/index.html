@@ -11,11 +11,11 @@
     <script>
       let theme = localStorage.getItem('theme');
       if (theme === null) {
-          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-              theme = 'theme-dark';
-          } else {
-              theme = 'theme-light';
-          }
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          theme = 'theme-dark';
+        } else {
+          theme = 'theme-light';
+        }
       }
       const html = document.querySelector('html');
       setTheme(theme);
@@ -37,7 +37,7 @@
         <div class="logo">
             <a href="https://core-js.io/"><img src="images/core-js.png" alt="core-js"></a>
         </div>
-        <div class="menu" id="menu">
+        <div id="menu">
             <div class="menu-items">
                 <div class="menu-item highlightable"><a href="./blog/" tabindex="1">Blog</a></div>
                 <div class="menu-item highlightable"><a href="./docs/" tabindex="3">Docs</a></div>
