@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 
 const exec = promisify(childProcess.exec);
-const { cp, readdir, access } = fs;
+const { access, cp, readFile, readdir, readlink } = fs;
 
 const SRC_DIR = 'core-js';
 const BUILDS_ROOT_DIR = 'builds';
@@ -238,13 +238,13 @@ async function getExcludedBuilds() {
   const branchBuilds = await readdir('./branches/');
   const excluded = new Set();
   for (const name of branchBuilds) {
-    const link = await fs.readlink(`./branches/${ name }`);
+    const link = await readlink(`./branches/${ name }`);
     if (!link) continue;
     const parts = link.split('/');
     const id = parts.at(-2);
     excluded.add(id);
   }
-  const latestBuildLink = await fs.readlink('./latest');
+  const latestBuildLink = await readlink('./latest');
   if (latestBuildLink) {
     const parts = latestBuildLink.split('/');
     const id = parts.at(-2);
@@ -278,7 +278,7 @@ async function copyBlogPosts() {
     if (entry.isFile()) {
       const srcFile = path.join(fromDir, entry.name);
       const destFile = path.join(toDir, entry.name);
-      await fs.copyFile(srcFile, destFile);
+      await cp(srcFile, destFile);
     }
   }
   console.timeEnd('Copied blog posts');
@@ -289,9 +289,9 @@ async function copyCommonFiles() {
   console.time('Copied common files');
   const fromDir = `${ BUILD_SRC_DIR }`;
   const toDir = `${ BUILD_SRC_DIR }docs/web/`;
-  await fs.copyFile(`${ fromDir }CHANGELOG.md`, `${ toDir }changelog.md`);
-  await fs.copyFile(`${ fromDir }CONTRIBUTING.md`, `${ toDir }contributing.md`);
-  await fs.copyFile(`${ fromDir }SECURITY.md`, `${ toDir }security.md`);
+  await cp(`${ fromDir }CHANGELOG.md`, `${ toDir }changelog.md`);
+  await cp(`${ fromDir }CONTRIBUTING.md`, `${ toDir }contributing.md`);
+  await cp(`${ fromDir }SECURITY.md`, `${ toDir }security.md`);
   console.timeEnd('Copied common files');
 }
 
@@ -306,13 +306,8 @@ async function createLastDocsLink() {
 }
 
 async function readJSON(filePath) {
-  const content = await fs.readFile(filePath, 'utf8');
-  const json = content.toString();
-  try {
-    return JSON.parse(json);
-  } catch {
-    return '';
-  }
+  const buffer = await readFile(filePath);
+  return JSON.parse(buffer);
 }
 
 async function getVersions(targetBranch) {
