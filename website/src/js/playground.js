@@ -8,7 +8,7 @@ hljs.registerLanguage('javascript', javascript);
 
 const hash = location.hash.slice(1);
 const pageParams = new URLSearchParams(hash);
-const defaultCode = 'import \'core-js/actual\';\n\n\
+const defaultCode = `import 'core-js/actual';\n\n\
 await Promise.try(() => 42); // => 42\n\n\
 Array.from(new Set([1, 2, 3]).union(new Set([3, 4, 5]))); // => [1, 2, 3, 4, 5]\n\n\
 [1, 2].flatMap(it => [it, it]); // => [1, 1, 2, 2]\n\n\
@@ -17,14 +17,14 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))\n\
   .filter(it => it % 2)\n\
   .map(it => it ** 2)\n\
   .toArray(); // => [9, 25]\n\n\
-structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])';
+structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])`;
 
 const specSymbols = {
   '&': '&amp;',
   '<': '&lt;',
   '>': '&gt;',
   '"': '&quot;',
-  "'": '&apos;',
+  '\'': '&apos;',
 };
 
 let initialized = false;
@@ -146,7 +146,7 @@ function init() {
       return `Blob { size: ${ value.size }, type: "${ value.type }" }`;
     }
 
-    if (value instanceof DOMPoint) {
+    if (typeof DOMPoint != 'undefined' && value instanceof DOMPoint) {
       return `DOMPoint { x: ${ value.x }, y: ${ value.y }, z: ${ value.z }, w: ${ value.w } }`;
     }
 

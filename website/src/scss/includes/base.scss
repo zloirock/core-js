@@ -55,6 +55,7 @@ h1, h2, h3, h4, h5, h6 {
       display: none;
       width: 1.2rem;
       margin-left: 0.5rem;
+      height: 1.5rem;
 
       svg {
         @include themify($themes) {

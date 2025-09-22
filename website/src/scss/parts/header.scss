@@ -21,7 +21,9 @@ nav {
   justify-content: space-between;
   align-items: center;
 
-  padding: 1rem 1rem;
+  padding: 1rem;
+
+  max-height: 86px;
 
   @include wrapper;
 
