@@ -151,10 +151,6 @@ function init() {
       return `Blob { size: ${ value.size }, type: "${ value.type }" }`;
     }
 
-    if (typeof DOMPoint != 'undefined' && value instanceof DOMPoint) {
-      return `DOMPoint { x: ${ value.x }, y: ${ value.y }, z: ${ value.z }, w: ${ value.w } }`;
-    }
-
     if (ArrayBuffer.isView(value)) {
       const type = value.constructor.name;
       const objFormat = Array.from(value, (v, i) => `"${ i }": ${ serializeLog(v, visited) }`);
