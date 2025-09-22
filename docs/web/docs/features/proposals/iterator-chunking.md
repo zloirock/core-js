@@ -24,11 +24,11 @@ core-js(-pure)/full/iterator/windows
 ```js
 const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
 
-let chunks = Array.from(digits().chunks(2));  // => [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
+Array.from(digits().chunks(2));  // => [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
 
-let windows = Array.from(digits().windows(2));  // => [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
+Array.from(digits().windows(2));  // => [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
 
-let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // => [[0, 1]]
+Array.from([0, 1].values().windows(3, 'allow-partial'));  // => [[0, 1]]
 
-let windowsFull = Array.from([0, 1].values().windows(3));  // => []
+Array.from([0, 1].values().windows(3));  // => []
 ```

@@ -37,7 +37,7 @@ structuredClone(new AggregateError([1, 2, 3], 'message'));      // => new Aggreg
 structuredClone(new TypeError('message', { cause: 42 }));       // => new TypeError('message', { cause: 42 })
 structuredClone(new DOMException('message', 'DataCloneError')); // => new DOMException('message', 'DataCloneError')
 structuredClone(document.getElementById('myfileinput'));        // => new FileList
-structuredClone(new DOMPoint(1, 2, 3, 4));                      // => new DOMPoint(1, 2, 3, 4)
+structuredClone(new Date('1970-01-01'));                        // => Date "Thu Jan 01 1970 00:00:00..."
 structuredClone(new Blob(['test']));                            // => new Blob(['test'])
 structuredClone(new ImageData(8, 8));                           // => new ImageData(8, 8)
 // etc.
