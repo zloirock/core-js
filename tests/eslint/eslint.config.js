@@ -2370,6 +2370,7 @@ export default [
       'scripts/**',
       'tests/compat/*.mjs',
       'tests/@(compat-@(data|tools)|eslint|entries|observables|promises-aplus|unit-@(karma|node))/**',
+      'website/runner.mjs',
     ],
     rules: nodeDev,
   },
@@ -2481,17 +2482,6 @@ export default [
       'no-restricted-globals': 'off',
       'unicorn/prefer-global-this': 'off',
       '@stylistic/quotes': [ERROR, 'single', { allowTemplateLiterals: ALWAYS }],
-    },
-  },
-  {
-    files: [
-      'website/runner.mjs',
-    ],
-    languageOptions: {
-      sourceType: 'module',
-    },
-    rules: {
-      ...nodeDev,
     },
   },
 ];
