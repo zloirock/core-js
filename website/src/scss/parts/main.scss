@@ -138,7 +138,6 @@ main {
           }
 
           .docs-links {
-            max-height: 100vh;
             max-height: 100dvh;
             height: 100%;
             overflow-y: auto;
@@ -153,6 +152,8 @@ main {
             cursor: pointer;
             align-items: center;
             justify-content: center;
+            max-height: 100vh;
+            max-height: 100dvh;
 
             &:after {
               content: '';
@@ -291,7 +292,6 @@ main {
           }
 
           .toc-links {
-            max-height: 100vh;
             max-height: 100dvh;
             height: 100%;
             overflow-y: auto;
@@ -306,6 +306,8 @@ main {
             cursor: pointer;
             align-items: center;
             justify-content: center;
+            max-height: 100vh;
+            max-height: 100dvh;
 
             &:after {
               content: '';
