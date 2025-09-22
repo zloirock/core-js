@@ -12,7 +12,7 @@ namespace JSON {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/to-string-tag

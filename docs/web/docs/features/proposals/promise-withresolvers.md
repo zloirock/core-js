@@ -9,7 +9,7 @@ class Promise {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/promise-with-resolvers
 ```

@@ -10,7 +10,7 @@ function compositeKey(...args: Array<mixed>): object;
 function compositeSymbol(...args: Array<mixed>): symbol;
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/keys-composition
 core-js(-pure)/full/composite-key

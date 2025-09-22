@@ -15,7 +15,7 @@ class Function {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/decorator-metadata-v2
 core-js(-pure)/actual|full/symbol/metadata

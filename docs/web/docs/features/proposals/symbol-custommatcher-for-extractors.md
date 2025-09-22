@@ -12,7 +12,7 @@ class Symbol {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher

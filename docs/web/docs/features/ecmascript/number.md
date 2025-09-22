@@ -26,7 +26,7 @@ function parseFloat(string: string): number;
 function parseInt(string: string, radix?: number = 10): number;
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/number
 core-js(-pure)/es|stable|actual|full/number/constructor

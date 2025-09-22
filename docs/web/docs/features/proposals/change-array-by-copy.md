@@ -18,7 +18,7 @@ class %TypedArray% {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js/proposals/change-array-by-copy-stage-4
 core-js(-pure)/es|stable|actual|full/array(/virtual)/to-reversed

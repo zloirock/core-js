@@ -12,7 +12,7 @@ class Number {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/math-clamp-v2
 core-js(-pure)/full/number/clamp

@@ -13,7 +13,7 @@ class DataView {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/data-view-get-set-uint8-clamped
 core-js/full/dataview/get-uint8-clamped

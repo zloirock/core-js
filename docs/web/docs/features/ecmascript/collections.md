@@ -24,7 +24,7 @@ class Map {
 }
 ```
 
-### [Entry points]({docs-version}/docs/usage#entry-points)
+### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/map
 core-js(-pure)/es|stable|actual|full/map/group-by
@@ -96,7 +96,7 @@ class Set {
 }
 ```
 
-### [Entry points]({docs-version}/docs/usage#entry-points)
+### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/set
 core-js(-pure)/es|stable|actual|full/set/difference
@@ -156,7 +156,7 @@ class WeakMap {
   set(key: Object, val: any): this;
 }
 ```
-### [Entry points]({docs-version}/docs/usage#entry-points)
+### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
 ```
@@ -207,7 +207,7 @@ class WeakSet {
 }
 ```
 
-### [Entry points]({docs-version}/docs/usage#entry-points)
+### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/weak-set
 ```

@@ -13,7 +13,7 @@ class Iterator {
 }
 ```
 
-## [Entry points]({docs-version}/docs/usage#entry-points)
+## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/number-range
 core-js(-pure)/full/iterator/range
