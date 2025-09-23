@@ -262,6 +262,10 @@
               {
                 "title": "Joint iteration",
                 "url": "{docs-version}/docs/features/proposals/joint-iteration"
+              },
+              {
+                "title": "Iterator chunking",
+                "url": "{docs-version}/docs/features/proposals/iterator-chunking"
               }
             ]
           },
@@ -295,10 +299,6 @@
               {
                 "title": "Symbol.customMatcher for extractors",
                 "url": "{docs-version}/docs/features/proposals/symbol-custommatcher-for-extractors"
-              },
-              {
-                "title": "Iterator chunking",
-                "url": "{docs-version}/docs/features/proposals/iterator-chunking"
               }
             ]
           },
