@@ -186,7 +186,7 @@ function init() {
 
       return isPlain
         ? `{ ${ props.join(', ') } }`
-        : `${ value.constructor?.name || 'Object' } { ${ props.join(', ') } }`;
+        : `${ value.constructor?.name ?? 'Object' } { ${ props.join(', ') } }`;
     }
 
     return String(value);
@@ -210,22 +210,17 @@ function init() {
 
     const textArea = document.createElement('textarea');
     textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.top = '0';
-    textArea.style.left = '0';
-    textArea.style.opacity = '0';
+    textArea.classList.add('copy-fallback');
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
 
     try {
-      const successful = document.execCommand('copy');
+      if (!document.execCommand('copy')) {
+        throw new Error('Copy command was unsuccessful');
+      }
+    } finally {
       document.body.removeChild(textArea);
-      if (successful) return Promise.resolve();
-      return Promise.reject(new Error('Copy command was unsuccessful'));
-    } catch (err) {
-      document.body.removeChild(textArea);
-      return Promise.reject(err);
     }
   }
 
