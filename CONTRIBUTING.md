@@ -20,7 +20,7 @@ There is always some ["help wanted" issues](https://github.com/zloirock/core-js/
 - Add unit tests to [`tests/unit-global`](./tests/unit-global) and [`tests/unit-pure`](./tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](./tests/entries/unit.mjs).
 - Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) are passed.
-- Document it in [README.md](./README.md) and [CHANGELOG.md](./CHANGELOG.md).
+- Document it in [site documentation](./docs/web/docs/) and [CHANGELOG.md](./CHANGELOG.md).
 
 [A simple example of adding a new polyfill.](https://github.com/zloirock/core-js/pull/1294/files)
 
