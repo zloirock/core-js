@@ -7,7 +7,7 @@
     - `Iterator.prototype.chunks`
     - `Iterator.prototype.sliding`
     - `Iterator.prototype.windows`
-  - Moved to stage 2.7, September 2025 TC39 meeting
+  - Moved to stage 2.7, [September 2025 TC39 meeting](https://github.com/tc39/proposals/commit/08e583103c6c244c05a26d9fee518ef8145ba2f6)
   - `Iterator.prototype.sliding` method replaced with an extra parameter of `Iterator.prototype.windows` method, [tc39/proposal-iterator-chunking/#24](https://github.com/tc39/proposal-iterator-chunking/pull/24), [tc39/proposal-iterator-chunking/#26](https://github.com/tc39/proposal-iterator-chunking/pull/26)
 - Compat data improvements:
   - [`Map.prototype.{ getOrInsert, getOrInsertComputed }` and `WeakMap.prototype.getOrInsert`](https://github.com/tc39/proposal-upsert) marked as shipped from FF144
