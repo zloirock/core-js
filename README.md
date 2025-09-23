@@ -172,6 +172,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
+      - [`Iterator` chunking](#iterator-chunking)
       - [Joint iteration](#joint-iteration)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
@@ -181,7 +182,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
       - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
-      - [`Iterator` chunking](#iterator-chunking)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`Observable`](#observable)
       - [New collections methods](#new-collections-methods)
@@ -2812,6 +2812,34 @@ core-js(-pure)/actual|full/function/metadata
 core-js(-pure)/stage/2.7
 ```
 
+##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
+Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js)
+and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
+```ts
+class Iterator {
+  chunks(chunkSize: number): Iterator<any>;
+  windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): Iterator<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-chunking-v2
+core-js(-pure)/full/iterator/chunks
+core-js(-pure)/full/iterator/windows
+```
+[*Examples*](https://tinyurl.com/24xnkcnn)
+```js
+const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
+
+let chunks = Array.from(digits().chunks(2));  // [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
+
+let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
+
+let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // [[0, 1]]
+
+let windowsFull = Array.from([0, 1].values().windows(3));  // []
+```
+
 ##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
 Modules [esnext.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [esnext.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
 ```ts
@@ -3065,34 +3093,6 @@ class Symbol {
 ```
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher
-```
-
-##### [`Iterator` chunking](https://github.com/tc39/proposal-iterator-chunking)[⬆](#index)
-Modules [`esnext.iterator.chunks`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.chunks.js)
-and [`esnext.iterator.windows`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.windows.js)
-```ts
-class Iterator {
-  chunks(chunkSize: number): Iterator<any>;
-  windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): Iterator<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/iterator-chunking-v2
-core-js(-pure)/full/iterator/chunks
-core-js(-pure)/full/iterator/windows
-```
-[*Examples*](https://tinyurl.com/24xnkcnn)
-```js
-const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
-
-let chunks = Array.from(digits().chunks(2));  // [[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]]
-
-let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]]
-
-let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // [[0, 1]]
-
-let windowsFull = Array.from([0, 1].values().windows(3));  // []
 ```
 
 #### Stage 1 proposals[⬆](#index)
