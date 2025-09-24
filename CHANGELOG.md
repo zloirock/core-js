@@ -11,6 +11,7 @@
 - Fixed work of `Object.groupBy` and `Iterator.zipKeyed` together with `Symbol` polyfill - some cases of symbol keys on result `null`-prototype object were able to leak out to `for-in`
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from FF144
+  - Added [Node 25.0](https://github.com/nodejs/node/pull/59896) compat data mapping
   - Added [Deno 2.5](https://github.com/denoland/deno/releases/tag/v2.5.0) compat data mapping
   - Updated Opera 121+ compat data mapping
   - Added Oculus Quest Browser 40 compat data mapping
