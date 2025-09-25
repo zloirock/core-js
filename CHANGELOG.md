@@ -13,6 +13,7 @@
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from FF144
   - Added [Node 25.0](https://github.com/nodejs/node/pull/59896) compat data mapping
   - Added [Deno 2.5](https://github.com/denoland/deno/releases/tag/v2.5.0) compat data mapping
+  - Updated Electron 39 compat data mapping
   - Updated Opera 121+ compat data mapping
   - Added Oculus Quest Browser 40 compat data mapping
 
