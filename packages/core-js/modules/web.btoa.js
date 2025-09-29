@@ -35,7 +35,7 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC) return call($btoa, globalThis, toString(data));
     var string = toString(data);
-    var output = '';
+    var output = [];
     var position = 0;
     var map = i2c;
     var block, charCode;
@@ -45,7 +45,7 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
         throw new (getBuiltIn('DOMException'))('The string contains characters outside of the Latin1 range', 'InvalidCharacterError');
       }
       block = block << 8 | charCode;
-      output += charAt(map, 63 & block >> 8 - position % 1 * 8);
-    } return output;
+      output.push(charAt(map, 63 & block >> 8 - position % 1 * 8));
+    } return output.join('');
   }
 });
