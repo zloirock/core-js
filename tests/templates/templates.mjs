@@ -1,9 +1,9 @@
 import {
   $justImport, $patchableStatic,
+  $uncurried,
+  $uncurriedIterator, $static, $staticWithContext,
   $prototype,
-  $prototypeIterator, $static, $staticWithContext,
-  $virtual,
-  $virtualIterator,
+  $prototypeIterator,
 } from '../../scripts/build-entries/templates.mjs';
 import { deepEqual } from 'node:assert/strict';
 
@@ -22,35 +22,35 @@ deepEqual(
   'Template $justImport incorrect',
 );
 deepEqual(
-  $virtual(props),
+  $prototype(props),
   {
     dts: 'declare const method: typeof namespace.prototype.name;\nexport = method;',
     entry: "require('../../modules/module1');\nrequire('../../modules/module2');\n" +
       "\nvar getBuiltInPrototypeMethod = require('../../internals/get-built-in-prototype-method');\n\nmodule.exports = getBuiltInPrototypeMethod('namespace', 'name');",
   },
-  'Template $virtual incorrect',
+  'Template $prototype incorrect',
 );
 deepEqual(
-  $virtualIterator(props),
+  $prototypeIterator(props),
   {
     dts: 'declare const method: typeof namespace.prototype[typeof Symbol.iterator];\nexport = method;',
     entry: "require('../../modules/module1');\nrequire('../../modules/module2');\n" +
       "\nvar getIteratorMethod = require('../../internals/get-iterator-method');\n\nmodule.exports = getIteratorMethod(source);",
   },
-  'Template $virtualIterator incorrect',
+  'Template $prototypeIterator incorrect',
 );
 deepEqual(
-  $prototype(props),
+  $uncurried(props),
   {
     dts: 'declare const method: (\n  thisArg: any,\n  ...args: Parameters<typeof namespace.prototype.name>\n) => ReturnType<typeof namespace.prototype.name>;\nexport = method;',
     entry: "require('../../modules/module1');\nrequire('../../modules/module2');\n" +
       "\nvar entryUnbind = require('../../internals/entry-unbind');\n\nmodule.exports = entryUnbind('namespace', 'name');",
   },
-  'Template $prototype incorrect',
+  'Template $uncurried incorrect',
 );
 
 deepEqual(
-  $prototypeIterator(props),
+  $uncurriedIterator(props),
   {
     dts: 'declare const method: (\n  thisArg: any,\n  ...args: Parameters<typeof namespace.prototype[typeof Symbol.iterator]>\n' +
       ') => ReturnType<typeof namespace.prototype[typeof Symbol.iterator]>;\nexport = method;',
@@ -58,7 +58,7 @@ deepEqual(
       "\nvar uncurryThis = require('../../internals/function-uncurry-this');\nvar getIteratorMethod = require('../../internals/get-iterator-method');\n" +
       '\nmodule.exports = uncurryThis(getIteratorMethod(source));',
   },
-  'Template $prototypeIterator incorrect',
+  'Template $uncurriedIterator incorrect',
 );
 
 deepEqual(
