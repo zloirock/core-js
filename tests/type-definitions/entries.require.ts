@@ -1,16 +1,16 @@
 // $justImport
 require('@core-js/pure/full/array-buffer/detached');
 
-// $virtual
-require('@core-js/pure/full/array/virtual/at').call([1, 2, 3], -2);
-
-// $virtualIterator
-require('@core-js/pure/full/array/virtual/iterator').call([1]).next().value;
-
 // $prototype
-require('@core-js/pure/full/array/at')([1, 2, 3], -2);
+require('@core-js/pure/full/array/prototype/at').call([1, 2, 3], -2);
 
 // $prototypeIterator
+require('@core-js/pure/full/array/prototype/iterator').call([1]).next().value;
+
+// $uncurried
+require('@core-js/pure/full/array/at')([1, 2, 3], -2);
+
+// $uncurriedIterator
 require('@core-js/pure/full/array/iterator')([]).next().value;
 
 // $static
