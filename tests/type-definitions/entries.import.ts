@@ -3,8 +3,8 @@ import '@core-js/pure/full/array-buffer/detached';
 // @ts-expect-error it has no exports
 import detached from '@core-js/pure/full/array-buffer/detached';
 
-// $virtual
-import at from '@core-js/pure/full/array/virtual/at';
+// $prototype
+import at from '@core-js/pure/full/array/prototype/at';
 const atResult1: number = at.call([1, 2, 3], -2);
 at.apply([1, 2, 3], [-2]);
 // @ts-expect-error
@@ -16,8 +16,8 @@ at('string');
 // @ts-expect-error
 at(null);
 
-// $virtualIterator
-import arrayVirtualIterator from '@core-js/pure/full/array/virtual/iterator';
+// $prototypeIterator
+import arrayVirtualIterator from '@core-js/pure/full/array/prototype/iterator';
 const aviValue1: number = arrayVirtualIterator.call([1]).next().value;
 const aviResult1: IterableIterator<number> = arrayVirtualIterator.call([1, 2, 3]);
 const aviResult2: IterableIterator<string> = arrayVirtualIterator.call(['a', 'b']);
@@ -27,7 +27,7 @@ arrayVirtualIterator(1);
 // @ts-expect-error
 arrayVirtualIterator.call([1, 2, 3], 1);
 
-// $prototype
+// $uncurried
 import arrayAt from '@core-js/pure/full/array/at';
 const arrayAtResult1: number = arrayAt([1, 2, 3], -2);
 const arrayAtResult2: string = arrayAt(['a', 'b'], -2);
@@ -39,7 +39,7 @@ arrayAt();
 // @ts-expect-error
 arrayAt(1, 0, 0);
 
-// $prototypeIterator
+// $uncurriedIterator
 import arrayIterator from '@core-js/pure/full/array/iterator';
 arrayIterator([]).next().value;
 // @ts-expect-error
