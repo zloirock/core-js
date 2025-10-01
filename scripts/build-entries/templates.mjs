@@ -72,7 +72,7 @@ export const $uncurried = p => ({
       thisArg: any,
       ...args: Parameters<typeof ${ p.namespace }.prototype.${ p.name }>
     ) => ReturnType<typeof ${ p.namespace }.prototype.${ p.name }>;
-    export = method;
+    export default method;
   `,
 });
 
@@ -90,7 +90,7 @@ export const $uncurriedIterator = p => ({
       thisArg: any,
       ...args: Parameters<typeof ${ p.namespace }.prototype[typeof Symbol.iterator]>
     ) => ReturnType<typeof ${ p.namespace }.prototype[typeof Symbol.iterator]>;
-    export = method;
+    export default method;
   `,
 });
 
@@ -104,7 +104,7 @@ export const $static = p => ({
   `,
   dts: dedent`
     declare const method: typeof ${ p.namespace }.${ p.name };
-    export = method;
+    export default method;
   `,
 });
 
@@ -128,7 +128,7 @@ export const $staticWithContext = p => ({
       this: Function | void,
       ...args: Parameters<typeof ${ p.namespace }.${ p.name }>
     ) => ReturnType<typeof ${ p.namespace }.${ p.name }>;
-    export = method;
+    export default method;
   `,
 });
 
@@ -145,7 +145,7 @@ export const $patchableStatic = p => ({
   `,
   dts: dedent`
     declare const method: typeof ${ p.namespace }.${ p.name };
-    export = method;
+    export default method;
   `,
 });
 
@@ -159,7 +159,7 @@ export const $namespace = p => ({
   `,
   dts: dedent`
     declare const namespace: typeof ${ p.name };
-    export = namespace;
+    export default namespace;
   `,
 });
 
@@ -174,7 +174,7 @@ export const $helper = p => ({
   dts: dedent`
     // todo implement in the future
     declare const helper: (arg: NonNullable<any>) => any;
-    export = helper;
+    export default helper;
   `,
 });
 
@@ -188,7 +188,7 @@ export const $path = p => ({
   `,
   dts: dedent`
     declare const path: typeof globalThis;
-    export = path;
+    export default path;
   `,
 });
 
@@ -227,7 +227,7 @@ export const $instanceNumber = p => ({
   `,
   dts: dedent`
     declare const method: (arg: NonNullable<any>) => any;
-    export = method;
+    export default method;
   `,
 });
 
@@ -247,7 +247,7 @@ export const $instanceString = p => ({
   `,
   dts: dedent`
     declare const method: (arg: NonNullable<any>) => any;
-    export = method;
+    export default method;
   `,
 });
 
@@ -267,7 +267,7 @@ export const $instanceFunction = p => ({
   `,
   dts: dedent`
     declare const method: (arg: NonNullable<any>) => any;
-    export = method;
+    export default method;
   `,
 });
 
@@ -293,7 +293,7 @@ export const $instanceDOMIterables = p => ({
   `,
   dts: dedent`
     declare const method: (arg: NonNullable<any>) => any;
-    export = method;
+    export default method;
   `,
 });
 
@@ -316,7 +316,7 @@ export const $instanceArrayString = p => ({
   `,
   dts: dedent`
     declare const method: (arg: NonNullable<any>) => any;
-    export = method;
+    export default method;
   `,
 });
 
@@ -345,7 +345,7 @@ export const $instanceArrayDOMIterables = p => ({
   `,
   dts: dedent`
     declare const method: (arg: NonNullable<any>) => any;
-    export = method;
+    export default method;
   `,
 });
 
@@ -364,7 +364,7 @@ export const $instanceRegExpFlags = p => ({
   `,
   dts: dedent`
     declare const method: (arg: NonNullable<any>) => any;
-    export = method;
+    export default method;
   `,
 });
 
