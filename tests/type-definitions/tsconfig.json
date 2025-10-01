@@ -8,8 +8,6 @@
     "noEmit": true
   },
   "typeRoots": [
-    "../../packages/core-js/**/*.d.ts",
-    "../../packages/core-js-pure/**/*.d.ts",
     "./node_modules/@types"
   ],
   "include": [

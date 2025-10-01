@@ -1,15 +1,17 @@
 // proposal stage: 3
 // https://github.com/tc39/proposal-json-parse-with-source
-interface ReviverContext {
+interface CoreJSReviverContext {
+  readonly __brand: unique symbol;
   source: string;
 }
 
-type RawJSONObject = {
+interface CoreJSRawJSON {
+  readonly __brand: unique symbol;
   rawJSON: string;
 }
 
 interface JSON {
-  isRawJSON(value: any): value is RawJSONObject;
-  parse<T = any>(text: string, reviver?: (key: string, value: any, context: ReviverContext) => any): T;
-  rawJSON(value: string): RawJSONObject;
+  isRawJSON(value: any): value is CoreJSRawJSON;
+  parse<T = any>(text: string, reviver?: (key: string, value: any, context: CoreJSReviverContext) => any): T;
+  rawJSON(value: string): CoreJSRawJSON;
 }
