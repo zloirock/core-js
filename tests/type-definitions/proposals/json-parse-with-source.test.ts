@@ -1,6 +1,6 @@
 import 'core-js/full';
 
-const r: RawJSONObject = JSON.rawJSON('{"a":123}');
+const r: CoreJSRawJSON = JSON.rawJSON('{"a":123}');
 
 const isr1: boolean = JSON.isRawJSON(r);
 const isr2: boolean = JSON.isRawJSON({});
@@ -21,6 +21,6 @@ JSON.rawJSON(123);
 // @ts-expect-error
 JSON.rawJSON();
 
-JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: ReviverContext) => {});
+JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: CoreJSReviverContext) => {});
 // @ts-expect-error
 JSON.parse('{"tooBigForNumber":9007199254740993}', (key: string, value: any, context: []) => {});
