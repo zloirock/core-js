@@ -1,0 +1,5 @@
+Copyright (c) 2014-2025 CoreJS Company.
+All rights reserved.
+
+The files in this directory (logos, brand assets, and their variations)
+are proprietary material of CoreJS Company.
