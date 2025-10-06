@@ -1,5 +1,6 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { defineConfig } from 'vite';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 import legacy from '@vitejs/plugin-legacy';
 
 export default defineConfig({
@@ -23,6 +24,14 @@ export default defineConfig({
   plugins: [
     legacy({
       polyfills: false,
+    }),
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'images/license.txt',
+          dest: 'assets',
+        },
+      ],
     }),
   ],
 });
