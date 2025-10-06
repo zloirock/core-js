@@ -1,8 +1,6 @@
 name: Build and Deploy pages to GitHub Pages
 on:
   push:
-    branches-ignore:
-      - web-3
   pull_request:
 
 permissions:
