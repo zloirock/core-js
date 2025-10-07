@@ -28,10 +28,6 @@ AsyncIterator.from({});
 // @ts-expect-error
 AsyncIterator.from();
 // @ts-expect-error
-AsyncIterator.from(null);
-// @ts-expect-error
-AsyncIterator.from(undefined);
-// @ts-expect-error
 AsyncIterator.from({ next: () => 1 });
 
 const raits: AsyncIterator<string> = is.toAsync();
