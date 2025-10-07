@@ -21,6 +21,56 @@ function isAllowedFunctionName(name) {
   }
 }
 
+const namespacesWithTwoGeneric = [
+  'Map',
+  'ReadonlyMap',
+  'WeakMap',
+];
+
+const namespacesWithOneGeneric = [
+  'Array',
+  'ReadonlyArray',
+  'Set',
+  'ReadonlySet',
+  'WeakSet',
+  'Promise',
+  'Iterator',
+  'AsyncIterator',
+];
+
+function getGenericsForNamespace(namespace) {
+  if (namespace === 'WeakMap') {
+    return '<K extends WeakKey, V>';
+  }
+  if (namespacesWithTwoGeneric.includes(namespace)) {
+    return '<K, V>';
+  }
+  if (namespacesWithOneGeneric.includes(namespace)) {
+    return '<T>';
+  }
+  return '';
+}
+
+function getCommonGenericsForNamespace(namespace) {
+  if (namespacesWithTwoGeneric.includes(namespace)) {
+    return '<K, V>';
+  }
+  if (namespacesWithOneGeneric.includes(namespace)) {
+    return '<T>';
+  }
+  return '';
+}
+
+function getAnyGenericsForNamespace(namespace) {
+  if (namespacesWithTwoGeneric.includes(namespace)) {
+    return '<any, any>';
+  }
+  if (namespacesWithOneGeneric.includes(namespace)) {
+    return '<any>';
+  }
+  return '';
+}
+
 export const wrapEntry = template => `'use strict';\n${ template }\n`;
 export const wrapDts = (template, p) => `${ importTypes(p) }${ p.types.length ? '\n\n' : '' }${ template }\n`;
 
@@ -68,11 +118,11 @@ export const $uncurried = p => ({
     module.exports = entryUnbind('${ p.namespace }', '${ p.name }');
   `,
   dts: dedent`
-    declare const method: (
-      thisArg: any,
-      ...args: Parameters<typeof ${ p.namespace }.prototype.${ p.name }>
-    ) => ReturnType<typeof ${ p.namespace }.prototype.${ p.name }>;
-    export default method;
+    type method = ${ p.namespace }${ getAnyGenericsForNamespace(p.namespace) }['${ p.name }'];
+    type uncurriedMethod${ getGenericsForNamespace(p.namespace) } = (self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method>) => ReturnType<method>;
+    declare const resultMethod: uncurriedMethod${ getAnyGenericsForNamespace(p.namespace) };
+    
+    export default resultMethod;
   `,
 });
 
@@ -86,11 +136,11 @@ export const $uncurriedIterator = p => ({
     module.exports = uncurryThis(getIteratorMethod(${ p.source }));
   `,
   dts: dedent`
-    declare const method: (
-      thisArg: any,
-      ...args: Parameters<typeof ${ p.namespace }.prototype[typeof Symbol.iterator]>
-    ) => ReturnType<typeof ${ p.namespace }.prototype[typeof Symbol.iterator]>;
-    export default method;
+    type method = ${ p.namespace }<any>[typeof Symbol.iterator];
+    type uncurriedMethod<T> = (self: ${ p.namespace }<T>, ...args: Parameters<method>) => ReturnType<method>;
+    declare const resultMethod: uncurriedMethod<any>;
+    
+    export default resultMethod;
   `,
 });
 
