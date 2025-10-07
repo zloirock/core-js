@@ -9,9 +9,11 @@ type ZipOptions = {
   padding?: object;
 };
 
-interface Iterator<T> {
-  zip<U>(iterables: Iterable<U>, options?: ZipOptions): CoreJsIteratorObject<[T, U]>;
+interface IteratorConstructor {
+  zip<T, U>(iterables: Iterable<U>, options?: ZipOptions): CoreJsIteratorObject<[T, U]>;
 
-  zipKeyed<U>(iterables: Iterable<U>, options?: ZipOptions): CoreJsIteratorObject<[number, T, U]>;
-  zipKeyed<U>(record: Record<PropertyKey, Iterable<U>>, options?: ZipOptions): CoreJsIteratorObject<[PropertyKey, T, U]>;
+  zipKeyed<T, U>(iterables: Iterable<U>, options?: ZipOptions): CoreJsIteratorObject<[number, T, U]>;
+  zipKeyed<T, U>(record: Record<PropertyKey, Iterable<U>>, options?: ZipOptions): CoreJsIteratorObject<[PropertyKey, T, U]>;
 }
+
+declare var Iterator: IteratorConstructor;
