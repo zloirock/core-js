@@ -1,0 +1,54 @@
+name: Build bundles
+
+on:
+  push:
+    branches:
+      - v3.45-docs
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract branch name
+        shell: bash
+        run: echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
+      - name: Checkout repo
+        uses: actions/checkout@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build bundle
+        run: npm run bundle-package minified-name core-js-bundle
+
+      - name: Copy files to server over SSH
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ci
+          key: ${{ secrets.CI_SSH_KEY }}
+          source: "packages/core-js-bundle/core-js-bundle.js"
+          target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
+          strip_components: 2
+
+      - name: Build esmodules bundle
+        run: npm run bundle-package esmodules minified-name core-js-bundle-esmodules
+
+      - name: Copy files to server over SSH
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ci
+          key: ${{ secrets.CI_SSH_KEY }}
+          source: "packages/core-js-bundle/core-js-bundle-esmodules.js"
+          target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
+          strip_components: 2

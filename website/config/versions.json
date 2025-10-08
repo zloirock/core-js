@@ -1,0 +1,11 @@
+[
+  {
+    "label": "v3.45",
+    "default": true,
+    "branch": "web-3"
+  },
+  {
+    "label": "v3.45",
+    "branch": "web-3"
+  }
+]

@@ -1,8 +1,10 @@
-<p align="center"><img alt="core-js" src="https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png" /></p>
-
 # So, what's next?
 
+<p align="center"><img alt="core-js" src="https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png" /></p>
+
 Hi. I am (**[@zloirock](https://github.com/zloirock)**), a full-time open-source developer. I don't like to write long posts, but it seems it is high time to do it. Initially, this post was supposed to be a post about the start of active development of the new major version of `core-js` and the roadmap (it was moved to [the second half](#roadmap)), however, due to recent events, it became a really long post about many different things... I'm fucking tired. Free open-source software is fundamentally broken. I could stop working on this silently, but I want to give open-source one last chance.
+
+---
 
 <details>
 <summary><b>🔻 Click to see how you can help 🔻</b></summary>
@@ -382,7 +384,7 @@ I still hope for the first outcome since `core-js` is one of the key components 
 
 Now let's move away from the negative to the second half of this post where we will talk about things that would be nice to implement in `core-js` and the problems of polyfilling in general.
 
-# Roadmap
+## Roadmap
 
 JavaScript, browsers, and web development are evolving at an amazing speed. The time when almost all of the `core-js` modules were required for all browsers is gone. The latest browsers have good standards support and, in the common use cases, they need only some percentage of the `core-js` modules for the most recent language features and bug fixes. Some companies are already dropping support for IE11 which was recently  "buried" once more. However, even without IE, old browsers will always be there, bugs will happen in modern browsers too, and new language features will appear regularly and they will appear in browsers with a delay anyway; so, if we want to use modern JS in development and minimize possible problems, polyfills stay with us for a long time, but they should continue to evolve.
 

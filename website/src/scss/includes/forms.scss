@@ -1,0 +1,100 @@
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+@use "../includes/themed" as *;
+
+button {
+  border-radius: 0.5rem;
+  cursor: pointer;
+  padding: 1rem;
+  line-height: 1;
+
+  font-weight: 600;
+
+  @include themify($themes) {
+    background-color: transparent;
+    border: 1px solid themed('background-highlight');
+    color: themed('link-color');
+  }
+
+  &:focus,
+  &:hover {
+    @include themify($themes) {
+      background-color: themed('button-color-hover');
+      color: themed('link-color-hover');
+    }
+  }
+
+  &.big {
+    border-radius: 2rem;
+    font-size: 1.25rem;
+    padding: 1rem;
+  }
+
+  &.full-width {
+    width: 100%;
+  }
+}
+
+input {
+  width: 100%;
+  padding: 0 2rem 0 0;
+
+  font-size: 1rem;
+  line-height: 3rem;
+
+  border-radius: 8px;
+  border: 0;
+  outline: 0;
+
+  @include themify($themes) {
+    color: themed('form-font-color');
+    background-color: themed('background-light');
+  }
+}
+
+.form-item {
+  display: flex;
+  align-items: center;
+
+  padding: 0 2rem;
+  margin-bottom: 0.5rem;
+
+  border-radius: 8px;
+
+  @include themify($themes) {
+    background-color: themed('background-light');
+  }
+
+  .icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.75rem;
+
+    svg {
+      width: 100%;
+      height: auto;
+      opacity: 0.3;
+      @include themify($themes) {
+        color: themed('form-font-color');
+      }
+    }
+  }
+}
+
+select {
+  width: 100%;
+  height: 3rem;
+
+  font-size: 1rem;
+
+  border-radius: 8px;
+  border: 0;
+  outline: 0;
+
+  appearance: none;
+
+  @include themify($themes) {
+    color: themed('form-font-color');
+    background-color: themed('background-light');
+  }
+}

@@ -1,0 +1,49 @@
+@use "../includes/mixins" as *;
+@use "../includes/themed" as *;
+@use "../includes/themes" as *;
+@use "../includes/themify" as *;
+
+footer {
+  display: flex;
+  padding: 2rem;
+  justify-content: center;
+
+  @include themify($themes) {
+    border-top: 1px solid themed('border-color-light');
+  }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    flex-direction: column;
+
+    @include wrapper;
+
+    @include media('min', 'sm') {
+      flex-direction: row;
+    }
+
+    .footer-logo {
+      width: 144px;
+    }
+
+    .title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      @include themify($themes) {
+        color: themed('font-color');
+      }
+    }
+
+    .copyright {
+      order: 3;
+      margin-top: 1rem;
+
+      @include media('min', 'sm') {
+        order: unset;
+        margin-top: 0;
+      }
+    }
+  }
+}

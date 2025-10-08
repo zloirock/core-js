@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}core-js</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <base href="{base}" />
+    <script>
+      let theme = localStorage.getItem('theme');
+      if (theme === null) {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          theme = 'theme-dark';
+        } else {
+          theme = 'theme-light';
+        }
+      }
+      const html = document.querySelector('html');
+      setTheme(theme);
+      function setTheme(theme) {
+        localStorage.setItem('theme', theme);
+        html.className = '';
+        html.classList.add(theme);
+      }
+    </script>
+    {core-js-bundle-esmodules}
+    {core-js-bundle}
+    <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/content-menu.js"></script>
+    <script type="module" src="js/playground.js"></script>
+</head>
+<body>
+<header>
+    <nav>
+        <div class="logo">
+            <a href="https://core-js.io/"><img src="images/core-js.png" alt="core-js"></a>
+        </div>
+        <div id="menu">
+            <div class="menu-items">
+                <div class="menu-item highlightable"><a href="./blog/" tabindex="1">Blog</a></div>
+                <div class="menu-item highlightable"><a href="./docs/" tabindex="3">Docs</a></div>
+                <div class="menu-item highlightable"><a href="./playground" tabindex="2">Playground</a></div>
+                <div class="menu-item highlightable"><a href="./changelog" tabindex="4">Changelog</a></div>
+                <div class="socials">
+                    <div class="menu-item">
+                        <a href="https://github.com/zloirock/core-js/" target="_blank" tabindex="5">
+                            <span class="icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"><g data-name="github"><path d="M12 1A10.89 10.89 0 0 0 1 11.77 10.79 10.79 0 0 0 8.52 22c.55.1.75-.23.75-.52v-1.83c-3.06.65-3.71-1.44-3.71-1.44a2.86 2.86 0 0 0-1.22-1.58c-1-.66.08-.65.08-.65a2.31 2.31 0 0 1 1.68 1.11 2.37 2.37 0 0 0 3.2.89 2.33 2.33 0 0 1 .7-1.44c-2.44-.27-5-1.19-5-5.32a4.15 4.15 0 0 1 1.11-2.91 3.78 3.78 0 0 1 .11-2.84s.93-.29 3 1.1a10.68 10.68 0 0 1 5.5 0c2.1-1.39 3-1.1 3-1.1a3.78 3.78 0 0 1 .11 2.84A4.15 4.15 0 0 1 19 11.2c0 4.14-2.58 5.05-5 5.32a2.5 2.5 0 0 1 .75 2v2.95c0 .35.2.63.75.52A10.8 10.8 0 0 0 23 11.77 10.89 10.89 0 0 0 12 1"/></g></svg>
+                            </span>
+                        </a>
+                    </div>
+                    <div class="menu-item">
+                        <a href="https://x.com/thecorejs" target="_blank" tabindex="6">
+                            <span class="icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 50 50"><path d="M 5.9199219 6 L 20.582031 27.375 L 6.2304688 44 L 9.4101562 44 L 21.986328 29.421875 L 31.986328 44 L 44 44 L 28.681641 21.669922 L 42.199219 6 L 39.029297 6 L 27.275391 19.617188 L 17.933594 6 L 5.9199219 6 z M 9.7167969 8 L 16.880859 8 L 40.203125 42 L 33.039062 42 L 9.7167969 8 z"/></svg>
+                            </span>
+                        </a>
+                    </div>
+<!--                    <div class="menu-item">-->
+<!--                        <a href="#" tabindex="7">-->
+<!--                            <span class="icon"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16"><path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/></svg></span>-->
+<!--                        </a>-->
+<!--                    </div>-->
+                </div>
+                <div class="menu-item">
+                    <a href="#" class="theme-switcher">
+                        <span class="theme-switcher-title">Theme</span>
+                        <span class="icon light">
+                            <svg data-slot="icon" fill="none" stroke-width="1.5" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"></path>
+                            </svg>
+                        </span>
+                        <span class="icon dark">
+                            <svg data-slot="icon" fill="none" stroke-width="1.5" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"></path>
+                            </svg>
+                        </span>
+                    </a>
+                </div>
+            </div>
+            <div class="burger">
+                <a href="#" id="menu-switcher"><span></span><span></span><span></span></a>
+            </div>
+            <div class="backdrop"></div>
+        </div>
+    </nav>
+</header>
+
+<main>
+    <div class="main box">
+        {content}
+    </div>
+</main>
+
+<footer>
+    <div class="footer">
+        <div class="copyright">
+            <div class="footer-logo"><img src="images/core-js.png" alt="core-js"></div>
+            © CoreJS Company
+        </div>
+        <div class="resources">
+            <div class="resource-item title">Resources</div>
+            <div class="resource-item"><a href="./blog/">Blog</a></div>
+            <div class="resource-item"><a href="./docs/">Docs</a></div>
+            <div class="resource-item"><a href="./playground">Playground</a></div>
+            <div class="resource-item"><a href="./changelog">Changelog</a></div>
+            <div class="resource-item"><a href="./contributing">Contributing</a></div>
+            <div class="resource-item"><a href="./security">Security Policy</a></div>
+        </div>
+        <div class="community">
+            <div class="resource-item title">Community</div>
+            <div class="community-item"><a href="https://github.com/zloirock/core-js/" target="_blank">GitHub</a></div>
+            <div class="community-item"><a href="https://x.com/thecorejs" target="_blank">X</a></div>
+<!--            <div class="community-item"><a href="#" target="_blank">Discord</a></div>-->
+        </div>
+    </div>
+</footer>
+<div id="tooltip" role="tooltip">
+    <div id="tooltip-text"></div>
+    <div id="tooltip-arrow" data-popper-arrow></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,437 @@
+[
+  {
+    "title": "Usage",
+    "url": "{docs-version}/docs/usage"
+  },
+  {
+    "title": "Supported engines and compatibility data",
+    "url": "{docs-version}/docs/engines"
+  },
+  {
+    "title": "Features",
+    "children": [
+      {
+        "title": "ECMAScript",
+        "children": [
+          {
+            "title": "ECMAScript: Object",
+            "url": "{docs-version}/docs/features/ecmascript/object"
+          },
+          {
+            "title": "ECMAScript: Function",
+            "url": "{docs-version}/docs/features/ecmascript/function"
+          },
+          {
+            "title": "ECMAScript: Error",
+            "url": "{docs-version}/docs/features/ecmascript/error"
+          },
+          {
+            "title": "ECMAScript: Array",
+            "url": "{docs-version}/docs/features/ecmascript/array"
+          },
+          {
+            "title": "ECMAScript: Iterator",
+            "url": "{docs-version}/docs/features/ecmascript/iterator"
+          },
+          {
+            "title": "ECMAScript: String and RegExp",
+            "url": "{docs-version}/docs/features/ecmascript/string-regexp"
+          },
+          {
+            "title": "ECMAScript: Number",
+            "url": "{docs-version}/docs/features/ecmascript/number"
+          },
+          {
+            "title": "ECMAScript: Math",
+            "url": "{docs-version}/docs/features/ecmascript/math"
+          },
+          {
+            "title": "ECMAScript: Date",
+            "url": "{docs-version}/docs/features/ecmascript/date"
+          },
+          {
+            "title": "ECMAScript: Promise",
+            "url": "{docs-version}/docs/features/ecmascript/promise"
+          },
+          {
+            "title": "ECMAScript: Symbol",
+            "url": "{docs-version}/docs/features/ecmascript/symbol"
+          },
+          {
+            "title": "ECMAScript: Collections",
+            "url": "{docs-version}/docs/features/ecmascript/collections"
+          },
+          {
+            "title": "ECMAScript: Explicit Resource Management",
+            "url": "{docs-version}/docs/features/ecmascript/explicit-resource-management"
+          },
+          {
+            "title": "ECMAScript: Typed Arrays",
+            "url": "{docs-version}/docs/features/ecmascript/typed-arrays"
+          },
+          {
+            "title": "ECMAScript: Reflect",
+            "url": "{docs-version}/docs/features/ecmascript/reflect"
+          },
+          {
+            "title": "ECMAScript: JSON",
+            "url": "{docs-version}/docs/features/ecmascript/json"
+          },
+          {
+            "title": "ECMAScript: globalThis",
+            "url": "{docs-version}/docs/features/ecmascript/globalthis"
+          }
+        ]
+      },
+      {
+        "title": "ECMAScript proposals",
+        "children": [
+          {
+            "title": "Finished proposals",
+            "children": [
+              {
+                "title": "globalThis",
+                "url": "{docs-version}/docs/features/proposals/globalthis"
+              },
+              {
+                "title": "Relative indexing method",
+                "url": "{docs-version}/docs/features/proposals/relative-indexing-method"
+              },
+              {
+                "title": "Array.prototype.includes",
+                "url": "{docs-version}/docs/features/proposals/array-prototype-includes"
+              },
+              {
+                "title": "Array.prototype.flat / Array.prototype.flatMap",
+                "url": "{docs-version}/docs/features/proposals/array-prototype-flat-flatmap"
+              },
+              {
+                "title": "Array find from last",
+                "url": "{docs-version}/docs/features/proposals/array-find-from-last"
+              },
+              {
+                "title": "Change Array by copy",
+                "url": "{docs-version}/docs/features/proposals/change-array-by-copy"
+              },
+              {
+                "title": "Array grouping",
+                "url": "{docs-version}/docs/features/proposals/array-grouping"
+              },
+              {
+                "title": "Array.fromAsync",
+                "url": "{docs-version}/docs/features/proposals/array-fromasync"
+              },
+              {
+                "title": "ArrayBuffer.prototype.transfer and friends",
+                "url": "{docs-version}/docs/features/proposals/arraybuffer-prototype-transfer"
+              },
+              {
+                "title": "Uint8Array to / from base64 and hex",
+                "url": "{docs-version}/docs/features/proposals/uint8array-base64-hex"
+              },
+              {
+                "title": "Error.isError",
+                "url": "{docs-version}/docs/features/proposals/error-iserror"
+              },
+              {
+                "title": "Explicit Resource Management",
+                "url": "{docs-version}/docs/features/proposals/explicit-resource-management"
+              },
+              {
+                "title": "Float16 methods",
+                "url": "{docs-version}/docs/features/proposals/float16-methods"
+              },
+              {
+                "title": "Iterator helpers",
+                "url": "{docs-version}/docs/features/proposals/iterator-helpers"
+              },
+              {
+                "title": "Object.values / Object.entries",
+                "url": "{docs-version}/docs/features/proposals/object-values-entries"
+              },
+              {
+                "title": "Object.fromEntries",
+                "url": "{docs-version}/docs/features/proposals/object-fromentries"
+              },
+              {
+                "title": "Object.getOwnPropertyDescriptors",
+                "url": "{docs-version}/docs/features/proposals/object-getownpropertydescriptors"
+              },
+              {
+                "title": "Accessible Object.prototype.hasOwnProperty",
+                "url": "{docs-version}/docs/features/proposals/accessible-object-prototype-hasownproperty"
+              },
+              {
+                "title": "String padding",
+                "url": "{docs-version}/docs/features/proposals/string-padding"
+              },
+              {
+                "title": "String.prototype.matchAll",
+                "url": "{docs-version}/docs/features/proposals/string-matchall"
+              },
+              {
+                "title": "String.prototype.replaceAll",
+                "url": "{docs-version}/docs/features/proposals/string-replaceall"
+              },
+              {
+                "title": "String.prototype.trimStart / String.prototype.trimEnd",
+                "url": "{docs-version}/docs/features/proposals/string-trimstart-trimend"
+              },
+              {
+                "title": "RegExp s (dotAll) flag",
+                "url": "{docs-version}/docs/features/proposals/regexp-dotall-flag"
+              },
+              {
+                "title": "RegExp named capture groups",
+                "url": "{docs-version}/docs/features/proposals/regexp-named-capture-groups"
+              },
+              {
+                "title": "RegExp escaping",
+                "url": "{docs-version}/docs/features/proposals/regexp-escaping"
+              },
+              {
+                "title": "Promise.allSettled",
+                "url": "{docs-version}/docs/features/proposals/promise-allsettled"
+              },
+              {
+                "title": "Promise.any",
+                "url": "{docs-version}/docs/features/proposals/promise-any"
+              },
+              {
+                "title": "Promise.prototype.finally",
+                "url": "{docs-version}/docs/features/proposals/promise-prototype-finally"
+              },
+              {
+                "title": "Promise.try",
+                "url": "{docs-version}/docs/features/proposals/promise-try"
+              },
+              {
+                "title": "Promise.withResolvers",
+                "url": "{docs-version}/docs/features/proposals/promise-withresolvers"
+              },
+              {
+                "title": "Symbol.asyncIterator for asynchronous iteration",
+                "url": "{docs-version}/docs/features/proposals/symbol-asynciterator"
+              },
+              {
+                "title": "Symbol.prototype.description",
+                "url": "{docs-version}/docs/features/proposals/symbol-prototype-description"
+              },
+              {
+                "title": "Well-formed JSON.stringify",
+                "url": "{docs-version}/docs/features/proposals/well-formed-jsonstringify"
+              },
+              {
+                "title": "Well-formed unicode strings",
+                "url": "{docs-version}/docs/features/proposals/well-formed-unicode-strings"
+              },
+              {
+                "title": "New Set methods",
+                "url": "{docs-version}/docs/features/proposals/set-methods"
+              },
+              {
+                "title": "Math.sumPrecise",
+                "url": "{docs-version}/docs/features/proposals/math-sumprecise"
+              }
+            ]
+          },
+          {
+            "title": "Stage 3 proposals",
+            "children": [
+              {
+                "title": "Iterator sequencing",
+                "url": "{docs-version}/docs/features/proposals/iterator-sequencing"
+              },
+              {
+                "title": "Map upsert",
+                "url": "{docs-version}/docs/features/proposals/map-upsert"
+              },
+              {
+                "title": "JSON.parse source text access",
+                "url": "{docs-version}/docs/features/proposals/json-parse-source-text-access"
+              },
+              {
+                "title": "Symbol.metadata for decorators metadata proposal",
+                "url": "{docs-version}/docs/features/proposals/symbol-metadata"
+              }
+            ]
+          },
+          {
+            "title": "Stage 2.7 proposals",
+            "children": [
+              {
+                "title": "Joint iteration",
+                "url": "{docs-version}/docs/features/proposals/joint-iteration"
+              },
+              {
+                "title": "Iterator chunking",
+                "url": "{docs-version}/docs/features/proposals/iterator-chunking"
+              }
+            ]
+          },
+          {
+            "title": "Stage 2 proposals",
+            "children": [
+              {
+                "title": "AsyncIterator helpers",
+                "url": "{docs-version}/docs/features/proposals/asynciterator-helpers"
+              },
+              {
+                "title": "Iterator.range",
+                "url": "{docs-version}/docs/features/proposals/iterator-range"
+              },
+              {
+                "title": "Array.isTemplateObject",
+                "url": "{docs-version}/docs/features/proposals/array-istemplateobject"
+              },
+              {
+                "title": "Number.prototype.clamp",
+                "url": "{docs-version}/docs/features/proposals/number-prototype-clamp"
+              },
+              {
+                "title": "String.dedent",
+                "url": "{docs-version}/docs/features/proposals/string-dedent"
+              },
+              {
+                "title": "Symbol predicates",
+                "url": "{docs-version}/docs/features/proposals/symbol-predicates"
+              },
+              {
+                "title": "Symbol.customMatcher for extractors",
+                "url": "{docs-version}/docs/features/proposals/symbol-custommatcher-for-extractors"
+              }
+            ]
+          },
+          {
+            "title": "Stage 1 proposals",
+            "children": [
+              {
+                "title": "Observable",
+                "url": "{docs-version}/docs/features/proposals/observable"
+              },
+              {
+                "title": "New collections methods",
+                "url": "{docs-version}/docs/features/proposals/new-collections-methods"
+              },
+              {
+                "title": ".of and .from methods on collection constructors",
+                "url": "{docs-version}/docs/features/proposals/of-and-from-methods-on-collections"
+              },
+              {
+                "title": "compositeKey and compositeSymbol",
+                "url": "{docs-version}/docs/features/proposals/compositekey-compositesymbol"
+              },
+              {
+                "title": "Array filtering",
+                "url": "{docs-version}/docs/features/proposals/array-filtering"
+              },
+              {
+                "title": "Array deduplication",
+                "url": "{docs-version}/docs/features/proposals/array-deduplication"
+              },
+              {
+                "title": "DataView get / set Uint8Clamped methods",
+                "url": "{docs-version}/docs/features/proposals/dataview-get-set-uint8clamped"
+              },
+              {
+                "title": "Number.fromString",
+                "url": "{docs-version}/docs/features/proposals/number-from-string"
+              },
+              {
+                "title": "String.cooked",
+                "url": "{docs-version}/docs/features/proposals/string-cooked"
+              },
+              {
+                "title": "String.prototype.codePoints",
+                "url": "{docs-version}/docs/features/proposals/string-prototype-codepoints"
+              },
+              {
+                "title": "Symbol.customMatcher for pattern matching",
+                "url": "{docs-version}/docs/features/proposals/symbol-custommatcher-pattern-matching"
+              }
+            ]
+          },
+          {
+            "title": "Stage 0 proposals",
+            "children": [
+              {
+                "title": "Function.prototype.demethodize",
+                "url": "{docs-version}/docs/features/proposals/function-prototype-demethodize"
+              },
+              {
+                "title": "Function.{ isCallable, isConstructor }",
+                "url": "{docs-version}/docs/features/proposals/function-is-callable-is-constructor"
+              }
+            ]
+          },
+          {
+            "title": "Pre-stage 0 proposals",
+            "children": [
+              {
+                "title": "Reflect metadata",
+                "url": "{docs-version}/docs/features/proposals/reflect-metadata"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Web standards",
+        "children": [
+          {
+            "title": "self",
+            "url": "{docs-version}/docs/features/web-standards/self"
+          },
+          {
+            "title": "structuredClone",
+            "url": "{docs-version}/docs/features/web-standards/structured-clone"
+          },
+          {
+            "title": "Base64 utility methods",
+            "url": "{docs-version}/docs/features/web-standards/base64-utility-methods"
+          },
+          {
+            "title": "setTimeout and setInterval",
+            "url": "{docs-version}/docs/features/web-standards/settimeout-setinterval"
+          },
+          {
+            "title": "setImmediate",
+            "url": "{docs-version}/docs/features/web-standards/setimmediate"
+          },
+          {
+            "title": "queueMicrotask",
+            "url": "{docs-version}/docs/features/web-standards/queuemicrotask"
+          },
+          {
+            "title": "URL and URLSearchParams",
+            "url": "{docs-version}/docs/features/web-standards/url-and-urlsearchparams"
+          },
+          {
+            "title": "DOMException",
+            "url": "{docs-version}/docs/features/web-standards/dom-exception"
+          },
+          {
+            "title": "iterable DOM collections",
+            "url": "{docs-version}/docs/features/web-standards/iterable-dom-collections"
+          }
+        ]
+      },
+      {
+        "title": "Iteration helpers",
+        "url": "{docs-version}/docs/features/iteration-helpers"
+      }
+    ]
+  },
+  {
+    "title": "Missing polyfills",
+    "url": "{docs-version}/docs/missing-polyfills"
+  },
+  {
+    "title": "Contributing",
+    "url": "contributing"
+  },
+  {
+    "title": "Security Policy",
+    "url": "security"
+  }
+]
