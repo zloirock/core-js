@@ -1,11 +1,11 @@
 [
   {
-    "label": "v3.45",
+    "label": "v3",
     "default": true,
-    "branch": "web-3"
+    "branch": "master"
   },
   {
-    "label": "v3.45",
-    "branch": "web-3"
+    "label": "v3",
+    "branch": "master"
   }
 ]
