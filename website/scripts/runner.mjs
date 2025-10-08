@@ -136,7 +136,7 @@ async function copyDocsToBuilder(version) {
   console.time(`Copied docs to builder for "${ target }"`);
   await checkoutVersion(version);
   const fromDir = `${ BUILD_SRC_DIR }docs/web/docs/`;
-  const toDir = `${ BUILD_DOCS_DIR }${ version.label }/docs/`;
+  const toDir = `${ BUILD_DOCS_DIR }${ version.path ?? version.label }/docs/`;
   await copyDocs(fromDir, toDir);
   console.timeEnd(`Copied docs to builder for "${ target }"`);
 }
@@ -189,7 +189,7 @@ async function checkoutVersion(version) {
 
 async function buildAndCopyCoreJS(version) {
   const target = version.branch ?? version.tag;
-  const name = version.label;
+  const name = version.path ?? version.label;
   console.log(`Building and copying core-js for ${ target }`);
   const targetBundlePath = `${ BUNDLES_DIR }/${ target }/`;
 
@@ -333,7 +333,7 @@ try {
       await buildAndCopyCoreJS(version);
     }
   } else {
-    const version = { branch: targetBranch };
+    const version = { branch: targetBranch, label: targetBranch };
     await hasDocs(version);
     await buildAndCopyCoreJS(version);
   }

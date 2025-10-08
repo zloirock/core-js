@@ -93,7 +93,7 @@ async function buildVersionsMenuList(versions, currentVersion, section) {
   for (const v of versions) {
     const activityClass = v.label === currentVersion && !v.default ? ' class="active"' : '';
     const defaultBadge = v.default ? ' (default)' : '';
-    const versionPath = v.default ? '' : `${ v.label }/`;
+    const versionPath = v.default ? '' : `${ v.path ?? v.label }/`;
     versionsMenuHtml += `<a href="./${ versionPath }${ section }"${ activityClass }>${ v.label }${ defaultBadge }</a>`;
   }
   versionsMenuHtml += '</div>';
@@ -232,8 +232,9 @@ async function buildPlaygrounds(template, versions) {
 }
 
 async function buildPlayground(template, version, versions) {
-  const bundleScript = `<script nomodule src="${ config.bundlesPath }/${ version.label }/${ config.bundleName }"></script>`;
-  const bundleESModulesScript = `<script type="module" src="${ config.bundlesPath }/${ version.label }/${ config.bundleNameESModules }"></script>`;
+  const versionPath = version.path ?? version.label;
+  const bundleScript = `<script nomodule src="${ config.bundlesPath }/${ versionPath }/${ config.bundleName }"></script>`;
+  const bundleESModulesScript = `<script type="module" src="${ config.bundlesPath }/${ versionPath }/${ config.bundleNameESModules }"></script>`;
   const babelScript = '<script src="./babel.min.js"></script>';
   const playgroundContent = await readFileContent(`${ config.srcDir }playground.html`);
   const versionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
@@ -244,7 +245,7 @@ async function buildPlayground(template, version, versions) {
   playground = playground.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
   playground = playground.replace('{babel-script}', babelScript);
   const playgroundWithVersion = playground.replace('{versions-menu}', versionsMenu);
-  const playgroundFilePath = path.join(config.resultDir, version.label, 'playground.html');
+  const playgroundFilePath = path.join(config.resultDir, versionPath, 'playground.html');
 
   if (version.default) {
     const defaultVersionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
@@ -264,10 +265,11 @@ async function createDocsIndexes(versions) {
 
   for (const version of versions) {
     if (version.default) continue;
-    const menuItems = await getDocsMenuItems(version.label);
+    const versionPath = version.path ?? version.label;
+    const menuItems = await getDocsMenuItems(versionPath);
     const firstDocPath = path.join(config.resultDir,
-      `${ menuItems[0].url }.html`.replace(`{docs-version}${ BRANCH ? '/' : '' }`, version.label));
-    const indexFilePath = path.join(config.resultDir, `${ version.label }/docs/`, 'index.html');
+      `${ menuItems[0].url }.html`.replace(`{docs-version}${ BRANCH ? '/' : '' }`, versionPath));
+    const indexFilePath = path.join(config.resultDir, `${ versionPath }/docs/`, 'index.html');
     await copy(firstDocPath, indexFilePath);
     echo(chalk.green(`File created: ${ indexFilePath }`));
   }
