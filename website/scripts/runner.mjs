@@ -13,7 +13,7 @@ const BUILDS_ROOT_DIR = 'builds';
 const BUILD_RESULT_DIR = 'result';
 const BUNDLES_DIR = 'bundles';
 const REPO = 'https://github.com/zloirock/core-js.git';
-const BUILDER_BRANCH = 'web-3';
+const BUILDER_BRANCH = 'master';
 const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 
 const args = process.argv;
