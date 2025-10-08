@@ -3,7 +3,7 @@ name: Build web pages
 on:
   push:
     branches:
-      - web-3
+      - master
   workflow_dispatch:
 
 jobs:
