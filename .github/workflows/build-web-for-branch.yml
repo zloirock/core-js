@@ -2,8 +2,8 @@ name: Build web pages for branch
 
 on:
   push:
-    branches:
-      - web-3-not-exists
+    branches-ignore:
+      - master
   workflow_dispatch:
 
 jobs:
