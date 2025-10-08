@@ -1,7 +1,5 @@
 name: Build and Deploy pages to GitHub Pages
-on:
-  push:
-  pull_request:
+on: [push, workflow_dispatch]
 
 permissions:
   contents: read
