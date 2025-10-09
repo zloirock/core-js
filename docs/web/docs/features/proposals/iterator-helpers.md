@@ -23,5 +23,5 @@ class Iterator {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/iterator-helpers-stage-3-2
+core-js/proposals/iterator-helpers
 ```
