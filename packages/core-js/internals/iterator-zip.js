@@ -79,8 +79,8 @@ var IteratorProxy = createIteratorProxy(function () {
         iters[i] = null;
         result = padding[i];
       }
+      push(results, result);
     }
-    push(results, result);
   }
 
   return finishResults ? finishResults(results) : results;

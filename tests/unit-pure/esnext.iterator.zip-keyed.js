@@ -6,6 +6,10 @@ import from from 'core-js-pure/es/array/from';
 import Symbol from 'core-js-pure/full/symbol';
 import zipKeyed from 'core-js-pure/full/iterator/zip-keyed';
 
+function nullProto(obj) {
+  return Object.assign(Object.create(null), obj);
+}
+
 QUnit.test('Iterator.zipKeyed', assert => {
   assert.isFunction(zipKeyed);
   assert.arity(zipKeyed, 1);
@@ -54,5 +58,42 @@ QUnit.test('Iterator.zipKeyed', assert => {
     assert.same(result[2][foo], 3);
     assert.same(result[2][bar], 6);
     assert.same(result[2].baz, 9);
+  }
+
+  {
+    const result = zipKeyed({
+      a: [0, 1, 2],
+      b: [3, 4, 5, 6, 7],
+      c: [8, 9],
+    }, {
+      mode: "longest",
+    });
+
+    assert.deepEqual(from(result), [
+      nullProto({ a: 0, b: 3, c: 8 }),
+      nullProto({ a: 1, b: 4, c: 9 }),
+      nullProto({ a: 2, b: 5, c: undefined }),
+      nullProto({ a: undefined, b: 6, c: undefined }),
+      nullProto({ a: undefined, b: 7, c: undefined }),
+    ]);
+  }
+
+  {
+    const result = zipKeyed({
+      a: [0, 1, 2],
+      b: [3, 4, 5, 6, 7],
+      c: [8, 9],
+    }, {
+      mode: "longest",
+      padding: { a: 'A', b: 'B', c: 'C' },
+    });
+
+    assert.deepEqual(from(result), [
+      nullProto({ a: 0, b: 3, c: 8 }),
+      nullProto({ a: 1, b: 4, c: 9 }),
+      nullProto({ a: 2, b: 5, c: 'C' }),
+      nullProto({ a: 'A', b: 6, c: 'C' }),
+      nullProto({ a: 'A', b: 7, c: 'C' }),
+    ]);
   }
 });
