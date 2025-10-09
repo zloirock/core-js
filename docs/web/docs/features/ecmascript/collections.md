@@ -3,7 +3,7 @@
 
 ## Map
 ### Modules 
-[`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js), [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
+[`es.map.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.map.constructor.js), [`es.map.species`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.map.species.js) and [`es.map.group-by`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.map.group-by.js).
 
 ### Built-ins signatures
 ```ts
@@ -21,6 +21,7 @@ class Map {
   @@iterator(): Iterator<[key, value]>;
   readonly attribute size: number;
   static groupBy(items: Iterable, callbackfn: (value: any, index: number) => key): Map<key, Array<mixed>>;
+  static getter @@species: this;
 }
 ```
 
@@ -70,7 +71,7 @@ map.get(0); // => [2, 4]
 
 ## Set
 ### Modules 
-[`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js)
+[`es.set.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.constructor.js), [`es.set.species`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.species.js), [`es.set.difference`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.difference.js), [`es.set.intersection`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.intersection.js), [`es.set.is-disjoint-from`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.is-disjoint-from.js), [`es.set.is-subset-of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.is-subset-of.js), [`es.set.is-superset-of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.is-superset-of.js), [`es.set.symmetric-difference`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.symmetric-difference.js), [`es.set.union`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.set.union.js)
 
 ### Built-ins signatures
 ```ts
@@ -93,6 +94,7 @@ class Set {
   union(other: SetLike<mixed>): Set;
   @@iterator(): Iterator<value>;
   readonly attribute size: number;
+  static getter @@species: this;
 }
 ```
 
@@ -144,7 +146,7 @@ new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ## WeakMap
 
 ### Modules
-[`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
+[`es.weak-map.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.weak-map.constructor.js).
 
 ### Built-ins signatures
 ```ts
@@ -195,7 +197,7 @@ for (let key in person) console.log(key); // => only 'getName'
 
 ## WeakSet
 ### Modules 
-[`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-set.js).
+[`es.weak-set.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.weak-set.constructor.js).
 
 ### Built-ins signatures
 ```ts

@@ -17,5 +17,5 @@ class Set {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
-core-js/proposals/set-methods-v2
+core-js/proposals/set-methods
 ```
