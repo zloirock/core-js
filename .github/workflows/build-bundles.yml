@@ -1,9 +1,6 @@
 name: Build bundles
 
-on:
-  push:
-    branches:
-      - v3.45-docs
+on: push
 
 jobs:
   build-and-upload:
