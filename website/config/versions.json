@@ -7,5 +7,10 @@
   {
     "label": "v3",
     "branch": "master"
+  },
+  {
+    "label": "v4 (alpha)",
+    "path": "v4",
+    "branch": "v4"
   }
 ]
