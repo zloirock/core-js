@@ -135,7 +135,7 @@ const linkRenderer = {
 };
 
 const marked = new Marked();
-marked.use(markedAlert());
+marked.use(markedAlert(), gfmHeadingId({ prefix: 'h-' }));
 marked.use({ hooks: { preprocess: metadata } });
 marked.use({ renderer: linkRenderer });
 
