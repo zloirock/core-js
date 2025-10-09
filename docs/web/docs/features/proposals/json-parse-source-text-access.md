@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-json-parse-with-source)
 
 ## Modules
-[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.raw-json.js).
+[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.raw-json.js).
 
 ## Built-ins signatures
 ```ts

@@ -114,12 +114,12 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 or use it without global namespace pollution:
 
 ```ts
-import Promise from 'core-js-pure/actual/promise';
-import Set from 'core-js-pure/actual/set';
-import Iterator from 'core-js-pure/actual/iterator';
-import from from 'core-js-pure/actual/array/from';
-import flatMap from 'core-js-pure/actual/array/flat-map';
-import structuredClone from 'core-js-pure/actual/structured-clone';
+import Promise from '@core-js/pure/actual/promise';
+import Set from '@core-js/pure/actual/set';
+import Iterator from '@core-js/pure/actual/iterator';
+import from from '@core-js/pure/actual/array/from';
+import flatMap from '@core-js/pure/actual/array/flat-map';
+import structuredClone from '@core-js/pure/actual/structured-clone';
 
 await Promise.try(() => 42); // => 42
 
