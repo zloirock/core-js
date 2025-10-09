@@ -5,17 +5,16 @@ var isCallable = require('../internals/is-callable');
 var hasOwn = require('../internals/has-own-property');
 var DESCRIPTORS = require('../internals/descriptors');
 var CONFIGURABLE_FUNCTION_NAME = require('../internals/function-name').CONFIGURABLE;
-var inspectSource = require('../internals/inspect-source');
 var InternalStateModule = require('../internals/internal-state');
 
 var enforceInternalState = InternalStateModule.enforce;
-var getInternalState = InternalStateModule.get;
 var $String = String;
 // eslint-disable-next-line es/no-object-defineproperty -- safe
 var defineProperty = Object.defineProperty;
 var stringSlice = uncurryThis(''.slice);
 var replace = uncurryThis(''.replace);
 var join = uncurryThis([].join);
+var registerCoreJsFunction = require('./function-provenance').registerCoreJsFunction;
 
 var CONFIGURABLE_LENGTH = DESCRIPTORS && !fails(function () {
   return defineProperty(function () { /* empty */ }, 'length', { value: 8 }).length !== 8;
@@ -23,7 +22,7 @@ var CONFIGURABLE_LENGTH = DESCRIPTORS && !fails(function () {
 
 var TEMPLATE = String(String).split('String');
 
-var makeBuiltIn = module.exports = function (value, name, options) {
+module.exports = function (value, name, options) {
   if (stringSlice($String(name), 0, 7) === 'Symbol(') {
     name = '[' + replace($String(name), /^Symbol\(([^)]*)\).*$/, '$1') + ']';
   }
@@ -45,11 +44,9 @@ var makeBuiltIn = module.exports = function (value, name, options) {
   var state = enforceInternalState(value);
   if (!hasOwn(state, 'source')) {
     state.source = join(TEMPLATE, typeof name == 'string' ? name : '');
-  } return value;
-};
+  }
 
-// add fake Function#toString for correct work wrapped methods / constructors with methods like LoDash isNative
-// eslint-disable-next-line no-extend-native -- required
-Function.prototype.toString = makeBuiltIn(function toString() {
-  return isCallable(this) && getInternalState(this).source || inspectSource(this);
-}, 'toString');
+  if (isCallable(value)) registerCoreJsFunction(value);
+
+  return value;
+};

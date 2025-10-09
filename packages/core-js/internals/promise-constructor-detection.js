@@ -3,11 +3,11 @@ var globalThis = require('../internals/global-this');
 var NativePromiseConstructor = require('../internals/promise-native-constructor');
 var isCallable = require('../internals/is-callable');
 var isForced = require('../internals/is-forced');
-var inspectSource = require('../internals/inspect-source');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var ENVIRONMENT = require('../internals/environment');
 var IS_PURE = require('../internals/is-pure');
 var V8_VERSION = require('../internals/environment-v8-version');
+var getFunctionProvenance = require('./function-provenance').getFunctionProvenance;
 
 var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructor.prototype;
 var SPECIES = wellKnownSymbol('species');
@@ -15,8 +15,8 @@ var SUBCLASSING = false;
 var NATIVE_PROMISE_REJECTION_EVENT = isCallable(globalThis.PromiseRejectionEvent);
 
 var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
-  var PROMISE_CONSTRUCTOR_SOURCE = inspectSource(NativePromiseConstructor);
-  var GLOBAL_CORE_JS_PROMISE = PROMISE_CONSTRUCTOR_SOURCE !== String(NativePromiseConstructor);
+  var PROMISE_CONSTRUCTOR_PROVENANCE = getFunctionProvenance(NativePromiseConstructor);
+  var GLOBAL_CORE_JS_PROMISE = PROMISE_CONSTRUCTOR_PROVENANCE === 'core-js';
   // V8 6.6 (Node 10 and Chrome 66) have a bug with resolving custom thenables
   // https://bugs.chromium.org/p/chromium/issues/detail?id=830565
   // We can't detect it synchronously, so just check versions
@@ -26,7 +26,7 @@ var FORCED_PROMISE_CONSTRUCTOR = isForced('Promise', function () {
   // We can't use @@species feature detection in V8 since it causes
   // deoptimization and performance degradation
   // https://github.com/zloirock/core-js/issues/679
-  if (!V8_VERSION || V8_VERSION < 51 || !/native code/.test(PROMISE_CONSTRUCTOR_SOURCE)) {
+  if (!V8_VERSION || V8_VERSION < 51 || PROMISE_CONSTRUCTOR_PROVENANCE !== 'native') {
     // Detect correctness of subclassing with @@species support
     var promise = new NativePromiseConstructor(function (resolve) { resolve(1); });
     var FakePromise = function (exec) {

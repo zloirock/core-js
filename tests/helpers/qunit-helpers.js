@@ -89,12 +89,13 @@ assign(assert, {
       message,
     });
   },
-  looksNative(fn, message = 'The function looks like a native') {
-    const source = Function.prototype.toString.call(fn);
+  looksNative(fn, message = 'The function is recognized as being native or from core-js') {
+    const provenance = globalThis['__core-js_shared__'].getFunctionProvenance(fn);
+    const expected = ['core-js', 'native'];
     this.pushResult({
-      result: /native code/.test(source),
-      actual: source,
-      expected: 'The function should look like a native',
+      result: expected.includes(provenance),
+      actual: provenance,
+      expected: expected.join(' or '),
       message,
     });
   },
