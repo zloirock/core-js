@@ -14,7 +14,7 @@ class String {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/string-replace-all-stage-4
+core-js/proposals/string-replace-all
 core-js(-pure)/es|stable|actual|full/string(/virtual)/replace-all
 ```
 
