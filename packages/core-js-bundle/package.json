@@ -56,6 +56,7 @@
     "url": "git+https://github.com/zloirock/core-js.git",
     "directory": "packages/core-js-bundle"
   },
+  "homepage": "https://core-js.io",
   "bugs": {
     "url": "https://github.com/zloirock/core-js/issues"
   },

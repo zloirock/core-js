@@ -4,6 +4,7 @@
     "type": "git",
     "url": "https://github.com/zloirock/core-js.git"
   },
+  "homepage": "https://core-js.io",
   "license": "MIT",
   "author": {
     "name": "Denis Pushkarev",
