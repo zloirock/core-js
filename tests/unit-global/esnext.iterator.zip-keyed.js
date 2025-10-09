@@ -62,15 +62,15 @@ QUnit.test('Iterator.zipKeyed', assert => {
   }
 
   {
-    const result = zipKeyed({
+    const $result = zipKeyed({
       a: [0, 1, 2],
       b: [3, 4, 5, 6, 7],
       c: [8, 9],
     }, {
-      mode: "longest",
+      mode: 'longest',
     });
 
-    assert.deepEqual(from(result), [
+    assert.deepEqual(from($result), [
       nullProto({ a: 0, b: 3, c: 8 }),
       nullProto({ a: 1, b: 4, c: 9 }),
       nullProto({ a: 2, b: 5, c: undefined }),
@@ -80,16 +80,16 @@ QUnit.test('Iterator.zipKeyed', assert => {
   }
 
   {
-    const result = zipKeyed({
+    const $result = zipKeyed({
       a: [0, 1, 2],
       b: [3, 4, 5, 6, 7],
       c: [8, 9],
     }, {
-      mode: "longest",
+      mode: 'longest',
       padding: { a: 'A', b: 'B', c: 'C' },
     });
 
-    assert.deepEqual(from(result), [
+    assert.deepEqual(from($result), [
       nullProto({ a: 0, b: 3, c: 8 }),
       nullProto({ a: 1, b: 4, c: 9 }),
       nullProto({ a: 2, b: 5, c: 'C' }),

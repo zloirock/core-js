@@ -28,7 +28,7 @@ var IteratorProxy = createIteratorProxy(function () {
   for (var i = 0; i < iterCount; i++) {
     var iter = iters[i];
     if (iter === null) {
-      push(results, padding[i]);
+      result = padding[i];
     } else {
       try {
         result = call(iter.next, iter.iterator);
@@ -79,8 +79,8 @@ var IteratorProxy = createIteratorProxy(function () {
         iters[i] = null;
         result = padding[i];
       }
-      push(results, result);
     }
+    push(results, result);
   }
 
   return finishResults ? finishResults(results) : results;

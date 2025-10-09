@@ -64,39 +64,39 @@ QUnit.test('Iterator.zip', assert => {
   }
 
   {
-    const result = zip([
+    const $result = zip([
       [0, 1, 2],
       [3, 4, 5, 6, 7],
       [8, 9],
     ], {
-      mode: "longest",
+      mode: 'longest',
     });
 
-    assert.deepEqual(from(result), [
+    assert.deepEqual(from($result), [
       [0, 3, 8],
       [1, 4, 9],
       [2, 5, undefined],
       [undefined, 6, undefined],
-      [undefined, 7, undefined]
+      [undefined, 7, undefined],
     ]);
   }
 
   {
-    const result = zip([
+    const $result = zip([
       [0, 1, 2],
       [3, 4, 5, 6, 7],
       [8, 9],
     ], {
-      mode: "longest",
-      padding: ["A", "B", "C"],
+      mode: 'longest',
+      padding: ['A', 'B', 'C'],
     });
 
-    assert.deepEqual(from(result), [
+    assert.deepEqual(from($result), [
       [0, 3, 8],
       [1, 4, 9],
       [2, 5, 'C'],
       ['A', 6, 'C'],
-      ['A', 7, 'C']
+      ['A', 7, 'C'],
     ]);
   }
 });
