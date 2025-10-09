@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-math-clamp)
 
 ## Modules
-[`esnext.number.clamp`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.number.clamp.js)
+[`esnext.number.clamp`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.number.clamp.js)
 
 ## Built-ins signatures
 ```ts
