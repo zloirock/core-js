@@ -1,13 +1,13 @@
 # ECMAScript: String and RegExp
 
 ## Modules
-The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.trim-end.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace-all.js), [`es.string.at-alternative`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.at-alternative.js), [`es.string.is-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.is-well-formed.js), [`es.string.to-well-formed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.to-well-formed.js).
+The main part of `String` features: modules [`es.string.from-code-point`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.from-code-point.js), [`es.string.raw`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.raw.js), [`es.string.iterator`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.iterator.js), [`es.string.split`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.split.js), [`es.string.code-point-at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.code-point-at.js), [`es.string.ends-with`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.ends-with.js), [`es.string.includes`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.includes.js), [`es.string.repeat`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.repeat.js), [`es.string.pad-start`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.pad-start.js), [`es.string.pad-end`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.pad-end.js), [`es.string.starts-with`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.starts-with.js), [`es.string.trim`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim.js), [`es.string.trim-start`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-start.js), [`es.string.trim-left`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-left.js), [`es.string.trim-end`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-end.js), [`es.string.trim-right`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.trim-right.js), [`es.string.match-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.match-all.js), [`es.string.replace-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.replace-all.js), [`es.string.at`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.at.js), [`es.string.is-well-formed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.is-well-formed.js), [`es.string.to-well-formed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.to-well-formed.js).
 
-Adding support of well-known [symbols]({docs-version}/docs/features/ecmascript/symbol) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods, modules [`es.string.match`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.match.js), [`es.string.replace`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.replace.js), [`es.string.search`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.search.js) and [`es.string.split`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.split.js).
+Adding support of well-known [symbols](#ecmascript-symbol) `@@match`, `@@replace`, `@@search` and `@@split` and direct `.exec` calls to related `String` methods, modules [`es.string.match`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.match.js), [`es.string.replace`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.replace.js), [`es.string.search`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.search.js) and [`es.string.split`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.split.js).
 
-Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.anchor.js), [`es.string.big`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.big.js), [`es.string.blink`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.blink.js), [`es.string.bold`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.bold.js), [`es.string.fixed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.fixed.js), [`es.string.fontcolor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.fontcolor.js), [`es.string.fontsize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.fontsize.js), [`es.string.italics`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.italics.js), [`es.string.link`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.link.js), [`es.string.small`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.small.js), [`es.string.strike`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.strike.js), [`es.string.sub`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.sub.js), [`es.string.sup`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.sup.js), [`es.string.substr`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.string.substr.js), [`es.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.escape.js) and [`es.unescape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.unescape.js).
+Annex B methods. Modules [`es.string.anchor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.anchor.js), [`es.string.big`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.big.js), [`es.string.blink`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.blink.js), [`es.string.bold`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.bold.js), [`es.string.fixed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.fixed.js), [`es.string.fontcolor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.fontcolor.js), [`es.string.fontsize`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.fontsize.js), [`es.string.italics`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.italics.js), [`es.string.link`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.link.js), [`es.string.small`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.small.js), [`es.string.strike`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.strike.js), [`es.string.sub`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.sub.js), [`es.string.sup`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.string.sup.js).
 
-`RegExp` features: modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.escape`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.escape.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.flags.js), [`es.regexp.sticky`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.sticky.js) and [`es.regexp.test`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.regexp.test.js).
+`RegExp` features: modules [`es.regexp.constructor`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.constructor.js), [`es.regexp.escape`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.escape.js), [`es.regexp.dot-all`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.dot-all.js), [`es.regexp.flags`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.flags.js), [`es.regexp.sticky`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.sticky.js) and [`es.regexp.test`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.regexp.test.js).
 
 ## Built-ins signatures
 ```ts
@@ -47,7 +47,6 @@ class String {
   small(): string;
   strike(): string;
   sub(): string;
-  substr(start: int, length?: int): string;
   sup(): string;
   @@iterator(): Iterator<characters>;
 }
@@ -68,9 +67,6 @@ class RegExp {
   readonly attribute flags: string;   // IE9+
   readonly attribute sticky: boolean; // IE9+
 }
-
-function escape(string: string): string;
-function unescape(string: string): string;
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
@@ -82,38 +78,37 @@ core-js/es|stable|actual|full/string/match
 core-js/es|stable|actual|full/string/replace
 core-js/es|stable|actual|full/string/search
 core-js/es|stable|actual|full/string/split
-core-js(-pure)/es|stable|actual/string(/virtual)/at
-core-js(-pure)/es|stable|actual|full/string(/virtual)/code-point-at
-core-js(-pure)/es|stable|actual|full/string(/virtual)/ends-with
-core-js(-pure)/es|stable|actual|full/string(/virtual)/includes
-core-js(-pure)/es|stable|actual|full/string(/virtual)/starts-with
-core-js(-pure)/es|stable|actual|full/string(/virtual)/match-all
-core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-start
-core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-end
-core-js(-pure)/es|stable|actual|full/string(/virtual)/repeat
-core-js(-pure)/es|stable|actual|full/string(/virtual)/replace-all
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-start
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-end
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-left
-core-js(-pure)/es|stable|actual|full/string(/virtual)/trim-right
-core-js(-pure)/es|stable|actual|full/string(/virtual)/is-well-formed
-core-js(-pure)/es|stable|actual|full/string(/virtual)/to-well-formed
-core-js(-pure)/es|stable|actual|full/string(/virtual)/anchor
-core-js(-pure)/es|stable|actual|full/string(/virtual)/big
-core-js(-pure)/es|stable|actual|full/string(/virtual)/blink
-core-js(-pure)/es|stable|actual|full/string(/virtual)/bold
-core-js(-pure)/es|stable|actual|full/string(/virtual)/fixed
-core-js(-pure)/es|stable|actual|full/string(/virtual)/fontcolor
-core-js(-pure)/es|stable|actual|full/string(/virtual)/fontsize
-core-js(-pure)/es|stable|actual|full/string(/virtual)/italics
-core-js(-pure)/es|stable|actual|full/string(/virtual)/link
-core-js(-pure)/es|stable|actual|full/string(/virtual)/small
-core-js(-pure)/es|stable|actual|full/string(/virtual)/strike
-core-js(-pure)/es|stable|actual|full/string(/virtual)/sub
-core-js(-pure)/es|stable|actual|full/string(/virtual)/substr
-core-js(-pure)/es|stable|actual|full/string(/virtual)/sup
-core-js(-pure)/es|stable|actual|full/string(/virtual)/iterator
+core-js(-pure)/es|stable|actual/string(/prototype)/at
+core-js(-pure)/es|stable|actual|full/string(/prototype)/code-point-at
+core-js(-pure)/es|stable|actual|full/string(/prototype)/ends-with
+core-js(-pure)/es|stable|actual|full/string(/prototype)/includes
+core-js(-pure)/es|stable|actual|full/string(/prototype)/starts-with
+core-js(-pure)/es|stable|actual|full/string(/prototype)/match-all
+core-js(-pure)/es|stable|actual|full/string(/prototype)/pad-start
+core-js(-pure)/es|stable|actual|full/string(/prototype)/pad-end
+core-js(-pure)/es|stable|actual|full/string(/prototype)/repeat
+core-js(-pure)/es|stable|actual|full/string(/prototype)/replace-all
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-start
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-end
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-left
+core-js(-pure)/es|stable|actual|full/string(/prototype)/trim-right
+core-js(-pure)/es|stable|actual|full/string(/prototype)/is-well-formed
+core-js(-pure)/es|stable|actual|full/string(/prototype)/to-well-formed
+core-js(-pure)/es|stable|actual|full/string(/prototype)/anchor
+core-js(-pure)/es|stable|actual|full/string(/prototype)/big
+core-js(-pure)/es|stable|actual|full/string(/prototype)/blink
+core-js(-pure)/es|stable|actual|full/string(/prototype)/bold
+core-js(-pure)/es|stable|actual|full/string(/prototype)/fixed
+core-js(-pure)/es|stable|actual|full/string(/prototype)/fontcolor
+core-js(-pure)/es|stable|actual|full/string(/prototype)/fontsize
+core-js(-pure)/es|stable|actual|full/string(/prototype)/italics
+core-js(-pure)/es|stable|actual|full/string(/prototype)/link
+core-js(-pure)/es|stable|actual|full/string(/prototype)/small
+core-js(-pure)/es|stable|actual|full/string(/prototype)/strike
+core-js(-pure)/es|stable|actual|full/string(/prototype)/sub
+core-js(-pure)/es|stable|actual|full/string(/prototype)/sup
+core-js(-pure)/es|stable|actual|full/string(/prototype)/iterator
 core-js/es|stable|actual|full/regexp
 core-js/es|stable|actual|full/regexp/constructor
 core-js(-pure)/es|stable|actual|full/regexp/escape
@@ -122,8 +117,6 @@ core-js(-pure)/es|stable|actual|full/regexp/flags
 core-js/es|stable|actual|full/regexp/sticky
 core-js/es|stable|actual|full/regexp/test
 core-js/es|stable|actual|full/regexp/to-string
-core-js/es|stable|actual|full/escape
-core-js/es|stable|actual|full/unescape
 ```
 
 ## Examples

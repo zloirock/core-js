@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-symbol-predicates)
 
 ## Modules
-[`esnext.symbol.is-registered-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-registered-symbol.js), [`esnext.symbol.is-well-known-symbol`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.is-well-known-symbol.js).
+[`esnext.symbol.is-registered-symbol`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.symbol.is-registered-symbol.js), [`esnext.symbol.is-well-known-symbol`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.symbol.is-well-known-symbol.js).
 
 ## Built-ins signatures
 ```ts
@@ -15,7 +15,7 @@ class Symbol {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/symbol-predicates-v2
+core-js/proposals/symbol-predicates
 core-js(-pure)/full/symbol/is-registered-symbol
 core-js(-pure)/full/symbol/is-well-known-symbol
 ```

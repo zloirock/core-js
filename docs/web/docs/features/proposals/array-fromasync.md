@@ -11,5 +11,5 @@ class Array {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/array-from-async-stage-2
+core-js/proposals/array-from-async
 ```
