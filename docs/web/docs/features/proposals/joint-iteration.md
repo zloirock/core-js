@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-joint-iteration)
 
 ## Modules
-[`es.iterator.zip`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.zip-keyed.js)
+[`es.iterator.zip`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.zip.js), [`es.iterator.zip-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.iterator.zip-keyed.js)
 
 ## Built-ins signatures
 ```ts
