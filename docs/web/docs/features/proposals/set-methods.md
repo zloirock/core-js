@@ -20,7 +20,7 @@ class Set {
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
-core-js/proposals/set-methods-v2
+core-js/proposals/set-methods
 core-js(-pure)/es|stable|actual|full/set/difference
 core-js(-pure)/es|stable|actual|full/set/intersection
 core-js(-pure)/es|stable|actual|full/set/is-disjoint-from
