@@ -227,7 +227,7 @@ It does not work with some features. Also, if you change the default behavior, e
 
 ## Custom build
 
-For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](/packages/core-js-builder) package for that.
+For some cases could be useful to exclude some `core-js` features or generate a polyfill for target engines. You could use [`core-js-builder`](https://github.com/zloirock/core-js/tree/master/packages/core-js-builder) package for that.
 
 ## `postinstall` message
 The `core-js` project needs your help, so the package shows a message about it after installation. If it causes problems for you, you can disable it:
