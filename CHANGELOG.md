@@ -8,7 +8,8 @@
     - `Iterator.prototype.windows`
   - Moved to stage 2.7, [September 2025 TC39 meeting](https://github.com/tc39/proposals/commit/08e583103c6c244c05a26d9fee518ef8145ba2f6)
   - `Iterator.prototype.sliding` method replaced with an extra parameter of `Iterator.prototype.windows` method, [tc39/proposal-iterator-chunking/#24](https://github.com/tc39/proposal-iterator-chunking/pull/24), [tc39/proposal-iterator-chunking/#26](https://github.com/tc39/proposal-iterator-chunking/pull/26)
-- Fixed work of `Object.groupBy` and `Iterator.zipKeyed` together with `Symbol` polyfill - some cases of symbol keys on result `null`-prototype object were able to leak out to `for-in`
+- Fixed [`Iterator.zip` and `Iterator.zipKeyed`](https://github.com/tc39/proposal-joint-iteration) behavior with `mode: 'longest'` option, [#1469](https://github.com/zloirock/core-js/issues/1469), thanks [**@lionel-rowe**](https://github.com/lionel-rowe)
+- Fixed work of `Object.groupBy` and [`Iterator.zipKeyed`](https://github.com/tc39/proposal-joint-iteration) together with `Symbol` polyfill - some cases of symbol keys on result `null`-prototype object were able to leak out to `for-in`
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped from FF144
   - Added [Node 25.0](https://github.com/nodejs/node/pull/59896) compat data mapping
