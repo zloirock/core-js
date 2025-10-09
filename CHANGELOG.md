@@ -15,6 +15,7 @@
   - Added [Deno 2.5](https://github.com/denoland/deno/releases/tag/v2.5.0) compat data mapping
   - Updated Electron 39 compat data mapping
   - Updated Opera 121+ compat data mapping
+  - Added [Opera Android 92](https://forums.opera.com/topic/86530/opera-for-android-92) compat data mapping
   - Added Oculus Quest Browser 40 compat data mapping
 
 ### [3.45.1 - 2025.08.20](https://github.com/zloirock/core-js/releases/tag/v3.45.1)
