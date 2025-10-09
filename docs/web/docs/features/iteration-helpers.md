@@ -9,17 +9,17 @@ function getIteratorMethod(value: any): Function | void;
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
-core-js-pure/es|stable|actual|full/is-iterable
-core-js-pure/es|stable|actual|full/get-iterator
-core-js-pure/es|stable|actual|full/get-iterator-method
+```
+@core-js/pure/es|stable|actual|full/is-iterable
+@core-js/pure/es|stable|actual|full/get-iterator
+@core-js/pure/es|stable|actual|full/get-iterator-method
 ```
 
 ## Examples
 ```ts
-import isIterable from 'core-js-pure/actual/is-iterable';
-import getIterator from 'core-js-pure/actual/get-iterator';
-import getIteratorMethod from 'core-js-pure/actual/get-iterator-method';
+import isIterable from '@core-js/pure/actual/is-iterable';
+import getIterator from '@core-js/pure/actual/get-iterator';
+import getIteratorMethod from '@core-js/pure/actual/get-iterator-method';
 
 let list = (function () {
   // eslint-disable-next-line prefer-rest-params -- example

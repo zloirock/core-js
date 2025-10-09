@@ -2,7 +2,7 @@
 [Proposal repo](https://github.com/js-choi/proposal-function-demethodize)
 
 ## Module 
-[`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.function.demethodize.js)
+[`esnext.function.demethodize`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.function.demethodize.js)
 
 ## Built-ins signatures
 ```ts
@@ -12,10 +12,10 @@ class Function {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```
 core-js/proposals/function-demethodize
 core-js(-pure)/full/function/demethodize
-core-js(-pure)/full/function/virtual/demethodize
+core-js(-pure)/full/function/prototype/demethodize
 ```
 
 ## Examples
