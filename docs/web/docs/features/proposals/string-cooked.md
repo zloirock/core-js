@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-string-cooked)
 
 ## Module
-[`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.string.cooked.js)
+[`esnext.string.cooked`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.string.cooked.js)
 
 ## Built-ins signatures
 ```ts
