@@ -2,7 +2,7 @@
 [Specification](https://html.spec.whatwg.org/multipage/structured-data.html#dom-structuredclone)
 
 ## Module 
-[`web.structured-clone`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js)
+[`web.structured-clone`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.structured-clone.js)
 
 ## Built-ins signatures
 ```ts
@@ -46,4 +46,4 @@ structuredClone(new WeakMap()); // => DataCloneError on non-serializable types
 ```
 > [!WARNING]
 > - Many platform types cannot be transferred in most engines since we have no way to polyfill this behavior, however, the `transfer` option works for some platform types. I recommend avoiding this option.
-> - Some specific platform types can't be cloned in old engines. Mostly these are very specific types or very old engines, but there are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look at the [polyfill source](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.structured-clone.js) if you want to clone something specific.
+> - Some specific platform types can't be cloned in old engines. Mostly these are very specific types or very old engines, but there are some exceptions. For example, we have no sync way to clone `ImageBitmap` in Safari 14.0- or Firefox 83-, so it's recommended to look at the [polyfill source](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.structured-clone.js) if you want to clone something specific.

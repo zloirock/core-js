@@ -2,7 +2,7 @@
 [Specification](https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#dom-queuemicrotask)
 
 ## Module 
-[`web.queue-microtask`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.queue-microtask.js)
+[`web.queue-microtask`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.queue-microtask.js)
 
 ## Built-ins signatures
 ```ts
