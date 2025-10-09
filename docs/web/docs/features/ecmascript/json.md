@@ -2,7 +2,7 @@
 Since `JSON` object is missed only in very old engines like IE7-, `core-js` does not provide a full `JSON` polyfill, however, fix already existing implementations by the current standard, for example, [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify). `JSON` is also fixed in other modules - for example, `Symbol` polyfill fixes `JSON.stringify` for correct work with symbols.
 
 ## Modules
-[`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js).
+[`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.stringify.js).
 
 ## Built-ins signatures
 ```ts
@@ -15,7 +15,6 @@ namespace JSON {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```
 core-js(-pure)/es|stable|actual|full/json/stringify
-core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
 
 ## Examples

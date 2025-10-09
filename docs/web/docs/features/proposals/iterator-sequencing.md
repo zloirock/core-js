@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-iterator-sequencing)
 
 ## Modules 
-[`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
+[`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.iterator.concat.js)
 
 ## Built-ins signatures
 ```ts
