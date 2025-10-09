@@ -3,7 +3,7 @@
 [MDN](https://developer.mozilla.org/en-US/docs/Glossary/Base64)
 
 ## Modules 
-[`web.atob`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.btoa.js).
+[`web.atob`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.atob.js), [`web.btoa`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.btoa.js).
 
 ## Built-ins signatures
 ```ts

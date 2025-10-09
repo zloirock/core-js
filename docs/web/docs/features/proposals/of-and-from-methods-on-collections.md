@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-setmap-offrom)
 
 ## Modules
-[`esnext.set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.from.js)
+[`esnext.set.of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.set.of.js), [`esnext.set.from`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.set.from.js), [`esnext.map.of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.map.of.js), [`esnext.map.from`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.map.from.js), [`esnext.weak-set.of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.weak-set.of.js), [`esnext.weak-set.from`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.weak-set.from.js), [`esnext.weak-map.of`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.weak-map.of.js), [`esnext.weak-map.from`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.weak-map.from.js)
 
 ## Built-ins signatures
 ```ts
@@ -35,10 +35,10 @@ core-js(-pure)/full/set/from
 core-js(-pure)/full/set/of
 core-js(-pure)/full/map/from
 core-js(-pure)/full/map/of
-core-js(-pure)/full/weak-set/of
 core-js(-pure)/full/weak-set/from
-core-js(-pure)/full/weak-map/of
+core-js(-pure)/full/weak-set/of
 core-js(-pure)/full/weak-map/from
+core-js(-pure)/full/weak-map/of
 ```
 
 ## Examples
