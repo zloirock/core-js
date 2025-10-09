@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-extractors)
 
 ## Module 
-[`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.symbol.custom-matcher.js).
+[`esnext.symbol.custom-matcher`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.symbol.custom-matcher.js).
 
 ## Built-ins signatures
 ```ts

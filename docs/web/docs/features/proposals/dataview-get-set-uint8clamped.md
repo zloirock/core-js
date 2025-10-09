@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-dataview-get-set-uint8clamped)
 
 ## Modules
-[`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
+[`esnext.data-view.get-uint8-clamped`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.data-view.get-uint8-clamped.js) and [`esnext.data-view.set-uint8-clamped`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.data-view.set-uint8-clamped.js)
 
 ## Built-ins signatures
 ```ts
