@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-Number.range)
 
 ## Module
-[`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.range.js)
+[`esnext.iterator.range`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.iterator.range.js)
 
 ## Built-ins signatures
 ```ts
