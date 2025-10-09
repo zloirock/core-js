@@ -1,7 +1,7 @@
 /**
- * core-js 3.45.1
+ * core-js 3.46.0
  * © 2014-2025 Denis Pushkarev (zloirock.ru)
- * license: https://github.com/zloirock/core-js/blob/v3.45.1/LICENSE
+ * license: https://github.com/zloirock/core-js/blob/v3.46.0/LICENSE
  * source: https://github.com/zloirock/core-js
  */
 !function (undefined) { 'use strict'; /******/ (function(modules) { // webpackBootstrap
@@ -579,10 +579,10 @@ var SHARED = '__core-js_shared__';
 var store = module.exports = globalThis[SHARED] || defineGlobalProperty(SHARED, {});
 
 (store.versions || (store.versions = [])).push({
-  version: '3.45.1',
+  version: '3.46.0',
   mode: IS_PURE ? 'pure' : 'global',
-  copyright: '© 2014-2025 Denis Pushkarev (zloirock.ru)',
-  license: 'https://github.com/zloirock/core-js/blob/v3.45.1/LICENSE',
+  copyright: '© 2014-2025 Denis Pushkarev (zloirock.ru), 2025 CoreJS Company (core-js.io)',
+  license: 'https://github.com/zloirock/core-js/blob/v3.46.0/LICENSE',
   source: 'https://github.com/zloirock/core-js'
 });
 
@@ -5400,6 +5400,7 @@ $({ target: 'Math', stat: true }, {
 "use strict";
 
 var $ = __webpack_require__(49);
+var createProperty = __webpack_require__(149);
 var getBuiltIn = __webpack_require__(35);
 var uncurryThis = __webpack_require__(6);
 var aCallable = __webpack_require__(38);
@@ -5433,7 +5434,7 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
       // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
       // but since it's a `null` prototype object, we can safely use `in`
       if (key in obj) push(obj[key], value);
-      else obj[key] = [value];
+      else createProperty(obj, key, [value]);
     });
     return obj;
   }
@@ -12427,7 +12428,7 @@ var iteratorWindow = __webpack_require__(360);
 // https://github.com/tc39/proposal-iterator-chunking
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   sliding: function sliding(windowSize) {
-    return iteratorWindow(this, windowSize, true);
+    return iteratorWindow(this, windowSize, 'allow-partial');
   }
 });
 
@@ -12447,20 +12448,22 @@ var iteratorClose = __webpack_require__(104);
 var uncurryThis = __webpack_require__(6);
 
 var $RangeError = RangeError;
+var $TypeError = TypeError;
 var push = uncurryThis([].push);
 var slice = uncurryThis([].slice);
+var ALLOW_PARTIAL = 'allow-partial';
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;
   var next = this.next;
   var buffer = this.buffer;
   var windowSize = this.windowSize;
-  var sliding = this.sliding;
+  var allowPartial = this.allowPartial;
   var result, done;
   while (true) {
     result = anObject(call(next, iterator));
     done = this.done = !!result.done;
-    if (sliding && done && buffer.length && buffer.length < windowSize) return createIterResultObject(buffer, false);
+    if (allowPartial && done && buffer.length && buffer.length < windowSize) return createIterResultObject(buffer, false);
     if (done) return createIterResultObject(undefined, true);
 
     if (buffer.length === windowSize) this.buffer = buffer = slice(buffer, 1);
@@ -12469,17 +12472,20 @@ var IteratorProxy = createIteratorProxy(function () {
   }
 }, false, true);
 
-// `Iterator.prototype.sliding` and `Iterator.prototype.windows` methods
+// `Iterator.prototype.windows` and obsolete `Iterator.prototype.sliding` methods
 // https://github.com/tc39/proposal-iterator-chunking
-module.exports = function (O, windowSize, sliding) {
+module.exports = function (O, windowSize, undersized) {
   anObject(O);
   if (typeof windowSize != 'number' || !windowSize || windowSize >>> 0 !== windowSize) {
-    return iteratorClose(O, 'throw', new $RangeError('windowSize must be integer in [1, 2^32-1]'));
+    return iteratorClose(O, 'throw', new $RangeError('`windowSize` must be integer in [1, 2^32-1]'));
+  }
+  if (undersized !== undefined && undersized !== 'only-full' && undersized !== ALLOW_PARTIAL) {
+    return iteratorClose(O, 'throw', new $TypeError('Incorrect `undersized` argument'));
   }
   return new IteratorProxy(getIteratorDirect(O), {
     windowSize: windowSize,
     buffer: [],
-    sliding: sliding
+    allowPartial: undersized === ALLOW_PARTIAL
   });
 };
 
@@ -12517,8 +12523,8 @@ var iteratorWindow = __webpack_require__(360);
 // `Iterator.prototype.windows` method
 // https://github.com/tc39/proposal-iterator-chunking
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
-  windows: function windows(windowSize) {
-    return iteratorWindow(this, windowSize, false);
+  windows: function windows(windowSize /* , undersized */) {
+    return iteratorWindow(this, windowSize, arguments.length < 2 ? undefined : arguments[1]);
   }
 });
 
@@ -12685,7 +12691,7 @@ var IteratorProxy = createIteratorProxy(function () {
   for (var i = 0; i < iterCount; i++) {
     var iter = iters[i];
     if (iter === null) {
-      push(results, padding[i]);
+      result = padding[i];
     } else {
       try {
         result = call(iter.next, iter.iterator);
@@ -12766,6 +12772,7 @@ module.exports = function (iters, mode, padding, finishResults) {
 var $ = __webpack_require__(49);
 var anObject = __webpack_require__(30);
 var anObjectOrUndefined = __webpack_require__(278);
+var createProperty = __webpack_require__(149);
 var call = __webpack_require__(33);
 var uncurryThis = __webpack_require__(6);
 var getBuiltIn = __webpack_require__(35);
@@ -12826,7 +12833,7 @@ $({ target: 'Iterator', stat: true, forced: true }, {
     return iteratorZip(iters, mode, padding, function (results) {
       var obj = create(null);
       for (var j = 0; j < iterCount; j++) {
-        obj[keys[j]] = results[j];
+        createProperty(obj, keys[j], results[j]);
       }
       return obj;
     });
@@ -16284,9 +16291,20 @@ var get = WeakMapHelpers.get;
 var has = WeakMapHelpers.has;
 var set = WeakMapHelpers.set;
 
+var FORCED = IS_PURE || !function () {
+  try {
+    // eslint-disable-next-line es/no-weak-map, no-throw-literal -- testing
+    if (WeakMap.prototype.getOrInsertComputed) new WeakMap().getOrInsertComputed(1, function () { throw 1; });
+  } catch (error) {
+    // FF144 Nightly - Beta 3 bug
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
+    return error instanceof TypeError;
+  }
+}();
+
 // `WeakMap.prototype.getOrInsertComputed` method
 // https://github.com/tc39/proposal-upsert
-$({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
+$({ target: 'WeakMap', proto: true, real: true, forced: FORCED }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aWeakMap(this);
     aWeakKey(key);

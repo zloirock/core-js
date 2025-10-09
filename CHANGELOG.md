@@ -1,5 +1,9 @@
 # Changelog
 ### Unreleased
+- Nothing
+
+### [3.46.0 - 2025.10.09](https://github.com/zloirock/core-js/releases/tag/v3.46.0)
+- Changes [v3.45.1...v3.46.0](https://github.com/zloirock/core-js/compare/v3.45.1...v3.46.0) (116 commits)
 - [`Map` upsert stage 3 proposal](https://github.com/tc39/proposal-upsert):
   - Fixed [a FF `WeakMap.prototype.getOrInsertComputed` bug with callback calling before validation a key](https://bugzilla.mozilla.org/show_bug.cgi?id=1988369)
 - [`Iterator` chunking proposal](https://github.com/tc39/proposal-iterator-chunking):
