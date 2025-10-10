@@ -83,7 +83,7 @@ main {
         top: 1rem;
         align-self: flex-start;
 
-        padding: 0 0.5rem 1rem 0;
+        padding: 0 0.5rem 150px 0;
 
         font-size: 0.875rem;
         flex-basis: 20%;
@@ -93,10 +93,15 @@ main {
 
         min-height: 100vh;
         min-height: 100dvh;
+        max-height: 100vh;
+        max-height: 100dvh;
         overflow-y: auto;
-        scrollbar-width: none;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+
         @include themify($themes) {
           border-right: 1px solid themed('border-color-lighter');
+          scrollbar-color: themed('background-light') themed('background-highlight');
         }
 
         ul {

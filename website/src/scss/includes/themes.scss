@@ -11,6 +11,7 @@ $themes: (
     'font-success': dark.$green,
     'font-warning': dark.$orange,
     'font-error': dark.$red,
+    'font-note': rgba(dark.$foreground, 0.7),
 
     'button-color': dark.$bg,
     'button-color-hover': dark.$selection,
@@ -45,6 +46,7 @@ $themes: (
     'font-success': light.$green,
     'font-warning': light.$orange,
     'font-error': light.$red,
+    'font-note': rgba(light.$foreground, 0.7),
 
     'button-color': light.$foreground,
     'button-color-hover': light.$selection,
