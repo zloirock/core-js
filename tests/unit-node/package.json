@@ -1,6 +1,6 @@
 {
   "name": "tests/unit-node",
   "devDependencies": {
-    "qunit": "^2.24.1"
+    "qunit": "^2.24.2"
   }
 }

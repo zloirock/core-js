@@ -11,7 +11,7 @@
     "karma-qunit": "^4.2.1",
     "phantomjs-prebuilt": "~2.1.16",
     "playwright": "^1.56.0",
-    "qunit": "^2.24.1",
+    "qunit": "^2.24.2",
     "which": "^5.0.0"
   }
 }
