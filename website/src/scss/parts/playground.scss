@@ -148,13 +148,14 @@
     margin-bottom: 1rem;
 
     @include media("min", "md") {
-      margin: 0 2rem 0 0;
+      margin: 0 1.5rem 0 0;
     }
 
     .back-link {
       flex-basis: 68px;
       flex-shrink: 0;
-      margin-right: 2rem;
+      margin-right: 1.5rem;
+      padding-left: 0.25rem;
 
       a {
         align-items: center;
@@ -210,12 +211,39 @@
 
   .playground-controls {
     display: flex;
+    margin-bottom: 1rem;
+
+    @include media("min", "md") {
+      margin-bottom: unset;
+    }
 
     button {
       margin-right: 1rem;
 
       &:last-child {
         margin-right: 0;
+      }
+    }
+  }
+
+  .playground-notes {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    padding: 0 0.5rem;
+
+    @include themify($themes) {
+      color: themed('font-note');
+    }
+
+    @include media("min", "md") {
+      margin-left: auto;
+    }
+
+    svg {
+      @include themify($themes) {
+        fill: themed('font-note');
       }
     }
   }

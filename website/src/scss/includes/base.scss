@@ -162,6 +162,11 @@ table {
   line-height: 0;
   width: 24px;
   height: 24px;
+
+  &.icon-md {
+    width: 1rem;
+    height: 1rem;
+  }
 }
 
 details {
