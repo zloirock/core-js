@@ -630,6 +630,7 @@ export const data = {
     safari: '3.1',
   },
   'es.disposable-stack.constructor': {
+    bun: '1.3.0',
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
@@ -685,6 +686,7 @@ export const data = {
     safari: '18.4',
   },
   'es.iterator.dispose': {
+    bun: '1.3.0',
     // reverted in https://issues.chromium.org/issues/42203506#comment25
     // disabled again in 135 and re-enabled in 136
     chrome: '136', // '134', // '133',
@@ -1459,6 +1461,7 @@ export const data = {
     safari: '18.0', // '16.4',
   },
   'es.async-disposable-stack.constructor': { // `Promise` dependency should be loaded before
+    bun: '1.3.0',
     // added in 133, reverted in 134, https://issues.chromium.org/issues/42203506#comment25
     // https://github.com/tc39/proposal-explicit-resource-management/issues/256, fixed in early 135
     chrome: '136',

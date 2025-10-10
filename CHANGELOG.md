@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
-- Nothing
+- Compat data improvements:
+  - Missed [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features [added in Bun 1.3.0](https://bun.com/blog/bun-v1.3#disposablestack-and-asyncdisposablestack)
 
 ### [3.46.0 - 2025.10.09](https://github.com/zloirock/core-js/releases/tag/v3.46.0)
 - Changes [v3.45.1...v3.46.0](https://github.com/zloirock/core-js/compare/v3.45.1...v3.46.0) (116 commits)
