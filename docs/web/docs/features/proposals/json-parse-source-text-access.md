@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-json-parse-with-source)
 
 ## Modules
-[`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
+[`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.json.raw-json.js).
 
 ## Built-ins signatures
 ```ts
