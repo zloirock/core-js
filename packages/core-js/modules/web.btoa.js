@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var arrayFrom = require('../internals/array-from');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -36,8 +35,7 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC) return call($btoa, globalThis, toString(data));
     var string = toString(data);
-    // every 3 characters produce 4 bytes, so ceil(length * 4 / 3) is the number of bytes
-    var output = arrayFrom({ length: Math.ceil(string.length * 4 / 3) });
+    var output = [];
     var position = 0;
     var map = i2c;
     var block, charCode;
