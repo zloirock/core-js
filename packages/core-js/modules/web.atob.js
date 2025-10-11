@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var arrayFrom = require('../internals/array-from');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -48,8 +47,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
-    // every 4 characters produce 3 bytes, so ceil(length * 3 / 4) is the number of bytes
-    var output = arrayFrom({ length: Math.ceil(string.length * 3 / 4) });
+    var output = [];
     var position = 0;
     var bc = 0;
     var length, chr, bs;
