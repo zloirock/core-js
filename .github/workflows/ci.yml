@@ -16,7 +16,7 @@ jobs:
           cache: npm
       - uses: actions/setup-python@v6
         with:
-          python-version: 3.13
+          python-version: 3.14
       - run: npm ci
       - run: pip install codespell
       - run: npx run-s lint-raw codespell
