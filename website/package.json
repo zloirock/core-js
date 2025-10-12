@@ -8,14 +8,14 @@
   "dependencies": {
     "@babel/standalone": "^7.28.4",
     "@popperjs/core": "^2.11.8",
-    "@vitejs/plugin-legacy": "^7.1.0",
+    "@vitejs/plugin-legacy": "^7.2.1",
     "front-matter": "^4.0.2",
     "highlight.js": "^11.11.1",
-    "jsdom": "^26.1.0",
-    "marked": "^15.0.12",
+    "jsdom": "^27.0.0",
+    "marked": "^16.4.0",
     "marked-alert": "^2.1.2",
-    "marked-gfm-heading-id": "^4.1.1",
-    "sass": "^1.89.1",
+    "marked-gfm-heading-id": "^4.1.2",
+    "sass": "^1.93.2",
     "vite": "^7.1.9"
   }
 }
