@@ -39,6 +39,15 @@ jobs:
           username: ci
           privateKey: ${{ secrets.CI_SSH_KEY }}
 
+      - name: Copy runner helpers file to remote server
+        uses: garygrossgarten/github-action-scp@0.9.0
+        with:
+          local: website/scripts/helpers.mjs
+          remote: /var/www/core-js/helpers.mjs
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ci
+          privateKey: ${{ secrets.CI_SSH_KEY }}
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.1
         with:
