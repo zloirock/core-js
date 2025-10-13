@@ -5,15 +5,15 @@ import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import markedAlert from 'marked-alert';
 import config from './config/config.mjs';
-import { fs } from 'zx';
+import { argv, fs } from 'zx';
 
 const { copy, mkdir, readFile, readJson, readdir, writeFile } = fs;
 
-const args = process.argv;
-const lastArg = args.at(-1);
-const BRANCH = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
+const branchArg = argv._.find(item => item.startsWith('branch='));
+const BRANCH = branchArg ? branchArg.slice('branch='.length) : undefined;
+const LOCAL = argv._.includes('local');
+const BASE = LOCAL && BRANCH ? '/core-js/website/dist/' : BRANCH ? `/branches/${ BRANCH }/` : '/';
 const DEFAULT_VERSION = await getDefaultVersion();
-const BASE = BRANCH ? `/branches/${ BRANCH }/` : '/';
 
 let htmlFileName = '';
 let docsMenu = '';

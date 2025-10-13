@@ -19,6 +19,7 @@
     "prepare": "npm run zxi scripts/prepare.mjs",
     "build-compat": "npm run zxi scripts/build-compat/index.mjs",
     "build-web": "npm run zxi time website/index.mjs",
+    "build-web-local": "npm run zxi time website/local.mjs",
     "bundle": "run-s bundle-package bundle-tests",
     "bundle-package": "npm run zxi time scripts/bundle-package/bundle-package.mjs",
     "bundle-tests": "npm run zxi time cd scripts/bundle-tests/bundle-tests.mjs",
