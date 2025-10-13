@@ -1,12 +1,14 @@
 /* eslint-disable no-console -- needed for logging */
+import {
+  hasDocs, copyBlogPosts, copyBabelStandalone, copyCommonFiles, buildAndCopyCoreJS, buildWeb, getDefaultVersion, readJSON,
+} from './helpers.mjs';
 import childProcess from 'node:child_process';
-import { constants } from 'node:fs';
 import fs from 'node:fs/promises';
 import { promisify } from 'node:util';
 import path from 'node:path';
 
 const exec = promisify(childProcess.exec);
-const { access, cp, readFile, readdir, readlink } = fs;
+const { cp, readdir, readlink } = fs;
 
 const SRC_DIR = 'core-js';
 const BUILDS_ROOT_DIR = 'builds';
@@ -14,7 +16,6 @@ const BUILD_RESULT_DIR = 'result';
 const BUNDLES_DIR = 'bundles';
 const REPO = 'https://github.com/zloirock/core-js.git';
 const BUILDER_BRANCH = 'master';
-const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 
 const args = process.argv;
 const lastArg = args.at(-1);
@@ -24,55 +25,9 @@ const BUILD_ID = new Date().toISOString().replaceAll(/\D/g, '-') + Math.random()
 
 const BUILD_DIR = `${ BUILDS_ROOT_DIR }/${ BUILD_ID }/`;
 const BUILD_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/`;
-const BUILD_WEBSITE_SRC_DIR = `${ BUILD_DIR }${ SRC_DIR }/website`;
 const BUILD_DOCS_DIR = `${ BUILD_DIR }builder/`;
 const SITE_FILES_DIR = `${ BUILD_SRC_DIR }/website/dist/`;
 const VERSIONS_FILE = `${ BUILD_SRC_DIR }website/config/versions.json`;
-
-async function getDefaultVersion() {
-  const versions = await readJSON(VERSIONS_FILE);
-  return versions.find(v => v.default)?.label;
-}
-
-async function isExists(target) {
-  try {
-    await access(target, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// async function getTagsWithSiteDocs() {
-//   console.log('Getting tags with site docs...');
-//   console.time('Got tags with site docs');
-//   // const tagsString = await exec(
-//   //   `git tag --list | sort -V | while read t; do v=\${t#v}; IFS=. read -r M m p <<< "$v"; m=\${m:-0}; `
-//   //   + `if { [ "$M" -gt 3 ] || { [ "$M" -eq 3 ] && [ "$m" -gt 40 ]; }; }; `
-//   //   + `then git ls-tree -r --name-only "$t" | grep --qxF "website/scripts/build.mjs" && echo "$t"; fi; done`,
-//   //   { cwd: BUILD_SRC_DIR }
-//   // );
-//   const tagsString = await exec(
-//     'git branch --remote --format="%(refname:short)" | while read branch; do if git ls-tree -r --name-only "$branch" | '
-//     + 'grep -q "docs/web/docs/"; then echo "$branch"; fi; done',
-//     { cwd: BUILD_SRC_DIR },
-//   );
-//   const tags = tagsString.stdout.split('\n').filter(tag => tag !== '')
-//     .map(name => name.replace('origin/', ''));
-//   console.timeEnd('Got tags with site docs');
-//   console.log(`Found tags with site docs: ${ tags.join(', ') }`);
-//   return tags;
-// }
-
-async function buildWeb() {
-  console.log('Building web');
-  console.time('Built web');
-  let command = 'npm run build-web';
-  if (BRANCH) command += ` branch=${ BRANCH }`;
-  const stdout = await exec(command, { cwd: BUILD_SRC_DIR });
-  console.timeEnd('Built web');
-  return stdout;
-}
 
 async function copyWeb() {
   console.log('Copying web...');
@@ -159,16 +114,6 @@ async function prepareBuilder(targetBranch) {
   console.timeEnd('Prepared builder');
 }
 
-async function hasDocs(version) {
-  const target = version.branch ? `origin/${ version.branch }` : version.tag;
-  console.log(`Checking if docs exist in "${ target }"...`);
-  try {
-    await exec(`git ls-tree -r --name-only ${ target } | grep "docs/web/docs/"`, { cwd: BUILD_SRC_DIR });
-  } catch {
-    throw new Error(`No docs found in "${ target }".`);
-  }
-}
-
 async function switchBranchToLatestBuild(name) {
   console.log(`Switching branch "${ name }" to the latest build...`);
   console.time(`Switched branch "${ name }" to the latest build`);
@@ -185,53 +130,6 @@ async function checkoutVersion(version) {
   } else {
     await exec(`git checkout ${ version.tag }`, { cwd: BUILD_SRC_DIR });
   }
-}
-
-async function buildAndCopyCoreJS(version) {
-  const target = version.branch ?? version.tag;
-  const name = version.path ?? version.label;
-  console.log(`Building and copying core-js for ${ target }`);
-  const targetBundlePath = `${ BUNDLES_DIR }/${ target }/`;
-
-  if (await isExists(targetBundlePath)) {
-    console.time('Core JS bundles copied');
-    const bundlePath = `${ targetBundlePath }core-js-bundle.js`;
-    const destBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle.js`;
-    const esmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
-    const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle-esmodules.js`;
-    await cp(bundlePath, destBundlePath);
-    await cp(esmodulesBundlePath, esmodulesDestBundlePath);
-    console.timeEnd('Core JS bundles copied');
-    return;
-  }
-
-  console.time('Core JS bundles built');
-  await checkoutVersion(version);
-  await installDependencies();
-  await exec('npm run bundle-package', { cwd: BUILD_SRC_DIR });
-  const bundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
-  const destPath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle.js`;
-  const destBundlePath = `${ targetBundlePath }core-js-bundle.js`;
-  await cp(bundlePath, destPath);
-  await cp(bundlePath, destBundlePath);
-
-  await exec('npm run bundle-package esmodules', { cwd: BUILD_SRC_DIR });
-  const esmodulesBundlePath = `${ BUILD_SRC_DIR }packages/core-js-bundle/minified.js`;
-  const esmodulesDestBundlePath = `${ BUILD_SRC_DIR }website/src/public/bundles/${ name }/core-js-bundle-esmodules.js`;
-  const destEsmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
-  await cp(esmodulesBundlePath, esmodulesDestBundlePath);
-  await cp(esmodulesBundlePath, destEsmodulesBundlePath);
-  console.timeEnd('Core JS bundles built');
-}
-
-async function copyBabelStandalone() {
-  console.log('Copying Babel standalone');
-  await installDependencies(BUILD_WEBSITE_SRC_DIR);
-  console.time('Copied Babel standalone');
-  const babelPath = `${ BUILD_SRC_DIR }${ BABEL_PATH }`;
-  const destPath = `${ BUILD_SRC_DIR }website/src/public/babel.min.js`;
-  await cp(babelPath, destPath);
-  console.timeEnd('Copied Babel standalone');
 }
 
 async function getExcludedBuilds() {
@@ -268,46 +166,14 @@ async function clearOldBuilds() {
   console.timeEnd('Cleared old builds');
 }
 
-async function copyBlogPosts() {
-  console.log('Copying blog posts...');
-  console.time('Copied blog posts');
-  const fromDir = `${ BUILD_SRC_DIR }docs/`;
-  const toDir = `${ BUILD_SRC_DIR }docs/web/blog/`;
-  const entries = await readdir(fromDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.isFile()) {
-      const srcFile = path.join(fromDir, entry.name);
-      const destFile = path.join(toDir, entry.name);
-      await cp(srcFile, destFile);
-    }
-  }
-  console.timeEnd('Copied blog posts');
-}
-
-async function copyCommonFiles() {
-  console.log('Copying common files...');
-  console.time('Copied common files');
-  const fromDir = `${ BUILD_SRC_DIR }`;
-  const toDir = `${ BUILD_SRC_DIR }docs/web/`;
-  await cp(`${ fromDir }CHANGELOG.md`, `${ toDir }changelog.md`);
-  await cp(`${ fromDir }CONTRIBUTING.md`, `${ toDir }contributing.md`);
-  await cp(`${ fromDir }SECURITY.md`, `${ toDir }security.md`);
-  console.timeEnd('Copied common files');
-}
-
 async function createLastDocsLink() {
   console.log('Creating last docs link...');
   console.time('Created last docs link');
-  const defaultVersion = await getDefaultVersion();
+  const defaultVersion = await getDefaultVersion(VERSIONS_FILE);
   const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/${ defaultVersion }/docs/`);
   const absoluteLastDocsPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/docs/`);
   await exec(`ln -s ${ absoluteBuildPath } ${ absoluteLastDocsPath }`);
   console.timeEnd('Created last docs link');
-}
-
-async function readJSON(filePath) {
-  const buffer = await readFile(filePath);
-  return JSON.parse(buffer);
 }
 
 async function getVersions(targetBranch) {
@@ -330,22 +196,22 @@ try {
     const versions = await getVersions(targetBranch);
     for (const version of versions) {
       await copyDocsToBuilder(version);
-      await buildAndCopyCoreJS(version);
+      await buildAndCopyCoreJS(version, true, BUILD_SRC_DIR, BUNDLES_DIR);
     }
   } else {
     const version = { branch: targetBranch, label: targetBranch };
-    await hasDocs(version);
-    await buildAndCopyCoreJS(version);
+    await hasDocs(version, BUILD_SRC_DIR);
+    await buildAndCopyCoreJS(version, true, BUILD_SRC_DIR, BUNDLES_DIR);
   }
 
   await prepareBuilder(targetBranch);
-  await copyBabelStandalone();
-  await copyBlogPosts();
-  await copyCommonFiles();
+  await copyBabelStandalone(BUILD_SRC_DIR);
+  await copyBlogPosts(BUILD_SRC_DIR);
+  await copyCommonFiles(BUILD_SRC_DIR);
   if (!BRANCH) {
     await copyBuilderDocs();
   }
-  await buildWeb();
+  await buildWeb(BRANCH, BUILD_SRC_DIR);
 
   await copyWeb();
   await createLastDocsLink();

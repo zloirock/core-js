@@ -1,31 +1,25 @@
 /* eslint-disable import/no-unresolved -- dependencies are not installed */
+import { getDefaultVersion } from './scripts/helpers.mjs';
 import fm from 'front-matter';
 import { JSDOM } from 'jsdom';
 import { Marked } from 'marked';
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id';
 import markedAlert from 'marked-alert';
 import config from './config/config.mjs';
-import { fs } from 'zx';
+import { argv, fs } from 'zx';
 
 const { copy, mkdir, readFile, readJson, readdir, writeFile } = fs;
 
-const args = process.argv;
-const lastArg = args.at(-1);
-const BRANCH = lastArg.startsWith('branch=') ? lastArg.slice('branch='.length) : undefined;
-const DEFAULT_VERSION = await getDefaultVersion();
-const BASE = BRANCH ? `/branches/${ BRANCH }/` : '/';
+const branchArg = argv._.find(item => item.startsWith('branch='));
+const BRANCH = branchArg ? branchArg.slice('branch='.length) : undefined;
+const LOCAL = argv._.includes('local');
+const BASE = LOCAL && BRANCH ? '/core-js/website/dist/' : BRANCH ? `/branches/${ BRANCH }/` : '/';
+const DEFAULT_VERSION = await getDefaultVersion(config.versionsFile, BRANCH);
 
 let htmlFileName = '';
 let docsMenu = '';
 let isBlog = false;
 let isDocs = false;
-
-async function getDefaultVersion() {
-  if (BRANCH) return BRANCH;
-
-  const versions = await readJson(config.versionsFile);
-  return versions.find(v => v.default)?.label;
-}
 
 async function getAllMdFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -207,12 +201,6 @@ async function buildBlogMenu() {
   echo(chalk.green(`File created: ${ blogIndexPath }`));
 
   return menu;
-}
-
-// eslint-disable-next-line no-unused-vars -- use it later
-async function getVersionTags() {
-  const tagsString = await $`git tag | grep -E "^v[4-9]\\.[0-9]+\\.[0-9]+$" | sort -V`;
-  return tagsString.stdout.split('\n');
 }
 
 async function getVersionFromMdFile(mdPath) {

@@ -2392,6 +2392,7 @@ export default [
       'tests/compat/*.mjs',
       'tests/@(compat-@(data|tools)|eslint|entries|observables|promises-aplus|unit-@(karma|node))/**',
       'website/runner.mjs',
+      'website/helpers.mjs',
     ],
     rules: nodeDev,
   },
