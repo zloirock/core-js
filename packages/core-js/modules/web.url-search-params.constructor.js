@@ -313,7 +313,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
     var state = getInternalParamsState(this);
     validateArgumentsLength(arguments.length, 2);
     push(state.entries, { key: $toString(name), value: $toString(value) });
-    if (!DESCRIPTORS) this.length++;
+    if (!DESCRIPTORS) this.size++;
     state.updateURL();
   },
   // `URLSearchParams.prototype.delete` method
