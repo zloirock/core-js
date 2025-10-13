@@ -159,8 +159,11 @@
 
       a {
         align-items: center;
-        gap: 0.5rem;
         display: none;
+
+        .icon {
+          margin-right: 0.5rem;
+        }
       }
 
       .dummy {
@@ -214,7 +217,7 @@
     margin-bottom: 1rem;
 
     @include media("min", "md") {
-      margin-bottom: unset;
+      margin-bottom: 0;
     }
 
     button {
@@ -229,7 +232,6 @@
   .playground-notes {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
     font-size: 0.75rem;
     padding: 0 0.5rem;
 
@@ -241,9 +243,13 @@
       margin-left: auto;
     }
 
-    svg {
-      @include themify($themes) {
-        fill: themed('font-note');
+    .icon {
+      margin-right: 0.5rem;
+
+      svg {
+        @include themify($themes) {
+          fill: themed('font-note');
+        }
       }
     }
   }
