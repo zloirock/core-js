@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-await-dictionary)
 
 ## Modules
-[`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-keyed.js), [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.promise.all-settled-keyed.js)
+[`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.promise.all-keyed.js), [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.promise.all-settled-keyed.js)
 
 ## Built-ins signatures
 ```ts
