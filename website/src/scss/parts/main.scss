@@ -459,7 +459,8 @@ main {
 
     & > a {
       display: block;
-      width: 100%;
+      overflow: hidden;
+      width: 90%;
 
       &::after {
         content: '';

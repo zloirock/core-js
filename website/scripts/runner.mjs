@@ -3,12 +3,11 @@ import {
   hasDocs, copyBlogPosts, copyBabelStandalone, copyCommonFiles, buildAndCopyCoreJS, buildWeb, getDefaultVersion, readJSON,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
-import fs from 'node:fs/promises';
+import { cp, readdir, readlink } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import path from 'node:path';
+import { resolve, join } from 'node:path';
 
 const exec = promisify(childProcess.exec);
-const { cp, readdir, readlink } = fs;
 
 const SRC_DIR = 'core-js';
 const BUILDS_ROOT_DIR = 'builds';
@@ -62,8 +61,8 @@ async function cloneRepo() {
 async function switchToLatestBuild() {
   console.log('Switching to the latest build...');
   console.time('Switched to the latest build');
-  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
-  const absoluteLatestPath = path.resolve('./latest');
+  const absoluteBuildPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
+  const absoluteLatestPath = resolve('./latest');
   console.log(absoluteBuildPath, absoluteLatestPath);
   await exec('rm -f ./latest');
   await exec(`ln -sf ${ absoluteBuildPath } ${ absoluteLatestPath }`);
@@ -117,8 +116,8 @@ async function prepareBuilder(targetBranch) {
 async function switchBranchToLatestBuild(name) {
   console.log(`Switching branch "${ name }" to the latest build...`);
   console.time(`Switched branch "${ name }" to the latest build`);
-  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
-  const absoluteLatestPath = path.resolve(`./branches/${ name }`);
+  const absoluteBuildPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }`);
+  const absoluteLatestPath = resolve(`./branches/${ name }`);
   await exec(`rm -f ./branches/${ name }`);
   await exec(`ln -sf ${ absoluteBuildPath } ${ absoluteLatestPath }`);
   console.timeEnd(`Switched branch "${ name }" to the latest build`);
@@ -159,8 +158,8 @@ async function clearOldBuilds() {
   const builds = await readdir(BUILDS_ROOT_DIR);
   for (const build of builds) {
     if (!excluded.includes(build)) {
-      await exec(`rm -rf ${ path.join('./', BUILDS_ROOT_DIR, '/', build) }`);
-      console.log(`Build removed: "${ path.join('./', BUILDS_ROOT_DIR, '/', build) }"`);
+      await exec(`rm -rf ${ join('./', BUILDS_ROOT_DIR, '/', build) }`);
+      console.log(`Build removed: "${ join('./', BUILDS_ROOT_DIR, '/', build) }"`);
     }
   }
   console.timeEnd('Cleared old builds');
@@ -170,8 +169,8 @@ async function createLastDocsLink() {
   console.log('Creating last docs link...');
   console.time('Created last docs link');
   const defaultVersion = await getDefaultVersion(VERSIONS_FILE);
-  const absoluteBuildPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/${ defaultVersion }/docs/`);
-  const absoluteLastDocsPath = path.resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/docs/`);
+  const absoluteBuildPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/${ defaultVersion }/docs/`);
+  const absoluteLastDocsPath = resolve(`${ BUILD_DIR }${ BUILD_RESULT_DIR }/docs/`);
   await exec(`ln -s ${ absoluteBuildPath } ${ absoluteLastDocsPath }`);
   console.timeEnd('Created last docs link');
 }

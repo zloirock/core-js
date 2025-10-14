@@ -1,12 +1,11 @@
 /* eslint-disable no-console -- needed for logging */
 import childProcess from 'node:child_process';
 import { constants } from 'node:fs';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { cp, access, readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 const exec = promisify(childProcess.exec);
-const { cp, access, readdir, readFile } = fs;
 
 const BABEL_PATH = 'website/node_modules/@babel/standalone/babel.min.js';
 
@@ -40,8 +39,8 @@ export async function copyBabelStandalone(srcDir) {
   console.log('Copying Babel standalone...');
   await installDependencies(`${ srcDir }website`);
   console.time('Copied Babel standalone');
-  const babelPath = `${ srcDir }${ BABEL_PATH }`;
-  const destPath = `${ srcDir }website/src/public/babel.min.js`;
+  const babelPath = join(srcDir, BABEL_PATH);
+  const destPath = join(srcDir, 'website/src/public/babel.min.js');
   await cp(babelPath, destPath);
   console.timeEnd('Copied Babel standalone');
 }
@@ -49,13 +48,13 @@ export async function copyBabelStandalone(srcDir) {
 export async function copyBlogPosts(srcDir) {
   console.log('Copying blog posts...');
   console.time('Copied blog posts');
-  const fromDir = `${ srcDir }docs/`;
-  const toDir = `${ srcDir }docs/web/blog/`;
+  const fromDir = join(srcDir, 'docs/');
+  const toDir = join(srcDir, 'docs/web/blog/');
   const entries = await readdir(fromDir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.isFile()) {
-      const srcFile = path.join(fromDir, entry.name);
-      const destFile = path.join(toDir, entry.name);
+      const srcFile = join(fromDir, entry.name);
+      const destFile = join(toDir, entry.name);
       await cp(srcFile, destFile);
     }
   }
@@ -65,11 +64,10 @@ export async function copyBlogPosts(srcDir) {
 export async function copyCommonFiles(srcDir) {
   console.log('Copying common files...');
   console.time('Copied common files');
-  const fromDir = `${ srcDir }`;
-  const toDir = `${ srcDir }docs/web/`;
-  await cp(`${ fromDir }CHANGELOG.md`, `${ toDir }changelog.md`);
-  await cp(`${ fromDir }CONTRIBUTING.md`, `${ toDir }contributing.md`);
-  await cp(`${ fromDir }SECURITY.md`, `${ toDir }security.md`);
+  const toDir = join(srcDir, 'docs/web/');
+  await cp(`${ srcDir }CHANGELOG.md`, `${ toDir }changelog.md`);
+  await cp(`${ srcDir }CONTRIBUTING.md`, `${ toDir }contributing.md`);
+  await cp(`${ srcDir }SECURITY.md`, `${ toDir }security.md`);
   console.timeEnd('Copied common files');
 }
 
@@ -81,10 +79,10 @@ export async function buildAndCopyCoreJS(version, checkout, srcDir, destDir) {
 
   if (await isExists(targetBundlePath)) {
     console.time('Core JS bundles copied');
-    const bundlePath = `${ targetBundlePath }core-js-bundle.js`;
-    const destBundlePath = `${ srcDir }website/src/public/bundles/${ name }/core-js-bundle.js`;
-    const esmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
-    const esmodulesDestBundlePath = `${ srcDir }website/src/public/bundles/${ name }/core-js-bundle-esmodules.js`;
+    const bundlePath = join(targetBundlePath, 'core-js-bundle.js');
+    const destBundlePath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle.js');
+    const esmodulesBundlePath = join(targetBundlePath, 'core-js-bundle-esmodules.js');
+    const esmodulesDestBundlePath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle-esmodules.js');
     await cp(bundlePath, destBundlePath);
     await cp(esmodulesBundlePath, esmodulesDestBundlePath);
     console.timeEnd('Core JS bundles copied');
@@ -97,16 +95,16 @@ export async function buildAndCopyCoreJS(version, checkout, srcDir, destDir) {
   }
   await installDependencies(srcDir);
   await exec('npm run bundle-package', { cwd: srcDir });
-  const bundlePath = `${ srcDir }packages/core-js-bundle/minified.js`;
-  const destPath = `${ srcDir }website/src/public/bundles/${ name }/core-js-bundle.js`;
-  const destBundlePath = `${ targetBundlePath }core-js-bundle.js`;
+  const bundlePath = join(srcDir, 'packages/core-js-bundle/minified.js');
+  const destPath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle.js');
+  const destBundlePath = join(targetBundlePath, 'core-js-bundle.js');
   await cp(bundlePath, destPath);
   await cp(bundlePath, destBundlePath);
 
   await exec('npm run bundle-package esmodules', { cwd: srcDir });
-  const esmodulesBundlePath = `${ srcDir }packages/core-js-bundle/minified.js`;
-  const esmodulesDestBundlePath = `${ srcDir }website/src/public/bundles/${ name }/core-js-bundle-esmodules.js`;
-  const destEsmodulesBundlePath = `${ targetBundlePath }core-js-bundle-esmodules.js`;
+  const esmodulesBundlePath = join(srcDir, 'packages/core-js-bundle/minified.js');
+  const esmodulesDestBundlePath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle-esmodules.js');
+  const destEsmodulesBundlePath = join(targetBundlePath, 'core-js-bundle-esmodules.js');
   await cp(esmodulesBundlePath, esmodulesDestBundlePath);
   await cp(esmodulesBundlePath, destEsmodulesBundlePath);
   console.timeEnd('Core JS bundles built');
@@ -120,11 +118,12 @@ export async function checkoutVersion(version, execDir) {
   }
 }
 
-export async function buildWeb(branch, execDir) {
+export async function buildWeb(branch, execDir, local = false) {
   console.log('Building web...');
   console.time('Built web');
   let command = 'npm run build-web';
   if (branch) command += ` branch=${ branch }`;
+  if (local) command += ' local';
   const stdout = await exec(command, { cwd: execDir });
   console.timeEnd('Built web');
   return stdout;

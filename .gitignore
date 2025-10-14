@@ -8,7 +8,11 @@ node_modules/
 .DS_Store
 .idea
 
-/docs/web/blog/index.md
+/bundles/
+/docs/web/blog/
+/docs/web/changelog.md
+/docs/web/contributing.md
+/docs/web/security.md
 /packages/core-js/features/
 /packages/core-js/es/index.js
 /packages/core-js/full/index.js
