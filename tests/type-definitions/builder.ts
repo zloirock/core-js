@@ -66,3 +66,18 @@ await builder({
     comment: { size: false, modules: true },
   },
 });
+
+// @ts-expect-error
+builder({ format: 'amd' });
+// @ts-expect-error
+builder({ filename: true });
+// @ts-expect-error
+builder({ summary: 'all' });
+// @ts-expect-error
+builder({ summary: { console: 'show' } });
+// @ts-expect-error
+builder({ summary: { comment: { invalidKey: true } } });
+// @ts-expect-error
+builder({ targets: 123 });
+// @ts-expect-error
+builder({ invalidOption: true });
