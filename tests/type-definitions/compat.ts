@@ -9,8 +9,22 @@ compat.getEntriesListForTargetVersion('3.0');
 getModulesListForTargetVersion('3.0');
 compat.getModulesListForTargetVersion('3.0');
 
+// @ts-expect-error
+getEntriesListForTargetVersion(123);
+// @ts-expect-error
+compat.getEntriesListForTargetVersion(123);
+// @ts-expect-error
+getModulesListForTargetVersion({ version: true });
+// @ts-expect-error
+compat.getModulesListForTargetVersion({ version: true });
+
 compat.data['es.array.push'].android
 compat.data['es.array.push'].firefox
+
+// @ts-expect-error
+compat.entries['es.array.map'][0] = 'not-a-module';
+// @ts-expect-error
+compat.data['es.array.map']['notATarget'];
 
 if (typeof compat.modules[0] !== 'string') {
   console.error('Invalid');
@@ -40,6 +54,15 @@ compat({ targets: { chrome: '26', firefox: 4, esmodules: true, node: 'current', 
 compat({ version: '3.0' });
 compat({ inverse: true });
 
+// @ts-expect-error
+compat({ modules: 123 });
+// @ts-expect-error
+compat({ inverse: 'incorrect' });
+// @ts-expect-error
+compat({ exclude: 123 })
+// @ts-expect-error
+compat({ targets: 123 })
+
 compat.compat();
 compat.compat({});
 compat.compat({ modules: 'core-js/actual' });
@@ -60,6 +83,15 @@ compat.compat({ targets: { chrome: '26', firefox: 4, esmodules: true, node: 'cur
 compat.compat({ version: '3.0' });
 compat.compat({ inverse: true });
 
+// @ts-expect-error
+compat.compat({ modules: 123 });
+// @ts-expect-error
+compat.compat({ inverse: 'incorrect' });
+// @ts-expect-error
+compat({ exclude: 123 })
+// @ts-expect-error
+compat({ targets: 123 })
+
 compat2();
 compat2({});
 compat2({ modules: 'core-js/actual' });
@@ -79,3 +111,12 @@ compat2({ targets: { browsers: { chrome: '26', firefox: 4 } } });
 compat2({ targets: { chrome: '26', firefox: 4, esmodules: true, node: 'current', browsers: ['> 1%'] } });
 compat2({ version: '3.0' });
 compat2({ inverse: true });
+
+// @ts-expect-error
+compat2({ modules: 123 });
+// @ts-expect-error
+compat2({ inverse: 'incorrect' });
+// @ts-expect-error
+compat2({ exclude: 123 })
+// @ts-expect-error
+compat2({ targets: 123 })
