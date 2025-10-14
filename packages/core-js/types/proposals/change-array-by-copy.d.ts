@@ -1,17 +1,20 @@
 // proposal stage: 4
 // https://github.com/tc39/proposal-change-array-by-copy
+
+// For ensuring compatibility with TypeScript standard types, this code is based on:
+// https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L28
+// https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L39
+// https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L48
+// https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L67
+// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 interface Array<T> {
-  // https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L28
   toReversed(): T[];
 
-  // https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L39
   toSorted(compareFn?: (a: T, b: T) => number): T[];
 
-  // https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L48
   toSpliced(start: number, deleteCount: number, ...items: T[]): T[];
   toSpliced(start: number, deleteCount?: number): T[];
 
-  // https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts#L67
   with(index: number, value: T): T[];
 }
 
