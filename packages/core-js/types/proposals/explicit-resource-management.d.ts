@@ -1,6 +1,9 @@
 // proposal stage: 3
 // https://github.com/tc39/proposal-explicit-resource-management
+
+// For ensuring compatibility with TypeScript standard types, this code is based on:
 // https://github.com/microsoft/TypeScript/blob/0a1aa6d6ebdfa16b82f4a6aaf282089b1d484e05/src/lib/esnext.disposable.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 interface SymbolConstructor {
   readonly dispose: unique symbol;
 
