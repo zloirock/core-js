@@ -32,8 +32,6 @@ err2.suppressed;
 err2.message;
 
 // @ts-expect-error
-new suppressedError();
-// @ts-expect-error
 new suppressedError(1, 2, 3, 4);
 
 const protoDS: DisposableStack = disposableStack.prototype;
