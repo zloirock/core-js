@@ -79,6 +79,6 @@ interface AsyncDisposableStackConstructor {
 }
 declare var AsyncDisposableStack: AsyncDisposableStackConstructor;
 
-interface IteratorObject<T, TReturn, TNext> extends Disposable {}
+interface IteratorObject<T, TReturn = unknown, TNext = unknown> extends Disposable {}
 
-interface AsyncIteratorObject<T, TReturn, TNext> extends AsyncDisposable {}
+interface AsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends AsyncDisposable {}
