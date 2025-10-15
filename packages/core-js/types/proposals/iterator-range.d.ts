@@ -11,9 +11,9 @@ type RangeOptionsBigInt = {
 };
 
 interface IteratorConstructor {
-  range(start: number, end: number, options?: number | RangeOptionsNumber): IteratorObject<number>;
+  range(start: number, end: number, options?: number | RangeOptionsNumber): CoreJsIteratorObject<number>;
 
-  range(start: bigint, end: bigint | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: bigint | RangeOptionsBigInt): IteratorObject<bigint>;
+  range(start: bigint, end: bigint | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: bigint | RangeOptionsBigInt): CoreJsIteratorObject<bigint>;
 }
 
 declare var Iterator: IteratorConstructor;
