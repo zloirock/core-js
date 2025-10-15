@@ -40,8 +40,6 @@ err2.message;
 const proto: SuppressedError = SuppressedError.prototype;
 
 // @ts-expect-error
-new SuppressedError();
-// @ts-expect-error
 new SuppressedError(1, 2, 3, 4);
 
 const protoDS: DisposableStack = DisposableStack.prototype;
