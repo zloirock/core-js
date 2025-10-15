@@ -5,8 +5,8 @@ declare function getNumberIterator(): Iterator<number>;
 
 const numbersIter = getNumberIterator();
 
-const chunksObj: IteratorObject<number[]> = chunks(numbersIter, 2);
-const windowsObj: IteratorObject<number[]> = windows(numbersIter, 4);
+const chunksObj: Iterator<number[]> = chunks(numbersIter, 2);
+const windowsObj: Iterator<number[]> = windows(numbersIter, 4);
 
 const chunkNext = chunksObj.next();
 const windowsNext = windowsObj.next();
