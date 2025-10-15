@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 25
           cache: npm
       - uses: actions/setup-python@v6
         with:
@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 25
           cache: npm
       - run: npm ci
       - run: npx run-s bundle test-unit-karma
@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: 25
           cache: npm
       - uses: oven-sh/setup-bun@v2
         with:
@@ -55,6 +55,7 @@ jobs:
           - ^22.5.1
           - 23
           - 24
+          - 25
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -78,6 +79,7 @@ jobs:
           - ^22.5.1
           - 23
           - 24
+          - 25
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
