@@ -1,3 +1,13 @@
 await $`tsc`;
-await $`tsc -p proposals/global/tsconfig.json`;
-await $`tsc -p proposals/pure/tsconfig.json`;
+
+// await $`npx -p typescript@5.5 tsc -p proposals/global/tsconfig.esnext.json`;
+// // await $`npx -p typescript@4.6 tsc -p proposals/global/tsconfig.es6.json`;
+
+await $`tsc -p proposals/global/tsconfig.esnext.json`;
+await $`tsc -p proposals/global/tsconfig.es2023.json`;
+await $`tsc -p proposals/global/tsconfig.es6.json`;
+
+await $`tsc -p proposals/pure/tsconfig.esnext.json`;
+await $`tsc -p proposals/pure/tsconfig.es2023.json`;
+await $`tsc -p proposals/pure/tsconfig.es6.json`;
+
