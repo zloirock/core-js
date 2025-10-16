@@ -1,13 +1,16 @@
 // proposal stage: 3
 // https://github.com/tc39/proposal-decorator-metadata
-interface SymbolConstructor {
-  readonly metadata: unique symbol;
+
+import { CoreJsDecoratorMetadataObject } from './core-js-types/core-js-types.js';
+
+declare global {
+  interface SymbolConstructor {
+    readonly metadata: unique symbol;
+  }
+
+  interface Function {
+    [Symbol.metadata]: CoreJsDecoratorMetadataObject | null;
+  }
 }
 
-type DecoratorMetadataCoreJS = typeof globalThis extends { DecoratorMetadataObject: infer T }
-  ? T
-  : Record<PropertyKey, unknown> & object;
-
-interface Function {
-  [Symbol.metadata]: DecoratorMetadataCoreJS | null;
-}
+export {};
