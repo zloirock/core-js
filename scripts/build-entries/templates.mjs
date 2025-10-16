@@ -174,10 +174,7 @@ export const $staticWithContext = p => ({
     };
   `,
   dts: dedent`
-    declare const method: (
-      this: Function | void,
-      ...args: Parameters<typeof ${ p.namespace }.${ p.name }>
-    ) => ReturnType<typeof ${ p.namespace }.${ p.name }>;
+    declare const method: typeof ${ p.namespace }.${ p.name };
     export default method;
   `,
 });
