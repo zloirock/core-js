@@ -818,7 +818,6 @@
   - Added Deno 1.31 compat data mapping
 
 ### [3.28.0 - 2023.02.14](https://github.com/zloirock/core-js/releases/tag/v3.28.0)
----
 - [Change `Array` by copy proposal](https://github.com/tc39/proposal-change-array-by-copy):
   - Methods:
     - `Array.prototype.toReversed`
