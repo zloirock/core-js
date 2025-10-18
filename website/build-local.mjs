@@ -1,5 +1,5 @@
 import {
-  isExists, copyBlogPosts, copyBabelStandalone, copyCommonFiles, buildAndCopyCoreJS, buildWeb, getCurrentBranch,
+  isExists, copyBlogPosts, copyBabelStandalone, copyCommonFiles, buildWeb, getCurrentBranch, buildAndCopyCoreJS,
 } from './scripts/helpers.mjs';
 import { join } from 'node:path';
 
@@ -20,7 +20,7 @@ try {
 
   const version = { branch: targetBranch, label: targetBranch };
   await hasDocsLocal(BUILD_SRC_DIR);
-  await buildAndCopyCoreJS(version, false, BUILD_SRC_DIR, BUNDLES_DIR);
+  await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR);
 
   await copyBabelStandalone(BUILD_SRC_DIR);
   await copyBlogPosts(BUILD_SRC_DIR);

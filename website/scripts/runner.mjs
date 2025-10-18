@@ -1,6 +1,6 @@
 /* eslint-disable no-console -- needed for logging */
 import {
-  hasDocs, copyBlogPosts, copyBabelStandalone, copyCommonFiles, buildAndCopyCoreJS, buildWeb, getDefaultVersion, readJSON,
+  hasDocs, copyBlogPosts, copyBabelStandalone, copyCommonFiles, buildWeb, getDefaultVersion, readJSON, buildAndCopyCoreJS,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
 import { cp, readdir, readlink } from 'node:fs/promises';
@@ -195,12 +195,12 @@ try {
     const versions = await getVersions(targetBranch);
     for (const version of versions) {
       await copyDocsToBuilder(version);
-      await buildAndCopyCoreJS(version, true, BUILD_SRC_DIR, BUNDLES_DIR);
+      await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR, true, true);
     }
   } else {
     const version = { branch: targetBranch, label: targetBranch };
     await hasDocs(version, BUILD_SRC_DIR);
-    await buildAndCopyCoreJS(version, true, BUILD_SRC_DIR, BUNDLES_DIR);
+    await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR, true, true);
   }
 
   await prepareBuilder(targetBranch);
