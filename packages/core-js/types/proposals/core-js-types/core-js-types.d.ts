@@ -2,10 +2,19 @@ export type CoreJsAsyncIteratorObject<T> = typeof globalThis extends { AsyncIter
     ? O
     : AsyncIterator<T>;
 
-export type CoreJsDecoratorMetadataObject = typeof globalThis extends { DecoratorMetadataObject: infer T }
-  ? T
+export type CoreJsDecoratorMetadataObject = typeof globalThis extends { DecoratorMetadataObject: infer O }
+  ? O
   : Record<PropertyKey, unknown> & object;
 
-export type CoreJsIteratorObject<T> = typeof globalThis extends { IteratorObject: infer O }
+declare global {
+  interface IteratorObject<T, TReturn, TNext> extends Iterator<T, TReturn, TNext> {}
+}
+export type CoreJsIteratorObject<T, TReturn = any, TNext = undefined> = IteratorObject<T, TReturn, TNext>;
+
+export type CoreJsAggregateError = typeof globalThis extends { AggregateError: infer O }
   ? O
-  : Iterator<T>;
+  : { new(errors: Iterable<any>, message?: string): Error & { errors: any[] } };
+
+export type CoreJsErrorOptions = {
+  cause?: unknown;
+}
