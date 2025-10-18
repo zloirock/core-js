@@ -31,7 +31,10 @@ export async function hasDocs(version, execDir) {
 export async function installDependencies(execDir) {
   console.log('Installing dependencies...');
   console.time('Installed dependencies');
-  await exec('npm ci', { cwd: execDir });
+  const nodeModulesPath = join(execDir, 'node_modules');
+  if (!await isExists(nodeModulesPath)) {
+    await exec('npm ci', { cwd: execDir });
+  }
   console.timeEnd('Installed dependencies');
 }
 
@@ -71,13 +74,13 @@ export async function copyCommonFiles(srcDir) {
   console.timeEnd('Copied common files');
 }
 
-export async function buildAndCopyCoreJS(version, checkout, srcDir, destDir) {
+export async function buildAndCopyCoreJS(version, srcDir, destDir, checkout = false, cache = false) {
   const target = version.branch ?? version.tag;
   const name = version.path ?? version.label;
   console.log(`Building and copying core-js for ${ target }`);
   const targetBundlePath = `${ destDir }/${ target }/`;
 
-  if (await isExists(targetBundlePath)) {
+  if (cache && await isExists(targetBundlePath)) {
     console.time('Core JS bundles copied');
     const bundlePath = join(targetBundlePath, 'core-js-bundle.js');
     const destBundlePath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle.js');
