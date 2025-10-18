@@ -1,3 +1,4 @@
+// types: proposals/float16
 'use strict';
 var $ = require('../internals/export');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
