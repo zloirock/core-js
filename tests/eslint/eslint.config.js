@@ -2170,6 +2170,8 @@ const nodeDependencies = {
   'node-dependencies/compat-engines': ERROR,
   // disallow having dependencies on deprecate packages
   'node-dependencies/no-deprecated': ERROR,
+  // require provenance information for dependencies
+  'node-dependencies/require-provenance-deps': ERROR,
   // enforce versions that is valid as a semantic version
   'node-dependencies/valid-semver': ERROR,
 };
