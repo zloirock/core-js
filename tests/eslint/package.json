@@ -2,7 +2,7 @@
   "name": "tests/eslint",
   "type": "module",
   "devDependencies": {
-    "@eslint/markdown": "^7.4.0",
+    "@eslint/markdown": "^7.4.1",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
     "@stylistic/eslint-plugin": "^5.5.0",
     "confusing-browser-globals": "^1.0.11",
