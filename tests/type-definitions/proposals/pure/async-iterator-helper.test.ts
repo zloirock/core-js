@@ -12,11 +12,11 @@ import take from '@core-js/pure/full/async-iterator/take';
 import toArray from '@core-js/pure/full/async-iterator/to-array';
 import toAsync from '@core-js/pure/full/iterator/to-async';
 
-from([1, 2, 3]);
-from(new Set([1, 2, 3]));
+const res: AsyncIterator<number> = from([1, 2, 3]);
+const res2: AsyncIterator<number> = from(new Set([1, 2, 3]));
 from((async function* () { yield 1; yield 2; })());
 from((function* () { yield 3; })());
-from('abc');
+const res3: AsyncIterator<string> = from('abc');
 
 declare const ain: AsyncIteratorObject<number>;
 declare const aio: AsyncIteratorObject<{ x: number }>;
