@@ -1,3 +1,4 @@
+// types: proposals/change-array-by-copy
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 var aCallable = require('../internals/a-callable');

@@ -1,3 +1,4 @@
+// types: proposals/array-includes
 'use strict';
 var $ = require('../internals/export');
 var $includes = require('../internals/array-includes');
