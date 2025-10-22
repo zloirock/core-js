@@ -1,3 +1,4 @@
+// types: proposals/array-grouping
 'use strict';
 var $ = require('../internals/export');
 var createProperty = require('../internals/create-property');
