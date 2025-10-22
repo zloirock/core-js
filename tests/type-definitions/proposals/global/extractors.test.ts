@@ -1,9 +1,9 @@
 import 'core-js/full';
 
-const rscs1: symbol = Symbol.customExtractor;
-const rscs2: typeof Symbol.customExtractor = Symbol.customExtractor;
+const rscs1: symbol = Symbol.customMatcher;
+const rscs2: typeof Symbol.customMatcher = Symbol.customMatcher;
 
 // @ts-expect-error
-Symbol['customExtractor'] = Symbol("other");
+Symbol['customMatcher'] = Symbol("other");
 // @ts-expect-error
-const n: number = Symbol.customExtractor;
+const n: number = Symbol.customMatcher;
