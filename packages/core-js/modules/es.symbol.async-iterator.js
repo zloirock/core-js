@@ -1,3 +1,4 @@
+// types: proposals/async-iteration
 'use strict';
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 

@@ -1,3 +1,4 @@
+// types: proposals/change-array-by-copy
 'use strict';
 var $ = require('../internals/export');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
