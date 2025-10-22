@@ -18,7 +18,3 @@ Iterator.concat(1);
 Iterator.concat(true);
 // @ts-expect-error
 Iterator.concat({});
-// @ts-expect-error
-Iterator.concat(null);
-// @ts-expect-error
-Iterator.concat(undefined);

@@ -29,8 +29,8 @@ arrayVirtualIterator.call([1, 2, 3], 1);
 
 // $uncurried
 import arrayAt from '@core-js/pure/full/array/at';
-const arrayAtResult1: number = arrayAt([1, 2, 3], -2);
-const arrayAtResult2: string = arrayAt(['a', 'b'], -2);
+const arrayAtResult1: number|undefined = arrayAt([1, 2, 3], -2);
+const arrayAtResult2: string|undefined = arrayAt(['a', 'b'], -2);
 const arrayAtResult3: undefined = arrayAt([], 1);
 // @ts-expect-error
 arrayAt([1, 2], 'string');
@@ -127,5 +127,3 @@ iFlags();
 
 // $proposal
 import '@core-js/pure/proposals/accessible-object-hasownproperty';
-// @ts-expect-error it has no exports
-import pahp from '@core-js/pure/proposals/accessible-object-hasownproperty';

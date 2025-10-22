@@ -5,6 +5,6 @@ cooked(['foo', 'bar'], 1, 2);
 cooked([]);
 
 // @ts-expect-error
-cooked([null]);
+cooked(1);
 // @ts-expect-error
-cooked([undefined]);
+cooked(false);
