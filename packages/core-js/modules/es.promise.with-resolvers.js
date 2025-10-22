@@ -1,3 +1,4 @@
+// types: proposals/promise-with-resolvers
 'use strict';
 var $ = require('../internals/export');
 var newPromiseCapabilityModule = require('../internals/new-promise-capability');
