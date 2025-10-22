@@ -1,3 +1,4 @@
+// types: proposals/object-from-entries
 'use strict';
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');

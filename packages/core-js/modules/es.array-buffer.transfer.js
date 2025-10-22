@@ -1,3 +1,4 @@
+// types: proposals/array-buffer-transfer
 'use strict';
 var $ = require('../internals/export');
 var $transfer = require('../internals/array-buffer-transfer');

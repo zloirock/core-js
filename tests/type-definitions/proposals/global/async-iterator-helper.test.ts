@@ -1,10 +1,10 @@
 import 'core-js/full';
 
-AsyncIterator.from([1, 2, 3]);
-AsyncIterator.from(new Set([1, 2, 3]));
+const res: AsyncIterator<number> = AsyncIterator.from([1, 2, 3]);
+const res2: AsyncIterator<number> = AsyncIterator.from(new Set([1, 2, 3]));
 AsyncIterator.from((async function* () { yield 1; yield 2; })());
 AsyncIterator.from((function* () { yield 3; })());
-AsyncIterator.from('abc');
+const res3: AsyncIterator<string> = AsyncIterator.from('abc');
 
 declare const ain: AsyncIterator<number>;
 declare const aio: AsyncIterator<{ x: number }>;
