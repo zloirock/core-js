@@ -1,3 +1,4 @@
+// types: proposals/change-array-by-copy
 'use strict';
 var $ = require('../internals/export');
 var arrayToReversed = require('../internals/array-to-reversed');

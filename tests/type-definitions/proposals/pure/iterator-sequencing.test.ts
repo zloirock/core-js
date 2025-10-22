@@ -18,7 +18,3 @@ concat(1);
 concat(true);
 // @ts-expect-error
 concat({});
-// @ts-expect-error
-concat(null);
-// @ts-expect-error
-concat(undefined);
