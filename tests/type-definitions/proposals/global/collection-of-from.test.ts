@@ -1,66 +1,74 @@
 import 'core-js/full';
 
-const rm: Map<number, []> = Map.from([[1, 'a'], [2, 'b']]);
-const rm2: Map<number, number> = Map.from([[1, 10], [2, 20]], (v: number, k: number) => v + k);
-Map.from([[1, 10], [2, 20]], function (this: { n: number }, v: number) { return v + this.n; }, { n: 2 });
-// @ts-expect-error
-Map.from([['a', 1], ['b', 2]], (v: string, k: number) => v);
-// @ts-expect-error
-Map.from([1, 2]);
+const arrEntries: Array<[string, number]> = [['a', 1], ['b', 2]];
+const mapFrom: Map<string, string> = Map.from(arrEntries, v => String(v));
+const mapFrom2: Map<string, boolean> = Map.from(arrEntries, v => v > 1);
+const mapFrom3: Map<string, number> = Map.from(arrEntries);
+const mapOf: Map<string, number> = Map.of(['a', 1], ['b', 2]);
+
+const setFrom: Set<string> = Set.from(['a', 'b', 'c']);
+const setFrom2: Set<number> = Set.from([1, 2, 3], (v) => v * 2);
+const setFrom3: Set<string> = Set.from(['a', 'b', 'c'], String);
+const setOf: Set<number> = Set.of(1, 2, 3);
+
+const ws1 = {};
+const ws2 = {};
+const wsArr = [ws1, ws2];
+const weakSetFrom: WeakSet<{a?: number}> = WeakSet.from(wsArr);
+const weakSetFrom2: WeakSet<object> = WeakSet.from(wsArr, x => x);
+const weakSetOf: WeakSet<object> = WeakSet.of(ws1, ws2);
+
+const wmArr: Array<[object, string]> = [[ws1, 'a'], [ws2, 'b']];
+const weakMapFrom: WeakMap<object, string> = WeakMap.from(wmArr);
+const weakMapFrom2: WeakMap<object, number> = WeakMap.from(wmArr, v => Number(v.length));
+const weakMapOf: WeakMap<object, string> = WeakMap.of([ws1, 'a'], [ws2, 'b']);
+
 // @ts-expect-error
 Map.from();
+// @ts-expect-error
+Map.from(123);
+// @ts-expect-error
+Map.from([1, 2, 3]);
+// @ts-expect-error
+Map.from(arrEntries, (a, b, c) => a);
+// @ts-expect-error
+Map.of(1, 2, 3);
+// @ts-expect-error
+Map.of(['a', 1], [2, 3, 4]);
 
-Map.of(['a', 1], ['b', 2]);
-const rm4: Map<string, number> = Map.of(['a', 1], ['b', 2]);
-// @ts-expect-error
-Map.of([1, 2, 3]);
-// @ts-expect-error
-Map.of(1, 2);
-
-const rs1: Set<number> = Set.from([1, 2, 3]);
-const rs2: Set<string> = Set.from([1, 2, 3], x => x.toString());
-const rs3: Set<[string, number]> = Set.from([['a', 1], ['b', 2]]);
-Set.from(['a', 'b'], function (this: { s: string }, value: string) { return value + this.s; }, { s: '-' });
-// @ts-expect-error
-Set.from([1, 2, 3], (v: string) => v);
 // @ts-expect-error
 Set.from();
+// @ts-expect-error
+Set.from(123);
+// @ts-expect-error
+Set.from(['a', 'b'], 42);
+// @ts-expect-error
+Set.from(['a'], (value, index, extra) => value);
+// @ts-expect-error
+Set.of(1, 2, {});
 
-const rso1: Set<number> = Set.of(1, 2, 3);
-const rso2: Set<string> = Set.of('a', 'b', 'c');
-// @ts-expect-error
-Set.of({ 'foo': 'bar' }, 2);
-
-const rwm1: WeakMap<{ a: number }, string> = WeakMap.from([[{ a: 1 }, 'x']]);
-const rwm2: WeakMap<object, string> = WeakMap.from([[{}, 1], [{}, 2]], (v, k) => v.toString());
-WeakMap.from([[{}, 1], [{}, 2]], function (this: { s: string }, v: number) { return this.s + v; }, { s: '-' });
-// @ts-expect-error
-WeakMap.from([[1, 2], [2, 3]]);
-// @ts-expect-error
-WeakMap.from([[{}, 1], [{}, 2]], (v: string, k: string) => v);
-// @ts-expect-error
-WeakMap.from([1, 2]);
-// @ts-expect-error
-WeakMap.from();
-
-const rwmo1: WeakMap<object, number> = WeakMap.of([{}, 2]);
-// @ts-expect-error
-WeakMap.of([1, 2]);
-// @ts-expect-error
-WeakMap.of({});
-
-const rws1: WeakSet<object> = WeakSet.from([{}]);
-const rws2: WeakSet<object> = WeakSet.from([{}, {}], x => x);
-WeakSet.from([{}], function (this: { s: string }, obj: object) { return obj; }, { s: '-' });
 // @ts-expect-error
 WeakSet.from([1, 2]);
 // @ts-expect-error
-WeakSet.from([{}], (v: number) => v);
+WeakSet.from('notiterable');
 // @ts-expect-error
-WeakSet.from();
+WeakSet.from(wsArr, 42);
 // @ts-expect-error
-WeakSet.from([{}], x => 'not-an-object');
+WeakSet.of(1, 2);
+// @ts-expect-error
+WeakSet.of('a');
+// @ts-expect-error
+WeakSet.of({}, 42);
 
-const rwso1: WeakSet<object> = WeakSet.of({});
 // @ts-expect-error
-WeakSet.of(1);
+WeakMap.from([[1, 'a'], [2, 'b']]);
+// @ts-expect-error
+WeakMap.from([['a', 1]]);
+// @ts-expect-error
+WeakMap.from(wmArr, (v, k, x) => v);
+// @ts-expect-error
+WeakMap.of([{}, 'a'], [{}, 'b', 3]);
+// @ts-expect-error
+WeakMap.of([1, 2]);
+// @ts-expect-error
+WeakMap.of(['a', 'b']);
