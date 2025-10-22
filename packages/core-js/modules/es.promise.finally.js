@@ -1,3 +1,4 @@
+// types: proposals/promise-finally
 'use strict';
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
