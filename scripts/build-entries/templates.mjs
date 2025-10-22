@@ -61,16 +61,6 @@ function getCommonGenericsForNamespace(namespace) {
   return '';
 }
 
-function getAnyGenericsForNamespace(namespace) {
-  if (namespacesWithTwoGeneric.includes(namespace)) {
-    return '<any, any>';
-  }
-  if (namespacesWithOneGeneric.includes(namespace)) {
-    return '<any>';
-  }
-  return '';
-}
-
 export const wrapEntry = template => `'use strict';\n${ template }\n`;
 export const wrapDts = (template, p) => `${ importTypes(p) }${ p.types.length ? '\n\n' : '' }${ template }\n`;
 
@@ -118,13 +108,17 @@ export const $uncurried = p => ({
     module.exports = entryUnbind('${ p.namespace }', '${ p.name }');
   `,
   dts: dedent`
-    type method = ${ p.namespace }${ getAnyGenericsForNamespace(p.namespace) }['${ p.name }'];
-    type uncurriedMethod${ getGenericsForNamespace(p.namespace) } = (self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method>) => ReturnType<method>;
-    declare const resultMethod: uncurriedMethod${ getAnyGenericsForNamespace(p.namespace) };
+    type method${ getGenericsForNamespace(p.namespace) } = ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
+    declare const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
     
     export default resultMethod;
   `,
 });
+
+//      type method${ getGenericsForNamespace(p.namespace) } =
+//       '${ p.name }' extends keyof Methods${ getGenericsForNamespace(p.namespace) }
+//         ? Methods${ getGenericsForNamespace(p.namespace) }['${ p.name }']
+//         : ${ p.namespace }${ getGenericsForNamespace(p.namespace) }['${ p.name }'];
 
 export const $uncurriedIterator = p => ({
   entry: dedent`
@@ -136,9 +130,8 @@ export const $uncurriedIterator = p => ({
     module.exports = uncurryThis(getIteratorMethod(${ p.source }));
   `,
   dts: dedent`
-    type method = ${ p.namespace }<any>[typeof Symbol.iterator];
-    type uncurriedMethod<T> = (self: ${ p.namespace }<T>, ...args: Parameters<method>) => ReturnType<method>;
-    declare const resultMethod: uncurriedMethod<any>;
+    type method${ getGenericsForNamespace(p.namespace) } = ${ p.namespace }${ getGenericsForNamespace(p.namespace) }[typeof Symbol.iterator];
+    declare const resultMethod: <T>(self: ${ p.namespace }<T>, ...args: Parameters<method<T>>) => ReturnType<method<T>>;
     
     export default resultMethod;
   `,
