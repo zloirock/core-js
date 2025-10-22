@@ -1,3 +1,4 @@
+// types: proposals/change-array-by-copy
 'use strict';
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
