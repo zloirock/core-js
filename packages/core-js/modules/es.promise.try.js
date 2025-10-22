@@ -1,3 +1,4 @@
+// types: proposals/promise-try
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
