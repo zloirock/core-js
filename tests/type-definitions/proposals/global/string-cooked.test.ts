@@ -5,6 +5,6 @@ String.cooked(['foo', 'bar'], 1, 2);
 String.cooked([]);
 
 // @ts-expect-error
-String.cooked([null]);
+String.cooked(1);
 // @ts-expect-error
-String.cooked([undefined]);
+String.cooked(false);
