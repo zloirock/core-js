@@ -1,3 +1,4 @@
+// types: proposals/object-get-own-property-descriptors
 'use strict';
 var $ = require('../internals/export');
 var ownKeys = require('../internals/own-keys');
