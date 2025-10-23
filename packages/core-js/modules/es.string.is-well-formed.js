@@ -1,3 +1,4 @@
+// types: proposals/well-formed-unicode-strings
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
