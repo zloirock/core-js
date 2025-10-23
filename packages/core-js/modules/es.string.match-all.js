@@ -1,3 +1,4 @@
+// types: proposals/string-match-all
 'use strict';
 /* eslint-disable es/no-string-prototype-matchall -- safe */
 var $ = require('../internals/export');
