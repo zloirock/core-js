@@ -1,3 +1,4 @@
+// types: proposals/regexp-dotall-flag
 'use strict';
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var classof = require('../internals/classof-raw');
