@@ -1,3 +1,4 @@
+// types: proposals/symbol-description
 // `Symbol.prototype.description` getter
 // https://tc39.es/ecma262/#sec-symbol.prototype.description
 'use strict';
