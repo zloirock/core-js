@@ -1,3 +1,4 @@
+// types: proposals/set-methods
 'use strict';
 var collection = require('../internals/collection');
 var collectionStrong = require('../internals/collection-strong');
