@@ -1,3 +1,4 @@
+// types: proposals/set-methods
 'use strict';
 var $ = require('../internals/export');
 var fails = require('../internals/fails');
