@@ -1,3 +1,5 @@
+// types: proposals/regexp-dotall-flag
+// types: proposals/regexp-named-groups
 'use strict';
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var regExpFlagsDetection = require('../internals/regexp-flags-detection');
