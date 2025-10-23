@@ -6,7 +6,7 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@babel/standalone": "^7.28.4",
+    "@babel/standalone": "^7.28.5",
     "@popperjs/core": "^2.11.8",
     "@vitejs/plugin-legacy": "^7.2.1",
     "front-matter": "^4.0.2",
@@ -16,6 +16,6 @@
     "marked-alert": "^2.1.2",
     "marked-gfm-heading-id": "^4.1.2",
     "sass": "^1.93.2",
-    "vite": "^7.1.11"
+    "vite": "^7.1.12"
   }
 }
