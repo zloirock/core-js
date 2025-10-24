@@ -90,7 +90,7 @@ iteratorEvery(it);
 iteratorEvery(it, (v, i, extra) => true);
 
 const found1: number | undefined = iteratorFind(it, (v, i) => v > 5);
-// const findString: string | undefined = iteratorFind(itNumStr, (v): v is string => typeof v === 'string');
+const findString: string | number = iteratorFind(itNumStr, (v): v is string => typeof v === 'string');
 iteratorFind(itNumStr, (v): v is string => typeof v === 'string');
 
 // @ts-expect-error
