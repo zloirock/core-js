@@ -79,7 +79,7 @@ it.every();
 it.every((v, i, extra) => true);
 
 const found1: number | undefined = it.find((v, i) => v > 5);
-const findString: string | undefined = itNumStr.find((v): v is string => typeof v === 'string');
+const findString: string | number = itNumStr.find((v): v is string => typeof v === 'string');
 
 // @ts-expect-error
 it.find();
