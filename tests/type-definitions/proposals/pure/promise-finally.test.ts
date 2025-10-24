@@ -12,7 +12,6 @@ const p2 = Promise.reject("err");
 const pf6: Promise<string> = promiseFinally(p2);
 const pf7: Promise<string> = promiseFinally(p2, () => {});
 
-// Можно вызывать на generic
 declare function returnsPromise<T>(): Promise<T>;
 const genericF: Promise<boolean> = returnsPromise<boolean>().finally(() => {});
 
