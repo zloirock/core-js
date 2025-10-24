@@ -7,8 +7,7 @@ const arr: number[] = [1, 2, 3];
 const arrRev: number[] = arrayToReversed(arr);
 const arrSorted: number[] = arrayToSorted(arr);
 const arrSorted2: number[] = arrayToSorted(arr, (a, b) => b - a);
-// todo add items after fix uncurried version
-const arrSpliced: number[] = arrayToSpliced(arr, 1, 1);
+const arrSpliced: number[] = arrayToSpliced(arr, 1, 1, 4, 5);
 const arrSpliced2: number[] = arrayToSpliced(arr, 1);
 const arrSpliced3: number[] = arrayToSpliced(arr, 1, 2);
 const arrWith: number[] = arrayWith(arr, 1, 42);
