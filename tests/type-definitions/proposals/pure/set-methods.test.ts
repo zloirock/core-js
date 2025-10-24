@@ -21,27 +21,20 @@ const setLikeStr: ReadonlySetLike<string> = {
   size: 2
 };
 
-// todo check return types after uncurried methods fix
-// const unionAB: Set<number | string> = setUnion(setA, setB);
-// const unionAN: Set<number | number> = setUnion(setA, setLike);
-
-setUnion(setA, setB);
-setUnion(setA, setLike);
-setUnion(setA, setLikeStr);
+const unionAB: Set<number | string> = setUnion(setA, setB);
+const unionAL: Set<number | string> = setUnion(setA, setLike);
+const unionALS: Set<number | string> = setUnion(setA, setLikeStr);
 
 const interAB: Set<number> = setIntersection(setA, setB);
 const interAN: Set<number> = setIntersection(setA, setLike);
-setIntersection(setA, setLikeStr);
+const interALS: Set<number> = setIntersection(setA, setLikeStr);
 
 const diffAB: Set<number> = setDifference(setA, setB);
 const diffAN: Set<number> = setDifference(setA, setLike);
-setDifference(setA, setLikeStr);
+const diffALS: Set<number> = setDifference(setA, setLikeStr);
 
-// todo check return types after uncurried methods fix
-// const symdiffAB: Set<number | string> = setSymmetricDifference(setA, setB);
-// const symdiffAL: Set<number> = setSymmetricDifference(setA, setLike);
-setSymmetricDifference(setA, setB);
-setSymmetricDifference(setA, setLike);
+const symdiffAB: Set<number | string> = setSymmetricDifference(setA, setB);
+const symdiffAL: Set<number> = setSymmetricDifference(setA, setLike);
 
 const sub: boolean = setIsSubsetOf(setA, setLikeStr);
 const superSet: boolean = setIsSupersetOf(setA, setLikeStr);
