@@ -14,8 +14,6 @@
 
 > Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2025](#ecmascript): [promises](#ecmascript-promise), [symbols](#ecmascript-symbol), [collections](#ecmascript-collections), iterators, [typed arrays](#ecmascript-typed-arrays), many other features, [ECMAScript proposals](#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](#web-standards) like [`URL`](#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
 
-**If you are looking for documentation for obsolete `core-js@2`, please, check [this branch](https://github.com/zloirock/core-js/tree/v2).**
-
 ## [core-js@3, babel and a look into the future](https://core-js.io/blog/2019-03-19-core-js-3-babel-and-a-look-into-the-future)
 
 ## Raising funds
