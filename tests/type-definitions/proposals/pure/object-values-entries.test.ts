@@ -22,8 +22,6 @@ const entries5: [string, any][] = objectEntries(emptyObj);
 const valuesAnyArr: any[] = objectValues({ foo: 123, bar: "baz" });
 const entriesAnyArr: [string, any][] = objectEntries({ foo: 123, bar: "baz" });
 
-// Некорректные вызовы
-
 // @ts-expect-error
 objectValues();
 
