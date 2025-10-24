@@ -16,7 +16,6 @@ if (matchGroups) {
   const qr: string | undefined = matchGroups["qr"];
 }
 
-// Динамический ключ:
 if (execGroups) {
   const key = "dynamic";
   const dyn: string | undefined = execGroups[key];
