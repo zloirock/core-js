@@ -5,8 +5,14 @@
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/es2017.string.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface String {
-  replaceAll(searchValue: string | RegExp, replaceValue: string): string;
+declare global {
+  interface String {
+    replaceAll(searchValue: string | RegExp, replaceValue: string): string;
 
-  replaceAll(searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string): string;
+    replaceAll(searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string): string;
+  }
 }
+
+export {};
+
+export type CoreJsStringReplaceAll<T, U> = ((searchValue: string | RegExp, replaceValue: string) => string) | ((searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string) => string);

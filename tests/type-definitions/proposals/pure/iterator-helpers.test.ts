@@ -14,11 +14,8 @@ declare const it: Iterator<number>;
 declare const itStr: Iterator<string>;
 declare const itNumStr: Iterator<number | string>;
 
-// todo uncomment when uncurried methods would be fixed
-// const res: Iterator<string> = iteratorMap(it, (v, i) => String(v));
-// const mappedNum: Iterator<number> = iteratorMap(it, n => n + 1);
-iteratorMap(it, (v, i) => String(v));
-iteratorMap(it, n => n + 1);
+const res: Iterator<string> = iteratorMap(it, (v, i) => String(v));
+const mappedNum: Iterator<number> = iteratorMap(it, n => n + 1);
 
 // @ts-expect-error
 iteratorMap();
@@ -45,15 +42,8 @@ const dropped: Iterator<number> = iteratorDrop(it, 3);
 // @ts-expect-error
 iteratorDrop('3');
 
-// todo uncomment when uncurried methods would be fixed
-// const flatMapped: Iterator<string> = iteratorFlatMap(it, (v, i) => itStr);
-// const flatMapped2: Iterator<string> = iteratorFlatMap(it, (v, i) => ({
-//   [Symbol.iterator]: function* () {
-//     yield String(v);
-//   }
-// }));
-iteratorFlatMap(it, (v, i) => itStr);
-iteratorFlatMap(it, (v, i) => ({
+const flatMapped: Iterator<string> = iteratorFlatMap(it, (v, i) => itStr);
+const flatMapped2: Iterator<string> = iteratorFlatMap(it, (v, i) => ({
   [Symbol.iterator]: function* () {
     yield String(v);
   }
@@ -62,14 +52,13 @@ iteratorFlatMap(it, (v, i) => ({
 // @ts-expect-error
 iteratorFlatMap();
 
-// todo fix
-// const sum1: number = iteratorReduce(it, (a, b, c) => a + b + c, 0);
-// const sum2: number = iteratorReduce(it, (a, b, c) => a + b + c, 0);
-// const strReduce: string = iteratorReduce(
-//   it,
-//   (acc: string, val) => acc + val,
-//   ''
-// );
+const sum1: number = iteratorReduce(it, (a, b, c) => a + b + c, 0);
+const sum2: number = iteratorReduce(it, (a, b, c) => a + b + c, 0);
+const strReduce: string = iteratorReduce(
+  it,
+  (acc: string, val) => acc + val,
+  ''
+);
 
 // @ts-expect-error
 iteratorReduce();
