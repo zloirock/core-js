@@ -5,8 +5,6 @@ const escaped2: string = regexpEscape('');
 const s: string = 'abc';
 const escaped3: string = regexpEscape(s);
 
-// Некорректные вызовы
-
 // @ts-expect-error
 regexpEscape();
 // @ts-expect-error

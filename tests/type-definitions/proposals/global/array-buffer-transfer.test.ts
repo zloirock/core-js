@@ -8,8 +8,6 @@ const abTransfer2: ArrayBuffer = ab.transfer(32);
 const abTransferFixed: ArrayBuffer = ab.transferToFixedLength();
 const abTransferFixed2: ArrayBuffer = ab.transferToFixedLength(64);
 
-// Некорректные вызовы
-
 // @ts-expect-error
 ab.detached(1);
 // @ts-expect-error
