@@ -11,6 +11,10 @@ const importType = (type, level) => `import '${ level ? '../'.repeat(level) : '.
 
 const importTypes = ({ types, level }) => types.map(type => importType(type, level)).join('\n');
 
+const buildTypeName = (namespace, name) => `CoreJs${ namespace }${ String(name).charAt(0).toUpperCase() + String(name).slice(1) }`;
+
+const importCustomType = ({ customType, level, name, namespace }) => `import { ${ buildTypeName(namespace, name) } as method } from '${ level ? '../'.repeat(level) : './' }types/${ customType }';`;
+
 function isAllowedFunctionName(name) {
   try {
     // eslint-disable-next-line no-new-func -- safe
@@ -59,6 +63,11 @@ function getCommonGenericsForNamespace(namespace) {
     return '<T>';
   }
   return '';
+}
+
+function getCustomGenerics(count) {
+  const names = ['T', 'R', 'U'];
+  return `<${ names.slice(0, count).join(', ') }>`;
 }
 
 export const wrapEntry = template => `'use strict';\n${ template }\n`;
@@ -110,6 +119,23 @@ export const $uncurried = p => ({
   dts: dedent`
     type method${ getGenericsForNamespace(p.namespace) } = ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
     declare const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
+    
+    export default resultMethod;
+  `,
+});
+
+export const $uncurriedWithCustomType = p => ({
+  entry: dedent`
+    ${ importModules(p) }
+  
+    var entryUnbind = ${ importInternal('entry-unbind', p.level) }
+  
+    module.exports = entryUnbind('${ p.namespace }', '${ p.name }');
+  `,
+  dts: dedent`
+    ${ importCustomType(p) }
+
+    declare const resultMethod: ${ getCustomGenerics(p.genericsCount) }(self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method${ getCustomGenerics(p.genericsCount) }>) => ReturnType<method${ getCustomGenerics(p.genericsCount) }>;
     
     export default resultMethod;
   `,
