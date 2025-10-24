@@ -1,9 +1,8 @@
 import arrayFlatMap from '@core-js/pure/full/array/flat-map';
 import arrayFlat from '@core-js/pure/full/array/flat';
 
-// todo check return type after fix
-arrayFlatMap([1, 2, 3], x => [x, x * 2]);
-arrayFlatMap(['a', 'b', 'c'], x => [x, x.toUpperCase()]);
+const flatMapped: number[] = arrayFlatMap([1, 2, 3], x => [x, x * 2]);
+const flatMapped2: string[] = arrayFlatMap(['a', 'b', 'c'], x => [x, x.toUpperCase()]);
 arrayFlatMap([1, 2, 3], x => x > 1 ? [x, x] : []);
 arrayFlatMap([1, 2, 3], function (x) { return [this, x]; }, 123);
 arrayFlatMap([1, 2, 3], (x, i, arr) => arr);

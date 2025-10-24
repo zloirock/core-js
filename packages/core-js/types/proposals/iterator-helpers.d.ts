@@ -39,8 +39,6 @@ declare global {
 
 export {};
 
-export interface Methods<T, U = T> {
-  map: (callback: (value: T, index: number) => U) => CoreJsIteratorObject<U, undefined, unknown>;
-  flatMap: (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>) => CoreJsIteratorObject<U, undefined, unknown>;
-  reduce: (callback: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue?: U) => U;
-}
+export type CoreJsIteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>) => CoreJsIteratorObject<U, undefined, unknown>;
+export type CoreJsIteratorMap<T, U> = (callback: (value: T, index: number) => U) => CoreJsIteratorObject<U, undefined, unknown>;
+export type CoreJsIteratorReduce<T, U = T> = (callback: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue?: U) => U;
