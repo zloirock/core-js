@@ -1,6 +1,7 @@
 import {
   $uncurried,
   $uncurriedIterator,
+  $uncurriedWithCustomType,
   $prototype,
   $prototypeIterator,
   $static,
@@ -319,9 +320,11 @@ export const features = {
   },
   'array/flat-map': {
     modules: ['es.array.flat-map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Array',
     name: 'flatMap',
+    customType: 'proposals/array-flat-map',
+    genericsCount: 3,
   },
   'array/prototype/flat-map': {
     modules: ['es.array.flat-map'],
@@ -547,9 +550,11 @@ export const features = {
   },
   'array/to-spliced': {
     modules: ['es.array.to-spliced'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Array',
     name: 'toSpliced',
+    customType: 'proposals/change-array-by-copy',
+    genericsCount: 1,
   },
   'array/prototype/to-spliced': {
     modules: ['es.array.to-spliced'],
@@ -1286,9 +1291,11 @@ export const features = {
   },
   'iterator/flat-map': {
     modules: ['es.iterator.flat-map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'flatMap',
+    customType: 'proposals/iterator-helpers',
+    genericsCount: 2,
   },
   'iterator/prototype/flat-map': {
     modules: ['es.iterator.flat-map'],
@@ -1322,9 +1329,11 @@ export const features = {
   },
   'iterator/map': {
     modules: ['es.iterator.map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'map',
+    customType: 'proposals/iterator-helpers',
+    genericsCount: 2,
   },
   'iterator/prototype/map': {
     modules: ['es.iterator.map'],
@@ -1334,9 +1343,11 @@ export const features = {
   },
   'iterator/reduce': {
     modules: ['es.iterator.reduce'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'reduce',
+    customType: 'proposals/iterator-helpers',
+    genericsCount: 2,
   },
   'iterator/prototype/reduce': {
     modules: ['es.iterator.reduce'],
@@ -2243,9 +2254,11 @@ export const features = {
   },
   'set/symmetric-difference': {
     modules: ['es.set.symmetric-difference'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Set',
     name: 'symmetricDifference',
+    customType: 'proposals/set-methods',
+    genericsCount: 2,
   },
   'set/prototype/symmetric-difference': {
     modules: ['es.set.symmetric-difference'],
@@ -2255,9 +2268,11 @@ export const features = {
   },
   'set/union': {
     modules: ['es.set.union'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Set',
     name: 'union',
+    customType: 'proposals/set-methods',
+    genericsCount: 2,
   },
   'set/prototype/union': {
     modules: ['es.set.union'],
@@ -2536,9 +2551,11 @@ export const features = {
   },
   'string/replace-all': {
     modules: ['es.string.replace-all'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'String',
     name: 'replaceAll',
+    customType: 'proposals/string-replace-all',
+    genericsCount: 2,
   },
   'string/prototype/replace-all': {
     modules: ['es.string.replace-all'],
