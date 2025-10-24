@@ -2,9 +2,8 @@ import stringReplaceAll from '@core-js/pure/full/string/replace-all';
 
 const s = 'foo bar foo';
 
-// todo fix after uncurried methods fix
-// const r1: string = stringReplaceAll(s, 'foo', 'baz');
-// const r2: string = stringReplaceAll(s, /foo/g, 'baz');
+const r1: string = stringReplaceAll(s, 'foo', 'baz');
+const r2: string = stringReplaceAll(s, /foo/g, 'baz');
 const r3: string = stringReplaceAll(s, 'bar', (substr: string) => substr);
 const r4: string = stringReplaceAll(s, /bar/g, (substr: string) => substr + 'Test');
 const r5: string = stringReplaceAll(s, 'foo', function(substring: string): string { return substring + '!'; });
