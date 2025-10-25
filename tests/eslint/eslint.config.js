@@ -2104,6 +2104,8 @@ const json = {
 };
 
 const packageJSON = {
+  // enforce consistent format for the exports field (implicit or explicit subpaths)
+  'package-json/exports-subpaths-style': [ERROR, { prefer: 'explicit' }],
   // reports on unnecessary empty arrays and objects
   'package-json/no-empty-fields': ERROR,
   // prevents adding unnecessary / redundant files
