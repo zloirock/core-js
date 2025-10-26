@@ -17,6 +17,7 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
   var DELEGATES_TO_SYMBOL = !fails(function () {
     // String methods call symbol-named RegExp methods
     var O = {};
+    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
     O[SYMBOL] = function () { return 7; };
     return ''[KEY](O) !== 7;
   });
@@ -30,12 +31,13 @@ module.exports = function (KEY, exec, FORCED, SHAM) {
       // We can't use real regex here since it causes deoptimization
       // and serious performance degradation in V8
       // https://github.com/zloirock/core-js/issues/306
-      re = {};
       // RegExp[@@split] doesn't call the regex's exec method, but first creates
       // a new one. We need to return the patched regex when creating the new one.
-      re.constructor = {};
-      re.constructor[SPECIES] = function () { return re; };
-      re.flags = '';
+      var constructor = {};
+      // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
+      constructor[SPECIES] = function () { return re; };
+      re = { constructor: constructor, flags: '' };
+      // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
       re[SYMBOL] = /./[SYMBOL];
     }
 

@@ -604,6 +604,11 @@ const base = {
   'unicorn/no-console-spaces': ERROR,
   // enforce the use of unicode escapes instead of hexadecimal escapes
   'unicorn/no-hex-escape': ERROR,
+  // disallow immediate mutation after variable assignment
+  // that cause problems with objects in ES3 syntax, but since unicorn team
+  // don't wanna add an option to allow it, manually disable this rule in such problem cases
+  // https://github.com/sindresorhus/eslint-plugin-unicorn/issues/2796
+  'unicorn/no-immediate-mutation': ERROR,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': [ERROR, { strategy: 'loose' }],
   // disallow invalid options in `fetch` and `Request`
@@ -640,6 +645,8 @@ const base = {
   'unicorn/no-unreadable-iife': ERROR,
   // disallow unused object properties
   'unicorn/no-unused-properties': ERROR,
+  // disallow useless values or fallbacks in `Set`, `Map`, `WeakSet`, or `WeakMap`
+  'unicorn/no-useless-collection-argument': ERROR,
   // disallow unnecessary `Error.captureStackTrace()`
   'unicorn/no-useless-error-capture-stack-trace': ERROR,
   // forbid useless fallback when spreading in object literals
@@ -708,6 +715,8 @@ const base = {
   'unicorn/prefer-object-from-entries': ERROR,
   // prefer omitting the `catch` binding parameter
   'unicorn/prefer-optional-catch-binding': ERROR,
+  // prefer `Response.json()` over `new Response(JSON.stringify())`
+  'unicorn/prefer-response-static-json': ERROR,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': ERROR,
   // prefer using `Set#size` instead of `Array#length`
@@ -1938,6 +1947,8 @@ const tests = {
   'unicorn/error-message': OFF,
   // prefer `Array#toReversed()` over `Array#reverse()`
   'unicorn/no-array-reverse': OFF,
+  // disallow immediate mutation after variable assignment
+  'unicorn/no-immediate-mutation': OFF,
   // disallow `instanceof` with built-in objects
   'unicorn/no-instanceof-builtins': OFF,
   // prefer `.at()` method for index access and `String#charAt()`

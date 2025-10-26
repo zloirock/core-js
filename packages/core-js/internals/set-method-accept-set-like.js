@@ -48,9 +48,7 @@ module.exports = function (name, callback) {
         new Set()[name](createSetLikeWithInfinitySize(-Infinity));
         return false;
       } catch (error) {
-        var set = new Set();
-        set.add(1);
-        set.add(2);
+        var set = new Set([1, 2]);
         return callback(set[name](createSetLikeWithInfinitySize(Infinity)));
       }
     }

@@ -60,6 +60,7 @@ var enable = function () {
   var getOwnPropertyNames = getOwnPropertyNamesModule.f;
   var splice = uncurryThis([].splice);
   var test = {};
+  // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
   test[METADATA] = 1;
 
   // prevent exposing of metadata key

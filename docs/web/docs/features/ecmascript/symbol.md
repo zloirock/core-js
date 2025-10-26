@@ -121,15 +121,11 @@ Symbol().description;      // => undefined
 You can disable defining setters in `Object.prototype`. *Example*:
 ```ts
 Symbol.useSimple();
-let symbol1 = Symbol('symbol1');
-let object1 = {};
-object1[symbol1] = true;
+let object1 = { [Symbol('symbol1')]: true };
 for (let key in object1) console.log(key); // => 'Symbol(symbol1)_t.qamkg9f3q', w/o native Symbol
 
 Symbol.useSetter();
-let symbol2 = Symbol('symbol2');
-let object2 = {};
-object2[symbol2] = true;
+let object2 = { [Symbol('symbol2')]: true };
 for (let key in object2) console.log(key); // nothing
 ```
 - Currently, `core-js` does not add setters to `Object.prototype` for well-known symbols for correct work something like `Symbol.iterator in foo`. It can cause problems with their enumerability.

@@ -13,6 +13,7 @@ var FORCED = new Error('e', { cause: 7 }).cause !== 7;
 
 var exportGlobalErrorCauseWrapper = function (ERROR_NAME, wrapper) {
   var O = {};
+  // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
   O[ERROR_NAME] = wrapErrorConstructorWithCause(ERROR_NAME, wrapper, FORCED);
   $({ global: true, constructor: true, arity: 1, forced: FORCED }, O);
 };
@@ -20,6 +21,7 @@ var exportGlobalErrorCauseWrapper = function (ERROR_NAME, wrapper) {
 var exportWebAssemblyErrorCauseWrapper = function (ERROR_NAME, wrapper) {
   if (WebAssembly && WebAssembly[ERROR_NAME]) {
     var O = {};
+    // eslint-disable-next-line unicorn/no-immediate-mutation -- ES3 syntax limitation
     O[ERROR_NAME] = wrapErrorConstructorWithCause(WEB_ASSEMBLY + '.' + ERROR_NAME, wrapper, FORCED);
     $({ target: WEB_ASSEMBLY, stat: true, constructor: true, arity: 1, forced: FORCED }, O);
   }
