@@ -4,7 +4,6 @@ import {
 import { join } from 'node:path';
 
 const BUILD_SRC_DIR = './';
-const BUNDLES_DIR = 'bundles';
 
 async function hasDocsLocal(srcDir) {
   const target = join(srcDir, 'docs/web/docs');
@@ -20,7 +19,7 @@ try {
 
   const version = { branch: targetBranch, label: targetBranch };
   await hasDocsLocal(BUILD_SRC_DIR);
-  await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR);
+  await buildAndCopyCoreJS(version, BUILD_SRC_DIR);
 
   await copyBabelStandalone(BUILD_SRC_DIR);
   await copyBlogPosts(BUILD_SRC_DIR);

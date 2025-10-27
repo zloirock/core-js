@@ -2433,7 +2433,7 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/**/*.mjs',
-      'website/*.mjs',
+      'website/**.mjs',
     ],
     languageOptions: {
       // zx
@@ -2521,9 +2521,17 @@ export default [
     },
     rules: {
       ...transpiledAndPolyfilled,
-      'no-restricted-globals': 'off',
-      'unicorn/prefer-global-this': 'off',
+      'no-restricted-globals': OFF,
+      'unicorn/prefer-global-this': OFF,
       '@stylistic/quotes': [ERROR, 'single', { allowTemplateLiterals: ALWAYS }],
+    },
+  },
+  {
+    files: [
+      'website/**',
+    ],
+    rules: {
+      'import/no-unresolved': OFF,
     },
   },
 ];
