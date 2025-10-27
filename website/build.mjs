@@ -1,4 +1,3 @@
-/* eslint-disable import/no-unresolved -- dependencies are not installed */
 import { getDefaultVersion } from './scripts/helpers.mjs';
 import fm from 'front-matter';
 import { JSDOM } from 'jsdom';

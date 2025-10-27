@@ -1,4 +1,3 @@
-/* eslint-disable import/no-unresolved -- dependencies are not installed */
 /* global Babel -- global scope directive */
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';

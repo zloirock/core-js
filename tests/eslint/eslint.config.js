@@ -2444,6 +2444,7 @@ export default [
       'no-console': OFF,
       // import used for tasks
       'import/first': OFF,
+      'import/no-unresolved': OFF,
     },
   },
   {
@@ -2521,8 +2522,9 @@ export default [
     },
     rules: {
       ...transpiledAndPolyfilled,
-      'no-restricted-globals': 'off',
-      'unicorn/prefer-global-this': 'off',
+      'import/no-unresolved': OFF,
+      'no-restricted-globals': OFF,
+      'unicorn/prefer-global-this': OFF,
       '@stylistic/quotes': [ERROR, 'single', { allowTemplateLiterals: ALWAYS }],
     },
   },
