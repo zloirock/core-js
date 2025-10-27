@@ -2528,7 +2528,7 @@ export default [
   },
   {
     files: [
-      'website/**.(mjs|js)',
+      'website/**',
     ],
     rules: {
       'import/no-unresolved': OFF,
