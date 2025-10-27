@@ -74,10 +74,23 @@ export async function copyCommonFiles(srcDir) {
   console.timeEnd('Copied common files');
 }
 
-export async function buildAndCopyCoreJS(version, srcDir, cacheDir = '', checkout = false) {
+async function cacheBuild(srcDir, destPath, cache) {
+  if (!cache) return;
+  const bundlePath = join(srcDir, 'packages/core-js-bundle/minified.js');
+  await cp(bundlePath, destPath);
+}
+
+async function bundlePackage(srcDir, target, esModules = false) {
+  await exec(`npm run bundle-package${ esModules ? ' esmodules' : '' }`, { cwd: srcDir });
+  const bundlePath = join(srcDir, 'packages/core-js-bundle/minified.js');
+  const destPath = join(srcDir, 'website/src/public/bundles/', target, `core-js-bundle${ esModules ? '-esmodules' : '' }.js`);
+  await cp(bundlePath, destPath);
+}
+
+export async function buildAndCopyCoreJS(version, srcDir, cacheDir = null, checkout = false) {
   const target = version.branch ?? version.tag;
   const name = version.path ?? version.label;
-  const cache = cacheDir !== '';
+  const cache = cacheDir !== null;
   console.log(`Building and copying core-js for ${ target }`);
   const targetBundlePath = `${ cacheDir }/${ target }/`;
 
@@ -85,9 +98,10 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = '', checkou
     console.time('Core JS bundles copied');
     const bundlePath = join(targetBundlePath, 'core-js-bundle.js');
     const destBundlePath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle.js');
+    await cp(bundlePath, destBundlePath);
+
     const esmodulesBundlePath = join(targetBundlePath, 'core-js-bundle-esmodules.js');
     const esmodulesDestBundlePath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle-esmodules.js');
-    await cp(bundlePath, destBundlePath);
     await cp(esmodulesBundlePath, esmodulesDestBundlePath);
     console.timeEnd('Core JS bundles copied');
     return;
@@ -98,25 +112,12 @@ export async function buildAndCopyCoreJS(version, srcDir, cacheDir = '', checkou
     await checkoutVersion(version, srcDir);
   }
   await installDependencies(srcDir);
-  await exec('npm run bundle-package', { cwd: srcDir });
-  const bundlePath = join(srcDir, 'packages/core-js-bundle/minified.js');
-  const destPath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle.js');
-  await cp(bundlePath, destPath);
 
-  if (cache) {
-    const cacheBundlePath = join(targetBundlePath, 'core-js-bundle.js');
-    await cp(bundlePath, cacheBundlePath);
-  }
+  await bundlePackage(srcDir, name);
+  await cacheBuild(srcDir, join(targetBundlePath, 'core-js-bundle.js'), cache);
 
-  await exec('npm run bundle-package esmodules', { cwd: srcDir });
-  const esmodulesBundlePath = join(srcDir, 'packages/core-js-bundle/minified.js');
-  const esmodulesDestBundlePath = join(srcDir, 'website/src/public/bundles/', name, 'core-js-bundle-esmodules.js');
-  await cp(esmodulesBundlePath, esmodulesDestBundlePath);
-
-  if (cache) {
-    const cacheEsmodulesBundlePath = join(targetBundlePath, 'core-js-bundle-esmodules.js');
-    await cp(esmodulesBundlePath, cacheEsmodulesBundlePath);
-  }
+  await bundlePackage(srcDir, name, true);
+  await cacheBuild(srcDir, join(targetBundlePath, 'core-js-bundle-esmodules.js'), cache);
 
   console.timeEnd('Core JS bundles built');
 }
