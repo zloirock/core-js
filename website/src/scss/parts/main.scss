@@ -128,6 +128,8 @@ main {
           padding: 0;
           height: 100%;
           min-height: unset;
+          max-height: unset;
+          overflow-x: unset;
           @include themify($themes) {
             background-color: themed('background-light');
             box-shadow: 5px 5px 7px -6px themed('background-highlight');
@@ -148,6 +150,7 @@ main {
             overflow-y: auto;
             scrollbar-width: none;
             -ms-overflow-style: none;
+            padding-bottom: 1rem;
           }
 
           .mobile-trigger {
