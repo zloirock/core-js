@@ -2528,13 +2528,8 @@ export default [
   },
   {
     files: [
-      'website/**.mjs',
-      'website/**.js',
+      'website/**.(mjs|js)',
     ],
-    languageOptions: {
-      // zx
-      globals: globalsZX,
-    },
     rules: {
       'import/no-unresolved': OFF,
     },
