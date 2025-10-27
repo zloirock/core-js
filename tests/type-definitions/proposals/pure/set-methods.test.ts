@@ -27,7 +27,7 @@ const unionALS: Set<number | string> = setUnion(setA, setLikeStr);
 
 const interAB: Set<number> = setIntersection(setA, setB);
 const interAN: Set<number> = setIntersection(setA, setLike);
-const interALS: Set<number> = setIntersection(setA, setLikeStr);
+const intersectionALS: Set<number> = setIntersection(setA, setLikeStr);
 
 const diffAB: Set<number> = setDifference(setA, setB);
 const diffAN: Set<number> = setDifference(setA, setLike);
