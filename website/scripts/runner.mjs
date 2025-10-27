@@ -195,12 +195,12 @@ try {
     const versions = await getVersions(targetBranch);
     for (const version of versions) {
       await copyDocsToBuilder(version);
-      await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR, true, true);
+      await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR, true);
     }
   } else {
     const version = { branch: targetBranch, label: targetBranch };
     await hasDocs(version, BUILD_SRC_DIR);
-    await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR, true, true);
+    await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR, true);
   }
 
   await prepareBuilder(targetBranch);
