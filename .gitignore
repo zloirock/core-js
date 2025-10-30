@@ -49,6 +49,8 @@ node_modules/
 /packages/core-js-pure/index.js
 /packages/core-js-pure/index.d.ts
 /packages/core-js-pure/configurator.js
+/packages/core-js-types/dist/
+/packages/core-js-types/LICENSE
 /tests/**/bundles/
 /tests/compat/*.jar
 /tests/compat/compat-data.js
