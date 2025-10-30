@@ -1,4 +1,4 @@
-import $symbol from '@core-js/pure/full/symbol';
+import $symbol from '@core-js/pure/full/symbol/index';
 
 const sym: symbol = $symbol.customMatcher;
 

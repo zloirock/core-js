@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const res: number = Math.f16round(1);
 

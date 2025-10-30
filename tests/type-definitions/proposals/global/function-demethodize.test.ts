@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 function sumTo(this: { base: number }, a: number, b: number): number {
   return this.base + a + b;
