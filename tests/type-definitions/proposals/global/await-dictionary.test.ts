@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const res: Promise<{ a: number, b: string, c: boolean }> = Promise.allKeyed({
   a: Promise.resolve(1),

@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const sym1 = Symbol('foo');
 const d1: string | undefined = sym1.description;
