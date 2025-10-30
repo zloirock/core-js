@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 declare const map: Map<string, number>;
 
