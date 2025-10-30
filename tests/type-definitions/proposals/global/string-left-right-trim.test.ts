@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const s = 'abc';
 const t1: string = s.trimEnd();

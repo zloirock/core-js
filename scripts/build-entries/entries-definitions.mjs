@@ -323,7 +323,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'Array',
     name: 'flatMap',
-    customType: 'proposals/array-flat-map',
+    customType: 'proposals/array-flat-map-custom',
     genericsCount: 3,
   },
   'array/prototype/flat-map': {
@@ -553,7 +553,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'Array',
     name: 'toSpliced',
-    customType: 'proposals/change-array-by-copy',
+    customType: 'proposals/change-array-by-copy-custom',
     genericsCount: 1,
   },
   'array/prototype/to-spliced': {
@@ -1294,7 +1294,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'flatMap',
-    customType: 'proposals/iterator-helpers',
+    customType: 'proposals/iterator-helpers-custom',
     genericsCount: 2,
   },
   'iterator/prototype/flat-map': {
@@ -1332,7 +1332,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'map',
-    customType: 'proposals/iterator-helpers',
+    customType: 'proposals/iterator-helpers-custom',
     genericsCount: 2,
   },
   'iterator/prototype/map': {
@@ -1346,7 +1346,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'reduce',
-    customType: 'proposals/iterator-helpers',
+    customType: 'proposals/iterator-helpers-custom',
     genericsCount: 2,
   },
   'iterator/prototype/reduce': {
@@ -2257,7 +2257,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'Set',
     name: 'symmetricDifference',
-    customType: 'proposals/set-methods',
+    customType: 'proposals/set-methods-custom',
     genericsCount: 2,
   },
   'set/prototype/symmetric-difference': {
@@ -2271,7 +2271,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'Set',
     name: 'union',
-    customType: 'proposals/set-methods',
+    customType: 'proposals/set-methods-custom',
     genericsCount: 2,
   },
   'set/prototype/union': {
@@ -2554,7 +2554,7 @@ export const features = {
     template: $uncurriedWithCustomType,
     namespace: 'String',
     name: 'replaceAll',
-    customType: 'proposals/string-replace-all',
+    customType: 'proposals/string-replace-all-custom',
     genericsCount: 2,
   },
   'string/prototype/replace-all': {
