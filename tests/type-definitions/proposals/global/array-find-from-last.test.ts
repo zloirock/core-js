@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const res: number | undefined = [1, 2, 3].findLast(v => v > 1);
 [1, 2, 3].findLast((v): v is 2 => v === 2);
@@ -18,11 +19,12 @@ m.findLast((v): v is string => typeof v === "string");
 (new Uint8Array([1, 2, 3])).findLastIndex(v => v < 0);
 (new Float64Array([1, 2, 3])).findLast(v => v > 1.1);
 (new Float64Array([1, 2, 3])).findLastIndex(v => v > 100);
-(new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast(v => v > BigInt(1));
-(new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast((v): v is bigint => v === BigInt(2));
-(new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLastIndex(v => v > BigInt(0));
-(new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast(v => v > BigInt(1));
-(new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).findLastIndex(v => v > BigInt(0));
+// todo for es6
+// (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast(v => v > BigInt(1));
+// (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast((v): v is bigint => v === BigInt(2));
+// (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLastIndex(v => v > BigInt(0));
+// (new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast(v => v > BigInt(1));
+// (new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).findLastIndex(v => v > BigInt(0));
 
 // @ts-expect-error
 [1, 2, 3].findLast();
@@ -39,8 +41,8 @@ m.findLast((v): v is string => typeof v === "string");
 // @ts-expect-error
 (new Int8Array([1, 2, 3])).findLast((v: string) => false);
 
-// @ts-expect-error
-(new BigInt64Array([BigInt(1)])).findLast((v: number) => false);
+// // @ts-expect-error
+// (new BigInt64Array([BigInt(1)])).findLast((v: number) => false);
 
 // @ts-expect-error
 [1, 2, 3].findLastIndex();
