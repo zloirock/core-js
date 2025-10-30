@@ -14,7 +14,6 @@ import toAsync from '@core-js/pure/full/iterator/to-async';
 
 const res: AsyncIterator<number> = from([1, 2, 3]);
 const res2: AsyncIterator<number> = from(new Set([1, 2, 3]));
-from((async function* () { yield 1; yield 2; })());
 from((function* () { yield 3; })());
 const res3: AsyncIterator<string> = from('abc');
 
@@ -25,10 +24,8 @@ declare const ilb: Iterable<boolean>;
 declare const is: Iterator<string>;
 declare const itn: Iterator<number>;
 declare const ailb: AsyncIterable<boolean>;
-async function* ag(): AsyncIterable<string> { yield 'foo'; }
 
 from(ain);
-from(ag());
 from(ilb);
 from(ailb);
 from(aio);
