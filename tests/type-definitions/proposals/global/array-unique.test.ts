@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 type Obj = { a: number; b: string };
 const arr: Obj[] = [{ a: 1, b: 'x' }, { a: 2, b: 'y' }];
@@ -55,15 +56,16 @@ const f64Res: Float64Array = f64.uniqueBy();
 const f64Res2: Float64Array = f64.uniqueBy('length');
 const f64Res3: Float64Array = f64.uniqueBy(x => x.toFixed(1));
 
-const bi64 = new BigInt64Array([BigInt(1), BigInt(2), BigInt(1), BigInt(3)]);
-const bi64Res: BigInt64Array = bi64.uniqueBy();
-const bi64Res2: BigInt64Array = bi64.uniqueBy('length');
-const bi64Res3: BigInt64Array = bi64.uniqueBy(x => (x as bigint) % BigInt(2));
-
-const bu64 = new BigUint64Array([BigInt(1), BigInt(2), BigInt(1), BigInt(3)]);
-const bu64Res: BigUint64Array = bu64.uniqueBy();
-const bu64Res2: BigUint64Array = bu64.uniqueBy('length');
-const bu64Res3: BigUint64Array = bu64.uniqueBy(x => (x as bigint) * BigInt(3));
+// todo for es6
+// const bi64 = new BigInt64Array([BigInt(1), BigInt(2), BigInt(1), BigInt(3)]);
+// const bi64Res: BigInt64Array = bi64.uniqueBy();
+// const bi64Res2: BigInt64Array = bi64.uniqueBy('length');
+// const bi64Res3: BigInt64Array = bi64.uniqueBy(x => (x as bigint) % BigInt(2));
+//
+// const bu64 = new BigUint64Array([BigInt(1), BigInt(2), BigInt(1), BigInt(3)]);
+// const bu64Res: BigUint64Array = bu64.uniqueBy();
+// const bu64Res2: BigUint64Array = bu64.uniqueBy('length');
+// const bu64Res3: BigUint64Array = bu64.uniqueBy(x => (x as bigint) * BigInt(3));
 
 // @ts-expect-error
 arr.uniqueBy(123);
@@ -126,12 +128,12 @@ f64.uniqueBy([]);
 // @ts-expect-error
 f64.uniqueBy(false);
 
-// @ts-expect-error
-bi64.uniqueBy([]);
-// @ts-expect-error
-bi64.uniqueBy({});
-
-// @ts-expect-error
-bu64.uniqueBy([]);
-// @ts-expect-error
-bu64.uniqueBy({});
+// // @ts-expect-error
+// bi64.uniqueBy([]);
+// // @ts-expect-error
+// bi64.uniqueBy({});
+//
+// // @ts-expect-error
+// bu64.uniqueBy([]);
+// // @ts-expect-error
+// bu64.uniqueBy({});

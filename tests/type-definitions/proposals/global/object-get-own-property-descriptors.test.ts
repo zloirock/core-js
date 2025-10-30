@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const obj = { a: 1, b: 'x', c: true };
 const objDescs: { a: TypedPropertyDescriptor<number>; b: TypedPropertyDescriptor<string>; c: TypedPropertyDescriptor<boolean> } &
