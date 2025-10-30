@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const r1 = new RegExp('foo.bar', 's');
 const dotAll: boolean = r1.dotAll;

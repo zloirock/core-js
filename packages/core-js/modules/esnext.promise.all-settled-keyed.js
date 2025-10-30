@@ -1,3 +1,4 @@
+// types: proposals/await-dictionary
 'use strict';
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
