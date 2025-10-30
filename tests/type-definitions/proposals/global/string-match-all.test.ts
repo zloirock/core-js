@@ -1,11 +1,9 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const s = 'abcabc';
 const re = /abc/g;
 const matchIter: RegExpStringIterator<RegExpExecArray> = s.matchAll(re);
-
-const result = s.matchAll(re);
-const assertType: RegExpStringIterator<RegExpExecArray> = result;
 
 // @ts-expect-error
 s.matchAll();

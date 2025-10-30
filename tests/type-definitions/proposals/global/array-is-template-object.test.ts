@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const t: boolean = Array.isTemplateObject([]);
 Array.isTemplateObject({});
