@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const ab = new ArrayBuffer(16);
 // todo uncomment when fixed

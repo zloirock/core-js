@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const flatMapped: number[] = [1, 2, 3].flatMap(x => [x, x * 2]);
 const flatMapped2: string[] = ['a', 'b', 'c'].flatMap(x => [x, x.toUpperCase()]);

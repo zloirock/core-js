@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "@core-js/types",
+      "@types/node"
+    ]
+  },
+  "include": [
+    "./entries.require.ts"
+  ],
+  "exclude": []
+}
