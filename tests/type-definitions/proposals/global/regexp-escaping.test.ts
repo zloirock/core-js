@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const escaped1: string = RegExp.escape('foo.*+?^${}()|[]\\');
 const escaped2: string = RegExp.escape('');

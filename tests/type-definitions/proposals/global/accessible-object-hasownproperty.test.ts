@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 Object.hasOwn({a: 1}, 'a');
 Object.hasOwn([], 0);

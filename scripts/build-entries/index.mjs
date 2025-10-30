@@ -1,6 +1,6 @@
 import { getModulesMetadata, sort } from './get-dependencies.mjs';
 import { features, proposals } from './entries-definitions.mjs';
-import { $proposal, $path, wrapDts, wrapEntry } from './templates.mjs';
+import { $proposal, $path, wrapEntry } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 
 const { mkdir, writeFile, readJson, writeJson } = fs;
@@ -91,9 +91,6 @@ async function buildEntry(entry, options) {
   const filepath = `./packages/core-js/${ entry }.js`;
   await mkdir(dirname(filepath), { recursive: true });
   await writeFile(filepath, wrapEntry(tpl.entry));
-
-  const typePath = `./packages/core-js/${ entry }.d.ts`;
-  await writeFile(typePath, wrapDts(tpl.dts, { types, level }));
 
   built++;
 

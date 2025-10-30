@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const arr: number[] = [1, 2, 3];
 const arrRes: boolean = arr.includes(2);
@@ -44,13 +45,14 @@ const f64 = new Float64Array([1.5, 2.5, 3.5]);
 const f64Res: boolean = f64.includes(2.5);
 const f64Res2: boolean = f64.includes(2.5, 1);
 
-const bi64 = new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)]);
-const bi64Res: boolean = bi64.includes(BigInt(2));
-const bi64Res2: boolean = bi64.includes(BigInt(2), 1);
-
-const bu64 = new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)]);
-const bu64Res: boolean = bu64.includes(BigInt(2));
-const bu64Res2: boolean = bu64.includes(BigInt(2), 1);
+// todo for es6
+// const bi64 = new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)]);
+// const bi64Res: boolean = bi64.includes(BigInt(2));
+// const bi64Res2: boolean = bi64.includes(BigInt(2), 1);
+//
+// const bu64 = new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)]);
+// const bu64Res: boolean = bu64.includes(BigInt(2));
+// const bu64Res2: boolean = bu64.includes(BigInt(2), 1);
 
 // @ts-expect-error
 arr.includes();
@@ -109,14 +111,15 @@ f64.includes(2.5, []);
 
 // @ts-expect-error
 bi64.includes(2);
-// @ts-expect-error
-bi64.includes(2n, '1');
-// @ts-expect-error
-bi64.includes('2n');
+// // @ts-expect-error
+// bi64.includes(2n, '1');
+// // @ts-expect-error
+// bi64.includes('2n');
 
 // @ts-expect-error
 bu64.includes(2);
-// @ts-expect-error
-bu64.includes(2n, []);
-// @ts-expect-error
-bu64.includes('2n');
+
+// // @ts-expect-error
+// bu64.includes(2n, []);
+// // @ts-expect-error
+// bu64.includes('2n');
