@@ -3,14 +3,17 @@
     "strict": true,
     "target": "esnext",
     "module": "esnext",
-    "moduleResolution": "node",
     "esModuleInterop": true,
-    "noEmit": true
+    "moduleResolution": "node",
+    "noEmit": true,
+    "types": [
+      "@core-js/types"
+    ]
   },
-  "typeRoots": [
-    "./node_modules/@types"
-  ],
   "include": [
-    "*.ts"
+    "./*.ts"
+  ],
+  "exclude": [
+    "./entries.require.ts"
   ]
 }
