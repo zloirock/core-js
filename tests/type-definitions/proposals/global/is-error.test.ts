@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const e = new Error();
 const ne = { foo: 1 };
