@@ -1,10 +1,10 @@
 import 'core-js/full';
+import '@core-js/types';
 
 [1, 2, 3].filterReject((v, i, arr) => v > 1);
 ['a', 'b'].filterReject((v, i, arr) => v === 'a');
 const arr: number[] = [1, 2, 3];
 const res: number[] = arr.filterReject(function(v) { return v < 2; }, { foo: true });
-
 
 (new Int8Array([1, 2, 3])).filterReject((v, i, arr) => v > 1);
 (new Uint8Array([1, 2, 3])).filterReject((v, i, arr) => v > 1);
@@ -16,8 +16,11 @@ const res: number[] = arr.filterReject(function(v) { return v < 2; }, { foo: tru
 (new Float32Array([1, 2, 3])).filterReject((v, i, arr) => v > 1);
 (new Float64Array([1, 2, 3])).filterReject((v, i, arr) => v > 1);
 
-(new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((v, i, arr) => v > BigInt(1));
-(new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((v, i, arr) => v > BigInt(1));
+// todo for es6
+// declare var BigInt: (value: number | string | bigint) => bigint;
+// (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((v, i, arr) => v > BigInt(1));
+// (new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((v, i, arr) => v > BigInt(1));
+
 
 // @ts-expect-error
 [1, 2, 3].filterReject((x: string) => false);
@@ -49,8 +52,9 @@ const res: number[] = arr.filterReject(function(v) { return v < 2; }, { foo: tru
 // @ts-expect-error
 (new Float64Array([1, 2, 3])).filterReject((x: string) => false);
 
-// @ts-expect-error
-(new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((x: number) => false);
-
-// @ts-expect-error
-(new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((x: number) => false);
+// todo
+// // @ts-expect-error
+// (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((x: number) => false);
+//
+// // @ts-expect-error
+// (new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((x: number) => false);

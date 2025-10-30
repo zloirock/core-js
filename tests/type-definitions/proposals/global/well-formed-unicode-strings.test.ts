@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const s = 'test';
 const b: boolean = s.isWellFormed();

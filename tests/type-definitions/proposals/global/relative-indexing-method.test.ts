@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const str = 'hello';
 const s1: string | undefined = str.at(0);
@@ -40,11 +41,12 @@ const f32_1: number | undefined = f32.at(-1);
 const f64 = new Float64Array([11.1, 22.2, 33.3]);
 const f64_1: number | undefined = f64.at(0);
 
-const bi64 = new (BigInt64Array as { new(arr: ArrayLike<bigint>): BigInt64Array })([BigInt(1), BigInt(2), BigInt(3)]);
-const bi64_1: bigint | undefined = bi64.at(2);
-
-const bu64 = new (BigUint64Array as { new(arr: ArrayLike<bigint>): BigUint64Array })([BigInt(10), BigInt(20)]);
-const bu64_1: bigint | undefined = bu64.at(-1);
+// todo for es6
+// const bi64 = new (BigInt64Array as { new(arr: ArrayLike<bigint>): BigInt64Array })([BigInt(1), BigInt(2), BigInt(3)]);
+// const bi64_1: bigint | undefined = bi64.at(2);
+//
+// const bu64 = new (BigUint64Array as { new(arr: ArrayLike<bigint>): BigUint64Array })([BigInt(10), BigInt(20)]);
+// const bu64_1: bigint | undefined = bu64.at(-1);
 
 // @ts-expect-error
 str.at();
@@ -108,8 +110,8 @@ f32.at('a');
 // @ts-expect-error
 f64.at([]);
 
-// @ts-expect-error
-bi64.at('a');
-
-// @ts-expect-error
-bu64.at({});
+// // @ts-expect-error
+// bi64.at('a');
+//
+// // @ts-expect-error
+// bu64.at({});
