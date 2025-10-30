@@ -1,4 +1,5 @@
 await $`tsc`;
+await $`tsc -p tsconfig.require.json`;
 
 // await $`npx -p typescript@5.5 tsc -p proposals/global/tsconfig.esnext.json`;
 

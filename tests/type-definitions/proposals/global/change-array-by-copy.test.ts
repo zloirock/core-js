@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const arr: number[] = [1, 2, 3];
 const arrRev: number[] = arr.toReversed();
@@ -63,17 +64,18 @@ const f64Rev: Float64Array = f64.toReversed();
 const f64Sorted: Float64Array = f64.toSorted();
 const f64With: Float64Array = f64.with(0, 2.2);
 
-const bi64 = new (BigInt64Array as { new(arr: ArrayLike<bigint>): BigInt64Array })([BigInt(1), BigInt(2), BigInt(3)]);
-const bi64Rev: BigInt64Array = bi64.toReversed();
-const bi64Sorted: BigInt64Array = bi64.toSorted();
-const bi64Sorted2: BigInt64Array = bi64.toSorted((a, b) => (a > b ? 1 : -1));
-const bi64With: BigInt64Array = bi64.with(2, BigInt(100));
-
-const bu64 = new (BigUint64Array as { new(arr: ArrayLike<bigint>): BigUint64Array })([BigInt(1), BigInt(2), BigInt(3)]);
-const bu64Rev: BigUint64Array = bu64.toReversed();
-const bu64Sorted: BigUint64Array = bu64.toSorted();
-const bu64Sorted2: BigUint64Array = bu64.toSorted((a, b) => (a > b ? 1 : -1));
-const bu64With: BigUint64Array = bu64.with(0, BigInt(50));
+// todo for es6
+// const bi64 = new (BigInt64Array as { new(arr: ArrayLike<bigint>): BigInt64Array })([BigInt(1), BigInt(2), BigInt(3)]);
+// const bi64Rev: BigInt64Array = bi64.toReversed();
+// const bi64Sorted: BigInt64Array = bi64.toSorted();
+// const bi64Sorted2: BigInt64Array = bi64.toSorted((a, b) => (a > b ? 1 : -1));
+// const bi64With: BigInt64Array = bi64.with(2, BigInt(100));
+//
+// const bu64 = new (BigUint64Array as { new(arr: ArrayLike<bigint>): BigUint64Array })([BigInt(1), BigInt(2), BigInt(3)]);
+// const bu64Rev: BigUint64Array = bu64.toReversed();
+// const bu64Sorted: BigUint64Array = bu64.toSorted();
+// const bu64Sorted2: BigUint64Array = bu64.toSorted((a, b) => (a > b ? 1 : -1));
+// const bu64With: BigUint64Array = bu64.with(0, BigInt(50));
 
 // @ts-expect-error
 arr.toReversed(1);
@@ -167,16 +169,16 @@ f64.toSorted(1,2);
 // @ts-expect-error
 f64.with('a', 1);
 
-// @ts-expect-error
-bi64.toReversed(1);
-// @ts-expect-error
-bi64.toSorted('f');
-// @ts-expect-error
-bi64.toSorted((a: number, b: number) => 0);
-// @ts-expect-error
-bi64.with(1, 1);
-// @ts-expect-error
-bi64.with('a', BigInt(1));
+// // @ts-expect-error
+// bi64.toReversed(1);
+// // @ts-expect-error
+// bi64.toSorted('f');
+// // @ts-expect-error
+// bi64.toSorted((a: number, b: number) => 0);
+// // @ts-expect-error
+// bi64.with(1, 1);
+// // @ts-expect-error
+// bi64.with('a', BigInt(1));
 
 // @ts-expect-error
 bu64.toSorted({});
