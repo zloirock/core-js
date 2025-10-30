@@ -1,4 +1,5 @@
 import 'core-js/full';
+import '@core-js/types';
 
 const d: symbol = Symbol.dispose;
 const ad: symbol = Symbol.asyncDispose;
