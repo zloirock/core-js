@@ -2405,6 +2405,8 @@ export const data = {
   },
   'esnext.promise.all-keyed': {
   },
+  'esnext.promise.all-settled-keyed': {
+  },
   'esnext.set.from': {
   },
   'esnext.set.of': {
