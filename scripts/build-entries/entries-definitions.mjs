@@ -1929,6 +1929,12 @@ export const features = {
     namespace: 'Promise',
     name: 'allSettled',
   },
+  'promise/all-settled-keyed': {
+    modules: ['esnext.promise.all-settled-keyed'],
+    template: $staticWithContext,
+    namespace: 'Promise',
+    name: 'allSettledKeyed',
+  },
   'promise/any': {
     modules: ['es.promise.any'],
     template: $staticWithContext,
@@ -3541,6 +3547,7 @@ export const proposals = {
     stage: 1,
     modules: [
       'esnext.promise.all-keyed',
+      'esnext.promise.all-settled-keyed',
     ],
   },
   'promise-all-settled': {
