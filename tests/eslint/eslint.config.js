@@ -1344,6 +1344,7 @@ const forbidCompletelyNonExistentBuiltIns = {
   ] }],
   'es/no-nonstandard-promise-properties': [ERROR, { allow: [
     'allKeyed',
+    'allSettledKeyed',
   ] }],
   'es/no-nonstandard-reflect-properties': [ERROR, { allow: [
     // TODO: drop from `core-js@4`
