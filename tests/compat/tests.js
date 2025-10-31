@@ -1880,6 +1880,9 @@ GLOBAL.tests = {
   'esnext.promise.all-keyed': function () {
     return Promise.allKeyed;
   },
+  'esnext.promise.all-settled-keyed': function () {
+    return Promise.allSettledKeyed;
+  },
   'esnext.set.from': function () {
     return Set.from;
   },
