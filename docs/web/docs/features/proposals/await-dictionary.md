@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-await-dictionary)
 
 ## Modules
-[`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.promise.all-keyed.js)
+[`esnext.promise.all-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.promise.all-keyed.js), [`esnext.promise.all-settled-keyed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.promise.all-settled-keyed.js)
 
 ## Built-ins signatures
 ```ts
@@ -11,6 +11,10 @@ class Promise {
   allKeyed<T extends Record<string, unknown>>(
     obj: T
   ): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+
+  allSettledKeyed<T extends Record<string, unknown>>(
+    obj: T
+  ): Promise<{ [K in keyof T]: PromiseSettledResult<Awaited<T[K]>> }>;
 }
 ```
 
@@ -18,6 +22,7 @@ class Promise {
 ```ts
 core-js/proposals/promise-all-keyed
 core-js(-pure)/full/promise/all-keyed
+core-js(-pure)/full/promise/all-settled-keyed
 ```
 
 ## Examples
@@ -27,4 +32,10 @@ await Promise.allKeyed({
   b: Promise.resolve(2),
   c: 3,
 }); // => { a: 1, b: 2, c: 3 }
+
+await Promise.allSettledKeyed({
+  a: Promise.resolve(1),
+  b: Promise.reject(2),
+  c: 3,
+}); // => { a: { status: "fulfilled", value: 1 }, b: { status: "rejected", reasone: 2 }, c: { status: "fulfilled", value: 3 } }
 ```

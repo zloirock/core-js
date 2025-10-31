@@ -315,6 +315,7 @@ import "core-js/modules/esnext.map.from";
 import "core-js/modules/esnext.map.of";
 import "core-js/modules/esnext.number.clamp";
 import "core-js/modules/esnext.promise.all-keyed";
+import "core-js/modules/esnext.promise.all-settled-keyed";
 import "core-js/modules/esnext.set.from";
 import "core-js/modules/esnext.set.of";
 import "core-js/modules/esnext.string.cooked";
