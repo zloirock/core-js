@@ -127,7 +127,7 @@ export async function checkoutVersion(version, execDir) {
 export async function buildWeb(branch, execDir, local = false) {
   console.log('Building web...');
   console.time('Built web');
-  let command = 'npm run build-web';
+  let command = 'npm run build-website';
   if (branch) command += ` branch=${ branch }`;
   if (local) command += ' local';
   const stdout = await exec(command, { cwd: execDir });

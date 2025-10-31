@@ -1,4 +1,4 @@
-name: Build web pages for branch
+name: Build website for branch
 
 on:
   push:

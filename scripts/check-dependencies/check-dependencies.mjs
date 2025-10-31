@@ -6,7 +6,7 @@ const ignore = {
   'tests/observables': [
     'moon-unit',
   ],
-  'web-site': [
+  website: [
     'jsdom',  // pinned because of a bug https://github.com/jsdom/jsdom/issues/3959
   ],
 };
