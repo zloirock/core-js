@@ -3594,6 +3594,7 @@ export const proposals = {
     stage: 1,
     modules: [
       'esnext.promise.all-keyed',
+      'esnext.promise.all-settled-keyed',
     ],
   },
   'promise-all-settled': {
