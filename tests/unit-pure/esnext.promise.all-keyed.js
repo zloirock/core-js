@@ -1,7 +1,6 @@
 import $allKeyed from '@core-js/pure/full/promise/all-keyed';
 import Promise from '@core-js/pure/full/promise';
-import Symbol from '@core-js/pure/full/symbol';
-import Object from '@core-js/pure/full/object';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Promise.allKeyed', assert => {
   assert.isFunction(Promise.allKeyed);
