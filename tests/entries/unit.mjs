@@ -752,6 +752,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/prototype/clamp').call(6, 2, 4) === 4);
     ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
+    ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
     ok(load(NS, 'set/from')([1, 2, 3, 2, 1]) instanceof Set);
     ok(load(NS, 'set/of')(1, 2, 3, 2, 1) instanceof Set);
     ok(load(NS, 'string/cooked')`a${ 1 }b` === 'a1b');
@@ -857,12 +858,12 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('stage/0');
 
   for (const key in entries) {
-    if (key.startsWith('core-js/modules/')) {
-      load('modules', key.slice(16));
+    if (key.startsWith('modules/')) {
+      load('modules', key.slice(8));
     }
   }
 
-  ok(load());
+  ok(load('index'));
 }
 
 for (const NS of ['es', 'stable', 'actual', 'full']) {
