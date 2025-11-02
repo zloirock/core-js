@@ -49,8 +49,8 @@ $({ target: 'Promise', stat: true, forced: true }, {
             --remaining;
             if (remaining === 0) {
               var res = create(null);
-              forEach(keys, function (k, idx) {
-                createProperty(res, k, values[idx]);
+              forEach(keys, function (k, i) {
+                createProperty(res, k, values[i]);
               });
               resolve(res);
             }

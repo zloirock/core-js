@@ -1,7 +1,6 @@
 import $allSettledKeyed from '@core-js/pure/full/promise/all-settled-keyed';
 import Promise from '@core-js/pure/full/promise';
-import Symbol from '@core-js/pure/full/symbol';
-import Object from '@core-js/pure/full/object';
+import Symbol from '@core-js/pure/es/symbol';
 
 QUnit.test('Promise.allSettledKeyed', assert => {
   const { allSettledKeyed } = Promise;
@@ -38,7 +37,6 @@ QUnit.test('Promise.allSettledKeyed, resolved with rejection', assert => {
 });
 
 QUnit.test('Promise.allSettledKeyed, rejected', assert => {
-  // eslint-disable-next-line promise/valid-params -- required for testing
   return Promise.allSettledKeyed().then(() => {
     assert.avoid();
   }, () => {
