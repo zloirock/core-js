@@ -28,13 +28,6 @@ $({ target: 'Promise', stat: true, forced: true }, {
     var resolve = capability.resolve;
     var reject = capability.reject;
     var result = perform(function () {
-      var wrapResolve = function () {
-        var res = create(null);
-        forEach(keys, function (k, idx) {
-          createProperty(res, k, values[idx]);
-        });
-        resolve(res);
-      };
       var promiseResolve = aCallable(C.resolve);
       var allKeys = ownKeys(anObject(promises));
       var keys = [];
@@ -44,26 +37,31 @@ $({ target: 'Promise', stat: true, forced: true }, {
       forEach(allKeys, function (key) {
         var desc = getOwnPropertyDescriptor.f(promises, key);
         if (desc && desc.enumerable) {
+          var createElementResolver = function (rejection) {
+            return function (value) {
+              if (alreadyCalled) return;
+              alreadyCalled = true;
+              values[index] = rejection
+                ? { status: 'rejected', reason: value }
+                : { status: 'fulfilled', value: value };
+              if (--remaining) return;
+              var res = create(null);
+              forEach(keys, function (k, i) {
+                createProperty(res, k, values[i]);
+              });
+              resolve(res);
+            };
+          };
           var index = counter;
           var alreadyCalled = false;
           remaining++;
           keys[index] = key;
           values[index] = undefined;
-          call(promiseResolve, C, promises[key]).then(function (value) {
-            if (alreadyCalled) return;
-            alreadyCalled = true;
-            values[index] = { status: 'fulfilled', value: value };
-            --remaining || wrapResolve();
-          }, function (error) {
-            if (alreadyCalled) return;
-            alreadyCalled = true;
-            values[index] = { status: 'rejected', reason: error };
-            --remaining || wrapResolve();
-          });
+          call(promiseResolve, C, promises[key]).then(createElementResolver(false), createElementResolver(true));
           counter++;
         }
       });
-      --remaining || wrapResolve();
+      --remaining || resolve(create(null));
     });
     if (result.error) reject(result.value);
     return capability.promise;
