@@ -20,6 +20,14 @@ let docsMenu = '';
 let isBlog = false;
 let isDocs = false;
 
+async function getDefaultVersionTarget(versionFile, defaultTarget = null) {
+  if (defaultTarget) return defaultTarget;
+
+  const versions = await readJson(versionFile);
+  const defaultVersion = versions.find(v => v.default);
+  return defaultVersion?.branch ?? defaultVersion?.tag;
+}
+
 async function getAllMdFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
   const files = [];
@@ -285,8 +293,9 @@ async function build() {
   await buildBlogMenu();
   const mdFiles = await getAllMdFiles(config.docsDir);
   const versions = await getVersions();
-  const bundleScript = `<script nomodule src="${ config.bundlesPath }/${ DEFAULT_VERSION }/${ config.bundleName }"></script>`;
-  const bundleESModulesScript = `<script type="module" src="${ config.bundlesPath }/${ DEFAULT_VERSION }/${ config.bundleNameESModules }"></script>`;
+  const bundlesPath = `${ config.bundlesPath }/${ await getDefaultVersionTarget(config.versionsFile, BRANCH) }`;
+  const bundleScript = `<script nomodule src="${ bundlesPath }/${ config.bundleName }"></script>`;
+  const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
 
   let currentVersion = '';
   let versionsMenu = '';
