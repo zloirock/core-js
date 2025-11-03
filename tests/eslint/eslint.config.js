@@ -2121,6 +2121,8 @@ const packageJSON = {
   'package-json/no-empty-fields': ERROR,
   // prevents adding unnecessary / redundant files
   'package-json/no-redundant-files': ERROR,
+  // enforce that names for `scripts` are in kebab case (optionally separated by colons)
+  'package-json/scripts-name-casing': ERROR,
   // enforce that package dependencies are unique
   'package-json/unique-dependencies': ERROR,
   // enforce that the author field is a valid npm author specification
