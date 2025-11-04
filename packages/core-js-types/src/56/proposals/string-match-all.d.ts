@@ -13,6 +13,10 @@ declare global {
   interface String {
     matchAll(regexp: RegExp): RegExpStringIterator<RegExpExecArray>;
   }
+
+  interface SymbolConstructor {
+    readonly matchAll: unique symbol;
+  }
 }
 
 export {};
