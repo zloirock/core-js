@@ -40,10 +40,10 @@ interface Float64Array {
   filterReject(callbackFn: (value: number, index: number, target: Float64Array) => boolean, thisArg?: any): Float64Array;
 }
 
-interface BigInt64Array<TArrayBuffer extends ArrayBufferLike> {
-  filterReject(callbackFn: (value: bigint, index: number, target: BigInt64Array<TArrayBuffer>) => boolean, thisArg?: any): BigInt64Array<TArrayBuffer>;
+interface BigInt64Array {
+  filterReject(callbackFn: (value: bigint, index: number, target: BigInt64Array) => boolean, thisArg?: any): BigInt64Array;
 }
 
-interface BigUint64Array<TArrayBuffer extends ArrayBufferLike> {
-  filterReject(callbackFn: (value: bigint, index: number, target: BigUint64Array<TArrayBuffer>) => boolean, thisArg?: any): BigUint64Array<TArrayBuffer>;
+interface BigUint64Array {
+  filterReject(callbackFn: (value: bigint, index: number, target: BigUint64Array) => boolean, thisArg?: any): BigUint64Array;
 }
