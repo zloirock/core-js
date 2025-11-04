@@ -44,10 +44,10 @@ interface Float64Array {
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface BigInt64Array<TArrayBuffer extends ArrayBufferLike> {
+interface BigInt64Array {
   includes(searchElement: bigint, fromIndex?: number): boolean;
 }
 
-interface BigUint64Array<TArrayBuffer extends ArrayBufferLike> {
+interface BigUint64Array {
   includes(searchElement: bigint, fromIndex?: number): boolean;
 }
