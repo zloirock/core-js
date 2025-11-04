@@ -40,10 +40,10 @@ interface Float64Array {
   uniqueBy(resolver?: PropertyKey | ((value: number) => any)): Float64Array;
 }
 
-interface BigInt64Array<TArrayBuffer extends ArrayBufferLike> {
-  uniqueBy(resolver?: PropertyKey | ((value: bigint) => any)): BigInt64Array<TArrayBuffer>;
+interface BigInt64Array {
+  uniqueBy(resolver?: PropertyKey | ((value: bigint) => any)): BigInt64Array;
 }
 
-interface BigUint64Array<TArrayBuffer extends ArrayBufferLike> {
-  uniqueBy(resolver?: PropertyKey | ((value: bigint) => any)): BigUint64Array<TArrayBuffer>;
+interface BigUint64Array {
+  uniqueBy(resolver?: PropertyKey | ((value: bigint) => any)): BigUint64Array;
 }

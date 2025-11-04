@@ -90,20 +90,20 @@ declare global {
     with(index: number, value: number): Float64Array;
   }
 
-  interface BigInt64Array<TArrayBuffer extends ArrayBufferLike> {
-    toReversed(): BigInt64Array<TArrayBuffer>;
+  interface BigInt64Array {
+    toReversed(): BigInt64Array;
 
-    toSorted(compareFn?: (a: bigint, b: bigint) => number): BigInt64Array<TArrayBuffer>;
+    toSorted(compareFn?: (a: bigint, b: bigint) => number): BigInt64Array;
 
-    with(index: number, value: bigint): BigInt64Array<TArrayBuffer>;
+    with(index: number, value: bigint): BigInt64Array;
   }
 
-  interface BigUint64Array<TArrayBuffer extends ArrayBufferLike> {
-    toReversed(): BigUint64Array<TArrayBuffer>;
+  interface BigUint64Array {
+    toReversed(): BigUint64Array;
 
-    toSorted(compareFn?: (a: bigint, b: bigint) => number): BigUint64Array<TArrayBuffer>;
+    toSorted(compareFn?: (a: bigint, b: bigint) => number): BigUint64Array;
 
-    with(index: number, value: bigint): BigUint64Array<TArrayBuffer>;
+    with(index: number, value: bigint): BigUint64Array;
   }
 }
 
