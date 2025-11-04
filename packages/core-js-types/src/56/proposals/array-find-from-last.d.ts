@@ -28,14 +28,6 @@ interface Uint8Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Uint8Array {
-  findLast<S extends number>(predicate: (value: number, index: number, array: this) => value is S, thisArg?: any): S | undefined;
-
-  findLast(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number | undefined;
-
-  findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
-}
-
 interface Uint8ClampedArray {
   findLast<S extends number>(predicate: (value: number, index: number, array: this) => value is S, thisArg?: any): S | undefined;
 
@@ -92,7 +84,7 @@ interface Float64Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface BigInt64Array<TArrayBuffer extends ArrayBufferLike> {
+interface BigInt64Array {
   findLast<S extends bigint>(predicate: (value: bigint, index: number, array: this) => value is S, thisArg?: any): S | undefined;
 
   findLast(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): bigint | undefined;
@@ -100,7 +92,7 @@ interface BigInt64Array<TArrayBuffer extends ArrayBufferLike> {
   findLastIndex(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface BigUint64Array<TArrayBuffer extends ArrayBufferLike> {
+interface BigUint64Array {
   findLast<S extends bigint>(predicate: (value: bigint, index: number, array: this) => value is S, thisArg?: any): S | undefined;
 
   findLast(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): bigint | undefined;
