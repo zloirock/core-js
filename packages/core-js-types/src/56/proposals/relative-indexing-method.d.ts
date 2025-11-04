@@ -18,46 +18,46 @@ interface ReadonlyArray<T> {
   at(index: number): T | undefined;
 }
 
-interface Int8Array<TArrayBuffer extends ArrayBufferLike> {
+interface Int8Array {
   at(index: number): number | undefined;
 }
 
-interface Uint8Array<TArrayBuffer extends ArrayBufferLike> {
+interface Uint8Array {
   at(index: number): number | undefined;
 }
 
-interface Uint8ClampedArray<TArrayBuffer extends ArrayBufferLike> {
+interface Uint8ClampedArray {
   at(index: number): number | undefined;
 }
 
-interface Int16Array<TArrayBuffer extends ArrayBufferLike> {
+interface Int16Array {
   at(index: number): number | undefined;
 }
 
-interface Uint16Array<TArrayBuffer extends ArrayBufferLike> {
+interface Uint16Array {
   at(index: number): number | undefined;
 }
 
-interface Int32Array<TArrayBuffer extends ArrayBufferLike> {
+interface Int32Array {
   at(index: number): number | undefined;
 }
 
-interface Uint32Array<TArrayBuffer extends ArrayBufferLike> {
+interface Uint32Array {
   at(index: number): number | undefined;
 }
 
-interface Float32Array<TArrayBuffer extends ArrayBufferLike> {
+interface Float32Array {
   at(index: number): number | undefined;
 }
 
-interface Float64Array<TArrayBuffer extends ArrayBufferLike> {
+interface Float64Array {
   at(index: number): number | undefined;
 }
 
-interface BigInt64Array<TArrayBuffer extends ArrayBufferLike> {
+interface BigInt64Array {
   at(index: number): bigint | undefined;
 }
 
-interface BigUint64Array<TArrayBuffer extends ArrayBufferLike> {
+interface BigUint64Array {
   at(index: number): bigint | undefined;
 }
