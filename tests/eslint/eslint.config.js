@@ -2115,6 +2115,8 @@ const json = {
 };
 
 const packageJSON = {
+  // enforce that names for bin properties are in kebab case
+  'package-json/bin-name-casing': ERROR,
   // enforce consistent format for the exports field (implicit or explicit subpaths)
   'package-json/exports-subpaths-style': [ERROR, { prefer: 'explicit' }],
   // reports on unnecessary empty arrays and objects
