@@ -1,4 +1,4 @@
-// types: common/timers
+// types: common/efficient-script-yielding
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
