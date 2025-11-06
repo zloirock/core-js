@@ -969,6 +969,7 @@ export const data = {
   'es.math.sum-precise': {
     bun: '1.2.18',
     firefox: '137',
+    safari: '26.2',
   },
   'es.math.tanh': {
     chrome: '38',
