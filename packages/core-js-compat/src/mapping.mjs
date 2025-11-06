@@ -180,7 +180,7 @@ export default {
     [138, '37.0'],
     [140, '38.0'],
     [142, '39.0'],
-    [143, '40.0'],
+    [144, '40.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/opera.json
   ChromeToOpera(chrome) {
