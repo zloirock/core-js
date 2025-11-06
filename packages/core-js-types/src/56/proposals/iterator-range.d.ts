@@ -4,6 +4,7 @@
 declare global {
   type IteratorRangeOptions<T> = {
     step?: T;
+
     inclusive?: boolean;
   };
 

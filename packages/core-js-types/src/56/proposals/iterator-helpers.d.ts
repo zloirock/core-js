@@ -5,20 +5,20 @@
 // https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.iterator.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-import { CoreJsIteratorObject } from '../core-js-types/core-js-types';
+import { CoreJSIteratorObject } from '../core-js-types/core-js-types';
 
 declare global {
   interface Iterator<T> {
-    map<U>(callbackfn: (value: T, index: number) => U): CoreJsIteratorObject<U, undefined, unknown>;
+    map<U>(callbackfn: (value: T, index: number) => U): CoreJSIteratorObject<U, undefined, unknown>;
 
-    filter<S extends T>(predicate: (value: T, index: number) => value is S): CoreJsIteratorObject<S, undefined, unknown>;
-    filter(predicate: (value: T, index: number) => unknown): CoreJsIteratorObject<T, undefined, unknown>;
+    filter<S extends T>(predicate: (value: T, index: number) => value is S): CoreJSIteratorObject<S, undefined, unknown>;
+    filter(predicate: (value: T, index: number) => unknown): CoreJSIteratorObject<T, undefined, unknown>;
 
-    take(limit: number): CoreJsIteratorObject<T, undefined, unknown>;
+    take(limit: number): CoreJSIteratorObject<T, undefined, unknown>;
 
-    drop(count: number): CoreJsIteratorObject<T, undefined, unknown>;
+    drop(count: number): CoreJSIteratorObject<T, undefined, unknown>;
 
-    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): CoreJsIteratorObject<U, undefined, unknown>;  // ts < 5.6 Iterable<T>
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): CoreJSIteratorObject<U, undefined, unknown>;  // ts < 5.6 Iterable<T>
 
     reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T): T;
     reduce(callbackfn: (previousValue: T, currentValue: T, currentIndex: number) => T, initialValue: T): T;
@@ -37,7 +37,7 @@ declare global {
   }
 
   interface IteratorConstructor {
-    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T, unknown, undefined>): IteratorObject<T, undefined, unknown>;
+    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T>): CoreJSIteratorObject<T>;
   }
 
   var Iterator: IteratorConstructor;
