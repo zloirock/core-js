@@ -1,5 +1,6 @@
 // proposal stage: 1
 // https://github.com/tc39/proposal-array-unique
+
 interface Array<T> {
   uniqueBy(resolver?: keyof T | ((value: T) => any)): Array<T>;
 }

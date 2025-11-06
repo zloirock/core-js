@@ -5,13 +5,13 @@
 // https://github.com/microsoft/TypeScript/blob/069de743dbd17b47cc2fc58e1d16da5410911284/src/lib/es2019.array.d.ts#L46
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-import { CoreJsFlatArray } from '../core-js-types/core-js-types';
+import { CoreJSFlatArray } from '../core-js-types/core-js-types';
 
 declare global {
   interface Array<T> {
     flatMap<U, This = undefined>(callback: (this: This, value: T, index: number, array: T[]) => U | ReadonlyArray<U>, thisArg?: This): U[];
 
-    flat<A, D extends number = 1>(this: A, depth?: D): CoreJsFlatArray<A, D>[];
+    flat<A, D extends number = 1>(this: A, depth?: D): CoreJSFlatArray<A, D>[];
   }
 }
 
