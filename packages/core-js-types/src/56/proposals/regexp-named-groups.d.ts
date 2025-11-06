@@ -10,6 +10,7 @@ interface RegExpExecArray extends Array<string> {
     [key: string]: string;
   };
 }
+
 interface RegExpMatchArray extends Array<string> {
   groups?: {
     [key: string]: string;

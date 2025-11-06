@@ -6,7 +6,7 @@ const { cyan, red } = chalk;
 const allModulesSet = new Set(modules);
 
 const MODULE_PATH = /\/(?<path>(?:internals|modules)\/[\d\-.a-z]+)$/;
-const DIRECTIVE = /^ *\/\/ @dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
+const DEPENDENCY_DIRECTIVE = /^ *\/\/ @dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
 const TYPES_DIRECTIVE = /^ *\/\/ types: (?<types>[\d\-./a-z]+)$/gm;
 
 const cache = new Map();
@@ -35,7 +35,7 @@ async function getModuleMetadata(path, stack = new Set()) {
   stack.add(path);
   const module = String(await fs.readFile(`./packages/core-js/${ path }.js`));
   const directDependencies = konan(module).strings.map(normalizeModulePath);
-  const declaredDependencies = [...module.matchAll(DIRECTIVE)].map(it => normalizeModulePath(it.groups.module));
+  const declaredDependencies = [...module.matchAll(DEPENDENCY_DIRECTIVE)].map(it => normalizeModulePath(it.groups.module));
   const dependencies = unique([...directDependencies, ...declaredDependencies]);
   const paths = new Set([path]);
   const types = new Set();
