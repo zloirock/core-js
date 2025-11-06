@@ -2299,12 +2299,12 @@ export const data = {
     safari: '26.0', // '16.4',
   },
   'es.uint8-array.from-base64': {
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // safari 18.2-26.1 bug: it doesn't throw an error on incorrect length of base64 string
     bun: '1.2.20', // '1.1.22',
     chrome: '140',
     firefox: '133',
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // safari: '18.2',
+    // safari 18.2-26.1 bug: it doesn't throw an error on incorrect length of base64 string
+    safari: '26.2', // '18.2',
   },
   'es.uint8-array.from-hex': {
     bun: '1.1.22',
@@ -2313,12 +2313,12 @@ export const data = {
     safari: '18.2',
   },
   'es.uint8-array.set-from-base64': {
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
+    // safari 18.2-26.1 bug: it doesn't throw an error on incorrect length of base64 string
     bun: '1.2.20', // '1.1.22',
     chrome: '140',
     firefox: '133',
-    // Because of a bug: it doesn't throw an error on incorrect length of base64 string
-    // safari: '18.2',
+    // safari 18.2-26.1 bug: it doesn't throw an error on incorrect length of base64 string
+    safari: '26.2', // '18.2',
   },
   'es.uint8-array.set-from-hex': {
     bun: '1.1.22',
