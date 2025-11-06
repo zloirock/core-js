@@ -4,6 +4,7 @@
 // For ensuring compatibility with TypeScript standard types, this code is based on:
 // https://github.com/microsoft/TypeScript/blob/0a1aa6d6ebdfa16b82f4a6aaf282089b1d484e05/src/lib/esnext.disposable.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
+
 interface SymbolConstructor {
   readonly dispose: unique symbol;
 
@@ -25,9 +26,12 @@ interface SuppressedError extends Error {
 
 interface SuppressedErrorConstructor {
   new (error: any, suppressed: any, message?: string): SuppressedError;
+
   (error: any, suppressed: any, message?: string): SuppressedError;
+
   readonly prototype: SuppressedError;
 }
+
 declare var SuppressedError: SuppressedErrorConstructor;
 
 interface DisposableStack {
@@ -50,8 +54,10 @@ interface DisposableStack {
 
 interface DisposableStackConstructor {
   new (): DisposableStack;
+
   readonly prototype: DisposableStack;
 }
+
 declare var DisposableStack: DisposableStackConstructor;
 
 interface AsyncDisposableStack {
@@ -77,6 +83,7 @@ interface AsyncDisposableStackConstructor {
 
   readonly prototype: AsyncDisposableStack;
 }
+
 declare var AsyncDisposableStack: AsyncDisposableStackConstructor;
 
 interface IteratorObject<T, TReturn = unknown, TNext = unknown> extends Disposable {}
