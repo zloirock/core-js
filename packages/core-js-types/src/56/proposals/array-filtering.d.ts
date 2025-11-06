@@ -1,5 +1,6 @@
 // proposal stage: 1
 // https://github.com/tc39/proposal-array-filtering
+
 interface Array<T> {
   filterReject(callbackFn: (value: T, index: number, target: T[]) => boolean, thisArg?: any): T[];
 }
