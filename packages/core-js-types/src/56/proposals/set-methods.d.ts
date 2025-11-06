@@ -48,8 +48,3 @@ declare global {
 }
 
 export {};
-
-declare namespace CoreJs {
-  export type SetUnion<T, U> = (other: ReadonlySetLike<U>) => Set<T | U>;
-  export type SetSymmetricDifference<T, U> = (other: ReadonlySetLike<U>) => Set<T | U>;
-}

@@ -9,10 +9,8 @@ interface Math {
   f16round(x: number): number;
 }
 
-interface DataView<TArrayBuffer extends ArrayBufferLike> {
+interface DataView<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike> {
   getFloat16(byteOffset: number, littleEndian?: boolean): number;
 
   setFloat16(byteOffset: number, value: number, littleEndian?: boolean): void;
 }
-
-
