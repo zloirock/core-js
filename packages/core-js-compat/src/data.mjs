@@ -2587,10 +2587,12 @@ export const data = {
   'esnext.map.get-or-insert': {
     bun: '1.2.20',
     firefox: '144',
+    safari: '26.2',
   },
   'esnext.map.get-or-insert-computed': {
     bun: '1.2.20',
     firefox: '144',
+    safari: '26.2',
   },
   // TODO: Remove from `core-js@4`
   'esnext.map.group-by': null,
@@ -2882,10 +2884,12 @@ export const data = {
   'esnext.weak-map.get-or-insert': {
     bun: '1.2.20',
     firefox: '144',
+    safari: '26.2',
   },
   'esnext.weak-map.get-or-insert-computed': {
     bun: '1.2.20',
     firefox: '144',
+    safari: '26.2',
   },
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.upsert': {

@@ -2,6 +2,7 @@
 ### Unreleased
 - Fixed increasing `.size` in `URLSearchParams.prototype.append` polyfill in IE8-
 - Compat data improvements:
+  - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped in Safari 26.2
   - `Math.sumPrecise` marked as shipped in Safari 26.2
   - `Uint8Array.{ fromBase64, prototype.setFromBase64 }` marked as fixed in Safari 26.2
   - Missed [Explicit Resource Management](https://github.com/tc39/proposal-explicit-resource-management) features [added in Bun 1.3.0](https://bun.com/blog/bun-v1.3#disposablestack-and-asyncdisposablestack)
