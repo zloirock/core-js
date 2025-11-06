@@ -1,4 +1,4 @@
-// types: common/object-extend
+// types: common/object-prototype-accessor-methods
 'use strict';
 var $ = require('../internals/export');
 var FORCED = require('../internals/object-prototype-accessors-forced');
