@@ -11,7 +11,7 @@ const importType = (type, level) => `import '${ level ? '../'.repeat(level) : '.
 
 const importTypes = ({ types, level }) => types.map(type => importType(type, level)).join('\n');
 
-const buildTypeName = (namespace, name) => `CoreJs.${ namespace }${ String(name).charAt(0).toUpperCase() + String(name).slice(1) }`;
+const buildTypeName = (namespace, name) => `CoreJS.${ namespace }${ String(name).charAt(0).toUpperCase() + String(name).slice(1) }`;
 
 function isAllowedFunctionName(name) {
   try {
