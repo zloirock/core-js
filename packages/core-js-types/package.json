@@ -25,8 +25,16 @@
     "email": "zloirock@zloirock.ru",
     "url": "http://zloirock.ru"
   },
-  "types": "dist/core-js-types.latest.d.ts",
+  "types": "dist/core-js-types.56.d.ts",
   "files": [
-    "dist/core-js-types.latest.d.ts"
-  ]
+    "dist/core-js-types.56.d.ts"
+  ],
+  "typesVersions": {
+    ">=5.6": {
+      "*": ["dist/core-js-types.56.d.ts"]
+    },
+    ">=5.2": {
+      "*": ["dist/core-js-types.52.d.ts"]
+    }
+  }
 }
