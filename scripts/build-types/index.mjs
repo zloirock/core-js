@@ -3,9 +3,12 @@ import { $path, $proposal } from '../build-entries/templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 import { getModulesMetadata, sort } from '../build-entries/get-dependencies.mjs';
 import config from './config.mjs';
-import { path, fs } from 'zx';
+import { argv, path, fs } from 'zx';
 
 const { copy, outputFile, pathExists, readdir, remove } = fs;
+
+const versionArg = argv._.find(item => item.startsWith('version='));
+const VERSION = versionArg ? versionArg.slice('version='.length) : undefined;
 
 function modulesToStage(x) {
   return sort([
@@ -76,7 +79,7 @@ async function getVersions() {
   return versions.sort();
 }
 
-async function buildTypesForTSVersion(version) {
+async function buildTypesDirForTSVersion(version) {
   const versions = await getVersions();
   for (const v of versions) {
     if (v > version) break;
@@ -106,34 +109,47 @@ const ESWithProposalsSet = new Set(ESWithProposalsModules);
 const StableSet = new Set(StableModules);
 const ActualSet = new Set(ActualModules);
 
-const tsVersion = config.latestTsVersion;
-const bundleName = `${ config.bundleName }.${ tsVersion === config.latestTsVersion ? 'latest' : tsVersion }.d.ts`;
-const bundlePath = path.join(config.buildDir, bundleName);
-const typesPath = path.join(config.buildDir, tsVersion.toString());
-if (await pathExists(bundlePath)) await remove(bundlePath);
-if (await pathExists(typesPath)) await remove(typesPath);
-await buildTypesForTSVersion(tsVersion);
-await addImports(bundlePath, typesPath);
+async function buildTypesForTSVersion(tsVersion) {
+  tsVersion = tsVersion.toString().replace('.', '');
+  const bundleName = `${ config.bundleName }.${ tsVersion === config.latestTsVersion ? 'latest' : tsVersion }.d.ts`;
+  const bundlePath = path.join(config.buildDir, bundleName);
+  const typesPath = path.join(config.buildDir, tsVersion.toString());
+  if (await pathExists(bundlePath)) await remove(bundlePath);
+  if (await pathExists(typesPath)) await remove(typesPath);
+  await buildTypesDirForTSVersion(tsVersion);
+  await addImports(bundlePath, typesPath);
 
-for (const [entry, definition] of Object.entries(features)) {
-  await buildType(bundlePath, `es/${ entry }`, { ...definition, entryFromNamespace: 'es' });
-  await buildType(bundlePath, `stable/${ entry }`, { ...definition, entryFromNamespace: 'stable' });
-  await buildType(bundlePath, `actual/${ entry }`, { ...definition, entryFromNamespace: 'actual' });
-  await buildType(bundlePath, `full/${ entry }`, { ...definition, entryFromNamespace: 'full' });
+  for (const [entry, definition] of Object.entries(features)) {
+    await buildType(bundlePath, `es/${ entry }`, { ...definition, entryFromNamespace: 'es' });
+    await buildType(bundlePath, `stable/${ entry }`, { ...definition, entryFromNamespace: 'stable' });
+    await buildType(bundlePath, `actual/${ entry }`, { ...definition, entryFromNamespace: 'actual' });
+    await buildType(bundlePath, `full/${ entry }`, { ...definition, entryFromNamespace: 'full' });
+  }
+
+  for (const [name, definition] of Object.entries(proposals)) {
+    await buildType(bundlePath, `proposals/${ name }`, { ...definition, template: $proposal });
+  }
+
+  await buildType(bundlePath, 'stage/3', { template: $path, modules: ActualModules, subset: 'es-stage' });
+  await buildType(bundlePath, 'stage/2.7', { template: $path, modules: modulesToStage(2.7), subset: 'es-stage' });
+  await buildType(bundlePath, 'stage/2', { template: $path, modules: modulesToStage(2), subset: 'es-stage' });
+  await buildType(bundlePath, 'stage/1', { template: $path, modules: modulesToStage(1), subset: 'es-stage' });
+  await buildType(bundlePath, 'stage/0', { template: $path, modules: AllModules, subset: 'es-stage' });
+
+  await buildType(bundlePath, 'es/index', { template: $path, modules: ESModules, subset: 'es' });
+  await buildType(bundlePath, 'stable/index', { template: $path, modules: StableModules, subset: 'stable' });
+  await buildType(bundlePath, 'actual/index', { template: $path, modules: ActualModules });
+  await buildType(bundlePath, 'full/index', { template: $path, modules: AllModules });
+  await buildType(bundlePath, 'index', { template: $path, modules: ActualModules });
 }
 
-for (const [name, definition] of Object.entries(proposals)) {
-  await buildType(bundlePath, `proposals/${ name }`, { ...definition, template: $proposal });
+if (VERSION) {
+  await buildTypesForTSVersion(VERSION);
+} else {
+  const tsVersionBreakpoints = [
+    5.2,
+    5.6,
+  ];
+  await remove(config.buildDir);
+  tsVersionBreakpoints.forEach(async version => await buildTypesForTSVersion(version));
 }
-
-await buildType(bundlePath, 'stage/3', { template: $path, modules: ActualModules, subset: 'es-stage' });
-await buildType(bundlePath, 'stage/2.7', { template: $path, modules: modulesToStage(2.7), subset: 'es-stage' });
-await buildType(bundlePath, 'stage/2', { template: $path, modules: modulesToStage(2), subset: 'es-stage' });
-await buildType(bundlePath, 'stage/1', { template: $path, modules: modulesToStage(1), subset: 'es-stage' });
-await buildType(bundlePath, 'stage/0', { template: $path, modules: AllModules, subset: 'es-stage' });
-
-await buildType(bundlePath, 'es/index', { template: $path, modules: ESModules, subset: 'es' });
-await buildType(bundlePath, 'stable/index', { template: $path, modules: StableModules, subset: 'stable' });
-await buildType(bundlePath, 'actual/index', { template: $path, modules: ActualModules });
-await buildType(bundlePath, 'full/index', { template: $path, modules: AllModules });
-await buildType(bundlePath, 'index', { template: $path, modules: ActualModules });
