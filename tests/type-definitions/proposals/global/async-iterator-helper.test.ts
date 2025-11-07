@@ -14,10 +14,9 @@ declare const ilb: Iterable<boolean>;
 declare const is: Iterator<string>;
 declare const itn: Iterator<number>;
 declare const ailb: AsyncIterable<boolean>;
-async function* ag(): AsyncIterable<string> { yield 'foo'; }
 
 AsyncIterator.from(ain);
-AsyncIterator.from(ag());
+AsyncIterator.from((async function* () { yield 1; yield 2; })());
 AsyncIterator.from(ilb);
 AsyncIterator.from(ailb);
 AsyncIterator.from(aio);
