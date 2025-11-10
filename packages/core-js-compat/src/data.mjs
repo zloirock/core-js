@@ -2348,6 +2348,8 @@ export const data = {
   },
   'esnext.iterator.concat': {
   },
+  'esnext.iterator.join': {
+  },
   'esnext.iterator.range': {
   },
   'esnext.iterator.to-async': {
