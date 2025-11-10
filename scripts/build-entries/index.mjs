@@ -1,23 +1,17 @@
-import { getModulesMetadata, sort } from './get-dependencies.mjs';
+import { getModulesMetadata } from './get-dependencies.mjs';
 import { features, proposals } from './entries-definitions.mjs';
 import { $proposal, $path, wrapEntry } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
+import { expandModules, modulesToStage } from './helpers.mjs';
 
 const { mkdir, writeFile, readJson, writeJson } = fs;
 const { dirname } = path;
 const { cyan, green } = chalk;
 
-function modulesToStage(x) {
-  return sort([
-    ...StableModules,
-    ...Object.values(proposals).flatMap(({ stage, modules }) => stage >= x ? modules : []),
-  ]);
-}
-
 const ESModules = AllModules.filter(it => it.startsWith('es.'));
 const ESWithProposalsModules = AllModules.filter(it => it.startsWith('es'));
 const StableModules = AllModules.filter(it => it.match(/^(?:es|web)\./));
-const ActualModules = modulesToStage(3);
+const ActualModules = modulesToStage(StableModules, 3);
 
 const ESSet = new Set(ESModules);
 const ESWithProposalsSet = new Set(ESWithProposalsModules);
@@ -39,13 +33,6 @@ const entriesMap = AllModules.reduce((memo, it) => {
   memo[`modules/${ it }`] = [it];
   return memo;
 }, {});
-
-function expandModules(modules, filter) {
-  if (!Array.isArray(modules)) modules = [modules];
-  modules = modules.flatMap(it => it instanceof RegExp ? AllModules.filter(path => it.test(path)) : [it]);
-  if (filter) modules = modules.filter(it => typeof it != 'string' || filter.has(it));
-  return modules;
-}
 
 async function buildEntry(entry, options) {
   let {
@@ -73,11 +60,11 @@ async function buildEntry(entry, options) {
       filter ??= ESWithProposalsSet;
   }
 
-  if (!enforceEntryCreation && !expandModules(modules[0], filter).length) return;
+  if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
 
   const rawModules = modules;
 
-  modules = expandModules(modules, filter);
+  modules = expandModules(modules, filter, AllModules);
 
   const level = entry.split('/').length - 1;
 
@@ -127,9 +114,9 @@ for (const [name, definition] of Object.entries(proposals)) {
 }
 
 await buildEntry('stage/3', { template: $path, modules: ActualModules, subset: 'es-stage' });
-await buildEntry('stage/2.7', { template: $path, modules: modulesToStage(2.7), subset: 'es-stage' });
-await buildEntry('stage/2', { template: $path, modules: modulesToStage(2), subset: 'es-stage' });
-await buildEntry('stage/1', { template: $path, modules: modulesToStage(1), subset: 'es-stage' });
+await buildEntry('stage/2.7', { template: $path, modules: modulesToStage(StableModules, 2.7), subset: 'es-stage' });
+await buildEntry('stage/2', { template: $path, modules: modulesToStage(StableModules, 2), subset: 'es-stage' });
+await buildEntry('stage/1', { template: $path, modules: modulesToStage(StableModules, 1), subset: 'es-stage' });
 await buildEntry('stage/0', { template: $path, modules: AllModules, subset: 'es-stage' });
 
 await buildEntry('es/index', { template: $path, modules: ESModules, subset: 'es' });
