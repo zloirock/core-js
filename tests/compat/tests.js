@@ -1837,6 +1837,9 @@ GLOBAL.tests = {
   'esnext.iterator.concat': function () {
     return Iterator.concat;
   },
+  'esnext.iterator.join': function () {
+    return Iterator.prototype.join;
+  },
   'esnext.iterator.range': function () {
     return Iterator.range;
   },

@@ -1306,6 +1306,18 @@ export const features = {
     namespace: 'Iterator',
     name: 'forEach',
   },
+  'iterator/join': {
+    modules: ['esnext.iterator.join'],
+    template: $uncurried,
+    namespace: 'Iterator',
+    name: 'join',
+  },
+  'iterator/prototype/join': {
+    modules: ['esnext.iterator.join'],
+    template: $prototype,
+    namespace: 'Iterator',
+    name: 'join',
+  },
   'iterator/map': {
     modules: ['es.iterator.map'],
     template: $uncurried,
@@ -3455,6 +3467,13 @@ export const proposals = {
     modules: [
       'esnext.iterator.chunks',
       'esnext.iterator.windows',
+    ],
+  },
+  'iterator-join': {
+    link: 'https://github.com/bakkot/proposal-iterator-join',
+    stage: 0,
+    modules: [
+      'esnext.iterator.join',
     ],
   },
   'iterator-range': {
