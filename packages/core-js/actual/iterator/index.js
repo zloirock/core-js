@@ -1,5 +1,6 @@
 'use strict';
 var parent = require('../../stable/iterator');
+require('../../modules/es.object.create');
 require('../../modules/es.promise');
 require('../../modules/esnext.iterator.constructor');
 require('../../modules/esnext.iterator.concat');
@@ -17,5 +18,7 @@ require('../../modules/esnext.iterator.some');
 require('../../modules/esnext.iterator.take');
 require('../../modules/esnext.iterator.to-array');
 require('../../modules/esnext.iterator.to-async');
+require('../../modules/esnext.iterator.zip');
+require('../../modules/esnext.iterator.zip-keyed');
 
 module.exports = parent;

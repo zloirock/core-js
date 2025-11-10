@@ -169,12 +169,12 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [New `Set` methods](#new-set-methods)
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
+      - [Joint iteration](#joint-iteration)
       - [`Map` upsert](#map-upsert)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` chunking](#iterator-chunking)
-      - [Joint iteration](#joint-iteration)
     - [Stage 2 proposals](#stage-2-proposals)
       - [`AsyncIterator` helpers](#asynciterator-helpers)
       - [`Iterator.range`](#iteratorrange)
@@ -2705,6 +2705,57 @@ core-js/proposals/math-sum
 core-js(-pure)/stage/3
 ```
 
+##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
+Modules [esnext.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [esnext.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
+```ts
+class Iterator {
+  zip<T extends readonly Iterable<unknown>[]>(
+    iterables: T,
+    options?: {
+      mode?: 'shortest' | 'longest' | 'strict';
+      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
+    }
+  ): IterableIterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
+  zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
+    iterables: V,
+    options?: {
+      mode?: 'shortest' | 'longest' | 'strict';
+      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
+    }
+  ): IterableIterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/joint-iteration
+core-js(-pure)/actual|full/iterator/zip
+core-js(-pure)/actual|full/iterator/zip-keyed
+```
+[*Example*](https://tinyurl.com/vutnf2nu):
+```js
+Iterator.zip([
+  [0, 1, 2],
+  [3, 4, 5],
+]).toArray();  // => [[0, 3], [1, 4], [2, 5]]
+
+Iterator.zipKeyed({
+  a: [0, 1, 2],
+  b: [3, 4, 5, 6],
+  c: [7, 8, 9],
+}, {
+  mode: 'longest',
+  padding: { c: 10 },
+}).toArray();
+/*
+[
+  { a: 0,         b: 3, c: 7  },
+  { a: 1,         b: 4, c: 8  },
+  { a: 2,         b: 5, c: 9  },
+  { a: undefined, b: 6, c: 10 },
+];
+ */
+```
+
 ##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
 Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
 ```ts
@@ -2831,57 +2882,6 @@ let windows = Array.from(digits().windows(2));  // [[0, 1], [1, 2], [2, 3], [3, 
 let windowsPartial = Array.from([0, 1].values().windows(3, 'allow-partial'));  // [[0, 1]]
 
 let windowsFull = Array.from([0, 1].values().windows(3));  // []
-```
-
-##### [Joint iteration](https://github.com/tc39/proposal-joint-iteration)[⬆](#index)
-Modules [esnext.iterator.zip](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip.js), [esnext.iterator.zip-keyed](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.zip-keyed.js)
-```ts
-class Iterator {
-  zip<T extends readonly Iterable<unknown>[]>(
-    iterables: T,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [K in keyof T]?: T[K] extends Iterable<infer U> ? U : never };
-    }
-  ): IterableIterator<{ [K in keyof T]: T[K] extends Iterable<infer U> ? U : never }>;
-  zipKeyed<K extends PropertyKey, V extends Record<K, Iterable<unknown>>>(
-    iterables: V,
-    options?: {
-      mode?: 'shortest' | 'longest' | 'strict';
-      padding?: { [P in keyof V]?: V[P] extends Iterable<infer U> ? U : never };
-    }
-  ): IterableIterator<{ [P in keyof V]: V[P] extends Iterable<infer U> ? U : never }>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/joint-iteration
-core-js(-pure)/full/iterator/zip
-core-js(-pure)/full/iterator/zip-keyed
-```
-[*Example*](https://tinyurl.com/vutnf2nu):
-```js
-Iterator.zip([
-  [0, 1, 2],
-  [3, 4, 5],
-]).toArray();  // => [[0, 3], [1, 4], [2, 5]]
-
-Iterator.zipKeyed({
-  a: [0, 1, 2],
-  b: [3, 4, 5, 6],
-  c: [7, 8, 9],
-}, {
-  mode: 'longest',
-  padding: { c: 10 },
-}).toArray();
-/*
-[
-  { a: 0,         b: 3, c: 7  },
-  { a: 1,         b: 4, c: 8  },
-  { a: 2,         b: 5, c: 9  },
-  { a: undefined, b: 6, c: 10 },
-];
- */
 ```
 
 #### Stage 2 proposals[⬆](#index)
