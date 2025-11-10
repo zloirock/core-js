@@ -1,5 +1,10 @@
 # Changelog
 ### Unreleased
+- [`Iterator` sequencing proposal](https://github.com/tc39/proposal-iterator-sequencing):
+  - Built-ins:
+    - `Iterator.concat`
+  - Moved to stable ES, November 2025 TC39 meeting
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Fixed increasing `.size` in `URLSearchParams.prototype.append` polyfill in IE8-
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in FF147](https://bugzilla.mozilla.org/show_bug.cgi?id=1986672#c4)

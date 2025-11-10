@@ -1,7 +1,7 @@
 import { createIterable, createIterator } from '../helpers/helpers.js';
 
-import concat from 'core-js-pure/actual/iterator/concat';
-import Iterator from 'core-js-pure/actual/iterator';
+import concat from 'core-js-pure/es/iterator/concat';
+import Iterator from 'core-js-pure/es/iterator';
 import Symbol from 'core-js-pure/es/symbol';
 import from from 'core-js-pure/es/array/from';
 

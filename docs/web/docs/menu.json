@@ -146,6 +146,10 @@
                 "url": "{docs-version}/docs/features/proposals/iterator-helpers"
               },
               {
+                "title": "Iterator sequencing",
+                "url": "{docs-version}/docs/features/proposals/iterator-sequencing"
+              },
+              {
                 "title": "Object.values / Object.entries",
                 "url": "{docs-version}/docs/features/proposals/object-values-entries"
               },
@@ -238,10 +242,6 @@
           {
             "title": "Stage 3 proposals",
             "children": [
-              {
-                "title": "Iterator sequencing",
-                "url": "{docs-version}/docs/features/proposals/iterator-sequencing"
-              },
               {
                 "title": "Map upsert",
                 "url": "{docs-version}/docs/features/proposals/map-upsert"
