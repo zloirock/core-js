@@ -577,6 +577,8 @@
     "./proposals/iterator-helpers.js": "./proposals/iterator-helpers.js",
     "./proposals/iterator-chunking": "./proposals/iterator-chunking.js",
     "./proposals/iterator-chunking.js": "./proposals/iterator-chunking.js",
+    "./proposals/iterator-join": "./proposals/iterator-join.js",
+    "./proposals/iterator-join.js": "./proposals/iterator-join.js",
     "./proposals/iterator-range": "./proposals/iterator-range.js",
     "./proposals/iterator-range.js": "./proposals/iterator-range.js",
     "./proposals/iterator-sequencing": "./proposals/iterator-sequencing.js",

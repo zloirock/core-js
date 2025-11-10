@@ -742,6 +742,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'function/prototype/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
+    ok(typeof load(NS, 'iterator/join') == 'function');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/prototype/chunks') == 'function');
@@ -820,6 +821,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/iterator-range');
   load('proposals/iterator-sequencing');
   load('proposals/iterator-chunking');
+  load('proposals/iterator-join');
   load('proposals/joint-iteration');
   load('proposals/json-parse-with-source');
   load('proposals/math-clamp');
