@@ -2448,7 +2448,7 @@ export const data = {
   },
   'esnext.iterator.chunks': {
   },
-  'esnext.iterator.concat': {
+  'esnext.iterator.join': {
   },
   'esnext.iterator.range': {
   },
