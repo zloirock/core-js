@@ -12,6 +12,6 @@
     "phantomjs-prebuilt": "~2.1.16",
     "playwright": "^1.56.1",
     "qunit": "^2.24.2",
-    "which": "^5.0.0"
+    "which": "^6.0.0"
   }
 }
