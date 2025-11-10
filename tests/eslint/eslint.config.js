@@ -1283,6 +1283,7 @@ const forbidCompletelyNonExistentBuiltIns = {
   ] }],
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
     'chunks',
+    'join',
     'sliding',
     'toAsync',
     'windows',
