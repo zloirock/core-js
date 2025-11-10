@@ -1319,7 +1319,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'upsert',
   ] }],
   'es/no-nonstandard-math-properties': [ERROR, { allow: [
-    'sumPrecise',
     // TODO: drop from `core-js@4`
     'DEG_PER_RAD',
     'RAD_PER_DEG',
@@ -1403,8 +1402,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'useSimple',
   ] }],
   'es/no-nonstandard-typed-array-properties': [ERROR, { allow: [
-    'fromBase64',
-    'fromHex',
     // TODO: drop from `core-js@4`
     'fromAsync',
   ] }],
@@ -1414,11 +1411,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     // TODO: drop from `core-js@4`
     'filterOut',
     'groupBy',
-    'setFromBase64',
-    'setFromHex',
-    'toBase64',
-    'toHex',
-    'toSpliced',
   ] }],
   'es/no-nonstandard-weakmap-properties': [ERROR, { allow: [
     'from',
