@@ -1,28 +1,15 @@
 import { features, proposals } from '../build-entries/entries-definitions.mjs';
 import { $path, $proposal } from '../build-entries/templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
-import { getModulesMetadata, sort } from '../build-entries/get-dependencies.mjs';
+import { getModulesMetadata } from '../build-entries/get-dependencies.mjs';
 import config from './config.mjs';
 import { argv, path, fs } from 'zx';
+import { expandModules, modulesToStage } from '../build-entries/helpers.mjs';
 
 const { copy, outputFile, pathExists, readdir, remove } = fs;
 
 const versionArg = argv._.find(item => item.startsWith('version='));
 const VERSION = versionArg ? versionArg.slice('version='.length) : undefined;
-
-function modulesToStage(x) {
-  return sort([
-    ...StableModules,
-    ...Object.values(proposals).flatMap(({ stage, modules }) => stage >= x ? modules : []),
-  ]);
-}
-
-function expandModules(modules, filter) {
-  if (!Array.isArray(modules)) modules = [modules];
-  modules = modules.flatMap(it => it instanceof RegExp ? AllModules.filter(p => it.test(p)) : [it]);
-  if (filter) modules = modules.filter(it => typeof it != 'string' || filter.has(it));
-  return modules;
-}
 
 async function buildType(typeFilePath, entry, options) {
   let {
@@ -50,11 +37,11 @@ async function buildType(typeFilePath, entry, options) {
       filter ??= ESWithProposalsSet;
   }
 
-  if (!enforceEntryCreation && !expandModules(modules[0], filter).length) return;
+  if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
 
   const rawModules = modules;
 
-  modules = expandModules(modules, filter);
+  modules = expandModules(modules, filter, AllModules);
 
   const level = entry.split('/').length - 1;
 
@@ -102,7 +89,7 @@ async function addImports(filePath, fromPath) {
 const ESModules = AllModules.filter(it => it.startsWith('es.'));
 const ESWithProposalsModules = AllModules.filter(it => it.startsWith('es'));
 const StableModules = AllModules.filter(it => it.match(/^(?:es|web)\./));
-const ActualModules = modulesToStage(3);
+const ActualModules = modulesToStage(StableModules, 3);
 
 const ESSet = new Set(ESModules);
 const ESWithProposalsSet = new Set(ESWithProposalsModules);
@@ -131,9 +118,9 @@ async function buildTypesForTSVersion(tsVersion) {
   }
 
   await buildType(bundlePath, 'stage/3', { template: $path, modules: ActualModules, subset: 'es-stage' });
-  await buildType(bundlePath, 'stage/2.7', { template: $path, modules: modulesToStage(2.7), subset: 'es-stage' });
-  await buildType(bundlePath, 'stage/2', { template: $path, modules: modulesToStage(2), subset: 'es-stage' });
-  await buildType(bundlePath, 'stage/1', { template: $path, modules: modulesToStage(1), subset: 'es-stage' });
+  await buildType(bundlePath, 'stage/2.7', { template: $path, modules: modulesToStage(StableModules, 2.7), subset: 'es-stage' });
+  await buildType(bundlePath, 'stage/2', { template: $path, modules: modulesToStage(StableModules, 2), subset: 'es-stage' });
+  await buildType(bundlePath, 'stage/1', { template: $path, modules: modulesToStage(StableModules, 1), subset: 'es-stage' });
   await buildType(bundlePath, 'stage/0', { template: $path, modules: AllModules, subset: 'es-stage' });
 
   await buildType(bundlePath, 'es/index', { template: $path, modules: ESModules, subset: 'es' });
