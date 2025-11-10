@@ -26,12 +26,10 @@ QUnit.test('Iterator#join', assert => {
   assert.strictEqual(join.call(createIterator([1, undefined, 3]), '-'), '1--3', 'skips undefined values');
   assert.strictEqual(join.call(createIterator([])), '', 'empty iterator');
 
-  {
-    assert.throws(() => join.call(''), TypeError, 'iterable non-object this');
-    assert.throws(() => join.call(undefined), TypeError, 'non-iterable-object this #1');
-    assert.throws(() => join.call(null), TypeError, 'non-iterable-object this #2');
-    assert.throws(() => join.call(5), TypeError, 'non-iterable-object this #3');
-  }
+  assert.throws(() => join.call(''), TypeError, 'iterable non-object this');
+  assert.throws(() => join.call(undefined), TypeError, 'non-iterable-object this #1');
+  assert.throws(() => join.call(null), TypeError, 'non-iterable-object this #2');
+  assert.throws(() => join.call(5), TypeError, 'non-iterable-object this #3');
 
   const symbol = Symbol('a');
   const itObservable2 = createIterator([1, 2, 3], observableReturn);
