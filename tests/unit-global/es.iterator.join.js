@@ -11,6 +11,7 @@ QUnit.test('Iterator#join', assert => {
   assert.nonEnumerable(Iterator.prototype, 'join');
 
   const itObservable1 = createIterator([1, 2, 3], observableReturn);
+
   assert.strictEqual(join.call(itObservable1), '1,2,3', 'without separator attribute');
   assert.same(itObservable1.returnCalls, 0, 'does not call return after exhaustion');
   assert.strictEqual(join.call(createIterator([1, 2, 3]), '-'), '1-2-3', 'with separator attribute');
@@ -18,12 +19,10 @@ QUnit.test('Iterator#join', assert => {
   assert.strictEqual(join.call(createIterator([1, undefined, 3]), '-'), '1--3', 'skips undefined values');
   assert.strictEqual(join.call(createIterator([])), '', 'empty iterator');
 
-  {
-    assert.throws(() => join.call(''), TypeError, 'iterable non-object this');
-    assert.throws(() => join.call(undefined), TypeError, 'non-iterable-object this #1');
-    assert.throws(() => join.call(null), TypeError, 'non-iterable-object this #2');
-    assert.throws(() => join.call(5), TypeError, 'non-iterable-object this #3');
-  }
+  assert.throws(() => join.call(''), TypeError, 'iterable non-object this');
+  assert.throws(() => join.call(undefined), TypeError, 'non-iterable-object this #1');
+  assert.throws(() => join.call(null), TypeError, 'non-iterable-object this #2');
+  assert.throws(() => join.call(5), TypeError, 'non-iterable-object this #3');
 
   const itObservable2 = createIterator([1, 2, 3], observableReturn);
   assert.throws(() => join.call(itObservable2, symbol), TypeError, 'throws on symbol separator');
