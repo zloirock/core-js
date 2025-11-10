@@ -1252,18 +1252,9 @@ const forbidCompletelyNonExistentBuiltIns = {
   'es/no-nonstandard-array-prototype-properties': [ERROR, { allow: [
     'filterReject',
     'uniqueBy',
-    // TODO: drop from `core-js@4`
-    'filterOut',
-    'group',
-    'groupBy',
-    'groupByToMap',
-    'groupToMap',
-    'lastIndex',
-    'lastItem',
   ] }],
   'es/no-nonstandard-bigint-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'range',
+    // empty
   ] }],
   'es/no-nonstandard-dataview-prototype-properties': [ERROR, { allow: [
     'getUint8Clamped',
@@ -1281,109 +1272,49 @@ const forbidCompletelyNonExistentBuiltIns = {
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
     'chunks',
     'join',
-    'sliding',
     'toAsync',
     'windows',
-    // TODO: drop from `core-js@4`
-    'asIndexedPairs',
-    'indexed',
   ] }],
   'es/no-nonstandard-map-properties': [ERROR, { allow: [
     'from',
     'of',
-    // TODO: drop from `core-js@4`
-    'keyBy',
   ] }],
   'es/no-nonstandard-map-prototype-properties': [ERROR, { allow: [
     'getOrInsert',
     'getOrInsertComputed',
-    // TODO: drop from `core-js@4`
-    'deleteAll',
-    'emplace',
-    'every',
-    'filter',
-    'find',
-    'findKey',
-    'includes',
-    'keyOf',
-    'mapKeys',
-    'mapValues',
-    'merge',
-    'reduce',
-    'some',
-    'update',
-    'updateOrInsert',
-    'upsert',
   ] }],
   'es/no-nonstandard-math-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'DEG_PER_RAD',
-    'RAD_PER_DEG',
-    'clamp',
-    'degrees',
-    'fscale',
-    'iaddh',
-    'imulh',
-    'isubh',
-    'radians',
-    'scale',
-    'seededPRNG',
-    'signbit',
-    'umulh',
+    // empty
   ] }],
   'es/no-nonstandard-number-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'fromString',
-    'range',
+    // empty
   ] }],
   'es/no-nonstandard-number-prototype-properties': [ERROR, { allow: [
     'clamp',
   ] }],
   'es/no-nonstandard-object-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'iterateEntries',
-    'iterateKeys',
-    'iterateValues',
+    // empty
   ] }],
   'es/no-nonstandard-promise-properties': [ERROR, { allow: [
     'allKeyed',
     'allSettledKeyed',
   ] }],
   'es/no-nonstandard-reflect-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'defineMetadata',
-    'deleteMetadata',
-    'getMetadata',
-    'getMetadataKeys',
-    'getOwnMetadata',
-    'getOwnMetadataKeys',
-    'hasMetadata',
-    'hasOwnMetadata',
-    'metadata',
+    // empty
   ] }],
   'es/no-nonstandard-set-properties': [ERROR, { allow: [
     'from',
     'of',
   ] }],
   'es/no-nonstandard-set-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'addAll',
-    'deleteAll',
-    'every',
-    'filter',
-    'find',
-    'join',
-    'map',
-    'reduce',
-    'some',
+    // empty
   ] }],
   'es/no-nonstandard-string-properties': [ERROR, { allow: [
     'cooked',
     'dedent',
   ] }],
   'es/no-nonstandard-string-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'codePoints',
+    // empty
   ] }],
   'es/no-nonstandard-symbol-properties': [ERROR, { allow: [
     'customMatcher',
@@ -1391,27 +1322,13 @@ const forbidCompletelyNonExistentBuiltIns = {
     'isWellKnownSymbol',
     'metadata',
     'sham', // non-standard flag
-    // TODO: drop from `core-js@4`
-    'isRegistered',
-    'isWellKnown',
-    'matcher',
-    'metadataKey',
-    'observable',
-    'patternMatch',
-    'replaceAll',
-    'useSetter',
-    'useSimple',
   ] }],
   'es/no-nonstandard-typed-array-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'fromAsync',
+    // empty
   ] }],
   'es/no-nonstandard-typed-array-prototype-properties': [ERROR, { allow: [
     'filterReject',
     'uniqueBy',
-    // TODO: drop from `core-js@4`
-    'filterOut',
-    'groupBy',
   ] }],
   'es/no-nonstandard-weakmap-properties': [ERROR, { allow: [
     'from',
@@ -1420,19 +1337,13 @@ const forbidCompletelyNonExistentBuiltIns = {
   'es/no-nonstandard-weakmap-prototype-properties': [ERROR, { allow: [
     'getOrInsert',
     'getOrInsertComputed',
-    // TODO: drop from `core-js@4`
-    'deleteAll',
-    'emplace',
-    'upsert',
   ] }],
   'es/no-nonstandard-weakset-properties': [ERROR, { allow: [
     'from',
     'of',
   ] }],
   'es/no-nonstandard-weakset-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'addAll',
-    'deleteAll',
+    // empty
   ] }],
 };
 
