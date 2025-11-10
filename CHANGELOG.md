@@ -1,5 +1,11 @@
 # Changelog
 ### Unreleased
+- [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration):
+  - Built-ins:
+    - `Iterator.zip`
+    - `Iterator.zipKeyed`
+  - Moved to stage 3, November 2025 TC39 meeting
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Fixed increasing `.size` in `URLSearchParams.prototype.append` polyfill in IE8-
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped in Safari 26.2
