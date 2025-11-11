@@ -8,7 +8,7 @@
 ## Built-ins signatures
 ```ts
 class Iterator {
-  concat(...items: Array<IterableObject>): Iterator<any>;
+  static concat(...items: Array<IterableObject>): Iterator<any>;
 }
 ```
 
