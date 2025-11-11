@@ -311,4 +311,9 @@ export default {
     'es.uint8-array.to-base64',
     'es.uint8-array.to-hex',
   ],
+  3.47: [
+    'es.json.is-raw-json',
+    'es.json.parse',
+    'es.json.raw-json',
+  ],
 };
