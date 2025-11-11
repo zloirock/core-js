@@ -1,5 +1,3 @@
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
-
 const { assign, create } = Object;
 
 QUnit.test('AsyncIterator.from', assert => {
@@ -26,7 +24,7 @@ QUnit.test('AsyncIterator.from', assert => {
 
   const closableIterator = {
     closed: false,
-    [ITERATOR]() { return this; },
+    [Symbol.iterator]() { return this; },
     next() {
       return { value: Promise.reject(42), done: false };
     },

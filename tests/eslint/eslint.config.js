@@ -23,7 +23,7 @@ import pluginStylistic from '@stylistic/eslint-plugin';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
-const PACKAGES_NODE_VERSIONS = '8.9.0';
+const PACKAGES_NODE_VERSIONS = '^18.12';
 const DEV_NODE_VERSIONS = '^18.12';
 
 const ERROR = 'error';
@@ -1106,7 +1106,7 @@ const base = {
 
   // suggest better alternatives to some dependencies
   'depend/ban-dependencies': [ERROR, { allowed: [
-    'mkdirp', // TODO: drop from `core-js@4`
+    // empty
   ] }],
 };
 
@@ -1117,10 +1117,8 @@ const noAsyncAwait = {
   'promise/prefer-await-to-then': OFF,
 };
 
-const useES3Syntax = {
+const useES5Syntax = {
   ...noAsyncAwait,
-  // encourages use of dot notation whenever possible
-  'dot-notation': [ERROR, { allowKeywords: false }],
   // disallow logical assignment operator shorthand
   'logical-assignment-operators': [ERROR, NEVER],
   // disallow function or variable declarations in nested blocks
@@ -1145,10 +1143,6 @@ const useES3Syntax = {
   'prefer-spread': OFF,
   // require template literals instead of string concatenation
   'prefer-template': OFF,
-  // disallow trailing commas in multiline object literals
-  '@stylistic/comma-dangle': [ERROR, NEVER],
-  // require or disallow use of quotes around object literal property names
-  '@stylistic/quote-props': [ERROR, 'as-needed', { keywords: true }],
   // enforce the use of exponentiation (`**`) operator instead of other calculations
   'math/prefer-exponentiation-operator': OFF,
   // prefer lookarounds over capturing group that do not replace
@@ -1251,18 +1245,9 @@ const forbidCompletelyNonExistentBuiltIns = {
   'es/no-nonstandard-array-prototype-properties': [ERROR, { allow: [
     'filterReject',
     'uniqueBy',
-    // TODO: drop from `core-js@4`
-    'filterOut',
-    'group',
-    'groupBy',
-    'groupByToMap',
-    'groupToMap',
-    'lastIndex',
-    'lastItem',
   ] }],
   'es/no-nonstandard-bigint-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'range',
+    // empty
   ] }],
   'es/no-nonstandard-dataview-prototype-properties': [ERROR, { allow: [
     'getUint8Clamped',
@@ -1280,12 +1265,9 @@ const forbidCompletelyNonExistentBuiltIns = {
   ] }],
   'es/no-nonstandard-iterator-prototype-properties': [ERROR, { allow: [
     'chunks',
-    'sliding',
+    'join',
     'toAsync',
     'windows',
-    // TODO: drop from `core-js@4`
-    'asIndexedPairs',
-    'indexed',
   ] }],
   'es/no-nonstandard-json-properties': [ERROR, { allow: [
     'isRawJSON',
@@ -1294,95 +1276,43 @@ const forbidCompletelyNonExistentBuiltIns = {
   'es/no-nonstandard-map-properties': [ERROR, { allow: [
     'from',
     'of',
-    // TODO: drop from `core-js@4`
-    'keyBy',
   ] }],
   'es/no-nonstandard-map-prototype-properties': [ERROR, { allow: [
     'getOrInsert',
     'getOrInsertComputed',
-    // TODO: drop from `core-js@4`
-    'deleteAll',
-    'emplace',
-    'every',
-    'filter',
-    'find',
-    'findKey',
-    'includes',
-    'keyOf',
-    'mapKeys',
-    'mapValues',
-    'merge',
-    'reduce',
-    'some',
-    'update',
-    'updateOrInsert',
-    'upsert',
   ] }],
   'es/no-nonstandard-math-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'DEG_PER_RAD',
-    'RAD_PER_DEG',
-    'clamp',
-    'degrees',
-    'fscale',
-    'iaddh',
-    'imulh',
-    'isubh',
-    'radians',
-    'scale',
-    'seededPRNG',
-    'signbit',
-    'umulh',
+    // empty
   ] }],
   'es/no-nonstandard-number-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'fromString',
-    'range',
+    // empty
   ] }],
   'es/no-nonstandard-number-prototype-properties': [ERROR, { allow: [
     'clamp',
   ] }],
   'es/no-nonstandard-object-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'iterateEntries',
-    'iterateKeys',
-    'iterateValues',
+    // empty
+  ] }],
+  'es/no-nonstandard-promise-properties': [ERROR, { allow: [
+    'allKeyed',
+    'allSettledKeyed',
   ] }],
   'es/no-nonstandard-reflect-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'defineMetadata',
-    'deleteMetadata',
-    'getMetadata',
-    'getMetadataKeys',
-    'getOwnMetadata',
-    'getOwnMetadataKeys',
-    'hasMetadata',
-    'hasOwnMetadata',
-    'metadata',
+    // empty
   ] }],
   'es/no-nonstandard-set-properties': [ERROR, { allow: [
     'from',
     'of',
   ] }],
   'es/no-nonstandard-set-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'addAll',
-    'deleteAll',
-    'every',
-    'filter',
-    'find',
-    'join',
-    'map',
-    'reduce',
-    'some',
+    // empty
   ] }],
   'es/no-nonstandard-string-properties': [ERROR, { allow: [
     'cooked',
     'dedent',
   ] }],
   'es/no-nonstandard-string-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'codePoints',
+    // empty
   ] }],
   'es/no-nonstandard-symbol-properties': [ERROR, { allow: [
     'customMatcher',
@@ -1390,27 +1320,13 @@ const forbidCompletelyNonExistentBuiltIns = {
     'isWellKnownSymbol',
     'metadata',
     'sham', // non-standard flag
-    // TODO: drop from `core-js@4`
-    'isRegistered',
-    'isWellKnown',
-    'matcher',
-    'metadataKey',
-    'observable',
-    'patternMatch',
-    'replaceAll',
-    'useSetter',
-    'useSimple',
   ] }],
   'es/no-nonstandard-typed-array-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'fromAsync',
+    // empty
   ] }],
   'es/no-nonstandard-typed-array-prototype-properties': [ERROR, { allow: [
     'filterReject',
     'uniqueBy',
-    // TODO: drop from `core-js@4`
-    'filterOut',
-    'groupBy',
   ] }],
   'es/no-nonstandard-weakmap-properties': [ERROR, { allow: [
     'from',
@@ -1419,19 +1335,13 @@ const forbidCompletelyNonExistentBuiltIns = {
   'es/no-nonstandard-weakmap-prototype-properties': [ERROR, { allow: [
     'getOrInsert',
     'getOrInsertComputed',
-    // TODO: drop from `core-js@4`
-    'deleteAll',
-    'emplace',
-    'upsert',
   ] }],
   'es/no-nonstandard-weakset-properties': [ERROR, { allow: [
     'from',
     'of',
   ] }],
   'es/no-nonstandard-weakset-prototype-properties': [ERROR, { allow: [
-    // TODO: drop from `core-js@4`
-    'addAll',
-    'deleteAll',
+    // empty
   ] }],
 };
 
@@ -1447,35 +1357,15 @@ const forbidESAnnexBBuiltIns = {
 };
 
 const forbidES5BuiltIns = {
-  'es/no-array-isarray': ERROR,
-  'es/no-array-prototype-every': ERROR,
   'es/no-array-prototype-filter': ERROR,
-  'es/no-array-prototype-foreach': ERROR,
   'es/no-array-prototype-indexof': ERROR,
   'es/no-array-prototype-lastindexof': ERROR,
-  'es/no-array-prototype-map': ERROR,
   'es/no-array-prototype-reduce': ERROR,
   'es/no-array-prototype-reduceright': ERROR,
-  'es/no-array-prototype-some': ERROR,
-  'es/no-date-now': ERROR,
-  'es/no-function-prototype-bind': ERROR,
-  'es/no-json': ERROR,
-  'es/no-object-create': ERROR,
-  'es/no-object-defineproperties': ERROR,
-  'es/no-object-defineproperty': ERROR,
-  'es/no-object-freeze': ERROR,
-  'es/no-object-getownpropertydescriptor': ERROR,
-  'es/no-object-getownpropertynames': ERROR,
-  'es/no-object-getprototypeof': ERROR,
   'es/no-object-isextensible': ERROR,
   'es/no-object-isfrozen': ERROR,
   'es/no-object-issealed': ERROR,
-  'es/no-object-keys': ERROR,
-  'es/no-object-preventextensions': ERROR,
-  'es/no-object-seal': ERROR,
   'es/no-string-prototype-trim': ERROR,
-  // prefer `Date.now()` to get the number of milliseconds since the Unix Epoch
-  'unicorn/prefer-date-now': OFF,
   // prefer `globalThis` over `window`, `self`, and `global`
   'unicorn/prefer-global-this': OFF,
 };
@@ -1490,7 +1380,6 @@ const forbidES2015BuiltIns = {
   'es/no-array-prototype-findindex': ERROR,
   'es/no-array-prototype-keys': ERROR,
   'es/no-array-prototype-values': ERROR,
-  'es/no-map': ERROR,
   'es/no-math-acosh': ERROR,
   'es/no-math-asinh': ERROR,
   'es/no-math-atanh': ERROR,
@@ -1525,7 +1414,6 @@ const forbidES2015BuiltIns = {
   'es/no-proxy': ERROR,
   'es/no-reflect': ERROR,
   'es/no-regexp-prototype-flags': ERROR,
-  'es/no-set': ERROR,
   'es/no-string-fromcodepoint': ERROR,
   'es/no-string-prototype-codepointat': ERROR,
   'es/no-string-prototype-endswith': ERROR,
@@ -1535,8 +1423,6 @@ const forbidES2015BuiltIns = {
   'es/no-string-prototype-startswith': ERROR,
   'es/no-string-raw': ERROR,
   'es/no-symbol': ERROR,
-  'es/no-typed-arrays': ERROR,
-  'es/no-weak-map': ERROR,
   'es/no-weak-set': ERROR,
   // enforce the use of `Math.cbrt()` instead of other cube root calculations
   'math/prefer-math-cbrt': OFF,
@@ -1828,55 +1714,21 @@ const transpiledAndPolyfilled = {
 };
 
 const nodePackages = {
-  // disallow logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, NEVER],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
-  // prefer `node:` protocol
-  'node/prefer-node-protocol': OFF,
-  // prefer promises
-  'node/prefer-promises/dns': OFF,
-  'node/prefer-promises/fs': OFF,
-  // prefer lookarounds over capturing group that do not replace
-  'regexp/prefer-lookaround': [ERROR, { lookbehind: false, strictTypes: true }],
-  // enforce using named capture group in regular expression
-  'regexp/prefer-named-capture-group': OFF,
-  // prefer class field declarations over this assignments in constructors
-  'unicorn/prefer-class-fields': OFF,
-  // prefer using a logical operator over a ternary
-  'unicorn/prefer-logical-operator-over-ternary': OFF,
-  // prefer using the `node:` protocol when importing Node builtin modules
-  'unicorn/prefer-node-protocol': OFF,
-  // prefer omitting the `catch` binding parameter
-  'unicorn/prefer-optional-catch-binding': OFF,
-  // prefer using `structuredClone` to create a deep clone
-  'unicorn/prefer-structured-clone': OFF,
-  ...disable(forbidES5BuiltIns),
-  ...disable(forbidES2015BuiltIns),
-  ...disable(forbidES2016BuiltIns),
-  ...disable(forbidES2017BuiltIns),
-  'es/no-atomics': ERROR,
-  'es/no-shared-array-buffer': ERROR,
-  // disallow top-level `await`
-  'es/no-top-level-await': ERROR,
-  ...forbidES2018BuiltIns,
-  ...forbidES2019BuiltIns,
-  ...forbidES2020BuiltIns,
-  ...forbidES2021BuiltIns,
-  ...forbidES2022BuiltIns,
   ...forbidES2023BuiltIns,
+  'es/no-array-prototype-findlast-findlastindex': OFF,
   ...forbidES2024BuiltIns,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
-  ...disable(forbidES2016IntlBuiltIns),
-  ...disable(forbidES2017IntlBuiltIns),
-  ...forbidES2018IntlBuiltIns,
-  ...forbidES2020IntlBuiltIns,
-  ...forbidES2021IntlBuiltIns,
-  ...forbidES2022IntlBuiltIns,
+  'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
-  ...forbidES2025IntlBuiltIns,
+  ...forbidES2025BuiltIns,
+  // prefer using `structuredClone` to create a deep clone
+  'unicorn/prefer-structured-clone': OFF,
   ...forbidSomeES2025Syntax,
+  // prefer top-level await
+  'unicorn/prefer-top-level-await': ERROR,
 };
 
 const nodeDev = {
@@ -2260,6 +2112,7 @@ export default [
       'packages/core-js-bundle/!(package.json)',
       'packages/core-js-compat/!(package).json',
       'packages/core-js-pure/override/**',
+      'tests/babel-plugin/fixtures/**/*.mjs',
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/unit-@(global|pure)/index.js',
@@ -2330,9 +2183,9 @@ export default [
       'tests/@(compat|worker)/*.js',
     ],
     languageOptions: {
-      ecmaVersion: 3,
+      ecmaVersion: 5,
     },
-    rules: useES3Syntax,
+    rules: useES5Syntax,
   },
   {
     files: [
@@ -2347,12 +2200,6 @@ export default [
       'packages/core-js?(-pure)/**',
     ],
     rules: polyfills,
-  },
-  {
-    files: [
-      '**/postinstall.js',
-    ],
-    rules: disable(forbidES5BuiltIns),
   },
   {
     files: [
@@ -2395,7 +2242,7 @@ export default [
   },
   {
     files: [
-      'packages/core-js-@(builder|compat)/**',
+      'packages/core-js-@(babel-plugin|builder|compat)/**',
     ],
     rules: nodePackages,
   },

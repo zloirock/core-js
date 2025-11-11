@@ -1,10 +1,11 @@
-import Promise from 'core-js-pure/es/promise';
-import assign from 'core-js-pure/es/object/assign';
-import create from 'core-js-pure/es/object/create';
-import values from 'core-js-pure/es/array/values';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
-import AsyncIterator from 'core-js-pure/actual/async-iterator';
-import Iterator from 'core-js-pure/actual/iterator';
+import Promise from '@core-js/pure/es/promise';
+import assign from '@core-js/pure/es/object/assign';
+import values from '@core-js/pure/es/array/values';
+import ITERATOR from '@core-js/pure/es/symbol/iterator';
+import AsyncIterator from '@core-js/pure/full/async-iterator';
+import Iterator from '@core-js/pure/full/iterator';
+
+const { create } = Object;
 
 QUnit.test('AsyncIterator.from', assert => {
   const { from } = AsyncIterator;

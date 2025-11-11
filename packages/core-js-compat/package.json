@@ -1,6 +1,9 @@
 {
-  "name": "core-js-compat",
-  "version": "3.46.0",
+  "name": "@core-js/compat",
+  "version": "4.0.0-alpha.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "commonjs",
   "description": "core-js compat",
   "repository": {
@@ -16,7 +19,7 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "author": {
     "name": "Denis Pushkarev",
     "email": "zloirock@zloirock.ru",

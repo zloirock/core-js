@@ -1,5 +1,5 @@
-import Map from 'core-js-pure/actual/map';
-import from from 'core-js-pure/es/array/from';
+import Map from '@core-js/pure/actual/map';
+import from from '@core-js/pure/es/array/from';
 
 QUnit.test('Map#getOrInsert', assert => {
   const { getOrInsert } = Map.prototype;
