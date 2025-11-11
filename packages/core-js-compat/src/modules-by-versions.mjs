@@ -313,5 +313,8 @@ export default {
   ],
   3.47: [
     'es.iterator.concat',
+    'es.json.is-raw-json',
+    'es.json.parse',
+    'es.json.raw-json',
   ],
 };

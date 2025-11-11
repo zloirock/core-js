@@ -164,6 +164,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`Promise.withResolvers`](#promisewithresolvers)
       - [`Symbol.asyncIterator` for asynchronous iteration](#symbolasynciterator-for-asynchronous-iteration)
       - [`Symbol.prototype.description`](#symbolprototypedescription)
+      - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
       - [New `Set` methods](#new-set-methods)
@@ -171,7 +172,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
     - [Stage 3 proposals](#stage-3-proposals)
       - [Joint iteration](#joint-iteration)
       - [`Map` upsert](#map-upsert)
-      - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` chunking](#iterator-chunking)
@@ -2139,23 +2139,47 @@ instance.c; // => 42
 ```
 
 #### ECMAScript: JSON[⬆](#index)
-Since `JSON` object is missed only in very old engines like IE7-, `core-js` does not provide a full `JSON` polyfill, however, fix already existing implementations by the current standard, for example, [well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify). `JSON` is also fixed in other modules - for example, `Symbol` polyfill fixes `JSON.stringify` for correct work with symbols.
+Since `JSON` object is missed only in very old engines like IE7-, `core-js` does not provide a full `JSON.{ parse, stringify }` polyfill, however, fix already existing implementations by the current standard.
 
-Module [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js) and [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js).
+Modules [`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.raw-json.js), [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js) and [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js) .
 ```ts
 namespace JSON {
+  isRawJSON(O: any): boolean;
+  parse(text: string, reviver?: (this: any, key: string, value: any, context: { source?: string }) => any): any;
+  rawJSON(text: any): RawJSON;
   stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
   @@toStringTag: 'JSON';
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
+core-js(-pure)/es|stable|actual|full/json/is-raw-json
+core-js(-pure)/es|stable|actual|full/json/parse
+core-js(-pure)/es|stable|actual|full/json/raw-json
+core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/stringify
 core-js(-pure)/es|stable|actual|full/json/to-string-tag
 ```
-[*Examples*](https://is.gd/izZqKn):
+[*Examples*](https://tinyurl.com/34ctm7cn):
 ```js
 JSON.stringify({ '𠮷': ['\uDF06\uD834'] }); // => '{"𠮷":["\\udf06\\ud834"]}'
+
+function digitsToBigInt(key, val, { source }) {
+  return /^\d+$/.test(source) ? BigInt(source) : val;
+}
+
+function bigIntToRawJSON(key, val) {
+  return typeof val === 'bigint' ? JSON.rawJSON(String(val)) : val;
+}
+
+const tooBigForNumber = BigInt(Number.MAX_SAFE_INTEGER) + 2n;
+JSON.parse(String(tooBigForNumber), digitsToBigInt) === tooBigForNumber; // true
+
+const wayTooBig = BigInt(`1${ '0'.repeat(1000) }`);
+JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // true
+
+const embedded = JSON.stringify({ tooBigForNumber }, bigIntToRawJSON);
+embedded === '{"tooBigForNumber":9007199254740993}'; // true
 ```
 
 #### ECMAScript: globalThis[⬆](#index)
@@ -2649,6 +2673,23 @@ class Symbol {
 ```
 core-js/proposals/symbol-description
 ```
+
+##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)
+```ts
+namespace JSON {
+  isRawJSON(O: any): boolean;
+  // patched for source support
+  parse(text: string, reviver?: (this: any, key: string, value: any, context: { source?: string }) => any): any;
+  rawJSON(text: any): RawJSON;
+  // patched for `JSON.rawJSON` support
+  stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/json-parse-with-source
+```
+
 ##### [Well-formed `JSON.stringify`](https://github.com/tc39/proposal-well-formed-stringify)[⬆](#index)
 ```ts
 namespace JSON {
@@ -2790,46 +2831,6 @@ map.getOrInsertComputed('a', key => key); // => 1
 map.getOrInsertComputed('c', key => key); // => 'c'
 
 console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
-```
-
-##### [`JSON.parse` source text access](https://github.com/tc39/proposal-json-parse-with-source)[⬆](#index)
-Modules [`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
-```ts
-namespace JSON {
-  isRawJSON(O: any): boolean;
-  // patched for source support
-  parse(text: string, reviver?: (this: any, key: string, value: any, context: { source?: string }) => any): any;
-  rawJSON(text: any): RawJSON;
-  // patched for `JSON.rawJSON` support
-  stringify(value: any, replacer?: Array<string | number> | (this: any, key: string, value: any) => any, space?: string | number): string | void;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/json-parse-with-source
-core-js(-pure)/actual|full/json/is-raw-json
-core-js(-pure)/actual|full/json/parse
-core-js(-pure)/actual|full/json/raw-json
-core-js(-pure)/actual|full/json/stringify
-```
-[*Examples*](https://tinyurl.com/22phm569):
-```js
-function digitsToBigInt(key, val, { source }) {
-  return /^\d+$/.test(source) ? BigInt(source) : val;
-}
-
-function bigIntToRawJSON(key, val) {
-  return typeof val === 'bigint' ? JSON.rawJSON(String(val)) : val;
-}
-
-const tooBigForNumber = BigInt(Number.MAX_SAFE_INTEGER) + 2n;
-JSON.parse(String(tooBigForNumber), digitsToBigInt) === tooBigForNumber; // true
-
-const wayTooBig = BigInt(`1${ '0'.repeat(1000) }`);
-JSON.parse(String(wayTooBig), digitsToBigInt) === wayTooBig; // true
-
-const embedded = JSON.stringify({ tooBigForNumber }, bigIntToRawJSON);
-embedded === '{"tooBigForNumber":9007199254740993}'; // true
 ```
 
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)

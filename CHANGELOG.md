@@ -1,5 +1,14 @@
 # Changelog
 ### Unreleased
+- [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) :
+  - Built-ins:
+    - `JSON.isRawJSON`
+    - `JSON.parse`
+    - `JSON.rawJSON`
+    - `JSON.stringify`
+  - Moved to stable ES, November 2025 TC39 meeting
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
+  - Reworked `JSON.stringify` internals
 - [`Iterator` sequencing proposal](https://github.com/tc39/proposal-iterator-sequencing):
   - Built-ins:
     - `Iterator.concat`

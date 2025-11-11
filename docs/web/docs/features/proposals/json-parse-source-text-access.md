@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-json-parse-with-source)
 
 ## Modules
-[`esnext.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.is-raw-json.js), [`esnext.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.parse.js), [`esnext.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.json.raw-json.js).
+[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.raw-json.js).
 
 ## Built-ins signatures
 ```ts
@@ -20,10 +20,10 @@ namespace JSON {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/json-parse-with-source
-core-js(-pure)/actual|full/json/is-raw-json
-core-js(-pure)/actual|full/json/parse
-core-js(-pure)/actual|full/json/raw-json
-core-js(-pure)/actual|full/json/stringify
+core-js(-pure)/es|stable|actual|full/json/is-raw-json
+core-js(-pure)/es|stable|actual|full/json/parse
+core-js(-pure)/es|stable|actual|full/json/raw-json
+core-js(-pure)/es|stable|actual|full/json/stringify
 ```
 
 ## Examples

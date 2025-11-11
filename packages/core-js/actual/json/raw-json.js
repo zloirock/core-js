@@ -1,7 +1,6 @@
 'use strict';
-require('../../modules/es.object.create');
-require('../../modules/es.object.freeze');
+var parent = require('../../stable/json/raw-json');
+require('../../modules/es.json.stringify');
 require('../../modules/esnext.json.raw-json');
-var path = require('../../internals/path');
 
-module.exports = path.JSON.rawJSON;
+module.exports = parent;

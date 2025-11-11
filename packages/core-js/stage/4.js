@@ -14,6 +14,7 @@ require('../proposals/global-this');
 require('../proposals/is-error');
 require('../proposals/iterator-helpers-stage-3-2');
 require('../proposals/iterator-sequencing');
+require('../proposals/json-parse-with-source');
 require('../proposals/math-sum');
 require('../proposals/promise-all-settled');
 require('../proposals/promise-any');
