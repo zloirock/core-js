@@ -227,7 +227,7 @@ async function buildPlaygrounds(template, versions) {
 }
 
 async function buildPlayground(template, version, versions) {
-  const versionPath = version.path ?? version.label;
+  const versionPath = version.branch ?? version.tag;
   const bundleScript = `<script nomodule src="${ config.bundlesPath }/${ versionPath }/${ config.bundleName }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ config.bundlesPath }/${ versionPath }/${ config.bundleNameESModules }"></script>`;
   const babelScript = '<script src="./babel.min.js"></script>';
@@ -275,6 +275,7 @@ async function getVersions() {
     return [{
       label: BRANCH,
       default: true,
+      branch: BRANCH,
     }];
   }
   const versions = await readJson(config.versionsFile);
