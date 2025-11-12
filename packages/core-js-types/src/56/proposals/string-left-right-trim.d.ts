@@ -6,11 +6,19 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 interface String {
+  /** Removes the trailing white space and line terminator characters from a string. */
   trimEnd(): string;
 
+  /** Removes the leading white space and line terminator characters from a string. */
   trimStart(): string;
 
+  /**
+   * Removes the leading white space and line terminator characters from a string.
+   */
   trimLeft(): string;
 
+  /**
+   * Removes the trailing white space and line terminator characters from a string.
+   */
   trimRight(): string;
 }
