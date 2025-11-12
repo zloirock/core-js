@@ -2141,8 +2141,12 @@ const packageJSON = {
   'package-json/valid-directories': ERROR,
   // enforce that the `exports` property is valid
   'package-json/valid-exports': ERROR,
+  // enforce that the `files` property is valid
+  'package-json/valid-files': ERROR,
   // enforce that the `homepage` property is valid
   'package-json/valid-homepage': ERROR,
+  // enforce that the `keywords` property is valid
+  'package-json/valid-keywords': ERROR,
   // enforce that the `license` property is valid
   'package-json/valid-license': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
