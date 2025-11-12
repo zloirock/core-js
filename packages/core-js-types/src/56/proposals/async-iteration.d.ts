@@ -6,5 +6,9 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 interface SymbolConstructor {
+  /**
+   * A method that returns the default async iterator for an object. Called by the semantics of
+   * the for-await-of statement.
+   */
   readonly asyncIterator: unique symbol;
 }
