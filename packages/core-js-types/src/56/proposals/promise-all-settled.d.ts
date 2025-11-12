@@ -9,8 +9,20 @@ import { CoreJSPromiseSettledResult } from '../core-js-types/core-js-types';
 
 declare global {
   interface PromiseConstructor {
+    /**
+     * Creates a Promise that is resolved with an array of results when all
+     * of the provided Promises resolve or reject.
+     * @param values An array of Promises.
+     * @returns A new Promise.
+     */
     allSettled<T extends readonly unknown[] | []>(values: T): Promise<{ -readonly [P in keyof T]: CoreJSPromiseSettledResult<Awaited<T[P]>>; }>;
 
+    /**
+     * Creates a Promise that is resolved with an array of results when all
+     * of the provided Promises resolve or reject.
+     * @param values An array of Promises.
+     * @returns A new Promise.
+     */
     allSettled<T>(values: Iterable<T | PromiseLike<T>>): Promise<CoreJSPromiseSettledResult<Awaited<T>>[]>;
   }
 }

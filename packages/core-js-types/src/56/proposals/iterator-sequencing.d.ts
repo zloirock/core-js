@@ -5,6 +5,11 @@ import { CoreJSIteratorObject } from '../core-js-types/core-js-types';
 
 declare global {
   interface IteratorConstructor {
+    /**
+     * Creates an iterator that sequentially yields values from the provided iterables.
+     * @param iterators The iterables to concatenate.
+     * @returns An iterator yielding values from each input iterable in sequence.
+     */
     concat<T, U>(...iterators: Iterable<U>[]): CoreJSIteratorObject<T | U>;
   }
 
