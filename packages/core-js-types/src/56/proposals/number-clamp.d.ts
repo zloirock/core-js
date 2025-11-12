@@ -2,5 +2,11 @@
 // https://github.com/tc39/proposal-math-clamp
 
 interface Number {
+  /**
+   * Clamps the number within the inclusive lower and upper bounds.
+   * @param lower
+   * @param upper
+   * @returns The clamped number.
+   */
   clamp(lower: number, upper: number): number;
 }
