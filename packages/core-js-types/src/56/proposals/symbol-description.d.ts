@@ -6,5 +6,8 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 interface Symbol {
+  /**
+   * Expose the [[Description]] internal slot of a symbol directly.
+   */
   readonly description: string | undefined;
 }
