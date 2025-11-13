@@ -2,6 +2,9 @@
 LOCK_FILE=./runner.lock
 PID_FILE=./runner.pid
 
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
 kill_old_build() {
     if [ -f "$PID_FILE" ]; then
         OLD_PID=$(cat "$PID_FILE")
