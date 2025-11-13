@@ -2151,6 +2151,10 @@ const packageJSON = {
   'package-json/valid-license': ERROR,
   // enforce that the `main` property is valid
   'package-json/valid-main': ERROR,
+  // enforce that the `os` property is valid
+  'package-json/valid-os': ERROR,
+  // enforce that the `private` property is valid
+  'package-json/valid-private': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
   'package-json/valid-repository-directory': ERROR,
   // enforce that the `scripts` property is valid.
