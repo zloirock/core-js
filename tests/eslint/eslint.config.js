@@ -2131,6 +2131,8 @@ const packageJSON = {
   'package-json/valid-bin': ERROR,
   // enforce that the `config` property is valid
   'package-json/valid-config': ERROR,
+  // enforce that the `contributors` property is valid
+  'package-json/valid-contributors': ERROR,
   // enforce that the `cpu` property is valid
   'package-json/valid-cpu': ERROR,
   // enforce that the `dependencies` property is valid
