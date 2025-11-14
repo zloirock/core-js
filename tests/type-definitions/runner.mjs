@@ -46,7 +46,7 @@ const runTestsOnEnv = async function ({ typeScriptVersion, target, type, env, li
   $.verbose = false;
   const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
   const command = `npx -p typescript@${ typeScriptVersion }${ env ? ` -p ${ env }` : '' } `
-    + `tsc -p proposals/${ type }/tsconfig.json --target ${ target }${ lib ? ` --lib ${ target },${ lib }` : '' }${ env ? ` --types @core-js/types,${ envLibName }` : '' }`;
+    + `tsc -p ${ type }/tsconfig.json --target ${ target }${ lib ? ` --lib ${ target },${ lib }` : '' }${ env ? ` --types @core-js/types,${ envLibName }` : '' }`;
   echo(`$ ${ command }`);
   try {
     if (env && lib) {
@@ -54,9 +54,9 @@ const runTestsOnEnv = async function ({ typeScriptVersion, target, type, env, li
     } else if (env) {
       await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --types @core-js/types,${ envLibName }`.quiet();
     } else if (lib) {
-      await $`npx -p typescript@${ typeScriptVersion } tsc -p proposals/${ type }/tsconfig.json --target ${ target } --lib ${ target },${ lib }`.quiet();
+      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target },${ lib }`.quiet();
     } else {
-      await $`npx -p typescript@${ typeScriptVersion } tsc -p proposals/${ type }/tsconfig.json --target ${ target }`.quiet();
+      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig.json --target ${ target }`.quiet();
     }
     echo(chalk.green(`$ ${ command }`));
     tested++;
@@ -106,7 +106,7 @@ const prepareEnvironment = async function (environments, coreJsTypes) {
     for (const type of coreJsTypes) {
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.json`), {
         extends: '../../tsconfig.json',
-        include: [`../../proposals/${ type }/*.ts`],
+        include: [`../../${ type }/**/*.ts`],
       });
     }
   }
