@@ -1,7 +1,4 @@
 {
   "name": "tests/type-definitions",
-  "type": "module",
-  "devDependencies": {
-    "typescript": "^7.0.2"
-  }
+  "type": "module"
 }
