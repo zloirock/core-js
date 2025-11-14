@@ -25,6 +25,7 @@
     "email": "zloirock@zloirock.ru",
     "url": "http://zloirock.ru"
   },
+  "sideEffects": false,
   "types": "dist/core-js-types.56.d.ts",
   "files": [
     "dist/core-js-types.56.d.ts"
