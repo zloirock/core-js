@@ -2,6 +2,7 @@
 ### Unreleased
 - Fixed increasing `.size` in `URLSearchParams.prototype.append` polyfill in IE8-
 - Compat data improvements:
+  - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in FF147](https://bugzilla.mozilla.org/show_bug.cgi?id=1986672#c4)
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as shipped in Safari 26.2
   - `Math.sumPrecise` marked as shipped in Safari 26.2
   - `Uint8Array.{ fromBase64, prototype.setFromBase64 }` marked as fixed in Safari 26.2

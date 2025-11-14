@@ -2507,6 +2507,7 @@ export const data = {
   'esnext.iterator.chunks': {
   },
   'esnext.iterator.concat': {
+    firefox: '147',
   },
   // TODO: Remove from `core-js@4`
   'esnext.iterator.dispose': null,
