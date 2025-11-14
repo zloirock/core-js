@@ -1,7 +1,3 @@
 {
-  "name": "tests/type-definitions",
-  "devDependencies": {
-    "@core-js/types": "../../packages/core-js-types/",
-    "typescript": "^5.9.3"
-  }
+  "name": "tests/type-definitions"
 }
