@@ -2141,6 +2141,8 @@ const packageJSON = {
   'package-json/valid-description': ERROR,
   // enforce that the `directories` property is valid
   'package-json/valid-directories': ERROR,
+  // enforce that the `engines` property is valid
+  'package-json/valid-engines': ERROR,
   // enforce that the `exports` property is valid
   'package-json/valid-exports': ERROR,
   // enforce that the `files` property is valid
@@ -2153,6 +2155,8 @@ const packageJSON = {
   'package-json/valid-license': ERROR,
   // enforce that the `main` property is valid
   'package-json/valid-main': ERROR,
+  // enforce that the `man` property is valid
+  'package-json/valid-man': ERROR,
   // enforce that the `os` property is valid
   'package-json/valid-os': ERROR,
   // enforce that the `private` property is valid
@@ -2167,6 +2171,8 @@ const packageJSON = {
   'package-json/valid-type': ERROR,
   // enforce that package versions are valid semver specifiers
   'package-json/valid-version': ERROR,
+  // enforce that the `workspaces` property is valid
+  'package-json/valid-workspaces': ERROR,
 };
 
 const packagesPackageJSON = {
