@@ -282,6 +282,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'escape')('!q2ф') === '%21q2%u0444');
     ok(load(NS, 'unescape')('%21q2%u0444') === '!q2ф');
     ok(load(NS, 'json').stringify([1]) === '[1]');
+    ok(load(NS, 'json/is-raw-json')({}) === false);
+    ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
+    ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'json/stringify')([1]) === '[1]');
     ok(load(NS, 'json/to-string-tag') === 'JSON');
     ok(typeof load(NS, 'date/now')(new Date()) === 'number');
@@ -712,9 +715,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'function/metadata') === null);
     ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(typeof load(NS, 'iterator/to-async') == 'function');
-    ok(load(NS, 'json/is-raw-json')({}) === false);
-    ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');
-    ok(typeof load(NS, 'json/raw-json')(42) == 'object');
     ok(load(NS, 'map/get-or-insert')(new Map([[1, 2]]), 1, 3) === 2);
     ok(load(NS, 'map/get-or-insert-computed')(new Map([[1, 2]]), 1, key => key) === 2);
     ok(load(NS, 'symbol/metadata'));

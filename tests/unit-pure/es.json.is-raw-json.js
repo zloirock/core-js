@@ -1,5 +1,5 @@
-import isRawJSON from 'core-js-pure/actual/json/is-raw-json';
-import rawJSON from 'core-js-pure/actual/json/raw-json';
+import isRawJSON from 'core-js-pure/es/json/is-raw-json';
+import rawJSON from 'core-js-pure/es/json/raw-json';
 import freeze from 'core-js-pure/es/object/freeze';
 import Symbol from 'core-js-pure/es/symbol';
 
