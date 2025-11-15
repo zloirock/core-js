@@ -1,5 +1,11 @@
 # Changelog
 ### Unreleased
+- [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration):
+  - Built-ins:
+    - `Iterator.zip`
+    - `Iterator.zipKeyed`
+  - Moved to stage 3, November 2025 TC39 meeting
+  - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Fixed increasing `.size` in `URLSearchParams.prototype.append` polyfill in IE8-
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in FF147](https://bugzilla.mozilla.org/show_bug.cgi?id=1986672#c4)
