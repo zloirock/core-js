@@ -2163,6 +2163,8 @@ const packageJSON = {
   'package-json/valid-private': ERROR,
   // enforce that the `publishConfig` property is valid
   'package-json/valid-publishConfig': ERROR,
+  // enforce that the `repository` property is valid
+  'package-json/valid-repository': ERROR,
   // enforce that if repository directory is specified, it matches the path to the package.json file
   'package-json/valid-repository-directory': ERROR,
   // enforce that the `scripts` property is valid.
