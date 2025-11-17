@@ -154,3 +154,23 @@ export async function readJSON(filePath) {
   const buffer = await readFile(filePath);
   return JSON.parse(buffer);
 }
+
+export function expandVersionsConfig(config) {
+  let defaultIndex = null;
+  const $config = config.map(({ label, branch, path, default: $default }, index) => {
+    if ($default) {
+      if (defaultIndex !== null) throw new Error('Duplicate default');
+      defaultIndex = index;
+    }
+    return {
+      branch,
+      default: false,
+      label,
+      path: path ?? label,
+    };
+  });
+
+  if (defaultIndex === null) throw new Error('Missed default');
+
+  return [{ ...$config[defaultIndex], default: true }, ...$config];
+}
