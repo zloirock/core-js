@@ -2180,6 +2180,9 @@ const packageJSON = {
 const packagesPackageJSON = {
   // enforce either object or shorthand declaration for repository
   'package-json/repository-shorthand': [ERROR, { form: 'object' }],
+  // ensures that proper attribution is included, requiring that either `author` or `contributors` is defined,
+  // and that if `contributors` is present, it should include at least one contributor
+  'package-json/require-attribution': ERROR,
   // requires the `author` property to be present
   'package-json/require-author': ERROR,
   // requires the `bugs`` property to be present
@@ -2189,10 +2192,15 @@ const packagesPackageJSON = {
   // requires the `engines` property to be present
   // TODO: core-js@4
   // 'package-json/require-engines': ERROR,
+  // requires the `exports` property to be present
+  // TODO: core-js@4
+  // 'package-json/require-exports': ERROR,
   // requires the `license` property to be present
   'package-json/require-license': ERROR,
   // requires the `name` property to be present
   'package-json/require-name': ERROR,
+  // requires the `sideEffects` property to be present
+  'package-json/require-sideEffects': ERROR,
   // requires the `types` property to be present
   // TODO: core-js@4
   // 'package-json/require-types': ERROR,
