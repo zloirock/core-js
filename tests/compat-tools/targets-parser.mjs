@@ -7,6 +7,15 @@ deepEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
   ['ios', '12.2-12.5'],
 ]), 'browserslist');
 
+deepEqual(targetsParser('baseline 2022 or not and_chr <= 999 or not and_ff <= 999 or ios 15.3 or ie 11'), new Map([
+  ['chrome', '108'],
+  ['edge', '108'],
+  ['firefox', '108'],
+  ['ie', '11'],
+  ['ios', '15.2-15.3'],
+  ['safari', '16.0'],
+]), 'browserslist with baseline');
+
 deepEqual(targetsParser({
   ie: 11,
   chrome: 56,
