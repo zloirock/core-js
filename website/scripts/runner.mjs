@@ -1,6 +1,14 @@
 /* eslint-disable no-console -- needed for logging */
 import {
-  hasDocs, copyBlogPosts, copyBabelStandalone, copyCommonFiles, buildWeb, getDefaultVersion, readJSON, buildAndCopyCoreJS,
+  hasDocs,
+  copyBlogPosts,
+  copyBabelStandalone,
+  copyCommonFiles,
+  buildWeb,
+  getDefaultVersion,
+  readJSON,
+  buildAndCopyCoreJS,
+  expandVersionsConfig,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
 import { cp, readdir, readlink } from 'node:fs/promises';
@@ -182,7 +190,7 @@ async function getVersions(targetBranch) {
   const versions = await readJSON(VERSIONS_FILE);
   console.timeEnd('Got versions');
 
-  return versions;
+  return expandVersionsConfig(versions);
 }
 
 try {
@@ -194,6 +202,7 @@ try {
   if (!BRANCH) {
     const versions = await getVersions(targetBranch);
     for (const version of versions) {
+      if (version.default) continue;
       await copyDocsToBuilder(version);
       await buildAndCopyCoreJS(version, BUILD_SRC_DIR, BUNDLES_DIR, true);
     }

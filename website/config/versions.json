@@ -5,12 +5,8 @@
     "branch": "master"
   },
   {
-    "label": "v3",
-    "branch": "master"
-  },
-  {
     "label": "v4 (alpha)",
-    "path": "v4",
-    "branch": "v4"
+    "branch": "v4",
+    "path": "v4"
   }
 ]

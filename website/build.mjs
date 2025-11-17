@@ -1,4 +1,4 @@
-import { getDefaultVersion } from './scripts/helpers.mjs';
+import { expandVersionsConfig, getDefaultVersion } from './scripts/helpers.mjs';
 import fm from 'front-matter';
 import { JSDOM } from 'jsdom';
 import { Marked } from 'marked';
@@ -19,14 +19,6 @@ let htmlFileName = '';
 let docsMenu = '';
 let isBlog = false;
 let isDocs = false;
-
-async function getDefaultVersionTarget(versionFile, defaultTarget = null) {
-  if (defaultTarget) return defaultTarget;
-
-  const versions = await readJson(versionFile);
-  const defaultVersion = versions.find(v => v.default);
-  return defaultVersion?.branch ?? defaultVersion?.tag;
-}
 
 async function getAllMdFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -89,12 +81,16 @@ async function buildDocsMenuForVersion(version) {
   return menu;
 }
 
+function getBundlesPath(version) {
+  return path.join(config.bundlesPath, version.branch ?? version.tag);
+}
+
 async function buildVersionsMenuList(versions, currentVersion, section) {
   let versionsMenuHtml = '<div class="dropdown-block">';
   for (const v of versions) {
     const activityClass = v.label === currentVersion && !v.default ? ' class="active"' : '';
     const defaultBadge = v.default ? ' (default)' : '';
-    const versionPath = v.default ? '' : `${ v.path ?? v.label }/`;
+    const versionPath = v.default ? '' : `${ v.path }/`;
     versionsMenuHtml += `<a href="./${ versionPath }${ section }"${ activityClass }>${ v.label }${ defaultBadge }</a>`;
   }
   versionsMenuHtml += '</div>';
@@ -227,9 +223,9 @@ async function buildPlaygrounds(template, versions) {
 }
 
 async function buildPlayground(template, version, versions) {
-  const versionPath = version.branch ?? version.tag;
-  const bundleScript = `<script nomodule src="${ config.bundlesPath }/${ versionPath }/${ config.bundleName }"></script>`;
-  const bundleESModulesScript = `<script type="module" src="${ config.bundlesPath }/${ versionPath }/${ config.bundleNameESModules }"></script>`;
+  const bundlesPath = getBundlesPath(version);
+  const bundleScript = `<script nomodule src="${ bundlesPath }/${ config.bundleName }"></script>`;
+  const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
   const babelScript = '<script src="./babel.min.js"></script>';
   const playgroundContent = await readFileContent(`${ config.srcDir }playground.html`);
   const versionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
@@ -240,7 +236,7 @@ async function buildPlayground(template, version, versions) {
   playground = playground.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
   playground = playground.replace('{babel-script}', babelScript);
   const playgroundWithVersion = playground.replace('{versions-menu}', versionsMenu);
-  const playgroundFilePath = path.join(config.resultDir, versionPath, 'playground.html');
+  const playgroundFilePath = path.join(config.resultDir, version.path, 'playground.html');
 
   if (version.default) {
     const defaultVersionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
@@ -256,11 +252,11 @@ async function buildPlayground(template, version, versions) {
 }
 
 async function createDocsIndexes(versions) {
-  if (BRANCH) versions = [{ label: '' }];
+  if (BRANCH) versions = [{ path: '' }];
 
   for (const version of versions) {
-    if (version.default) continue;
-    const versionPath = version.path ?? version.label;
+    if (version.default && versions.length > 1) continue;
+    const versionPath = version.path;
     const menuItems = await getDocsMenuItems(versionPath);
     const firstDocPath = path.join(config.resultDir,
       `${ menuItems[0].url }.html`.replace(`{docs-version}${ BRANCH ? '/' : '' }`, versionPath));
@@ -273,15 +269,17 @@ async function createDocsIndexes(versions) {
 async function getVersions() {
   if (BRANCH) {
     return [{
-      label: BRANCH,
-      default: true,
       branch: BRANCH,
+      default: true,
+      label: BRANCH,
+      path: BRANCH,
     }];
   }
+
   const versions = await readJson(config.versionsFile);
   echo(chalk.green('Got versions from file'));
 
-  return versions;
+  return expandVersionsConfig(versions);
 }
 
 function getTitle(content) {
@@ -294,7 +292,8 @@ async function build() {
   await buildBlogMenu();
   const mdFiles = await getAllMdFiles(config.docsDir);
   const versions = await getVersions();
-  const bundlesPath = `${ config.bundlesPath }/${ await getDefaultVersionTarget(config.versionsFile, BRANCH) }`;
+  const [defaultVersion] = versions;
+  const bundlesPath = getBundlesPath(defaultVersion);
   const bundleScript = `<script nomodule src="${ bundlesPath }/${ config.bundleName }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
 
