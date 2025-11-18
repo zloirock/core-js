@@ -835,7 +835,17 @@ GLOBAL.tests = {
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
   },
-  'es.json.stringify': [SYMBOLS_SUPPORT, function () {
+  'es.json.is-raw-json': NATIVE_RAW_JSON,
+  'es.json.parse': function () {
+    var unsafeInt = '9007199254740993';
+    var source;
+    JSON.parse(unsafeInt, function (key, value, context) {
+      source = context.source;
+    });
+    return source === unsafeInt;
+  },
+  'es.json.raw-json': NATIVE_RAW_JSON,
+  'es.json.stringify': [NATIVE_RAW_JSON, SYMBOLS_SUPPORT, function () {
     var symbol = Symbol('stringify detection');
     return JSON.stringify([symbol]) === '[null]'
       && JSON.stringify({ a: symbol }) === '{}'
@@ -1913,16 +1923,6 @@ GLOBAL.tests = {
   'esnext.iterator.zip-keyed': function () {
     return Iterator.zipKeyed;
   },
-  'esnext.json.is-raw-json': NATIVE_RAW_JSON,
-  'esnext.json.parse': function () {
-    var unsafeInt = '9007199254740993';
-    var source;
-    JSON.parse(unsafeInt, function (key, value, context) {
-      source = context.source;
-    });
-    return source === unsafeInt;
-  },
-  'esnext.json.raw-json': NATIVE_RAW_JSON,
   'esnext.map.delete-all': function () {
     return Map.prototype.deleteAll;
   },

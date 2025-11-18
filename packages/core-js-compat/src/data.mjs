@@ -806,13 +806,35 @@ export const data = {
     firefox: '131',
     safari: '18.4',
   },
+  'es.json.is-raw-json': {
+    bun: '1.1.43',
+    chrome: '114',
+    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
+    firefox: '135', // '132',
+    safari: '18.4',
+  },
+  'es.json.parse': {
+    bun: '1.1.43',
+    chrome: '114',
+    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
+    firefox: '135', // '132',
+    safari: '18.4',
+  },
+  'es.json.raw-json': {
+    bun: '1.1.43',
+    chrome: '114',
+    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
+    firefox: '135', // '132',
+    safari: '18.4',
+  },
   'es.json.stringify': {
-    chrome: '72',
-    firefox: '64',
-    hermes: '0.13',
-    'react-native': '0.72',
-    rhino: '1.8.0',
-    safari: '12.1',
+    bun: '1.1.43',
+    chrome: '114', // '72',
+    firefox: '135', // '132', '64',
+    // hermes: '0.13',
+    // 'react-native': '0.72',
+    // rhino: '1.8.0',
+    safari: '18.4', // '12.1',
   },
   'es.json.to-string-tag': {
     chrome: '50',
@@ -2551,27 +2573,12 @@ export const data = {
   },
   'esnext.iterator.zip-keyed': {
   },
-  'esnext.json.is-raw-json': {
-    bun: '1.1.43',
-    chrome: '114',
-    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
-    firefox: '135', // '132',
-    safari: '18.4',
-  },
-  'esnext.json.parse': {
-    bun: '1.1.43',
-    chrome: '114',
-    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
-    firefox: '135', // '132',
-    safari: '18.4',
-  },
-  'esnext.json.raw-json': {
-    bun: '1.1.43',
-    chrome: '114',
-    // enabled in 132 and disabled in 133 because of regression, https://bugzilla.mozilla.org/show_bug.cgi?id=1925334
-    firefox: '135', // '132',
-    safari: '18.4',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.json.is-raw-json': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.json.parse': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.json.raw-json': null,
   'esnext.map.delete-all': {
   },
   // TODO: Remove from `core-js@4`
@@ -3183,6 +3190,9 @@ export const renamed = new Map([
   ['esnext.iterator.some', 'es.iterator.some'],
   ['esnext.iterator.take', 'es.iterator.take'],
   ['esnext.iterator.to-array', 'es.iterator.to-array'],
+  ['esnext.json.is-raw-json', 'es.json.is-raw-json'],
+  ['esnext.json.parse', 'es.json.parse'],
+  ['esnext.json.raw-json', 'es.json.raw-json'],
   ['esnext.map.group-by', 'es.map.group-by'],
   ['esnext.math.f16round', 'es.math.f16round'],
   ['esnext.math.sum-precise', 'es.math.sum-precise'],

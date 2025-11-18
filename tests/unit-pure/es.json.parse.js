@@ -2,7 +2,7 @@
 // Copyright (c) 2012 Ecma International. All rights reserved.
 /* eslint-disable unicorn/escape-case -- testing */
 import { DESCRIPTORS, REDEFINABLE_PROTO } from '../helpers/constants.js';
-import parse from 'core-js-pure/actual/json/parse';
+import parse from 'core-js-pure/es/json/parse';
 import defineProperty from 'core-js-pure/es/object/define-property';
 import hasOwn from 'core-js-pure/es/object/has-own';
 import keys from 'core-js-pure/es/object/keys';
