@@ -1,5 +1,9 @@
 # Changelog
 ### Unreleased
+- Nothing
+
+### [3.47.0 - 2025.11.18](https://github.com/zloirock/core-js/releases/tag/v3.47.0)
+- Changes [v3.46.0...v3.47.0](https://github.com/zloirock/core-js/compare/v3.46.0...v3.47.0) (117 commits)
 - [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) :
   - Built-ins:
     - `JSON.isRawJSON`
