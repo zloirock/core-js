@@ -9,7 +9,7 @@
   - Built-ins:
     - `Iterator.zip`
     - `Iterator.zipKeyed`
-  - Moved to stage 3, November 2025 TC39 meeting
+  - Moved to stage 3, [November 2025 TC39 meeting](https://github.com/tc39/proposals/commit/6c0126b8f44323254c93045ee7ec216e49b83ddd)
   - Added `/actual/` namespace entries, unconditional forced replacement changed to feature detection
 - Fixed increasing `.size` in `URLSearchParams.prototype.append` polyfill in IE8-
 - Compat data improvements:
