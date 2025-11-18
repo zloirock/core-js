@@ -52,7 +52,7 @@ async function buildType(typeFilePath, entry, options) {
 
   const tpl = template({ ...options, modules, rawModules, level, entry, types, packageName: config.packageName });
 
-  await outputFile(typeFilePath, `${ tpl.dts }\n\n`, { flag: 'a' });
+  await outputFile(typeFilePath, `${ tpl.dts }${ tpl.dts ? '\n\n' : '' }`, { flag: 'a' });
 }
 
 async function getVersions() {
