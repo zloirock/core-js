@@ -685,6 +685,9 @@ export const data = {
     firefox: '131',
     safari: '18.4',
   },
+  'es.iterator.concat': {
+    firefox: '147',
+  },
   'es.iterator.dispose': {
     bun: '1.3.0',
     // reverted in https://issues.chromium.org/issues/42203506#comment25
@@ -2506,9 +2509,8 @@ export const data = {
   },
   'esnext.iterator.chunks': {
   },
-  'esnext.iterator.concat': {
-    firefox: '147',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.iterator.concat': null,
   // TODO: Remove from `core-js@4`
   'esnext.iterator.dispose': null,
   // TODO: Remove from `core-js@4`
@@ -3167,6 +3169,7 @@ export const renamed = new Map([
   ['esnext.error.is-error', 'es.error.is-error'],
   ['esnext.global-this', 'es.global-this'],
   ['esnext.iterator.constructor', 'es.iterator.constructor'],
+  ['esnext.iterator.concat', 'es.iterator.concat'],
   ['esnext.iterator.dispose', 'es.iterator.dispose'],
   ['esnext.iterator.drop', 'es.iterator.drop'],
   ['esnext.iterator.every', 'es.iterator.every'],

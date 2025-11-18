@@ -340,6 +340,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok('next' in load(NS, 'get-iterator')([]));
     ok('Map' in load(NS));
     ok(typeof load(NS, 'iterator') == 'function');
+    ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(typeof load(NS, 'iterator/drop') == 'function');
     ok(typeof load(NS, 'iterator/every') == 'function');
     ok(typeof load(NS, 'iterator/filter') == 'function');
@@ -710,7 +711,6 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'async-iterator/take') == 'function');
     ok(typeof load(NS, 'async-iterator/to-array') == 'function');
     ok(load(NS, 'function/metadata') === null);
-    ok(load(NS, 'iterator/concat')([2]).next().value === 2);
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(load(NS, 'json/is-raw-json')({}) === false);
     ok(load(NS, 'json/parse')('[42]', (key, value, { source }) => typeof value == 'number' ? source + source : value)[0] === '4242');

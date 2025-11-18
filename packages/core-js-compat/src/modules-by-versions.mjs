@@ -311,4 +311,7 @@ export default {
     'es.uint8-array.to-base64',
     'es.uint8-array.to-hex',
   ],
+  3.47: [
+    'es.iterator.concat',
+  ],
 };

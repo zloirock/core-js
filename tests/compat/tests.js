@@ -795,6 +795,9 @@ GLOBAL.tests = {
         && Iterator.prototype === Object.getPrototypeOf(Object.getPrototypeOf([].values()));
     }
   },
+  'es.iterator.concat': function () {
+    return Iterator.concat;
+  },
   'es.iterator.dispose': function () {
     return [].keys()[Symbol.dispose];
   },
@@ -1894,9 +1897,6 @@ GLOBAL.tests = {
   },
   'esnext.iterator.chunks': function () {
     return Iterator.prototype.chunks;
-  },
-  'esnext.iterator.concat': function () {
-    return Iterator.concat;
   },
   'esnext.iterator.range': function () {
     return Iterator.range;

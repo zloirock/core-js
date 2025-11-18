@@ -145,6 +145,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Explicit Resource Management](#explicit-resource-management)
       - [`Float16` methods](#float16-methods)
       - [`Iterator` helpers](#iterator-helpers)
+      - [`Iterator` sequencing](#iterator-sequencing)
       - [`Object.values` / `Object.entries`](#objectvalues--objectentries)
       - [`Object.fromEntries`](#objectfromentries)
       - [`Object.getOwnPropertyDescriptors`](#objectgetownpropertydescriptors)
@@ -168,7 +169,6 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [New `Set` methods](#new-set-methods)
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
-      - [`Iterator` sequencing](#iterator-sequencing)
       - [`Map` upsert](#map-upsert)
       - [`JSON.parse` source text access](#jsonparse-source-text-access)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
@@ -869,9 +869,10 @@ await Array.fromAsync((async function * () { yield * [1, 2, 3]; })(), i => i ** 
 ```
 
 #### ECMAScript: Iterator[⬆](#index)
-Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js)
+Modules [`es.iterator.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.constructor.js), [`es.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.concat.js), [`es.iterator.dispose`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.dispose.js), [`es.iterator.drop`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.drop.js), [`es.iterator.every`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.every.js), [`es.iterator.filter`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.filter.js), [`es.iterator.find`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.find.js), [`es.iterator.flat-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.flat-map.js), [`es.iterator.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.for-each.js), [`es.iterator.from`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.from.js), [`es.iterator.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.map.js), [`es.iterator.reduce`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.reduce.js), [`es.iterator.some`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.some.js), [`es.iterator.take`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.take.js), [`es.iterator.to-array`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.iterator.to-array.js)
 ```ts
 class Iterator {
+  static concat(...items: Array<IterableObject>): Iterator<any>;
   static from(iterable: Iterable<any> | Iterator<any>): Iterator<any>;
   drop(limit: uint): Iterator<any>;
   every(callbackfn: (value: any, counter: uint) => boolean): boolean;
@@ -891,6 +892,7 @@ class Iterator {
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/iterator
+core-js(-pure)/es|stable|actual|full/iterator/concat
 core-js(-pure)/es|stable|actual|full/iterator/dispose
 core-js(-pure)/es|stable|actual|full/iterator/drop
 core-js(-pure)/es|stable|actual|full/iterator/every
@@ -905,7 +907,7 @@ core-js(-pure)/es|stable|actual|full/iterator/some
 core-js(-pure)/es|stable|actual|full/iterator/take
 core-js(-pure)/es|stable|actual|full/iterator/to-array
 ```
-[Examples](https://tinyurl.com/249jw4e4):
+[Examples](https://tinyurl.com/24af2z7v):
 ```js
 [1, 2, 3, 4, 5, 6, 7].values()
   .drop(1)
@@ -917,6 +919,11 @@ core-js(-pure)/es|stable|actual|full/iterator/to-array
 Iterator.from({
   next: () => ({ done: Math.random() > 0.9, value: Math.random() * 10 | 0 }),
 }).toArray(); // => [7, 6, 3, 0, 2, 8]
+
+Iterator.concat([0, 1].values(), [2, 3], function * () {
+  yield 4;
+  yield 5;
+}()).toArray(); // => [0, 1, 2, 3, 4, 5]
 ```
 
 > [!WARNING]
@@ -2428,6 +2435,17 @@ class Iterator {
 core-js/proposals/iterator-helpers-stage-3-2
 ```
 
+##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
+```ts
+class Iterator {
+  static concat(...items: Array<IterableObject>): Iterator<any>;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/iterator-sequencing
+```
+
 ##### [`Object.values` / `Object.entries`](https://github.com/tc39/proposal-object-values-entries)[⬆](#index)
 ```ts
 class Object {
@@ -2685,26 +2703,6 @@ core-js/proposals/math-sum
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/stage/3
-```
-
-##### [`Iterator` sequencing](https://github.com/tc39/proposal-iterator-sequencing)[⬆](#index)
-Module [`esnext.iterator.concat`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.iterator.concat.js)
-```ts
-class Iterator {
-  static concat(...items: Array<IterableObject>): Iterator<any>;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/iterator-sequencing
-core-js(-pure)/actual|full/iterator/concat
-```
-[*Example*](https://tinyurl.com/2522xjae):
-```js
-Iterator.concat([0, 1].values(), [2, 3], function * () {
-  yield 4;
-  yield 5;
-}()).toArray(); // => [0, 1, 2, 3, 4, 5]
 ```
 
 ##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
