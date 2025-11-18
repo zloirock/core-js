@@ -17,7 +17,7 @@ var THROW = 'throw';
 
 // `Iterator.zip` method
 // https://github.com/tc39/proposal-joint-iteration
-$({ target: 'Iterator', stat: true, forced: true }, {
+$({ target: 'Iterator', stat: true }, {
   zip: function zip(iterables /* , options */) {
     anObject(iterables);
     var options = arguments.length > 1 ? anObjectOrUndefined(arguments[1]) : undefined;

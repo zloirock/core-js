@@ -6,7 +6,7 @@ import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
 import create from 'core-js-pure/es/object/create';
 import Symbol from 'core-js-pure/es/symbol';
-import zipKeyed from 'core-js-pure/full/iterator/zip-keyed';
+import zipKeyed from 'core-js-pure/actual/iterator/zip-keyed';
 
 function nullProto(obj) {
   return assign(create(null), obj);

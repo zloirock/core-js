@@ -243,6 +243,10 @@
             "title": "Stage 3 proposals",
             "children": [
               {
+                "title": "Joint iteration",
+                "url": "{docs-version}/docs/features/proposals/joint-iteration"
+              },
+              {
                 "title": "Map upsert",
                 "url": "{docs-version}/docs/features/proposals/map-upsert"
               },
@@ -259,10 +263,6 @@
           {
             "title": "Stage 2.7 proposals",
             "children": [
-              {
-                "title": "Joint iteration",
-                "url": "{docs-version}/docs/features/proposals/joint-iteration"
-              },
               {
                 "title": "Iterator chunking",
                 "url": "{docs-version}/docs/features/proposals/iterator-chunking"

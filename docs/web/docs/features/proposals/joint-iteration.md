@@ -28,8 +28,8 @@ class Iterator {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```ts
 core-js/proposals/joint-iteration
-core-js(-pure)/full/iterator/zip
-core-js(-pure)/full/iterator/zip-keyed
+core-js(-pure)/actual|full/iterator/zip
+core-js(-pure)/actual|full/iterator/zip-keyed
 ```
 
 ## Example
