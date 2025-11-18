@@ -1,3 +1,4 @@
+// types: web/structured-clone
 'use strict';
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');

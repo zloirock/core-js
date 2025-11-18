@@ -1,0 +1,3 @@
+interface URL {
+  toJSON(): string;
+}
