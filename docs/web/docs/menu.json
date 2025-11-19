@@ -270,6 +270,10 @@
               {
                 "title": "Iterator join",
                 "url": "{docs-version}/docs/features/proposals/iterator-join"
+              },
+              {
+                "title": "Await dictionary",
+                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               }
             ]
           },
@@ -320,10 +324,6 @@
               {
                 "title": "Array deduplication",
                 "url": "{docs-version}/docs/features/proposals/array-deduplication"
-              },
-              {
-                "title": "Await dictionary",
-                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               },
               {
                 "title": "DataView get / set Uint8Clamped methods",
