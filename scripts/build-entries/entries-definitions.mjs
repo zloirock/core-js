@@ -3564,7 +3564,7 @@ export const proposals = {
   },
   'promise-all-keyed': {
     link: 'https://github.com/tc39/proposal-await-dictionary',
-    stage: 1,
+    stage: 2.7,
     modules: [
       'esnext.promise.all-keyed',
       'esnext.promise.all-settled-keyed',
