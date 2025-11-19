@@ -266,6 +266,10 @@
               {
                 "title": "Iterator chunking",
                 "url": "{docs-version}/docs/features/proposals/iterator-chunking"
+              },
+              {
+                "title": "Iterator join",
+                "url": "{docs-version}/docs/features/proposals/iterator-join"
               }
             ]
           },
@@ -341,10 +345,6 @@
               {
                 "title": "Function.prototype.demethodize",
                 "url": "{docs-version}/docs/features/proposals/function-prototype-demethodize"
-              },
-              {
-                "title": "Iterator join",
-                "url": "{docs-version}/docs/features/proposals/iterator-join"
               }
             ]
           }
