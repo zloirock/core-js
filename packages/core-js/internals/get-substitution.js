@@ -3,7 +3,6 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var toObject = require('../internals/to-object');
 
 var floor = Math.floor;
-var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
 // eslint-disable-next-line redos/no-vulnerable -- safe
@@ -36,7 +35,7 @@ module.exports = function (matched, str, position, captures, namedCaptures, repl
         if (n > m) {
           var f = floor(n / 10);
           if (f === 0) return match;
-          if (f <= m) return captures[f - 1] === undefined ? charAt(ch, 1) : captures[f - 1] + charAt(ch, 1);
+          if (f <= m) return captures[f - 1] === undefined ? ch[1] : captures[f - 1] + ch[1];
           return match;
         }
         capture = captures[n - 1];
