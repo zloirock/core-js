@@ -18,7 +18,7 @@ var isArray = Array.isArray;
 var nativeParse = JSON.parse;
 var enumerableOwnProperties = Object.keys;
 var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-var at = uncurryThis(''.charAt);
+var charAt = uncurryThis(''.charAt);
 var slice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
 var push = uncurryThis([].push);
@@ -38,7 +38,7 @@ var $parse = function (source, reviver) {
   var value = root.value;
   var endIndex = context.skip(IS_WHITESPACE, root.end);
   if (endIndex < source.length) {
-    throw new $SyntaxError('Unexpected extra character: "' + at(source, endIndex) + '" after the parsed data at: ' + endIndex);
+    throw new $SyntaxError('Unexpected extra character: "' + source[endIndex] + '" after the parsed data at: ' + endIndex);
   }
   return isCallable(reviver) ? internalize({ '': value }, '', reviver, root) : value;
 };
@@ -97,7 +97,7 @@ Context.prototype = {
     var source = this.source;
     var i = this.skip(IS_WHITESPACE, this.index);
     var fork = this.fork(i);
-    var char = at(source, i);
+    var char = charAt(source, i);
     if (exec(IS_NUMBER_START, char)) return fork.number();
     switch (char) {
       case '{':
@@ -125,7 +125,7 @@ Context.prototype = {
     var nodes = {};
     while (i < source.length) {
       i = this.until(['"', '}'], i);
-      if (at(source, i) === '}' && !expectKeypair) {
+      if (charAt(source, i) === '}' && !expectKeypair) {
         i++;
         break;
       }
@@ -140,7 +140,7 @@ Context.prototype = {
       createProperty(nodes, key, result);
       createProperty(object, key, result.value);
       i = this.until([',', '}'], result.end);
-      var char = at(source, i);
+      var char = charAt(source, i);
       if (char === ',') {
         expectKeypair = true;
         i++;
@@ -159,7 +159,7 @@ Context.prototype = {
     var nodes = [];
     while (i < source.length) {
       i = this.skip(IS_WHITESPACE, i);
-      if (at(source, i) === ']' && !expectElement) {
+      if (charAt(source, i) === ']' && !expectElement) {
         i++;
         break;
       }
@@ -167,10 +167,10 @@ Context.prototype = {
       push(nodes, result);
       push(array, result.value);
       i = this.until([',', ']'], result.end);
-      if (at(source, i) === ',') {
+      if (charAt(source, i) === ',') {
         expectElement = true;
         i++;
-      } else if (at(source, i) === ']') {
+      } else if (charAt(source, i) === ']') {
         i++;
         break;
       }
@@ -186,14 +186,14 @@ Context.prototype = {
     var source = this.source;
     var startIndex = this.index;
     var i = startIndex;
-    if (at(source, i) === '-') i++;
-    if (at(source, i) === '0') i++;
-    else if (exec(IS_NON_ZERO_DIGIT, at(source, i))) i = this.skip(IS_DIGIT, i + 1);
+    if (charAt(source, i) === '-') i++;
+    if (charAt(source, i) === '0') i++;
+    else if (exec(IS_NON_ZERO_DIGIT, charAt(source, i))) i = this.skip(IS_DIGIT, i + 1);
     else throw new $SyntaxError('Failed to parse number at: ' + i);
-    if (at(source, i) === '.') i = this.skip(IS_DIGIT, i + 1);
-    if (at(source, i) === 'e' || at(source, i) === 'E') {
+    if (charAt(source, i) === '.') i = this.skip(IS_DIGIT, i + 1);
+    if (charAt(source, i) === 'e' || charAt(source, i) === 'E') {
       i++;
-      if (at(source, i) === '+' || at(source, i) === '-') i++;
+      if (charAt(source, i) === '+' || charAt(source, i) === '-') i++;
       var exponentStartIndex = i;
       i = this.skip(IS_DIGIT, i);
       if (exponentStartIndex === i) throw new $SyntaxError("Failed to parse number's exponent value at: " + i);
@@ -209,12 +209,12 @@ Context.prototype = {
   },
   skip: function (regex, i) {
     var source = this.source;
-    for (; i < source.length; i++) if (!exec(regex, at(source, i))) break;
+    for (; i < source.length; i++) if (!exec(regex, source[i])) break;
     return i;
   },
   until: function (array, i) {
     i = this.skip(IS_WHITESPACE, i);
-    var char = at(this.source, i);
+    var char = charAt(this.source, i);
     for (var j = 0; j < array.length; j++) if (array[j] === char) return i;
     throw new $SyntaxError('Unexpected character: "' + char + '" at: ' + i);
   },
