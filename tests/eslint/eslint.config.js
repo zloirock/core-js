@@ -2169,6 +2169,8 @@ const packageJSON = {
   'package-json/valid-repository-directory': ERROR,
   // enforce that the `scripts` property is valid.
   'package-json/valid-scripts': ERROR,
+  // enforce that the `sideEffects` property is valid.
+  'package-json/valid-sideEffects': ERROR,
   // enforce that the `type` property is valid
   'package-json/valid-type': ERROR,
   // enforce that package versions are valid semver specifiers
