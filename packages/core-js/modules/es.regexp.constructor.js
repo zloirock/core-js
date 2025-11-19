@@ -55,9 +55,10 @@ var handleDotAll = function (string) {
   var brackets = false;
   var char;
   for (; index < length; index++) {
-    char = charAt(string, index);
+    char = string[index];
     if (char === '\\') {
-      result += char + charAt(string, ++index);
+      result += char;
+      if (++index < length) result += string[index];
       continue;
     }
     if (!brackets && char === '.') {
@@ -84,7 +85,7 @@ var handleNCG = function (string) {
   var groupname = '';
   var char;
   for (; index < length; index++) {
-    char = charAt(string, index);
+    char = string[index];
     if (char === '\\') {
       char += charAt(string, ++index);
       // use `\x5c` for escaped backslash to avoid corruption by `\k<name>` to `\N` replacement below
