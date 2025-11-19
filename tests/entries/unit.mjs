@@ -747,6 +747,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/prototype/chunks') == 'function');
+    ok(load(NS, 'iterator/prototype/join').call([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/prototype/windows') == 'function');
     ok(typeof load(NS, 'iterator/prototype/to-async') == 'function');
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
