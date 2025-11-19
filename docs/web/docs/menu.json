@@ -274,6 +274,10 @@
               {
                 "title": "Symbol.metadata for decorators metadata proposal",
                 "url": "{docs-version}/docs/features/proposals/symbol-metadata"
+              },
+              {
+                "title": "Await dictionary",
+                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               }
             ]
           },
@@ -324,10 +328,6 @@
               {
                 "title": "Array deduplication",
                 "url": "{docs-version}/docs/features/proposals/array-deduplication"
-              },
-              {
-                "title": "Await dictionary",
-                "url": "{docs-version}/docs/features/proposals/await-dictionary"
               },
               {
                 "title": "DataView get / set Uint8Clamped methods",
