@@ -349,10 +349,6 @@
               {
                 "title": "Function.prototype.demethodize",
                 "url": "{docs-version}/docs/features/proposals/function-prototype-demethodize"
-              },
-              {
-                "title": "Iterator join",
-                "url": "{docs-version}/docs/features/proposals/iterator-join"
               }
             ]
           }
