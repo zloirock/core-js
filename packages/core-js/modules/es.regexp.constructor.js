@@ -26,7 +26,6 @@ var $SyntaxError = SyntaxError;
 var create = Object.create;
 var getOwnPropertyNames = Object.getOwnPropertyNames;
 var exec = uncurryThis(RegExpPrototype.exec);
-var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
 var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
@@ -55,9 +54,10 @@ var handleDotAll = function (string) {
   var brackets = false;
   var char;
   for (; index < length; index++) {
-    char = charAt(string, index);
+    char = string[index];
     if (char === '\\') {
-      result += char + charAt(string, ++index);
+      result += char;
+      if (++index < length) result += string[index];
       continue;
     }
     if (!brackets && char === '.') {
@@ -84,9 +84,9 @@ var handleNCG = function (string) {
   var groupname = '';
   var char;
   for (; index < length; index++) {
-    char = charAt(string, index);
-    if (char === '\\') {
-      char += charAt(string, ++index);
+    char = string[index];
+    if (char === '\\' && index < length - 1) {
+      char += string[++index];
     } else if (char === ']') {
       brackets = false;
     } else if (!brackets) switch (true) {
