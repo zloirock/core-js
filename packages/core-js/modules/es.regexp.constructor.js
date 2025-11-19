@@ -56,7 +56,7 @@ var handleDotAll = function (string) {
   var result = '';
   var brackets = false;
   var chr;
-  for (; index <= length; index++) {
+  for (; index < length; index++) {
     chr = charAt(string, index);
     if (chr === '\\') {
       result += chr + charAt(string, ++index);
@@ -85,7 +85,7 @@ var handleNCG = function (string) {
   var groupid = 0;
   var groupname = '';
   var chr;
-  for (; index <= length; index++) {
+  for (; index < length; index++) {
     chr = charAt(string, index);
     if (chr === '\\') {
       chr += charAt(string, ++index);
