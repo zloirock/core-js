@@ -3471,7 +3471,7 @@ export const proposals = {
   },
   'iterator-join': {
     link: 'https://github.com/bakkot/proposal-iterator-join',
-    stage: 0,
+    stage: 2.7,
     modules: [
       'esnext.iterator.join',
     ],

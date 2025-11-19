@@ -742,10 +742,11 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'function/prototype/demethodize').call([].slice)([1, 2, 3], 1)[0] === 2);
     ok(load(NS, 'iterator/range')(1, 2).next().value === 1);
     ok(typeof load(NS, 'iterator/chunks') == 'function');
-    ok(typeof load(NS, 'iterator/join') == 'function');
+    ok(load(NS, 'iterator/join')([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/windows') == 'function');
     ok(typeof load(NS, 'iterator/prototype/chunks') == 'function');
+    ok(load(NS, 'iterator/prototype/join').call([1, 2].values()) === '1,2');
     ok(typeof load(NS, 'iterator/prototype/windows') == 'function');
     ok(typeof load(NS, 'iterator/prototype/to-async') == 'function');
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
