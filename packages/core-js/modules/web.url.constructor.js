@@ -81,7 +81,7 @@ var parseIPv4 = function (input) {
     part = parts[index];
     if (part === '') return input;
     radix = 10;
-    if (part.length > 1 && charAt(part, 0) === '0') {
+    if (part.length > 1 && part[0] === '0') {
       radix = exec(HEX_START, part) ? 16 : 8;
       part = stringSlice(part, radix === 8 ? 1 : 2);
     }
@@ -270,8 +270,8 @@ var specialSchemes = {
 // https://url.spec.whatwg.org/#windows-drive-letter
 var isWindowsDriveLetter = function (string, normalized) {
   var second;
-  return string.length === 2 && exec(ALPHA, charAt(string, 0))
-    && ((second = charAt(string, 1)) === ':' || (!normalized && second === '|'));
+  return string.length === 2 && exec(ALPHA, string[0])
+    && ((second = string[1]) === ':' || (!normalized && second === '|'));
 };
 
 // https://url.spec.whatwg.org/#start-with-a-windows-drive-letter
