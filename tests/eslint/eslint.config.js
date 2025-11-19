@@ -2179,6 +2179,7 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/unit-@(global|pure)/index.js',
+      'tests/type-definitions/tmp/**',
       'website/dist/**',
       'website/src/public/*',
       'website/templates/**',

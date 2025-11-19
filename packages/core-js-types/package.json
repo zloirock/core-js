@@ -36,5 +36,6 @@
     ">=5.2": {
       "*": ["dist/core-js-types.52.d.ts"]
     }
-  }
+  },
+  "sideEffects": false
 }
