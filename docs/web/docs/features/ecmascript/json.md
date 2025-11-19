@@ -2,7 +2,7 @@
 Since `JSON` object is missed only in very old engines like IE7-, `core-js` does not provide a full `JSON.{ parse, stringify }` polyfill, however, fix already existing implementations by the current standard.
 
 ## Modules
-[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.raw-json.js), [`es.json.stringify`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.stringify.js) and [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.json.to-string-tag.js).
+[`es.json.is-raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.is-raw-json.js), [`es.json.parse`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.parse.js), [`es.json.raw-json`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.raw-json.js), [`es.json.stringify`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.stringify.js) and [`es.json.to-string-tag`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.json.to-string-tag.js).
 
 ## Built-ins signatures
 ```ts
