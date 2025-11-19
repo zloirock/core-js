@@ -353,10 +353,6 @@
               {
                 "title": "Demethodize function",
                 "url": "{docs-version}/docs/features/proposals/function-demethodize"
-              },
-              {
-                "title": "Iterator join",
-                "url": "{docs-version}/docs/features/proposals/iterator-join"
               }
             ]
           }
