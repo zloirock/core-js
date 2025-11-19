@@ -8,7 +8,6 @@ var WHITESPACES = require('../internals/whitespaces');
 
 var $Array = Array;
 var $escape = RegExp.escape;
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 // dependency: es.string.pad-start
 var padStart = uncurryThis(getBuiltInPrototypeMethod('String', 'padStart'));
@@ -44,7 +43,7 @@ $({ target: 'RegExp', stat: true, forced: FORCED }, {
     var result = $Array(length);
 
     for (var i = 0; i < length; i++) {
-      var char = charAt(S, i);
+      var char = S[i];
       if (i === 0 && exec(FIRST_DIGIT_OR_ASCII, char)) {
         result[i] = escapeChar(char);
       } else if (hasOwn(ControlEscape, char)) {
@@ -62,7 +61,7 @@ $({ target: 'RegExp', stat: true, forced: FORCED }, {
         // surrogate pair
         else {
           result[i] = char;
-          result[++i] = charAt(S, i);
+          result[++i] = S[i];
         }
       }
     }
