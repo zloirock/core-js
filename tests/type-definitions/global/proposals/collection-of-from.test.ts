@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const arrEntries: Array<[string, number]> = [['a', 1], ['b', 2]];
 const mapFrom: Map<string, string> = Map.from(arrEntries, v => String(v));

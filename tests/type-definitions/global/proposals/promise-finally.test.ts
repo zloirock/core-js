@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const p1 = Promise.resolve(42);
 const pf1: Promise<number> = p1.finally();

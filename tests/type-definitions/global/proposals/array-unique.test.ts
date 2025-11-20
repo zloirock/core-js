@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 type Obj = { a: number; b: string };
 const arr: Obj[] = [{ a: 1, b: 'x' }, { a: 2, b: 'y' }];

@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const arr = [Promise.resolve(1), Promise.resolve("foo"), 3] as const;
 const justNumbers = [1, 2, 3];
