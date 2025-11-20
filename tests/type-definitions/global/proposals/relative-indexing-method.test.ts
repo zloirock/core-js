@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const str = 'hello';
 const s1: string | undefined = str.at(0);
