@@ -25,16 +25,40 @@
     "email": "zloirock@zloirock.ru",
     "url": "http://zloirock.ru"
   },
-  "types": "dist/core-js-types.56.d.ts",
-  "files": [
-    "dist/core-js-types.56.d.ts"
-  ],
+  "types": "./actual.d.ts",
   "typesVersions": {
     ">=5.6": {
-      "*": ["dist/core-js-types.56.d.ts"]
+      "*": ["./dist/56/*"]
     },
     ">=5.2": {
-      "*": ["dist/core-js-types.52.d.ts"]
+      "*": ["./dist/52/*"]
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/56/actual.d.ts",
+      "default": "./dist/56/actual.d.ts"
+    },
+    "./actual": {
+      "types": "./dist/56/actual.d.ts",
+      "default": "./dist/56/actual.d.ts"
+    },
+    "./es": {
+      "types": "./dist/56/es.d.ts",
+      "default": "./dist/56/es.d.ts"
+    },
+    "./full": {
+      "types": "./dist/56/full.d.ts",
+      "default": "./dist/56/full.d.ts"
+    },
+    "./pure": {
+      "types": "./dist/56/pure.d.ts",
+      "default": "./dist/56/pure.d.ts"
+
+    },
+    "./stable": {
+      "types": "./dist/56/stable.d.ts",
+      "default": "./dist/56/stable.d.ts"
     }
   },
   "sideEffects": false

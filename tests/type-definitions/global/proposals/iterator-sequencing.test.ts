@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 declare const its1: Iterable<string>;
 declare const arrs: string[];
