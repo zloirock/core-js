@@ -1,3 +1,6 @@
 {
-  "name": "tests/type-definitions"
+  "name": "tests/type-definitions",
+  "devDependencies": {
+    "@core-js/types": "../../packages/core-js-types/"
+  }
 }
