@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const rsmd1: symbol = Symbol.metadata;
 const rsmd2: typeof Symbol.metadata = Symbol.metadata;
