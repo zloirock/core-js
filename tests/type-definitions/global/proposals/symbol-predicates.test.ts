@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const rsymbol1: boolean = Symbol.isRegisteredSymbol(Symbol.for('foo'));
 const rsymbol2: boolean = Symbol.isRegisteredSymbol(undefined);
