@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const rir1: Iterator<number> = Iterator.range(1, 10);
 Iterator.range(1, 10, 1);
