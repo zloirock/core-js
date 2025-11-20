@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const pr = Promise.withResolvers<number>();
 const pr2 = Promise.withResolvers<string>();

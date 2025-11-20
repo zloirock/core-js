@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const rdedent1: string = String.dedent`foo\nbar`;
 const rdedent2: string = String.dedent`line1
