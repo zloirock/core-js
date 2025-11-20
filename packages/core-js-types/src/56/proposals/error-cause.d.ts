@@ -55,6 +55,18 @@ declare global {
 
     (message?: string, options?: ErrorOptions): URIError;
   }
+
+  interface AggregateError extends Error {
+    errors: any[];
+  }
+
+  interface AggregateErrorConstructor {
+    new (errors: Iterable<any>, message?: string): AggregateError;
+    (errors: Iterable<any>, message?: string): AggregateError;
+    readonly prototype: AggregateError;
+  }
+
+  var AggregateError: AggregateErrorConstructor;
 }
 
 export {};

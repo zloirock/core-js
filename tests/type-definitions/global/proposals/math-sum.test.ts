@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 function acceptsNumber(x: number) {}
 

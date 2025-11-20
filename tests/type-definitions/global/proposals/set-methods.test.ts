@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const setA = new Set<number>([1, 2, 3]);
 const setB = new Set<string>(['a', 'b', 'c']);

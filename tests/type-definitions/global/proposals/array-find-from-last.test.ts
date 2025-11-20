@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const res: number | undefined = [1, 2, 3].findLast(v => v > 1);
 [1, 2, 3].findLast((v): v is 2 => v === 2);

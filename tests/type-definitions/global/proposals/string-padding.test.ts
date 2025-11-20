@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const s = 'foo';
 const p1: string = s.padStart(5);

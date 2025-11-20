@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 Iterator.zip([[1, 2, 3], [4, 5, 6]]);
 Iterator.zip([['a', 'b', 'c'], ['d', 'e', 'f']]);
