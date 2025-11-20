@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 Array.fromAsync([1, 2, 3]);
 Array.fromAsync([Promise.resolve(1), 2, 3]);

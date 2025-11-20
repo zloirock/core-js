@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const prevError = new Error('Prev error');
 
