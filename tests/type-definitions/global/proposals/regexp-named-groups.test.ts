@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 declare const execArr: RegExpExecArray;
 declare const matchArr: RegExpMatchArray;

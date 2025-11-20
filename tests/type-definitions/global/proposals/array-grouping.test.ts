@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const arr = [1, 2, 3, 4, 5];
 const objGroup: Partial<Record<'even' | 'odd', number[]>> = Object.groupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
