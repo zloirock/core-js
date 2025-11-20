@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 [1, 2, 3].filterReject((v, i, arr) => v > 1);
 ['a', 'b'].filterReject((v, i, arr) => v === 'a');
