@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const arr: number[] = [1, 2, 3];
 const arrRes: boolean = arr.includes(2);

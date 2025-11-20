@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const r: CoreJSRawJSON = JSON.rawJSON('{"a":123}');
 
