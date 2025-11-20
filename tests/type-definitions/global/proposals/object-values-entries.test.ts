@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const obj = { a: 1, b: 2 };
 const arr = [1, 2, 3];

@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const res: AsyncIterator<number> = AsyncIterator.from([1, 2, 3]);
 const res2: AsyncIterator<number> = AsyncIterator.from(new Set([1, 2, 3]));
