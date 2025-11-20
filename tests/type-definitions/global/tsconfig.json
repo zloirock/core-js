@@ -1,4 +1,9 @@
 {
   "extends": "../tsconfig.json",
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts"],
+  "compilerOptions": {
+    "types": [
+      "@core-js/types/full"
+    ]
+  }
 }
