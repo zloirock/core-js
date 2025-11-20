@@ -46,13 +46,13 @@ const runTestsOnEnv = async function ({ typeScriptVersion, target, type, env, li
   $.verbose = false;
   const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
   const command = `npx -p typescript@${ typeScriptVersion }${ env ? ` -p ${ env }` : '' } `
-    + `tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${ env ? ` --types @core-js/types,${ envLibName }` : '' }`;
+    + `tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${ env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '/full' },${ envLibName }` : '' }`;
   echo(`$ ${ command }`);
   try {
     if (env && lib) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types,${ envLibName }`.quiet();
+      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types${ type === 'pure' ? '/pure' : '/full' },${ envLibName }`.quiet();
     } else if (env) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target } --types @core-js/types,${ envLibName }`.quiet();
+      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target } --types @core-js/types${ type === 'pure' ? '/pure' : '/full' },${ envLibName }`.quiet();
     } else if (lib) {
       await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target },${ lib }`.quiet();
     } else {

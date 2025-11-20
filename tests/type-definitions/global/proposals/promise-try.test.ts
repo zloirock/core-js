@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const pt1: Promise<number> = Promise.try(() => 42);
 const pt2: Promise<string> = Promise.try(() => Promise.resolve("hi"));

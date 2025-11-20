@@ -2,6 +2,7 @@ import arrayToReversed from '@core-js/pure/full/array/to-reversed';
 import arrayToSorted from '@core-js/pure/full/array/to-sorted';
 import arrayToSpliced from '@core-js/pure/full/array/to-spliced';
 import arrayWith from '@core-js/pure/full/array/with';
+import '@core-js/types/actual';
 
 const arr: number[] = [1, 2, 3];
 const arrRev: number[] = arrayToReversed(arr);
