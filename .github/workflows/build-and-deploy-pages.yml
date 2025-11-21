@@ -13,7 +13,7 @@ jobs:
       branches: ${{ steps.set-branches.outputs.branches }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Get branch list and set output
@@ -37,7 +37,7 @@ jobs:
         branch: ${{ fromJson(needs.list-branches.outputs.branches) }}
     name: Build for ${{ matrix.branch }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ matrix.branch }}
       - name: Build cache key
@@ -90,7 +90,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Download artifacts
         uses: actions/download-artifact@v6
         with:
