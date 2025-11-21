@@ -2,12 +2,11 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "types": [
-      "@core-js/types",
+      "@core-js/types/pure",
       "@types/node"
     ]
   },
   "include": [
-    "./entries.require.ts"
-  ],
-  "exclude": []
+    "./templates.require.ts"
+  ]
 }
