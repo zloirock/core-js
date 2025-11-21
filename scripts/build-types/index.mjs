@@ -23,7 +23,7 @@ async function buildType(entry, options) {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
     template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
-    customType, tsVersion,
+    customType, tsVersion, proposal,
   } = options;
 
   switch (subset) {
@@ -75,6 +75,12 @@ async function buildType(entry, options) {
 
   await outputFile(filePath, `${ tpl.dts }${ tpl.dts ? '\n\n' : '' }`, { flag: 'a' });
   await outputFile(filePathPure, `${ tplPure.dts }${ tplPure.dts ? '\n\n' : '' }`, { flag: 'a' });
+
+  if (proposal) {
+    const filePathProposal = buildFilePath(tsVersion, entry);
+    const proposalImports = buildImports(types, 1);
+    await outputFile(filePathProposal, `${ proposalImports }\n`, { flag: 'a' });
+  }
 }
 
 async function getVersions() {
@@ -110,10 +116,14 @@ function buildFilePath(tsVersion, subset) {
   return path.join(config.buildDir, tsVersion.toString(), `${ subset }.d.ts`);
 }
 
+function buildImports(importsList, level = 0) {
+  return Array.from(importsList, it => `/// <reference types="./${ '../'.repeat(level) }types/${ it }.d.ts" />`).join('\n');
+}
+
 async function prependImports(version) {
   for (const subset of Object.keys(imports)) {
     const filePath = buildFilePath(version, subset);
-    const importLines = Array.from(imports[subset], it => `/// <reference types="./types/${ it }.d.ts" />`).join('\n');
+    const importLines = buildImports(imports[subset]);
     const originalContent = await fs.readFile(filePath, 'utf8');
     await outputFile(filePath, `${ importLines }\n\n${ originalContent }`);
   }
@@ -133,7 +143,7 @@ async function buildTypesForTSVersion(tsVersion) {
   }
 
   for (const [name, definition] of Object.entries(proposals)) {
-    await buildType(`proposals/${ name }`, { ...definition, template: $proposal, tsVersion });
+    await buildType(`proposals/${ name }`, { ...definition, template: $proposal, tsVersion, proposal: true });
   }
 
   await buildType('es/index', { template: $path, modules: ESModules, subset: 'es', tsVersion });
