@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "@core-js/types/pure"
+    ]
+  },
+  "include": [
+    "./templates.import.ts"
+  ]
+}
