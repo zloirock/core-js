@@ -5,15 +5,10 @@
     "module": "esnext",
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "noEmit": true,
-    "types": [
-      "@core-js/types/pure"
-    ]
+    "noEmit": true
   },
   "include": [
-    "./*.ts"
-  ],
-  "exclude": [
-    "./entries.require.ts"
+    "./builder.ts",
+    "./compat.ts"
   ]
 }
