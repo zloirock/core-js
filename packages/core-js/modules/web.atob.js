@@ -47,7 +47,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
-    var output = '';
+    var output = [];
     var position = 0;
     var bc = 0;
     var length, chr, bs;
@@ -61,7 +61,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     while (position < length) {
       chr = charAt(string, position++);
       bs = bc % 4 ? bs * 64 + c2i[chr] : c2i[chr];
-      if (bc++ % 4) output += fromCharCode(255 & bs >> (-2 * bc & 6));
-    } return output;
+      if (bc++ % 4) output.push(fromCharCode(255 & bs >> (-2 * bc & 6)));
+    } return output.join('');
   }
 });
