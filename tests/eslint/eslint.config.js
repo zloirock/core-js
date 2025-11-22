@@ -1273,7 +1273,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'isConstructor',
   ] }],
   'es/no-nonstandard-iterator-properties': [ERROR, { allow: [
-    'concat',
     'range',
     'zip',
     'zipKeyed',
@@ -1686,6 +1685,7 @@ const forbidES2026BuiltIns = {
   'es/no-array-fromasync': ERROR,
   'es/no-asyncdisposablestack': ERROR,
   'es/no-error-iserror': ERROR,
+  'es/no-iterator-concat': ERROR,
   'es/no-math-sumprecise': ERROR,
   'es/no-suppressederror': ERROR,
   'es/no-symbol-asyncdispose': ERROR,
@@ -1737,6 +1737,17 @@ const forbidES2023IntlBuiltIns = {
 
 const forbidES2025IntlBuiltIns = {
   'es/no-intl-durationformat': ERROR,
+};
+
+const forbidES2026IntlBuiltIns = {
+  'es/no-intl-locale-prototype-firstdayofweek': ERROR,
+  'es/no-intl-locale-prototype-getcalendars': ERROR,
+  'es/no-intl-locale-prototype-getcollations': ERROR,
+  'es/no-intl-locale-prototype-gethourcycles': ERROR,
+  'es/no-intl-locale-prototype-getnumberingsystems': ERROR,
+  'es/no-intl-locale-prototype-gettextinfo': ERROR,
+  'es/no-intl-locale-prototype-gettimezones': ERROR,
+  'es/no-intl-locale-prototype-getweekinfo': ERROR,
 };
 
 const forbidSomeES2025Syntax = {
@@ -1876,6 +1887,7 @@ const nodePackages = {
   ...forbidES2022IntlBuiltIns,
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
+  ...forbidES2026IntlBuiltIns,
   ...forbidSomeES2025Syntax,
 };
 
@@ -1891,6 +1903,7 @@ const nodeDev = {
   'es/no-intl-supportedvaluesof': ERROR,
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
+  ...forbidES2026IntlBuiltIns,
   // ReDoS vulnerability check
   'redos/no-vulnerable': OFF,
   // prefer top-level await
