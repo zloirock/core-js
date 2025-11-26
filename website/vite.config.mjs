@@ -21,6 +21,7 @@ export default defineConfig({
   },
   plugins: [
     legacy({
+      targets: 'IE 11, Chrome>=38, Safari>=7.1, FF>=15',
       polyfills: false,
     }),
   ],
