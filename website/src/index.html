@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <base href="{base}" />
     <script>
-      let theme = localStorage.getItem('theme');
+      var theme = localStorage.getItem('theme');
       if (theme === null) {
         if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
           theme = 'theme-dark';
@@ -17,7 +17,7 @@
           theme = 'theme-light';
         }
       }
-      const html = document.querySelector('html');
+      var html = document.querySelector('html');
       setTheme(theme);
       function setTheme(theme) {
         localStorage.setItem('theme', theme);
