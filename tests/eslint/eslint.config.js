@@ -3,10 +3,10 @@ import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
 import pluginASCII from 'eslint-plugin-ascii';
-import pluginCanonical from 'eslint-plugin-canonical';
 import pluginDepend from 'eslint-plugin-depend';
 import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
+import pluginFilename from 'eslint-plugin-filename';
 import pluginImport from 'eslint-plugin-import-x';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
@@ -23,6 +23,9 @@ import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
+
+// https://github.com/benyasin/eslint-plugin-filename/issues/1
+pluginFilename.rules.match.meta.schema = false;
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^18.12';
@@ -2348,10 +2351,10 @@ export default [
       '@stylistic': pluginStylistic,
       'array-func': pluginArrayFunc,
       ascii: pluginASCII,
-      canonical: pluginCanonical,
       depend: pluginDepend,
       es: pluginESX,
       'eslint-comments': pluginESlintComments,
+      filename: pluginFilename,
       import: pluginImport,
       jsonc: pluginJSONC,
       markdown: pluginMarkdown,
@@ -2517,7 +2520,7 @@ export default [
   {
     rules: {
       // ensure that filenames match a convention
-      'canonical/filename-match-regex': [ERROR, { regex: '^[\\da-z]|[a-z][\\d\\-.a-z]*[\\da-z]$' }],
+      'filename/match': [ERROR, /^[\da-z][\d\-.a-z]*[\da-z]$/],
     },
   },
   {
@@ -2526,7 +2529,7 @@ export default [
     ],
     rules: {
       // ensure that filenames match a convention
-      'canonical/filename-match-regex': [ERROR, { regex: '^(?:es|esnext|web)(?:\\.[a-z][\\d\\-a-z]*[\\da-z])+$' }],
+      'filename/match': [ERROR, /^(?:es|esnext|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
     },
   },
   {
@@ -2535,7 +2538,14 @@ export default [
     ],
     rules: {
       // ensure that filenames match a convention
-      'canonical/filename-match-regex': [ERROR, { regex: '^(?:es|esnext|helpers|web)(?:\\.[a-z][\\d\\-a-z]*[\\da-z])+$' }],
+      'filename/match': [ERROR, /^(?:es|esnext|helpers|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
+    },
+  },
+  {
+    files: ['**/*.md/*.@(js|json)'],
+    rules: {
+      // ensure that filenames match a convention
+      'filename/match': OFF,
     },
   },
   {
