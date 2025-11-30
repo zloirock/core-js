@@ -12,6 +12,7 @@ var forEachWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError
 
 // `Iterator.prototype.forEach` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.foreach
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: forEachWithoutClosingOnEarlyError }, {
   forEach: function forEach(fn) {
     anObject(this);
@@ -28,5 +29,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: forEachWithoutClosingOn
     iterate(record, function (value) {
       fn(value, counter++);
     }, { IS_RECORD: true });
-  }
+  },
 });
