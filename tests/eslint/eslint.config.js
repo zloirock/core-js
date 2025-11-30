@@ -2542,13 +2542,6 @@ export default [
     },
   },
   {
-    files: ['**/*.md/*.@(js|json)'],
-    rules: {
-      // ensure that filenames match a convention
-      'filename/match': OFF,
-    },
-  },
-  {
     language: 'yaml/yaml',
     files: ['*.yaml', '*.yml'],
     rules: yaml,
@@ -2588,6 +2581,8 @@ export default [
     rules: {
       // enforce a case style for filenames
       'unicorn/filename-case': OFF,
+      // ensure that filenames match a convention
+      'filename/match': OFF,
     },
   },
   {
