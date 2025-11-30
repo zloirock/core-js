@@ -14,6 +14,7 @@ import pluginMath from 'eslint-plugin-math';
 import pluginN from 'eslint-plugin-n';
 import pluginNodeDependencies from 'eslint-plugin-node-dependencies';
 import * as pluginPackageJSON from 'eslint-plugin-package-json';
+import pluginPlaywright from 'eslint-plugin-playwright';
 import pluginPromise from 'eslint-plugin-promise';
 import pluginQUnit from 'eslint-plugin-qunit';
 import pluginReDoS from 'eslint-plugin-redos';
@@ -2035,6 +2036,19 @@ const qunit = {
   'qunit/resolve-async': ERROR,
 };
 
+const playwright = {
+  // enforce Playwright APIs to be awaited
+  'playwright/missing-playwright-await': ERROR,
+  // disallow usage of `page.$eval()` and `page.$$eval()`
+  'playwright/no-eval': ERROR,
+  // disallow using `page.pause()`
+  'playwright/no-page-pause': ERROR,
+  // prevent unsafe variable references in `page.evaluate()`
+  'playwright/no-unsafe-references': ERROR,
+  // disallow unnecessary awaits for Playwright methods
+  'playwright/no-useless-await': ERROR,
+};
+
 const yaml = {
   // disallow empty mapping values
   'yaml/no-empty-mapping-value': ERROR,
@@ -2345,6 +2359,7 @@ export default [
       node: pluginN,
       'node-dependencies': pluginNodeDependencies,
       'package-json': pluginPackageJSON,
+      playwright: pluginPlaywright,
       promise: pluginPromise,
       qunit: pluginQUnit,
       redos: pluginReDoS,
@@ -2439,6 +2454,12 @@ export default [
       globals: globals.qunit,
     },
     rules: qunit,
+  },
+  {
+    files: [
+      'scripts/usage/**',
+    ],
+    rules: playwright,
   },
   {
     files: [
