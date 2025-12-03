@@ -5,7 +5,7 @@
 // https://github.com/microsoft/TypeScript/blob/069de743dbd17b47cc2fc58e1d16da5410911284/src/lib/es2023.array.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface Array<T> {
+interface Array<T> { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -30,7 +30,7 @@ interface Array<T> {
   findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number;
 }
 
-interface Int8Array {
+interface Int8Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -55,7 +55,7 @@ interface Int8Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Uint8Array {
+interface Uint8Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -80,7 +80,7 @@ interface Uint8Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Uint8ClampedArray {
+interface Uint8ClampedArray { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -105,7 +105,7 @@ interface Uint8ClampedArray {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Int16Array {
+interface Int16Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -130,7 +130,7 @@ interface Int16Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Uint16Array {
+interface Uint16Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -155,7 +155,7 @@ interface Uint16Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Int32Array {
+interface Int32Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -180,7 +180,7 @@ interface Int32Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Uint32Array {
+interface Uint32Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -205,7 +205,7 @@ interface Uint32Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Float32Array {
+interface Float32Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -230,7 +230,7 @@ interface Float32Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface Float64Array {
+interface Float64Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -246,7 +246,7 @@ interface Float64Array {
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface BigInt64Array {
+interface BigInt64Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
@@ -271,7 +271,7 @@ interface BigInt64Array {
   findLastIndex(predicate: (value: bigint, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
-interface BigUint64Array {
+interface BigUint64Array { // @type-options no-redefine
   /**
    * Returns the value of the last element in the array where predicate is true, and undefined
    * otherwise.
