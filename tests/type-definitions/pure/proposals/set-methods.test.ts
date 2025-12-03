@@ -9,13 +9,13 @@ import setIsDisjointFrom from '@core-js/pure/full/set/is-disjoint-from';
 const setA = new Set<number>([1, 2, 3]);
 const setB = new Set<string>(['a', 'b', 'c']);
 
-const setLike: ReadonlySetLike<number> = {
+const setLike = {
   keys() { return [1, 2, 3][Symbol.iterator](); },
   has(val: number): boolean { return val === 2; },
   size: 3
 };
 
-const setLikeStr: ReadonlySetLike<string> = {
+const setLikeStr = {
   keys() { return ['a', 'b'][Symbol.iterator](); },
   has(val: string): boolean { return val === 'a'; },
   size: 2
