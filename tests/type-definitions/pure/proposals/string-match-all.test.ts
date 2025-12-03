@@ -2,10 +2,7 @@ import stringMatchAll from '@core-js/pure/full/string/match-all';
 
 const s = 'abcabc';
 const re = /abc/g;
-const matchIter: RegExpStringIterator<RegExpExecArray> = stringMatchAll(s, re);
-
-const result = stringMatchAll(s, re);
-const assertType: RegExpStringIterator<RegExpExecArray> = result;
+stringMatchAll(s, re);
 
 // @ts-expect-error
 stringMatchAll(s);

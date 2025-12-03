@@ -4,7 +4,7 @@
 import { CoreJSIteratorObject } from '../core-js-types/core-js-types';
 
 declare global {
-  interface IteratorConstructor {
+  interface IteratorConstructor { // @type-options no-extends
     /**
      * Creates an iterator that sequentially yields values from the provided iterables.
      * @param iterators The iterables to concatenate.
