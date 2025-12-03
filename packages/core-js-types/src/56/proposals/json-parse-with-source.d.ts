@@ -1,19 +1,19 @@
 // proposal stage: 3
 // https://github.com/tc39/proposal-json-parse-with-source
 
-interface CoreJSReviverContext {
+interface CoreJSReviverContext { // @type-options no-extends,no-prefix
   readonly __brand: unique symbol;
 
   source: string;
 }
 
-interface CoreJSRawJSON {
+interface CoreJSRawJSON { // @type-options no-extends,no-prefix
   readonly __brand: unique symbol;
 
   rawJSON: string;
 }
 
-interface JSON {
+interface JSON {  // @type-options no-constructor
   /**
    * Determines whether a value is a RawJSON object.
    * @param value

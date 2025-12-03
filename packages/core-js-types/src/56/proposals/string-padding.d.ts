@@ -5,7 +5,7 @@
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/es2017.string.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface String {
+interface String { // @type-options no-redefine
   /**
    * Pads the current string with a given string (possibly repeated) so that the resulting string reaches a given length.
    * The padding is applied from the start (left) of the current string.
