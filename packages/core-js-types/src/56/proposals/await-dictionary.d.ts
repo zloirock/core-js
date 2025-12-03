@@ -22,6 +22,8 @@ declare global {
      */
     allSettledKeyed<D extends Record<PropertyKey, Promise<any>>>(promises: D): Promise <{ [k in keyof D]: CoreJSPromiseSettledResult<Awaited<D[k]>> }>;
   }
+
+  var Promise: PromiseConstructor;
 }
 
 export {};
