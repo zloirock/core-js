@@ -1,7 +1,7 @@
 // proposal stage: 1
 // https://github.com/tc39/proposal-dataview-get-set-uint8clamped
 
-interface DataView<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike> {
+interface DataView<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike> { // @type-options no-constructor
   /**
    * Reads an unsigned 8-bit integer at the specified byte offset from the DataView,
    * interpreting the byte as a clamped 8-bit unsigned value (same as Uint8ClampedArray).

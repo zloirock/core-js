@@ -1,5 +1,5 @@
 // proposal stage: 2
-// https://github.com/tc39/proposal-Number.range
+// https://github.com/tc39/proposal-iterator.range
 
 declare global {
   type IteratorRangeOptions<T> = {
@@ -8,7 +8,7 @@ declare global {
     inclusive?: boolean;
   };
 
-  interface IteratorConstructor {
+  interface IteratorConstructor { // @type-options no-extends
     /**
      * Returns an iterator that generates a sequence of numbers or bigints within a range.
      * @param start The starting value of the sequence.
