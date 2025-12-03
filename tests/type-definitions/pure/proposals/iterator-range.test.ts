@@ -1,9 +1,5 @@
 import range from '@core-js/pure/full/iterator/range';
 
-// import Promise from '@core-js/actual/promise/index';
-// import $iteratorFull from '@core-js/pure/full/promise/index';
-// import $iteratorActual from '@core-js/pure/actual/iterator/index';
-
 const rir1: Iterator<number> = range(1, 10);
 range(1, 10, 1);
 range(1, 10, { step: 1 });
