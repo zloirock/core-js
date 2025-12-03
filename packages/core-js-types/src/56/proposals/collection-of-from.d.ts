@@ -21,6 +21,8 @@ interface MapConstructor {
   of<K, V>(...items: [K, V][]): Map<K, V>;
 }
 
+declare var Map: MapConstructor;
+
 interface SetConstructor {
   /**
    * Creates a new `Set` instance from an iterable or array-like object of [key, value] pairs.
@@ -40,6 +42,8 @@ interface SetConstructor {
    */
   of<T>(...items: T[]): Set<T>;
 }
+
+declare var Set: SetConstructor;
 
 interface WeakMapConstructor {
   /**
@@ -61,6 +65,8 @@ interface WeakMapConstructor {
   of<K extends object, V>(...items: [K, V][]): WeakMap<K, V>;
 }
 
+declare var WeakMap: WeakMapConstructor;
+
 interface WeakSetConstructor {
   /**
    * Creates a new `WeakSet` instance from an iterable or array-like object of [key, value] pairs.
@@ -80,3 +86,5 @@ interface WeakSetConstructor {
    */
   of<T extends object>(...items: T[]): WeakSet<T>;
 }
+
+declare var WeakSet: WeakSetConstructor;
