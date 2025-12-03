@@ -117,6 +117,9 @@ await $`npx -p typescript@5.9 tsc -p tsconfig.templates.import.json`;
 await $`npx -p typescript@5.9 tsc -p tsconfig.entries.json`;
 await $`npx -p typescript@5.9 -p @types/node@24 tsc -p tsconfig.templates.require.json`;
 
+// await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target es6 --lib es6`;
+// await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target esnext --lib esnext,dom`;
+
 const numCPUs = os.cpus().length;
 await prepareEnvironment(envs, types);
 await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));

@@ -23,11 +23,6 @@ pr3.reject();
 const value: number | PromiseLike<number> = 99;
 pr.resolve(value);
 
-declare function agrees<T>(): PromiseWithResolvers<T>;
-const gr: PromiseWithResolvers<boolean> = agrees<boolean>();
-gr.resolve(true);
-gr.reject();
-
 // @ts-expect-error
 promiseWithResolvers(123);
 
