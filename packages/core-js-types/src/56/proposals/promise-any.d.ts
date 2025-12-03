@@ -25,7 +25,7 @@ interface AggregateError extends Error {
   errors: any[];
 }
 
-interface AggregateErrorConstructor {
+interface AggregateErrorConstructor { // @type-options no-extends
   new (errors: Iterable<any>, message?: string): AggregateError;
   (errors: Iterable<any>, message?: string): AggregateError;
   readonly prototype: AggregateError;

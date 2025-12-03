@@ -42,7 +42,7 @@ interface Uint8ArrayConstructor {
   fromHex(str: string): Uint8Array;
 }
 
-interface Uint8Array {
+interface Uint8Array { // @type-options no-redefine
   /**
    * Sets the `Uint8Array` from a base64-encoded string.
    * @param string The base64-encoded string.

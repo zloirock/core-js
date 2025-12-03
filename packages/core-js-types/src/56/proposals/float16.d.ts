@@ -5,7 +5,7 @@
 // https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.float16.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface Math {
+interface Math { // @type-options no-constructor
   /**
    * Returns the nearest half precision float representation of a number.
    * @param x A numeric expression.
@@ -13,7 +13,7 @@ interface Math {
   f16round(x: number): number;
 }
 
-interface DataView<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike> {
+interface DataView<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike> { // @type-options no-constructor
   /**
    * Gets the Float16 value at the specified byte offset from the start of the view. There is
    * no alignment constraint; multibyte values may be fetched from any offset.

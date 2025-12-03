@@ -1,4 +1,4 @@
-interface VoidFunction {
+interface VoidFunction { // @type-options no-redefine no-prefix no-extends
   (): void;
 }
 

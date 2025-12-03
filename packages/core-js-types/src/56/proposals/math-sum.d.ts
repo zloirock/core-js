@@ -1,6 +1,6 @@
 // proposal stage: 3
 // https://github.com/tc39/proposal-math-sum
-interface Math {
+interface Math { // @type-options no-constructor
   /**
    * Returns the sum of all given values.
    * @param values

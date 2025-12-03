@@ -5,7 +5,7 @@
 // https://github.com/microsoft/TypeScript/blob/4a957b74ea4d716356181644d23f6ad5f10824d6/src/lib/es2024.arraybuffer.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface ArrayBuffer {
+interface ArrayBuffer { // @type-options export-base-constructor
   // todo hack for modern ts
   // get detached(): boolean;
 
