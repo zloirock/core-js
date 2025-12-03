@@ -10,7 +10,7 @@ declare global {
     padding?: object;
   };
 
-  interface IteratorConstructor {
+  interface IteratorConstructor { // @type-options no-extends
     /**
      * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
      * to position in the passed iterable.
