@@ -2,7 +2,7 @@
 // https://github.com/tc39/proposal-async-iterator-helpers
 
 declare global {
-  interface AsyncIteratorConstructor {
+  interface AsyncIteratorConstructor { // @type-options no-extends
     /**
      * Creates an `AsyncIterator` from an iterable object
      * @param iterable An `AsyncIterable`, `Iterable`, or `AsyncIterator` to convert to an `AsyncIterator`

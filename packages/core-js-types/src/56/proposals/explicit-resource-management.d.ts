@@ -17,11 +17,11 @@ interface SymbolConstructor {
   readonly asyncDispose: unique symbol;
 }
 
-interface Disposable {
+interface Disposable { // @type-options no-constructor
   [Symbol.dispose](): void;
 }
 
-interface AsyncDisposable {
+interface AsyncDisposable { // @type-options no-constructor
   [Symbol.asyncDispose](): PromiseLike<void>;
 }
 
@@ -192,6 +192,6 @@ interface AsyncDisposableStackConstructor {
 
 declare var AsyncDisposableStack: AsyncDisposableStackConstructor;
 
-interface IteratorObject<T, TReturn = unknown, TNext = unknown> extends Disposable {}
+interface IteratorObject<T, TReturn = unknown, TNext = unknown> extends Disposable {} // @type-options no-extends
 
-interface AsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends AsyncDisposable {}
+interface AsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends AsyncDisposable {} // @type-options no-extends
