@@ -36,6 +36,14 @@ const namespacesWithOneGeneric = [
   'AsyncIterator',
 ];
 
+function existsInES6(namespace) {
+  const missingNamespacesInES6 = [
+    'AsyncIterator',
+  ];
+
+  return !missingNamespacesInES6.includes(namespace);
+}
+
 function getGenericsForNamespace(namespace) {
   if (namespace === 'WeakMap') {
     return '<K extends WeakKey, V>';
@@ -83,7 +91,7 @@ export const $prototype = p => ({
   `,
   dts: dedent`
     declare module "${ p.packageName }${ p.entry }" {
-      type method${ getGenericsForNamespace(p.namespace) } = ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
+      type method${ getGenericsForNamespace(p.namespace) } = ${ p.prefix ?? '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
       export = method;
     }
   `,
@@ -99,7 +107,7 @@ export const $prototypeIterator = p => ({
   `,
   dts: dedent`
     declare module "${ p.packageName }${ p.entry }" {
-      const method: typeof ${ p.namespace }.prototype[typeof Symbol.iterator];
+      const method: typeof ${ p.prefix ?? '' }${ p.namespace }.prototype[typeof Symbol.iterator];
       export = method;
     }
   `,
@@ -115,8 +123,8 @@ export const $uncurried = p => ({
   `,
   dts: dedent`
     declare module "${ p.packageName }${ p.entry }" {
-      type method${ getGenericsForNamespace(p.namespace) } = ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
-      const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
+      type method${ getGenericsForNamespace(p.namespace) } = ${ p.prefix ?? '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
+      const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ p.prefix && !existsInES6(p.namespace) ? p.prefix : '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
       export = resultMethod;
     }
   `,
@@ -166,7 +174,7 @@ export const $static = p => ({
   `,
   dts: dedent`
     declare module "${ p.packageName }${ p.entry }" {
-      const method: typeof ${ p.namespace }.${ p.name };
+      const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
       export = method;
     }
   `,
@@ -189,7 +197,7 @@ export const $staticWithContext = p => ({
   `,
   dts: dedent`
     declare module "${ p.packageName }${ p.entry }" {
-      const method: typeof ${ p.namespace }.${ p.name };
+      const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
       export = method;
     }
   `,
@@ -208,7 +216,7 @@ export const $patchableStatic = p => ({
   `,
   dts: dedent`
     declare module "${ p.packageName }${ p.entry }" {
-      const method: typeof ${ p.namespace }.${ p.name };
+      const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
       export = method;
     }
   `,
@@ -224,7 +232,7 @@ export const $namespace = p => ({
   `,
   dts: dedent`
     declare module "${ p.packageName }${ p.entry }" {
-      const namespace: typeof ${ p.name };
+      const namespace: typeof ${ p.prefix ?? '' }${ p.name };
       export = namespace;
     }
   `,

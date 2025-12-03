@@ -12,9 +12,3 @@ interface SymbolConstructor {
    */
   readonly asyncIterator: unique symbol;
 }
-
-interface AsyncIteratorConstructor {
-
-}
-
-declare var AsyncIterator: AsyncIteratorConstructor;

@@ -2,6 +2,14 @@ import rawJSON from '@core-js/pure/full/json/raw-json';
 import isRawJSON from '@core-js/pure/full/json/is-raw-json';
 import parse from '@core-js/pure/full/json/parse';
 
+declare type CoreJSRawJSON = {
+  rawJSON: string;
+}
+
+declare type CoreJSReviverContext = {
+  source: string;
+}
+
 const r: CoreJSRawJSON = rawJSON('{"a":123}');
 
 const isr1: boolean = isRawJSON(r);
