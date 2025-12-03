@@ -1,4 +1,4 @@
-interface CoreJSStructuredSerializeOptions {
+interface CoreJSStructuredSerializeOptions { // @type-options no-extends, no-prefix
   readonly __brand?: unique symbol;
 
   transfer?: any[];
