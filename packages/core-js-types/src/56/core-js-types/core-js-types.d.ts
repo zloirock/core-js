@@ -17,6 +17,17 @@ declare global {
 
   interface PromiseRejectedResult { status: "rejected"; reason: any; }
 
+  interface AsyncIterator<T, TReturn = any, TNext = any> {
+    // NOTE: 'next' is defined using a tuple to ensure we report the correct assignability errors in all places.
+    next(...[value]: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
+    return?(value?: TReturn | PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>;
+    throw?(e?: any): Promise<IteratorResult<T, TReturn>>;
+  }
+
+  interface AsyncIteratorConstructor {}
+
+  var AsyncIterator: AsyncIteratorConstructor;
+
   interface AsyncIterable<T, TReturn = any, TNext = any> {
     [Symbol.asyncIterator](): AsyncIterator<T, TReturn, TNext>;
   }
@@ -28,6 +39,10 @@ export type CoreJSDecoratorMetadataObject = typeof globalThis extends { Decorato
 
 export type CoreJSIteratorObject<T, TReturn = any, TNext = undefined> = IteratorObject<T, TReturn, TNext>;
 
+export type CoreJSPromiseSettledResult<T> = typeof globalThis extends { PromiseSettledResult: infer O }  // from ts 3.8 and es2020
+  ? O
+  : PromiseFulfilledResult<T> | PromiseRejectedResult;
+
 export type CoreJSFlatArray<Arr, Depth extends number> = typeof globalThis extends { FlatArray: infer O } // from ts 4.4
   ? O
   : {
@@ -35,7 +50,3 @@ export type CoreJSFlatArray<Arr, Depth extends number> = typeof globalThis exten
     recur: Arr extends ReadonlyArray<infer InnerArr> ? CoreJSFlatArray<InnerArr, [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20][Depth]>
       : Arr;
   }[Depth extends -1 ? "done" : "recur"];
-
-export type CoreJSPromiseSettledResult<T> = typeof globalThis extends { PromiseSettledResult: infer O }  // from ts 3.8 and es2020
-  ? O
-  : PromiseFulfilledResult<T> | PromiseRejectedResult;
