@@ -1290,10 +1290,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'asIndexedPairs',
     'indexed',
   ] }],
-  'es/no-nonstandard-json-properties': [ERROR, { allow: [
-    'isRawJSON',
-    'rawJSON',
-  ] }],
   'es/no-nonstandard-map-properties': [ERROR, { allow: [
     'from',
     'of',
@@ -1690,6 +1686,9 @@ const forbidES2026BuiltIns = {
   'es/no-asyncdisposablestack': ERROR,
   'es/no-error-iserror': ERROR,
   'es/no-iterator-concat': ERROR,
+  'es/no-json-israwjson': ERROR,
+  'es/no-json-parse-reviver-context-parameter': ERROR,
+  'es/no-json-rawjson': ERROR,
   'es/no-math-sumprecise': ERROR,
   'es/no-suppressederror': ERROR,
   'es/no-symbol-asyncdispose': ERROR,
