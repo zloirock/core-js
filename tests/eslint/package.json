@@ -10,7 +10,7 @@
     "eslint-plugin-array-func": "^5.1.0",
     "eslint-plugin-ascii": "^2.0.0",
     "eslint-plugin-depend": "^1.4.0",
-    "eslint-plugin-es-x": "^9.2.0",
+    "eslint-plugin-es-x": "^9.3.0",
     "eslint-plugin-filename": "^1.0.3",
     "eslint-plugin-import-x": "^4.16.1",
     "eslint-plugin-jsonc": "^2.21.0",
