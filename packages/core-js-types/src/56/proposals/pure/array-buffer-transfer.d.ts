@@ -1,3 +1,6 @@
+// Motivation: We can use a readonly properties in the pure version, e.g. ArrayBuffer.detached.
+// Motivation: We must create a constructor interface to allow creating our own ArrayBuffer implementation.
+
 // proposal stage: 4
 // https://github.com/tc39/proposal-arraybuffer-transfer
 
