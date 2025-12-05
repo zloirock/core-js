@@ -14,7 +14,7 @@ interface Array<T> { // @type-options no-redefine
   includes(searchElement: T, fromIndex?: number): boolean;
 }
 
-interface Int8Array { // @type-options no-redefine
+interface Int8Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -23,7 +23,7 @@ interface Int8Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Uint8Array { // @type-options no-redefine
+interface Uint8Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -32,7 +32,7 @@ interface Uint8Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Uint8ClampedArray { // @type-options no-redefine
+interface Uint8ClampedArray { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -41,7 +41,7 @@ interface Uint8ClampedArray { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Int16Array { // @type-options no-redefine
+interface Int16Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -50,7 +50,7 @@ interface Int16Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Uint16Array { // @type-options no-redefine
+interface Uint16Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -59,7 +59,7 @@ interface Uint16Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Int32Array { // @type-options no-redefine
+interface Int32Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -68,7 +68,7 @@ interface Int32Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Uint32Array { // @type-options no-redefine
+interface Uint32Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -77,7 +77,7 @@ interface Uint32Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Float32Array { // @type-options no-redefine
+interface Float32Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -86,7 +86,7 @@ interface Float32Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface Float64Array { // @type-options no-redefine
+interface Float64Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -95,7 +95,7 @@ interface Float64Array { // @type-options no-redefine
   includes(searchElement: number, fromIndex?: number): boolean;
 }
 
-interface BigInt64Array { // @type-options no-redefine
+interface BigInt64Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
@@ -104,7 +104,7 @@ interface BigInt64Array { // @type-options no-redefine
   includes(searchElement: bigint, fromIndex?: number): boolean;
 }
 
-interface BigUint64Array { // @type-options no-redefine
+interface BigUint64Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
    * @param searchElement The element to search for.
