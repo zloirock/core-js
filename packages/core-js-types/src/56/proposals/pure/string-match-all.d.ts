@@ -1,5 +1,7 @@
-/// <reference types="./iterator.d.ts" />
-/// <reference types="./explicit-resource-management.d.ts" />
+/// <reference types="../../core-js-types/string-base.d.ts" />
+/// <reference types="../../core-js-types/iterator-object.ts" />
+
+// Motivation: We should use String without the matchAll method to avoid signature conflicts
 
 // proposal stage: 4
 // https://github.com/tc39/proposal-string-matchall
@@ -12,8 +14,6 @@ declare namespace CoreJS {
   interface CoreJSRegExpStringIterator<T> extends CoreJSIteratorObject<T> {
     [Symbol.iterator](): CoreJSRegExpStringIterator<T>;
   }
-
-  type StringBase = Omit<String, 'matchAll'>;
 
   export interface CoreJSString extends StringBase {
 
