@@ -2596,11 +2596,13 @@ export const data = {
   },
   'esnext.map.get-or-insert': {
     bun: '1.2.20',
+    chrome: '145',
     firefox: '144',
     safari: '26.2',
   },
   'esnext.map.get-or-insert-computed': {
     bun: '1.2.20',
+    chrome: '145',
     firefox: '144',
     safari: '26.2',
   },
@@ -2893,11 +2895,13 @@ export const data = {
   },
   'esnext.weak-map.get-or-insert': {
     bun: '1.2.20',
+    chrome: '145',
     firefox: '144',
     safari: '26.2',
   },
   'esnext.weak-map.get-or-insert-computed': {
     bun: '1.2.20',
+    chrome: '145',
     firefox: '144',
     safari: '26.2',
   },
