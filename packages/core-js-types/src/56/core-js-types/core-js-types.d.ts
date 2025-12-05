@@ -38,15 +38,3 @@ export type CoreJSDecoratorMetadataObject = typeof globalThis extends { Decorato
   : Record<PropertyKey, unknown> & object;
 
 export type CoreJSIteratorObject<T, TReturn = any, TNext = undefined> = IteratorObject<T, TReturn, TNext>;
-
-export type CoreJSPromiseSettledResult<T> = typeof globalThis extends { PromiseSettledResult: infer O }  // from ts 3.8 and es2020
-  ? O
-  : PromiseFulfilledResult<T> | PromiseRejectedResult;
-
-export type CoreJSFlatArray<Arr, Depth extends number> = typeof globalThis extends { FlatArray: infer O } // from ts 4.4
-  ? O
-  : {
-    done: Arr;
-    recur: Arr extends ReadonlyArray<infer InnerArr> ? CoreJSFlatArray<InnerArr, [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20][Depth]>
-      : Arr;
-  }[Depth extends -1 ? "done" : "recur"];
