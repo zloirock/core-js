@@ -1,3 +1,7 @@
+// For ensuring compatibility with TypeScript standard types, this code is based on:
+// https://github.com/microsoft/TypeScript/blob/38d95c8001300f525fd601dd0ce6d0ff5f12baee/src/lib/es2015.reflect.d.ts
+// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
+
 declare namespace CoreJS {
   interface Reflect {
     /**
