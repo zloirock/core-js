@@ -1,4 +1,6 @@
-/// <reference types="./string-match-all.d.ts" />
+/// <reference types="../../core-js-types/string-base.d.ts" />
+
+// Motivation: We should use String without the matchAll method to avoid signature conflicts
 
 // proposal stage: 4
 // https://github.com/tc39/proposal-string-replaceall
