@@ -1,5 +1,7 @@
 /// <reference types="./explicit-resource-management.d.ts" />
 
+// Motivation: Has dependencies on internal types
+
 // proposal stage: 2.7
 // https://github.com/tc39/proposal-iterator-chunking
 
@@ -17,9 +19,6 @@
 
 // proposal stage: 2.7
 // https://github.com/tc39/proposal-iterator-sequencing
-
-// proposal stage: 2
-// https://github.com/tc39/proposal-async-iterator-helpers
 
 // For ensuring compatibility with TypeScript standard types, this code is based on:
 // https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.iterator.d.ts
@@ -60,7 +59,6 @@ declare namespace CoreJS {
     [CoreJSSymbol.asyncIterator](): CoreJSAsyncIterator<T, TReturn, TNext>;
   }
 
-  export interface CoreJSIteratorObject<T, TReturn = any, TNext = undefined> extends Iterator<T, TReturn, TNext> {}
   export interface CoreJSIteratorObject<T, TReturn = any, TNext = undefined> extends CoreJSDisposable {}
 
   export interface CoreJSIterator<T> extends Iterator<T> {
@@ -171,12 +169,6 @@ declare namespace CoreJS {
     find(predicate: (value: T, index: number) => unknown): T | undefined;
 
     join(separator?: unknown): string;
-
-    /**
-     * Creates an `AsyncIterator` from the current `Iterator`
-     * @returns A new `AsyncIterator` instance
-     */
-    toAsync(): CoreJSAsyncIteratorObject<T>;
   }
 
   export interface CoreJSIteratorConstructor {
