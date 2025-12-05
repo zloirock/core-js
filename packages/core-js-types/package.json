@@ -59,7 +59,6 @@
       "types@>=5.6": "./dist/56/pure.d.ts",
       "types": "./dist/52/pure.d.ts",
       "default": "./dist/56/pure.d.ts"
-
     },
     "./stable": {
       "types@>=5.6": "./dist/56/stable.d.ts",

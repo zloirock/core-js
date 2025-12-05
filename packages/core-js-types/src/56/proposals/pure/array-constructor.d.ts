@@ -1,5 +1,7 @@
 /// <reference types="./iterator.d.ts" />
 
+// Motivation: We must omit methods `fromAsync` and `isTemplateObject` because they cause a signature mismatch error.
+
 // proposal stage: 2
 // https://github.com/tc39/proposal-array-is-template-object
 
@@ -11,10 +13,7 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  type ArrayConstructorBase = Omit<
-    ArrayConstructor,
-    'fromAsync' | 'isTemplateObject'
-  >;
+  type ArrayConstructorBase = Omit<ArrayConstructor, 'fromAsync' | 'isTemplateObject'>;
 
   export interface CoreJSArrayConstructor extends ArrayConstructorBase {
     /**
