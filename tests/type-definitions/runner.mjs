@@ -37,12 +37,12 @@ const libs = [
 let tested = 0;
 let failed = 0;
 
-const getEnvPath = function (env) {
+function getEnvPath(env) {
   if (!env) return null;
   return path.join(TMP_DIR, env.replaceAll('/', '-').replaceAll('@', ''));
-};
+}
 
-const runTestsOnEnv = async function ({ typeScriptVersion, target, type, env, lib }) {
+async function runTestsOnEnv({ typeScriptVersion, target, type, env, lib }) {
   $.verbose = false;
   const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
   const command = `npx -p typescript@${ typeScriptVersion }${ env ? ` -p ${ env }` : '' } `
@@ -65,9 +65,9 @@ const runTestsOnEnv = async function ({ typeScriptVersion, target, type, env, li
     failed++;
     echo(`$ ${ chalk.red(command) }\n ${ error }`);
   }
-};
+}
 
-const runLimited = async function (configs, limit) {
+async function runLimited(configs, limit) {
   let i = 0;
   async function worker() {
     while (i < configs.length) {
@@ -76,7 +76,7 @@ const runLimited = async function (configs, limit) {
     }
   }
   await Promise.all(Array.from({ length: limit }, worker));
-};
+}
 
 const taskConfigs = [];
 for (const type of types) {
@@ -91,11 +91,11 @@ for (const type of types) {
   }
 }
 
-const clearTmpDir = async function () {
+async function clearTmpDir() {
   await $`rm -rf ${ TMP_DIR }`;
-};
+}
 
-const prepareEnvironment = async function (environments, coreJsTypes) {
+async function prepareEnvironment(environments, coreJsTypes) {
   await clearTmpDir();
   for (const env of environments) {
     if (!env) continue;
@@ -110,7 +110,7 @@ const prepareEnvironment = async function (environments, coreJsTypes) {
       });
     }
   }
-};
+}
 
 await $`npx -p typescript@5.9 tsc`;
 await $`npx -p typescript@5.9 tsc -p tsconfig.templates.import.json`;
