@@ -1,3 +1,6 @@
+// Motivation: We should use SymbolConstructor without asyncIterator, matchAll, dispose, asyncDispose,
+// customMatcher, metadata properties to avoid signature conflicts
+
 // proposal stage: 3
 // https://github.com/tc39/proposal-explicit-resource-management
 
@@ -12,7 +15,6 @@
 
 // For ensuring compatibility with TypeScript standard types, this code is based on:
 // https://github.com/microsoft/TypeScript/blob/069de743dbd17b47cc2fc58e1d16da5410911284/src/lib/es2018.asynciterable.d.ts#L4
-// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 // proposal stage: 3
 // https://github.com/tc39/proposal-decorator-metadata
@@ -22,7 +24,6 @@
 
 // For ensuring compatibility with TypeScript standard types, this code is based on:
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/es2020.string.d.ts
-// License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 // proposal stage: 4
 // https://github.com/tc39/proposal-Symbol-description
