@@ -50,7 +50,7 @@ function processLines(lines, prefix) {
         return null;
       }
       if (line.includes('export {')) return null;
-      if (/^\s*(?:declare\s+)?interface\s+\w+\s*extends/.test(line) || options.noExtends && /^\s*(?:declare\s+)?interface\s+\w+\s*\{/.test(line)) {
+      if (/^\s*(?:declare\s+)?interface\s+\w+\s*extends/.test(line) || options.noExtends && /^\s*(?:declare\s+)?interface\s+\w+(?:<[^>]+>)?\s*\{/.test(line)) {
         if (!options.noPrefix) {
           const m = line.match(/interface\s+(?<name>\w+)/);
           if (m && m.groups) {
@@ -81,11 +81,11 @@ function processLines(lines, prefix) {
       if (/^\s*(?:declare\s+)?function/.test(line)) {
         return line.replace(/^(?<indent>\s*)(?:declare\s+)?function\s+(?<name>\w+)/, `$<indent>export function ${ !options.noPrefix ? prefix : '' }$<name>`);
       }
-      if (/:\s*\w/.test(line)) {
+      if (/(?::|\|)\s*\w/.test(line)) {
         const sortedPrefixed = prefixed.sort((a, b) => b.length - a.length);
         sortedPrefixed.forEach(item => {
-          const reg = new RegExp(`: ${ item }([,;<)])`, 'g');
-          line = line.replace(reg, `: ${ prefix }${ item }$1`);
+          const reg = new RegExp(`(?<prepend>:||) ${ item }(?<type>[,;<)])`, 'g');
+          line = line.replace(reg, `$<prepend> ${ prefix }${ item }$<type>`);
         });
       }
       if (/^\s*(?:declare)?\svar/.test(line)) {
