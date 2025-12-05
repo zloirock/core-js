@@ -1,5 +1,7 @@
-/// <reference types="./iterator.d.ts" />
-/// <reference types="../../core-js-types/core-js-types.pure.d.ts" />
+/// <reference types="../../core-js-types/async-iterable.d.ts" />
+/// <reference types="../../core-js-types/async-iterator-object.d.ts" />
+
+// Motivation: Has dependencies on internal types, e.g. AsyncIterable, AsyncIteratorObject
 
 // proposal stage: 2
 // https://github.com/tc39/proposal-async-iterator-helpers
@@ -95,4 +97,12 @@ declare namespace CoreJS {
   }
 
   var CoreJSAsyncIterator: CoreJSAsyncIteratorConstructor;
+
+  interface CoreJSIterator<T> extends Iterator<T> {
+    /**
+     * Creates an `AsyncIterator` from the current `Iterator`
+     * @returns A new `AsyncIterator` instance
+     */
+    toAsync(): CoreJSAsyncIteratorObject<T>;
+  }
 }
