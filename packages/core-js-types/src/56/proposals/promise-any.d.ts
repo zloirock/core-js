@@ -21,11 +21,11 @@ interface PromiseConstructor {
   any<T>(values: Iterable<T | PromiseLike<T>>): Promise<Awaited<T>>;
 }
 
-interface AggregateError extends Error {
+interface AggregateError extends Error { // @type-options no-redefine
   errors: any[];
 }
 
-interface AggregateErrorConstructor { // @type-options no-extends
+interface AggregateErrorConstructor { // @type-options no-extends no-redefine
   new (errors: Iterable<any>, message?: string): AggregateError;
   (errors: Iterable<any>, message?: string): AggregateError;
   readonly prototype: AggregateError;

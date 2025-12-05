@@ -50,7 +50,7 @@ interface Array<T> { // @type-options no-redefine
   with(index: number, value: T): T[];
 }
 
-interface Int8Array { // @type-options export-base-constructor
+interface Int8Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -78,7 +78,7 @@ interface Int8Array { // @type-options export-base-constructor
   with(index: number, value: number): Int8Array;
 }
 
-interface Uint8Array { // @type-options no-redefine
+interface Uint8Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -106,7 +106,7 @@ interface Uint8Array { // @type-options no-redefine
   with(index: number, value: number): Uint8Array;
 }
 
-interface Uint8ClampedArray { // @type-options export-base-constructor
+interface Uint8ClampedArray { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -134,7 +134,7 @@ interface Uint8ClampedArray { // @type-options export-base-constructor
   with(index: number, value: number): Uint8ClampedArray;
 }
 
-interface Int16Array { // @type-options export-base-constructor
+interface Int16Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -162,7 +162,7 @@ interface Int16Array { // @type-options export-base-constructor
   with(index: number, value: number): Int16Array;
 }
 
-interface Uint16Array { // @type-options export-base-constructor
+interface Uint16Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -190,7 +190,7 @@ interface Uint16Array { // @type-options export-base-constructor
   with(index: number, value: number): Uint16Array;
 }
 
-interface Int32Array { // @type-options export-base-constructor
+interface Int32Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -218,7 +218,7 @@ interface Int32Array { // @type-options export-base-constructor
   with(index: number, value: number): Int32Array;
 }
 
-interface Uint32Array { // @type-options export-base-constructor
+interface Uint32Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -246,7 +246,7 @@ interface Uint32Array { // @type-options export-base-constructor
   with(index: number, value: number): Uint32Array;
 }
 
-interface Float32Array { // @type-options export-base-constructor
+interface Float32Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -274,7 +274,7 @@ interface Float32Array { // @type-options export-base-constructor
   with(index: number, value: number): Float32Array;
 }
 
-interface Float64Array { // @type-options export-base-constructor
+interface Float64Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -302,7 +302,7 @@ interface Float64Array { // @type-options export-base-constructor
   with(index: number, value: number): Float64Array;
 }
 
-interface BigInt64Array { // @type-options export-base-constructor
+interface BigInt64Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -330,7 +330,7 @@ interface BigInt64Array { // @type-options export-base-constructor
   with(index: number, value: bigint): BigInt64Array;
 }
 
-interface BigUint64Array { // @type-options export-base-constructor
+interface BigUint64Array { // @type-options no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
