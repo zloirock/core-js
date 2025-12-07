@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Minor fix / optimization in the `RegExp` constructor (NCG and `dotAll`) polyfill
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as [shipped in V8 ~ Chrome 145](https://issues.chromium.org/issues/434977728#comment4)
   - Added [Opera Android 93](https://forums.opera.com/topic/87267/opera-for-android-93) compat data mapping
