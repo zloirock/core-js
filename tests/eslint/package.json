@@ -27,6 +27,6 @@
     "eslint-plugin-unicorn": "^62.0.0",
     "eslint-yaml": "^0.1.0",
     "globals": "^16.5.0",
-    "jsonc-eslint-parser": "^2.4.1"
+    "jsonc-eslint-parser": "^2.4.2"
   }
 }
