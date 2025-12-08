@@ -3,6 +3,7 @@ import { fs } from 'zx';
 
 const { mkdir, writeJson } = fs;
 const TMP_DIR = './tmp/';
+const ALL_TESTS = process.env.ALL_TYPE_DEFINITIONS_TESTS === '1';
 
 const targets = [
   'esnext',
@@ -117,19 +118,17 @@ await $`npx -p typescript@5.9 tsc -p tsconfig.templates.import.json`;
 await $`npx -p typescript@5.9 tsc -p tsconfig.entries.json`;
 await $`npx -p typescript@5.9 -p @types/node@24 tsc -p tsconfig.templates.require.json`;
 
-// await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target es6 --lib es6`;
-// await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target esnext --lib esnext,dom`;
-
-const numCPUs = os.cpus().length;
-await prepareEnvironment(envs, types);
-await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
-await clearTmpDir();
-echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
-
-// await $`tsc -p proposals/global/tsconfig.esnext.json`;
-// await $`tsc -p proposals/global/tsconfig.es2023.json`;
-// await $`tsc -p proposals/global/tsconfig.es6.json`;
-//
-// await $`tsc -p proposals/pure/tsconfig.esnext.json`;
-// await $`tsc -p proposals/pure/tsconfig.es2023.json`;
-// await $`tsc -p proposals/pure/tsconfig.es6.node.json`;
+if (!ALL_TESTS) {
+  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target es6 --lib es6`;
+  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target es2023 --lib es2023`;
+  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target esnext --lib esnext`;
+  await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target es6 --lib es6,dom`;
+  await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target es2023 --lib es2023,dom`;
+  await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target esnext --lib esnext,dom`;
+} else {
+  const numCPUs = os.cpus().length;
+  await prepareEnvironment(envs, types);
+  await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
+  await clearTmpDir();
+  echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
+}
