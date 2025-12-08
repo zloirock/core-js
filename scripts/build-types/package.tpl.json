@@ -1,0 +1,30 @@
+{
+  "name": "@core-js/types",
+  "version": "4.0.0-alpha.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "commonjs",
+  "description": "TypeScript types for core-js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zloirock/core-js.git",
+    "directory": "packages/core-js-types"
+  },
+  "homepage": "https://core-js.io",
+  "bugs": {
+    "url": "https://github.com/zloirock/core-js/issues"
+  },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
+  "license": "SEE LICENSE IN LICENSE.md",
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
+  "types": "./actual.d.ts",
+  "sideEffects": false
+}
