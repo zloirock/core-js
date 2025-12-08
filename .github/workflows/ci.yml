@@ -19,7 +19,7 @@ jobs:
           python-version: 3.14
       - run: npm run prepare-monorepo
       - run: pip install codespell
-      - run: npx run-s lint-raw codespell
+      - run: ALL_TYPE_DEFINITIONS_TESTS=1 npx run-s lint-raw codespell
 
   karma:
     runs-on: windows-2022
