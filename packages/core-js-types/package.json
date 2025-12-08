@@ -26,29 +26,39 @@
     "url": "http://zloirock.ru"
   },
   "types": "./actual.d.ts",
+  "sideEffects": false,
   "typesVersions": {
     ">=5.6": {
-      "*": ["./dist/56/*"]
+      "*": [
+        "./dist/56/*"
+      ]
     },
     ">=5.2": {
-      "*": ["./dist/52/*"]
+      "*": [
+        "./dist/52/*"
+      ]
     }
   },
   "exports": {
-    ".": {
-      "types@>=5.6": "./dist/56/actual.d.ts",
-      "types": "./dist/52/actual.d.ts",
-      "default": "./dist/56/actual.d.ts"
+    "./es": {
+      "types@>=5.6": "./dist/56/es.d.ts",
+      "types": "./dist/52/es.d.ts",
+      "default": "./dist/56/es.d.ts"
+    },
+    "./stable": {
+      "types@>=5.6": "./dist/56/stable.d.ts",
+      "types": "./dist/52/stable.d.ts",
+      "default": "./dist/56/stable.d.ts"
     },
     "./actual": {
       "types@>=5.6": "./dist/56/actual.d.ts",
       "types": "./dist/52/actual.d.ts",
       "default": "./dist/56/actual.d.ts"
     },
-    "./es": {
-      "types@>=5.6": "./dist/56/es.d.ts",
-      "types": "./dist/52/es.d.ts",
-      "default": "./dist/56/es.d.ts"
+    ".": {
+      "types@>=5.6": "./dist/56/actual.d.ts",
+      "types": "./dist/52/actual.d.ts",
+      "default": "./dist/56/actual.d.ts"
     },
     "./full": {
       "types@>=5.6": "./dist/56/full.d.ts",
@@ -60,16 +70,10 @@
       "types": "./dist/52/pure.d.ts",
       "default": "./dist/56/pure.d.ts"
     },
-    "./stable": {
-      "types@>=5.6": "./dist/56/stable.d.ts",
-      "types": "./dist/52/stable.d.ts",
-      "default": "./dist/56/stable.d.ts"
-    },
     "./proposals/*": {
       "types@>=5.6": "./dist/56/proposals/*.d.ts",
       "types": "./dist/52/proposals/*.d.ts",
       "default": "./dist/56/proposals/*.d.ts"
     }
-  },
-  "sideEffects": false
+  }
 }
