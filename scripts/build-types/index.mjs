@@ -7,7 +7,7 @@ import { argv, path, fs } from 'zx';
 import { expandModules, modulesToStage } from '../build-entries/helpers.mjs';
 import { preparePureTypes } from './pure.mjs';
 
-const { copy, outputFile, pathExists, readdir, remove } = fs;
+const { copy, outputFile, pathExists, readdir, readJson, remove, writeJson } = fs;
 
 const versionArg = argv._.find(item => item.startsWith('version='));
 const VERSION = versionArg ? versionArg.slice('version='.length) : undefined;
@@ -156,13 +156,46 @@ async function buildTypesForTSVersion(tsVersion) {
   await prependImports(tsVersion);
 }
 
+async function buildPackageJson(breakpoints, namespaces) {
+  breakpoints = breakpoints.sort().reverse();
+  const packageJson = await readJson(config.packageTemplate);
+  const defaultBreakpoint = Math.max(...breakpoints);
+  packageJson.typesVersions = {};
+  breakpoints.forEach(breakpoint => {
+    packageJson.typesVersions[`>=${ breakpoint }`] = {
+      '*': [`./dist/${ breakpoint.toString().replace('.', '') }/*`],
+    };
+  });
+  packageJson.exports = {};
+  Object.entries(namespaces).forEach(([namespace, options]) => {
+    const namespaceKey = namespace ? `./${ namespace }${ options.isDir ? '/*' : '' }` : '.';
+    packageJson.exports[namespaceKey] = {};
+    breakpoints.forEach((breakpoint, index) => {
+      const isLast = index === breakpoints.length - 1;
+      const breakpointString = breakpoint.toString().replace('.', '');
+      packageJson.exports[namespaceKey][`types${ isLast ? '' : `@>=${ breakpoint }` }`] = `./dist/${ breakpointString }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
+    });
+    packageJson.exports[namespaceKey].default = `./dist/${ defaultBreakpoint.toString().replace('.', '') }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
+    if (options.default) {
+      packageJson.exports['.'] = packageJson.exports[namespaceKey];
+    }
+  });
+  writeJson(path.join(config.packageDir, 'package.json'), packageJson, { spaces: 2 });
+}
+
 if (VERSION) {
   await buildTypesForTSVersion(VERSION);
 } else {
-  const tsVersionBreakpoints = [
-    5.2,
-    5.6,
-  ];
+  const tsVersionBreakpoints = [5.2, 5.6];
   await remove(config.buildDir);
   tsVersionBreakpoints.forEach(async version => await buildTypesForTSVersion(version));
+  const namespaces = {
+    es: { isDir: false, default: false },
+    stable: { isDir: false, default: false },
+    actual: { isDir: false, default: true },
+    full: { isDir: false, default: false },
+    pure: { isDir: false, default: false },
+    proposals: { isDir: true, default: false },
+  };
+  await buildPackageJson(tsVersionBreakpoints, namespaces);
 }
