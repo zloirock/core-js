@@ -56,6 +56,7 @@
     "test-compat-tools": "npm run zxi tests/compat-tools/index.mjs",
     "test-templates": "npm run zxi tests/templates/templates.mjs",
     "test-type-definitions": "npm run zxi time cd tests/type-definitions/runner.mjs",
+    "test-type-definitions-all": "ALL_TYPE_DEFINITIONS_TESTS=1 npm run zxi time cd tests/type-definitions/runner.mjs",
     "test262": "npm run zxi time cd tests/test262/runner.mjs",
     "refresh": "node scripts/clean-dependencies.mjs && npm install && npm run test-raw",
     "downloads": "npm run zxi scripts/downloads-by-versions.mjs",
