@@ -180,6 +180,12 @@ async function buildPackageJson(breakpoints, namespaces) {
       packageJson.exports['.'] = packageJson.exports[namespaceKey];
     }
   });
+  const exportsKeys = Object.keys(packageJson.exports).sort();
+  const exports = {};
+  exportsKeys.forEach(key => {
+    exports[key] = packageJson.exports[key];
+  });
+  packageJson.exports = exports;
   writeJson(path.join(config.packageDir, 'package.json'), packageJson, { spaces: 2 });
 }
 
