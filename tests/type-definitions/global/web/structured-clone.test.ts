@@ -1,5 +1,4 @@
-import '@core-js/full';
-import '@core-js/types';
+import 'core-js/full';
 
 const n: number = structuredClone(5);
 const s: string = structuredClone('text');
