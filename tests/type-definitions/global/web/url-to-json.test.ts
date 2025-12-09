@@ -1,5 +1,4 @@
-import '@core-js/full';
-import '@core-js/types';
+import 'core-js/full';
 
 declare const urlLike: URL;
 const str: string = urlLike.toJSON();
