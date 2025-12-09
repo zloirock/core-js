@@ -33,8 +33,4 @@ declare global {
   }
 }
 
-export type CoreJSDecoratorMetadataObject = typeof globalThis extends { DecoratorMetadataObject: infer O } // from ts 5.2
-  ? O
-  : Record<PropertyKey, unknown> & object;
-
 export type CoreJSIteratorObject<T, TReturn = any, TNext = undefined> = IteratorObject<T, TReturn, TNext>;
