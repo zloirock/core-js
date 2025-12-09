@@ -1,5 +1,4 @@
-import '@core-js/full';
-import '@core-js/types';
+import 'core-js/full';
 
 const s: string = btoa("SGVsbG8gd29ybGQ=");
 
