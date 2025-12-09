@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "esnext",
+    "module": "esnext",
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "noEmit": true,
+    "types": ["@core-js/types/pure"]
+  },
+  "include": [
+    "./entries.pure.ts"
+  ]
+}
