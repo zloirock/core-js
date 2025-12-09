@@ -90,7 +90,7 @@ export const $prototype = p => ({
     module.exports = getBuiltInPrototypeMethod('${ p.namespace }', '${ p.name }');
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       type method${ getGenericsForNamespace(p.namespace) } = ${ p.prefix ?? '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
       export = method;
     }
@@ -106,7 +106,7 @@ export const $prototypeIterator = p => ({
     module.exports = getIteratorMethod(${ p.source });
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: typeof ${ p.prefix ?? '' }${ p.namespace }.prototype[typeof Symbol.iterator];
       export = method;
     }
@@ -122,7 +122,7 @@ export const $uncurried = p => ({
     module.exports = entryUnbind('${ p.namespace }', '${ p.name }');
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       type method${ getGenericsForNamespace(p.namespace) } = ${ p.prefix ?? '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
       const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ p.prefix && !existsInES6(p.namespace) ? p.prefix : '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
       export = resultMethod;
@@ -139,7 +139,7 @@ export const $uncurriedWithCustomType = p => ({
     module.exports = entryUnbind('${ p.namespace }', '${ p.name }');
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const resultMethod: ${ getCustomGenerics(p.genericsCount) }(self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<${ buildTypeName(p.namespace, p.name) }${ getCustomGenerics(p.genericsCount) }>) => ReturnType<${ buildTypeName(p.namespace, p.name) }${ getCustomGenerics(p.genericsCount) }>;
       export = resultMethod;
     }
@@ -156,7 +156,7 @@ export const $uncurriedIterator = p => ({
     module.exports = uncurryThis(getIteratorMethod(${ p.source }));
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       type method${ getGenericsForNamespace(p.namespace) } = ${ p.namespace }${ getGenericsForNamespace(p.namespace) }[typeof Symbol.iterator];
       const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
       export = resultMethod;
@@ -173,7 +173,7 @@ export const $static = p => ({
     module.exports = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
       export = method;
     }
@@ -196,7 +196,7 @@ export const $staticWithContext = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
       export = method;
     }
@@ -218,7 +218,7 @@ export const $patchableStatic = p => {
       };
     `,
     dts: dedent`
-      declare module "${ p.packageName }${ p.entry }" {
+      declare module '${ p.packageName }${ p.entry }' {
         const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
         export = method;
       }
@@ -235,7 +235,7 @@ export const $namespace = p => ({
     module.exports = path.${ p.name };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const namespace: typeof ${ p.prefix ?? '' }${ p.name };
       export = namespace;
     }
@@ -251,7 +251,7 @@ export const $helper = p => ({
     module.exports = $export;
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const helper: (arg: NonNullable<any>) => any;
       export = helper;
     }
@@ -267,7 +267,7 @@ export const $path = p => ({
     module.exports = path;
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const path: typeof globalThis;
       export = path;
     }
@@ -288,7 +288,7 @@ export const $instanceArray = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
@@ -310,7 +310,7 @@ export const $instanceNumber = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
@@ -332,7 +332,7 @@ export const $instanceString = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
@@ -354,7 +354,7 @@ export const $instanceFunction = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
@@ -382,7 +382,7 @@ export const $instanceDOMIterables = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
@@ -407,7 +407,7 @@ export const $instanceArrayString = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
@@ -438,7 +438,7 @@ export const $instanceArrayDOMIterables = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
@@ -459,7 +459,7 @@ export const $instanceRegExpFlags = p => ({
     };
   `,
   dts: dedent`
-    declare module "${ p.packageName }${ p.entry }" {
+    declare module '${ p.packageName }${ p.entry }' {
       const method: (arg: NonNullable<any>) => any;
       export = method;
     }
