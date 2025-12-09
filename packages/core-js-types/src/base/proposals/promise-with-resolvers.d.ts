@@ -24,5 +24,3 @@ interface PromiseConstructor {
    */
   withResolvers<T>(): PromiseWithResolvers<T>;
 }
-
-
