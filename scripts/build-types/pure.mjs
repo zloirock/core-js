@@ -125,16 +125,16 @@ function wrapDTSInNamespace(content, namespace = 'CoreJS') {
   return `${ preamble.length ? `${ preamble.join('\n') }\n` : '' }declare namespace ${ namespace } {\n${ nsBody }\n}\n`;
 }
 
-export async function preparePureTypes(typesPath) {
+export async function preparePureTypes(typesPath, initialPath) {
   const entries = await readdir(typesPath, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.name === 'pure') continue;
     if (entry.isDirectory()) {
-      await preparePureTypes(path.join(typesPath, entry.name));
+      await preparePureTypes(path.join(typesPath, entry.name), initialPath);
     } else {
       if (entry.name.includes('core-js-types.d.ts')) continue;
       const typePath = path.join(typesPath, entry.name);
-      const resultFilePath = typePath.replace(entry.name, `pure/${ entry.name }`);
+      const resultFilePath = typePath.replace(initialPath, `${ initialPath }/pure/`);
       if (await pathExists(resultFilePath)) continue;
       const content = await fs.readFile(typePath, 'utf8');
       if (content.includes('declare namespace')) continue;
