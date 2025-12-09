@@ -19,7 +19,18 @@ jobs:
           python-version: 3.14
       - run: npm run prepare-monorepo
       - run: pip install codespell
-      - run: ALL_TYPE_DEFINITIONS_TESTS=1 npx run-s lint-raw codespell
+      - run: npx run-s lint-raw codespell
+
+  type-definitions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 25
+          cache: npm
+      - run: npm ci
+      - run: npx run-s build-types test-type-definitions-all
 
   karma:
     runs-on: windows-2022
