@@ -1,5 +1,4 @@
 import 'core-js/full';
-import '@core-js/types';
 
 const res: number | object = setImmediate(() => 42);
 clearImmediate(res);
