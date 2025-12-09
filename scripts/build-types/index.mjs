@@ -131,7 +131,10 @@ async function buildTypesForTSVersion(tsVersion) {
   const distTypesPath = path.join(bundlePath, 'types');
   if (await pathExists(bundlePath)) await remove(bundlePath);
   await copy(path.join(config.srcDir, config.srcBase), path.join(config.buildDir, tsVersion, 'types'));
-  await copy(path.join(config.srcDir, tsVersion), path.join(config.buildDir, tsVersion, 'types'));
+  const srcPath = path.join(config.srcDir, tsVersion);
+  if (await pathExists(srcPath)) {
+    await copy(srcPath, distTypesPath);
+  }
   await fillCustomImportsForPure(path.join(bundlePath, 'types', 'pure'), distTypesPath);
   await preparePureTypes(bundlePath, distTypesPath);
 
