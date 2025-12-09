@@ -2,12 +2,20 @@ import { features, proposals } from '../build-entries/entries-definitions.mjs';
 import { $path, $proposal } from '../build-entries/templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 import { getModulesMetadata } from '../build-entries/get-dependencies.mjs';
-import config from './config.mjs';
 import { argv, path, fs } from 'zx';
 import { expandModules, modulesToStage } from '../build-entries/helpers.mjs';
 import { preparePureTypes } from './pure.mjs';
 
 const { copy, outputFile, pathExists, readdir, readFile, readJson, remove, writeJson } = fs;
+
+const BUILD_DIR = 'packages/core-js-types/dist/';
+const PACKAGE_JSON_DIR = 'packages/core-js-types/';
+const PACKAGE_NAME = 'core-js/';
+const PACKAGE_NAME_PURE = '@core-js/pure/';
+const PACKAGE_TEMPLATE = 'scripts/build-types/package.tpl.json';
+const SRC_DIR = 'packages/core-js-types/src/';
+const SRC_BASE = 'base';
+const TYPE_PREFIX = 'CoreJS.CoreJS';
 
 const versionArg = argv._.find(item => item.startsWith('version='));
 const VERSION = versionArg ? versionArg.slice('version='.length) : undefined;
@@ -59,9 +67,6 @@ async function buildType(entry, options) {
 
   if (filter) modules = modules.filter(it => filter.has(it));
 
-  const tplPure = template({ ...options, modules, rawModules, level, entry, types, packageName: `${ config.packageName }pure/`, prefix: 'CoreJS.CoreJS' });
-  const tpl = template({ ...options, modules, rawModules, level, entry, types, packageName: config.packageName });
-
   types.forEach(type => {
     imports[subset].add(type);
     imports.pure.add(path.join('pure', type));
@@ -74,8 +79,33 @@ async function buildType(entry, options) {
   const filePath = buildFilePath(tsVersion, subset);
   const filePathPure = buildFilePath(tsVersion, 'pure');
 
-  await outputFile(filePath, `${ tpl.dts }${ tpl.dts ? '\n\n' : '' }`, { flag: 'a' });
+  const tplPure = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
+  const tpl = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME });
+
   await outputFile(filePathPure, `${ tplPure.dts }${ tplPure.dts ? '\n\n' : '' }`, { flag: 'a' });
+  await outputFile(filePath, `${ tpl.dts }${ tpl.dts ? '\n\n' : '' }`, { flag: 'a' });
+
+  if (!entry.endsWith('/')) {
+    const entryWithExt = `${ entry }.js`;
+    const tplPureWithExt = template({ ...options, modules, rawModules, level, entry: entryWithExt,
+      types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
+    const tplWithExt = template({ ...options, modules, rawModules, level, types, entry: entryWithExt,
+      packageName: PACKAGE_NAME });
+
+    await outputFile(filePathPure, `${ tplPureWithExt.dts }${ tplPureWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(filePath, `${ tplWithExt.dts }${ tplWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
+  }
+
+  if (entry.endsWith('/index')) {
+    const entryWithoutIndex = entry.replace(/index$/, '');
+    const tplPureWithoutIndex = template({ ...options, modules, rawModules, level, entry: entryWithoutIndex, types,
+      packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
+    const tplWithoutIndex = template({ ...options, modules, rawModules, level, types, entry: entryWithoutIndex,
+      packageName: PACKAGE_NAME });
+
+    await outputFile(filePathPure, `${ tplPureWithoutIndex.dts }${ tplPureWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(filePath, `${ tplWithoutIndex.dts }${ tplWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
+  }
 
   if (proposal) {
     const filePathProposal = buildFilePath(tsVersion, entry);
@@ -95,7 +125,7 @@ const StableSet = new Set(StableModules);
 const ActualSet = new Set(ActualModules);
 
 function buildFilePath(tsVersion, subset) {
-  return path.join(config.buildDir, tsVersion.toString(), `${ subset }.d.ts`);
+  return path.join(BUILD_DIR, tsVersion.toString(), `${ subset }.d.ts`);
 }
 
 function buildImports(importsList, level = 0) {
@@ -127,11 +157,11 @@ async function fillCustomImportsForPure(typesPath, initialPath) {
 
 async function buildTypesForTSVersion(tsVersion) {
   tsVersion = `ts${ tsVersion.toString().replace('.', '-') }`;
-  const bundlePath = path.join(config.buildDir, tsVersion);
+  const bundlePath = path.join(BUILD_DIR, tsVersion);
   const distTypesPath = path.join(bundlePath, 'types');
   if (await pathExists(bundlePath)) await remove(bundlePath);
-  await copy(path.join(config.srcDir, config.srcBase), path.join(config.buildDir, tsVersion, 'types'));
-  const srcPath = path.join(config.srcDir, tsVersion);
+  await copy(path.join(SRC_DIR, SRC_BASE), path.join(BUILD_DIR, tsVersion, 'types'));
+  const srcPath = path.join(SRC_DIR, tsVersion);
   if (await pathExists(srcPath)) {
     await copy(srcPath, distTypesPath);
   }
@@ -160,7 +190,7 @@ async function buildTypesForTSVersion(tsVersion) {
 
 async function buildPackageJson(breakpoints, namespaces) {
   breakpoints = breakpoints.sort().reverse();
-  const packageJson = await readJson(config.packageTemplate);
+  const packageJson = await readJson(PACKAGE_TEMPLATE);
   const defaultBreakpoint = Math.max(...breakpoints);
   packageJson.typesVersions = {};
   breakpoints.forEach(breakpoint => {
@@ -188,14 +218,14 @@ async function buildPackageJson(breakpoints, namespaces) {
     exports[key] = packageJson.exports[key];
   });
   packageJson.exports = exports;
-  writeJson(path.join(config.packageDir, 'package.json'), packageJson, { spaces: 2 });
+  writeJson(path.join(PACKAGE_JSON_DIR, 'package.json'), packageJson, { spaces: 2 });
 }
 
 if (VERSION) {
   await buildTypesForTSVersion(VERSION);
 } else {
   const tsVersionBreakpoints = [5.2, 5.6];
-  await remove(config.buildDir);
+  await remove(BUILD_DIR);
   tsVersionBreakpoints.forEach(async version => await buildTypesForTSVersion(version));
   const namespaces = {
     es: { isDir: false, default: false },
