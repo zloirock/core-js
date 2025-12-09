@@ -7,7 +7,7 @@ import { argv, path, fs } from 'zx';
 import { expandModules, modulesToStage } from '../build-entries/helpers.mjs';
 import { preparePureTypes } from './pure.mjs';
 
-const { copy, outputFile, pathExists, readdir, readJson, remove, writeJson } = fs;
+const { copy, outputFile, pathExists, readdir, readFile, readJson, remove, writeJson } = fs;
 
 const versionArg = argv._.find(item => item.startsWith('version='));
 const VERSION = versionArg ? versionArg.slice('version='.length) : undefined;
@@ -64,8 +64,7 @@ async function buildType(entry, options) {
 
   types.forEach(type => {
     imports[subset].add(type);
-    const fileName = path.basename(type);
-    imports.pure.add(type.replace(fileName, path.join('pure', fileName)));
+    imports.pure.add(path.join('pure', type));
   });
   if (customType) {
     imports[subset].add(customType);
@@ -118,23 +117,23 @@ async function fillCustomImportsForPure(typesPath, initialPath) {
     if (entry.isDirectory()) {
       await fillCustomImportsForPure(path.join(typesPath, entry.name), initialPath);
     } else {
-      const dirName = path.basename(typesPath);
-      if (dirName !== 'pure') continue;
       const filePath = path.join(typesPath, entry.name);
-      const fileStats = await fs.stat(filePath);
-      if (fileStats.size === 0) continue;
+      const fileContent = await readFile(filePath).toString();
+      if (fileContent.startsWith('// empty')) continue;
       imports.pure.add(filePath.replace(`${ initialPath }/`, '').replace('.d.ts', ''));
     }
   }
 }
 
 async function buildTypesForTSVersion(tsVersion) {
-  tsVersion = tsVersion.toString().replace('.', '');
+  tsVersion = `ts${ tsVersion.toString().replace('.', '-') }`;
   const bundlePath = path.join(config.buildDir, tsVersion);
+  const distTypesPath = path.join(bundlePath, 'types');
   if (await pathExists(bundlePath)) await remove(bundlePath);
+  await copy(path.join(config.srcDir, config.srcBase), path.join(config.buildDir, tsVersion, 'types'));
   await copy(path.join(config.srcDir, tsVersion), path.join(config.buildDir, tsVersion, 'types'));
-  await fillCustomImportsForPure(bundlePath, path.join(bundlePath, 'types'));
-  await preparePureTypes(bundlePath);
+  await fillCustomImportsForPure(path.join(bundlePath, 'types', 'pure'), distTypesPath);
+  await preparePureTypes(bundlePath, distTypesPath);
 
   for (const [entry, definition] of Object.entries(features)) {
     await buildType(`es/${ entry }`, { ...definition, entryFromNamespace: 'es', tsVersion });
@@ -163,7 +162,7 @@ async function buildPackageJson(breakpoints, namespaces) {
   packageJson.typesVersions = {};
   breakpoints.forEach(breakpoint => {
     packageJson.typesVersions[`>=${ breakpoint }`] = {
-      '*': [`./dist/${ breakpoint.toString().replace('.', '') }/*`],
+      '*': [`./dist/ts${ breakpoint.toString().replace('.', '-') }/*`],
     };
   });
   packageJson.exports = {};
@@ -172,10 +171,10 @@ async function buildPackageJson(breakpoints, namespaces) {
     packageJson.exports[namespaceKey] = {};
     breakpoints.forEach((breakpoint, index) => {
       const isLast = index === breakpoints.length - 1;
-      const breakpointString = breakpoint.toString().replace('.', '');
+      const breakpointString = `ts${ breakpoint.toString().replace('.', '-') }`;
       packageJson.exports[namespaceKey][`types${ isLast ? '' : `@>=${ breakpoint }` }`] = `./dist/${ breakpointString }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
     });
-    packageJson.exports[namespaceKey].default = `./dist/${ defaultBreakpoint.toString().replace('.', '') }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
+    packageJson.exports[namespaceKey].default = `./dist/ts${ defaultBreakpoint.toString().replace('.', '-') }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
     if (options.default) {
       packageJson.exports['.'] = packageJson.exports[namespaceKey];
     }
