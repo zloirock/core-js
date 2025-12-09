@@ -6,4 +6,5 @@ export default {
   packageTemplate: 'scripts/build-types/package.tpl.json',
   packageDir: 'packages/core-js-types/',
   srcDir: 'packages/core-js-types/src/',
+  srcBase: 'base',
 };
