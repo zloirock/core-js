@@ -116,6 +116,7 @@ async function prepareEnvironment(environments, coreJsTypes) {
 await $`npx -p typescript@5.9 tsc`;
 await $`npx -p typescript@5.9 tsc -p tsconfig.templates.import.json`;
 await $`npx -p typescript@5.9 tsc -p tsconfig.entries.json`;
+await $`npx -p typescript@5.9 tsc -p tsconfig.entries.pure.json`;
 await $`npx -p typescript@5.9 -p @types/node@24 tsc -p tsconfig.templates.require.json`;
 
 if (!ALL_TESTS) {
