@@ -1,6 +1,5 @@
 // todo add after it becomes possible to create a type
-// import '@core-js/full';
-// import '@core-js/types';
+// import 'core-js/full';
 //
 // const ex1 = new DOMException();
 // const ex2 = new DOMException('Some message');
