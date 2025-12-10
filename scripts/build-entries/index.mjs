@@ -1,6 +1,6 @@
 import { getModulesMetadata } from './get-dependencies.mjs';
 import { features, proposals } from './entries-definitions.mjs';
-import { $proposal, $path, wrapEntry } from './templates.mjs';
+import { $proposal, $path, wrapEntryInStrict } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 import { expandModules, modulesToStage } from './helpers.mjs';
 
@@ -77,7 +77,7 @@ async function buildEntry(entry, options) {
 
   const filepath = `./packages/core-js/${ entry }.js`;
   await mkdir(dirname(filepath), { recursive: true });
-  await writeFile(filepath, wrapEntry(tpl.entry));
+  await writeFile(filepath, wrapEntryInStrict(tpl.entry));
 
   built++;
 
