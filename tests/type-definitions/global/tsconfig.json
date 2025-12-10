@@ -3,7 +3,7 @@
   "include": ["./**/*.ts"],
   "compilerOptions": {
     "types": [
-      "@core-js/types/full"
+      "@core-js/types"
     ]
   }
 }
