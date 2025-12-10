@@ -87,6 +87,8 @@ else if (CURRENT_YEAR === OLD_YEAR) echo(red('bump is not required'));
 
 await $`npm run build-compat`;
 
+await $`npm run build-types`;
+
 const UNRELEASED_TAG = `${ coerce(PREV_VERSION) }-unreleased`;
 
 const modulesByVersions = await readJson('packages/core-js-compat/modules-by-versions.json');
