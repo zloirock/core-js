@@ -1,0 +1,5 @@
+node_modules/
+package.tpl.json
+/src/
+*.log
+.*
