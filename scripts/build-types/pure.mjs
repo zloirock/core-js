@@ -1,24 +1,21 @@
-import { path, fs } from 'zx';
-
 const { outputFile, pathExists, readdir } = fs;
 
 function extractDeclareGlobalSections(lines) {
   const sections = [];
   const outside = [];
-  for (let i = 0; i < lines.length;) {
+  for (let i = 0; i < lines.length; i++) {
     if (/^\s*declare\s+global\s*\{/.test(lines[i])) {
       let depth = 1;
       const section = [];
       for (++i; i < lines.length && depth > 0; ++i) {
-        depth += (lines[i].match(/\{/g) || []).length;
-        depth -= (lines[i].match(/\}/g) || []).length;
+        depth += lines[i].match(/\{/g)?.length ?? 0;
+        depth -= lines[i].match(/\}/g)?.length ?? 0;
         if (depth === 0 && /^\s*\}\s*$/.test(lines[i])) break;
         if (depth > 0) section.push(lines[i]);
       }
-      ++i;
       sections.push(section);
     } else {
-      outside.push(lines[i++]);
+      outside.push(lines[i]);
     }
   }
   return { sections, outside };
@@ -30,14 +27,14 @@ function processLines(lines, prefix) {
   return lines
     .map(line => {
       const hasOptions = line.includes('@type-options');
-      const optionsStr = hasOptions ? line.match(/@type-options\s+(?<options>[\s\w,-]+)/)?.groups?.options : '';
+      const optionsStr = hasOptions ? line.match(/@type-options\s+(?<options>[A-Za-z][\s\w,-]+)$/)?.groups?.options : '';
       const options = {
-        noExtends: !hasOptions ? false : optionsStr.includes('no-extends'),
-        noPrefix: !hasOptions ? false : optionsStr.includes('no-prefix'),
-        noConstructor: !hasOptions ? false : optionsStr.includes('no-constructor'),
-        exportBaseConstructor: !hasOptions ? false : optionsStr.includes('export-base-constructor'),
-        noExport: !hasOptions ? false : optionsStr.includes('no-export'),
-        noRedefine: !hasOptions ? false : optionsStr.includes('no-redefine'),
+        noExtends: hasOptions && optionsStr.includes('no-extends'),
+        noPrefix: hasOptions && optionsStr.includes('no-prefix'),
+        noConstructor: hasOptions && optionsStr.includes('no-constructor'),
+        exportBaseConstructor: hasOptions && optionsStr.includes('export-base-constructor'),
+        noExport: hasOptions && optionsStr.includes('no-export'),
+        noRedefine: hasOptions && optionsStr.includes('no-redefine'),
       };
       if (noExport && /^[^{]*\}/.test(line)) {
         noExport = false;
@@ -50,14 +47,16 @@ function processLines(lines, prefix) {
         return null;
       }
       if (line.includes('export {')) return null;
-      if (/^\s*(?:declare\s+)?interface\s+\w+\s*extends/.test(line) || options.noExtends && /^\s*(?:declare\s+)?interface\s+\w+(?:<[^>]+>)?\s*\{/.test(line)) {
+      if (/^\s*(?:declare\s+)?interface\s+\w+\s*extends/.test(line)
+        || options.noExtends && /^\s*(?:declare\s+)?interface\s+\w+(?:<[^>]+>)?\s*\{/.test(line)) {
         if (!options.noPrefix) {
           const m = line.match(/interface\s+(?<name>\w+)/);
           if (m && m.groups) {
             prefixed.push(m.groups.name);
           }
         }
-        return line.replace(/^(?<indent>\s*)(?:declare\s+)?interface\s+(?<name>[\s\w,<=>]+)/, `$<indent>export interface ${ !options.noPrefix ? prefix : '' }$<name>`);
+        return line.replace(/^(?<indent>\s*)(?:declare\s+)?interface\s+(?<name>[\s\w,<=>]+)/,
+          `$<indent>export interface ${ !options.noPrefix ? prefix : '' }$<name>`);
       }
       if (!options.noExtends && /^\s*(?:declare\s+)?interface\s+\w+/.test(line)) {
         const m = line.match(/^(?<indent>\s*)(?:declare\s+)?interface\s+(?<name>\w+)(?<extend><[^>]+>)?/);
@@ -72,14 +71,18 @@ function processLines(lines, prefix) {
         const isConstructor = iName.includes('Constructor');
         let constructorDeclaration;
         if (isConstructor) {
-          constructorDeclaration = !options.noRedefine ? `${ iIndent }var ${ entityName.replace('Constructor', '') }: ${ entityName };\n` : '';
+          constructorDeclaration = !options.noRedefine ?
+            `${ iIndent }var ${ entityName.replace('Constructor', '') }: ${ entityName };\n` : '';
         } else {
-          constructorDeclaration = !options.noRedefine ? `${ iIndent }var ${ entityName }: ${ options.exportBaseConstructor ? iName : entityName }${ options.noConstructor ? '' : 'Constructor' };\n` : '';
+          constructorDeclaration = !options.noRedefine ? `${ iIndent }var ${ entityName }: ${
+            options.exportBaseConstructor ? iName : entityName }${ options.noConstructor ? '' : 'Constructor' };\n` : '';
         }
-        return `${ constructorDeclaration }${ iIndent }export interface ${ entityName }${ iExtend } extends ${ iName }${ genericsForExtends } {\n`;
+        return `${ constructorDeclaration }${ iIndent }export interface ${
+          entityName }${ iExtend } extends ${ iName }${ genericsForExtends } {\n`;
       }
       if (/^\s*(?:declare\s+)?function/.test(line)) {
-        return line.replace(/^(?<indent>\s*)(?:declare\s+)?function\s+(?<name>\w+)/, `$<indent>export function ${ !options.noPrefix ? prefix : '' }$<name>`);
+        return line.replace(/^(?<indent>\s*)(?:declare\s+)?function\s+(?<name>\w+)/,
+          `$<indent>export function ${ !options.noPrefix ? prefix : '' }$<name>`);
       }
       if (/(?::|\|)\s*\w/.test(line)) {
         const sortedPrefixed = prefixed.sort((a, b) => b.length - a.length);
