@@ -21,6 +21,7 @@ const README_COMPAT = 'packages/core-js-compat/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const USAGE = 'docs/web/docs/usage.md';
+const TYPES_PACKAGE_TEMPLATE = 'packages/core-js-types/package.tpl.json';
 const NOW = new Date();
 const CURRENT_YEAR = NOW.getFullYear();
 
@@ -42,6 +43,10 @@ await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR)
 
 const usage = await readFile(USAGE, 'utf8');
 await writeFile(USAGE, usage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
+
+const typesPackageTemplate = await readFile(TYPES_PACKAGE_TEMPLATE, 'utf8');
+await writeFile(TYPES_PACKAGE_TEMPLATE, typesPackageTemplate.replaceAll(PREV_VERSION, NEW_VERSION)
+  .replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const packages = await Promise.all((await glob('packages/*/package.json')).map(async path => {
   const pkg = await readJson(path, 'utf8');
@@ -86,6 +91,8 @@ if (NEW_VERSION !== PREV_VERSION) echo(green('the version updated'));
 else if (CURRENT_YEAR === OLD_YEAR) echo(red('bump is not required'));
 
 await $`npm run build-compat`;
+
+await $`npm run build-types`;
 
 const UNRELEASED_TAG = `${ coerce(PREV_VERSION) }-unreleased`;
 
