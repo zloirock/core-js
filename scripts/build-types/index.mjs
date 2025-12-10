@@ -82,32 +82,33 @@ async function buildType(entry, options) {
   const indexPath = buildFilePath(tsVersion, 'index');
   const purePath = buildFilePath(tsVersion, 'pure');
 
-  const tplPure = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
-  const tpl = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME });
+  const entryWithTypes = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME });
+  const entryWithTypesPure = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME_PURE,
+    prefix: TYPE_PREFIX });
 
-  await outputFile(indexPath, `${ tpl.dts }${ tpl.dts ? '\n\n' : '' }`, { flag: 'a' });
-  await outputFile(purePath, `${ tplPure.dts }${ tplPure.dts ? '\n\n' : '' }`, { flag: 'a' });
+  await outputFile(indexPath, `${ entryWithTypes.types }${ entryWithTypes.types ? '\n\n' : '' }`, { flag: 'a' });
+  await outputFile(purePath, `${ entryWithTypesPure.types }${ entryWithTypesPure.types ? '\n\n' : '' }`, { flag: 'a' });
 
   if (!entry.endsWith('/')) {
     const entryWithExt = `${ entry }.js`;
-    const tplPureWithExt = template({ ...options, modules, rawModules, level, entry: entryWithExt,
-      types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
-    const tplWithExt = template({ ...options, modules, rawModules, level, types, entry: entryWithExt,
+    const entryWithTypesWithExt = template({ ...options, modules, rawModules, level, types, entry: entryWithExt,
       packageName: PACKAGE_NAME });
+    const entryWithTypesPureWithExt = template({ ...options, modules, rawModules, level, entry: entryWithExt,
+      types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
 
-    await outputFile(indexPath, `${ tplWithExt.dts }${ tplWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
-    await outputFile(purePath, `${ tplPureWithExt.dts }${ tplPureWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(indexPath, `${ entryWithTypesWithExt.types }${ entryWithTypesWithExt.types ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(purePath, `${ entryWithTypesPureWithExt.types }${ entryWithTypesPureWithExt.types ? '\n\n' : '' }`, { flag: 'a' });
   }
 
   if (entry.endsWith('/index')) {
     const entryWithoutIndex = entry.replace(/\/index$/, '');
-    const tplPureWithoutIndex = template({ ...options, modules, rawModules, level, entry: entryWithoutIndex, types,
-      packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
-    const tplWithoutIndex = template({ ...options, modules, rawModules, level, types, entry: entryWithoutIndex,
+    const entryWithTypesWithoutIndex = template({ ...options, modules, rawModules, level, types, entry: entryWithoutIndex,
       packageName: PACKAGE_NAME });
+    const entryWithTypesPureWithoutIndex = template({ ...options, modules, rawModules, level, entry: entryWithoutIndex, types,
+      packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
 
-    await outputFile(indexPath, `${ tplWithoutIndex.dts }${ tplWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
-    await outputFile(purePath, `${ tplPureWithoutIndex.dts }${ tplPureWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(indexPath, `${ entryWithTypesWithoutIndex.types }${ entryWithTypesWithoutIndex.types ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(purePath, `${ entryWithTypesPureWithoutIndex.types }${ entryWithTypesPureWithoutIndex.types ? '\n\n' : '' }`, { flag: 'a' });
   }
 
   if (proposal) {
