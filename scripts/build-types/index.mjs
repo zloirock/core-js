@@ -25,6 +25,7 @@ const imports = {
   actual: new Set(),
   full: new Set(),
   pure: new Set(),
+  index: new Set(),
 };
 
 async function buildType(entry, options) {
@@ -68,22 +69,24 @@ async function buildType(entry, options) {
   if (filter) modules = modules.filter(it => filter.has(it));
 
   types.forEach(type => {
+    imports.index.add(type);
     imports[subset].add(type);
     imports.pure.add(path.join('pure', type));
   });
   if (customType) {
+    imports.index.add(customType);
     imports[subset].add(customType);
     imports.pure.add(customType);
   }
 
-  const filePath = buildFilePath(tsVersion, subset);
-  const filePathPure = buildFilePath(tsVersion, 'pure');
+  const indexPath = buildFilePath(tsVersion, 'index');
+  const purePath = buildFilePath(tsVersion, 'pure');
 
   const tplPure = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
   const tpl = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME });
 
-  await outputFile(filePathPure, `${ tplPure.dts }${ tplPure.dts ? '\n\n' : '' }`, { flag: 'a' });
-  await outputFile(filePath, `${ tpl.dts }${ tpl.dts ? '\n\n' : '' }`, { flag: 'a' });
+  await outputFile(indexPath, `${ tpl.dts }${ tpl.dts ? '\n\n' : '' }`, { flag: 'a' });
+  await outputFile(purePath, `${ tplPure.dts }${ tplPure.dts ? '\n\n' : '' }`, { flag: 'a' });
 
   if (!entry.endsWith('/')) {
     const entryWithExt = `${ entry }.js`;
@@ -92,19 +95,19 @@ async function buildType(entry, options) {
     const tplWithExt = template({ ...options, modules, rawModules, level, types, entry: entryWithExt,
       packageName: PACKAGE_NAME });
 
-    await outputFile(filePathPure, `${ tplPureWithExt.dts }${ tplPureWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
-    await outputFile(filePath, `${ tplWithExt.dts }${ tplWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(indexPath, `${ tplWithExt.dts }${ tplWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(purePath, `${ tplPureWithExt.dts }${ tplPureWithExt.dts ? '\n\n' : '' }`, { flag: 'a' });
   }
 
   if (entry.endsWith('/index')) {
-    const entryWithoutIndex = entry.replace(/index$/, '');
+    const entryWithoutIndex = entry.replace(/\/index$/, '');
     const tplPureWithoutIndex = template({ ...options, modules, rawModules, level, entry: entryWithoutIndex, types,
       packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
     const tplWithoutIndex = template({ ...options, modules, rawModules, level, types, entry: entryWithoutIndex,
       packageName: PACKAGE_NAME });
 
-    await outputFile(filePathPure, `${ tplPureWithoutIndex.dts }${ tplPureWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
-    await outputFile(filePath, `${ tplWithoutIndex.dts }${ tplWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(indexPath, `${ tplWithoutIndex.dts }${ tplWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
+    await outputFile(purePath, `${ tplPureWithoutIndex.dts }${ tplPureWithoutIndex.dts ? '\n\n' : '' }`, { flag: 'a' });
   }
 
   if (proposal) {
@@ -136,8 +139,11 @@ async function prependImports(version) {
   for (const subset of Object.keys(imports)) {
     const filePath = buildFilePath(version, subset);
     const importLines = buildImports(imports[subset]);
-    const originalContent = await fs.readFile(filePath, 'utf8');
-    await outputFile(filePath, `${ importLines }\n\n${ originalContent }`);
+    let originalContent = '';
+    if (await pathExists(filePath)) {
+      originalContent = await fs.readFile(filePath, 'utf8');
+    }
+    await outputFile(filePath, `${ importLines }\n\n${ originalContent }`, { flag: 'w' });
   }
 }
 
@@ -200,7 +206,7 @@ async function buildPackageJson(breakpoints, namespaces) {
   });
   packageJson.exports = {};
   Object.entries(namespaces).forEach(([namespace, options]) => {
-    const namespaceKey = namespace ? `./${ namespace }${ options.isDir ? '/*' : '' }` : '.';
+    const namespaceKey = namespace !== 'index' ? `./${ namespace }${ options.isDir ? '/*' : '' }` : '.';
     packageJson.exports[namespaceKey] = {};
     breakpoints.forEach((breakpoint, index) => {
       const isLast = index === breakpoints.length - 1;
@@ -208,9 +214,6 @@ async function buildPackageJson(breakpoints, namespaces) {
       packageJson.exports[namespaceKey][`types${ isLast ? '' : `@>=${ breakpoint }` }`] = `./dist/${ breakpointString }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
     });
     packageJson.exports[namespaceKey].default = `./dist/ts${ defaultBreakpoint.toString().replace('.', '-') }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
-    if (options.default) {
-      packageJson.exports['.'] = packageJson.exports[namespaceKey];
-    }
   });
   const exportsKeys = Object.keys(packageJson.exports).sort();
   const exports = {};
@@ -228,12 +231,13 @@ if (VERSION) {
   await remove(BUILD_DIR);
   tsVersionBreakpoints.forEach(async version => await buildTypesForTSVersion(version));
   const namespaces = {
-    es: { isDir: false, default: false },
-    stable: { isDir: false, default: false },
-    actual: { isDir: false, default: true },
-    full: { isDir: false, default: false },
-    pure: { isDir: false, default: false },
-    proposals: { isDir: true, default: false },
+    es: { isDir: false },
+    stable: { isDir: false },
+    actual: { isDir: false },
+    full: { isDir: false },
+    pure: { isDir: false },
+    proposals: { isDir: true },
+    index: { isDir: false },
   };
   await buildPackageJson(tsVersionBreakpoints, namespaces);
 }
