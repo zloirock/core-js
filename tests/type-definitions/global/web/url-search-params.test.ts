@@ -1,6 +1,5 @@
 // todo add after it becomes possible to create a type
-// import '@core-js/full';
-// import '@core-js/types';
+// import 'core-js/full';
 //
 // const u0 = new URLSearchParams();
 // const u1 = new URLSearchParams('a=1&b=2');
