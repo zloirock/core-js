@@ -97,7 +97,7 @@ function processLines(lines, prefix) {
     .filter(line => line !== null);
 }
 
-function wrapDTSInNamespace(content, namespace = 'CoreJS') {
+function wrapInNamespace(content, namespace = 'CoreJS') {
   const lines = content.split('\n');
   const preamble = [];
   let i = 0;
@@ -138,7 +138,7 @@ export async function preparePureTypes(typesPath, initialPath) {
       if (await pathExists(resultFilePath)) continue;
       const content = await fs.readFile(typePath, 'utf8');
       if (content.includes('declare namespace')) continue;
-      const result = wrapDTSInNamespace(content);
+      const result = wrapInNamespace(content);
       await outputFile(resultFilePath, result);
     }
   }
