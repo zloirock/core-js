@@ -120,6 +120,7 @@ export default {
     [137, '2.3.2'],
     [137, '2.4'],
     [140, '2.5'],
+    [142, '2.6'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
