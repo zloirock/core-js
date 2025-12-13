@@ -22,7 +22,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm run prepare-monorepo
 
       - name: Build bundle
         run: npm run bundle-package minified-name core-js-bundle
