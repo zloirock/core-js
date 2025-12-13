@@ -43,7 +43,7 @@ await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR)
 const usage = await readFile(USAGE, 'utf8');
 await writeFile(USAGE, usage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
-const packages = await Promise.all((await glob('packages/*/package.json')).map(async path => {
+const packages = await Promise.all((await glob('packages/*/package?(.tpl).json')).map(async path => {
   const pkg = await readJson(path, 'utf8');
   return { path, pkg };
 }));
