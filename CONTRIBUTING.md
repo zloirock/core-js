@@ -77,9 +77,9 @@ File names should be in the kebab-case. Name of polyfill modules should follow t
 
 ## Testing
 
-Before testing, you should install dependencies:
+Before testing, you should prepare monorepo and install dependencies:
 ```sh
-npm i
+npm run prepare-monorepo
 ```
 You can run the most tests by
 ```sh

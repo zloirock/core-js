@@ -17,6 +17,7 @@
   "scripts": {
     "zxi": "zx scripts/zxi.mjs",
     "prepare": "npm run zxi scripts/prepare.mjs",
+    "prepare-monorepo": "npm run zxi scripts/prepare-monorepo.mjs",
     "build-compat": "npm run zxi scripts/build-compat/index.mjs",
     "build-website": "npm run zxi time website/index.mjs",
     "build-website-local": "npm run zxi time website/build-local.mjs",
@@ -53,13 +54,16 @@
     "test-compat-tools": "npm run zxi tests/compat-tools/index.mjs",
     "test-type-definitions": "npm run zxi time cd tests/type-definitions/runner.mjs",
     "test262": "npm run zxi time cd tests/test262/runner.mjs",
-    "refresh": "node scripts/clean-dependencies.mjs && npm install && npm run test-raw",
+    "refresh": "UPDATE_DEPENDENCIES=1 npm run prepare-monorepo && npm run test-raw",
+    "refresh-safe": "npm run prepare-monorepo && npm run test-raw",
     "downloads": "npm run zxi scripts/downloads-by-versions.mjs",
     "usage": "npm run zxi scripts/usage/usage.mjs",
     "update-version": "npm run zxi scripts/update-version.mjs",
     "publish": "npm publish --workspaces",
     "c": "npm run check",
+    "p": "npm run prepare-monorepo",
     "r": "npm run refresh",
+    "rs": "npm run refresh-safe",
     "u": "npm run update-version"
   },
   "devDependencies": {
