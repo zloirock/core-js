@@ -107,7 +107,7 @@ async function buildEntry(entry, options) {
 }
 
 async function writeExportsField(path) {
-  const pkg = await readJson(path);
+  const pkg = await readJson(path.replace(/\.json$/, '.tpl.json'));
   pkg.exports = exportsFields;
   await writeJson(path, pkg, { spaces: '  ' });
   echo(green(`built ${ cyan(path) } exports field`));
