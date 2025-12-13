@@ -1,5 +1,5 @@
 import childProcess from 'node:child_process';
-import { readdir, rm } from 'node:fs/promises';
+import { copyFile, readdir, rm } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 const exec = promisify(childProcess.exec);
@@ -30,6 +30,18 @@ await Promise.all(folders.map(async folder => {
 }));
 
 console.log('\u001B[32mdependencies cleaned\u001B[0m');
+
+// TODO: replace with glob from Node 22
+for (const pkg of await readdir('packages', { withFileTypes: true })) {
+  if (pkg.isDirectory()) {
+    const source = `packages/${ pkg.name }/package.tpl.json`;
+    const target = source.replace(/\.tpl\.json$/, '.json');
+    try {
+      await copyFile(source, target);
+      console.log(`\u001B[36m${ source } \u001B[32mcopied to \u001B[36m${ target }\u001B[0m`);
+    } catch { /* empty */ }
+  }
+}
 
 await exec(UPDATE_DEPENDENCIES ? 'npm i' : 'npm ci');
 
