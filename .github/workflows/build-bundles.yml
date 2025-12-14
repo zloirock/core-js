@@ -31,7 +31,7 @@ jobs:
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.REMOTE_HOST }}
-          username: run prepare-monorepo
+          username: ci
           key: ${{ secrets.CI_SSH_KEY }}
           source: "packages/core-js-bundle/core-js-bundle.js"
           target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
@@ -44,7 +44,7 @@ jobs:
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.REMOTE_HOST }}
-          username: run prepare-monorepo
+          username: ci
           key: ${{ secrets.CI_SSH_KEY }}
           source: "packages/core-js-bundle/core-js-bundle-esmodules.js"
           target: "/var/www/core-js/bundles/${{ steps.extract_branch.outputs.branch }}/"
