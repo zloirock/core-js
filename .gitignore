@@ -49,6 +49,7 @@ node_modules/
 /packages/core-js-pure/index.js
 /packages/core-js-pure/package.json
 /packages/core-js-pure/LICENSE
+/packages/core-js-types/package.json
 /packages/core-js-types/ts*
 /packages/core-js-types/LICENSE
 /tests/**/bundles/
