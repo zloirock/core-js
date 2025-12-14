@@ -42,6 +42,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.flatMap` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.flatmap
+// dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
@@ -55,7 +56,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
-      inner: null
+      inner: null,
     });
-  }
+  },
 });

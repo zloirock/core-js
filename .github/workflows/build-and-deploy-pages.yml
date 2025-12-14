@@ -59,7 +59,7 @@ jobs:
       - name: Build
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
         run: |
-          npm ci
+          npm run prepare-monorepo
           npm run build-compat
           npm run bundle
       - name: Prepare build artifacts

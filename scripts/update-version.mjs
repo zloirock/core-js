@@ -1,5 +1,8 @@
+import coerce from 'semver/functions/coerce.js';
+
 const { readJson, readFile, writeJson, writeFile } = fs;
-const { green, red } = chalk;
+const { cyan, green, red } = chalk;
+
 const [PREV_VERSION, NEW_VERSION] = (await Promise.all([
   readJson('packages/core-js/package.json'),
   readJson('package.json'),
@@ -15,7 +18,6 @@ const CHANGELOG = 'CHANGELOG.md';
 const LICENSE = 'LICENSE';
 const README = 'README.md';
 const README_COMPAT = 'packages/core-js-compat/README.md';
-const README_DENO = 'deno/corejs/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const USAGE = 'docs/web/docs/usage.md';
@@ -32,9 +34,6 @@ await writeFile(README, readme.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 const readmeCompat = await readFile(README_COMPAT, 'utf8');
 await writeFile(README_COMPAT, readmeCompat.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
-const readmeDeno = await readFile(README_DENO, 'utf8');
-await writeFile(README_DENO, readmeDeno.replaceAll(PREV_VERSION, NEW_VERSION));
-
 const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
 
@@ -44,7 +43,7 @@ await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR)
 const usage = await readFile(USAGE, 'utf8');
 await writeFile(USAGE, usage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
-const packages = await Promise.all((await glob('packages/*/package.json')).map(async path => {
+const packages = await Promise.all((await glob('packages/*/package?(.tpl).json')).map(async path => {
   const pkg = await readJson(path, 'utf8');
   return { path, pkg };
 }));
@@ -86,5 +85,24 @@ if (CURRENT_YEAR !== OLD_YEAR) echo(green('the year updated'));
 if (NEW_VERSION !== PREV_VERSION) echo(green('the version updated'));
 else if (CURRENT_YEAR === OLD_YEAR) echo(red('bump is not required'));
 
-await $`npm run bundle-package deno`;
 await $`npm run build-compat`;
+
+const UNRELEASED_TAG = `${ coerce(PREV_VERSION) }-unreleased`;
+
+const modulesByVersions = await readJson('packages/core-js-compat/modules-by-versions.json');
+
+if (modulesByVersions[UNRELEASED_TAG]) {
+  modulesByVersions[NEW_VERSION] = modulesByVersions[UNRELEASED_TAG];
+  delete modulesByVersions[UNRELEASED_TAG];
+  await writeJson('packages/core-js-compat/modules-by-versions.json', modulesByVersions, { spaces: '  ' });
+  echo(green('modules-by-versions updated'));
+} else echo(cyan('modules-by-versions update is not required'));
+
+const entriesByVersions = await readJson('packages/core-js-compat/entries-by-versions.json');
+
+if (entriesByVersions[UNRELEASED_TAG]) {
+  entriesByVersions[NEW_VERSION] = entriesByVersions[UNRELEASED_TAG];
+  delete entriesByVersions[UNRELEASED_TAG];
+  await writeJson('packages/core-js-compat/entries-by-versions.json', entriesByVersions, { spaces: '  ' });
+  echo(green('entries-by-versions updated'));
+} else echo(cyan('entries-by-versions update is not required'));
