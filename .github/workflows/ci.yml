@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: 3.14
-      - run: npm ci
+      - run: npm run prepare-monorepo
       - run: pip install codespell
       - run: npx run-s lint-raw codespell
 
@@ -29,7 +29,7 @@ jobs:
         with:
           node-version: 25
           cache: npm
-      - run: npm ci
+      - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-karma
 
   bun:
@@ -43,7 +43,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-      - run: npm ci
+      - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-bun
 
   promises-and-observables:
@@ -63,7 +63,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm ci
+      - run: npm run prepare-monorepo
       - run: npx run-s test-promises test-observables
 
   tests:
@@ -87,5 +87,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: npm
-      - run: npm ci
+      - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
