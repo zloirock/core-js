@@ -21,7 +21,6 @@ const README_COMPAT = 'packages/core-js-compat/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const USAGE = 'docs/web/docs/usage.md';
-const TYPES_PACKAGE_TEMPLATE = 'packages/core-js-types/package.tpl.json';
 const NOW = new Date();
 const CURRENT_YEAR = NOW.getFullYear();
 
