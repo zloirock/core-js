@@ -1,4 +1,4 @@
-// types: common/object-prototype-accessor-methods
+// types: annex-b/object-prototype-accessor-methods
 'use strict';
 var $ = require('../internals/export');
 var FORCED = require('../internals/object-prototype-accessors-forced');
