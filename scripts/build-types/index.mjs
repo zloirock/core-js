@@ -33,7 +33,7 @@ async function buildType(entry, options) {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
     template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
-    customType, tsVersion, proposal,
+    customType, tsVersion, proposal, types, ownEntryPoint,
   } = options;
 
   switch (subset) {
@@ -53,18 +53,16 @@ async function buildType(entry, options) {
       break;
   }
 
-  if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
-
-  const rawModules = modules;
-
-  modules = expandModules(modules, filter, AllModules);
-
   const level = entry.split('/').length - 1;
 
-  const { dependencies, types } = await getModulesMetadata(modules);
-  modules = dependencies;
-
-  if (filter) modules = modules.filter(it => filter.has(it));
+  if (!types) {
+    if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
+    modules = expandModules(modules, filter, AllModules);
+    const { dependencies, types: typePaths } = await getModulesMetadata(modules);
+    modules = dependencies;
+    if (filter) modules = modules.filter(it => filter.has(it));
+    types = typePaths;
+  }
 
   types.forEach(type => {
     imports.index.add(type);
@@ -83,8 +81,8 @@ async function buildType(entry, options) {
   if (!outputFiles[indexPath]) outputFiles[indexPath] = '';
   if (!outputFiles[purePath]) outputFiles[purePath] = '';
 
-  const entryWithTypes = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME });
-  const entryWithTypesPure = template({ ...options, modules, rawModules, level, entry, types, packageName: PACKAGE_NAME_PURE,
+  const entryWithTypes = template({ ...options, modules, level, entry, types, packageName: PACKAGE_NAME });
+  const entryWithTypesPure = template({ ...options, modules, level, entry, types, packageName: PACKAGE_NAME_PURE,
     prefix: TYPE_PREFIX });
 
   outputFiles[indexPath] += `${ entryWithTypes.types }${ entryWithTypes.types ? '\n' : '' }`;
@@ -92,9 +90,9 @@ async function buildType(entry, options) {
 
   if (!entry.endsWith('/')) { // add alias with .js ending
     const entryWithExt = `${ entry }.js`;
-    const entryWithTypesWithExt = template({ ...options, modules, rawModules, level, types, entry: entryWithExt,
+    const entryWithTypesWithExt = template({ ...options, modules, level, types, entry: entryWithExt,
       packageName: PACKAGE_NAME });
-    const entryWithTypesPureWithExt = template({ ...options, modules, rawModules, level, entry: entryWithExt,
+    const entryWithTypesPureWithExt = template({ ...options, modules, level, entry: entryWithExt,
       types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
 
     outputFiles[indexPath] += `${ entryWithTypesWithExt.types }${ entryWithTypesWithExt.types ? '\n' : '' }`;
@@ -103,20 +101,20 @@ async function buildType(entry, options) {
 
   if (entry.endsWith('/index')) { // add alias to namespace without index
     const entryWithoutIndex = entry.replace(/\/index$/, '');
-    const entryWithTypesWithoutIndex = template({ ...options, modules, rawModules, level, types, entry: entryWithoutIndex,
+    const entryWithTypesWithoutIndex = template({ ...options, modules, level, types, entry: entryWithoutIndex,
       packageName: PACKAGE_NAME });
-    const entryWithTypesPureWithoutIndex = template({ ...options, modules, rawModules, level, entry: entryWithoutIndex, types,
+    const entryWithTypesPureWithoutIndex = template({ ...options, modules, level, entry: entryWithoutIndex, types,
       packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
 
     outputFiles[indexPath] += `${ entryWithTypesWithoutIndex.types }${ entryWithTypesWithoutIndex.types ? '\n' : '' }`;
     outputFiles[purePath] += `${ entryWithTypesPureWithoutIndex.types }${ entryWithTypesPureWithoutIndex.types ? '\n' : '' }`;
   }
 
-  if (proposal) {
-    const filePathProposal = buildFilePath(tsVersion, entry);
-    if (!outputFiles[filePathProposal]) outputFiles[filePathProposal] = '';
-    const proposalImports = buildImports(types, 1);
-    outputFiles[filePathProposal] = `${ proposalImports }\n`;
+  if (proposal || ownEntryPoint) {
+    const ownFilePath = buildFilePath(tsVersion, entry);
+    if (!outputFiles[ownFilePath]) outputFiles[ownFilePath] = '';
+    const ownImports = buildImports(types, 1);
+    outputFiles[ownFilePath] = `${ ownImports }\n`;
   }
 }
 
@@ -158,6 +156,28 @@ async function fillCustomImportsForPure(typesPath, initialPath) {
   }
 }
 
+async function buildAdditionalEntries(dir, tsVersion) {
+  const dirPath = path.join(BUILD_DIR, tsVersion, 'types', dir);
+  const entries = await readdir(dirPath, { withFileTypes: true });
+  const result = {};
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      continue;
+    }
+    const entryName = entry.name.replace('.d.ts', '');
+    const entryPath = path.join(dir, entryName);
+    result[entryName] = {
+      template: () => ({ types: '' }),
+      ownEntryPoint: true,
+      modules: [],
+      tsVersion,
+      types: [entryPath],
+    };
+  }
+
+  return result;
+}
+
 async function buildTypesForTSVersion(tsVersion) {
   outputFiles = {};
   tsVersion = `ts${ tsVersion.toString().replace('.', '-') }`;
@@ -172,6 +192,9 @@ async function buildTypesForTSVersion(tsVersion) {
     await copy(srcPath, distTypesPath);
   }
 
+  const web = await buildAdditionalEntries('web', tsVersion);
+  const annexB = await buildAdditionalEntries('annex-b', tsVersion);
+
   await fillCustomImportsForPure(path.join(bundlePath, 'types', 'pure'), distTypesPath);
   await preparePureTypes(bundlePath, distTypesPath);
 
@@ -184,6 +207,12 @@ async function buildTypesForTSVersion(tsVersion) {
 
   for (const [name, definition] of Object.entries(proposals)) {
     await buildType(`proposals/${ name }`, { ...definition, template: $proposal, tsVersion, proposal: true });
+  }
+  for (const [name, definition] of Object.entries(web)) {
+    await buildType(`web/${ name }`, definition);
+  }
+  for (const [name, definition] of Object.entries(annexB)) {
+    await buildType(`annex-b/${ name }`, definition);
   }
 
   await buildType('es/index', { template: $path, modules: ESModules, subset: 'es', tsVersion });
