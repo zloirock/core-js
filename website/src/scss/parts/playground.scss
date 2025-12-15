@@ -64,11 +64,12 @@
     .controls-float {
       position: absolute;
       position: sticky;
+      width: fit-content;
       display: flex;
-      justify-content: flex-end;
       top: 0.25rem;
-      right: 0.25rem;
-      padding-right: 0.25rem;
+      right: 0.5rem;
+      margin-left: auto;
+      padding-right: 0.5rem;
       padding-top: 0.25rem;
       z-index: 3;
 
