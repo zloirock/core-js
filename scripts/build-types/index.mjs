@@ -28,6 +28,23 @@ const imports = {
 };
 let outputFiles = {};
 
+function addType(filePath, template, options) {
+  const entryWithTypes = template(options);
+  outputFiles[filePath] += `${ entryWithTypes.types }${ entryWithTypes.types ? '\n' : '' }`;
+}
+
+function addEntryTypes(tsVersion, template, options) {
+  const indexPath = buildFilePath(tsVersion, 'index');
+  if (!outputFiles[indexPath]) outputFiles[indexPath] = '';
+  const optionsGlobal = { ...options, packageName: PACKAGE_NAME };
+  addType(indexPath, template, optionsGlobal);
+
+  const purePath = buildFilePath(tsVersion, 'pure');
+  if (!outputFiles[purePath]) outputFiles[purePath] = '';
+  const optionsPure = { ...options, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX };
+  addType(purePath, template, optionsPure);
+}
+
 async function buildType(entry, options) {
   let {
     entryFromNamespace,
@@ -75,39 +92,14 @@ async function buildType(entry, options) {
     imports[subset].add(customType);
     imports.pure.add(customType);
   }
+  options = { ...options, modules, level, entry, types };
 
-  const indexPath = buildFilePath(tsVersion, 'index');
-  const purePath = buildFilePath(tsVersion, 'pure');
-  if (!outputFiles[indexPath]) outputFiles[indexPath] = '';
-  if (!outputFiles[purePath]) outputFiles[purePath] = '';
-
-  const entryWithTypes = template({ ...options, modules, level, entry, types, packageName: PACKAGE_NAME });
-  const entryWithTypesPure = template({ ...options, modules, level, entry, types, packageName: PACKAGE_NAME_PURE,
-    prefix: TYPE_PREFIX });
-
-  outputFiles[indexPath] += `${ entryWithTypes.types }${ entryWithTypes.types ? '\n' : '' }`;
-  outputFiles[purePath] += `${ entryWithTypesPure.types }${ entryWithTypesPure.types ? '\n' : '' }`;
-
+  addEntryTypes(tsVersion, template, options);
   if (!entry.endsWith('/')) { // add alias with .js ending
-    const entryWithExt = `${ entry }.js`;
-    const entryWithTypesWithExt = template({ ...options, modules, level, types, entry: entryWithExt,
-      packageName: PACKAGE_NAME });
-    const entryWithTypesPureWithExt = template({ ...options, modules, level, entry: entryWithExt,
-      types, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
-
-    outputFiles[indexPath] += `${ entryWithTypesWithExt.types }${ entryWithTypesWithExt.types ? '\n' : '' }`;
-    outputFiles[purePath] += `${ entryWithTypesPureWithExt.types }${ entryWithTypesPureWithExt.types ? '\n' : '' }`;
+    addEntryTypes(tsVersion, template, { ...options, entry: `${ entry }.js` });
   }
-
   if (entry.endsWith('/index')) { // add alias to namespace without index
-    const entryWithoutIndex = entry.replace(/\/index$/, '');
-    const entryWithTypesWithoutIndex = template({ ...options, modules, level, types, entry: entryWithoutIndex,
-      packageName: PACKAGE_NAME });
-    const entryWithTypesPureWithoutIndex = template({ ...options, modules, level, entry: entryWithoutIndex, types,
-      packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
-
-    outputFiles[indexPath] += `${ entryWithTypesWithoutIndex.types }${ entryWithTypesWithoutIndex.types ? '\n' : '' }`;
-    outputFiles[purePath] += `${ entryWithTypesPureWithoutIndex.types }${ entryWithTypesPureWithoutIndex.types ? '\n' : '' }`;
+    addEntryTypes(tsVersion, template, { ...options, entry: entry.replace(/\/index$/, '') });
   }
 
   if (proposal || ownEntryPoint) {
