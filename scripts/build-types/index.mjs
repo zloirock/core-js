@@ -28,21 +28,16 @@ const imports = {
 };
 let outputFiles = {};
 
-function addType(filePath, template, options) {
+function addType(tsVersion, subset, template, options) {
+  const filePath = buildFilePath(tsVersion, subset);
+  if (!outputFiles[filePath]) outputFiles[filePath] = '';
   const entryWithTypes = template(options);
   outputFiles[filePath] += `${ entryWithTypes.types }${ entryWithTypes.types ? '\n' : '' }`;
 }
 
 function addEntryTypes(tsVersion, template, options) {
-  const indexPath = buildFilePath(tsVersion, 'index');
-  if (!outputFiles[indexPath]) outputFiles[indexPath] = '';
-  const optionsGlobal = { ...options, packageName: PACKAGE_NAME };
-  addType(indexPath, template, optionsGlobal);
-
-  const purePath = buildFilePath(tsVersion, 'pure');
-  if (!outputFiles[purePath]) outputFiles[purePath] = '';
-  const optionsPure = { ...options, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX };
-  addType(purePath, template, optionsPure);
+  addType(tsVersion, 'index', template, { ...options, packageName: PACKAGE_NAME });
+  addType(tsVersion, 'pure', template, { ...options, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
 }
 
 async function buildType(entry, options) {
