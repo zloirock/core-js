@@ -1,7 +1,8 @@
 ![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
+This package contains types for global & pure versions of `core-js`.
 
 # Installation
-`npm install --save @core-js/types`
+`npm install --save @core-js/types@4.0.0-alpha.0`
 
 # Usage
 Add to your `tsconfig.json`:
@@ -19,7 +20,29 @@ or import it directly in your files:
 import '@core-js/types';
 ```
 
-# Usage of pure version
+## Usage of subsets
+There are 4 types of subset:
+- `@core-js/types/actual` - types for all actual features, including stable ECMAScript, web standards and stage 3 ECMAScript proposals
+- `@core-js/types/es` - types for stable ECMAScript features only
+- `@core-js/types/stable` - types for stable ECMAScript and web standards features
+- `@core-js/types/full` - types for all features, including proposals
+You can import them the same way as the main package, for example, to use stable version, add this to your `tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "types": [
+      "@core-js/types/stable"
+    ]
+  }
+}
+```
+or import it directly in your files:
+```ts
+import '@core-js/types/stable';
+```
+
+# Types for the pure version
+## Base usage
 Add this to your `tsconfig.json`:
 ```json
 {
@@ -37,8 +60,17 @@ import $findLast from '@core-js/pure/full/array/find-last';
 $findLast([1, 3, 4, 2], v => v > 2); // => 4
 ```
 
+## Namespace usage
+If you need to use multiple methods from the same namespace, you can import the entire namespace instead:
+```ts
+import $array from '@core-js/pure/full/array';
+
+$array.findLast([1, 3, 4, 2], v => v > 2);
+$array.flatMap([1, 2, 3], x => [x, x * 2]);
+```
+
 # DOM types
-To work with DOM, you need to add DOM types to the `lib` section of your `tsconfig.json`, for example:
+Global types works correctly only with DOM lib. You need to add DOM types to the `lib` section of your `tsconfig.json`, for example:
 ```json
 {
   "compilerOptions": {
@@ -52,23 +84,3 @@ import $parse from '@core-js/pure/full/url/parse';
 
 $parse('https://example.com/path?name=value#hash');
 ```
-
-# Namespace usage in pure version
-If you need to use multiple methods from the same namespace, you can import the entire namespace instead:
-```ts
-import $array from '@core-js/pure/full/array';
-
-$array.findLast([1, 3, 4, 2], v => v > 2);
-$array.flatMap([1, 2, 3], x => [x, x * 2]);
-```
-
-# Package variants
-You can import different variants of the package types:
-```ts
-import '@core-js/types/actual'; // types for all actual features - stable ES, web standards and stage 3 ES proposals
-import '@core-js/types/full'; // types for all features - stable ES, web standards and all proposals
-import '@core-js/types/stable'; // types for stable features - ES and web standards
-import '@core-js/types/es'; // types for only stable ES features
-```
-
-# Reference import
