@@ -1,6 +1,5 @@
 /// <reference types="../core-js-types/decorator-metadata-object" />
 
-// proposal stage: 3
 // https://github.com/tc39/proposal-decorator-metadata
 
 interface SymbolConstructor {

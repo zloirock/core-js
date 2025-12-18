@@ -1,4 +1,3 @@
-// proposal stage: 1
 // https://github.com/tc39/proposal-dataview-get-set-uint8clamped
 
 interface DataView { // @type-options no-constructor
