@@ -41,6 +41,10 @@ core-js(-pure)/full/weak-map/from
 core-js(-pure)/full/weak-map/of
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/collection-of-from`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/collection-of-from.d.ts)
+
+
 ## Examples
 ```js
 Set.of(1, 2, 3, 2, 1); // => Set {1, 2, 3}

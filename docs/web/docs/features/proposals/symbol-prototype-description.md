@@ -13,3 +13,6 @@ class Symbol {
 ```plaintext
 core-js/proposals/symbol-description
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/symbol-description`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/symbol-description.d.ts)

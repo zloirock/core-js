@@ -18,6 +18,9 @@ core-js/proposals/iterator-join
 core-js(-pure)/actual|full/iterator/join
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-join`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-join.d.ts)
+
 ## Examples
 ```js
 [1, 2, 3].values().join();     // => '1,2,3'
