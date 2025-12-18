@@ -21,3 +21,6 @@ class %TypedArray% {
 ```plaintext
 core-js/proposals/relative-indexing-method
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/relative-indexing-method`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/relative-indexing-method.d.ts)

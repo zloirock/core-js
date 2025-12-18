@@ -25,6 +25,9 @@ core-js(-pure)/actual|full/promise/all-keyed
 core-js(-pure)/actual|full/promise/all-settled-keyed
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/await-dictionary`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/await-dictionary.d.ts)
+
 ## Examples
 ```js
 await Promise.allKeyed({
