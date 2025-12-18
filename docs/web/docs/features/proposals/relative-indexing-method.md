@@ -39,3 +39,6 @@ new Int32Array([1, 2, 3]).at(-1); // => 3
 'abc'.at(1);  // => 'b'
 'abc'.at(-1); // => 'c'
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/relative-indexing-method`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/relative-indexing-method.d.ts)

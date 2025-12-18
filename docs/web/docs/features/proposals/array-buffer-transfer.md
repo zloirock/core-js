@@ -22,6 +22,9 @@ core-js/es|stable|actual|full/array-buffer/transfer
 core-js/es|stable|actual|full/array-buffer/transfer-to-fixed-length
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-buffer-transfer`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-buffer-transfer.d.ts)
+
 ## Examples
 ```js
 const buffer = Int8Array.of(1, 2, 3, 4, 5, 6, 7, 8).buffer;

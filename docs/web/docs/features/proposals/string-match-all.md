@@ -17,6 +17,9 @@ core-js/proposals/string-match-all
 core-js(-pure)/es|stable|actual|full/string(/virtual)/match-all
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-match-all`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-match-all.d.ts)
+
 ## Examples
 ```js
 for (let { groups: { number, letter } } of '1111a2b3cccc'.matchAll(RegExp('(?<number>\\d)(?<letter>\\D)', 'g'))) {

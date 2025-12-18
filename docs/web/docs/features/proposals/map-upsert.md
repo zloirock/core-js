@@ -27,6 +27,9 @@ core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
 core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert-computed
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/map-upsert`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/map-upsert.d.ts)
+
 ## Examples
 ```js
 const map = new Map([['a', 1]]);

@@ -40,3 +40,6 @@ new Set([1, 2, 3]).isDisjointFrom(new Set([4, 5, 6]));      // => true
 new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/set-methods`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/set-methods.d.ts)

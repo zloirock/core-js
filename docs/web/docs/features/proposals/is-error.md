@@ -18,6 +18,9 @@ core-js/proposals/is-error
 core-js(-pure)/es|stable|actual|full/error/is-error
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/is-error`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/is-error.d.ts)
+
 ## Examples
 ```js
 Error.isError(new Error('error')); // => true
