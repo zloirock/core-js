@@ -1,4 +1,3 @@
-// proposal stage: 4
 // https://github.com/tc39/proposal-string-left-right-trim
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
