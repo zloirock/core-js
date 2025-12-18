@@ -6,8 +6,8 @@ Additional types are needed for:
 - proposals, including those already implemented in JavaScript engines;
 - explicit imports of features from the pure version.
 
-We decided to ship it as a separate package, because we cannot guarantee stable behavior, 
-primarily with upcoming minor TypeScript releases
+It is shipped as a separate package, because we cannot guarantee stable behavior, 
+primarily with upcoming minor TypeScript releases.
 
 # Installation
 `npm install --save @core-js/types@4.0.0-alpha.0`
