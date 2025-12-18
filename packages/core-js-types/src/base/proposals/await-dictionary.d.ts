@@ -1,6 +1,5 @@
 /// <reference types="../core-js-types/promise-settled-result" />
 
-// proposal stage: 1
 // https://github.com/tc39/proposal-await-dictionary
 
 interface PromiseConstructor { // @type-options no-redefine

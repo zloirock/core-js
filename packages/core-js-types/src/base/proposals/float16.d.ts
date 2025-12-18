@@ -1,4 +1,3 @@
-// proposal stage: 4
 // https://github.com/tc39/proposal-float16array
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
