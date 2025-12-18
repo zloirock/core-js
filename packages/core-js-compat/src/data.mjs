@@ -2570,8 +2570,10 @@ export const data = {
   'esnext.iterator.windows': {
   },
   'esnext.iterator.zip': {
+    firefox: '148',
   },
   'esnext.iterator.zip-keyed': {
+    firefox: '148',
   },
   // TODO: Remove from `core-js@4`
   'esnext.json.is-raw-json': null,

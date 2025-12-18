@@ -3,6 +3,7 @@
 - Minor fix / optimization in the `RegExp` constructor (NCG and `dotAll`) polyfill
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as [shipped in V8 ~ Chrome 145](https://issues.chromium.org/issues/434977728#comment4)
+  - [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration) features marked as [shipped in FF148](https://bugzilla.mozilla.org/show_bug.cgi?id=2003333#c8)
   - Added [Deno 2.6](https://github.com/denoland/deno/releases/tag/v2.6.0) compat data mapping
   - Added [Opera Android 93](https://forums.opera.com/topic/87267/opera-for-android-93) compat data mapping
 
