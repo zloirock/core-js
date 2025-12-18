@@ -35,3 +35,6 @@ function isOdd(value) {
 [1, 2, 3, 4].findLast(isOdd);      // => 3
 [1, 2, 3, 4].findLastIndex(isOdd); // => 2
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-find-from-last`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-find-from-last.d.ts)

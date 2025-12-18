@@ -23,6 +23,9 @@ core-js(-pure)/es|stable|actual|full/array(/virtual)/includes
 core-js/es|stable|actual|full/typed-array/includes
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-includes`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-includes.d.ts)
+
 ## Examples
 ```js
 [1, 2, 3].includes(2);        // => true

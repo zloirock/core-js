@@ -28,6 +28,9 @@ core-js/es|stable|actual|full/typed-array/to-base64
 core-js/es|stable|actual|full/typed-array/to-hex
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-buffer-base64`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-buffer-base64.d.ts)
+
 ## Examples
 ```js
 let arr = new Uint8Array([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);

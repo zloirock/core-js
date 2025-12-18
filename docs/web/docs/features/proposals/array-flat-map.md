@@ -20,6 +20,9 @@ core-js(-pure)/es|stable|actual|full/array(/virtual)/flat
 core-js(-pure)/es|stable|actual|full/array(/virtual)/flat-map
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-flat-map`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-flat-map.d.ts)
+
 ## Examples
 ```js
 [1, [2, 3], [4, 5]].flat();    // => [1, 2, 3, 4, 5]

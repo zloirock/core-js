@@ -39,3 +39,6 @@ Promise.any([
   Promise.reject(3),
 ]).catch(({ errors }) => console.log(errors)); // -> [1, 2, 3]
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/promise-any`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/promise-any.d.ts)
