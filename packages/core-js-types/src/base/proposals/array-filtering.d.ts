@@ -1,4 +1,3 @@
-// proposal stage: 1
 // https://github.com/tc39/proposal-array-filtering
 
 interface Array<T> { // @type-options no-redefine
@@ -101,6 +100,13 @@ interface Float32Array { // @type-options no-export
 }
 
 interface Float64Array { // @type-options no-export
+  /**
+   * Removes the items that return true
+   * @param callbackFn A function that accepts up to three arguments. The filterReject method calls the
+   * callbackFn function one time for each element in the array.
+   * @param thisArg If provided, it will be used as this value for each invocation of
+   * predicate. If it is not provided, undefined is used instead.
+   */
   filterReject(callbackFn: (value: number, index: number, target: Float64Array) => boolean, thisArg?: any): Float64Array;
 }
 
