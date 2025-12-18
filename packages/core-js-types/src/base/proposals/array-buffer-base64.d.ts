@@ -1,4 +1,3 @@
-// proposal stage: 3
 // https://github.com/tc39/proposal-arraybuffer-base64
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
