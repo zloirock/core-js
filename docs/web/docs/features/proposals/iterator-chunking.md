@@ -20,6 +20,9 @@ core-js(-pure)/full/iterator/chunks
 core-js(-pure)/full/iterator/windows
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-chunking`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-chunking.d.ts)
+
 ## Examples
 ```js
 const digits = () => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].values();
