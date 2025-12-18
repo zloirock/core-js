@@ -29,3 +29,6 @@ core-js/es|stable|actual|full/typed-array/to-reversed
 core-js/es|stable|actual|full/typed-array/to-sorted
 core-js/es|stable|actual|full/typed-array/with
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/change-array-by-copy`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/change-array-by-copy.d.ts)
