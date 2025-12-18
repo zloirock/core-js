@@ -28,3 +28,6 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/to-well-formed
 'a💩b'.toWellFormed();      // => 'a💩b'
 'a\uD83Db'.toWellFormed();  // => 'a�b'
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/well-formed-unicode-strings`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/well-formed-unicode-strings.d.ts)

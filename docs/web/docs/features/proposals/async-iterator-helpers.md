@@ -47,6 +47,9 @@ core-js(-pure)/actual|full/async-iterator/to-array
 core-js(-pure)/actual|full/iterator/to-async
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/async-iterator-helpers`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/async-iterator-helpers.d.ts)
+
 ## Examples
 ```js
 await AsyncIterator.from([1, 2, 3, 4, 5, 6, 7])
