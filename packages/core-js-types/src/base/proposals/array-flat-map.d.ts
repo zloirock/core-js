@@ -1,6 +1,5 @@
 /// <reference types="../core-js-types/flat-array.d.ts" />
 
-// proposal stage: 4
 // https://github.com/tc39/proposal-flatMap
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
@@ -12,7 +11,6 @@ interface Array<T> { // @type-options no-redefine
    * Calls a defined callback function on each element of an array. Then, flattens the result into
    * a new array.
    * This is identical to a map followed by flat with depth 1.
-   *
    * @param callback A function that accepts up to three arguments. The flatMap method calls the
    * callback function one time for each element in the array.
    * @param thisArg An object to which this keyword can refer in the callback function. If
@@ -23,7 +21,6 @@ interface Array<T> { // @type-options no-redefine
   /**
    * Returns a new array with all sub-array elements concatenated into it recursively up to the
    * specified depth.
-   *
    * @param depth The maximum recursion depth
    */
   flat<A, D extends number = 1>(this: A, depth?: D): CoreJS.CoreJSFlatArray<A, D>[];

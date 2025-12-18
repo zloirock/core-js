@@ -1,5 +1,5 @@
-// proposal stage: 0
 // https://github.com/js-choi/proposal-function-demethodize
+
 interface Function { // @type-options no-constructor
   /**
    * Creates a function that calls the original with its first argument as `this` and the rest as regular arguments.
