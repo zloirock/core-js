@@ -1,6 +1,7 @@
 interface Object {
   /**
-   * Deprecated accessor to `Object.prototype`.
+   * Accessor to [[Prototype]].
+   * This is non-standard and deprecated; prefer get/set
    */
   __proto__: object | null;
 }
