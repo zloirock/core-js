@@ -55,3 +55,6 @@ Iterator.from({
   next: () => ({ done: Math.random() > 0.9, value: Math.random() * 10 | 0 }),
 }).toArray(); // => [7, 6, 3, 0, 2, 8]
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-helpers`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-helpers.d.ts)

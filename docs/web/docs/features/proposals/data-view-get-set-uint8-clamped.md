@@ -20,6 +20,9 @@ core-js/full/data-view/get-uint8-clamped
 core-js/full/data-view/set-uint8-clamped
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/data-view-get-set-uint8-clamped`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/data-view-get-set-uint8-clamped.d.ts)
+
 ## Examples
 ```js
 const view = new DataView(new ArrayBuffer(1));

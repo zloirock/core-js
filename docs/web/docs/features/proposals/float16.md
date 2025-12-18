@@ -25,6 +25,9 @@ core-js/es|stable|actual|full/data-view/set-float16
 core-js(-pure)/es|stable|actual|full/math/f16round
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/float16`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/float16.d.ts)
+
 ## Examples
 ```js
 Math.f16round(1.337); // => 1.3369140625

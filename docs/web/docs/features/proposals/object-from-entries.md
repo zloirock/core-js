@@ -18,6 +18,9 @@ core-js/proposals/object-from-entries
 core-js(-pure)/es|stable|actual|full/object/from-entries
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/object-from-entries`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/object-from-entries.d.ts)
+
 ## Examples
 ```js
 const map = new Map([['a', 1], ['b', 2]]);

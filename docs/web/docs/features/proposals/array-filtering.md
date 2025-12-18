@@ -23,6 +23,9 @@ core-js(-pure)/full/array(/prototype)/filter-reject
 core-js/full/typed-array/filter-reject
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-filtering`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-filtering.d.ts)
+
 ## Examples
 ```js
 [1, 2, 3, 4, 5].filterReject(it => it % 2); // => [2, 4]

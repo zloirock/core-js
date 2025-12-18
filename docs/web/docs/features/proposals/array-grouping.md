@@ -31,3 +31,6 @@ const map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
 map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-grouping`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-grouping.d.ts)

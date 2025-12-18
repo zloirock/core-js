@@ -28,3 +28,6 @@ core-js(-pure)/es|stable|actual|full/string(/virtual)/pad-start
 'hello'.padEnd(10);           // => 'hello     '
 'hello'.padEnd(10, '1234');   // => 'hello12341'
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-padding`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-padding.d.ts)
