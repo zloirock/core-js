@@ -25,3 +25,6 @@ class Iterator {
 ```plaintext
 core-js/proposals/iterator-helpers
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-helpers`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-helpers.d.ts)

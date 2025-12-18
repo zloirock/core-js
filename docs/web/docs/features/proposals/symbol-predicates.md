@@ -20,6 +20,9 @@ core-js(-pure)/full/symbol/is-registered-symbol
 core-js(-pure)/full/symbol/is-well-known-symbol
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/symbol-predicates`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/symbol-predicates.d.ts)
+
 ## Example
 ```js
 Symbol.isRegisteredSymbol(Symbol.for('key')); // => true
