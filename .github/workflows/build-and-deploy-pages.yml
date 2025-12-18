@@ -47,7 +47,7 @@ jobs:
           echo "CACHE_KEY=${{ matrix.branch }}-$HASH" >> "$GITHUB_ENV"
       - name: Restore cached artifacts
         id: artifacts-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ matrix.branch }}
           key: ${{ env.CACHE_KEY }}
@@ -73,12 +73,12 @@ jobs:
           cp tests/unit-browser/* ${{ matrix.branch }}/unit-browser
       - name: Save cached artifacts
         if: steps.artifacts-restore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ matrix.branch }}
           key: ${{ env.CACHE_KEY }}
       - name: Upload artifacts for branch ${{ matrix.branch }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.branch }}
           path: ${{ matrix.branch }}
@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           path: pages
       - name: Setup Pages
