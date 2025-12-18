@@ -1,4 +1,3 @@
-// proposal stage: 1
 // https://github.com/tc39/proposal-setmap-offrom
 
 interface MapConstructor {
