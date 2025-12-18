@@ -1,4 +1,3 @@
-// proposal stage: 3
 // https://github.com/tc39/proposal-explicit-resource-management
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:

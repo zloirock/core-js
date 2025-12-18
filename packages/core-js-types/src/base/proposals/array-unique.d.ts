@@ -1,4 +1,3 @@
-// proposal stage: 1
 // https://github.com/tc39/proposal-array-unique
 
 interface Array<T> { // @type-options no-redefine
