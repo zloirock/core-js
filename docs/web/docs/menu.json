@@ -8,6 +8,10 @@
     "url": "{docs-version}/docs/engines"
   },
   {
+    "title": "TypeScript type definitions",
+    "url": "{docs-version}/docs/typescript-type-definitions"
+  },
+  {
     "title": "Features",
     "children": [
       {

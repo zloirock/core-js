@@ -26,6 +26,9 @@ core-js(-pure)/es|stable|actual|full/json/raw-json
 core-js(-pure)/es|stable|actual|full/json/stringify
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/json-parse-with-source`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/json-parse-with-source.d.ts)
+
 ## Examples
 ```js
 function digitsToBigInt(key, val, { source }) {
