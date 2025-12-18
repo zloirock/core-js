@@ -1,5 +1,13 @@
 ![logo](https://user-images.githubusercontent.com/2213682/146607186-8e13ddef-26a4-4ebf-befd-5aac9d77c090.png)
 This package contains types for global & pure versions of `core-js`.
+Although `core-js` is a polyfill library for the JavaScript, the built-in TypeScript types are not sufficient. 
+Additional types are needed for:
+- features that are already in JavaScript, but not yet in TypeScript’s standard types;
+- proposals, including those already implemented in JavaScript engines;
+- explicit imports of features from the pure version.
+
+We decided to ship it as a separate package, because we cannot guarantee stable behavior, 
+primarily with upcoming minor TypeScript releases
 
 # Installation
 `npm install --save @core-js/types@4.0.0-alpha.0`
@@ -19,6 +27,7 @@ or import it directly in your files:
 ```ts
 import '@core-js/types';
 ```
+`@core-js/types` includes all types and entry points for the global version, but it is recommended to select only the subset you actually use instead.
 
 ## Usage of subsets
 There are 4 types of subset:
@@ -61,7 +70,8 @@ $findLast([1, 3, 4, 2], v => v > 2); // => 4
 ```
 
 ## Namespace usage
-If you need to use multiple methods from the same namespace, you can import the entire namespace instead:
+If you need to use multiple methods from the same namespace, you can add `@core-js/types/pure` to `tsconfig.json`
+and import the entire namespace instead:
 ```ts
 import $array from '@core-js/pure/full/array';
 
@@ -70,7 +80,8 @@ $array.flatMap([1, 2, 3], x => [x, x * 2]);
 ```
 
 # DOM types
-Global types works correctly only with DOM lib. You need to add DOM types to the `lib` section of your `tsconfig.json`, for example:
+A part of the global types for web standards work correctly only with the DOM lib.
+You need to add DOM types to the `lib` section of your `tsconfig.json`, for example:
 ```json
 {
   "compilerOptions": {
@@ -78,9 +89,4 @@ Global types works correctly only with DOM lib. You need to add DOM types to the
   }
 }
 ```
-In `pure` version you can use it without adding additional DOM types:
-```ts
-import $parse from '@core-js/pure/full/url/parse';
-
-$parse('https://example.com/path?name=value#hash');
-```
+In the `pure` version you can use it without adding DOM lib
