@@ -18,6 +18,9 @@ core-js/proposals/array-is-template-object
 core-js(-pure)/full/array/is-template-object
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-is-template-object`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-is-template-object.d.ts)
+
 ## Example
 ```js
 console.log(Array.isTemplateObject((it => it)`qwe${ 123 }asd`)); // => true
