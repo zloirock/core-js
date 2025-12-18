@@ -17,3 +17,6 @@ class Symbol {
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/pattern-matching`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/pattern-matching.d.ts)
