@@ -16,3 +16,6 @@ class String {
 ```plaintext
 core-js/proposals/string-left-right-trim
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-left-right-trim`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-left-right-trim.d.ts)

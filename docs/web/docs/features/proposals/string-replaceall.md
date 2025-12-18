@@ -13,3 +13,6 @@ class String {
 ```plaintext
 core-js/proposals/string-replace-all
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-replace-all`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-replace-all.d.ts)

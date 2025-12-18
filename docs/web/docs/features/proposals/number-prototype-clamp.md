@@ -18,6 +18,9 @@ core-js/proposals/math-clamp-v2
 core-js(-pure)/full/number/clamp
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/number-clamp`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/number-clamp.d.ts)
+
 ## Example
 ```js
 5.0.clamp(0, 10); // => 5
