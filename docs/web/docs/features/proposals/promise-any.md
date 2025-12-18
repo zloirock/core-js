@@ -19,3 +19,6 @@ class Promise {
 ```plaintext
 core-js/proposals/promise-any
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/promise-any`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/promise-any.d.ts)

@@ -12,3 +12,6 @@ class String {
 ```plaintext
 core-js/proposals/string-match-all
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/string-match-all`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/string-match-all.d.ts)
