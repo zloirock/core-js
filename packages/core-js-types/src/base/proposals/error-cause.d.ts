@@ -1,4 +1,3 @@
-// proposal stage: 4
 // https://github.com/tc39/proposal-error-cause
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
