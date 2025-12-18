@@ -22,6 +22,9 @@ core-js(-pure)/full/array(/prototype)/unique-by
 core-js/full/typed-array/unique-by
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-unique`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-unique.d.ts)
+
 ## Examples
 ```js
 [1, 2, 3, 2, 1].uniqueBy(); // [1, 2, 3]
