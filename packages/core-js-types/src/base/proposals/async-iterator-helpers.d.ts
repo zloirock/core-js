@@ -1,4 +1,3 @@
-// proposal stage: 2
 // https://github.com/tc39/proposal-async-iterator-helpers
 
 interface AsyncIteratorConstructor {
