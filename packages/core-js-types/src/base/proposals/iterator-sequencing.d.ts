@@ -1,6 +1,5 @@
 /// <reference types="../core-js-types/iterator-object.ts" />
 
-// proposal stage: 2.7
 // https://github.com/tc39/proposal-iterator-sequencing
 
 interface IteratorConstructor { // @type-options no-extends
