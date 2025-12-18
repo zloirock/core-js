@@ -1,4 +1,3 @@
-// proposal stage: 2
 // https://github.com/tc39/proposal-upsert
 
 interface Map<K, V> { // @type-options no-redefine

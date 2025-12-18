@@ -1,6 +1,5 @@
 // Motivation: Custom type needed to keep generics strict
 
-// proposal stage: 4
 // https://github.com/tc39/proposal-change-array-by-copy
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:

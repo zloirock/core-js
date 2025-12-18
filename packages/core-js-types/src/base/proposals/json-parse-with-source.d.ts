@@ -1,4 +1,3 @@
-// proposal stage: 3
 // https://github.com/tc39/proposal-json-parse-with-source
 
 interface CoreJSReviverContext { // @type-options no-extends,no-prefix
