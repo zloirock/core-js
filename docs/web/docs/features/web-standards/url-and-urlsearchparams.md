@@ -54,6 +54,9 @@ core-js/stable|actual|full/url/to-json
 core-js(-pure)/stable|actual|full/url-search-params
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/url-to-json`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/url-to-json.d.ts)
+
 ## Examples
 ```js
 URL.canParse('https://login:password@example.com:8080/?a=1&b=2&a=3&c=4#fragment'); // => true
