@@ -19,6 +19,9 @@ core-js/proposals/number-range
 core-js(-pure)/full/iterator/range
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-range`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-range.d.ts)
+
 ## Example
 ```js
 for (const i of Iterator.range(1, 10)) {
