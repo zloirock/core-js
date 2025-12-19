@@ -15,20 +15,27 @@ npm install --save @core-js/types@4.0.0-alpha.0
 ```
 
 ## Usage
-Add to your `tsconfig.json`:
+You must include at least the ES6 types in your `tsconfig.json` because our types are built on top of the ES6 type definitions
+and `DOM` lib for the global version if you use something related (see [DOM types](#dom-types) section):
 ```json
 {
   "compilerOptions": {
+    "lib": [
+      "es6", 
+      "dom"
+    ],
     "types": [
       "@core-js/types"
     ]
   }
 }
 ```
-or import it directly in your files:
+
+You can also import the types directly into your files instead of specifying `core-js` types in your `tsconfig.json`:
 ```ts
 import '@core-js/types';
 ```
+
 `@core-js/types` includes all types and entry points for the global version, but it is recommended to select only the subset you actually use.
 
 ### Usage of subsets
@@ -70,14 +77,17 @@ or import them directly in your files:
 import '@core-js/types/proposals/joint-iteration';
 import '@core-js/types/web/structured-clone';
 ```
-You can find types for specific features on the corresponding pages in the [documentation](https://core-js.io/{docs-version}/docs/).
+You can find types for specific features on the corresponding pages in the [documentation](https://core-js.io/v4/docs/).
 
 ## Types for the pure version
 ### Base usage
-Add this to your `tsconfig.json`:
+Add this to your `tsconfig.json`, keeping in mind that ES types (at least ES6) are required:
 ```json
 {
   "compilerOptions": {
+    "lib": [
+      "es6"
+    ],
     "types": [
       "@core-js/types/pure"
     ]
@@ -107,8 +117,13 @@ You need to add DOM types to the `lib` section of your `tsconfig.json` in additi
 ```json
 {
   "compilerOptions": {
-    "types": ["@core-js/types"],
-    "lib": ["esnext", "dom"]
+    "types": [
+      "@core-js/types"
+    ],
+    "lib": [
+      "esnext",
+      "dom"
+    ]
   }
 }
 ```
