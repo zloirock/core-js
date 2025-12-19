@@ -1,3 +1,4 @@
+// types: proposals/string-match-all
 'use strict';
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');
 
