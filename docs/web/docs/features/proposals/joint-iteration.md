@@ -26,7 +26,7 @@ class Iterator {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/joint-iteration
 core-js(-pure)/actual|full/iterator/zip
 core-js(-pure)/actual|full/iterator/zip-keyed

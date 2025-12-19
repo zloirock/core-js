@@ -111,7 +111,7 @@ class Uint8Array {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js/es|stable|actual|full/array-buffer
 core-js/es|stable|actual|full/array-buffer/constructor
 core-js/es|stable|actual|full/array-buffer/is-view

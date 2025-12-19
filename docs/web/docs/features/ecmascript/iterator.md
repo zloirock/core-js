@@ -24,7 +24,7 @@ class Iterator {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js(-pure)/es|stable|actual|full/iterator
 core-js(-pure)/es|stable|actual|full/iterator/concat
 core-js(-pure)/es|stable|actual|full/iterator/dispose

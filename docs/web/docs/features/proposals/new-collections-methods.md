@@ -47,7 +47,7 @@ class WeakMap {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/collection-methods
 core-js(-pure)/full/set/add-all
 core-js(-pure)/full/set/delete-all

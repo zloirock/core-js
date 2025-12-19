@@ -17,7 +17,7 @@ class DOMException {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js(-pure)/stable|actual|full/dom-exception
 core-js(-pure)/stable|actual|full/dom-exception/constructor
 core-js/stable|actual|full/dom-exception/to-string-tag

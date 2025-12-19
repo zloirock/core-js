@@ -14,7 +14,7 @@ class Iterator {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/number-range
 core-js(-pure)/full/iterator/range
 ```

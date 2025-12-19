@@ -13,7 +13,7 @@ class Iterator {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/iterator-sequencing
 core-js(-pure)/es|stable|actual|full/iterator/concat
 ```

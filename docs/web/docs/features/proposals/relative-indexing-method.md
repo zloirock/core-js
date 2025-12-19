@@ -18,6 +18,6 @@ class %TypedArray% {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js/proposals/relative-indexing-method
 ```

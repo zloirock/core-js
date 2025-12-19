@@ -10,7 +10,7 @@ class Error {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/is-error
 ```
 

@@ -13,7 +13,7 @@ class Array {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/array-is-template-object
 core-js(-pure)/full/array/is-template-object
 ```

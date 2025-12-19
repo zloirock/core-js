@@ -22,7 +22,7 @@ class Promise {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js(-pure)/es|stable|actual|full/promise
 core-js(-pure)/es|stable|actual|full/promise/all-settled
 core-js(-pure)/es|stable|actual|full/promise/any

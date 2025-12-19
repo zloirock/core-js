@@ -29,7 +29,7 @@ namespace Math {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js(-pure)/es|stable|actual|full/math
 core-js(-pure)/es|stable|actual|full/math/acosh
 core-js(-pure)/es|stable|actual|full/math/asinh

@@ -13,7 +13,7 @@ class Symbol {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/pattern-matching-v2
 core-js(-pure)/full/symbol/custom-matcher
 ```

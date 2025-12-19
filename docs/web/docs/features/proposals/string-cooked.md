@@ -13,7 +13,7 @@ class String {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/string-cooked
 core-js(-pure)/full/string/cooked
 ```

@@ -19,7 +19,7 @@ class Date {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js/es|stable|actual|full/date
 core-js/es|stable|actual|full/date/to-string
 core-js(-pure)/es|stable|actual|full/date/now

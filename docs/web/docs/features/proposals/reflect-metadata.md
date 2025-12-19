@@ -20,7 +20,7 @@ namespace Reflect {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/reflect-metadata
 core-js(-pure)/full/reflect/define-metadata
 core-js(-pure)/full/reflect/delete-metadata

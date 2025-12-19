@@ -11,6 +11,6 @@ class Object {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/object-values-entries
 ```
