@@ -18,6 +18,7 @@ const CHANGELOG = 'CHANGELOG.md';
 const LICENSE = 'LICENSE';
 const README = 'README.md';
 const README_COMPAT = 'packages/core-js-compat/README.md';
+const README_TYPES = 'packages/core-js-types/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
 const USAGE = 'docs/web/docs/usage.md';
@@ -33,6 +34,9 @@ await writeFile(README, readme.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 
 const readmeCompat = await readFile(README_COMPAT, 'utf8');
 await writeFile(README_COMPAT, readmeCompat.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
+
+const readmeTypes = await readFile(README_TYPES, 'utf8');
+await writeFile(README_TYPES, readmeTypes.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
