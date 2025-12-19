@@ -1,3 +1,4 @@
+// types: proposals/array-find-from-last
 'use strict';
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var aTypedArray = require('../internals/a-typed-array');
