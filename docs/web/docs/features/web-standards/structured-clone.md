@@ -10,7 +10,7 @@ function structuredClone(value: Serializable, { transfer?: Sequence<Transferable
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js(-pure)/stable|actual|full/structured-clone
 ```
 

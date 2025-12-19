@@ -4,12 +4,14 @@ import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
 import json from 'highlight.js/lib/languages/json';
 import bash from 'highlight.js/lib/languages/bash';
+import plaintext from 'highlight.js/lib/languages/plaintext';
 import RunButtonPlugin from './hljs-run.js';
 
 hljs.registerLanguage('js', javascript);
 hljs.registerLanguage('ts', typescript);
 hljs.registerLanguage('json', json);
 hljs.registerLanguage('sh', bash);
+hljs.registerLanguage('plaintext', plaintext);
 
 let initialized = false;
 function init() {

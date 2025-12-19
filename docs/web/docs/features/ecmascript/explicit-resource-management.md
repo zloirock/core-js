@@ -52,7 +52,7 @@ class AsyncIterator {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js(-pure)/es|stable|actual|full/disposable-stack
 core-js(-pure)/es|stable|actual|full/async-disposable-stack
 core-js(-pure)/es|stable|actual|full/iterator/dispose

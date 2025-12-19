@@ -13,7 +13,7 @@ class Function {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js/es|stable|actual|full/function
 core-js/es|stable|actual|full/function/name
 core-js/es|stable|actual|full/function/has-instance

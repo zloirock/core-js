@@ -12,7 +12,7 @@ class Function {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/function-demethodize
 core-js(-pure)/full/function/demethodize
 core-js(-pure)/full/function/virtual/demethodize

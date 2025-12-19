@@ -44,7 +44,7 @@ class Object {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```
+```plaintext
 core-js(-pure)/es|stable|actual|full/symbol
 core-js(-pure)/es|stable|actual|full/symbol/async-dispose
 core-js(-pure)/es|stable|actual|full/symbol/async-iterator

@@ -13,7 +13,7 @@ class Function {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/function-is-callable-is-constructor
 core-js(-pure)/full/function/is-callable
 core-js(-pure)/full/function/is-constructor

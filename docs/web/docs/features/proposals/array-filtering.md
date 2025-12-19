@@ -17,7 +17,7 @@ class %TypedArray% {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/array-filtering-stage-1
 core-js(-pure)/full/array(/virtual)/filter-reject
 core-js/full/typed-array/filter-reject

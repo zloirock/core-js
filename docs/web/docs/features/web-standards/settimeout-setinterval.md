@@ -10,7 +10,7 @@ function setInterval(callback: any, time: any, ...args: Array<mixed>): number;
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js(-pure)/stable|actual|full/set-timeout
 core-js(-pure)/stable|actual|full/set-interval
 ```

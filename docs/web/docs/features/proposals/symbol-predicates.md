@@ -14,7 +14,7 @@ class Symbol {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/symbol-predicates-v2
 core-js(-pure)/full/symbol/is-registered-symbol
 core-js(-pure)/full/symbol/is-well-known-symbol

@@ -46,7 +46,7 @@ class URLSearchParams {
 ```
 
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
-```ts
+```plaintext
 core-js/proposals/url
 core-js(-pure)/stable|actual|full/url
 core-js(-pure)/stable|actual|full/url/can-parse
