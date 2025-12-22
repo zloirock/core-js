@@ -5,10 +5,8 @@
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/es2020.string.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-import { CoreJSBuiltinIteratorReturn } from '../core-js-types/core-js-types';
-
 declare global {
-  interface RegExpStringIterator<T> extends IteratorObject<T, CoreJSBuiltinIteratorReturn, unknown> {
+  interface RegExpStringIterator<T> extends IteratorObject<T, any, unknown> {
     [Symbol.iterator](): RegExpStringIterator<T>;
   }
 

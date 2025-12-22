@@ -10,6 +10,10 @@ declare global {
     [Symbol.asyncIterator](): AsyncIteratorObject<T, TReturn, TNext>;
   }
 
+  interface AsyncIterableIterator<T> extends AsyncIterator<T> {
+    [Symbol.asyncIterator](): AsyncIterableIterator<T>;
+  }
+
   interface AsyncGenerator<T = unknown, TReturn = any, TNext = unknown> extends AsyncIteratorObject<T, TReturn, TNext> {
     next(...[value]: [] | [undefined]): Promise<IteratorResult<T, TReturn>>;
     return(value: TReturn | PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>;
@@ -17,33 +21,20 @@ declare global {
     [Symbol.asyncIterator](): AsyncGenerator<T, TReturn, TNext>;
   }
 
-  interface PromiseFulfilledResult<T> { status: "fulfilled"; value: T; }
+  interface AsyncIterator<T, TReturn = any, TNext = any> {
+    // NOTE: 'next' is defined using a tuple to ensure we report the correct assignability errors in all places.
+    next(...[value]: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
+    return?(value?: TReturn | PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>;
+    throw?(e?: any): Promise<IteratorResult<T, TReturn>>;
+  }
 
-  interface PromiseRejectedResult { status: "rejected"; reason: any; }
+  interface AsyncIteratorConstructor {}
 
-  interface AsyncIterable<T, TReturn = any, TNext = any> {
+  var AsyncIterator: AsyncIteratorConstructor;
+
+  interface AsyncIterable<T> {
     [Symbol.asyncIterator](): AsyncIterator<T>;
   }
 }
 
-export type CoreJSDecoratorMetadataObject = typeof globalThis extends { DecoratorMetadataObject: infer O } // from ts 5.2
-  ? O
-  : Record<PropertyKey, unknown> & object;
-
 export type CoreJSIteratorObject<T, TReturn = any, TNext = undefined> = IteratorObject<T, TReturn, TNext>;
-
-export type CoreJSFlatArray<Arr, Depth extends number> = typeof globalThis extends { FlatArray: infer O } // from ts 4.4
-  ? O
-  : {
-    done: Arr;
-    recur: Arr extends ReadonlyArray<infer InnerArr> ? CoreJSFlatArray<InnerArr, [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20][Depth]>
-      : Arr;
-  }[Depth extends -1 ? "done" : "recur"];
-
-export type CoreJSPromiseSettledResult<T> = typeof globalThis extends { PromiseSettledResult: infer O }  // from ts 3.8 and es2020
-  ? O
-  : PromiseFulfilledResult<T> | PromiseRejectedResult;
-
-export type CoreJSBuiltinIteratorReturn = ReturnType<any[][typeof Symbol.iterator]> extends Iterator<any, infer TReturn>
-  ? TReturn
-  : any;
