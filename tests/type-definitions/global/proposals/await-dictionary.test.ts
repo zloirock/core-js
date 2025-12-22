@@ -18,14 +18,19 @@ Promise.allKeyed({ a: 1, b: Promise.resolve(2) });
 // @ts-expect-error
 Promise.allKeyed([ Promise.resolve(1), Promise.resolve(2) ]);
 
-declare type AllSettledKeyedResult<T> = PromiseFulfilledResult<T> | PromiseRejectedResult;
-const resASK: Promise<{ a: AllSettledKeyedResult<number>, b: AllSettledKeyedResult<string>, c: AllSettledKeyedResult<boolean> }> = Promise.allSettledKeyed({
+interface CoreJSPromiseResult<T> {
+  status: string;
+  value?: T;
+  reason?: any;
+}
+
+const resASK: Promise<{ a: CoreJSPromiseResult<number>, b: CoreJSPromiseResult<string>, c: CoreJSPromiseResult<boolean> }> = Promise.allSettledKeyed({
   a: Promise.resolve(1),
   b: Promise.resolve('string'),
   c: Promise.resolve(true),
 });
 
-const resASK2: Promise<{ [sym]: AllSettledKeyedResult<number> }> = Promise.allSettledKeyed({
+const resASK2: Promise<{ [sym]: CoreJSPromiseResult<number> }> = Promise.allSettledKeyed({
   [sym]: Promise.resolve(1)
 });
 
