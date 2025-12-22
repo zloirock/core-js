@@ -13,10 +13,6 @@ declare global {
     [Symbol.asyncIterator](): AsyncIterableIterator<T, TReturn, TNext>;
   }
 
-  interface PromiseFulfilledResult<T> { status: "fulfilled"; value: T; }
-
-  interface PromiseRejectedResult { status: "rejected"; reason: any; }
-
   interface AsyncIterator<T, TReturn = any, TNext = any> {
     // NOTE: 'next' is defined using a tuple to ensure we report the correct assignability errors in all places.
     next(...[value]: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
