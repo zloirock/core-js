@@ -201,6 +201,22 @@ export const $staticWithContext = p => ({
   `,
 });
 
+export const $staticWithCustomType = p => ({
+  entry: dedent`
+    ${ importModules(p) }
+    
+    var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
+  
+    module.exports = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
+  `,
+  types: dedent`
+    declare module '${ buildModulePath(p) }' {
+      const method: ${ buildCoreJSTypeName(p.namespace, p.name) };
+      export = method;
+    }
+  `,
+});
+
 export const $patchableStatic = p => {
   const arity = globalThis?.[p.namespace]?.[p.name].length ?? p.arity;
   const args = Array(arity).fill().map((_, i) => `arg${ i }`).join(', ');
