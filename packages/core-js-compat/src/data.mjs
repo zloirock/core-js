@@ -165,6 +165,7 @@ export const data = {
     firefox: '138',
     // https://github.com/nodejs/node/issues/58134
     node: '24.3',
+    rhino: '1.9.0',
   },
   'es.error.to-string': {
     chrome: '33',
@@ -216,6 +217,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '48',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.array.copy-within': {
@@ -244,6 +246,7 @@ export const data = {
     chrome: '51',
     edge: '15',
     firefox: '48',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.array.find': {
@@ -357,6 +360,7 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '50',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.array.of': {
@@ -408,6 +412,7 @@ export const data = {
     chrome: '51',
     edge: '13',
     firefox: '48',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.array.some': {
@@ -506,6 +511,7 @@ export const data = {
     firefox: '29',
     hermes: '0.1',
     ie: '11',
+    rhino: '1.9.0',
     safari: '7.1',
   },
   'es.array-buffer.slice': {
@@ -544,18 +550,21 @@ export const data = {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    rhino: '1.9.0',
     safari: '17.4',
   },
   'es.array-buffer.transfer': {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    rhino: '1.9.0',
     safari: '17.4',
   },
   'es.array-buffer.transfer-to-fixed-length': {
     bun: '1.0.19',
     chrome: '114',
     firefox: '122',
+    rhino: '1.9.0',
     safari: '17.4',
   },
   'es.date.get-year': {
@@ -660,6 +669,7 @@ export const data = {
     edge: '15',
     firefox: '50',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.function.name': {
@@ -932,6 +942,7 @@ export const data = {
     chrome: '135',
     deno: '1.43',
     firefox: '129',
+    rhino: '1.9.0',
     safari: '18.2',
   },
   'es.math.hypot': {
@@ -1129,6 +1140,7 @@ export const data = {
     // edge: '13',
     firefox: '36',
     hermes: '0.4',
+    rhino: '1.9.0',
     safari: '9.0',
   },
   // TODO: Remove from `core-js@4`
@@ -1326,6 +1338,7 @@ export const data = {
     hermes: '0.1',
     ie: '11',
     opera: '10.50',
+    rhino: '1.9.0',
     safari: '3.1',
   },
   'es.object.seal': {
@@ -1469,6 +1482,7 @@ export const data = {
     bun: '1.1.22',
     chrome: '128',
     firefox: '134',
+    rhino: '1.9.0',
     safari: '18.2',
   },
   'es.promise.with-resolvers': {
@@ -1483,6 +1497,7 @@ export const data = {
     chrome: '121',
     deno: '1.38',
     firefox: '115',
+    rhino: '1.9.0',
     // https://bugs.webkit.org/show_bug.cgi?id=271703
     safari: '18.0', // '16.4',
   },
@@ -1629,6 +1644,7 @@ export const data = {
     firefox: '78',
     hermes: '0.13',
     'react-native': '0.71',
+    rhino: '1.9.0',
     safari: '11.1',
   },
   'es.regexp.flags': {
@@ -1829,6 +1845,7 @@ export const data = {
     chrome: '51',
     firefox: '49',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.string.match-all': {
@@ -1876,6 +1893,7 @@ export const data = {
     firefox: '78',
     hermes: '0.13',
     'react-native': '0.71',
+    rhino: '1.9.0',
     safari: '14.0',
   },
   'es.string.replace-all': {
@@ -1889,11 +1907,13 @@ export const data = {
     chrome: '51',
     firefox: '49',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.string.split': {
     chrome: '54',
     firefox: '49',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.string.starts-with': {
@@ -2120,6 +2140,7 @@ export const data = {
     edge: '13',
     firefox: '34',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.every': {
@@ -2127,12 +2148,14 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.fill': {
     chrome: '58',
     firefox: '55',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '14.1',
   },
   'es.typed-array.filter': {
@@ -2140,6 +2163,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find': {
@@ -2147,6 +2171,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find-index': {
@@ -2154,6 +2179,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.find-last': {
@@ -2175,6 +2201,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.from': {
@@ -2188,6 +2215,7 @@ export const data = {
     edge: '14',
     firefox: '43',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.index-of': {
@@ -2195,6 +2223,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.iterator': {
@@ -2209,6 +2238,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.last-index-of': {
@@ -2216,6 +2246,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.map': {
@@ -2223,6 +2254,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.of': {
@@ -2236,6 +2268,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.reduce-right': {
@@ -2243,6 +2276,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.reverse': {
@@ -2250,6 +2284,7 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.set': {
@@ -2264,6 +2299,7 @@ export const data = {
     edge: '13',
     firefox: '38',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.some': {
@@ -2271,12 +2307,14 @@ export const data = {
     edge: '13',
     firefox: '37',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.sort': {
     chrome: '74',
     firefox: '67',
     hermes: '0.10',
+    rhino: '1.9.0',
     // 10.0 - 14.0 accept incorrect arguments
     safari: '14.1',
   },
@@ -2285,12 +2323,14 @@ export const data = {
     edge: '13',
     firefox: '15',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '7.1',
   },
   'es.typed-array.to-locale-string': {
     chrome: '45',
     firefox: '51',
     hermes: '0.1',
+    rhino: '1.9.0',
     safari: '10.0',
   },
   'es.typed-array.to-reversed': {
