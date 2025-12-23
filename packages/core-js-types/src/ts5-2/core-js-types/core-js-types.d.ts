@@ -6,7 +6,7 @@
 declare global {
   interface IteratorObject<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {}
 
-  interface AsyncIteratorObject<T, TReturn = any, TNext = any> extends AsyncIterator<T> {
+  interface AsyncIteratorObject<T, TReturn = any, TNext = undefined> extends AsyncIterator<T> {
     [Symbol.asyncIterator](): AsyncIteratorObject<T, TReturn, TNext>;
   }
 
@@ -21,7 +21,7 @@ declare global {
     [Symbol.asyncIterator](): AsyncGenerator<T, TReturn, TNext>;
   }
 
-  interface AsyncIterator<T, TReturn = any, TNext = any> {
+  interface AsyncIterator<T, TReturn = any, TNext = undefined> {
     // NOTE: 'next' is defined using a tuple to ensure we report the correct assignability errors in all places.
     next(...[value]: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
     return?(value?: TReturn | PromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>;
