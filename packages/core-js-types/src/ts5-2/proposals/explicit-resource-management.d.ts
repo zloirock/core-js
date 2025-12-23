@@ -193,10 +193,10 @@ declare var AsyncDisposableStack: AsyncDisposableStackConstructor;
 
 interface IteratorObject<T, TReturn = any, TNext = any> extends Disposable {} // @type-options no-extends
 
-interface AsyncIteratorObject<T, TReturn = any, TNext = any> extends AsyncDisposable {} // @type-options no-extends
+interface AsyncIteratorObject<T, TReturn = any, TNext = undefined> extends AsyncDisposable {} // @type-options no-extends
 
 interface AsyncIteratorConstructor {}
 
 declare var AsyncIterator: AsyncIteratorConstructor;
 
-interface AsyncIterator<T, TReturn = any, TNext = any> {}
+interface AsyncIterator<T, TReturn = any, TNext = undefined> {}
