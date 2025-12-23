@@ -28,7 +28,7 @@ There is always some ["help wanted" issues](https://github.com/zloirock/core-js/
 
 For updating `core-js-compat` data:
 
-- If you want to add a new data for a browser, run in this browser `tests/compat/index.html` (tests and results for the actual release are available at [`http://zloirock.github.io/core-js/compat/`](http://zloirock.github.io/core-js/compat/)) and you will see what `core-js` modules are required for this browser.
+- If you want to add a new data for a browser, run in this browser `tests/compat/index.html` (tests and results for the actual release are available at [`http://zloirock.github.io/core-js/master/compat`](http://zloirock.github.io/core-js/master/compat)) and you will see what `core-js` modules are required for this browser.
 
 ![compat-table](https://user-images.githubusercontent.com/2213682/217452234-ccdcfc5a-c7d3-40d1-ab3f-86902315b8c3.png)
 
