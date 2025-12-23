@@ -21,7 +21,7 @@ and `DOM` lib for the global version if you use something related (see [DOM type
 {
   "compilerOptions": {
     "lib": [
-      "es6",
+      "es2025",
       "dom"
     ],
     "types": [
@@ -86,7 +86,7 @@ Add this to your `tsconfig.json`, keeping in mind that ES types (at least ES6) a
 {
   "compilerOptions": {
     "lib": [
-      "es6"
+      "es2025"
     ],
     "types": [
       "@core-js/types/pure"
@@ -121,7 +121,7 @@ You need to add DOM types to the `lib` section of your `tsconfig.json` in additi
       "@core-js/types"
     ],
     "lib": [
-      "esnext",
+      "es2025",
       "dom"
     ]
   }
