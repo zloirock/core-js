@@ -2,7 +2,7 @@
 Some DOM collections should have [iterable interface](https://heycam.github.io/webidl/#idl-iterable) or should be [inherited from `Array`](https://heycam.github.io/webidl/#LegacyArrayClass). That means they should have `forEach`, `keys`, `values`, `entries` and `@@iterator` methods for iteration. So add them. 
 
 ## Modules 
-[`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.iterator.js), [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.dom-collections.for-each.js).
+[`web.dom-collections.iterator`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-collections.iterator.js), [`web.dom-collections.entries`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-collections.entries.js), [`web.dom-collections.keys`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-collections.keys.js), [`web.dom-collections.values`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-collections.values.js) and [`web.dom-collections.for-each`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/web.dom-collections.for-each.js).
 
 ## Built-ins signatures
 ```ts
@@ -52,6 +52,9 @@ class [DOMTokenList, NodeList] {
 ## [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js(-pure)/stable|actual|full/dom-collections/iterator
+core-js/stable|actual|full/dom-collections/entries
+core-js/stable|actual|full/dom-collections/keys
+core-js/stable|actual|full/dom-collections/values
 core-js/stable|actual|full/dom-collections/for-each
 ```
 
