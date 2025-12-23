@@ -7,7 +7,7 @@ const ALL_TESTS = process.env.ALL_TYPE_DEFINITIONS_TESTS === '1';
 
 const targets = [
   'esnext',
-  'es2023',
+  'es2022',
   'es6',
 ];
 const typeScriptVersions = [
@@ -15,7 +15,10 @@ const typeScriptVersions = [
   '5.8',
   '5.7',
   '5.6',
-  // '5.5'
+  // '5.5', fails with node types: Named property 'next' of types 'AsyncIterator<T, TReturn, TNext>' and 'AsyncIteratorObject<T, TReturn, TNext>' are not identical.
+  // '5.4',
+  // '5.3',
+  // '5.2',
 ];
 const envs = [
   null,
@@ -47,13 +50,13 @@ async function runTestsOnEnv({ typeScriptVersion, target, type, env, lib }) {
   $.verbose = false;
   const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
   const command = `npx -p typescript@${ typeScriptVersion }${ env ? ` -p ${ env }` : '' } `
-    + `tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${ env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '/full' },${ envLibName }` : '' }`;
+    + `tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${ env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }` : '' }`;
   echo(`$ ${ command }`);
   try {
     if (env && lib) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types${ type === 'pure' ? '/pure' : '/full' },${ envLibName }`.quiet();
+      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
     } else if (env) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target } --types @core-js/types${ type === 'pure' ? '/pure' : '/full' },${ envLibName }`.quiet();
+      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
     } else if (lib) {
       await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target },${ lib }`.quiet();
     } else {
