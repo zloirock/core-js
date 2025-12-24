@@ -4,17 +4,17 @@ import '@core-js/pure/full/array-buffer/detached';
 import detached from '@core-js/pure/full/array-buffer/detached';
 
 // $prototype
-// import at from '@core-js/pure/full/array/prototype/at';
-// const atResult1: number = at.call([1, 2, 3], -2);
-// at.apply([1, 2, 3], [-2]);
-// // @ts-expect-error
-// at.call([1, 2, 3], null);
-// // @ts-expect-error
-// at.call(123);
-// // @ts-expect-error
-// at('string');
-// // @ts-expect-error
-// at(null);
+import at from '@core-js/pure/full/array/prototype/at';
+const atResult1: number = at.call([1, 2, 3], -2);
+at.apply([1, 2, 3], [-2]);
+// @ts-expect-error
+at.call([1, 2, 3], null);
+// @ts-expect-error
+at.call(123);
+// @ts-expect-error
+at('string');
+// @ts-expect-error
+at(null);
 
 // $prototypeIterator
 import arrayVirtualIterator from '@core-js/pure/full/array/prototype/iterator';
