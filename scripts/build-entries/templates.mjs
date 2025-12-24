@@ -55,6 +55,16 @@ function getGenericsForNamespace(namespace) {
   return '';
 }
 
+function getAnyGenericsForNamespace(namespace) {
+  if (namespacesWithTwoGeneric.includes(namespace)) {
+    return '<any, any>';
+  }
+  if (namespacesWithOneGeneric.includes(namespace)) {
+    return '<any>';
+  }
+  return '';
+}
+
 function getCommonGenericsForNamespace(namespace) {
   if (namespacesWithTwoGeneric.includes(namespace)) {
     return '<K, V>';
@@ -89,7 +99,8 @@ export const $prototype = p => ({
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
-      type method${ getGenericsForNamespace(p.namespace) } = ${ p.prefix ?? '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
+      type methodType${ getGenericsForNamespace(p.namespace) } = ${ p.prefix ?? '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
+      const method: methodType${ getAnyGenericsForNamespace(p.namespace) };
       export = method;
     }
   `,
