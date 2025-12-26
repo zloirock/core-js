@@ -49,10 +49,12 @@ function getEnvPath(env) {
 async function runTestsOnEnv({ typeScriptVersion, target, type, env, lib }) {
   $.verbose = false;
   const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
-  const command = `npx -p typescript@${ typeScriptVersion }${ env ? ` -p ${ env }` : '' } `
-    + `tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${ env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }` : '' }`;
+  const command = `npx -p typescript@${ typeScriptVersion }${
+    env ? ` -p ${ env }` : '' } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${
+    env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }` : '' }`;
   echo(`$ ${ command }`);
   try {
+    tested++;
     if (env && lib) {
       await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
     } else if (env) {
@@ -63,9 +65,7 @@ async function runTestsOnEnv({ typeScriptVersion, target, type, env, lib }) {
       await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }`.quiet();
     }
     echo(chalk.green(`$ ${ command }`));
-    tested++;
   } catch (error) {
-    tested++;
     failed++;
     echo(`$ ${ chalk.red(command) }\n ${ error }`);
   }
