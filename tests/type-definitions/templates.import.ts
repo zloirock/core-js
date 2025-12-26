@@ -3,9 +3,9 @@ import '@core-js/pure/full/array-buffer/detached';
 // @ts-expect-error it has no exports
 import detached from '@core-js/pure/full/array-buffer/detached';
 
-// $prototype
+// $prototype with generics
 import at from '@core-js/pure/full/array/prototype/at';
-const atResult1: number = at.call([1, 2, 3], -2);
+at.call([1, 2, 3], -2); // we can't save strict result type for prototype methods with generics. It is any here
 at.apply([1, 2, 3], [-2]);
 // @ts-expect-error
 at.call([1, 2, 3], null);
@@ -15,6 +15,19 @@ at.call(123);
 at('string');
 // @ts-expect-error
 at(null);
+
+// $prototype without generics
+import stringAt from '@core-js/pure/full/string/prototype/at';
+const stringAtResult: string | undefined = stringAt.call('asd', -2);
+stringAt.apply('asd', [-2]);
+// @ts-expect-error
+stringAt.call('asd', null);
+// @ts-expect-error
+stringAt.call('asd');
+// @ts-expect-error
+stringAt([1]);
+// @ts-expect-error
+stringAt(null);
 
 // $prototypeIterator
 import arrayVirtualIterator from '@core-js/pure/full/array/prototype/iterator';
