@@ -27,7 +27,7 @@ const envs = [
   '@types/node@18',
   '@types/node@16',
   // '@types/node@15', // fails
-  // '@types/bun@latest', // fails
+  // '@types/bun@latest', // conflicts with DOM types (TextDecorator, SharedArrayBuffer...)
 ];
 const types = [
   'global',
