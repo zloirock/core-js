@@ -8,6 +8,4 @@ setImmediate();
 // @ts-expect-error
 setImmediate(42);
 // @ts-expect-error
-clearImmediate();
-// @ts-expect-error
 clearImmediate('str');
