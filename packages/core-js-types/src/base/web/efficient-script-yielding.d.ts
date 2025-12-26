@@ -1,4 +1,4 @@
-type Immediate = number | object;
+type Immediate = number | object | undefined; // For compatibility with Node, `undefined` has been added
 
 /**
  * Schedules the execution of a function as soon as possible after the current script yields.
