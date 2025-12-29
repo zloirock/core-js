@@ -1,3 +1,4 @@
+// no types: because of a conflict with lib.dom.d.ts
 'use strict';
 var defineBuiltIn = require('../internals/define-built-in');
 var uncurryThis = require('../internals/function-uncurry-this');
