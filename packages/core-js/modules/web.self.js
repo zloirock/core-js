@@ -1,3 +1,4 @@
+// no types: because of a conflict with lib.dom.d.ts
 'use strict';
 var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');
