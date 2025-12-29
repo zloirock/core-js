@@ -1,3 +1,4 @@
+// no types: has types only for the pure version
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
