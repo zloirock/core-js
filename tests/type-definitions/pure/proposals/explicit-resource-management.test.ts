@@ -1,24 +1,17 @@
 import symbolDispose from '@core-js/pure/full/symbol/dispose';
 import symbolAsyncDispose from '@core-js/pure/full/symbol/async-dispose';
 import symbolToStringTag from '@core-js/pure/full/symbol/to-string-tag';
-import suppressedError from '@core-js/pure/full/suppressed-error/constructor';
-import disposableStack from '@core-js/pure/full/disposable-stack/constructor';
-import asyncDisposableStack from '@core-js/pure/full/async-disposable-stack/constructor';
 import iteratorRange from '@core-js/pure/full/iterator/range';
 import asyncIteratorFrom from '@core-js/pure/full/async-iterator/from';
+import $SuppressedError from '@core-js/pure/full/suppressed-error/constructor';
+import $DisposableStack from '@core-js/pure/full/disposable-stack/constructor';
+import $AsyncDisposableStack from '@core-js/pure/full/async-disposable-stack/constructor';
 
 const d: symbol = symbolDispose;
 const ad: symbol = symbolAsyncDispose;
 
 // @ts-expect-error
 const wrong: number = symbolDispose;
-
-declare type HasSymbolDispose = {
-  [symbolDispose]: () => void;
-};
-declare type HasSymbolAsyncDispose = {
-  [symbolAsyncDispose]: () => void;
-};
 
 const objD = {
   [symbolDispose]() { /* empty */ }
@@ -30,21 +23,21 @@ const objAD = {
 }
 objAD[symbolAsyncDispose]();
 
-const err1 = new suppressedError('err', 'suppressed', 'msg');
+const err1 = new $SuppressedError('err', 'suppressed', 'msg');
 err1.error;
 err1.suppressed;
 const m1: string = err1.message;
 const _: Error = err1;
 
-const err2 = suppressedError(123, 456);
+const err2 = $SuppressedError(123, 456);
 err2.error;
 err2.suppressed;
 err2.message;
 
 // @ts-expect-error
-new suppressedError(1, 2, 3, 4);
+new $SuppressedError(1, 2, 3, 4);
 
-const objDS = new disposableStack();
+const objDS = new $DisposableStack();
 const disposed: boolean = objDS.disposed;
 objDS.dispose();
 objDS.use(objD);
@@ -67,8 +60,8 @@ objDS.move(1);
 // @ts-expect-error
 objDS[symbolToStringTag] = 'foo';
 
-asyncDisposableStack.prototype;
-const objADS = new asyncDisposableStack();
+$AsyncDisposableStack.prototype;
+const objADS = new $AsyncDisposableStack();
 const disposedASD: boolean = objDS.disposed;
 const rda: Promise<void> = objADS.disposeAsync();
 objADS.use(objAD);

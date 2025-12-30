@@ -11,12 +11,13 @@ import some from '@core-js/pure/full/async-iterator/some';
 import take from '@core-js/pure/full/async-iterator/take';
 import toArray from '@core-js/pure/full/async-iterator/to-array';
 import toAsync from '@core-js/pure/full/iterator/to-async';
-import asyncIterator from '@core-js/pure/full/async-iterator/index';
+import $AsyncIterator from '@core-js/pure/full/async-iterator';
 
 const aiton = from([1, 2, 3]);
+aiton.next();
 aiton.toArray();
 from(new Set([1, 2, 3]));
-from((function* () { yield 3; })());
+from((function * () { yield 3; })());
 const aitos = from('abc');
 
 declare const ilb: Iterable<boolean>;
