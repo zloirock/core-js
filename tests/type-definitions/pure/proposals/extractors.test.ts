@@ -1,10 +1,10 @@
-import symbolCustomMatcher from '@core-js/pure/full/symbol/custom-matcher';
-import $symbol from '@core-js/pure/full/symbol/index';
+import $customMatcher from '@core-js/pure/full/symbol/custom-matcher';
+import $Symbol from '@core-js/pure/full/symbol/index';
 
-const rscs1: symbol = symbolCustomMatcher;
-const rscs2: typeof symbolCustomMatcher = symbolCustomMatcher;
+const rscs1: symbol = $customMatcher;
+const rscs2: typeof $customMatcher = $customMatcher;
 
 // @ts-expect-error
-$symbol['customMatcher'] = $symbol("other");
+$Symbol['customMatcher'] = $Symbol("other");
 // @ts-expect-error
-const n: number = symbolCustomMatcher;
+const n: number = $customMatcher;

@@ -1,8 +1,8 @@
-import $date from '@core-js/pure/full/date/index';
-new $date();
+import $Date from '@core-js/pure/full/date/index';
+new $Date();
 
-import $date2 from '@core-js/pure/full/date/index.js';
-new $date2();
+import $Date2 from '@core-js/pure/full/date/index.js';
+new $Date2();
 
-import $date3 from '@core-js/pure/full/date';
-new $date3();
+import $Date3 from '@core-js/pure/full/date';
+new $Date3();
