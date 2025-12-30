@@ -1,8 +1,8 @@
-import $symbol from '@core-js/pure/full/symbol/index';
+import $Symbol from '@core-js/pure/full/symbol/index';
 
-const sym: symbol = $symbol.customMatcher;
+const sym: symbol = $Symbol.customMatcher;
 
 // @ts-expect-error
-const bad1: string = $symbol.customMatcher;
+const bad1: string = $Symbol.customMatcher;
 // @ts-expect-error
-$symbol['customMatcher'] = $symbol("other");
+$Symbol['customMatcher'] = $Symbol("other");
