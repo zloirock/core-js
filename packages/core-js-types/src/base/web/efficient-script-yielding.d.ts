@@ -1,4 +1,4 @@
-type Immediate = number | object | undefined; // For compatibility with Node, `undefined` has been added
+type Immediate = number | object;
 
 /**
  * Schedules the execution of a function as soon as possible after the current script yields.
@@ -12,4 +12,4 @@ declare function setImmediate(handler: (...args: any[]) => void, ...args: any[])
  * Cancels a function scheduled with setImmediate.
  * @param immediate The identifier of the scheduled function to cancel.
  */
-declare function clearImmediate(immediate: Immediate): void;
+declare function clearImmediate(immediate: Immediate | undefined): void; // For compatibility with Node, `undefined` has been added
