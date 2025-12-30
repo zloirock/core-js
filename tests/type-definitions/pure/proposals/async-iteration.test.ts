@@ -1,8 +1,8 @@
-import $symbol from '@core-js/pure/full/symbol/index';
+import $Symbol from '@core-js/pure/full/symbol/index';
 
-const sym: symbol = $symbol.asyncIterator;
+const sym: symbol = $Symbol.asyncIterator;
 
 // @ts-expect-error
-const bad1: string = $symbol.asyncIterator;
+const bad1: string = $Symbol.asyncIterator;
 // @ts-expect-error
-$symbol['asyncIterator'] = $symbol("other");
+$Symbol['asyncIterator'] = $Symbol('other');
