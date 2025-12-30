@@ -1,10 +1,10 @@
-import cooked from '@core-js/pure/full/string/cooked';
+import stringCooked from '@core-js/pure/full/string/cooked';
 
-const rcooked1: string = cooked('foo', 1, 2, 3);
-cooked(['foo', 'bar'], 1, 2);
-cooked([]);
+const rcooked1: string = stringCooked('foo', 1, 2, 3);
+stringCooked(['foo', 'bar'], 1, 2);
+stringCooked([]);
 
 // @ts-expect-error
-cooked(1);
+stringCooked(1);
 // @ts-expect-error
-cooked(false);
+stringCooked(false);
