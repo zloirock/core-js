@@ -1,26 +1,26 @@
-import chunks from '@core-js/pure/full/iterator/chunks';
-import windows from '@core-js/pure/full/iterator/windows';
+import iteratorChunks from '@core-js/pure/full/iterator/chunks';
+import iteratorWindows from '@core-js/pure/full/iterator/windows';
 
 declare function getNumberIterator(): Iterator<number>;
 
 const numbersIter = getNumberIterator();
 
-const chunksObj: Iterator<number[]> = chunks(numbersIter, 2);
-const windowsObj: Iterator<number[]> = windows(numbersIter, 4);
+const chunksObj: Iterator<number[]> = iteratorChunks(numbersIter, 2);
+const windowsObj: Iterator<number[]> = iteratorWindows(numbersIter, 4);
 
 const chunkNext = chunksObj.next();
 const windowsNext = windowsObj.next();
 
 // @ts-expect-error
-chunks(numbersIter);
+iteratorChunks(numbersIter);
 // @ts-expect-error
-chunks(numbersIter, '2');
+iteratorChunks(numbersIter, '2');
 // @ts-expect-error
-chunks(numbersIter, 2, 3);
+iteratorChunks(numbersIter, 2, 3);
 
 // @ts-expect-error
-windows(numbersIter);
+iteratorWindows(numbersIter);
 // @ts-expect-error
-windows(numbersIter, {});
+iteratorWindows(numbersIter, {});
 // @ts-expect-error
-windows(numbersIter, 4, 1);
+iteratorWindows(numbersIter, 4, 1);
