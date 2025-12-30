@@ -1,13 +1,13 @@
-import $urlSearchParams from '@core-js/pure/full/url-search-params/index';
+import $URLSearchParams from '@core-js/pure/full/url-search-params/index';
 
-const ps1 = new $urlSearchParams();
-new $urlSearchParams('a=1&b=2');
-new $urlSearchParams([['a', '1'], ['b', '2']]);
-new $urlSearchParams(ps1);
-new $urlSearchParams({ foo: "bar" });
+const ps1 = new $URLSearchParams();
+new $URLSearchParams('a=1&b=2');
+new $URLSearchParams([['a', '1'], ['b', '2']]);
+new $URLSearchParams(ps1);
+new $URLSearchParams({ foo: "bar" });
 
 // @ts-expect-error
-new $urlSearchParams(42);
+new $URLSearchParams(42);
 
 ps1.append('k', 'v');
 // @ts-expect-error
