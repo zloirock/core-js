@@ -1,4 +1,4 @@
-import concat from '@core-js/pure/full/iterator/concat';
+import iteratorConcat from '@core-js/pure/full/iterator/concat';
 
 declare const its1: Iterable<string>;
 declare const arrs: string[];
@@ -6,15 +6,15 @@ declare const arrn: number[];
 declare const arrb: boolean[];
 declare const itb1: Iterable<boolean>;
 
-const ri1: Iterator<number | string> = concat(its1);
-const ri2: Iterator<number | string> = concat(arrs);
-const ri3: Iterator<number> = concat(arrn);
-const ri4: Iterator<number | boolean> = concat(arrb, itb1);
-const ri5: Iterator<number> = concat();
+const ri1: Iterator<number | string> = iteratorConcat(its1);
+const ri2: Iterator<number | string> = iteratorConcat(arrs);
+const ri3: Iterator<number> = iteratorConcat(arrn);
+const ri4: Iterator<number | boolean> = iteratorConcat(arrb, itb1);
+const ri5: Iterator<number> = iteratorConcat();
 
 // @ts-expect-error
-concat(1);
+iteratorConcat(1);
 // @ts-expect-error
-concat(true);
+iteratorConcat(true);
 // @ts-expect-error
-concat({});
+iteratorConcat({});

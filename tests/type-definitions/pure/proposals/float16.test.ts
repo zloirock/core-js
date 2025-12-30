@@ -1,6 +1,6 @@
-import f16round from '@core-js/pure/full/math/f16round';
+import mathF16round from '@core-js/pure/full/math/f16round';
 
-const res: number = f16round(1);
+const res: number = mathF16round(1);
 
 // @ts-expect-error
-f16round('123');
+mathF16round('123');
