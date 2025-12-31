@@ -2186,6 +2186,8 @@ const packageJSON = {
   'package-json/valid-main': ERROR,
   // enforce that the `man` property is valid
   'package-json/valid-man': ERROR,
+  // enforce that the `module` property is valid
+  'package-json/valid-module': ERROR,
   // enforce that the `os` property is valid
   'package-json/valid-os': ERROR,
   // enforce that the `private` property is valid
