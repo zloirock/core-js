@@ -2228,6 +2228,8 @@ const packagesPackageJSON = {
   // requires the `exports` property to be present
   // TODO: core-js@4
   // 'package-json/require-exports': ERROR,
+  // requires the `homepage` property to be present
+  'package-json/require-homepage': ERROR,
   // requires the `license` property to be present
   'package-json/require-license': ERROR,
   // requires the `name` property to be present
