@@ -2234,6 +2234,8 @@ const packagesPackageJSON = {
   'package-json/require-license': ERROR,
   // requires the `name` property to be present
   'package-json/require-name': ERROR,
+  // requires the `repository` property to be present
+  'package-json/require-repository': ERROR,
   // requires the `sideEffects` property to be present
   'package-json/require-sideEffects': ERROR,
   // requires the `types` property to be present
