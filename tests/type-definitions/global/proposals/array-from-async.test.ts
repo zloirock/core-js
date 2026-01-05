@@ -1,12 +1,12 @@
 import 'core-js/full';
 
-Array.fromAsync([1, 2, 3]);
-Array.fromAsync([Promise.resolve(1), 2, 3]);
-Array.fromAsync((async function* () { yield 1; })());
-Array.fromAsync([1, 2, 3], (value: number, index: number) => value.toString());
-Array.fromAsync([Promise.resolve(1), 2, 3], (value: number) => value + 1);
-Array.fromAsync((async function* () { yield 1; })(), function (value: number) { return value * 2; });
-Array.fromAsync([1, 2, 3], function (this: {foo: string}, value: number) { return value.toString(); }, {foo: 'str'});
+const p1: Promise<number[]> = Array.fromAsync([1, 2, 3]);
+const p2: Promise<number[]> = Array.fromAsync([Promise.resolve(1), 2, 3]);
+const p3: Promise<number[]> = Array.fromAsync((async function* () { yield 1; })());
+const p4: Promise<string[]> = Array.fromAsync([1, 2, 3], (value: number, index: number) => value.toString());
+const p5: Promise<number[]> = Array.fromAsync([Promise.resolve(1), 2, 3], (value: number) => value + 1);
+const p6: Promise<number[]> = Array.fromAsync((async function* () { yield 1; })(), function (value: number) { return value * 2; });
+const p7: Promise<string[]> = Array.fromAsync([1, 2, 3], function (this: { foo: string }, value: number) { return value.toString(); }, { foo: 'str' });
 
 async function t1() {
   const n: number[] = await Array.fromAsync([1, 2, 3]);
@@ -20,8 +20,8 @@ async function t2() {
 }
 
 declare const arrLike: { [index: number]: PromiseLike<number>; length: 2 };
-Array.fromAsync(arrLike);
-Array.fromAsync(arrLike, (value: number) => value);
+const p8: Promise<number[]> = Array.fromAsync(arrLike);
+const p9: Promise<number[]> = Array.fromAsync(arrLike, (value: number) => value);
 
 // @ts-expect-error
 Array.fromAsync([1, 2, 3], (value: string) => value);
