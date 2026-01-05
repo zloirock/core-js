@@ -125,7 +125,7 @@ declare namespace CoreJS {
     /**
      * Disposes each resource in the stack in the reverse order that they were added.
      */
-    disposeAsync(): Promise<void>;
+    disposeAsync(): CoreJSPromise<void>;
 
     /**
      * Adds a disposable resource to the stack, returning the resource.
