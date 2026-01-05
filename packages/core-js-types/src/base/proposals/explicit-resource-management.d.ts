@@ -178,7 +178,7 @@ interface AsyncDisposableStack {
    */
   move(): AsyncDisposableStack;
 
-  [Symbol.asyncDispose](): Promise<void>;
+  [Symbol.asyncDispose](): Promise<void>; // @type-options prefix-return-type
 
   readonly [Symbol.toStringTag]: string;
 }

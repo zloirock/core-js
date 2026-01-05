@@ -18,6 +18,6 @@ interface PromiseConstructor {
    * - Already rejected, if the callback synchronously throws an error.
    * - Asynchronously fulfilled or rejected, if the callback returns a promise.
    */
-  try<T, U extends unknown[]>(callbackFn: (...args: U) => T | PromiseLike<T>, ...args: U): Promise<Awaited<T>>;
+  try<T, U extends unknown[]>(callbackFn: (...args: U) => T | PromiseLike<T>, ...args: U): Promise<Awaited<T>>; // @type-options prefix-return-type
 }
 
