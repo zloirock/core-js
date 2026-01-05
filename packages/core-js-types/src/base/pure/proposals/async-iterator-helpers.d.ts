@@ -1,5 +1,6 @@
 /// <reference types="../../core-js-types/async-iterable.d.ts" />
 /// <reference types="../../core-js-types/async-iterator-object.d.ts" />
+/// <reference types="../../core-js-types/promise.d.ts" />
 
 // Motivation: Has dependencies on internal types, e.g. AsyncIterable, AsyncIteratorObject
 
@@ -30,7 +31,7 @@ declare namespace CoreJS {
      * @param predicate A function that tests each element of the iterator
      * @returns A promise that resolves to `true` if all elements pass the test, otherwise `false`
      */
-    every(predicate: (value: T, index: number) => boolean): Promise<boolean>;
+    every(predicate: (value: T, index: number) => boolean): CoreJSPromise<boolean>;
 
     /**
      * Creates a new `AsyncIterator` that contains only the elements that pass the `predicate` function.
@@ -44,7 +45,7 @@ declare namespace CoreJS {
      * @param predicate A function that tests each element of the iterator
      * @returns A `Promise` that resolves to the found element, or `undefined` if no element satisfies the `predicate`
      */
-    find(predicate: (value: T, index: number) => boolean): Promise<T>;
+    find(predicate: (value: T, index: number) => boolean): CoreJSPromise<T>;
 
     /**
      * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator and flattening the result.
@@ -58,7 +59,7 @@ declare namespace CoreJS {
      * @param callbackFn A function that is called for each element of the iterator
      * @returns A `Promise` that resolves when all elements have been processed
      */
-    forEach(callbackFn: (value: T, index: number) => void): Promise<void>;
+    forEach(callbackFn: (value: T, index: number) => void): CoreJSPromise<void>;
 
     /**
      * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator.
@@ -73,14 +74,14 @@ declare namespace CoreJS {
      * @param initialValue An optional initial value to start the reduction
      * @returns A `Promise` that resolves to the reduced value
      */
-    reduce(reducer: (accumulator: any, value: T, index: number) => any, initialValue?: any): Promise<any>;
+    reduce(reducer: (accumulator: any, value: T, index: number) => any, initialValue?: any): CoreJSPromise<any>;
 
     /**
      * Checks if any value in the iterator matches a given `predicate`
      * @param predicate A function that tests each element of the iterator
      * @returns A `Promise` that resolves to `true` if any element passes the `predicate`, otherwise `false`
      */
-    some(predicate: (value: T, index: number) => boolean): Promise<boolean>;
+    some(predicate: (value: T, index: number) => boolean): CoreJSPromise<boolean>;
 
     /**
      * Creates a new `AsyncIterator` that yields only the first `limit` elements from the original iterator.
@@ -93,7 +94,7 @@ declare namespace CoreJS {
      * Collects all elements from the iterator into an array.
      * @returns A `Promise` that resolves to an array containing all elements from the iterator
      */
-    toArray(): Promise<T[]>;
+    toArray(): CoreJSPromise<T[]>;
   }
 
   var CoreJSAsyncIterator: CoreJSAsyncIteratorConstructor;
