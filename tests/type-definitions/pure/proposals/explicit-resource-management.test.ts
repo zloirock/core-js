@@ -1,3 +1,4 @@
+import promiseResolve from '@core-js/pure/full/promise/resolve';
 import symbolDispose from '@core-js/pure/full/symbol/dispose';
 import symbolAsyncDispose from '@core-js/pure/full/symbol/async-dispose';
 import symbolToStringTag from '@core-js/pure/full/symbol/to-string-tag';
@@ -6,6 +7,7 @@ import asyncIteratorFrom from '@core-js/pure/full/async-iterator/from';
 import $SuppressedError from '@core-js/pure/full/suppressed-error/constructor';
 import $DisposableStack from '@core-js/pure/full/disposable-stack/constructor';
 import $AsyncDisposableStack from '@core-js/pure/full/async-disposable-stack/constructor';
+import CoreJSPromiseLike from '../../helpers';
 
 const d: symbol = symbolDispose;
 const ad: symbol = symbolAsyncDispose;
@@ -19,9 +21,9 @@ const objD = {
 objD[symbolDispose]();
 
 const objAD = {
-  [symbolAsyncDispose]() { return Promise.resolve(); }
+  [symbolAsyncDispose]() { return promiseResolve(); }
 }
-objAD[symbolAsyncDispose]();
+const p1: CoreJSPromiseLike<void> = objAD[symbolAsyncDispose]();
 
 const err1 = new $SuppressedError('err', 'suppressed', 'msg');
 err1.error;
@@ -63,19 +65,19 @@ objDS[symbolToStringTag] = 'foo';
 $AsyncDisposableStack.prototype;
 const objADS = new $AsyncDisposableStack();
 const disposedASD: boolean = objDS.disposed;
-const rda: Promise<void> = objADS.disposeAsync();
+const rda: CoreJSPromiseLike<void> = objADS.disposeAsync();
 objADS.use(objAD);
 objADS.use(objD);
 const ruseASD3: null = objADS.use(null);
 const ruseASD4: undefined = objADS.use(undefined);
 const radoptASD1: string = objADS.adopt('foo', (value: string) => { /* empty */ });
 const radoptASD2: string = objADS.adopt('foo', async (value: string) => { /* empty */ });
-const radoptASD3: string = objADS.adopt('foo', (value: string) => Promise.resolve());
-const radoptASD4: string = objADS.adopt('foo', async (value: string) => Promise.resolve());
+const radoptASD3: string = objADS.adopt('foo', (value: string) => promiseResolve());
+const radoptASD4: string = objADS.adopt('foo', async (value: string) => promiseResolve());
 objADS.defer(() => { /* empty */ });
 objADS.defer(async () => { /* empty */ });
-objADS.defer(() => Promise.resolve());
-objADS.defer(async () => Promise.resolve());
+objADS.defer(() => promiseResolve());
+objADS.defer(async () => promiseResolve());
 objADS.move();
 objADS[symbolAsyncDispose]();
 const rtsASD1: string = objADS[symbolToStringTag];

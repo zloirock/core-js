@@ -1,4 +1,5 @@
 /// <reference types="./explicit-resource-management.d.ts" />
+/// <reference types="../../core-js-types/promise.d.ts" />
 
 // Motivation: Has dependencies on internal types
 
@@ -48,9 +49,9 @@ declare namespace CoreJS {
   }
 
   interface CoreJSAsyncIterator<T, TReturn = any, TNext = any> {
-    next(...[value]: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
-    return?(value?: TReturn | CoreJSPromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>;
-    throw?(e?: any): Promise<IteratorResult<T, TReturn>>;
+    next(...[value]: [] | [TNext]): CoreJSPromise<IteratorResult<T, TReturn>>;
+    return?(value?: TReturn | CoreJSPromiseLike<TReturn>): CoreJSPromise<IteratorResult<T, TReturn>>;
+    throw?(e?: any): CoreJSPromise<IteratorResult<T, TReturn>>;
   }
 
   export interface CoreJSAsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
