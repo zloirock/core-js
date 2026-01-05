@@ -11,7 +11,8 @@ import some from '@core-js/pure/full/async-iterator/some';
 import take from '@core-js/pure/full/async-iterator/take';
 import toArray from '@core-js/pure/full/async-iterator/to-array';
 import toAsync from '@core-js/pure/full/iterator/to-async';
-import $AsyncIterator from '@core-js/pure/full/async-iterator';
+// import $AsyncIterator from '@core-js/pure/full/async-iterator'; // todo
+import CoreJSPromiseLike from '../../helpers';
 
 const aiton = from([1, 2, 3]);
 aiton.next();
@@ -40,16 +41,16 @@ toAsync(is);
 toAsync(itn);
 
 drop(aiton, 3);
-const r2: Promise<boolean> = every(aiton, (v: number, i: number) => v > 0);
+const r2: CoreJSPromiseLike<boolean> = every(aiton, (v: number, i: number) => v > 0);
 filter(aiton, (v: number, i: number) => v > 0);
-const r4: Promise<number> = find(aiton, (v: number, i: number) => v > 0);
+const r4: CoreJSPromiseLike<number> = find(aiton, (v: number, i: number) => v > 0);
 flatMap(aiton, (v: number, i: number) => `${v}`);
-const r6: Promise<void> = forEach(aiton, (v: number, i: number) => { });
+const r6: CoreJSPromiseLike<void> = forEach(aiton, (v: number, i: number) => { });
 map(aiton, (v: number, i: number) => v * 2);
-const r8: Promise<number> = reduce(aiton, (acc: number, v: number, i: number) => acc + v, 0);
-const r9: Promise<boolean> = some(aiton, (v: number, i: number) => v > 0);
+const r8: CoreJSPromiseLike<number> = reduce(aiton, (acc: number, v: number, i: number) => acc + v, 0);
+const r9: CoreJSPromiseLike<boolean> = some(aiton, (v: number, i: number) => v > 0);
 take(aiton, 10);
-const r11: Promise<number[]> = toArray(aiton);
+const r11: CoreJSPromiseLike<number[]> = toArray(aiton);
 
 // @ts-expect-error
 drop(ain);
@@ -74,8 +75,8 @@ take(ain);
 // @ts-expect-error
 toArray(ain, 1);
 
-const s0: Promise<number[]> = toArray(aiton);
-const f0: Promise<string> = find(aitos, (v: string, i: number) => v.length === 1);
+const s0: CoreJSPromiseLike<number[]> = toArray(aiton);
+const f0: CoreJSPromiseLike<string> = find(aitos, (v: string, i: number) => v.length === 1);
 
 // @ts-expect-error
 map(ais, (v: string, i: number) => v.length === 1, 'extra');
