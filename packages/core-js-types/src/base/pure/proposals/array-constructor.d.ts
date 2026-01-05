@@ -1,4 +1,5 @@
 /// <reference types="./iterator.d.ts" />
+/// <reference types="../../core-js-types/promise.d.ts" />
 
 // Motivation: We must omit methods `fromAsync` and `isTemplateObject` because they cause a signature mismatch error.
 
@@ -20,7 +21,7 @@ declare namespace CoreJS {
      * Creates an array from an async iterator or iterable object.
      * @param iterableOrArrayLike An async iterator or array-like object to convert to an array.
      */
-    fromAsync<T>(iterableOrArrayLike: CoreJSAsyncIterable<T> | Iterable<T | PromiseLike<T>> | ArrayLike<T | PromiseLike<T>>): Promise<T[]>;
+    fromAsync<T>(iterableOrArrayLike: CoreJSAsyncIterable<T> | Iterable<T | PromiseLike<T>> | ArrayLike<T | PromiseLike<T>>): CoreJSPromise<T[]>;
 
     /**
      * Creates an array from an async iterator or iterable object.
@@ -30,7 +31,7 @@ declare namespace CoreJS {
      *      Each return value is awaited before being added to result array.
      * @param thisArg Value of 'this' used when executing mapFn.
      */
-    fromAsync<T, U>(iterableOrArrayLike: CoreJSAsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapFn: (value: Awaited<T>, index: number) => U, thisArg?: any): Promise<Awaited<U>[]>;
+    fromAsync<T, U>(iterableOrArrayLike: CoreJSAsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapFn: (value: Awaited<T>, index: number) => U, thisArg?: any): CoreJSPromise<Awaited<U>[]>;
 
     /**
      * Determines whether an `value` is a `TemplateStringsArray`
