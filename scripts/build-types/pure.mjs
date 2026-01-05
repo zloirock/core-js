@@ -34,6 +34,7 @@ function parseOptions(line) {
     exportBaseConstructor: hasOptions && optionsStr.includes('export-base-constructor'),
     noExport: hasOptions && optionsStr.includes('no-export'),
     noRedefine: hasOptions && optionsStr.includes('no-redefine'),
+    prefixReturnType: hasOptions && optionsStr.includes('prefix-return-type'),
   };
 }
 
@@ -98,6 +99,11 @@ function processLines(lines, prefix) {
       if (/^\s*(?:declare\s+)?function/.test(line)) {
         return line.replace(/^(?<indent>\s*)(?:declare\s+)?function\s+(?<name>\w+)/,
           `$<indent>export function ${ !options.noPrefix ? prefix : '' }$<name>`);
+      }
+
+      if (options.prefixReturnType) {
+        return line.replace(/^(?<smth>.*):\s(?<rootType>[a-z_]\w*)(?<subType><[^;]+);/i,
+          `$<smth>: ${ prefix }$<rootType>$<subType>;`);
       }
 
       // Replace prefixed types in the entire file

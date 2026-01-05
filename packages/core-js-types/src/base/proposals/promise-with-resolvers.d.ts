@@ -5,7 +5,7 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 interface PromiseWithResolvers<T> { // @type-options no-extends, no-prefix
-  promise: Promise<T>;
+  promise: Promise<T>; // @type-options prefix-return-type
 
   resolve: (value: T | PromiseLike<T>) => void;
 
