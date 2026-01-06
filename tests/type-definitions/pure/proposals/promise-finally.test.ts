@@ -1,7 +1,7 @@
 import promiseFinally from '@core-js/pure/full/promise/finally';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
 import promiseReject from '@core-js/pure/full/promise/reject';
-import CoreJSPromiseLike from '../../helpers';
+import { CoreJSPromiseLike } from '../../helpers';
 
 const pr1: CoreJSPromiseLike<number> = promiseResolve(42);
 declare const p1: Promise<number>;

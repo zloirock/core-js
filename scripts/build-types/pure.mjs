@@ -103,7 +103,7 @@ function processLines(lines, prefix) {
 
       if (options.prefixReturnType) {
         return line.replace(/^(?<smth>.*):\s(?<rootType>[a-z_]\w*)(?<subType><[^;]+);/i,
-          `$<smth>: ${ prefix }$<rootType>$<subType>;`);
+          `$<smth>: ${ prefix }.${ prefix }$<rootType>$<subType>;`);
       }
 
       // Replace prefixed types in the entire file
@@ -188,9 +188,8 @@ export async function preparePureTypes(typesPath, initialPath) {
 
       const content = await fs.readFile(typePath, 'utf8');
 
-      if (content.includes('declare namespace')) continue;
+      const result = (content.includes('declare namespace')) ? content : wrapInNamespace(content);
 
-      const result = wrapInNamespace(content);
       await outputFile(resultFilePath, result);
     }
   }
