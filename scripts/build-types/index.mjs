@@ -85,7 +85,7 @@ async function buildType(entry, options) {
   if (customType) {
     imports.index.add(customType);
     imports[subset].add(customType);
-    imports.pure.add(customType);
+    imports.pure.add(path.join('pure', customType));
   }
   options = { ...options, modules, level, entry, types };
 
