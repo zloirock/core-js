@@ -188,7 +188,7 @@ export async function preparePureTypes(typesPath, initialPath) {
 
       const content = await fs.readFile(typePath, 'utf8');
 
-      const result = (content.includes('declare namespace')) ? content : wrapInNamespace(content);
+      const result = content.includes('declare namespace') ? content : wrapInNamespace(content);
 
       await outputFile(resultFilePath, result);
     }
