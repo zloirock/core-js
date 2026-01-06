@@ -25,22 +25,22 @@ interface Set<T> { // @type-options no-redefine
   /**
    * @returns a new Set containing all the elements in this Set and also all the elements in the argument.
    */
-  union<U>(other: ReadonlySetLike<U>): Set<T | U>;
+  union<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are both in this Set and in the argument.
    */
-  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>;
+  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>; // @type-options prefix-return-type
 
   /**
    * @returns a new Set containing all the elements in this Set which are not also in the argument.
    */
-  difference<U>(other: ReadonlySetLike<U>): Set<T>;
+  difference<U>(other: ReadonlySetLike<U>): Set<T>; // @type-options prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are in either this Set or in the argument, but not in both.
    */
-  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>;
+  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
 
   /**
    * @returns a boolean indicating whether all the elements in this Set are also in the argument.
@@ -62,22 +62,22 @@ interface ReadonlySet<T> { // @type-options no-redefine
   /**
    * @returns a new Set containing all the elements in this Set and also all the elements in the argument.
    */
-  union<U>(other: ReadonlySetLike<U>): Set<T | U>;
+  union<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are both in this Set and in the argument.
    */
-  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>;
+  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>; // @type-options prefix-return-type
 
   /**
    * @returns a new Set containing all the elements in this Set which are not also in the argument.
    */
-  difference<U>(other: ReadonlySetLike<U>): Set<T>;
+  difference<U>(other: ReadonlySetLike<U>): Set<T>; // @type-options prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are in either this Set or in the argument, but not in both.
    */
-  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>;
+  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
 
   /**
    * @returns a boolean indicating whether all the elements in this Set are also in the argument.
