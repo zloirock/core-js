@@ -7,7 +7,7 @@ import asyncIteratorFrom from '@core-js/pure/full/async-iterator/from';
 import $SuppressedError from '@core-js/pure/full/suppressed-error/constructor';
 import $DisposableStack from '@core-js/pure/full/disposable-stack/constructor';
 import $AsyncDisposableStack from '@core-js/pure/full/async-disposable-stack/constructor';
-import CoreJSPromiseLike from '../../helpers';
+import { CoreJSPromiseLike } from '../../helpers';
 
 const d: symbol = symbolDispose;
 const ad: symbol = symbolAsyncDispose;
