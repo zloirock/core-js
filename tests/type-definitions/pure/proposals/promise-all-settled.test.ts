@@ -1,6 +1,6 @@
 import promiseAllSettled from '@core-js/pure/full/promise/all-settled';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import CoreJSPromiseLike from '../../helpers';
+import { CoreJSPromiseLike } from '../../helpers';
 
 interface CoreJSPromiseResult<T> {
   status: string;

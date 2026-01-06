@@ -1,6 +1,6 @@
 import promiseWithResolvers from '@core-js/pure/full/promise/with-resolvers';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import CoreJSPromiseLike from '../../helpers';
+import { CoreJSPromiseLike } from '../../helpers';
 
 const pr = promiseWithResolvers<number>();
 const pr2 = promiseWithResolvers<string>();
