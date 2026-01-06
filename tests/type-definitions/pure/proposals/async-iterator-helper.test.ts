@@ -12,7 +12,7 @@ import take from '@core-js/pure/full/async-iterator/take';
 import toArray from '@core-js/pure/full/async-iterator/to-array';
 import toAsync from '@core-js/pure/full/iterator/to-async';
 // import $AsyncIterator from '@core-js/pure/full/async-iterator'; // todo
-import CoreJSPromiseLike from '../../helpers';
+import { CoreJSPromiseLike } from '../../helpers';
 
 const aiton = from([1, 2, 3]);
 aiton.next();
