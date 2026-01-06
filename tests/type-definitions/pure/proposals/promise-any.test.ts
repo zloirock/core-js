@@ -1,6 +1,6 @@
 import promiseAny from '@core-js/pure/full/promise/any';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import CoreJSPromiseLike from '../../helpers';
+import { CoreJSPromiseLike } from '../../helpers';
 
 const arr = [promiseResolve(1), promiseResolve("foo"), 3] as const;
 const justNumbers = [1, 2, 3];
