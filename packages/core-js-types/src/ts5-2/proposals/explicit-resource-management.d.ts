@@ -1,3 +1,5 @@
+// Motivation: IteratorObject, AsyncIteratorObject, and AsyncIterator had different signatures until TS 5.7
+
 // https://github.com/tc39/proposal-explicit-resource-management
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
@@ -124,7 +126,7 @@ interface AsyncDisposableStack {
   /**
    * Disposes each resource in the stack in the reverse order that they were added.
    */
-  disposeAsync(): Promise<void>;
+  disposeAsync(): Promise<void>; // @type-options prefix-return-type
 
   /**
    * Adds a disposable resource to the stack, returning the resource.
