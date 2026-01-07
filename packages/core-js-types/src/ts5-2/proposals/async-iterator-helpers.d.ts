@@ -1,3 +1,5 @@
+// Motivation: AsyncIterator had different signatures until TS 5.7
+
 // https://github.com/tc39/proposal-async-iterator-helpers
 
 interface AsyncIteratorConstructor {
