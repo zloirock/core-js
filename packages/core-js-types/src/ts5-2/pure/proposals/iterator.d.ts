@@ -1,6 +1,8 @@
 /// <reference types="./explicit-resource-management.d.ts" />
+/// <reference types="../../core-js-types/promise.d.ts" />
 
 // Motivation: Has dependencies on internal types
+// Motivation: Iterable until TS 5.6 used only one type parameter
 
 // proposal stage: 2.7
 // https://github.com/tc39/proposal-iterator-chunking
@@ -48,9 +50,9 @@ declare namespace CoreJS {
   }
 
   interface CoreJSAsyncIterator<T, TReturn = any, TNext = any> {
-    next(...[value]: [] | [TNext]): Promise<IteratorResult<T, TReturn>>;
-    return?(value?: TReturn | CoreJSPromiseLike<TReturn>): Promise<IteratorResult<T, TReturn>>;
-    throw?(e?: any): Promise<IteratorResult<T, TReturn>>;
+    next(...[value]: [] | [TNext]): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
+    return?(value?: TReturn | CoreJSPromiseLike<TReturn>): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
+    throw?(e?: any): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
   }
 
   export interface CoreJSAsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
