@@ -1,6 +1,6 @@
 import objectHasOwn from '@core-js/pure/full/object/has-own';
 
-objectHasOwn({a: 1}, 'a');
+const res: boolean = objectHasOwn({a: 1}, 'a');
 objectHasOwn([], 0);
 objectHasOwn(new Date(), 'toISOString');
 objectHasOwn(Object.create(null), Symbol.iterator);
