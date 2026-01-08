@@ -2,16 +2,16 @@ import promiseAllKeyed from '@core-js/pure/full/promise/all-keyed';
 import promiseAllSettledKeyed from '@core-js/pure/full/promise/all-settled-keyed';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
 import $Symbol from '@core-js/pure/full/symbol';
-import { CoreJSPromiseOrPromiseLike } from '../../helpers';
+import { CoreJSPromiseAndPromiseLike } from '../../helpers';
 
-const res: CoreJSPromiseOrPromiseLike<{ a: number, b: string, c: boolean }> = promiseAllKeyed({
+const res: CoreJSPromiseAndPromiseLike<{ a: number, b: string, c: boolean }> = promiseAllKeyed({
   a: promiseResolve(1),
   b: promiseResolve('string'),
   c: promiseResolve(true),
 });
 
 const sym = $Symbol('sym');
-const res2: CoreJSPromiseOrPromiseLike<{ [sym]: number }> = promiseAllKeyed({
+const res2: CoreJSPromiseAndPromiseLike<{ [sym]: number }> = promiseAllKeyed({
   [sym]: promiseResolve(1)
 });
 

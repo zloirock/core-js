@@ -9,11 +9,9 @@
 declare namespace CoreJS {
   interface IteratorObject<T, TReturn, TNext> extends Iterator<T, TReturn, TNext> {}
 
-  export type CoreJsIteratorObject<T, TReturn = any, TNext = any> = IteratorObject<T, TReturn, TNext>;
+  export type IteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U>) => IteratorObject<U, undefined, unknown>;
 
-  export type IteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U>) => CoreJsIteratorObject<U, undefined, unknown>;
-
-  export type IteratorMap<T, U> = (callback: (value: T, index: number) => U) => CoreJsIteratorObject<U, undefined, unknown>;
+  export type IteratorMap<T, U> = (callback: (value: T, index: number) => U) => IteratorObject<U, undefined, unknown>;
 
   export type IteratorReduce<T, U = T> = (callback: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue?: U) => U;
 }
