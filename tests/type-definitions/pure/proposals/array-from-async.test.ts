@@ -1,12 +1,12 @@
 import arrayFromAsync from '@core-js/pure/full/array/from-async';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { CoreJSPromiseOrPromiseLike } from '../../helpers';
+import { CoreJSPromiseAndPromiseLike } from '../../helpers';
 
-const p1: CoreJSPromiseOrPromiseLike<number[]> = arrayFromAsync([1, 2, 3]);
-const p2: CoreJSPromiseOrPromiseLike<number[]> = arrayFromAsync([promiseResolve(1), 2, 3]);
-const p3: CoreJSPromiseOrPromiseLike<string[]> = arrayFromAsync([1, 2, 3], (value: number, index: number) => value.toString());
-const p4: CoreJSPromiseOrPromiseLike<number[]> = arrayFromAsync([promiseResolve(1), 2, 3], (value: number) => value + 1);
-const p5: CoreJSPromiseOrPromiseLike<string[]> = arrayFromAsync([1, 2, 3], function (this: { foo: string }, value: number) { return value.toString(); }, { foo: 'str' });
+const p1: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync([1, 2, 3]);
+const p2: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync([promiseResolve(1), 2, 3]);
+const p3: CoreJSPromiseAndPromiseLike<string[]> = arrayFromAsync([1, 2, 3], (value: number, index: number) => value.toString());
+const p4: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync([promiseResolve(1), 2, 3], (value: number) => value + 1);
+const p5: CoreJSPromiseAndPromiseLike<string[]> = arrayFromAsync([1, 2, 3], function (this: { foo: string }, value: number) { return value.toString(); }, { foo: 'str' });
 
 async function t1() {
   const n: number[] = await arrayFromAsync([1, 2, 3]);
@@ -20,8 +20,8 @@ async function t2() {
 }
 
 declare const arrLike: { [index: number]: PromiseLike<number>; length: 2 };
-const p6: CoreJSPromiseOrPromiseLike<number[]> = arrayFromAsync(arrLike);
-const p7: CoreJSPromiseOrPromiseLike<number[]> = arrayFromAsync(arrLike, (value: number) => value);
+const p6: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync(arrLike);
+const p7: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync(arrLike, (value: number) => value);
 
 // @ts-expect-error
 arrayFromAsync([1, 2, 3], (value: string) => value);
