@@ -2,7 +2,7 @@
 
 // https://github.com/tc39/proposal-await-dictionary
 
-interface PromiseConstructor { // @type-options no-redefine
+interface PromiseConstructor {
   /**
    * Takes an object of promises and returns a single Promise that resolves to an object
    * with the same keys and fulfilled values, or rejects as soon as any of the input promises rejects.
