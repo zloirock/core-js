@@ -1,5 +1,6 @@
 /// <reference types="./explicit-resource-management.d.ts" />
 /// <reference types="../../core-js-types/promise.d.ts" />
+/// <reference types="../../core-js-types/iterator-object.d.ts" />
 
 // Motivation: Has dependencies on internal types
 
@@ -49,9 +50,9 @@ declare namespace CoreJS {
   }
 
   interface CoreJSAsyncIterator<T, TReturn = any, TNext = any> {
-    next(...[value]: [] | [TNext]): CoreJSPromise<IteratorResult<T, TReturn>>;
-    return?(value?: TReturn | CoreJSPromiseLike<TReturn>): CoreJSPromise<IteratorResult<T, TReturn>>;
-    throw?(e?: any): CoreJSPromise<IteratorResult<T, TReturn>>;
+    next(...[value]: [] | [TNext]): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
+    return?(value?: TReturn | CoreJSPromiseLike<TReturn>): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
+    throw?(e?: any): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
   }
 
   export interface CoreJSAsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
@@ -60,9 +61,9 @@ declare namespace CoreJS {
     [CoreJSSymbol.asyncIterator](): CoreJSAsyncIterator<T, TReturn, TNext>;
   }
 
-  export interface CoreJSIteratorObject<T, TReturn = any, TNext = undefined> extends CoreJSDisposable {}
+  export interface CoreJSIteratorObject<T, TReturn = any, TNext = any> extends CoreJSDisposable {}
 
-  export interface CoreJSIterator<T> extends Iterator<T> {
+  export interface CoreJSIterator<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {
     /**
      * Yields arrays containing up to the specified number of elements
      * chunked from the source iterator.
@@ -189,18 +190,8 @@ declare namespace CoreJS {
      *  - padding: an object specifying padding values for each key when mode is 'longest'.
      * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
      */
-    zip<T, U>(iterables: Iterable<U>, options?: ZipOptions): CoreJSIteratorObject<[T, U]>;
+    zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): CoreJSIteratorObject<T[]>;
 
-    /**
-     * takes an object whose values are iterables and produces an iterable of objects where keys.
-     * correspond to keys in the passed object.
-     * @param iterables An Iterable of iterables.
-     * @param options Optional object:
-     *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
-     *  - padding: an object specifying padding values for each key when mode is 'longest'.
-     * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
-     */
-    zipKeyed<T, U>(iterables: Iterable<U>, options?: ZipOptions): CoreJSIteratorObject<[number, T, U]>;
     /**
      * takes an object whose values are iterables and produces an iterable of objects where keys.
      * correspond to keys in the passed object.
@@ -210,7 +201,7 @@ declare namespace CoreJS {
      *  - padding: an object specifying padding values for each key when mode is 'longest'.
      * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
      */
-    zipKeyed<T, U>(record: Record<PropertyKey, Iterable<U>>, options?: ZipOptions): CoreJSIteratorObject<[PropertyKey, T, U]>;
+    zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }>;
 
     /**
      * Returns an iterator that generates a sequence of numbers or bigints within a range.

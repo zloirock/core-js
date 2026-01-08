@@ -29,4 +29,4 @@ declare global {
   }
 }
 
-export type CoreJSIteratorObject<T, TReturn = any, TNext = undefined> = IteratorObject<T, TReturn, TNext>;
+export type CoreJSIteratorObject<T, TReturn = any, TNext = any> = IteratorObject<T, TReturn, TNext>;
