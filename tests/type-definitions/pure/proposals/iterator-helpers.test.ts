@@ -9,41 +9,42 @@ import iteratorForEach from '@core-js/pure/full/iterator/for-each';
 import iteratorSome from '@core-js/pure/full/iterator/some';
 import iteratorEvery from '@core-js/pure/full/iterator/every';
 import iteratorFind from '@core-js/pure/full/iterator/find';
+import { CoreJSIteratorOrIteratorLike } from '../../helpers';
 
 declare const it: Iterator<number>;
 declare const itStr: Iterator<string>;
 declare const itNumStr: Iterator<number | string>;
 
-const res: Iterator<string> = iteratorMap(it, (v, i) => String(v));
-const mappedNum: Iterator<number> = iteratorMap(it, n => n + 1);
+const res: CoreJSIteratorOrIteratorLike<string> = iteratorMap(it, (v, i) => String(v));
+const mappedNum: CoreJSIteratorOrIteratorLike<number> = iteratorMap(it, n => n + 1);
 
 // @ts-expect-error
 iteratorMap();
 // @ts-expect-error
 iteratorMap((v, i, extra) => v + i + extra);
 
-const onlyEven: Iterator<number> = iteratorFilter(it, v => v % 2 === 0);
-const filtered: Iterator<number> = iteratorFilter(it, (v): v is number => typeof v === 'number');
+const onlyEven: CoreJSIteratorOrIteratorLike<number> = iteratorFilter(it, v => v % 2 === 0);
+const filtered: CoreJSIteratorOrIteratorLike<number> = iteratorFilter(it, (v): v is number => typeof v === 'number');
 
 // @ts-expect-error
 iteratorFilter();
 // @ts-expect-error
 iteratorFilter((v, i, extra) => true);
 
-const taken: Iterator<number> = iteratorTake(it, 5);
+const taken: CoreJSIteratorOrIteratorLike<number> = iteratorTake(it, 5);
 
 // @ts-expect-error
 iteratorTake();
 // @ts-expect-error
 iteratorTake('5');
 
-const dropped: Iterator<number> = iteratorDrop(it, 3);
+const dropped: CoreJSIteratorOrIteratorLike<number> = iteratorDrop(it, 3);
 
 // @ts-expect-error
 iteratorDrop('3');
 
-const flatMapped: Iterator<string> = iteratorFlatMap(it, (v, i) => itStr);
-const flatMapped2: Iterator<string> = iteratorFlatMap(it, (v, i) => ({
+const flatMapped: CoreJSIteratorOrIteratorLike<string> = iteratorFlatMap(it, (v, i) => itStr);
+const flatMapped2: CoreJSIteratorOrIteratorLike<string> = iteratorFlatMap(it, (v, i) => ({
   [Symbol.iterator]: function* () {
     yield String(v);
   }

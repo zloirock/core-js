@@ -99,7 +99,7 @@ declare namespace CoreJS {
 
   var CoreJSAsyncIterator: CoreJSAsyncIteratorConstructor;
 
-  interface CoreJSIterator<T> extends Iterator<T> {
+  interface CoreJSIterator<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {
     /**
      * Creates an `AsyncIterator` from the current `Iterator`
      * @returns A new `AsyncIterator` instance
