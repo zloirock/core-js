@@ -1,27 +1,30 @@
 import promiseAllKeyed from '@core-js/pure/full/promise/all-keyed';
 import promiseAllSettledKeyed from '@core-js/pure/full/promise/all-settled-keyed';
+import promiseResolve from '@core-js/pure/full/promise/resolve';
+import $Symbol from '@core-js/pure/full/symbol';
+import { AnyPromiseLike } from '../../helpers';
 
-const res: Promise<{ a: number, b: string, c: boolean }> = promiseAllKeyed({
-  a: Promise.resolve(1),
-  b: Promise.resolve('string'),
-  c: Promise.resolve(true),
+const res: AnyPromiseLike<{ a: number, b: string, c: boolean }> = promiseAllKeyed({
+  a: promiseResolve(1),
+  b: promiseResolve('string'),
+  c: promiseResolve(true),
 });
 
-const sym = Symbol('sym');
-const res2: Promise<{ [sym]: number }> = promiseAllKeyed({
-  [sym]: Promise.resolve(1)
+const sym = $Symbol('sym');
+const res2: AnyPromiseLike<{ [sym]: number }> = promiseAllKeyed({
+  [sym]: promiseResolve(1)
 });
 
 // @ts-expect-error
 promiseAllKeyed();
 // @ts-expect-error
-promiseAllKeyed({ a: 1, b: Promise.resolve(2) });
+promiseAllKeyed({ a: 1, b: promiseResolve(2) });
 // @ts-expect-error
-promiseAllKeyed([ Promise.resolve(1), Promise.resolve(2) ]);
+promiseAllKeyed([ promiseResolve(1), promiseResolve(2) ]);
 
 // @ts-expect-error
 promiseAllSettledKeyed();
 // @ts-expect-error
-promiseAllSettledKeyed({ a: 1, b: Promise.resolve(2) });
+promiseAllSettledKeyed({ a: 1, b: promiseResolve(2) });
 // @ts-expect-error
-promiseAllSettledKeyed([ Promise.resolve(1), Promise.resolve(2) ]);
+promiseAllSettledKeyed([ promiseResolve(1), promiseResolve(2) ]);
