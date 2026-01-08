@@ -1,14 +1,14 @@
 import promiseWithResolvers from '@core-js/pure/full/promise/with-resolvers';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { CoreJSPromiseLike } from '../../helpers';
+import { AnyPromiseLike } from '../../helpers';
 
 const pr = promiseWithResolvers<number>();
 const pr2 = promiseWithResolvers<string>();
 const pr3 = promiseWithResolvers<void>();
 
-const p1: CoreJSPromiseLike<number> = pr.promise;
-const p2: CoreJSPromiseLike<string> = pr2.promise;
-const p3: CoreJSPromiseLike<void> = pr3.promise;
+const p1: AnyPromiseLike<number> = pr.promise;
+const p2: AnyPromiseLike<string> = pr2.promise;
+const p3: AnyPromiseLike<void> = pr3.promise;
 
 pr.resolve(42);
 pr.resolve(promiseResolve(43));
