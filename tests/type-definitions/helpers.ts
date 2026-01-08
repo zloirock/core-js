@@ -3,19 +3,21 @@ export interface CoreJSPromiseLike<T> {
 
   finally(onfinally?: (() => void) | undefined | null): PromiseLike<T>;
 }
-export type CoreJSPromiseOrPromiseLike<T> = CoreJSPromiseLike<T> | Promise<T>;
+export type CoreJSPromiseAndPromiseLike<T> = CoreJSPromiseLike<T> & Promise<T>;
 
 export interface CoreJSMapLike<K, V> extends Map<K, V> {
   getOrInsert(key: K, value: V): V;
 
   getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
 }
+export type CoreJSMapAndMapLike<K, V> = CoreJSMapLike<K, V> & Map<K, V>;
 
 export interface CoreJSWeakMapLike<K extends WeakKey, V> extends WeakMap<K, V> {
   getOrInsert(key: K, value: V): V;
 
   getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
 }
+export type CoreJSWeakMapAndWeakMapLike<K extends WeakKey, V> = CoreJSWeakMapLike<K, V> & WeakMap<K, V>;
 
 export interface CoreJSSetLike<T> extends Set<T> {
   union<U>(...args: any[]): CoreJSSetLike<T | U>;
@@ -26,8 +28,10 @@ export interface CoreJSSetLike<T> extends Set<T> {
   isSupersetOf(...args: any[]): boolean;
   isDisjointFrom(...args: any[]): boolean;
 }
+export type CoreJSSetAndSetLike<T> = CoreJSSetLike<T> & Set<T>;
 
 export interface CoreJSWeakSetLike<T extends WeakKey> extends WeakSet<T> {}
+export type CoreJSWeakSetAndWeakSetLike<T extends WeakKey> = CoreJSWeakSetLike<T> & WeakSet<T>;
 
 export interface CoreJSIteratorLike<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {
   chunks(...args: any[]): CoreJSIteratorLike<T[]>;
@@ -45,4 +49,4 @@ export interface CoreJSIteratorLike<T, TReturn = any, TNext = any> extends Itera
   find(...args: any[]): T | undefined;
   join(...args: any[]): string;
 }
-export type CoreJSIteratorOrIteratorLike<T> = CoreJSIteratorLike<T> | Iterator<T>;
+export type CoreJSIteratorAndIteratorLike<T> = CoreJSIteratorLike<T> & Iterator<T>;

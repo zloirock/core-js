@@ -1,4 +1,6 @@
-// Motivation: Custom type needed to keep generics strict
+/// <reference types="../../core-js-types/iterator-object.d.ts" />
+
+// Motivation: Using our own type for IteratorObject
 
 // https://github.com/tc39/proposal-iterator-helpers
 
@@ -7,11 +9,9 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  interface IteratorObject<T, TReturn, TNext> extends Iterator<T, TReturn, TNext> {}
+  export type IteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U>) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
 
-  export type IteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U>) => IteratorObject<U, undefined, unknown>;
-
-  export type IteratorMap<T, U> = (callback: (value: T, index: number) => U) => IteratorObject<U, undefined, unknown>;
+  export type IteratorMap<T, U> = (callback: (value: T, index: number) => U) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
 
   export type IteratorReduce<T, U = T> = (callback: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue?: U) => U;
 }
