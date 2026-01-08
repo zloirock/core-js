@@ -2,8 +2,8 @@
 interface Math { // @type-options no-constructor
   /**
    * Returns the sum of all given values.
-   * @param values
+   * @param items
    * @returns The sum of all given values.
    */
-  sumPrecise(...values: number[]): number;
+  sumPrecise(items: Iterable<number>): number;
 }
