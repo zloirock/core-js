@@ -1,6 +1,7 @@
 import iteratorRange from '@core-js/pure/full/iterator/range';
+import { CoreJSIteratorOrIteratorLike } from '../../helpers';
 
-const rir1: Iterator<number> = iteratorRange(1, 10);
+const rir1: CoreJSIteratorOrIteratorLike<number> = iteratorRange(1, 10);
 iteratorRange(1, 10, 1);
 iteratorRange(1, 10, { step: 1 });
 iteratorRange(1, 10, { inclusive: true });
