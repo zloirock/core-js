@@ -5,7 +5,7 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 interface ArrayBuffer {
-  // todo hack for modern ts
+  // TODO hack for modern ts
   // get detached(): boolean;
 
   /**
