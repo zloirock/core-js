@@ -5,10 +5,12 @@ const rdedent2: string = stringDedent`line1
   line2
   line3`;
 
-const tpl = Object.assign(['foo', 'bar'], { raw: ['foo', 'bar'] }) as TemplateStringsArray;
+const tpl = Object.assign(['foo', 'bar'], { raw: ['foo', 'bar'] });
 stringDedent(tpl, 1, 2);
 
 stringDedent({ raw: ["a\n  b\n", "\n  c\n"] }, 1, 2);
+
+stringDedent(() => 'template string');
 
 // @ts-expect-error
 stringDedent();
