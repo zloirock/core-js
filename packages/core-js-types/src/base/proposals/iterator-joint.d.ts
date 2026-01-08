@@ -1,5 +1,3 @@
-/// <reference types="../core-js-types/iterator-object.ts" />
-
 // https://github.com/tc39/proposal-joint-iteration
 
 type ZipOptions = {
@@ -18,18 +16,8 @@ interface IteratorConstructor { // @type-options no-extends
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
    */
-  zip<T, U>(iterables: Iterable<U>, options?: ZipOptions): CoreJS.CoreJSIteratorObject<[T, U]>;
+  zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): IteratorObject<T[]>; // @type-options prefix-return-type
 
-  /**
-   * takes an object whose values are iterables and produces an iterable of objects where keys.
-   * correspond to keys in the passed object.
-   * @param iterables An Iterable of iterables.
-   * @param options Optional object:
-   *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
-   *  - padding: an object specifying padding values for each key when mode is 'longest'.
-   * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
-   */
-  zipKeyed<T, U>(iterables: Iterable<U>, options?: ZipOptions): CoreJS.CoreJSIteratorObject<[number, T, U]>;
   /**
    * takes an object whose values are iterables and produces an iterable of objects where keys.
    * correspond to keys in the passed object.
@@ -39,7 +27,7 @@ interface IteratorConstructor { // @type-options no-extends
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
    */
-  zipKeyed<T, U>(record: Record<PropertyKey, Iterable<U>>, options?: ZipOptions): CoreJS.CoreJSIteratorObject<[PropertyKey, T, U]>;
+  zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }>;  // @type-options prefix-return-type
 }
 
 declare var Iterator: IteratorConstructor;
