@@ -4,6 +4,8 @@ export interface CoreJSPromiseLike<T> {
   finally(onfinally?: (() => void) | undefined | null): PromiseLike<T>;
 }
 
+export type AnyPromiseLike<T> = CoreJSPromiseLike<T> | Promise<T>;
+
 export interface CoreJSMapLike<K, V> extends Map<K, V> {
   getOrInsert(key: K, value: V): V;
 
@@ -27,3 +29,20 @@ export interface CoreJSSetLike<T> extends Set<T> {
 }
 
 export interface CoreJSWeakSetLike<T extends WeakKey> extends WeakSet<T> {}
+
+export interface CoreJSIteratorLike<T, TReturn = any, TNext = undefined> extends Iterator<T, TReturn, TNext> {
+  chunks(...args: any[]): CoreJSIteratorLike<T[]>;
+  windows(...args: any[]): CoreJSIteratorLike<T[]>;
+  map<U>(...args: any[]): CoreJSIteratorLike<U>;
+  filter<S extends T>(...args: any[]): CoreJSIteratorLike<S>;
+  take(...args: any[]): CoreJSIteratorLike<T>;
+  drop(...args: any[]): CoreJSIteratorLike<T>;
+  flatMap<U>(...args: any[]): CoreJSIteratorLike<U>;
+  reduce<U>(...args: any[]): CoreJSIteratorLike<U>;
+  toArray(): T[];
+  forEach(...args: any[]): void;
+  some(...args: any[]): boolean;
+  every(...args: any[]): boolean;
+  find(...args: any[]): T | undefined;
+  join(...args: any[]): string;
+}
