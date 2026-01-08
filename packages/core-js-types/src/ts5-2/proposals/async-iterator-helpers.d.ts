@@ -1,4 +1,4 @@
-// Motivation: AsyncIterator had different signatures until TS 5.7
+// Motivation: TS 5.6 changed AsyncIterator’s TNext from undefined to any
 
 // https://github.com/tc39/proposal-async-iterator-helpers
 
