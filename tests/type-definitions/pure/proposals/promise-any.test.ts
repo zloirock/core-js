@@ -1,6 +1,6 @@
 import promiseAny from '@core-js/pure/full/promise/any';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { AnyPromiseLike } from '../../helpers';
+import { CoreJSPromiseOrPromiseLike } from '../../helpers';
 
 const arr = [promiseResolve(1), promiseResolve("foo"), 3] as const;
 const justNumbers = [1, 2, 3];
@@ -9,16 +9,16 @@ const promiseLike = { then: (cb: (val: number) => void) => cb(123) };
 const emptyTuple: [] = [];
 const mixed = [true, promiseResolve("z")] as const;
 
-const any1: AnyPromiseLike<string | number> = promiseAny(arr);
-const any2: AnyPromiseLike<string | number> = promiseAny(["x", "y", promiseResolve(5)]);
-const any3: AnyPromiseLike<never> = promiseAny(emptyTuple);
-const any4: AnyPromiseLike<boolean | string> = promiseAny(mixed);
+const any1: CoreJSPromiseOrPromiseLike<string | number> = promiseAny(arr);
+const any2: CoreJSPromiseOrPromiseLike<string | number> = promiseAny(["x", "y", promiseResolve(5)]);
+const any3: CoreJSPromiseOrPromiseLike<never> = promiseAny(emptyTuple);
+const any4: CoreJSPromiseOrPromiseLike<boolean | string> = promiseAny(mixed);
 
-const any5: AnyPromiseLike<number> = promiseAny(justNumbers);
-const any6: AnyPromiseLike<string> = promiseAny(setOfStrings);
-const any7: AnyPromiseLike<number> = promiseAny([promiseLike]);
-const any8: AnyPromiseLike<number> = promiseAny(new Set([1]));
-const any9: AnyPromiseLike<unknown> = promiseAny([promiseResolve()]);
+const any5: CoreJSPromiseOrPromiseLike<number> = promiseAny(justNumbers);
+const any6: CoreJSPromiseOrPromiseLike<string> = promiseAny(setOfStrings);
+const any7: CoreJSPromiseOrPromiseLike<number> = promiseAny([promiseLike]);
+const any8: CoreJSPromiseOrPromiseLike<number> = promiseAny(new Set([1]));
+const any9: CoreJSPromiseOrPromiseLike<unknown> = promiseAny([promiseResolve()]);
 
 // @ts-expect-error
 promiseAny();
