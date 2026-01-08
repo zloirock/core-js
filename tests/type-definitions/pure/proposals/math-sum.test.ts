@@ -1,12 +1,13 @@
 import mathSumPrecise from '@core-js/pure/full/math/sum-precise';
 
 function acceptsNumber(x: number) {}
+declare const it: Iterable<number>;
 
-acceptsNumber(mathSumPrecise(0.1, 0.2));
-acceptsNumber(mathSumPrecise(1, 2));
+acceptsNumber(mathSumPrecise(it));
+acceptsNumber(mathSumPrecise([1, 2]));
 
 // @ts-expect-error
 mathSumPrecise('10');
 
 // @ts-expect-error
-mathSumPrecise([1, 2]);
+mathSumPrecise(1, 2);
