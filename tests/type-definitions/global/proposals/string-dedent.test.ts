@@ -8,9 +8,9 @@ const rdedent2: string = String.dedent`line1
 const tpl = Object.assign(['foo', 'bar'], { raw: ['foo', 'bar'] }) as TemplateStringsArray;
 String.dedent(tpl, 1, 2);
 
-// @ts-expect-error
-String.dedent(['foo', 'bar'], 1, 2);
-// @ts-expect-error
-String.dedent('foo', 1, 2);
+String.dedent({ raw: ["a\n  b\n", "\n  c\n"] }, 1, 2);
+
+'string\ndedent'.dedent();
+
 // @ts-expect-error
 String.dedent();
