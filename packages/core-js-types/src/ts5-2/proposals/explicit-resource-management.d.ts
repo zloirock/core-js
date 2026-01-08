@@ -1,4 +1,4 @@
-// Motivation: IteratorObject, AsyncIteratorObject, and AsyncIterator had different signatures until TS 5.7
+// Motivation: IteratorObject, AsyncIteratorObject, and AsyncIterator had different signatures until TS 5.6
 
 // https://github.com/tc39/proposal-explicit-resource-management
 
