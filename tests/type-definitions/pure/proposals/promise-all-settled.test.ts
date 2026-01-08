@@ -1,6 +1,6 @@
 import promiseAllSettled from '@core-js/pure/full/promise/all-settled';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { CoreJSPromiseLike } from '../../helpers';
+import { AnyPromiseLike } from '../../helpers';
 
 interface CoreJSPromiseResult<T> {
   status: string;
@@ -10,19 +10,19 @@ interface CoreJSPromiseResult<T> {
 
 const promiseLike = { then: (cb: (val: number) => void) => cb(42) };
 
-const p1: CoreJSPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<number>, CoreJSPromiseResult<number>]> =
+const p1: AnyPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<number>, CoreJSPromiseResult<number>]> =
   promiseAllSettled([promiseResolve(10), promiseResolve(20), 30]);
-const p2: CoreJSPromiseLike<[CoreJSPromiseResult<string>, CoreJSPromiseResult<string>, CoreJSPromiseResult<string>]> =
+const p2: AnyPromiseLike<[CoreJSPromiseResult<string>, CoreJSPromiseResult<string>, CoreJSPromiseResult<string>]> =
   promiseAllSettled(['a', 'b', 'c']);
-const p3: CoreJSPromiseLike<CoreJSPromiseResult<number>[]> =
+const p3: AnyPromiseLike<CoreJSPromiseResult<number>[]> =
   promiseAllSettled(new Set([1, 2, 3]));
 promiseAllSettled([promiseLike]);
 
 const emptyTuple: [] = [];
-const settled6: CoreJSPromiseLike<[]> = promiseAllSettled(emptyTuple);
+const settled6: AnyPromiseLike<[]> = promiseAllSettled(emptyTuple);
 
 const mixedTuple = [42, promiseResolve('bar')] as const;
-const p4: CoreJSPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<string>]> =
+const p4: AnyPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<string>]> =
   promiseAllSettled(mixedTuple);
 
 // @ts-expect-error
