@@ -6,15 +6,15 @@ nodeList.forEach((value: Node, key: number, list: NodeList): void => {}, []);
 // @ts-expect-error
 nodeList.forEach();
 
-const k1: Iterable<number> = nodeList.keys();
+const k1: IterableIterator<number> = nodeList.keys();
 // @ts-expect-error
 nodeList.keys('string');
 
-const v: Iterable<Node> = nodeList.values();
+const v: IterableIterator<Node> = nodeList.values();
 // @ts-expect-error
 nodeList.values('string');
 
-const e: Iterable<[number, Node]> = nodeList.entries();
+const e: IterableIterator<[number, Node]> = nodeList.entries();
 // @ts-expect-error
 nodeList.entries('string');
 
@@ -25,14 +25,14 @@ domTokenList.forEach((value: Node, key: number, list: DOMTokenList): void => {},
 // @ts-expect-error
 domTokenList.forEach();
 
-const fomKeys: Iterable<number> = domTokenList.keys();
+const fomKeys: IterableIterator<number> = domTokenList.keys();
 // @ts-expect-error
 domTokenList.keys('string');
 
-const domValues: Iterable<Element> = domTokenList.values();
+const domValues: IterableIterator<Element> = domTokenList.values();
 // @ts-expect-error
 domTokenList.values('string');
 
-const domEntries: Iterable<[number, Element]> = domTokenList.entries();
+const domEntries: IterableIterator<[number, Element]> = domTokenList.entries();
 // @ts-expect-error
 domTokenList.entries('string');
