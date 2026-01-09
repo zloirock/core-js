@@ -32,20 +32,32 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  const CoreJSFallbackSymbol: unique symbol;
-  type CoreJSFallbackSymbolType = typeof CoreJSFallbackSymbol;
-  type GetNativeWithFallback<T, K extends PropertyKey> = K extends keyof T ? T[K] : CoreJSFallbackSymbolType;
+  const CoreJSDisposeSymbol: unique symbol;
+  const CoreJSAsyncDisposeSymbol: unique symbol;
+  const CoreJSAsyncIteratorSymbol: unique symbol;
+  const CoreJSCustomMatcherSymbol: unique symbol;
+  const CoreJSMetadataSymbol: unique symbol;
+  const CoreJSMatchAllSymbol: unique symbol;
+
+  type CoreJSDisposeSymbolType = typeof CoreJSDisposeSymbol;
+  type CoreJSAsyncDisposeSymbolType = typeof CoreJSAsyncDisposeSymbol;
+  type CoreJSAsyncIteratorSymbolType = typeof CoreJSAsyncIteratorSymbol;
+  type CoreJSCustomMatcherSymbolType = typeof CoreJSCustomMatcherSymbol;
+  type CoreJSMetadataSymbolType = typeof CoreJSMetadataSymbol;
+  type CoreJSMatchAllSymbolType = typeof CoreJSMatchAllSymbol;
+
+  type GetNativeWithFallback<T, K extends PropertyKey, Fallback> = K extends keyof T ? T[K] : Fallback;
 
   export interface CoreJSSymbolConstructor extends SymbolConstructor {
     /**
      * A method that is used to release resources held by an object. Called by the semantics of the `using` statement.
      */
-    readonly dispose: GetNativeWithFallback<SymbolConstructor, 'dispose'>;
+    readonly dispose: GetNativeWithFallback<SymbolConstructor, 'dispose', CoreJSDisposeSymbolType>;
 
     /**
      * A method that is used to asynchronously release resources held by an object. Called by the semantics of the `await using` statement.
      */
-    readonly asyncDispose: GetNativeWithFallback<SymbolConstructor, 'asyncDispose'>;
+    readonly asyncDispose: GetNativeWithFallback<SymbolConstructor, 'asyncDispose', CoreJSAsyncDisposeSymbolType>;
 
     /**
      * Determines whether the given value is a registered symbol.
@@ -63,13 +75,13 @@ declare namespace CoreJS {
      * A method that returns the default async iterator for an object. Called by the semantics of
      * the for-await-of statement.
      */
-    readonly asyncIterator: GetNativeWithFallback<SymbolConstructor, 'asyncIterator'>;
+    readonly asyncIterator: GetNativeWithFallback<SymbolConstructor, 'asyncIterator', CoreJSAsyncIteratorSymbolType>;
 
-    readonly customMatcher: GetNativeWithFallback<SymbolConstructor, 'customMatcher'>;
+    readonly customMatcher: GetNativeWithFallback<SymbolConstructor, 'customMatcher', CoreJSCustomMatcherSymbolType>;
 
-    readonly metadata: GetNativeWithFallback<SymbolConstructor, 'metadata'>;
+    readonly metadata: GetNativeWithFallback<SymbolConstructor, 'metadata', CoreJSMetadataSymbolType>;
 
-    readonly matchAll: GetNativeWithFallback<SymbolConstructor, 'matchAll'>;
+    readonly matchAll: GetNativeWithFallback<SymbolConstructor, 'matchAll', CoreJSMatchAllSymbolType>;
   }
 
   export interface CoreJSSymbol extends Symbol {
