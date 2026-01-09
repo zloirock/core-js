@@ -1,5 +1,4 @@
-// Motivation: We should use SymbolConstructor without asyncIterator, matchAll, dispose, asyncDispose,
-// customMatcher, metadata properties to avoid signature conflicts
+// Motivation: We should use all unique symbols in SymbolConstructor with fallback
 
 // proposal stage: 3
 // https://github.com/tc39/proposal-explicit-resource-management
@@ -33,24 +32,20 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  type BaseSymbolConstructor = {
-    (description?: string | number | symbol): symbol;
-    new (description?: string | number | symbol): symbol;
-  } & Omit<
-    SymbolConstructor,
-    'asyncIterator' | 'matchAll' | 'dispose' | 'asyncDispose' | 'customMatcher' | 'metadata'
-  >;
+  const CoreJSFallbackSymbol: unique symbol;
+  type CoreJSFallbackSymbolType = typeof CoreJSFallbackSymbol;
+  type GetNativeWithFallback<T, K extends PropertyKey> = K extends keyof T ? T[K] : CoreJSFallbackSymbolType;
 
-  export interface CoreJSSymbolConstructor extends BaseSymbolConstructor {
+  export interface CoreJSSymbolConstructor extends SymbolConstructor {
     /**
      * A method that is used to release resources held by an object. Called by the semantics of the `using` statement.
      */
-    readonly dispose: unique symbol;
+    readonly dispose: GetNativeWithFallback<SymbolConstructor, 'dispose'>;
 
     /**
      * A method that is used to asynchronously release resources held by an object. Called by the semantics of the `await using` statement.
      */
-    readonly asyncDispose: unique symbol;
+    readonly asyncDispose: GetNativeWithFallback<SymbolConstructor, 'asyncDispose'>;
 
     /**
      * Determines whether the given value is a registered symbol.
@@ -68,13 +63,13 @@ declare namespace CoreJS {
      * A method that returns the default async iterator for an object. Called by the semantics of
      * the for-await-of statement.
      */
-    readonly asyncIterator: unique symbol;
+    readonly asyncIterator: GetNativeWithFallback<SymbolConstructor, 'asyncIterator'>;
 
-    readonly customMatcher: unique symbol;
+    readonly customMatcher: GetNativeWithFallback<SymbolConstructor, 'customMatcher'>;
 
-    readonly metadata: unique symbol;
+    readonly metadata: GetNativeWithFallback<SymbolConstructor, 'metadata'>;
 
-    readonly matchAll: unique symbol;
+    readonly matchAll: GetNativeWithFallback<SymbolConstructor, 'matchAll'>;
   }
 
   export interface CoreJSSymbol extends Symbol {
