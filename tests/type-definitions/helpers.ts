@@ -50,3 +50,17 @@ export interface CoreJSIteratorLike<T, TReturn = any, TNext = any> extends Itera
   join(...args: any[]): string;
 }
 export type CoreJSIteratorAndIteratorLike<T> = CoreJSIteratorLike<T> & Iterator<T>;
+
+export interface CoreJSAsyncIteratorLike<T, TReturn = any, TNext = any> {
+  drop(...args: any[]): any;
+  every(...args: any[]): any;
+  filter(...args: any[]): any;
+  find(...args: any[]): any;
+  flatMap(...args: any[]): any;
+  forEach(...args: any[]): any;
+  map(...args: any[]): any;
+  reduce(...args: any[]): any;
+  some(...args: any[]): any;
+  take(...args: any[]): any;
+  toArray(...args: any[]): any;
+}
