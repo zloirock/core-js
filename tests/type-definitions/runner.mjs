@@ -140,5 +140,5 @@ if (!ALL_TESTS) {
   await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
   await clearTmpDir();
   echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
-  if (failed) process.exit(1);
+  if (failed) throw new Error('Some tests have failed');
 }
