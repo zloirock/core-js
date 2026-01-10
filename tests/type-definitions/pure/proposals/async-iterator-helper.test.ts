@@ -40,17 +40,18 @@ from({ next: () => 1 });
 toAsync(is);
 toAsync(itn);
 
-drop(aiton, 3);
-const r2: CoreJSPromiseAndPromiseLike<boolean> = every(aiton, (v: number, i: number) => v > 0);
-filter(aiton, (v: number, i: number) => v > 0);
-const r4: CoreJSPromiseAndPromiseLike<number> = find(aiton, (v: number, i: number) => v > 0);
-flatMap(aiton, (v: number, i: number) => `${v}`);
-const r6: CoreJSPromiseAndPromiseLike<void> = forEach(aiton, (v: number, i: number) => { });
-map(aiton, (v: number, i: number) => v * 2);
-const r8: CoreJSPromiseAndPromiseLike<number> = reduce(aiton, (acc: number, v: number, i: number) => acc + v, 0);
-const r9: CoreJSPromiseAndPromiseLike<boolean> = some(aiton, (v: number, i: number) => v > 0);
-take(aiton, 10);
-const r11: CoreJSPromiseAndPromiseLike<number[]> = toArray(aiton);
+const r1: CoreJSPromiseAndPromiseLike<boolean> = every(aiton, (v: number, i: number) => v > 0);
+const r2: CoreJSPromiseAndPromiseLike<number> = find(aiton, (v: number, i: number) => v > 0);
+const r3: CoreJSPromiseAndPromiseLike<void> = forEach(aiton, (v: number, i: number) => { });
+const r4: CoreJSPromiseAndPromiseLike<number> = reduce(aiton, (acc: number, v: number, i: number) => acc + v, 0);
+const r5: CoreJSPromiseAndPromiseLike<boolean> = some(aiton, (v: number, i: number) => v > 0);
+const r6: CoreJSPromiseAndPromiseLike<number[]> = toArray(aiton);
+
+const ait1: CoreJSAsyncIteratorLike<number> = filter(aiton, (v: number, i: number) => v > 0);
+const ait2: CoreJSAsyncIteratorLike<string> = flatMap(aiton, (v: number, i: number) => `${v}`);
+const ait3: CoreJSAsyncIteratorLike<number> = map(aiton, (v: number, i: number) => v * 2);
+const ait4: CoreJSAsyncIteratorLike<number> = take(aiton, 10);
+const ait5: CoreJSAsyncIteratorLike<number> = drop(aiton, 3);
 
 // @ts-expect-error
 drop(ain);
