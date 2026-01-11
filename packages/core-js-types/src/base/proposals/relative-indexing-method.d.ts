@@ -5,7 +5,7 @@
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/es2022.string.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface String { // @type-options no-export
+interface String {
   /**
    * Returns a new String consisting of the single UTF-16 code unit located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -13,7 +13,7 @@ interface String { // @type-options no-export
   at(index: number): string | undefined;
 }
 
-interface Array<T> { // @type-options no-export
+interface Array<T> {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -21,7 +21,7 @@ interface Array<T> { // @type-options no-export
   at(index: number): T | undefined;
 }
 
-interface ReadonlyArray<T> { // @type-options no-export
+interface ReadonlyArray<T> {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -29,7 +29,7 @@ interface ReadonlyArray<T> { // @type-options no-export
   at(index: number): T | undefined;
 }
 
-interface Int8Array { // @type-options no-export
+interface Int8Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -37,7 +37,7 @@ interface Int8Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Uint8Array { // @type-options no-export
+interface Uint8Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -45,7 +45,7 @@ interface Uint8Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Uint8ClampedArray { // @type-options no-export
+interface Uint8ClampedArray {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -53,7 +53,7 @@ interface Uint8ClampedArray { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Int16Array { // @type-options no-export
+interface Int16Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -61,7 +61,7 @@ interface Int16Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Uint16Array { // @type-options no-export
+interface Uint16Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -69,7 +69,7 @@ interface Uint16Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Int32Array { // @type-options no-export
+interface Int32Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -77,7 +77,7 @@ interface Int32Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Uint32Array { // @type-options no-export
+interface Uint32Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -85,7 +85,7 @@ interface Uint32Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Float32Array { // @type-options no-export
+interface Float32Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -93,7 +93,7 @@ interface Float32Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface Float64Array { // @type-options no-export
+interface Float64Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -101,7 +101,7 @@ interface Float64Array { // @type-options no-export
   at(index: number): number | undefined;
 }
 
-interface BigInt64Array { // @type-options no-export
+interface BigInt64Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
@@ -109,7 +109,7 @@ interface BigInt64Array { // @type-options no-export
   at(index: number): bigint | undefined;
 }
 
-interface BigUint64Array { // @type-options no-export
+interface BigUint64Array {
   /**
    * Returns the item located at the specified index.
    * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
