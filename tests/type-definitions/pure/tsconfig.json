@@ -1,7 +1,7 @@
 {
   "extends": "../tsconfig.json",
   "include": ["./**/*.ts"],
-  "exclude": ["./async-iteration.test.ts"],
+  "exclude": ["async-iteration.test.ts"],
   "compilerOptions": {
     "types": ["@core-js/types/pure"]
   }
