@@ -6,7 +6,7 @@ const r1: string = stringReplaceAll(s, 'foo', 'baz');
 const r2: string = stringReplaceAll(s, /foo/g, 'baz');
 const r3: string = stringReplaceAll(s, 'bar', (substr: string) => substr);
 const r4: string = stringReplaceAll(s, /bar/g, (substr: string) => substr + 'Test');
-const r5: string = stringReplaceAll(s, 'foo', function(substring: string): string { return substring + '!'; });
+const r5: string = stringReplaceAll(s, 'foo', function (substring: string): string { return substring + '!'; });
 const r6: string = stringReplaceAll(s, /foo/g, (match: string, ...args: any[]) => match + args.length);
 
 // @ts-expect-error
