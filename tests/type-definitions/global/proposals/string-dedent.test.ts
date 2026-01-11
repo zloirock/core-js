@@ -10,7 +10,7 @@ String.dedent(tpl, 1, 2);
 
 String.dedent({ raw: ['a\n  b\n', '\n  c\n'] }, 1, 2);
 
-const myTag = (strings: { raw: readonly string[]}, ...values: (string | number)[]) => {
+const myTag = (strings: { raw: readonly string[] }, ...values: (string | number)[]) => {
   return { strings, values } as const;
 };
 const myAndDedent = String.dedent(myTag);
