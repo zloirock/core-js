@@ -1,7 +1,8 @@
 {
   "extends": "../tsconfig.json",
   "include": ["./**/*.ts"],
+  "exclude": ["./**/*es2018*test.ts"],
   "compilerOptions": {
-    "types": ["@core-js/types/pure"]
+    "types": ["@core-js/types"]
   }
 }
