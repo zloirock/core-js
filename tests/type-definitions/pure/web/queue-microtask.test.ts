@@ -8,4 +8,4 @@ $queueMicrotask();
 // @ts-expect-error
 $queueMicrotask('not a function');
 // @ts-expect-error
-$queueMicrotask((a) => {});
+$queueMicrotask(a => {});

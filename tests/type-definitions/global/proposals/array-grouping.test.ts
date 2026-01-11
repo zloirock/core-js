@@ -16,18 +16,18 @@ Map.groupBy(new Set(['a', 'b', 'c']), (x, i) => i);
 // @ts-expect-error
 Object.groupBy();
 // @ts-expect-error
-Object.groupBy([1,2,3]);
+Object.groupBy([1, 2, 3]);
 // @ts-expect-error
-Object.groupBy([1,2,3], 123);
+Object.groupBy([1, 2, 3], 123);
 // @ts-expect-error
 Object.groupBy(123, x => x);
 // @ts-expect-error
-Object.groupBy([1,2,3], (a, b, c) => a);
+Object.groupBy([1, 2, 3], (a, b, c) => a);
 // @ts-expect-error
 Map.groupBy();
 // @ts-expect-error
-Map.groupBy([1,2,3]);
+Map.groupBy([1, 2, 3]);
 // @ts-expect-error
 Map.groupBy(123, x => x);
 // @ts-expect-error
-Map.groupBy([1,2,3], (a, b, c) => a);
+Map.groupBy([1, 2, 3], (a, b, c) => a);

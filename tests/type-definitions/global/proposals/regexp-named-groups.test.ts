@@ -8,16 +8,16 @@ const matchGroups: { [key: string]: string } | undefined = matchArr.groups;
 
 if (execGroups) {
   const foo: string | undefined = execGroups.foo;
-  const bar: string | undefined = execGroups["bar"];
+  const bar: string | undefined = execGroups['bar'];
 }
 
 if (matchGroups) {
   const baz: string | undefined = matchGroups.baz;
-  const qr: string | undefined = matchGroups["qr"];
+  const qr: string | undefined = matchGroups['qr'];
 }
 
 if (execGroups) {
-  const key = "dynamic";
+  const key = 'dynamic';
   const dyn: string | undefined = execGroups[key];
 }
 
@@ -27,7 +27,7 @@ const mfirst: string = matchArr[0];
 // @ts-expect-error
 execArr.groups = { foo: 123 };
 // @ts-expect-error
-execArr.groups = "bad";
+execArr.groups = 'bad';
 // @ts-expect-error
 matchArr.groups = { baz: 123 };
 // @ts-expect-error

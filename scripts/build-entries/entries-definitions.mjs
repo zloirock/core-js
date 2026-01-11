@@ -1453,7 +1453,7 @@ export const features = {
   },
   'json/stringify': {
     modules: ['es.json.stringify'],
-    template: $patchableStatic,
+    template: $static,
     namespace: 'JSON',
     name: 'stringify',
   },

@@ -16,7 +16,7 @@ const sarr: string[] = ['a', 'b', 'c'];
 const sarrRev: string[] = arrayToReversed(sarr);
 const sarrSorted: string[] = arrayToSorted(sarr);
 const sarrWith: string[] = arrayWith(sarr, 0, 'z');
-const sarrSpliced: string[] = arrayToSpliced(sarr ,0, 1);
+const sarrSpliced: string[] = arrayToSpliced(sarr, 0, 1);
 
 // @ts-expect-error
 arrayToReversed(arr, 1);

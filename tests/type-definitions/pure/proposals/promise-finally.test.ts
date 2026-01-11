@@ -11,7 +11,7 @@ const pf3: CoreJSPromiseAndPromiseLike<number> = promiseFinally(p1, null);
 const pf4: CoreJSPromiseAndPromiseLike<number> = promiseFinally(p1, () => {});
 const pf5: CoreJSPromiseAndPromiseLike<number> = promiseFinally(p1, function () {});
 
-const pr2: CoreJSPromiseAndPromiseLike<never> = promiseReject("err");
+const pr2: CoreJSPromiseAndPromiseLike<never> = promiseReject('err');
 declare const p2: Promise<never>;
 const pf6: CoreJSPromiseAndPromiseLike<string> = promiseFinally(p2);
 const pf7: CoreJSPromiseAndPromiseLike<string> = promiseFinally(p2, () => {});
@@ -20,7 +20,7 @@ const pf7: CoreJSPromiseAndPromiseLike<string> = promiseFinally(p2, () => {});
 promiseFinally(p1, 123);
 
 // @ts-expect-error
-promiseFinally(p1, "foo");
+promiseFinally(p1, 'foo');
 
 // @ts-expect-error
 promiseFinally(p1, {});
@@ -29,10 +29,10 @@ promiseFinally(p1, {});
 promiseFinally(p1, []);
 
 // @ts-expect-error
-promiseFinally(p1, () => {}, "extra");
+promiseFinally(p1, () => {}, 'extra');
 
 // @ts-expect-error
 promiseFinally(p1, true);
 
 // @ts-expect-error
-promiseFinally(p1, Symbol("x"));
+promiseFinally(p1, Symbol('x'));
