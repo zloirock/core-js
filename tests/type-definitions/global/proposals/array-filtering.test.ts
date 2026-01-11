@@ -3,7 +3,7 @@ import 'core-js/full';
 [1, 2, 3].filterReject((v, i, arr) => v > 1);
 ['a', 'b'].filterReject((v, i, arr) => v === 'a');
 const arr: number[] = [1, 2, 3];
-const res: number[] = arr.filterReject(function(v) { return v < 2; }, { foo: true });
+const res: number[] = arr.filterReject(function (v) { return v < 2; }, { foo: true });
 
 (new Int8Array([1, 2, 3])).filterReject((v, i, arr) => v > 1);
 (new Uint8Array([1, 2, 3])).filterReject((v, i, arr) => v > 1);
@@ -19,7 +19,6 @@ const res: number[] = arr.filterReject(function(v) { return v < 2; }, { foo: tru
 // declare var BigInt: (value: number | string | bigint) => bigint;
 // (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((v, i, arr) => v > BigInt(1));
 // (new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)])).filterReject((v, i, arr) => v > BigInt(1));
-
 
 // @ts-expect-error
 [1, 2, 3].filterReject((x: string) => false);
