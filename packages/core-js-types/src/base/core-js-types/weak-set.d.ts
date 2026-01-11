@@ -4,7 +4,7 @@ declare namespace CoreJS {
   export interface CoreJSWeakSetConstructor extends WeakSetConstructor {
     readonly prototype: CoreJSWeakSet<WeakKey>;
 
-    new <T extends WeakKey = WeakKey>(values?: readonly T[] | null): CoreJSWeakSet<T>;
+    new<T extends WeakKey = WeakKey>(values?: readonly T[] | null): CoreJSWeakSet<T>;
   }
 
   var CoreJSWeakSet: CoreJSWeakSetConstructor;

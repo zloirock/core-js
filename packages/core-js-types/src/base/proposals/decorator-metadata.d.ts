@@ -7,5 +7,6 @@ interface SymbolConstructor {
 }
 
 interface Function {
+  // eslint-disable-next-line es/no-nonstandard-symbol-properties -- safe
   [Symbol.metadata]: CoreJS.CoreJSDecoratorMetadataObject | null;
 }
