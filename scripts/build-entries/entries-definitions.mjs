@@ -894,13 +894,11 @@ export const features = {
   },
   'error/index': {
     modules: [/^(?:es|esnext)\.error\./],
-    template: $namespace,
-    name: 'Error',
+    template: $path,
   },
   'error/constructor': {
-    modules: [/^(?:es|esnext)\.error\./],
-    template: $namespace,
-    name: 'Error',
+    modules: ['es.error.cause'],
+    template: $path, // !!!!!!!
   },
   'error/is-error': {
     modules: ['es.error.is-error'],
