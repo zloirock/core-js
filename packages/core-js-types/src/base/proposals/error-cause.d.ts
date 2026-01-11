@@ -61,8 +61,8 @@ interface AggregateError extends Error { // @type-options no-redefine
 }
 
 interface AggregateErrorConstructor extends ErrorConstructor {
-  new (errors: Iterable<any>, message?: string): AggregateError;
-  (errors: Iterable<any>, message?: string): AggregateError;
+  new (errors: Iterable<any>, message?: string, options?: ErrorOptions): AggregateError;
+  (errors: Iterable<any>, message?: string, options?: ErrorOptions): AggregateError;
   readonly prototype: AggregateError;
 }
 

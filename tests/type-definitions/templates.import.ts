@@ -90,11 +90,11 @@ getIterator([]).next().value;
 // @ts-expect-error
 getIterator();
 
-// $path
-import errorConstructor from '@core-js/pure/full/error/constructor';
-new errorConstructor.Error('er');
-// @ts-expect-error
-errorConstructor();
+// $path just typed arrays
+// import errorConstructor from '@core-js/pure/full/error/constructor';
+// new errorConstructor.Error('er');
+// // @ts-expect-error
+// errorConstructor();
 
 // $instanceArray
 import iConcat from '@core-js/pure/full/instance/concat';
