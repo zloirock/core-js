@@ -1,12 +1,11 @@
 import $AggregateError from '@core-js/pure/full/aggregate-error';
-import $Error from '@core-js/pure/full/error';
+// import $Error from '@core-js/pure/full/error'; TODO separated entry points
 import { assertHasCause } from '../../helpers';
 
-const prevError = new $Error('Prev error');
-const someError = new $Error('Some error');
-assertHasCause(someError);
+const prevError = new Error('Prev error');
+const someError = new Error('Some error');
 
-// todo other errors
+// TODO other errors after separating Error entry points
 
 const resAE1 = new $AggregateError([someError], 'Error with cause', { cause: prevError });
 assertHasCause(resAE1);
