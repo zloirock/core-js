@@ -42,8 +42,8 @@ arrayVirtualIterator.call([1, 2, 3], 1);
 
 // $uncurried
 import arrayAt from '@core-js/pure/full/array/at';
-const arrayAtResult1: number|undefined = arrayAt([1, 2, 3], -2);
-const arrayAtResult2: string|undefined = arrayAt(['a', 'b'], -2);
+const arrayAtResult1: number | undefined = arrayAt([1, 2, 3], -2);
+const arrayAtResult2: string | undefined = arrayAt(['a', 'b'], -2);
 const arrayAtResult3: undefined = arrayAt([], 1);
 // @ts-expect-error
 arrayAt([1, 2], 'string');
@@ -60,7 +60,7 @@ arrayIterator();
 
 // $static
 import arrayFrom from '@core-js/pure/full/array/from';
-arrayFrom('qwe', (it) => it.toUpperCase(), {});
+arrayFrom('qwe', it => it.toUpperCase(), {});
 // @ts-expect-error
 arrayFrom(1);
 // @ts-expect-error
@@ -74,7 +74,7 @@ allSettled(1);
 
 // $patchableStatic
 import stringify from '@core-js/pure/full/json/stringify';
-stringify({ a: 1, b: 2, c: 'asd'}, (_key, val) => typeof val === 'number' ? val * 2 : val, 4);
+stringify({ a: 1, b: 2, c: 'asd' }, (_key, val) => typeof val === 'number' ? val * 2 : val, 4);
 // @ts-expect-error
 stringify([1], 1);
 

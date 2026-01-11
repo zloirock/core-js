@@ -1,6 +1,7 @@
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
+import parserTypeScript from '@typescript-eslint/parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
 import pluginASCII from 'eslint-plugin-ascii';
 import pluginDepend from 'eslint-plugin-depend';
@@ -21,6 +22,8 @@ import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
+import pluginTypeScript from '@typescript-eslint/eslint-plugin';
+import pluginTSDoc from 'eslint-plugin-tsdoc';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
@@ -37,111 +40,10 @@ function disable(rules) {
   return Object.fromEntries(Object.keys(rules).map(key => [key, OFF]));
 }
 
-const base = {
-  // possible problems:
-  // enforces return statements in callbacks of array's methods
-  'array-callback-return': ERROR,
-  // require `super()` calls in constructors
-  'constructor-super': ERROR,
-  // enforce 'for' loop update clause moving the counter in the right direction
-  'for-direction': ERROR,
-  // disallow using an async function as a `Promise` executor
-  'no-async-promise-executor': ERROR,
-  // disallow reassigning class members
-  'no-class-assign': ERROR,
-  // disallow comparing against -0
-  'no-compare-neg-zero': ERROR,
-  // disallow reassigning `const` variables
-  'no-const-assign': ERROR,
-  // disallows expressions where the operation doesn't affect the value
-  'no-constant-binary-expression': ERROR,
-  // disallow constant expressions in conditions
-  'no-constant-condition': [ERROR, { checkLoops: false }],
-  // disallow returning value from constructor
-  'no-constructor-return': ERROR,
-  // disallow use of debugger
-  'no-debugger': ERROR,
-  // disallow duplicate arguments in functions
-  'no-dupe-args': ERROR,
-  // disallow duplicate class members
-  'no-dupe-class-members': ERROR,
-  // disallow duplicate conditions in if-else-if chains
-  'no-dupe-else-if': ERROR,
-  // disallow duplicate keys when creating object literals
-  'no-dupe-keys': ERROR,
-  // disallow a duplicate case label
-  'no-duplicate-case': ERROR,
-  // disallow duplicate module imports
-  'no-duplicate-imports': ERROR,
-  // disallow empty destructuring patterns
-  'no-empty-pattern': ERROR,
-  // disallow assigning to the exception in a catch block
-  'no-ex-assign': ERROR,
-  // disallow fallthrough of case statements
-  'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
-  // disallow overwriting functions written as function declarations
-  'no-func-assign': ERROR,
-  // disallow assigning to imported bindings
-  'no-import-assign': ERROR,
-  // disallow irregular whitespace outside of strings and comments
-  'no-irregular-whitespace': ERROR,
-  // disallow literal numbers that lose precision
-  'no-loss-of-precision': ERROR,
-  // disallow `new` operators with global non-constructor functions
-  'no-new-native-nonconstructor': ERROR,
-  // disallow the use of object properties of the global object (Math and JSON) as functions
-  'no-obj-calls': ERROR,
-  // disallow use of Object.prototypes builtins directly
-  'no-prototype-builtins': ERROR,
-  // disallow self assignment
-  'no-self-assign': ERROR,
-  // disallow comparisons where both sides are exactly the same
-  'no-self-compare': ERROR,
-  // disallow sparse arrays
-  'no-sparse-arrays': ERROR,
-  // disallow template literal placeholder syntax in regular strings
-  'no-template-curly-in-string': ERROR,
-  // disallow `this` / `super` before calling `super()` in constructors
-  'no-this-before-super': ERROR,
-  // disallow `let` or `var` variables that are read but never assigned
-  'no-unassigned-vars': ERROR,
-  // disallow use of undeclared variables unless mentioned in a /*global */ block
-  'no-undef': [ERROR, { typeof: false }],
-  // avoid code that looks like two expressions but is actually one
-  'no-unexpected-multiline': ERROR,
-  // disallow unmodified loop conditions
-  'no-unmodified-loop-condition': ERROR,
-  // disallow unreachable statements after a return, throw, continue, or break statement
-  'no-unreachable': ERROR,
-  // disallow loops with a body that allows only one iteration
-  'no-unreachable-loop': ERROR,
-  // disallow control flow statements in `finally` blocks
-  'no-unsafe-finally': ERROR,
-  // disallow negation of the left operand of an in expression
-  'no-unsafe-negation': ERROR,
-  // disallow use of optional chaining in contexts where the `undefined` value is not allowed
-  'no-unsafe-optional-chaining': ERROR,
-  // disallow unused private class members
-  'no-unused-private-class-members': ERROR,
-  // disallow declaration of variables that are not used in the code
-  'no-unused-vars': [ERROR, {
-    vars: 'all',
-    args: 'after-used',
-    caughtErrors: 'none',
-    ignoreRestSiblings: true,
-  }],
-  // disallow variable assignments when the value is not used
-  'no-useless-assignment': ERROR,
+// layout & formatting:
+const baseStyle = {
   // require or disallow the Unicode Byte Order Mark
   'unicode-bom': [ERROR, NEVER],
-  // disallow comparisons with the value NaN
-  'use-isnan': ERROR,
-  // ensure that the results of typeof are compared against a valid string
-  'valid-typeof': ERROR,
-
-  // suggestions:
-  // enforce the use of variables within the scope they are defined
-  'block-scoped-var': ERROR,
   // require camel case names
   camelcase: [ERROR, {
     properties: NEVER,
@@ -149,200 +51,8 @@ const base = {
     ignoreImports: true,
     ignoreGlobals: true,
   }],
-  // enforce default clauses in switch statements to be last
-  'default-case-last': ERROR,
-  // enforce default parameters to be last
-  'default-param-last': ERROR,
-  // encourages use of dot notation whenever possible
-  'dot-notation': [ERROR, { allowKeywords: true }],
-  // require the use of === and !==
-  eqeqeq: [ERROR, 'smart'],
-  // require grouped accessor pairs in object literals and classes
-  'grouped-accessor-pairs': [ERROR, 'getBeforeSet'],
-  // require identifiers to match a specified regular expression
-  'id-match': [ERROR, '^[$A-Za-z]|(?:[A-Z][A-Z\\d_]*[A-Z\\d])|(?:[$A-Za-z]\\w*[A-Za-z\\d])$', {
-    onlyDeclarations: true,
-    ignoreDestructuring: true,
-  }],
-  // require logical assignment operator shorthand
-  'logical-assignment-operators': [ERROR, ALWAYS],
-  // enforce a maximum depth that blocks can be nested
-  'max-depth': [ERROR, { max: 5 }],
-  // enforce a maximum depth that callbacks can be nested
-  'max-nested-callbacks': [ERROR, { max: 4 }],
-  // specify the maximum number of statement allowed in a function
-  'max-statements': [ERROR, { max: 50 }],
-  // require a capital letter for constructors
-  'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
-  // disallow window alert / confirm / prompt calls
-  'no-alert': ERROR,
-  // disallow use of arguments.caller or arguments.callee
-  'no-caller': ERROR,
-  // disallow lexical declarations in case/default clauses
-  'no-case-declarations': ERROR,
-  // disallow use of console
-  'no-console': ERROR,
-  // disallow deletion of variables
-  'no-delete-var': ERROR,
-  // disallow else after a return in an if
-  'no-else-return': [ERROR, { allowElseIf: false }],
-  // disallow empty statements
-  'no-empty': ERROR,
-  // disallow empty functions, except for standalone funcs/arrows
-  'no-empty-function': ERROR,
-  // disallow empty static blocks
-  'no-empty-static-block': ERROR,
-  // disallow `null` comparisons without type-checking operators
-  'no-eq-null': ERROR,
-  // disallow use of eval()
-  'no-eval': ERROR,
-  // disallow adding to native types
-  'no-extend-native': ERROR,
-  // disallow unnecessary function binding
-  'no-extra-bind': ERROR,
-  // disallow unnecessary boolean casts
-  'no-extra-boolean-cast': [ERROR, { enforceForInnerExpressions: true }],
-  // disallow unnecessary labels
-  'no-extra-label': ERROR,
-  // disallow reassignments of native objects
-  'no-global-assign': ERROR,
-  // disallow use of eval()-like methods
-  'no-implied-eval': ERROR,
-  // disallow usage of __iterator__ property
-  'no-iterator': ERROR,
-  // disallow labels that share a name with a variable
-  'no-label-var': ERROR,
-  // disallow use of labels for anything other then loops and switches
-  'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
-  // disallow unnecessary nested blocks
-  'no-lone-blocks': ERROR,
-  // disallow `if` as the only statement in an `else` block
-  'no-lonely-if': ERROR,
-  // disallow function declarations and expressions inside loop statements
-  'no-loop-func': OFF,
   // disallow use of multiline strings
   'no-multi-str': ERROR,
-  // disallow use of new operator when not part of the assignment or comparison
-  'no-new': ERROR,
-  // disallow use of new operator for Function object
-  'no-new-func': ERROR,
-  // disallows creating new instances of String, Number, and Boolean
-  'no-new-wrappers': ERROR,
-  // disallow `\8` and `\9` escape sequences in string literals
-  'no-nonoctal-decimal-escape': ERROR,
-  // disallow calls to the `Object` constructor without an argument
-  'no-object-constructor': ERROR,
-  // disallow use of (old style) octal literals
-  'no-octal': ERROR,
-  // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
-  'no-octal-escape': ERROR,
-  // disallow usage of __proto__ property
-  'no-proto': ERROR,
-  // disallow declaring the same variable more then once
-  'no-redeclare': [ERROR, { builtinGlobals: false }],
-  // disallow specific global variables
-  'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
-  // disallow specified syntax
-  'no-restricted-syntax': [ERROR,
-    {
-      selector: 'ForInStatement',
-      message: '`for-in` loops are disallowed since iterate over the prototype chain',
-    },
-  ],
-  // disallow use of `javascript:` urls.
-  'no-script-url': ERROR,
-  // disallow use of comma operator
-  'no-sequences': ERROR,
-  // disallow declaration of variables already declared in the outer scope
-  'no-shadow': ERROR,
-  // disallow shadowing of names such as arguments
-  'no-shadow-restricted-names': [ERROR, { reportGlobalThis: false }],
-  // restrict what can be thrown as an exception
-  'no-throw-literal': ERROR,
-  // disallow initializing variables to `undefined`
-  'no-undef-init': ERROR,
-  // disallow dangling underscores in identifiers
-  'no-underscore-dangle': ERROR,
-  // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
-  'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
-  // disallow usage of expressions in statement position
-  'no-unused-expressions': [ERROR, {
-    allowShortCircuit: true,
-    allowTernary: true,
-    allowTaggedTemplates: true,
-    ignoreDirectives: true,
-  }],
-  // disallow unused labels
-  'no-unused-labels': ERROR,
-  // disallow unnecessary calls to `.call()` and `.apply()`
-  'no-useless-call': ERROR,
-  // disallow unnecessary catch clauses
-  'no-useless-catch': ERROR,
-  // disallow unnecessary computed property keys in object literals
-  'no-useless-computed-key': ERROR,
-  // disallow useless string concatenation
-  'no-useless-concat': ERROR,
-  // disallow unnecessary constructors
-  'no-useless-constructor': ERROR,
-  // disallow unnecessary escape characters
-  'no-useless-escape': ERROR,
-  // disallow renaming import, export, and destructured assignments to the same name
-  'no-useless-rename': ERROR,
-  // disallow redundant return statements
-  'no-useless-return': ERROR,
-  // require let or const instead of var
-  'no-var': ERROR,
-  // disallow void operators
-  'no-void': ERROR,
-  // disallow use of the with statement
-  'no-with': ERROR,
-  // require or disallow method and property shorthand syntax for object literals
-  'object-shorthand': ERROR,
-  // require assignment operator shorthand where possible
-  'operator-assignment': [ERROR, 'always'],
-  // require using arrow functions for callbacks
-  'prefer-arrow-callback': ERROR,
-  // require const declarations for variables that are never reassigned after declared
-  'prefer-const': [ERROR, { destructuring: 'all' }],
-  // require destructuring from arrays and/or objects
-  'prefer-destructuring': [ERROR, {
-    VariableDeclarator: {
-      array: true,
-      object: true,
-    },
-    AssignmentExpression: {
-      array: true,
-      object: false,
-    },
-  }, {
-    enforceForRenamedProperties: false,
-  }],
-  // prefer the exponentiation operator over `Math.pow()`
-  'prefer-exponentiation-operator': ERROR,
-  // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
-  'prefer-numeric-literals': ERROR,
-  // prefer `Object.hasOwn`
-  'prefer-object-has-own': ERROR,
-  // disallow use of the `RegExp` constructor in favor of regular expression literals
-  'prefer-regex-literals': [ERROR, { disallowRedundantWrapping: true }],
-  // require rest parameters instead of `arguments`
-  'prefer-rest-params': ERROR,
-  // require spread operators instead of `.apply()`
-  'prefer-spread': ERROR,
-  // require template literals instead of string concatenation
-  'prefer-template': ERROR,
-  // require use of the second argument for parseInt()
-  radix: ERROR,
-  // disallow generator functions that do not have `yield`
-  'require-yield': ERROR,
-  // require strict mode directives
-  strict: [ERROR, 'global'],
-  // require symbol descriptions
-  'symbol-description': ERROR,
-  // disallow "Yoda" conditions
-  yoda: [ERROR, NEVER],
-
-  // layout & formatting:
   // enforce spacing inside array brackets
   '@stylistic/array-bracket-spacing': [ERROR, NEVER],
   // require parentheses around arrow function arguments
@@ -467,6 +177,312 @@ const base = {
   '@stylistic/template-tag-spacing': [ERROR, NEVER],
   // require spacing around the `*` in `yield *` expressions
   '@stylistic/yield-star-spacing': [ERROR, 'both'],
+  // enforce lowercase identifier and uppercase value for number literals
+  'unicorn/number-literal-case': [ERROR, { hexadecimalValue: 'uppercase' }],
+  // enforce the style of numeric separators by correctly grouping digits
+  'unicorn/numeric-separators-style': [ERROR, {
+    onlyIfContainsSeparator: true,
+    number: { minimumDigits: 0, groupLength: 3 },
+    binary: { minimumDigits: 0, groupLength: 4 },
+    octal: { minimumDigits: 0, groupLength: 4 },
+    hexadecimal: { minimumDigits: 0, groupLength: 2 },
+  }],
+};
+
+const base = {
+  ...baseStyle,
+  // possible problems:
+  // enforces return statements in callbacks of array's methods
+  'array-callback-return': ERROR,
+  // require `super()` calls in constructors
+  'constructor-super': ERROR,
+  // enforce 'for' loop update clause moving the counter in the right direction
+  'for-direction': ERROR,
+  // disallow using an async function as a `Promise` executor
+  'no-async-promise-executor': ERROR,
+  // disallow reassigning class members
+  'no-class-assign': ERROR,
+  // disallow comparing against -0
+  'no-compare-neg-zero': ERROR,
+  // disallow reassigning `const` variables
+  'no-const-assign': ERROR,
+  // disallows expressions where the operation doesn't affect the value
+  'no-constant-binary-expression': ERROR,
+  // disallow constant expressions in conditions
+  'no-constant-condition': [ERROR, { checkLoops: false }],
+  // disallow returning value from constructor
+  'no-constructor-return': ERROR,
+  // disallow use of debugger
+  'no-debugger': ERROR,
+  // disallow duplicate arguments in functions
+  'no-dupe-args': ERROR,
+  // disallow duplicate class members
+  'no-dupe-class-members': ERROR,
+  // disallow duplicate conditions in if-else-if chains
+  'no-dupe-else-if': ERROR,
+  // disallow duplicate keys when creating object literals
+  'no-dupe-keys': ERROR,
+  // disallow a duplicate case label
+  'no-duplicate-case': ERROR,
+  // disallow duplicate module imports
+  'no-duplicate-imports': ERROR,
+  // disallow empty destructuring patterns
+  'no-empty-pattern': ERROR,
+  // disallow assigning to the exception in a catch block
+  'no-ex-assign': ERROR,
+  // disallow fallthrough of case statements
+  'no-fallthrough': [ERROR, { commentPattern: 'break omitted' }],
+  // disallow overwriting functions written as function declarations
+  'no-func-assign': ERROR,
+  // disallow assigning to imported bindings
+  'no-import-assign': ERROR,
+  // disallow irregular whitespace outside of strings and comments
+  'no-irregular-whitespace': ERROR,
+  // disallow literal numbers that lose precision
+  'no-loss-of-precision': ERROR,
+  // disallow `new` operators with global non-constructor functions
+  'no-new-native-nonconstructor': ERROR,
+  // disallow the use of object properties of the global object (Math and JSON) as functions
+  'no-obj-calls': ERROR,
+  // disallow use of Object.prototypes builtins directly
+  'no-prototype-builtins': ERROR,
+  // disallow self assignment
+  'no-self-assign': ERROR,
+  // disallow comparisons where both sides are exactly the same
+  'no-self-compare': ERROR,
+  // disallow sparse arrays
+  'no-sparse-arrays': ERROR,
+  // disallow template literal placeholder syntax in regular strings
+  'no-template-curly-in-string': ERROR,
+  // disallow `this` / `super` before calling `super()` in constructors
+  'no-this-before-super': ERROR,
+  // disallow `let` or `var` variables that are read but never assigned
+  'no-unassigned-vars': ERROR,
+  // disallow use of undeclared variables unless mentioned in a /*global */ block
+  'no-undef': [ERROR, { typeof: false }],
+  // avoid code that looks like two expressions but is actually one
+  'no-unexpected-multiline': ERROR,
+  // disallow unmodified loop conditions
+  'no-unmodified-loop-condition': ERROR,
+  // disallow unreachable statements after a return, throw, continue, or break statement
+  'no-unreachable': ERROR,
+  // disallow loops with a body that allows only one iteration
+  'no-unreachable-loop': ERROR,
+  // disallow control flow statements in `finally` blocks
+  'no-unsafe-finally': ERROR,
+  // disallow negation of the left operand of an in expression
+  'no-unsafe-negation': ERROR,
+  // disallow use of optional chaining in contexts where the `undefined` value is not allowed
+  'no-unsafe-optional-chaining': ERROR,
+  // disallow unused private class members
+  'no-unused-private-class-members': ERROR,
+  // disallow declaration of variables that are not used in the code
+  'no-unused-vars': [ERROR, {
+    vars: 'all',
+    args: 'after-used',
+    caughtErrors: 'none',
+    ignoreRestSiblings: true,
+  }],
+  // disallow variable assignments when the value is not used
+  'no-useless-assignment': ERROR,
+  // disallow comparisons with the value NaN
+  'use-isnan': ERROR,
+  // ensure that the results of typeof are compared against a valid string
+  'valid-typeof': ERROR,
+
+  // suggestions:
+  // enforce the use of variables within the scope they are defined
+  'block-scoped-var': ERROR,
+  // enforce default clauses in switch statements to be last
+  'default-case-last': ERROR,
+  // enforce default parameters to be last
+  'default-param-last': ERROR,
+  // encourages use of dot notation whenever possible
+  'dot-notation': [ERROR, { allowKeywords: true }],
+  // require the use of === and !==
+  eqeqeq: [ERROR, 'smart'],
+  // require grouped accessor pairs in object literals and classes
+  'grouped-accessor-pairs': [ERROR, 'getBeforeSet'],
+  // require identifiers to match a specified regular expression
+  'id-match': [ERROR, '^[$A-Za-z]|(?:[A-Z][A-Z\\d_]*[A-Z\\d])|(?:[$A-Za-z]\\w*[A-Za-z\\d])$', {
+    onlyDeclarations: true,
+    ignoreDestructuring: true,
+  }],
+  // require logical assignment operator shorthand
+  'logical-assignment-operators': [ERROR, ALWAYS],
+  // enforce a maximum depth that blocks can be nested
+  'max-depth': [ERROR, { max: 5 }],
+  // enforce a maximum depth that callbacks can be nested
+  'max-nested-callbacks': [ERROR, { max: 4 }],
+  // specify the maximum number of statement allowed in a function
+  'max-statements': [ERROR, { max: 50 }],
+  // require a capital letter for constructors
+  'new-cap': [ERROR, { newIsCap: true, capIsNew: false }],
+  // disallow window alert / confirm / prompt calls
+  'no-alert': ERROR,
+  // disallow use of arguments.caller or arguments.callee
+  'no-caller': ERROR,
+  // disallow lexical declarations in case/default clauses
+  'no-case-declarations': ERROR,
+  // disallow use of console
+  'no-console': ERROR,
+  // disallow deletion of variables
+  'no-delete-var': ERROR,
+  // disallow else after a return in an if
+  'no-else-return': [ERROR, { allowElseIf: false }],
+  // disallow empty statements
+  'no-empty': ERROR,
+  // disallow empty functions, except for standalone funcs/arrows
+  'no-empty-function': ERROR,
+  // disallow empty static blocks
+  'no-empty-static-block': ERROR,
+  // disallow `null` comparisons without type-checking operators
+  'no-eq-null': ERROR,
+  // disallow use of eval()
+  'no-eval': ERROR,
+  // disallow adding to native types
+  'no-extend-native': ERROR,
+  // disallow unnecessary function binding
+  'no-extra-bind': ERROR,
+  // disallow unnecessary boolean casts
+  'no-extra-boolean-cast': [ERROR, { enforceForInnerExpressions: true }],
+  // disallow unnecessary labels
+  'no-extra-label': ERROR,
+  // disallow reassignments of native objects
+  'no-global-assign': ERROR,
+  // disallow use of eval()-like methods
+  'no-implied-eval': ERROR,
+  // disallow usage of __iterator__ property
+  'no-iterator': ERROR,
+  // disallow labels that share a name with a variable
+  'no-label-var': ERROR,
+  // disallow use of labels for anything other then loops and switches
+  'no-labels': [ERROR, { allowLoop: false, allowSwitch: false }],
+  // disallow unnecessary nested blocks
+  'no-lone-blocks': ERROR,
+  // disallow `if` as the only statement in an `else` block
+  'no-lonely-if': ERROR,
+  // disallow function declarations and expressions inside loop statements
+  'no-loop-func': OFF,
+  // disallow use of new operator when not part of the assignment or comparison
+  'no-new': ERROR,
+  // disallow use of new operator for Function object
+  'no-new-func': ERROR,
+  // disallows creating new instances of String, Number, and Boolean
+  'no-new-wrappers': ERROR,
+  // disallow `\8` and `\9` escape sequences in string literals
+  'no-nonoctal-decimal-escape': ERROR,
+  // disallow calls to the `Object` constructor without an argument
+  'no-object-constructor': ERROR,
+  // disallow use of (old style) octal literals
+  'no-octal': ERROR,
+  // disallow use of octal escape sequences in string literals, such as var foo = 'Copyright \251';
+  'no-octal-escape': ERROR,
+  // disallow usage of __proto__ property
+  'no-proto': ERROR,
+  // disallow declaring the same variable more then once
+  'no-redeclare': [ERROR, { builtinGlobals: false }],
+  // disallow specific global variables
+  'no-restricted-globals': [ERROR, ...confusingBrowserGlobals],
+  // disallow specified syntax
+  'no-restricted-syntax': [ERROR,
+    {
+      selector: 'ForInStatement',
+      message: '`for-in` loops are disallowed since iterate over the prototype chain',
+    },
+  ],
+  // disallow use of `javascript:` urls.
+  'no-script-url': ERROR,
+  // disallow use of comma operator
+  'no-sequences': ERROR,
+  // disallow declaration of variables already declared in the outer scope
+  'no-shadow': ERROR,
+  // disallow shadowing of names such as arguments
+  'no-shadow-restricted-names': [ERROR, { reportGlobalThis: false }],
+  // restrict what can be thrown as an exception
+  'no-throw-literal': ERROR,
+  // disallow initializing variables to `undefined`
+  'no-undef-init': ERROR,
+  // disallow dangling underscores in identifiers
+  'no-underscore-dangle': ERROR,
+  // disallow the use of boolean literals in conditional expressions and prefer `a || b` over `a ? a : b`
+  'no-unneeded-ternary': [ERROR, { defaultAssignment: false }],
+  // disallow usage of expressions in statement position
+  'no-unused-expressions': [ERROR, {
+    allowShortCircuit: true,
+    allowTernary: true,
+    allowTaggedTemplates: true,
+    ignoreDirectives: true,
+  }],
+  // disallow unused labels
+  'no-unused-labels': ERROR,
+  // disallow unnecessary calls to `.call()` and `.apply()`
+  'no-useless-call': ERROR,
+  // disallow unnecessary catch clauses
+  'no-useless-catch': ERROR,
+  // disallow unnecessary computed property keys in object literals
+  'no-useless-computed-key': ERROR,
+  // disallow useless string concatenation
+  'no-useless-concat': ERROR,
+  // disallow unnecessary constructors
+  'no-useless-constructor': ERROR,
+  // disallow unnecessary escape characters
+  'no-useless-escape': ERROR,
+  // disallow renaming import, export, and destructured assignments to the same name
+  'no-useless-rename': ERROR,
+  // disallow redundant return statements
+  'no-useless-return': ERROR,
+  // require let or const instead of var
+  'no-var': ERROR,
+  // disallow void operators
+  'no-void': ERROR,
+  // disallow use of the with statement
+  'no-with': ERROR,
+  // require or disallow method and property shorthand syntax for object literals
+  'object-shorthand': ERROR,
+  // require assignment operator shorthand where possible
+  'operator-assignment': [ERROR, 'always'],
+  // require using arrow functions for callbacks
+  'prefer-arrow-callback': ERROR,
+  // require const declarations for variables that are never reassigned after declared
+  'prefer-const': [ERROR, { destructuring: 'all' }],
+  // require destructuring from arrays and/or objects
+  'prefer-destructuring': [ERROR, {
+    VariableDeclarator: {
+      array: true,
+      object: true,
+    },
+    AssignmentExpression: {
+      array: true,
+      object: false,
+    },
+  }, {
+    enforceForRenamedProperties: false,
+  }],
+  // prefer the exponentiation operator over `Math.pow()`
+  'prefer-exponentiation-operator': ERROR,
+  // disallow `parseInt()` and `Number.parseInt()` in favor of binary, octal, and hexadecimal literals
+  'prefer-numeric-literals': ERROR,
+  // prefer `Object.hasOwn`
+  'prefer-object-has-own': ERROR,
+  // disallow use of the `RegExp` constructor in favor of regular expression literals
+  'prefer-regex-literals': [ERROR, { disallowRedundantWrapping: true }],
+  // require rest parameters instead of `arguments`
+  'prefer-rest-params': ERROR,
+  // require spread operators instead of `.apply()`
+  'prefer-spread': ERROR,
+  // require template literals instead of string concatenation
+  'prefer-template': ERROR,
+  // require use of the second argument for parseInt()
+  radix: ERROR,
+  // disallow generator functions that do not have `yield`
+  'require-yield': ERROR,
+  // require strict mode directives
+  strict: [ERROR, 'global'],
+  // require symbol descriptions
+  'symbol-description': ERROR,
+  // disallow "Yoda" conditions
+  yoda: [ERROR, NEVER],
 
   // ascii
   // forbid non-ascii chars in ast node names
@@ -666,16 +682,6 @@ const base = {
   'unicorn/no-useless-spread': ERROR,
   // disallow useless `case` in `switch` statements
   'unicorn/no-useless-switch-case': ERROR,
-  // enforce lowercase identifier and uppercase value for number literals
-  'unicorn/number-literal-case': [ERROR, { hexadecimalValue: 'uppercase' }],
-  // enforce the style of numeric separators by correctly grouping digits
-  'unicorn/numeric-separators-style': [ERROR, {
-    onlyIfContainsSeparator: true,
-    number: { minimumDigits: 0, groupLength: 3 },
-    binary: { minimumDigits: 0, groupLength: 4 },
-    octal: { minimumDigits: 0, groupLength: 4 },
-    hexadecimal: { minimumDigits: 0, groupLength: 2 },
-  }],
   // prefer `.find()` over the first element from `.filter()`
   'unicorn/prefer-array-find': [ERROR, { checkFromLast: true }],
   // use `.flat()` to flatten an array of arrays
@@ -1896,6 +1902,47 @@ const playwright = {
   'playwright/no-useless-await': ERROR,
 };
 
+const ts = {
+  ...disable(base),
+  ...baseStyle,
+  // validating that TypeScript doc comments conform to the TSDoc specification
+  'tsdoc/syntax': OFF,
+  // specify the maximum length of a line in your program
+  '@stylistic/max-len': [OFF, { ...base['@stylistic/max-len'][1], code: 180 }],
+  // require consistent spacing around type annotations
+  '@stylistic/type-annotation-spacing': ERROR,
+  // enforces consistent spacing inside TypeScript type generics
+  '@stylistic/type-generic-spacing': ERROR,
+  // expect space before the type declaration in the named tuple
+  '@stylistic/type-named-tuple-spacing': ERROR,
+  // require that function overload signatures be consecutive
+  '@typescript-eslint/adjacent-overload-signatures': ERROR,
+  // enforce type definitions to consistently use either `interface` or `type`
+  '@typescript-eslint/consistent-type-definitions': [OFF, 'interface'],
+  // disallow extra non-null assertions
+  '@typescript-eslint/no-extra-non-null-assertion': ERROR,
+  // enforce the use of top-level import type qualifier when an import only has specifiers with inline type qualifiers
+  '@typescript-eslint/no-import-type-side-effects': ERROR,
+  // disallow explicit type declarations for variables or parameters initialized to a number, string, or boolean
+  '@typescript-eslint/no-inferrable-types': ERROR,
+  // disallow unnecessary constraints on generic types
+  '@typescript-eslint/no-unnecessary-type-constraint': ERROR,
+  // disallow unsafe declaration merging
+  '@typescript-eslint/no-unsafe-declaration-merging': ERROR,
+  // disallow empty exports that don't change anything in a module file
+  '@typescript-eslint/no-useless-empty-export': ERROR,
+  // enforce using function types instead of interfaces with call signatures
+  '@typescript-eslint/prefer-function-type': ERROR,
+  // require using namespace keyword over module keyword to declare custom TypeScript modules
+  '@typescript-eslint/prefer-namespace-keyword': ERROR,
+  // disallow two overloads that could be unified into one with a union or an optional / rest parameter
+  '@typescript-eslint/unified-signatures': OFF,
+};
+
+const typeDefinitionsTests = {
+  ...disable(forbidNonStandardBuiltIns),
+};
+
 const yaml = {
   // disallow empty mapping values
   'yaml/no-empty-mapping-value': ERROR,
@@ -2202,6 +2249,7 @@ export default [
     },
     plugins: {
       '@stylistic': pluginStylistic,
+      '@typescript-eslint': pluginTypeScript,
       'array-func': pluginArrayFunc,
       ascii: pluginASCII,
       depend: pluginDepend,
@@ -2221,6 +2269,7 @@ export default [
       redos: pluginReDoS,
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
+      tsdoc: pluginTSDoc,
       unicorn: pluginUnicorn,
       yaml: pluginYaml,
     },
@@ -2364,6 +2413,22 @@ export default [
       // import used for tasks
       'import/first': OFF,
     },
+  },
+  {
+    files: [
+      'packages/core-js-types/src/**/*.d.ts',
+      'tests/type-definitions/**/*.ts',
+    ],
+    languageOptions: {
+      parser: parserTypeScript,
+    },
+    rules: ts,
+  },
+  {
+    files: [
+      'tests/type-definitions/**/*.ts',
+    ],
+    rules: typeDefinitionsTests,
   },
   {
     rules: {

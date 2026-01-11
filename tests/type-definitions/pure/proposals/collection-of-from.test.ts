@@ -37,7 +37,7 @@ setFrom();
 const rso1: CoreJSSetAndSetLike<number> = setOf(1, 2, 3);
 const rso2: CoreJSSetAndSetLike<string> = setOf('a', 'b', 'c');
 // @ts-expect-error
-setOf({ 'foo': 'bar' }, 2);
+setOf({ foo: 'bar' }, 2);
 
 const rwm1: CoreJSWeakMapAndWeakMapLike<{ a: number }, string> = weakMapFrom([[{ a: 1 }, 'x']] as [{ a: number }, string][]);
 const rwm2: CoreJSWeakMapAndWeakMapLike<object, string> = weakMapFrom([[{}, 1], [{}, 2]] as [object, number][], (v, k) => v.toString());
