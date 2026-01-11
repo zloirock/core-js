@@ -64,3 +64,6 @@ export interface CoreJSAsyncIteratorLike<T> {
   take(limit: number): CoreJSAsyncIteratorLike<T>;
   toArray(...args: any[]): any;
 }
+
+type HasCause<T> = 'cause' extends keyof T ? T : never;
+export function assertHasCause<T extends object>(value: T): asserts value is HasCause<T> & { cause: unknown } {}
