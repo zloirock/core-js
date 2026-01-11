@@ -1,6 +1,6 @@
 import 'core-js/full';
 
-declare const nodeList: NodeList
+declare const nodeList: NodeList;
 nodeList.forEach((value: Node, key: number, list: NodeList): void => {});
 nodeList.forEach((value: Node, key: number, list: NodeList): void => {}, []);
 // @ts-expect-error
@@ -18,7 +18,7 @@ const e: IterableIterator<[number, Node]> = nodeList.entries();
 // @ts-expect-error
 nodeList.entries('string');
 
-declare const domTokenList: DOMTokenList
+declare const domTokenList: DOMTokenList;
 
 domTokenList.forEach((value: Node, key: number, list: DOMTokenList): void => {});
 domTokenList.forEach((value: Node, key: number, list: DOMTokenList): void => {}, []);

@@ -2,8 +2,11 @@ import 'core-js/full';
 
 const res: AsyncIterator<number> = AsyncIterator.from([1, 2, 3]);
 const res2: AsyncIterator<number> = AsyncIterator.from(new Set([1, 2, 3]));
-AsyncIterator.from((async function* () { yield 1; yield 2; })());
-AsyncIterator.from((function* () { yield 3; })());
+AsyncIterator.from((async function * () {
+  yield 1;
+  yield 2;
+})());
+AsyncIterator.from((function * () { yield 3; })());
 const res3: AsyncIterator<string> = AsyncIterator.from('abc');
 
 declare const ain: AsyncIteratorObject<number>;
@@ -15,7 +18,10 @@ declare const itn: Iterator<number>;
 declare const ailb: AsyncIterable<boolean>;
 
 AsyncIterator.from(ain);
-AsyncIterator.from((async function* () { yield 1; yield 2; })());
+AsyncIterator.from((async function * () {
+  yield 1;
+  yield 2;
+})());
 AsyncIterator.from(ilb);
 AsyncIterator.from(ailb);
 AsyncIterator.from(aio);
@@ -36,7 +42,7 @@ const r1: AsyncIterator<number> = ain.drop(3);
 const r2: Promise<boolean> = ain.every((v: number, i: number) => v > 0);
 const r3: AsyncIterator<number> = ain.filter((v: number, i: number) => v > 0);
 const r4: Promise<number> = ain.find((v: number, i: number) => v > 0);
-const r5: AsyncIterator<string> = ain.flatMap((v: number, i: number) => `${v}`);
+const r5: AsyncIterator<string> = ain.flatMap((v: number, i: number) => `${ v }`);
 const r6: Promise<void> = ain.forEach((v: number, i: number) => { });
 const r7: AsyncIterator<number> = ain.map((v: number, i: number) => v * 2);
 const r8: Promise<number> = ain.reduce((acc: number, v: number, i: number) => acc + v, 0);
