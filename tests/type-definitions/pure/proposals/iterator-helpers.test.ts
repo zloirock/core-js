@@ -45,9 +45,9 @@ iteratorDrop('3');
 
 const flatMapped: CoreJSIteratorAndIteratorLike<string> = iteratorFlatMap(it, (v, i) => itStr);
 const flatMapped2: CoreJSIteratorAndIteratorLike<string> = iteratorFlatMap(it, (v, i) => ({
-  [Symbol.iterator]: function* () {
+  [Symbol.iterator]: function * () {
     yield String(v);
-  }
+  },
 }));
 
 // @ts-expect-error
@@ -58,7 +58,7 @@ const sum2: number = iteratorReduce(it, (a, b, c) => a + b + c, 0);
 const strReduce: string = iteratorReduce(
   it,
   (acc: string, val) => acc + val,
-  ''
+  '',
 );
 
 // @ts-expect-error

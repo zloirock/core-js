@@ -100,7 +100,7 @@ u8c.uniqueBy(undefined, 1);
 // @ts-expect-error
 i16.uniqueBy([]);
 // @ts-expect-error
-i16.uniqueBy(function(x: string) { return x; });
+i16.uniqueBy(function (x: string) { return x; });
 
 // @ts-expect-error
 u16.uniqueBy([]);

@@ -2,10 +2,12 @@ import 'core-js/full';
 
 const p1: Promise<number[]> = Array.fromAsync([1, 2, 3]);
 const p2: Promise<number[]> = Array.fromAsync([Promise.resolve(1), 2, 3]);
-const p3: Promise<number[]> = Array.fromAsync((async function* () { yield 1; })());
+const p3: Promise<number[]> = Array.fromAsync((async function * () { yield 1; })());
 const p4: Promise<string[]> = Array.fromAsync([1, 2, 3], (value: number, index: number) => value.toString());
 const p5: Promise<number[]> = Array.fromAsync([Promise.resolve(1), 2, 3], (value: number) => value + 1);
-const p6: Promise<number[]> = Array.fromAsync((async function* () { yield 1; })(), function (value: number) { return value * 2; });
+const p6: Promise<number[]> = Array.fromAsync((async function * () { yield 1; })(), function (value: number) {
+  return value * 2;
+});
 const p7: Promise<string[]> = Array.fromAsync([1, 2, 3], function (this: { foo: string }, value: number) { return value.toString(); }, { foo: 'str' });
 
 async function t1() {
@@ -32,7 +34,7 @@ Array.fromAsync(['a', 'b', 'c'], (value: number) => value);
 // @ts-expect-error
 Array.fromAsync([Promise.resolve(1), 2, 3], (value: string) => value);
 // @ts-expect-error
-Array.fromAsync((async function* () { yield 'a'; })(), (value: number) => value);
+Array.fromAsync((async function * () { yield 'a'; })(), (value: number) => value);
 
 declare const strArrLike: { [index: number]: string; length: 3 };
 // @ts-expect-error
