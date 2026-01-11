@@ -1,7 +1,7 @@
-/// <reference types="../../core-js-types/map.d.ts" />
-/// <reference types="../../core-js-types/set.d.ts" />
-/// <reference types="../../core-js-types/weak-map.d.ts" />
-/// <reference types="../../core-js-types/weak-set.d.ts" />
+/// <reference types="../core-js-types/map.d.ts" />
+/// <reference types="../core-js-types/set.d.ts" />
+/// <reference types="../core-js-types/weak-map.d.ts" />
+/// <reference types="../core-js-types/weak-set.d.ts" />
 
 // Motivation: import our own Map/Set/WeakMap/WeakSet types & redefine return types
 
