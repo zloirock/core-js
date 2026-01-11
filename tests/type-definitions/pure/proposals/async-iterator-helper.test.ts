@@ -37,9 +37,6 @@ from();
 // @ts-expect-error
 from({ next: () => 1 });
 
-toAsync(is);
-toAsync(itn);
-
 const r1: CoreJSPromiseAndPromiseLike<boolean> = every(aiton, (v: number, i: number) => v > 0);
 const r2: CoreJSPromiseAndPromiseLike<number> = find(aiton, (v: number, i: number) => v > 0);
 const r3: CoreJSPromiseAndPromiseLike<void> = forEach(aiton, (v: number, i: number) => { });
@@ -52,6 +49,9 @@ const ait2: CoreJSAsyncIteratorLike<string> = flatMap(aiton, (v: number, i: numb
 const ait3: CoreJSAsyncIteratorLike<number> = map(aiton, (v: number, i: number) => v * 2);
 const ait4: CoreJSAsyncIteratorLike<number> = take(aiton, 10);
 const ait5: CoreJSAsyncIteratorLike<number> = drop(aiton, 3);
+const ait6: CoreJSAsyncIteratorLike<number> = toAsync(itn);
+
+toAsync(is);
 
 // @ts-expect-error
 drop(ain);
