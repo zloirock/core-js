@@ -1,6 +1,6 @@
 import 'core-js/full';
 
-const s: string = btoa("SGVsbG8gd29ybGQ=");
+const s: string = btoa('SGVsbG8gd29ybGQ=');
 
 // @ts-expect-error
 atob();

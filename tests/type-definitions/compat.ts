@@ -18,8 +18,8 @@ getModulesListForTargetVersion({ version: true });
 // @ts-expect-error
 compat.getModulesListForTargetVersion({ version: true });
 
-compat.data['es.array.push'].android
-compat.data['es.array.push'].firefox
+compat.data['es.array.push'].android;
+compat.data['es.array.push'].firefox;
 
 // @ts-expect-error
 compat.entries['es.array.map'][0] = 'not-a-module';
@@ -31,7 +31,7 @@ if (typeof compat.modules[0] !== 'string') {
 }
 
 if (!compat.entries['core-js'].includes('es.array.from')) {
-  console.error('Invalid')
+  console.error('Invalid');
 }
 
 compat();
@@ -59,9 +59,9 @@ compat({ modules: 123 });
 // @ts-expect-error
 compat({ inverse: 'incorrect' });
 // @ts-expect-error
-compat({ exclude: 123 })
+compat({ exclude: 123 });
 // @ts-expect-error
-compat({ targets: 123 })
+compat({ targets: 123 });
 
 compat.compat();
 compat.compat({});
@@ -88,9 +88,9 @@ compat.compat({ modules: 123 });
 // @ts-expect-error
 compat.compat({ inverse: 'incorrect' });
 // @ts-expect-error
-compat({ exclude: 123 })
+compat({ exclude: 123 });
 // @ts-expect-error
-compat({ targets: 123 })
+compat({ targets: 123 });
 
 compat2();
 compat2({});
@@ -117,6 +117,6 @@ compat2({ modules: 123 });
 // @ts-expect-error
 compat2({ inverse: 'incorrect' });
 // @ts-expect-error
-compat2({ exclude: 123 })
+compat2({ exclude: 123 });
 // @ts-expect-error
-compat2({ targets: 123 })
+compat2({ targets: 123 });

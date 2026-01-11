@@ -21,34 +21,34 @@ const i8Sorted: Int8Array = i8.toSorted();
 const i8Sorted2: Int8Array = i8.toSorted((a, b) => b - a);
 const i8With: Int8Array = i8.with(0, 10);
 
-const u8 = new Uint8Array([1,2,3]);
+const u8 = new Uint8Array([1, 2, 3]);
 const u8Rev: Uint8Array = u8.toReversed();
 const u8Sorted: Uint8Array = u8.toSorted();
 const u8Sorted2: Uint8Array = u8.toSorted((a, b) => a - b);
 const u8With: Uint8Array = u8.with(1, 42);
 
-const u8c = new Uint8ClampedArray([1,2,3]);
+const u8c = new Uint8ClampedArray([1, 2, 3]);
 const u8cRev: Uint8ClampedArray = u8c.toReversed();
 const u8cSorted: Uint8ClampedArray = u8c.toSorted();
 const u8cSorted2: Uint8ClampedArray = u8c.toSorted((a, b) => b - a);
 const u8cWith: Uint8ClampedArray = u8c.with(1, 99);
 
-const i16 = new Int16Array([1,2,3]);
+const i16 = new Int16Array([1, 2, 3]);
 const i16Rev: Int16Array = i16.toReversed();
 const i16Sorted: Int16Array = i16.toSorted();
 const i16With: Int16Array = i16.with(1, 2);
 
-const u16 = new Uint16Array([1,2,3]);
+const u16 = new Uint16Array([1, 2, 3]);
 const u16Rev: Uint16Array = u16.toReversed();
 const u16Sorted: Uint16Array = u16.toSorted();
 const u16With: Uint16Array = u16.with(1, 2);
 
-const i32 = new Int32Array([1,2,3]);
+const i32 = new Int32Array([1, 2, 3]);
 const i32Rev: Int32Array = i32.toReversed();
 const i32Sorted: Int32Array = i32.toSorted();
 const i32With: Int32Array = i32.with(1, 2);
 
-const u32 = new Uint32Array([1,2,3]);
+const u32 = new Uint32Array([1, 2, 3]);
 const u32Rev: Uint32Array = u32.toReversed();
 const u32Sorted: Uint32Array = u32.toSorted();
 const u32With: Uint32Array = u32.with(1, 2);
@@ -118,14 +118,12 @@ i8.with('1', 1);
 // @ts-expect-error
 i8.with(0, '1');
 
-
 // @ts-expect-error
 u8.toReversed(1);
 // @ts-expect-error
 u8.toSorted('str');
 // @ts-expect-error
 u8.with(0, 'v');
-
 
 // @ts-expect-error
 u8c.toSorted('str');
@@ -164,7 +162,7 @@ f32.toReversed('abc');
 f32.with(0, 'a');
 
 // @ts-expect-error
-f64.toSorted(1,2);
+f64.toSorted(1, 2);
 // @ts-expect-error
 f64.with('a', 1);
 
