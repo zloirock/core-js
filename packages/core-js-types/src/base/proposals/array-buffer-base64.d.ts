@@ -11,17 +11,17 @@ type lastChunkHandling = 'loose' | 'strict' | 'stop-before-partial';
 type fromBase64Options = {
   alphabet?: alphabet;
   lastChunkHandling?: lastChunkHandling;
-}
+};
 
 type toBase64Options = {
   alphabet?: alphabet;
   omitPadding?: boolean;
-}
+};
 
 type processMetadata = {
   read: number;
   written: number;
-}
+};
 
 interface Uint8ArrayConstructor {
   /**

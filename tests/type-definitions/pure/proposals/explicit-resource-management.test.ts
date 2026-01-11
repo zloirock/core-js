@@ -16,13 +16,13 @@ const ad: symbol = symbolAsyncDispose;
 const wrong: number = symbolDispose;
 
 const objD = {
-  [symbolDispose]() { /* empty */ }
+  [symbolDispose]() { /* empty */ },
 };
 objD[symbolDispose]();
 
 const objAD = {
-  [symbolAsyncDispose]() { return promiseResolve(); }
-}
+  [symbolAsyncDispose]() { return promiseResolve(); },
+};
 const p1: CoreJSPromiseAndPromiseLike<void> = objAD[symbolAsyncDispose]();
 
 const err1 = new $SuppressedError('err', 'suppressed', 'msg');
