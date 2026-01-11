@@ -13,7 +13,7 @@ const windowsNext = windows.next();
 // @ts-expect-error
 numbersIter.chunks();
 // @ts-expect-error
-numbersIter.chunks("2");
+numbersIter.chunks('2');
 // @ts-expect-error
 numbersIter.chunks(2, 3);
 

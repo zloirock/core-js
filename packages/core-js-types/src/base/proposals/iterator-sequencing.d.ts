@@ -11,4 +11,4 @@ interface IteratorConstructor { // @type-options no-extends
   concat<T, U>(...iterators: Iterable<U>[]): CoreJS.CoreJSIteratorObject<T | U>;
 }
 
-declare  var Iterator: IteratorConstructor;
+declare var Iterator: IteratorConstructor;
