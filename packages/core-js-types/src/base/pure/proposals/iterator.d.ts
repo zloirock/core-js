@@ -1,6 +1,6 @@
-/// <reference types="./explicit-resource-management.d.ts" />
-/// <reference types="../../core-js-types/promise.d.ts" />
-/// <reference types="../../core-js-types/iterator-object.d.ts" />
+/// <reference types="./explicit-resource-management" />
+/// <reference types="../core-js-types/promise" />
+/// <reference types="../core-js-types/iterator-object" />
 
 // Motivation: Has dependencies on internal types
 
