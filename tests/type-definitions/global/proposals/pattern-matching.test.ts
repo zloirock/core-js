@@ -5,4 +5,4 @@ const sym: symbol = Symbol.customMatcher;
 // @ts-expect-error
 const bad1: string = Symbol.customMatcher;
 // @ts-expect-error
-Symbol['customMatcher'] = Symbol("other");
+Symbol.customMatcher = Symbol('other');

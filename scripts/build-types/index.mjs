@@ -278,4 +278,4 @@ const namespaces = {
 };
 await buildPackageJson(TS_VERSION_BREAKPOINTS, namespaces);
 
-echo(green('Types successfully built'));
+echo(green('types successfully built'));

@@ -7,14 +7,14 @@ const mapFrom3: Map<string, number> = Map.from(arrEntries);
 const mapOf: Map<string, number> = Map.of(['a', 1], ['b', 2]);
 
 const setFrom: Set<string> = Set.from(['a', 'b', 'c']);
-const setFrom2: Set<number> = Set.from([1, 2, 3], (v) => v * 2);
+const setFrom2: Set<number> = Set.from([1, 2, 3], v => v * 2);
 const setFrom3: Set<string> = Set.from(['a', 'b', 'c'], String);
 const setOf: Set<number> = Set.of(1, 2, 3);
 
 const ws1 = {};
 const ws2 = {};
 const wsArr = [ws1, ws2];
-const weakSetFrom: WeakSet<{a?: number}> = WeakSet.from(wsArr);
+const weakSetFrom: WeakSet<{ a?: number }> = WeakSet.from(wsArr);
 const weakSetFrom2: WeakSet<object> = WeakSet.from(wsArr, x => x);
 const weakSetOf: WeakSet<object> = WeakSet.of(ws1, ws2);
 
