@@ -9,7 +9,6 @@
 
 declare namespace CoreJS {
   export interface CoreJSMapConstructor extends MapConstructor {
-
     /**
      * Creates a new `Map` instance from an iterable or array-like object of [key, value] pairs.
      * Optionally, applies a mapping function to each pair.
@@ -31,9 +30,7 @@ declare namespace CoreJS {
 
   var CoreJSMap: CoreJSMapConstructor;
 
-
   export interface CoreJSSetConstructor extends SetConstructor {
-
     /**
      * Creates a new `Set` instance from an iterable or array-like object of [key, value] pairs.
      * Optionally, applies a mapping function to each pair.
@@ -55,9 +52,7 @@ declare namespace CoreJS {
 
   var CoreJSSet: CoreJSSetConstructor;
 
-
   export interface CoreJSWeakMapConstructor extends WeakMapConstructor {
-
     /**
      * Creates a new `WeakMap` instance from an iterable or array-like object of [key, value] pairs.
      * Optionally, applies a mapping function to each pair.
@@ -79,9 +74,7 @@ declare namespace CoreJS {
 
   var CoreJSWeakMap: CoreJSWeakMapConstructor;
 
-
   export interface CoreJSWeakSetConstructor extends WeakSetConstructor {
-
     /**
      * Creates a new `WeakSet` instance from an iterable or array-like object of [key, value] pairs.
      * Optionally, applies a mapping function to each pair.
