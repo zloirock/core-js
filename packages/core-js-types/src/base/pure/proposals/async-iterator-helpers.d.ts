@@ -1,6 +1,6 @@
-/// <reference types="../../core-js-types/async-iterable.d.ts" />
-/// <reference types="../../core-js-types/async-iterator-object.d.ts" />
-/// <reference types="../../core-js-types/promise.d.ts" />
+/// <reference types="../core-js-types/async-iterable" />
+/// <reference types="../core-js-types/async-iterator-object" />
+/// <reference types="../core-js-types/promise" />
 
 // Motivation: Has dependencies on internal types, e.g. AsyncIterable, AsyncIteratorObject
 
