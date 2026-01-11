@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["./async-iteration.test.ts"],
+  "compilerOptions": {
+    "types": ["@core-js/types/pure"]
+  }
+}
