@@ -34,9 +34,9 @@ it.drop('3');
 
 const flatMapped: Iterator<string> = it.flatMap((v, i) => itStr);
 const flatMapped2: Iterator<string> = it.flatMap((v, i) => ({
-  [Symbol.iterator]: function* () {
+  [Symbol.iterator]: function * () {
     yield String(v);
-  }
+  },
 }));
 
 // @ts-expect-error
@@ -46,7 +46,7 @@ const sum1: number = it.reduce((a, b, c) => a + b + c);
 const sum2: number = it.reduce((a, b, c) => a + b + c, 0);
 const strReduce: string = it.reduce(
   (acc: string, val) => acc + val,
-  ''
+  '',
 );
 
 // @ts-expect-error
