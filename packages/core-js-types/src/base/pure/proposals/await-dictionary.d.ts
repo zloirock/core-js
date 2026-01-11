@@ -1,5 +1,5 @@
 /// <reference types="../../core-js-types/promise-settled-result" />
-/// <reference types="../../core-js-types/promise" />
+/// <reference types="../core-js-types/promise" />
 
 // Motivation: Using our own Promise type in return
 

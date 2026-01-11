@@ -1,5 +1,5 @@
-/// <reference types="./iterator.d.ts" />
-/// <reference types="../../core-js-types/promise.d.ts" />
+/// <reference types="./iterator" />
+/// <reference types="../core-js-types/promise" />
 
 // Motivation: We must omit methods `fromAsync` and `isTemplateObject` because they cause a signature mismatch error.
 
