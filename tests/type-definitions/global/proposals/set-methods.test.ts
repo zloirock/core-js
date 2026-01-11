@@ -6,13 +6,13 @@ const setB = new Set<string>(['a', 'b', 'c']);
 const setLike: ReadonlySetLike<number> = {
   keys() { return [1, 2, 3][Symbol.iterator](); },
   has(val: number): boolean { return val === 2; },
-  size: 3
+  size: 3,
 };
 
 const setLikeStr: ReadonlySetLike<string> = {
   keys() { return ['a', 'b'][Symbol.iterator](); },
   has(val: string): boolean { return val === 'a'; },
-  size: 2
+  size: 2,
 };
 
 const arrSet: ReadonlySet<number> = new Set([4, 5, 6]);

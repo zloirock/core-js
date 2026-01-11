@@ -9,7 +9,7 @@ declare const notIterable: {};
 const r1: { [k: string]: number } = Object.fromEntries(objEntries);
 const r2: any = Object.fromEntries(mixedEntries);
 const r3: any = Object.fromEntries([['a', 1], ['b', 2]]);
-const r4: object = Object.fromEntries(new Map<PropertyKey, number>([ ['x', 1], ['y', 2] ]));
+const r4: object = Object.fromEntries(new Map<PropertyKey, number>([['x', 1], ['y', 2]]));
 
 // @ts-expect-error
 Object.fromEntries();
