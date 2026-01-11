@@ -10,6 +10,16 @@ interface Array<T> { // @type-options no-redefine
   uniqueBy(resolver?: keyof T | ((value: T) => any)): Array<T>;
 }
 
+interface ReadonlyArray<T> { // @type-options no-export
+  /**
+   * Returns a new array with unique items, determined by the resolver function or property key
+   * @param resolver A function that resolves the value to check uniqueness against,
+   * or a property key to compare the value from each item
+   * @returns A new `Array` with unique items
+   */
+  uniqueBy(resolver?: keyof T | ((value: T) => any)): Array<T>;
+}
+
 interface Int8Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
