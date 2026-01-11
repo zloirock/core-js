@@ -7,7 +7,7 @@ const pf3: Promise<number> = p1.finally(null);
 const pf4: Promise<number> = p1.finally(() => {});
 const pf5: Promise<number> = p1.finally(function () {});
 
-const p2 = Promise.reject("err");
+const p2 = Promise.reject('err');
 const pf6: Promise<string> = p2.finally();
 const pf7: Promise<string> = p2.finally(() => {});
 
@@ -18,7 +18,7 @@ const genericF: Promise<boolean> = returnsPromise<boolean>().finally(() => {});
 p1.finally(123);
 
 // @ts-expect-error
-p1.finally("foo");
+p1.finally('foo');
 
 // @ts-expect-error
 p1.finally({});
@@ -27,10 +27,10 @@ p1.finally({});
 p1.finally([]);
 
 // @ts-expect-error
-p1.finally(() => {}, "extra");
+p1.finally(() => {}, 'extra');
 
 // @ts-expect-error
 p1.finally(true);
 
 // @ts-expect-error
-p1.finally(Symbol("x"));
+p1.finally(Symbol('x'));

@@ -18,18 +18,18 @@ mapGroupBy(new Set(['a', 'b', 'c']), (x, i) => i);
 // @ts-expect-error
 objectGroupBy();
 // @ts-expect-error
-objectGroupBy([1,2,3]);
+objectGroupBy([1, 2, 3]);
 // @ts-expect-error
-objectGroupBy([1,2,3], 123);
+objectGroupBy([1, 2, 3], 123);
 // @ts-expect-error
 objectGroupBy(123, x => x);
 // @ts-expect-error
-objectGroupBy([1,2,3], (a, b, c) => a);
+objectGroupBy([1, 2, 3], (a, b, c) => a);
 // @ts-expect-error
 mapGroupBy();
 // @ts-expect-error
-mapGroupBy([1,2,3]);
+mapGroupBy([1, 2, 3]);
 // @ts-expect-error
 mapGroupBy(123, x => x);
 // @ts-expect-error
-mapGroupBy([1,2,3], (a, b, c) => a);
+mapGroupBy([1, 2, 3], (a, b, c) => a);

@@ -19,8 +19,8 @@ const entries3: [string, string][] = objectEntries(strArr);
 const entries4: [string, number][] = objectEntries(arrLike);
 const entries5: [string, any][] = objectEntries(emptyObj);
 
-const valuesAnyArr: any[] = objectValues({ foo: 123, bar: "baz" });
-const entriesAnyArr: [string, any][] = objectEntries({ foo: 123, bar: "baz" });
+const valuesAnyArr: any[] = objectValues({ foo: 123, bar: 'baz' });
+const entriesAnyArr: [string, any][] = objectEntries({ foo: 123, bar: 'baz' });
 
 // @ts-expect-error
 objectValues();

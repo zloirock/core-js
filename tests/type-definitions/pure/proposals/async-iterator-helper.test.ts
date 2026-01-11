@@ -48,7 +48,7 @@ const r5: CoreJSPromiseAndPromiseLike<boolean> = some(aiton, (v: number, i: numb
 const r6: CoreJSPromiseAndPromiseLike<number[]> = toArray(aiton);
 
 const ait1: CoreJSAsyncIteratorLike<number> = filter(aiton, (v: number, i: number) => v > 0);
-const ait2: CoreJSAsyncIteratorLike<string> = flatMap(aiton, (v: number, i: number) => `${v}`);
+const ait2: CoreJSAsyncIteratorLike<string> = flatMap(aiton, (v: number, i: number) => `${ v }`);
 const ait3: CoreJSAsyncIteratorLike<number> = map(aiton, (v: number, i: number) => v * 2);
 const ait4: CoreJSAsyncIteratorLike<number> = take(aiton, 10);
 const ait5: CoreJSAsyncIteratorLike<number> = drop(aiton, 3);
