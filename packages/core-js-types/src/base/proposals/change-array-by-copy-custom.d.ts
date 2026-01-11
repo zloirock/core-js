@@ -7,5 +7,5 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  export type ArrayToSpliced<T> = ((start: number, deleteCount: number, ...items: T[]) => T[]) | ((start: number, deleteCount?: number)=> T[]);
+  export type ArrayToSpliced<T> = ((start: number, deleteCount: number, ...items: T[]) => T[]) | ((start: number, deleteCount?: number) => T[]);
 }

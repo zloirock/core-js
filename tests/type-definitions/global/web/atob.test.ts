@@ -1,6 +1,6 @@
 import 'core-js/full';
 
-const s: string = atob("SGVsbG8gd29ybGQ=");
+const s: string = atob('SGVsbG8gd29ybGQ=');
 
 // @ts-expect-error
 atob();
