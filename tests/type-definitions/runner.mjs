@@ -5,12 +5,12 @@ const { mkdir, writeJson } = fs;
 const TMP_DIR = './tmp/';
 const ALL_TESTS = process.env.ALL_TYPE_DEFINITIONS_TESTS === '1';
 
-const targets = [
+const TARGETS = [
   'esnext',
   'es2022',
   'es6',
 ];
-const typeScriptVersions = [
+const TYPE_SCRIPT_VERSIONS = [
   '5.9',
   '5.8',
   '5.7',
@@ -20,7 +20,7 @@ const typeScriptVersions = [
   // '5.3',
   // '5.2',
 ];
-const envs = [
+const ENVS = [
   null,
   '@types/node@24',
   '@types/node@20',
@@ -29,14 +29,17 @@ const envs = [
   // '@types/node@15', // fails
   // '@types/bun@latest', // conflicts with DOM types (TextDecorator, SharedArrayBuffer...)
 ];
-const types = [
+const TYPES = [
   'global',
   'pure',
 ];
-const libs = [
+const LIBS = [
   'dom',
   // null,  // fails on web types
 ];
+const TARGET_EXCLUDES = {
+  'es6': ['**/*es2018*test.ts'],
+}
 
 let tested = 0;
 let failed = 0;
@@ -49,20 +52,21 @@ function getEnvPath(env) {
 async function runTestsOnEnv({ typeScriptVersion, target, type, env, lib }) {
   $.verbose = false;
   const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
+  const tsConfigPostfix = TARGET_EXCLUDES[target] ? `.${ target }` : '';
   const command = `npx -p typescript@${ typeScriptVersion }${
-    env ? ` -p ${ env }` : '' } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${
+    env ? ` -p ${ env }` : '' } tsc -p ${ type }/tsconfig${ tsConfigPostfix }.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${
     env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }` : '' }`;
   echo(`$ ${ command }`);
   try {
     tested++;
     if (env && lib) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
+      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }${ tsConfigPostfix }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
     } else if (env) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }.json --target ${ target } --lib ${ target } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
+      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }${ tsConfigPostfix }.json --target ${ target } --lib ${ target } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
     } else if (lib) {
-      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target },${ lib }`.quiet();
+      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig${ tsConfigPostfix }.json --target ${ target } --lib ${ target },${ lib }`.quiet();
     } else {
-      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig.json --target ${ target } --lib ${ target }`.quiet();
+      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig${ tsConfigPostfix }.json --target ${ target } --lib ${ target }`.quiet();
     }
     echo(chalk.green(`$ ${ command }`));
   } catch (error) {
@@ -83,11 +87,11 @@ async function runLimited(configs, limit) {
 }
 
 const taskConfigs = [];
-for (const type of types) {
-  for (const target of targets) {
-    for (const typeScriptVersion of typeScriptVersions) {
-      for (const env of envs) {
-        for (const lib of libs) {
+for (const type of TYPES) {
+  for (const target of TARGETS) {
+    for (const typeScriptVersion of TYPE_SCRIPT_VERSIONS) {
+      for (const env of ENVS) {
+        for (const lib of LIBS) {
           taskConfigs.push({ env, lib, target, type, typeScriptVersion });
         }
       }
@@ -99,7 +103,7 @@ async function clearTmpDir() {
   await $`rm -rf ${ TMP_DIR }`;
 }
 
-async function prepareEnvironment(environments, coreJsTypes) {
+async function prepareEnvironment(environments, coreJsTypes, targetExcludes) {
   await clearTmpDir();
   for (const env of environments) {
     if (!env) continue;
@@ -111,8 +115,14 @@ async function prepareEnvironment(environments, coreJsTypes) {
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ type }/**/*.ts`],
-        exclude: [`../../${ type }/async-iteration.test.ts`],
       });
+      for (const [target, patterns] of Object.entries(targetExcludes)) {
+        await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.${ target }.json`), {
+          extends: '../../tsconfig.json',
+          include: [`../../${ type }/**/*.ts`],
+          exclude: patterns.map(pattern => `../../${ pattern }`),
+        });
+      }
     }
   }
 }
@@ -123,26 +133,21 @@ await $`npx -p typescript@5.9 tsc -p tsconfig.entries.json`;
 await $`npx -p typescript@5.9 tsc -p tsconfig.entries.pure.json`;
 await $`npx -p typescript@5.9 -p @types/node@24 tsc -p tsconfig.templates.require.json`;
 
-await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iteration.json --target es2023 --lib es2023`;
-await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iteration.json --target esnext --lib esnext`;
-await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iteration.json --target es2023 --lib es2023`;
-await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iteration.json --target esnext --lib esnext`;
-
 if (!ALL_TESTS) {
-  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.json --target es6 --lib es6`;
+  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.es6.json --target es6 --lib es6`;
   await $`npx -p typescript@5.6 tsc -p pure/tsconfig.json --target esnext --lib esnext`;
-  await $`npx -p typescript@5.6 tsc -p global/tsconfig.json --target es6 --lib es6,dom`;
+  await $`npx -p typescript@5.6 tsc -p global/tsconfig.es6.json --target es6 --lib es6,dom`;
   await $`npx -p typescript@5.6 tsc -p global/tsconfig.json --target esnext --lib esnext,dom`;
 
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target es6 --lib es6`;
+  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.es6.json --target es6 --lib es6`;
   await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target es2023 --lib es2023`;
   await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target esnext --lib esnext`;
-  await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target es6 --lib es6,dom`;
+  await $`npx -p typescript@5.9 tsc -p global/tsconfig.es6.json --target es6 --lib es6,dom`;
   await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target es2023 --lib es2023,dom`;
   await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target esnext --lib esnext,dom`;
 } else {
   const numCPUs = os.cpus().length;
-  await prepareEnvironment(envs, types);
+  await prepareEnvironment(ENVS, TYPES, TARGET_EXCLUDES);
   await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
   await clearTmpDir();
   echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
