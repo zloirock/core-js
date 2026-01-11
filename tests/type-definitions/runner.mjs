@@ -111,6 +111,7 @@ async function prepareEnvironment(environments, coreJsTypes) {
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ type }/**/*.ts`],
+        exclude: [`../../${ type }/async-iteration.test.ts`],
       });
     }
   }
@@ -122,12 +123,12 @@ await $`npx -p typescript@5.9 tsc -p tsconfig.entries.json`;
 await $`npx -p typescript@5.9 tsc -p tsconfig.entries.pure.json`;
 await $`npx -p typescript@5.9 -p @types/node@24 tsc -p tsconfig.templates.require.json`;
 
-if (!ALL_TESTS) {
-  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iterable.json --target es2023 --lib es2023`;
-  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iterable.json --target esnext --lib esnext`;
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iterable.json --target es2023 --lib es2023`;
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iterable.json --target esnext --lib esnext`;
+await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iteration.json --target es2023 --lib es2023`;
+await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iteration.json --target esnext --lib esnext`;
+await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iteration.json --target es2023 --lib es2023`;
+await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iteration.json --target esnext --lib esnext`;
 
+if (!ALL_TESTS) {
   await $`npx -p typescript@5.6 tsc -p pure/tsconfig.json --target es6 --lib es6`;
   await $`npx -p typescript@5.6 tsc -p pure/tsconfig.json --target esnext --lib esnext`;
   await $`npx -p typescript@5.6 tsc -p global/tsconfig.json --target es6 --lib es6,dom`;
@@ -146,8 +147,4 @@ if (!ALL_TESTS) {
   await clearTmpDir();
   echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
   if (failed) throw new Error('Some tests have failed');
-  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iterable.json --target es2023 --lib es2023`;
-  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.async-iterable.json --target esnext --lib esnext`;
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iterable.json --target es2023 --lib es2023`;
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.async-iterable.json --target esnext --lib esnext`;
 }
