@@ -29,3 +29,7 @@ const resTE3: TypeError = new TypeError('Error with cause', { cause: 'prev reaso
 const resUE1: URIError = new URIError('Error with cause', { cause: prevError });
 const resUE2: URIError = new URIError('Error with cause', { cause: null });
 const resUE3: URIError = new URIError('Error with cause', { cause: 'prev reason' });
+
+const resAE1: AggregateError = new AggregateError([resUE1, resUE2], 'Error with cause', { cause: prevError });
+const resAE2: AggregateError = new AggregateError([resUE1, resUE2], 'Error with cause', { cause: null });
+const resAE3: AggregateError = new AggregateError([resUE1, resUE2], 'Error with cause', { cause: 'prev reason' });
