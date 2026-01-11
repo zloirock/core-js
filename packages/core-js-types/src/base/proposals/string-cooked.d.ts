@@ -8,11 +8,4 @@ interface StringConstructor {
    * @returns The processed string with escape sequences interpreted.
    */
   cooked(template: readonly string[], ...substitutions: any[]): string;
-  /**
-   * Processes a template literal, interpreting escape sequences.
-   * @param template The template literal to process.
-   * @param substitutions The substitutions for the template literal.
-   * @returns The processed string with escape sequences interpreted.
-   */
-  cooked(template: string, ...substitutions: any[]): string;
 }

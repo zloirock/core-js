@@ -4,11 +4,11 @@ import $parse from '@core-js/pure/full/json/parse';
 
 declare type CoreJSRawJSON = {
   rawJSON: string;
-}
+};
 
 declare type CoreJSReviverContext = {
   source: string;
-}
+};
 
 const r: CoreJSRawJSON = $rawJSON('{"a":123}');
 

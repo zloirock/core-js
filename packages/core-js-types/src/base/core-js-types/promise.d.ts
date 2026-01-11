@@ -10,7 +10,7 @@ declare namespace CoreJS {
      * a resolve callback used to resolve the promise with a value or the result of another promise,
      * and a reject callback used to reject the promise with a provided reason or error.
      */
-    new <T>(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void): CoreJSPromise<T>;
+    new<T>(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void): CoreJSPromise<T>;
 
     /**
      * Creates a Promise that is resolved with an array of results when all of the provided Promises
@@ -40,12 +40,6 @@ declare namespace CoreJS {
      * @returns A resolved promise.
      */
     resolve(): CoreJSPromise<void>;
-    /**
-     * Creates a new resolved promise for the provided value.
-     * @param value A promise.
-     * @returns A promise whose internal state matches the provided promise.
-     */
-    resolve<T>(value: T): CoreJSPromise<Awaited<T>>;
     /**
      * Creates a new resolved promise for the provided value.
      * @param value A promise.
