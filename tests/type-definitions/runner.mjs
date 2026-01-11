@@ -38,8 +38,8 @@ const LIBS = [
   // null,  // fails on web types
 ];
 const TARGET_EXCLUDES = {
-  'es6': ['**/*es2018*test.ts'],
-}
+  es6: ['**/*es2018*test.ts'],
+};
 
 let tested = 0;
 let failed = 0;
@@ -128,10 +128,8 @@ async function prepareEnvironment(environments, coreJsTypes, targetExcludes) {
 }
 
 await $`npx -p typescript@5.9 tsc`;
-await $`npx -p typescript@5.9 tsc -p tsconfig.templates.import.json`;
-await $`npx -p typescript@5.9 tsc -p tsconfig.entries.json`;
-await $`npx -p typescript@5.9 tsc -p tsconfig.entries.pure.json`;
-await $`npx -p typescript@5.9 -p @types/node@24 tsc -p tsconfig.templates.require.json`;
+await $`npx -p typescript@5.9 tsc -p templates/tsconfig.json`;
+await $`npx -p typescript@5.9 -p @types/node@24 tsc -p templates/tsconfig.require.json`;
 
 if (!ALL_TESTS) {
   await $`npx -p typescript@5.6 tsc -p pure/tsconfig.es6.json --target es6 --lib es6`;
