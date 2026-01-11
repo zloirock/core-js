@@ -5,6 +5,6 @@ const rscs1: symbol = $customMatcher;
 const rscs2: typeof $customMatcher = $customMatcher;
 
 // @ts-expect-error
-$Symbol['customMatcher'] = $Symbol("other");
+$Symbol['customMatcher'] = $Symbol('other');
 // @ts-expect-error
 const n: number = $customMatcher;
