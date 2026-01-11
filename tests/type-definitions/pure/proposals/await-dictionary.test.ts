@@ -11,7 +11,7 @@ const res: CoreJSPromiseAndPromiseLike<{ a: number, b: string, c: boolean }> = p
 
 declare const sym: unique symbol;
 const res2: CoreJSPromiseAndPromiseLike<{ [sym]: number }> = promiseAllKeyed({
-  [sym]: promiseResolve(1)
+  [sym]: promiseResolve(1),
 });
 
 // @ts-expect-error
@@ -19,11 +19,11 @@ promiseAllKeyed();
 // @ts-expect-error
 promiseAllKeyed({ a: 1, b: promiseResolve(2) });
 // @ts-expect-error
-promiseAllKeyed([ promiseResolve(1), promiseResolve(2) ]);
+promiseAllKeyed([promiseResolve(1), promiseResolve(2)]);
 
 // @ts-expect-error
 promiseAllSettledKeyed();
 // @ts-expect-error
 promiseAllSettledKeyed({ a: 1, b: promiseResolve(2) });
 // @ts-expect-error
-promiseAllSettledKeyed([ promiseResolve(1), promiseResolve(2) ]);
+promiseAllSettledKeyed([promiseResolve(1), promiseResolve(2)]);

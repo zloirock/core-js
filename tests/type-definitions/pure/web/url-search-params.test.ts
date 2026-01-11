@@ -4,7 +4,7 @@ const ps1 = new $URLSearchParams();
 new $URLSearchParams('a=1&b=2');
 new $URLSearchParams([['a', '1'], ['b', '2']]);
 new $URLSearchParams(ps1);
-new $URLSearchParams({ foo: "bar" });
+new $URLSearchParams({ foo: 'bar' });
 
 // @ts-expect-error
 new $URLSearchParams(42);

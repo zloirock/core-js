@@ -6,12 +6,12 @@ const ad: symbol = Symbol.asyncDispose;
 // @ts-expect-error
 const wrong: number = Symbol.dispose;
 // @ts-expect-error
-Symbol['dispose'] = Symbol("foo");
+Symbol['dispose'] = Symbol('foo');
 // @ts-expect-error
-Symbol['asyncDispose'] = Symbol("bar");
+Symbol['asyncDispose'] = Symbol('bar');
 
 const objD: Disposable = {
-  [Symbol.dispose]() { /* empty */ }
+  [Symbol.dispose]() { /* empty */ },
 };
 objD[Symbol.dispose]();
 
@@ -19,8 +19,8 @@ objD[Symbol.dispose]();
 objD.dispose();
 
 const objAD: AsyncDisposable = {
-  [Symbol.asyncDispose]() { return Promise.resolve(); }
-}
+  [Symbol.asyncDispose]() { return Promise.resolve(); },
+};
 objAD[Symbol.asyncDispose]();
 
 // @ts-expect-error
