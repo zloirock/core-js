@@ -86,17 +86,20 @@ async function runLimited(configs, limit) {
   await Promise.all(Array.from({ length: limit }, worker));
 }
 
-const taskConfigs = [];
-for (const type of TYPES) {
-  for (const target of TARGETS) {
-    for (const typeScriptVersion of TYPE_SCRIPT_VERSIONS) {
-      for (const env of ENVS) {
-        for (const lib of LIBS) {
-          taskConfigs.push({ env, lib, target, type, typeScriptVersion });
+function buildTasksConfigs(types, targets, typeScriptVersions, envs, libs) {
+  const taskConfigs = [];
+  for (const type of types) {
+    for (const target of targets) {
+      for (const typeScriptVersion of typeScriptVersions) {
+        for (const env of envs) {
+          for (const lib of libs) {
+            taskConfigs.push({ env, lib, target, type, typeScriptVersion });
+          }
         }
       }
     }
   }
+  return taskConfigs;
 }
 
 async function clearTmpDir() {
@@ -131,23 +134,17 @@ await $`npx -p typescript@5.9 tsc`;
 await $`npx -p typescript@5.9 tsc -p templates/tsconfig.json`;
 await $`npx -p typescript@5.9 -p @types/node@24 tsc -p templates/tsconfig.require.json`;
 
-if (!ALL_TESTS) {
-  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.es6.json --target es6 --lib es6`;
-  await $`npx -p typescript@5.6 tsc -p pure/tsconfig.json --target esnext --lib esnext`;
-  await $`npx -p typescript@5.6 tsc -p global/tsconfig.es6.json --target es6 --lib es6,dom`;
-  await $`npx -p typescript@5.6 tsc -p global/tsconfig.json --target esnext --lib esnext,dom`;
-
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.es6.json --target es6 --lib es6`;
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target es2023 --lib es2023`;
-  await $`npx -p typescript@5.9 tsc -p pure/tsconfig.json --target esnext --lib esnext`;
-  await $`npx -p typescript@5.9 tsc -p global/tsconfig.es6.json --target es6 --lib es6,dom`;
-  await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target es2023 --lib es2023,dom`;
-  await $`npx -p typescript@5.9 tsc -p global/tsconfig.json --target esnext --lib esnext,dom`;
+let taskConfigs, envs;
+if (ALL_TESTS) {
+  envs = ENVS;
+  taskConfigs = buildTasksConfigs(TYPES, TARGETS, TYPE_SCRIPT_VERSIONS, ENVS, LIBS);
 } else {
-  const numCPUs = os.cpus().length;
-  await prepareEnvironment(ENVS, TYPES, TARGET_EXCLUDES);
-  await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
-  await clearTmpDir();
-  echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
-  if (failed) throw new Error('Some tests have failed');
+  envs = [null];
+  taskConfigs = buildTasksConfigs(TYPES, ['esnext', 'es2022', 'es6'], ['5.9', '5.6'], envs, ['dom']);
 }
+const numCPUs = os.cpus().length;
+await prepareEnvironment(envs, TYPES, TARGET_EXCLUDES);
+await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
+await clearTmpDir();
+echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
+if (failed) throw new Error('Some tests have failed');
