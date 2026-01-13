@@ -6,7 +6,6 @@ import {
   $prototypeIterator,
   $static,
   $staticWithContext,
-  $staticWithCustomType,
   $patchableStatic,
   $namespace,
   $helper,
@@ -3088,10 +3087,9 @@ export const features = {
   },
   'url/parse': {
     modules: ['web.url.parse'],
-    template: $staticWithCustomType,
+    template: $static,
     namespace: 'URL',
     name: 'parse',
-    customType: 'web/url-parse',
   },
   'url/to-json': {
     modules: ['web.url.to-json'],
