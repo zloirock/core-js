@@ -294,6 +294,7 @@ export default {
     [139, 91],
     [140, 92],
     [142, 93],
+    [143, 94],
   ],
   // https://developers.meta.com/horizon/documentation/web/browser-release-notes/
   // https://www.meta.com/experiences/browser/1916519981771802/
