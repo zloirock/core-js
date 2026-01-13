@@ -1,4 +1,10 @@
 // use only with DOM lib
+
+// Fallbacks for DOM types
+interface Element {} // @type-options no-export
+interface Node {} // @type-options no-export
+interface HTMLOptionElement {} // @type-options no-export
+
 interface ArrayIterator<T> extends IteratorObject<T, BuiltinIteratorReturn, unknown> { // @type-options no-export
   [Symbol.iterator](): ArrayIterator<T>;
 }

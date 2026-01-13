@@ -37,8 +37,9 @@ const LIBS = [
   'dom',
   // null,  // fails on web types
 ];
-const TARGET_EXCLUDES = {
+const EXCLUDE_RULES = {
   es6: ['**/*es2018*test.ts'],
+  dom: ['**/*dom*test.ts'],
 };
 
 let tested = 0;
@@ -52,7 +53,8 @@ function getEnvPath(env) {
 async function runTestsOnEnv({ typeScriptVersion, target, type, env, lib }) {
   $.verbose = false;
   const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
-  const tsConfigPostfix = TARGET_EXCLUDES[target] ? `.${ target }` : '';
+  let tsConfigPostfix = EXCLUDE_RULES[target] ? `.${ target }` : '';
+  tsConfigPostfix = lib && EXCLUDE_RULES[lib] ? `${ tsConfigPostfix }.${ lib }` : tsConfigPostfix;
   const command = `npx -p typescript@${ typeScriptVersion }${
     env ? ` -p ${ env }` : '' } tsc -p ${ type }/tsconfig${ tsConfigPostfix }.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${
     env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }` : '' }`;
@@ -106,7 +108,7 @@ async function clearTmpDir() {
   await $`rm -rf ${ TMP_DIR }`;
 }
 
-async function prepareEnvironment(environments, coreJsTypes, targetExcludes) {
+async function prepareEnvironment(environments, coreJsTypes) {
   await clearTmpDir();
   for (const env of environments) {
     if (!env) continue;
@@ -118,14 +120,22 @@ async function prepareEnvironment(environments, coreJsTypes, targetExcludes) {
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ type }/**/*.ts`],
+        exclude: [`../../${ type }/**/${ EXCLUDE_RULES.dom }`],
       });
-      for (const [target, patterns] of Object.entries(targetExcludes)) {
-        await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.${ target }.json`), {
-          extends: '../../tsconfig.json',
-          include: [`../../${ type }/**/*.ts`],
-          exclude: patterns.map(pattern => `../../${ pattern }`),
-        });
-      }
+      await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.dom.json`), {
+        extends: '../../tsconfig.json',
+        include: [`../../${ type }/**/*.ts`],
+      });
+      await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.es6.json`), {
+        extends: '../../tsconfig.json',
+        include: [`../../${ type }/**/*.ts`],
+        exclude: [`../../${ type }/**/${ EXCLUDE_RULES.es6 }`, `../../${ type }/${ EXCLUDE_RULES.dom }`],
+      });
+      await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.es6.dom.json`), {
+        extends: '../../tsconfig.json',
+        include: [`../../${ type }/**/*.ts`],
+        exclude: [`../../${ type }/**/${ EXCLUDE_RULES.es6 }`],
+      });
     }
   }
 }
@@ -140,10 +150,10 @@ if (ALL_TESTS) {
   taskConfigs = buildTasksConfigs(TYPES, TARGETS, TYPE_SCRIPT_VERSIONS, ENVS, LIBS);
 } else {
   envs = [null];
-  taskConfigs = buildTasksConfigs(TYPES, ['esnext', 'es2022', 'es6'], ['5.9', '5.6'], envs, ['dom']);
+  taskConfigs = buildTasksConfigs(TYPES, ['esnext', 'es2022', 'es6'], ['5.9', '5.6'], envs, ['dom', null]);
 }
 const numCPUs = os.cpus().length;
-await prepareEnvironment(envs, TYPES, TARGET_EXCLUDES);
+await prepareEnvironment(envs, TYPES);
 await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
 await clearTmpDir();
 echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
