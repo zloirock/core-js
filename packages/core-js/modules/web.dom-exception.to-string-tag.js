@@ -1,4 +1,4 @@
-// no types: has types only for the pure version
+// types: web/dom-exception
 'use strict';
 var getBuiltIn = require('../internals/get-built-in');
 var setToStringTag = require('../internals/set-to-string-tag');
