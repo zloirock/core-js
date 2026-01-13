@@ -1,6 +1,7 @@
 {
   "extends": "../tsconfig.json",
   "include": ["./**/*.ts"],
+  "exclude": ["./**/*dom*test.ts"],
   "compilerOptions": {
     "types": ["@core-js/types/pure"]
   }
