@@ -1,4 +1,4 @@
-// no types: because of a conflict with lib.dom.d.ts
+// types: web/self
 'use strict';
 var globalThis = require('../internals/global-this');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');

@@ -1,4 +1,4 @@
-// no types: has types only for the pure version
+// types: web/dom-exception
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
