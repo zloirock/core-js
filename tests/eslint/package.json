@@ -3,7 +3,7 @@
   "type": "module",
   "devDependencies": {
     "@eslint/markdown": "^7.5.1",
-    "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.6.0",
     "@stylistic/eslint-plugin": "^5.7.0",
     "confusing-browser-globals": "^1.0.11",
     "eslint": "^9.39.2",
