@@ -7,6 +7,7 @@ var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var createProperty = require('../internals/create-property');
+var setArrayLength = require('../internals/array-set-length');
 var arraySpeciesCreate = require('../internals/array-species-create');
 var arrayMethodHasSpeciesSupport = require('../internals/array-method-has-species-support');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -52,7 +53,7 @@ $({ target: 'Array', proto: true, arity: 1, forced: FORCED }, {
         createProperty(A, n++, E);
       }
     }
-    A.length = n;
+    setArrayLength(A, n);
     return A;
   }
 });

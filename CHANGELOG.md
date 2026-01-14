@@ -2,6 +2,7 @@
 ### Unreleased
 - Use `CreateDataProperty` / `CreateDataPropertyOrThrow` in some missed cases, [#1497](https://github.com/zloirock/core-js/issues/1497)
 - Minor fix / optimization in the `RegExp` constructor (NCG and `dotAll`) polyfill
+- Added some more workarounds for a Safari < 13 bug with silent ignore of non-writable array `.length`
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as [shipped in V8 ~ Chrome 145](https://issues.chromium.org/issues/434977728#comment4)
   - [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration) features marked as [shipped in FF148](https://bugzilla.mozilla.org/show_bug.cgi?id=2003333#c8)

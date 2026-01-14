@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var fails = require('../internals/fails');
 var isConstructor = require('../internals/is-constructor');
 var createProperty = require('../internals/create-property');
+var setArrayLength = require('../internals/array-set-length');
 
 var $Array = Array;
 
@@ -21,7 +22,7 @@ $({ target: 'Array', stat: true, forced: ISNT_GENERIC }, {
     var argumentsLength = arguments.length;
     var result = new (isConstructor(this) ? this : $Array)(argumentsLength);
     while (argumentsLength > index) createProperty(result, index, arguments[index++]);
-    result.length = argumentsLength;
+    setArrayLength(result, argumentsLength);
     return result;
   }
 });

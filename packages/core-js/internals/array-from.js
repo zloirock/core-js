@@ -7,6 +7,7 @@ var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var isConstructor = require('../internals/is-constructor');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
+var setArrayLength = require('../internals/array-set-length');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 
@@ -41,6 +42,6 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
       createProperty(result, index, value);
     }
   }
-  result.length = index;
+  setArrayLength(result, index);
   return result;
 };

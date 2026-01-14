@@ -8,6 +8,7 @@ var isObject = require('../internals/is-object');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var getBuiltIn = require('../internals/get-built-in');
 var createProperty = require('../internals/create-property');
+var setArrayLength = require('../internals/array-set-length');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var closeAsyncIteration = require('../internals/async-iterator-close');
 
@@ -40,7 +41,7 @@ var createMethod = function (TYPE) {
             try {
               if (anObject(step).done) {
                 if (IS_TO_ARRAY) {
-                  target.length = counter;
+                  setArrayLength(target, counter);
                   resolve(target);
                 } else resolve(IS_SOME ? false : IS_EVERY || undefined);
               } else {

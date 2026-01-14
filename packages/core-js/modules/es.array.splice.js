@@ -41,7 +41,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
       from = actualStart + k;
       if (from in O) createProperty(A, k, O[from]);
     }
-    A.length = actualDeleteCount;
+    setArrayLength(A, actualDeleteCount);
     if (insertCount < actualDeleteCount) {
       for (k = actualStart; k < len - actualDeleteCount; k++) {
         from = k + actualDeleteCount;
