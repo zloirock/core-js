@@ -1,17 +1,19 @@
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
+var createProperty = require('../internals/create-property');
 var iterate = require('../internals/iterate');
 var getIteratorDirect = require('../internals/get-iterator-direct');
-
-var push = [].push;
 
 // `Iterator.prototype.toArray` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.toarray
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];
-    iterate(getIteratorDirect(anObject(this)), push, { that: result, IS_RECORD: true });
+    var index = 0;
+    iterate(getIteratorDirect(anObject(this)), function (element) {
+      createProperty(result, index++, element);
+    }, { IS_RECORD: true });
     return result;
   }
 });

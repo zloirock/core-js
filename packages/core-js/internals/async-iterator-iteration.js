@@ -7,6 +7,7 @@ var anObject = require('../internals/an-object');
 var isObject = require('../internals/is-object');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var getBuiltIn = require('../internals/get-built-in');
+var createProperty = require('../internals/create-property');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var closeAsyncIteration = require('../internals/async-iterator-close');
 
@@ -55,7 +56,7 @@ var createMethod = function (TYPE) {
                         $result ? loop() : closeAsyncIteration(iterator, resolve, false, reject);
                       } else if (IS_TO_ARRAY) {
                         try {
-                          target[counter++] = $result;
+                          createProperty(target, counter++, $result);
                           loop();
                         } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
                       } else {
@@ -66,7 +67,7 @@ var createMethod = function (TYPE) {
                     if (isObject(result)) Promise.resolve(result).then(handler, ifAbruptCloseAsyncIterator);
                     else handler(result);
                   } else {
-                    target[counter++] = value;
+                    createProperty(target, counter++, value);
                     loop();
                   }
                 } catch (error3) { ifAbruptCloseAsyncIterator(error3); }

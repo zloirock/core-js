@@ -1,13 +1,15 @@
 'use strict';
-var arrayWith = require('../internals/array-with');
 var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
 var isBigIntArray = require('../internals/is-big-int-array');
+var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
 var toBigInt = require('../internals/to-big-int');
 
 var aTypedArray = ArrayBufferViewCore.aTypedArray;
 var getTypedArrayConstructor = ArrayBufferViewCore.getTypedArrayConstructor;
 var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
+
+var $RangeError = RangeError;
 
 var PROPER_ORDER = function () {
   try {
@@ -34,7 +36,13 @@ var THROW_ON_NEGATIVE_FRACTIONAL_INDEX = PROPER_ORDER && function () {
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.with
 exportTypedArrayMethod('with', { 'with': function (index, value) {
   var O = aTypedArray(this);
+  var len = lengthOfArrayLike(O);
   var relativeIndex = toIntegerOrInfinity(index);
-  var actualValue = isBigIntArray(O) ? toBigInt(value) : +value;
-  return arrayWith(O, getTypedArrayConstructor(O), relativeIndex, actualValue);
+  var actualIndex = relativeIndex < 0 ? len + relativeIndex : relativeIndex;
+  var numericValue = isBigIntArray(O) ? toBigInt(value) : +value;
+  if (actualIndex >= len || actualIndex < 0) throw new $RangeError('Incorrect index');
+  var A = new (getTypedArrayConstructor(O))(len);
+  var k = 0;
+  for (; k < len; k++) A[k] = k === actualIndex ? numericValue : O[k];
+  return A;
 } }['with'], !PROPER_ORDER || THROW_ON_NEGATIVE_FRACTIONAL_INDEX);
