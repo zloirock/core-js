@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Use `CreateDataProperty` / `CreateDataPropertyOrThrow` in some missed cases, [#1497](https://github.com/zloirock/core-js/issues/1497)
 - Minor fix / optimization in the `RegExp` constructor (NCG and `dotAll`) polyfill
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as [shipped in V8 ~ Chrome 145](https://issues.chromium.org/issues/434977728#comment4)
