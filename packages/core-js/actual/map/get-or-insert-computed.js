@@ -1,6 +1,5 @@
 'use strict';
-require('../../modules/es.map');
+var parent = require('../../stable/map/get-or-insert-computed');
 require('../../modules/esnext.map.get-or-insert-computed');
-var entryUnbind = require('../../internals/entry-unbind');
 
-module.exports = entryUnbind('Map', 'getOrInsertComputed');
+module.exports = parent;

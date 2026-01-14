@@ -1,5 +1,13 @@
 # Changelog
 ### Unreleased
+- [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
+  - Built-ins:
+    - `Map.prototype.getOrInsert`
+    - `Map.prototype.getOrInsertComputed`
+    - `WeakMap.prototype.getOrInsert`
+    - `WeakMap.prototype.getOrInsertComputed`
+  - Moved to stable ES, January 2026 TC39 meeting
+  - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Use `CreateDataProperty` / `CreateDataPropertyOrThrow` in some missed cases, [#1497](https://github.com/zloirock/core-js/issues/1497)
 - Minor fix / optimization in the `RegExp` constructor (NCG and `dotAll`) polyfill
 - Added some more workarounds for a Safari < 13 bug with silent ignore of non-writable array `.length`
@@ -14,7 +22,7 @@
 
 ### [3.47.0 - 2025.11.18](https://github.com/zloirock/core-js/releases/tag/v3.47.0)
 - Changes [v3.46.0...v3.47.0](https://github.com/zloirock/core-js/compare/v3.46.0...v3.47.0) (117 commits)
-- [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source) :
+- [`JSON.parse` source text access proposal](https://github.com/tc39/proposal-json-parse-with-source):
   - Built-ins:
     - `JSON.isRawJSON`
     - `JSON.parse`

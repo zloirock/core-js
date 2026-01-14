@@ -1,4 +1,4 @@
-import Map from 'core-js-pure/actual/map';
+import Map from 'core-js-pure/es/map';
 import from from 'core-js-pure/es/array/from';
 
 QUnit.test('Map#getOrInsert', assert => {

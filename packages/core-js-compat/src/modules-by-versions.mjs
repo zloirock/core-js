@@ -317,4 +317,10 @@ export default {
     'es.json.parse',
     'es.json.raw-json',
   ],
+  3.48: [
+    'es.map.get-or-insert',
+    'es.map.get-or-insert-computed',
+    'es.weak-map.get-or-insert',
+    'es.weak-map.get-or-insert-computed',
+  ],
 };
