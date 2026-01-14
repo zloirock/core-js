@@ -6,6 +6,7 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var toIndexedObject = require('../internals/to-indexed-object');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
+var createProperty = require('../internals/create-property');
 
 var $Array = Array;
 var max = Math.max;
@@ -33,9 +34,9 @@ $({ target: 'Array', proto: true }, {
     newLen = doesNotExceedSafeInteger(len + insertCount - actualDeleteCount);
     A = $Array(newLen);
 
-    for (; k < actualStart; k++) A[k] = O[k];
-    for (; k < actualStart + insertCount; k++) A[k] = arguments[k - actualStart + 2];
-    for (; k < newLen; k++) A[k] = O[k + actualDeleteCount - insertCount];
+    for (; k < actualStart; k++) createProperty(A, k, O[k]);
+    for (; k < actualStart + insertCount; k++) createProperty(A, k, arguments[k - actualStart + 2]);
+    for (; k < newLen; k++) createProperty(A, k, O[k + actualDeleteCount - insertCount]);
 
     return A;
   }

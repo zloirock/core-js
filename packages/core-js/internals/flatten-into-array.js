@@ -3,6 +3,7 @@ var isArray = require('../internals/is-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var bind = require('../internals/function-bind-context');
+var createProperty = require('../internals/create-property');
 
 // `FlattenIntoArray` abstract operation
 // https://tc39.es/ecma262/#sec-flattenintoarray
@@ -21,7 +22,7 @@ var flattenIntoArray = function (target, original, source, sourceLen, start, dep
         targetIndex = flattenIntoArray(target, original, element, elementLen, targetIndex, depth - 1) - 1;
       } else {
         doesNotExceedSafeInteger(targetIndex + 1);
-        target[targetIndex] = element;
+        createProperty(target, targetIndex, element);
       }
 
       targetIndex++;
