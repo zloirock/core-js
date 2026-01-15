@@ -1,6 +1,2 @@
-interface URL { // @type-options no-extends
-  /**
-   * Returns a JSON representation of the URL.
-   */
-  toJSON(): string;
-}
+// empty
+// Moved to  ../core-js-modules/url.d.ts
