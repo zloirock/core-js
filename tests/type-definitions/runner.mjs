@@ -37,8 +37,11 @@ const LIBS = [
   'dom',
   // null,  // fails on web types
 ];
-const EXCLUDE_RULES = {
+const TARGET_RULES = {
   es6: ['**/*es2018*test.ts'],
+};
+
+const LIB_RULES = {
   dom: ['**/*dom*test.ts'],
 };
 
@@ -50,58 +53,70 @@ function getEnvPath(env) {
   return path.join(TMP_DIR, env.replaceAll('/', '-').replaceAll('@', ''));
 }
 
-async function runTestsOnEnv({ typeScriptVersion, target, type, env, lib }) {
-  $.verbose = false;
-  const envLibName = env ? env.substring(0, env.lastIndexOf('@')) : '';
-  let tsConfigPostfix = EXCLUDE_RULES[target] ? `.${ target }` : '';
-  tsConfigPostfix = lib && EXCLUDE_RULES[lib] ? `${ tsConfigPostfix }.${ lib }` : tsConfigPostfix;
-  const command = `npx -p typescript@${ typeScriptVersion }${
-    env ? ` -p ${ env }` : '' } tsc -p ${ type }/tsconfig${ tsConfigPostfix }.json --target ${ target } --lib ${ target }${ lib ? `,${ lib }` : '' }${
-    env ? ` --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }` : '' }`;
-  echo(`$ ${ command }`);
-  try {
-    tested++;
-    if (env && lib) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }${ tsConfigPostfix }.json --target ${ target } --lib ${ target },${ lib } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
-    } else if (env) {
-      await $({ cwd: getEnvPath(env) })`npx -p typescript@${ typeScriptVersion } tsc -p ./tsconfig.${ type }${ tsConfigPostfix }.json --target ${ target } --lib ${ target } --types @core-js/types${ type === 'pure' ? '/pure' : '' },${ envLibName }`.quiet();
-    } else if (lib) {
-      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig${ tsConfigPostfix }.json --target ${ target } --lib ${ target },${ lib }`.quiet();
-    } else {
-      await $`npx -p typescript@${ typeScriptVersion } tsc -p ${ type }/tsconfig${ tsConfigPostfix }.json --target ${ target } --lib ${ target }`.quiet();
-    }
-    echo(chalk.green(`$ ${ command }`));
-  } catch (error) {
-    failed++;
-    echo(`$ ${ chalk.red(command) }\n ${ error }`);
-  }
-}
-
-async function runLimited(configs, limit) {
+async function runLimited(tasks, limit) {
   let i = 0;
   async function worker() {
-    while (i < configs.length) {
+    while (i < tasks.length) {
       const idx = i++;
-      await runTestsOnEnv(configs[idx]);
+      await runTask(tasks[idx]);
     }
   }
   await Promise.all(Array.from({ length: limit }, worker));
 }
 
-function buildTasksConfigs(types, targets, typeScriptVersions, envs, libs) {
-  const taskConfigs = [];
+async function runTask(config) {
+  $.verbose = false;
+  const command = `$ ${ config.cmd } ${ config.args.join(' ') }`;
+  try {
+    tested++;
+    echo(command);
+    if (config.cwd) {
+      await $({ cwd: config.cwd })`${ config.cmd } ${ config.args }`.quiet();
+    } else {
+      await $`${ config.cmd } ${ config.args }`.quiet();
+    }
+    echo(chalk.green(command));
+  } catch (error) {
+    failed++;
+    echo(chalk.red(`${ command }\n ${ error }`));
+  }
+}
+
+function buildTasks(types, targets, typeScriptVersions, envs, libs) {
+  const tasks = [];
   for (const type of types) {
     for (const target of targets) {
       for (const typeScriptVersion of typeScriptVersions) {
         for (const env of envs) {
           for (const lib of libs) {
-            taskConfigs.push({ env, lib, target, type, typeScriptVersion });
+            let tsConfigPostfix = TARGET_RULES[target] ? `.${ target }` : '';
+            tsConfigPostfix += lib && LIB_RULES[lib] ? `.${ lib }` : '';
+            const libsStr = lib ? `${ target },${ lib }` : target;
+            const tsConfigPath = env ? `./tsconfig.${ type }${ tsConfigPostfix }.json` : `${ type }/tsconfig${ tsConfigPostfix }.json`;
+            const taskConfig = {
+              cmd: 'npx',
+              cwd: getEnvPath(env),
+              args: [
+                '-p', `typescript@${ typeScriptVersion }`,
+                'tsc',
+                '-p', tsConfigPath,
+                '--target', target,
+                '--lib', `${ libsStr }`,
+              ],
+            };
+            // eslint-disable-next-line max-depth -- it's needed here
+            if (type) {
+              const typesSuffix = type === 'pure' ? '/pure' : '';
+              const envLibName = env ? `,${ env.substring(0, env.lastIndexOf('@')) }` : '';
+              taskConfig.args.push('--types', `@core-js/types${ typesSuffix }${ envLibName }`);
+            }
+            tasks.push(taskConfig);
           }
         }
       }
     }
   }
-  return taskConfigs;
+  return tasks;
 }
 
 async function clearTmpDir() {
@@ -120,7 +135,7 @@ async function prepareEnvironment(environments, coreJsTypes) {
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ type }/**/*.ts`],
-        exclude: [`../../${ type }/**/${ EXCLUDE_RULES.dom }`],
+        exclude: [`../../${ type }/**/${ LIB_RULES.dom }`],
       });
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.dom.json`), {
         extends: '../../tsconfig.json',
@@ -129,32 +144,35 @@ async function prepareEnvironment(environments, coreJsTypes) {
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.es6.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ type }/**/*.ts`],
-        exclude: [`../../${ type }/**/${ EXCLUDE_RULES.es6 }`, `../../${ type }/${ EXCLUDE_RULES.dom }`],
+        exclude: [`../../${ type }/**/${ TARGET_RULES.es6 }`, `../../${ type }/${ LIB_RULES.dom }`],
       });
       await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.es6.dom.json`), {
         extends: '../../tsconfig.json',
         include: [`../../${ type }/**/*.ts`],
-        exclude: [`../../${ type }/**/${ EXCLUDE_RULES.es6 }`],
+        exclude: [`../../${ type }/**/${ TARGET_RULES.es6 }`],
       });
     }
   }
 }
 
-await $`npx -p typescript@5.9 tsc`;
-await $`npx -p typescript@5.9 tsc -p templates/tsconfig.json`;
-await $`npx -p typescript@5.9 -p @types/node@24 tsc -p templates/tsconfig.require.json`;
+let tasks = [];
+tasks.push(
+  { cmd: 'npx', args: ['-p', 'typescript@5.9', 'tsc'] },
+  { cmd: 'npx', args: ['-p', 'typescript@5.9', 'tsc', '-p', 'templates/tsconfig.json'] },
+  { cmd: 'npx', args: ['-p', 'typescript@5.9', '-p', '@types/node@24', 'tsc', '-p', 'templates/tsconfig.require.json'] },
+);
 
-let taskConfigs, envs;
+let envs;
 if (ALL_TESTS) {
   envs = ENVS;
-  taskConfigs = buildTasksConfigs(TYPES, TARGETS, TYPE_SCRIPT_VERSIONS, ENVS, LIBS);
+  tasks = [...tasks, ...buildTasks(TYPES, TARGETS, TYPE_SCRIPT_VERSIONS, envs, LIBS)];
 } else {
-  envs = [null];
-  taskConfigs = buildTasksConfigs(TYPES, ['esnext', 'es2022', 'es6'], ['5.9', '5.6'], envs, ['dom', null]);
+  envs = [null, '@types/node@24'];
+  tasks = [...tasks, ...buildTasks(TYPES, ['esnext', 'es2022', 'es6'], ['5.9', '5.6'], envs, ['dom', null])];
 }
 const numCPUs = os.cpus().length;
 await prepareEnvironment(envs, TYPES);
-await runLimited(taskConfigs, Math.max(numCPUs - 1, 1));
+await runLimited(tasks, Math.max(numCPUs - 1, 1));
 await clearTmpDir();
 echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
 if (failed) throw new Error('Some tests have failed');
