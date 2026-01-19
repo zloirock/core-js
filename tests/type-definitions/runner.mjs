@@ -66,14 +66,14 @@ async function runLimited(tasks, limit) {
 
 async function runTask(config) {
   $.verbose = false;
-  const command = `$ ${ config.cmd } ${ config.args.join(' ') }`;
+  const command = `$ npx ${ config.args.join(' ') }`;
   try {
     tested++;
     echo(command);
     if (config.cwd) {
-      await $({ cwd: config.cwd })`${ config.cmd } ${ config.args }`.quiet();
+      await $({ cwd: config.cwd })`npx ${ config.args }`.quiet();
     } else {
-      await $`${ config.cmd } ${ config.args }`.quiet();
+      await $`npx ${ config.args }`.quiet();
     }
     echo(chalk.green(command));
   } catch (error) {
@@ -94,7 +94,6 @@ function buildTasks(types, targets, typeScriptVersions, envs, libs) {
             const libsStr = lib ? `${ target },${ lib }` : target;
             const tsConfigPath = env ? `./tsconfig.${ type }${ tsConfigPostfix }.json` : `${ type }/tsconfig${ tsConfigPostfix }.json`;
             const taskConfig = {
-              cmd: 'npx',
               cwd: getEnvPath(env),
               args: [
                 '-p', `typescript@${ typeScriptVersion }`,
@@ -157,9 +156,9 @@ async function prepareEnvironment(environments, coreJsTypes) {
 
 let tasks = [];
 tasks.push(
-  { cmd: 'npx', args: ['-p', 'typescript@5.9', 'tsc'] },
-  { cmd: 'npx', args: ['-p', 'typescript@5.9', 'tsc', '-p', 'templates/tsconfig.json'] },
-  { cmd: 'npx', args: ['-p', 'typescript@5.9', '-p', '@types/node@24', 'tsc', '-p', 'templates/tsconfig.require.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'templates/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', '-p', '@types/node@24', 'tsc', '-p', 'templates/tsconfig.require.json'] },
 );
 
 let envs;
