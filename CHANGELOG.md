@@ -6,6 +6,7 @@
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as [shipped in V8 ~ Chrome 145](https://issues.chromium.org/issues/434977728#comment4)
   - [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration) features marked as [shipped in FF148](https://bugzilla.mozilla.org/show_bug.cgi?id=2003333#c8)
+  - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Bun 1.3.7
   - Added [Rhino 1.9.0](https://github.com/mozilla/rhino/releases/tag/Rhino1_9_0_Release) compat data
   - Added [Deno 2.6](https://github.com/denoland/deno/releases/tag/v2.6.0) compat data mapping
   - Added Opera Android [93](https://forums.opera.com/topic/87267/opera-for-android-93) and [94](https://forums.opera.com/topic/87678/opera-for-android-94) compat data mapping

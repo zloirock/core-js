@@ -696,6 +696,7 @@ export const data = {
     safari: '18.4',
   },
   'es.iterator.concat': {
+    bun: '1.3.7',
     firefox: '147',
   },
   'es.iterator.dispose': {
