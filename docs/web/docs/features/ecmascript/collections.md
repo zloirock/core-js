@@ -3,7 +3,7 @@
 
 ## Map
 ### Modules 
-[`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js), [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
+[`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js), [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js), [`es.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert.js) and [`es.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert-computed.js).
 
 ### Built-ins signatures
 ```ts
@@ -13,6 +13,8 @@ class Map {
   delete(key: any): boolean;
   forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
   get(key: any): any;
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
   has(key: any): boolean;
   set(key: any, val: any): this;
   values(): Iterator<value>;
@@ -28,6 +30,8 @@ class Map {
 ```plaintext
 core-js(-pure)/es|stable|actual|full/map
 core-js(-pure)/es|stable|actual|full/map/group-by
+core-js(-pure)/es|stable|actual|full/map/get-or-insert
+core-js(-pure)/es|stable|actual|full/map/get-or-insert-computed
 ```
 
 ### Examples
@@ -66,6 +70,19 @@ for (let [key, value] of map.entries()) {
 map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
 map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
+
+
+map = new Map([['a', 1]]);
+
+map.getOrInsert('a', 2); // => 1
+
+map.getOrInsert('b', 3); // => 3
+
+map.getOrInsertComputed('a', key => key); // => 1
+
+map.getOrInsertComputed('c', key => key); // => 'c'
+
+console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
 ```
 
 ## Set
@@ -144,21 +161,25 @@ new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ## WeakMap
 
 ### Modules
-[`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
+[`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js), [`es.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert.js) and [`es.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert-computed.js).
 
 ### Built-ins signatures
 ```ts
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
-  delete(key: Object): boolean;
-  get(key: Object): any;
-  has(key: Object): boolean;
-  set(key: Object, val: any): this;
+  delete(key: object | symbol): boolean;
+  get(key: object | symbol): any;
+  getOrInsert(key: object | symbol, value: any): any;
+  getOrInsertComputed(key: object | symbol, (key: any) => value: any): any;
+  has(key: object | symbol): boolean;
+  set(key: object | symbol, val: any): this;
 }
 ```
 ### [Entry points]({docs-version}/docs/usage#h-entry-points)
 ```plaintext
 core-js(-pure)/es|stable|actual|full/weak-map
+core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
+core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert-computed
 ```
 
 ### Examples
@@ -201,9 +222,9 @@ for (let key in person) console.log(key); // => only 'getName'
 ```ts
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;
-  add(key: Object): this;
-  delete(key: Object): boolean;
-  has(key: Object): boolean;
+  add(key: object | symbol): this;
+  delete(key: object | symbol): boolean;
+  has(key: object | symbol): boolean;
 }
 ```
 

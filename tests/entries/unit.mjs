@@ -317,8 +317,12 @@ for (PATH of ['core-js-pure', 'core-js']) {
     load(NS, 'symbol/description');
     const Map = load(NS, 'map');
     ok(load(NS, 'map/group-by')([], it => it) instanceof load(NS, 'map'));
+    ok(load(NS, 'map/get-or-insert')(new Map([[1, 2]]), 1, 3) === 2);
+    ok(load(NS, 'map/get-or-insert-computed')(new Map([[1, 2]]), 1, key => key) === 2);
     const Set = load(NS, 'set');
     const WeakMap = load(NS, 'weak-map');
+    ok(load(NS, 'weak-map/get-or-insert')(new WeakMap([[{}, 2]]), {}, 3) === 3);
+    ok(load(NS, 'weak-map/get-or-insert-computed')(new WeakMap([[{}, 2]]), {}, () => 3) === 3);
     const WeakSet = load(NS, 'weak-set');
     ok(new Map([[1, 2], [3, 4]]).size === 2);
     ok(new Set([1, 2, 3, 2, 1]).size === 3);
@@ -717,11 +721,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/to-async') == 'function');
     ok(typeof load(NS, 'iterator/zip') == 'function');
     ok(typeof load(NS, 'iterator/zip-keyed') == 'function');
-    ok(load(NS, 'map/get-or-insert')(new Map([[1, 2]]), 1, 3) === 2);
-    ok(load(NS, 'map/get-or-insert-computed')(new Map([[1, 2]]), 1, key => key) === 2);
     ok(load(NS, 'symbol/metadata'));
-    ok(load(NS, 'weak-map/get-or-insert')(new WeakMap([[{}, 2]]), {}, 3) === 3);
-    ok(load(NS, 'weak-map/get-or-insert-computed')(new WeakMap([[{}, 2]]), {}, () => 3) === 3);
 
     const instanceGroup = load(NS, 'instance/group');
     ok(typeof instanceGroup == 'function');

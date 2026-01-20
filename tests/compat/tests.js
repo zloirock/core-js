@@ -881,6 +881,12 @@ GLOBAL.tests = {
       return it;
     }).get('a').length === 1;
   },
+  'es.map.get-or-insert': function () {
+    return Map.prototype.getOrInsert;
+  },
+  'es.map.get-or-insert-computed': function () {
+    return Map.prototype.getOrInsertComputed;
+  },
   'es.math.acosh': function () {
     // V8 bug: https://code.google.com/p/v8/issues/detail?id=3509
     return Math.floor(Math.acosh(Number.MAX_VALUE)) === 710
@@ -1815,6 +1821,19 @@ GLOBAL.tests = {
       // MS Edge bug
       && Object.isFrozen(key);
   }],
+  'es.weak-map.get-or-insert': function () {
+    return WeakMap.prototype.getOrInsert;
+  },
+  'es.weak-map.get-or-insert-computed': function () {
+    if (!WeakMap.prototype.getOrInsertComputed) return;
+    try {
+      new WeakMap().getOrInsertComputed(1, function () { throw 1; });
+    } catch (error) {
+      // FF144 Nightly - Beta 3 bug
+      // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
+      return error instanceof TypeError;
+    }
+  },
   'es.weak-set.constructor': [SAFE_ITERATION_CLOSING_SUPPORT, function () {
     var key = {};
     var called = 0;
@@ -1941,12 +1960,6 @@ GLOBAL.tests = {
   'esnext.map.from': function () {
     return Map.from;
   },
-  'esnext.map.get-or-insert': function () {
-    return Map.prototype.getOrInsert;
-  },
-  'esnext.map.get-or-insert-computed': function () {
-    return Map.prototype.getOrInsertComputed;
-  },
   'esnext.map.includes': function () {
     return Map.prototype.includes;
   },
@@ -2069,19 +2082,6 @@ GLOBAL.tests = {
   },
   'esnext.weak-map.delete-all': function () {
     return WeakMap.prototype.deleteAll;
-  },
-  'esnext.weak-map.get-or-insert': function () {
-    return WeakMap.prototype.getOrInsert;
-  },
-  'esnext.weak-map.get-or-insert-computed': function () {
-    if (!WeakMap.prototype.getOrInsertComputed) return;
-    try {
-      new WeakMap().getOrInsertComputed(1, function () { throw 1; });
-    } catch (error) {
-      // FF144 Nightly - Beta 3 bug
-      // https://bugzilla.mozilla.org/show_bug.cgi?id=1988369
-      return error instanceof TypeError;
-    }
   },
   'esnext.weak-map.from': function () {
     return WeakMap.from;

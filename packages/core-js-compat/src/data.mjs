@@ -875,6 +875,18 @@ export const data = {
     // https://bugs.webkit.org/show_bug.cgi?id=271524
     safari: '18.0', // '17.4',
   },
+  'es.map.get-or-insert': {
+    bun: '1.2.20',
+    chrome: '145',
+    firefox: '144',
+    safari: '26.2',
+  },
+  'es.map.get-or-insert-computed': {
+    bun: '1.2.20',
+    chrome: '145',
+    firefox: '144',
+    safari: '26.2',
+  },
   'es.math.acosh': {
     chrome: '54',
     edge: '13',
@@ -2426,6 +2438,18 @@ export const data = {
     rhino: '1.7.13',
     safari: '10.0',
   },
+  'es.weak-map.get-or-insert': {
+    bun: '1.2.20',
+    chrome: '145',
+    firefox: '144',
+    safari: '26.2',
+  },
+  'es.weak-map.get-or-insert-computed': {
+    bun: '1.2.20',
+    chrome: '145',
+    firefox: '144',
+    safari: '26.2',
+  },
   // TODO: Remove this module from `core-js@4` since it's replaced to module below
   'es.weak-set': null,
   'es.weak-set.constructor': {
@@ -2637,18 +2661,10 @@ export const data = {
   },
   'esnext.map.from': {
   },
-  'esnext.map.get-or-insert': {
-    bun: '1.2.20',
-    chrome: '145',
-    firefox: '144',
-    safari: '26.2',
-  },
-  'esnext.map.get-or-insert-computed': {
-    bun: '1.2.20',
-    chrome: '145',
-    firefox: '144',
-    safari: '26.2',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.map.get-or-insert': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.map.get-or-insert-computed': null,
   // TODO: Remove from `core-js@4`
   'esnext.map.group-by': null,
   'esnext.map.includes': {
@@ -2936,18 +2952,10 @@ export const data = {
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.emplace': {
   },
-  'esnext.weak-map.get-or-insert': {
-    bun: '1.2.20',
-    chrome: '145',
-    firefox: '144',
-    safari: '26.2',
-  },
-  'esnext.weak-map.get-or-insert-computed': {
-    bun: '1.2.20',
-    chrome: '145',
-    firefox: '144',
-    safari: '26.2',
-  },
+  // TODO: Remove from `core-js@4`
+  'esnext.weak-map.get-or-insert': null,
+  // TODO: Remove from `core-js@4`
+  'esnext.weak-map.get-or-insert-computed': null,
   // TODO: Remove from `core-js@4`
   'esnext.weak-map.upsert': {
   },
@@ -3241,6 +3249,8 @@ export const renamed = new Map([
   ['esnext.json.parse', 'es.json.parse'],
   ['esnext.json.raw-json', 'es.json.raw-json'],
   ['esnext.map.group-by', 'es.map.group-by'],
+  ['esnext.map.get-or-insert', 'es.map.get-or-insert'],
+  ['esnext.map.get-or-insert-computed', 'es.map.get-or-insert-computed'],
   ['esnext.math.f16round', 'es.math.f16round'],
   ['esnext.math.sum-precise', 'es.math.sum-precise'],
   ['esnext.object.has-own', 'es.object.has-own'],
@@ -3276,6 +3286,8 @@ export const renamed = new Map([
   ['esnext.uint8-array.set-from-hex', 'es.uint8-array.set-from-hex'],
   ['esnext.uint8-array.to-base64', 'es.uint8-array.to-base64'],
   ['esnext.uint8-array.to-hex', 'es.uint8-array.to-hex'],
+  ['esnext.weak-map.get-or-insert', 'es.weak-map.get-or-insert'],
+  ['esnext.weak-map.get-or-insert-computed', 'es.weak-map.get-or-insert-computed'],
   ['web.url', 'web.url.constructor'],
   ['web.url-search-params', 'web.url-search-params.constructor'],
 ]);

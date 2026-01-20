@@ -168,10 +168,10 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [Well-formed `JSON.stringify`](#well-formed-jsonstringify)
       - [Well-formed unicode strings](#well-formed-unicode-strings)
       - [New `Set` methods](#new-set-methods)
+      - [`Map` upsert](#map-upsert)
       - [`Math.sumPrecise`](#mathsumprecise)
     - [Stage 3 proposals](#stage-3-proposals)
       - [Joint iteration](#joint-iteration)
-      - [`Map` upsert](#map-upsert)
       - [`Symbol.metadata` for decorators metadata proposal](#symbolmetadata-for-decorators-metadata-proposal)
     - [Stage 2.7 proposals](#stage-27-proposals)
       - [`Iterator` chunking](#iterator-chunking)
@@ -1594,7 +1594,7 @@ for (let key in object2) console.log(key); // nothing
 #### ECMAScript: Collections[⬆](#index)
 `core-js` uses native collections in most cases, just fixes methods / constructor, if it's required, and in the old environment uses fast polyfill (O(1) lookup).
 #### Map[⬆](#index)
-Modules [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js) and [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js).
+Modules [`es.map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.js), [`es.map.group-by`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.group-by.js), [`es.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert.js) and [`es.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert-computed.js).
 ```ts
 class Map {
   constructor(iterable?: Iterable<[key, value]>): Map;
@@ -1602,6 +1602,8 @@ class Map {
   delete(key: any): boolean;
   forEach(callbackfn: (value: any, key: any, target: any) => void, thisArg: any): void;
   get(key: any): any;
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
   has(key: any): boolean;
   set(key: any, val: any): this;
   values(): Iterator<value>;
@@ -1616,8 +1618,10 @@ class Map {
 ```
 core-js(-pure)/es|stable|actual|full/map
 core-js(-pure)/es|stable|actual|full/map/group-by
+core-js(-pure)/es|stable|actual|full/map/get-or-insert
+core-js(-pure)/es|stable|actual|full/map/get-or-insert-computed
 ```
-[*Examples*](https://tinyurl.com/yn2w5s8v):
+[*Examples*](https://tinyurl.com/298ekxmq):
 ```js
 let array = [1];
 
@@ -1653,7 +1657,20 @@ for (let [key, value] of map.entries()) {
 map = Map.groupBy([1, 2, 3, 4, 5], it => it % 2);
 map.get(1); // => [1, 3, 5]
 map.get(0); // => [2, 4]
+
+map = new Map([['a', 1]]);
+
+map.getOrInsert('a', 2); // => 1
+
+map.getOrInsert('b', 3); // => 3
+
+map.getOrInsertComputed('a', key => key); // => 1
+
+map.getOrInsertComputed('c', key => key); // => 'c'
+
+console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
 ```
+
 #### Set[⬆](#index)
 Modules [`es.set`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.js), [`es.set.difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.difference.v2.js), [`es.set.intersection.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.intersection.v2.js), [`es.set.is-disjoint-from.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-disjoint-from.v2.js), [`es.set.is-subset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-subset-of.v2.js), [`es.set.is-superset-of.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.is-superset-of.v2.js), [`es.set.symmetric-difference.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.symmetric-difference.v2.js), [`es.set.union.v2`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.set.union.v2.js)
 ```ts
@@ -1722,19 +1739,23 @@ new Set([1, 2, 3]).isSubsetOf(new Set([5, 4, 3, 2, 1]));    // => true
 new Set([5, 4, 3, 2, 1]).isSupersetOf(new Set([1, 2, 3]));  // => true
 ```
 #### WeakMap[⬆](#index)
-Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js).
+Module [`es.weak-map`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.js), [`es.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert.js) and [`es.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert-computed.js).
 ```ts
 class WeakMap {
   constructor(iterable?: Iterable<[key, value]>): WeakMap;
-  delete(key: Object): boolean;
-  get(key: Object): any;
-  has(key: Object): boolean;
-  set(key: Object, val: any): this;
+  delete(key: object | symbol): boolean;
+  get(key: object | symbol): any;
+  getOrInsert(key: object | symbol, value: any): any;
+  getOrInsertComputed(key: object | symbol, (key: any) => value: any): any;
+  has(key: object | symbol): boolean;
+  set(key: object | symbol, val: any): this;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
 ```
 core-js(-pure)/es|stable|actual|full/weak-map
+core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
+core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert-computed
 ```
 [*Examples*](https://tinyurl.com/2yws9shh):
 ```js
@@ -1772,9 +1793,9 @@ Module [`es.weak-set`](https://github.com/zloirock/core-js/blob/master/packages/
 ```ts
 class WeakSet {
   constructor(iterable?: Iterable<value>): WeakSet;
-  add(key: Object): this;
-  delete(key: Object): boolean;
-  has(key: Object): boolean;
+  add(key: object | symbol): this;
+  delete(key: object | symbol): boolean;
+  has(key: object | symbol): boolean;
 }
 ```
 [*CommonJS entry points:*](#commonjs-api)
@@ -2728,6 +2749,23 @@ class Set {
 core-js/proposals/set-methods-v2
 ```
 
+##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
+```ts
+class Map {
+  getOrInsert(key: any, value: any): any;
+  getOrInsertComputed(key: any, (key: any) => value: any): any;
+}
+
+class WeakMap {
+  getOrInsert(key: object | symbol, value: any): any;
+  getOrInsertComputed(key: object | symbol, (key: any) => value: any): any;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/map-upsert-v4
+```
+
 ##### [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum)
 ```ts
 namespace Math {
@@ -2795,42 +2833,6 @@ Iterator.zipKeyed({
   { a: undefined, b: 6, c: 10 },
 ];
  */
-```
-
-##### [`Map` upsert](https://github.com/thumbsupep/proposal-upsert)[⬆](#index)
-Modules [`esnext.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert.js), [`esnext.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.map.get-or-insert-computed.js), [`esnext.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert.js) and [`esnext.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.weak-map.get-or-insert-computed.js)
-```ts
-class Map {
-  getOrInsert(key: any, value: any): any;
-  getOrInsertComputed(key: any, (key: any) => value: any): any;
-}
-
-class WeakMap {
-  getOrInsert(key: any, value: any): any;
-  getOrInsertComputed(key: any, (key: any) => value: any): any;
-}
-```
-[*CommonJS entry points:*](#commonjs-api)
-```
-core-js/proposals/map-upsert-v4
-core-js(-pure)/actual|full/map/get-or-insert
-core-js(-pure)/actual|full/map/get-or-insert-computed
-core-js(-pure)/actual|full/weak-map/get-or-insert
-core-js(-pure)/actual|full/weak-map/get-or-insert-computed
-```
-[*Examples*](https://tinyurl.com/2a54u5ux):
-```js
-const map = new Map([['a', 1]]);
-
-map.getOrInsert('a', 2); // => 1
-
-map.getOrInsert('b', 3); // => 3
-
-map.getOrInsertComputed('a', key => key); // => 1
-
-map.getOrInsertComputed('c', key => key); // => 'c'
-
-console.log(map); // => Map { 'a': 1, 'b': 3, 'c': 'c' }
 ```
 
 ##### [`Symbol.metadata` for decorators metadata proposal](https://github.com/tc39/proposal-decorator-metadata)[⬆](#index)
