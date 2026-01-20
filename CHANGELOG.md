@@ -11,6 +11,7 @@
 - Use `CreateDataProperty` / `CreateDataPropertyOrThrow` in some missed cases, [#1497](https://github.com/zloirock/core-js/issues/1497)
 - Minor fix / optimization in the `RegExp` constructor (NCG and `dotAll`) polyfill
 - Added some more workarounds for a Safari < 13 bug with silent ignore of non-writable array `.length`
+- Added detection of a Webkit [bug](https://bugs.webkit.org/show_bug.cgi?id=297532): `Iterator.prototype.flatMap` throws on iterator without `return` method
 - Compat data improvements:
   - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) features marked as [shipped in V8 ~ Chrome 145](https://issues.chromium.org/issues/434977728#comment4)
   - [Joint iteration proposal](https://github.com/tc39/proposal-joint-iteration) features marked as [shipped in FF148](https://bugzilla.mozilla.org/show_bug.cgi?id=2003333#c8)
@@ -19,6 +20,7 @@
   - Added [Deno 2.6](https://github.com/denoland/deno/releases/tag/v2.6.0) compat data mapping
   - Added Opera Android [93](https://forums.opera.com/topic/87267/opera-for-android-93) and [94](https://forums.opera.com/topic/87678/opera-for-android-94) compat data mapping
   - Added Electron 41 compat data mapping
+  - `Iterator.prototype.flatMap` marked as supported from Safari 26.2 and Bun 1.2.21 because of a [bug](https://bugs.webkit.org/show_bug.cgi?id=297532): throws on iterator without `return` method
 
 ### [3.47.0 - 2025.11.18](https://github.com/zloirock/core-js/releases/tag/v3.47.0)
 - Changes [v3.46.0...v3.47.0](https://github.com/zloirock/core-js/compare/v3.46.0...v3.47.0) (117 commits)

@@ -11,12 +11,26 @@ var IS_PURE = require('../internals/is-pure');
 var iteratorHelperThrowsOnInvalidIterator = require('../internals/iterator-helper-throws-on-invalid-iterator');
 var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
 
+// Should not throw an error for an iterator without `return` method. Fixed in Safari 26.2
+// https://bugs.webkit.org/show_bug.cgi?id=297532
+function throwsOnIteratorWithoutReturn() {
+  try {
+    // eslint-disable-next-line es/no-map, es/no-iterator, es/no-iterator-prototype-flatmap -- required for testing
+    var it = Iterator.prototype.flatMap.call(new Map([[4, 5]]).entries(), function (v) { return v; });
+    it.next();
+    it['return']();
+  } catch (error) {
+    return true;
+  }
+}
+
 var FLAT_MAP_WITHOUT_THROWING_ON_INVALID_ITERATOR = !IS_PURE
   && !iteratorHelperThrowsOnInvalidIterator('flatMap', function () { /* empty */ });
 var flatMapWithoutClosingOnEarlyError = !IS_PURE && !FLAT_MAP_WITHOUT_THROWING_ON_INVALID_ITERATOR
   && iteratorHelperWithoutClosingOnEarlyError('flatMap', TypeError);
 
-var FORCED = IS_PURE || FLAT_MAP_WITHOUT_THROWING_ON_INVALID_ITERATOR || flatMapWithoutClosingOnEarlyError;
+var FORCED = IS_PURE || FLAT_MAP_WITHOUT_THROWING_ON_INVALID_ITERATOR || flatMapWithoutClosingOnEarlyError
+  || throwsOnIteratorWithoutReturn();
 
 var IteratorProxy = createIteratorProxy(function () {
   var iterator = this.iterator;

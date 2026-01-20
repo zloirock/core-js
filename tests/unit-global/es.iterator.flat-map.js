@@ -23,6 +23,14 @@ QUnit.test('Iterator#flatMap', assert => {
     return [arg];
   }).toArray();
 
+  // Should not throw an error for an iterator without `return` method. Fixed in Safari 26.2
+  // https://bugs.webkit.org/show_bug.cgi?id=297532
+  assert.notThrows(() => {
+    const iter = flatMap.call(new Map([[4, 5]]).entries(), v => v);
+    iter.next();
+    iter.return();
+  }, 'iterator without `return` method');
+
   if (STRICT) {
     assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
     assert.throws(() => flatMap.call(null, () => { /* empty */ }), TypeError);

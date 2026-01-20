@@ -2,6 +2,7 @@ import { createIterator, createIterable } from '../helpers/helpers.js';
 import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
 import Iterator from 'core-js-pure/es/iterator';
+import Map from 'core-js-pure/es/map';
 
 QUnit.test('Iterator#flatMap', assert => {
   const { flatMap } = Iterator.prototype;
@@ -22,6 +23,14 @@ QUnit.test('Iterator#flatMap', assert => {
     assert.same(counter, 0, 'counter');
     return [arg];
   }).toArray();
+
+  // Should not throw an error for an iterator without `return` method. Fixed in Safari 26.2
+  // https://bugs.webkit.org/show_bug.cgi?id=297532
+  assert.notThrows(() => {
+    const iter = flatMap.call(new Map([[4, 5]]).entries(), v => v);
+    iter.next();
+    iter.return();
+  }, 'iterator without `return` method');
 
   if (STRICT) {
     assert.throws(() => flatMap.call(undefined, () => { /* empty */ }), TypeError);
