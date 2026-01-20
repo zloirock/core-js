@@ -6,7 +6,7 @@
     - `Map.prototype.getOrInsertComputed`
     - `WeakMap.prototype.getOrInsert`
     - `WeakMap.prototype.getOrInsertComputed`
-  - Moved to stable ES, January 2026 TC39 meeting
+  - Moved to stable ES, [January 2026 TC39 meeting](https://github.com/tc39/proposals/commit/131e53d6c9e658c6439831a167ed3f7897daf160)
   - Added `es.` namespace modules, `/es/` and `/stable/` namespaces entries
 - Use `CreateDataProperty` / `CreateDataPropertyOrThrow` in some missed cases, [#1497](https://github.com/zloirock/core-js/issues/1497)
 - Minor fix / optimization in the `RegExp` constructor (NCG and `dotAll`) polyfill
