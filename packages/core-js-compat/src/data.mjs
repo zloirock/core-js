@@ -747,11 +747,13 @@ export const data = {
   'es.iterator.flat-map': {
     // with changes related to the new iteration closing approach on early error
     // https://github.com/tc39/ecma262/pull/3467
-    bun: '1.2.4', // '1.1.31',
+    // throws on iterator without `return` method
+    // https://bugs.webkit.org/show_bug.cgi?id=297532
+    bun: '1.2.21', // '1.2.4', '1.1.31'
     chrome: '135', // '122',
     deno: '2.2.5', // '1.38.1',
     firefox: '141', // '131',
-    safari: '26.0', // 18.4',
+    safari: '26.2', // '26.0', '18.4
   },
   'es.iterator.for-each': {
     // with changes related to the new iteration closing approach on early error
