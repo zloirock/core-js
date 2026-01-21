@@ -2403,7 +2403,9 @@ export const data = {
   },
   'es.uint8-array.set-from-hex': {
     bun: '1.1.22',
-    chrome: '140',
+    // Should not throw an error on length-tracking views over ResizableArrayBuffer
+    // https://issues.chromium.org/issues/454630441
+    chrome: '144', // '140',
     firefox: '133',
     safari: '18.2',
   },
