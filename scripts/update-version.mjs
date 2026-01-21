@@ -23,7 +23,7 @@ const NOW = new Date();
 const CURRENT_YEAR = NOW.getFullYear();
 
 const license = await readFile(LICENSE, 'utf8');
-const OLD_YEAR = +license.match(/2014-(?<year>\d{4}) D/).groups.year;
+const OLD_YEAR = +license.match(/2025–(?<year>\d{4}) C/).groups.year;
 await writeFile(LICENSE, license.replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const readme = await readFile(README, 'utf8');
