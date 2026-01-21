@@ -1,5 +1,9 @@
 # Changelog
 ### Unreleased
+- Nothing
+
+### [3.48.0 - 2026.01.21](https://github.com/zloirock/core-js/releases/tag/v3.48.0)
+- Changes [v3.47.0...v3.48.0](https://github.com/zloirock/core-js/compare/v3.47.0...v3.48.0) (126 commits)
 - [`Map` upsert proposal](https://github.com/tc39/proposal-upsert):
   - Built-ins:
     - `Map.prototype.getOrInsert`
