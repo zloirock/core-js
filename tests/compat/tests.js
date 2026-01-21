@@ -1787,7 +1787,13 @@ GLOBAL.tests = {
     }
   },
   'es.uint8-array.set-from-hex': function () {
-    return Uint8Array.prototype.setFromHex;
+    // Should not throw an error on length-tracking views over ResizableArrayBuffer
+    // https://issues.chromium.org/issues/454630441
+    try {
+      var rab = new ArrayBuffer(16, { maxByteLength: 1024 });
+      new Uint8Array(rab).setFromHex('cafed00d');
+      return true;
+    } catch (error) { /* empty */ }
   },
   'es.uint8-array.to-base64': function () {
     if (!Uint8Array.prototype.toBase64) return false;

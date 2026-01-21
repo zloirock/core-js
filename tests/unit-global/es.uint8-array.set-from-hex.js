@@ -37,6 +37,13 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
     assert.throws(() => array5.setFromHex('48656c6c6f20576f726c64'), TypeError, 'detached');
   }
 
+  // Should not throw an error on length-tracking views over ResizableArrayBuffer
+  // https://issues.chromium.org/issues/454630441
+  assert.notThrows(() => {
+    const rab = new ArrayBuffer(16, { maxByteLength: 1024 });
+    new Uint8Array(rab).setFromHex('cafed00d');
+  }, 'not throw an error on ResizableArrayBuffer');
+
   assert.throws(() => setFromHex.call(Array(11), '48656c6c6f20576f726c64'), TypeError, "isn't generic, this #1");
   assert.throws(() => setFromHex.call(new Int8Array(11), '48656c6c6f20576f726c64'), TypeError, "isn't generic, this #2");
   assert.throws(() => new Uint8Array(11).setFromHex(null), TypeError, "isn't generic, arg #1");
