@@ -26,10 +26,10 @@ interface processMetadata {
 interface Uint8ArrayConstructor {
   /**
    * Creates a new `Uint8Array` from a base64-encoded string.
-   * @param string The base64-encoded string.
-   * @param options If provided, specifies the alphabet and handling of the last chunk.
+   * @param string - The base64-encoded string.
+   * @param options - If provided, specifies the alphabet and handling of the last chunk.
    * @returns A new `Uint8Array` instance.
-   * @throws {SyntaxError} If the input string contains characters outside the specified alphabet, or if the last
+   * @throws SyntaxError If the input string contains characters outside the specified alphabet, or if the last
    * chunk is inconsistent with the `lastChunkHandling` option.
    */
   fromBase64(string: string, options?: fromBase64Options): Uint8Array;
@@ -44,24 +44,24 @@ interface Uint8ArrayConstructor {
 interface Uint8Array {
   /**
    * Sets the `Uint8Array` from a base64-encoded string.
-   * @param string The base64-encoded string.
-   * @param options If provided, specifies the alphabet and handling of the last chunk.
+   * @param string - The base64-encoded string.
+   * @param options - If provided, specifies the alphabet and handling of the last chunk.
    * @returns An object containing the number of bytes read and written.
-   * @throws {SyntaxError} If the input string contains characters outside the specified alphabet, or if the last
+   * @throws SyntaxError If the input string contains characters outside the specified alphabet, or if the last
    * chunk is inconsistent with the `lastChunkHandling` option.
    */
   setFromBase64(string: string, options?: fromBase64Options): processMetadata;
 
   /**
    * Sets the `Uint8Array` from a base16-encoded string.
-   * @param string The base16-encoded string.
+   * @param string - The base16-encoded string.
    * @returns An object containing the number of bytes read and written.
    */
   setFromHex(string: string): processMetadata;
 
   /**
    * Converts the `Uint8Array` to a base64-encoded string.
-   * @param options If provided, sets the alphabet and padding behavior used.
+   * @param options - If provided, sets the alphabet and padding behavior used.
    * @returns A base64-encoded string.
    */
   toBase64(options?: toBase64Options): string;
