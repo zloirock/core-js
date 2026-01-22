@@ -8,7 +8,7 @@
 interface String {
   /**
    * Returns a new String consisting of the single UTF-16 code unit located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): string | undefined;
 }
@@ -16,7 +16,7 @@ interface String {
 interface Array<T> {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): T | undefined;
 }
@@ -24,7 +24,7 @@ interface Array<T> {
 interface ReadonlyArray<T> {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): T | undefined;
 }
@@ -32,7 +32,7 @@ interface ReadonlyArray<T> {
 interface Int8Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -40,7 +40,7 @@ interface Int8Array {
 interface Uint8Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -48,7 +48,7 @@ interface Uint8Array {
 interface Uint8ClampedArray {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -56,7 +56,7 @@ interface Uint8ClampedArray {
 interface Int16Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -64,7 +64,7 @@ interface Int16Array {
 interface Uint16Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -72,7 +72,7 @@ interface Uint16Array {
 interface Int32Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -80,7 +80,7 @@ interface Int32Array {
 interface Uint32Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -88,7 +88,7 @@ interface Uint32Array {
 interface Float32Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -96,7 +96,7 @@ interface Float32Array {
 interface Float64Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): number | undefined;
 }
@@ -104,7 +104,7 @@ interface Float64Array {
 interface BigInt64Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): bigint | undefined;
 }
@@ -112,7 +112,7 @@ interface BigInt64Array {
 interface BigUint64Array {
   /**
    * Returns the item located at the specified index.
-   * @param index The zero-based index of the desired code unit. A negative index will count back from the last item.
+   * @param index - The zero-based index of the desired code unit. A negative index will count back from the last item.
    */
   at(index: number): bigint | undefined;
 }
