@@ -3,7 +3,7 @@
 interface Iterator<T> {
   /**
    * Creates a string by concatenating all elements provided by the iterator, separated by the specified separator.
-   * @param separator
+   * @param separator - A string to separate each element. If omitted, the elements are separated by commas.
    */
   join(separator?: unknown): string;
 }
