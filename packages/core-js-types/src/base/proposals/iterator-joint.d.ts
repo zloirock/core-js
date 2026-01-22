@@ -10,8 +10,8 @@ interface IteratorConstructor { // @type-options no-extends
   /**
    * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
    * to position in the passed iterable.
-   * @param iterables An Iterable of iterables.
-   * @param options Optional object:
+   * @param iterables - An Iterable of iterables.
+   * @param options - Optional object:
    *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
@@ -21,8 +21,8 @@ interface IteratorConstructor { // @type-options no-extends
   /**
    * takes an object whose values are iterables and produces an iterable of objects where keys.
    * correspond to keys in the passed object.
-   * @param record An object of iterables.
-   * @param options Optional object:
+   * @param record - An object of iterables.
+   * @param options - Optional object:
    *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.

@@ -9,9 +9,9 @@ interface IteratorRangeOptions<T> {
 interface IteratorConstructor { // @type-options no-extends
   /**
    * Returns an iterator that generates a sequence of numbers or bigints within a range.
-   * @param start The starting value of the sequence.
-   * @param end The end value of the sequence (exclusive by default).
-   * @param options Optional object:
+   * @param start - The starting value of the sequence.
+   * @param end - The end value of the sequence (exclusive by default).
+   * @param options - Optional object:
    *   - step: The difference between consecutive values (default is 1).
    *   - inclusive: If true, the end value is included in the range (default is false).
    * @returns An iterator of numbers or bigints.

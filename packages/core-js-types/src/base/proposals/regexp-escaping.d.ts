@@ -3,7 +3,7 @@
 interface RegExpConstructor {
   /**
    * Escapes a string to be used in a regular expression.
-   * @param string
+   * @param string - The string to escape.
    * @returns The escaped string.
    */
   escape(string: string): string;
