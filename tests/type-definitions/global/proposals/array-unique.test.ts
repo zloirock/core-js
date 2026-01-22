@@ -1,6 +1,9 @@
 import 'core-js/full';
 
-type Obj = { a: number; b: string };
+interface Obj {
+  a: number;
+  b: string
+}
 const arr: Obj[] = [{ a: 1, b: 'x' }, { a: 2, b: 'y' }];
 const arrRes: Obj[] = arr.uniqueBy();
 const arrRes2: Obj[] = arr.uniqueBy('a');
