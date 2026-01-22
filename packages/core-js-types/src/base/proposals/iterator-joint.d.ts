@@ -1,10 +1,10 @@
 // https://github.com/tc39/proposal-joint-iteration
 
-type ZipOptions = {
+interface ZipOptions {
   mode?: 'shortest' | 'longest' | 'strict';
 
   padding?: object;
-};
+}
 
 interface IteratorConstructor { // @type-options no-extends
   /**
