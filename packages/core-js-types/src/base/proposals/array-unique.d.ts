@@ -3,7 +3,7 @@
 interface Array<T> { // @type-options no-redefine
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -13,7 +13,7 @@ interface Array<T> { // @type-options no-redefine
 interface ReadonlyArray<T> { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -23,7 +23,7 @@ interface ReadonlyArray<T> { // @type-options no-export
 interface Int8Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -33,7 +33,7 @@ interface Int8Array { // @type-options no-export
 interface Uint8Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -43,7 +43,7 @@ interface Uint8Array { // @type-options no-export
 interface Uint8ClampedArray { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -53,7 +53,7 @@ interface Uint8ClampedArray { // @type-options no-export
 interface Int16Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -63,7 +63,7 @@ interface Int16Array { // @type-options no-export
 interface Uint16Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -73,7 +73,7 @@ interface Uint16Array { // @type-options no-export
 interface Int32Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -83,7 +83,7 @@ interface Int32Array { // @type-options no-export
 interface Uint32Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -93,7 +93,7 @@ interface Uint32Array { // @type-options no-export
 interface Float32Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -103,7 +103,7 @@ interface Float32Array { // @type-options no-export
 interface Float64Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -113,7 +113,7 @@ interface Float64Array { // @type-options no-export
 interface BigInt64Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
@@ -123,7 +123,7 @@ interface BigInt64Array { // @type-options no-export
 interface BigUint64Array { // @type-options no-export
   /**
    * Returns a new array with unique items, determined by the resolver function or property key
-   * @param resolver A function that resolves the value to check uniqueness against,
+   * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
    * @returns A new `Array` with unique items
    */
