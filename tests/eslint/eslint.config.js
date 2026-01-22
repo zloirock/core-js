@@ -1918,7 +1918,7 @@ const ts = {
   // require that function overload signatures be consecutive
   '@typescript-eslint/adjacent-overload-signatures': ERROR,
   // enforce type definitions to consistently use either `interface` or `type`
-  '@typescript-eslint/consistent-type-definitions': [OFF, 'interface'],
+  '@typescript-eslint/consistent-type-definitions': [ERROR, 'interface'],
   // disallow extra non-null assertions
   '@typescript-eslint/no-extra-non-null-assertion': ERROR,
   // enforce the use of top-level import type qualifier when an import only has specifiers with inline type qualifiers
