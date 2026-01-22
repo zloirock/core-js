@@ -52,15 +52,15 @@ interface DisposableStack {
 
   /**
    * Adds a disposable resource to the stack, returning the resource.
-   * @param value The resource to add. `null` and `undefined` will not be added, but will be returned.
+   * @param value - The resource to add. `null` and `undefined` will not be added, but will be returned.
    * @returns The provided {@link value}.
    */
   use<T extends Disposable | null | undefined>(value: T): T;
 
   /**
    * Adds a value and associated disposal callback as a resource to the stack.
-   * @param value The value to add.
-   * @param onDispose The callback to use in place of a `[Symbol.dispose]()` method. Will be invoked with `value`
+   * @param value - The value to add.
+   * @param onDispose - The callback to use in place of a `[Symbol.dispose]()` method. Will be invoked with `value`
    * as the first parameter.
    * @returns The provided {@link value}.
    */
@@ -128,15 +128,15 @@ interface AsyncDisposableStack {
 
   /**
    * Adds a disposable resource to the stack, returning the resource.
-   * @param value The resource to add. `null` and `undefined` will not be added, but will be returned.
+   * @param value - The resource to add. `null` and `undefined` will not be added, but will be returned.
    * @returns The provided {@link value}.
    */
   use<T extends AsyncDisposable | Disposable | null | undefined>(value: T): T;
 
   /**
    * Adds a value and associated disposal callback as a resource to the stack.
-   * @param value The value to add.
-   * @param onDisposeAsync The callback to use in place of a `[Symbol.asyncDispose]()` method. Will be invoked with `value`
+   * @param value - The value to add.
+   * @param onDisposeAsync - The callback to use in place of a `[Symbol.asyncDispose]()` method. Will be invoked with `value`
    * as the first parameter.
    * @returns The provided {@link value}.
    */
