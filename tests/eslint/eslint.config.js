@@ -1906,7 +1906,7 @@ const ts = {
   ...disable(base),
   ...baseStyle,
   // validating that TypeScript doc comments conform to the TSDoc specification
-  'tsdoc/syntax': OFF,
+  'tsdoc/syntax': ERROR,
   // specify the maximum length of a line in your program
   '@stylistic/max-len': [OFF, { ...base['@stylistic/max-len'][1], code: 180 }],
   // require consistent spacing around type annotations
