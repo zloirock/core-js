@@ -7,8 +7,8 @@
 interface Array<T> { // @type-options no-redefine
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: T, fromIndex?: number): boolean;
 }
@@ -16,8 +16,8 @@ interface Array<T> { // @type-options no-redefine
 interface ReadonlyArray<T> { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: T, fromIndex?: number): boolean;
 }
@@ -25,8 +25,8 @@ interface ReadonlyArray<T> { // @type-options no-export
 interface Int8Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -34,8 +34,8 @@ interface Int8Array { // @type-options no-export
 interface Uint8Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -43,8 +43,8 @@ interface Uint8Array { // @type-options no-export
 interface Uint8ClampedArray { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -52,8 +52,8 @@ interface Uint8ClampedArray { // @type-options no-export
 interface Int16Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -61,8 +61,8 @@ interface Int16Array { // @type-options no-export
 interface Uint16Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -70,8 +70,8 @@ interface Uint16Array { // @type-options no-export
 interface Int32Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -79,8 +79,8 @@ interface Int32Array { // @type-options no-export
 interface Uint32Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -88,8 +88,8 @@ interface Uint32Array { // @type-options no-export
 interface Float32Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -97,8 +97,8 @@ interface Float32Array { // @type-options no-export
 interface Float64Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: number, fromIndex?: number): boolean;
 }
@@ -106,8 +106,8 @@ interface Float64Array { // @type-options no-export
 interface BigInt64Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: bigint, fromIndex?: number): boolean;
 }
@@ -115,8 +115,8 @@ interface BigInt64Array { // @type-options no-export
 interface BigUint64Array { // @type-options no-export
   /**
    * Determines whether an array includes a certain element, returning true or false as appropriate.
-   * @param searchElement The element to search for.
-   * @param fromIndex The position in this array at which to begin searching for searchElement.
+   * @param searchElement - The element to search for.
+   * @param fromIndex - The position in this array at which to begin searching for searchElement.
    */
   includes(searchElement: bigint, fromIndex?: number): boolean;
 }
