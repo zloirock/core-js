@@ -13,8 +13,8 @@ interface DOMTokenList { // @type-options no-export
   /**
    * Calls a defined callback function on each element of the DOMTokenList,
    * passing the element, its index, and the entire DOMTokenList as arguments.
-   * @param callbackfn
-   * @param thisArg
+   * @param callbackfn - The function to execute for each element.
+   * @param thisArg - Value to use as this when executing `callbackfn`.
    */
   forEach(
     callbackfn: (value: Element, index: number, collection: DOMTokenList) => void,
@@ -43,8 +43,8 @@ interface NodeList { // @type-options no-export
   /**
    * Calls a defined callback function on each element of the NodeList,
    * passing the element, its index, and the entire NodeList as arguments.
-   * @param callbackfn
-   * @param thisArg
+   * @param callbackfn - The function to execute for each element.
+   * @param thisArg - Value to use as this when executing `callbackfn`.
    */
   forEach(
     callbackfn: (value: Node, index: number, collection: NodeList) => void,
