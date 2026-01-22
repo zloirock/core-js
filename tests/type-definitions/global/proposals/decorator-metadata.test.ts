@@ -3,9 +3,9 @@ import 'core-js/full';
 const rsmd1: symbol = Symbol.metadata;
 const rsmd2: typeof Symbol.metadata = Symbol.metadata;
 
-type T = {
+interface T {
   [Symbol.metadata]?: object;
-};
+}
 
 const obj: T = {};
 obj[Symbol.metadata] = { foo: 1 };

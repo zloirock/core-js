@@ -1,10 +1,10 @@
 // https://github.com/tc39/proposal-iterator.range
 
-type IteratorRangeOptions<T> = {
+interface IteratorRangeOptions<T> {
   step?: T;
 
   inclusive?: boolean;
-};
+}
 
 interface IteratorConstructor { // @type-options no-extends
   /**
