@@ -10,7 +10,7 @@ interface PromiseConstructor {
   /**
    * Creates a Promise that is resolved with an array of results when all
    * of the provided Promises resolve or reject.
-   * @param values An array of Promises.
+   * @param values - An array of Promises.
    * @returns A new Promise.
    */
   allSettled<T extends readonly unknown[] | []>(values: T): Promise<{ -readonly [P in keyof T]: CoreJS.CoreJSPromiseSettledResult<Awaited<T[P]>>; }>; // @type-options prefix-return-type
@@ -18,7 +18,7 @@ interface PromiseConstructor {
   /**
    * Creates a Promise that is resolved with an array of results when all
    * of the provided Promises resolve or reject.
-   * @param values An array of Promises.
+   * @param values - An array of Promises.
    * @returns A new Promise.
    */
   allSettled<T>(values: Iterable<T | PromiseLike<T>>): Promise<CoreJS.CoreJSPromiseSettledResult<Awaited<T>>[]>; // @type-options prefix-return-type
