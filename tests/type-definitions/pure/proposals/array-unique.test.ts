@@ -1,6 +1,9 @@
 import arrayUniqueBy from '@core-js/pure/full/array/unique-by';
 
-type Obj = { a: number; b: string };
+interface Obj {
+  a: number;
+  b: string
+}
 const arr: Obj[] = [{ a: 1, b: 'x' }, { a: 2, b: 'y' }];
 const arrRes: Obj[] = arrayUniqueBy(arr);
 const arrRes2: Obj[] = arrayUniqueBy(arr, 'a');
