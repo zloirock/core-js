@@ -2,13 +2,13 @@ import $rawJSON from '@core-js/pure/full/json/raw-json';
 import $isRawJSON from '@core-js/pure/full/json/is-raw-json';
 import $parse from '@core-js/pure/full/json/parse';
 
-declare type CoreJSRawJSON = {
+interface CoreJSRawJSON {
   rawJSON: string;
-};
+}
 
-declare type CoreJSReviverContext = {
+interface CoreJSReviverContext {
   source: string;
-};
+}
 
 const r: CoreJSRawJSON = $rawJSON('{"a":123}');
 
