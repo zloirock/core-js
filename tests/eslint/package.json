@@ -22,7 +22,7 @@
     "eslint-plugin-promise": "^7.2.1",
     "eslint-plugin-qunit": "^8.2.5",
     "eslint-plugin-redos": "^4.5.0",
-    "eslint-plugin-regexp": "^2.10.0",
+    "eslint-plugin-regexp": "^3.0.0",
     "eslint-plugin-sonarjs": "^3.0.5",
     "eslint-plugin-unicorn": "^62.0.0",
     "eslint-yaml": "^0.1.0",
