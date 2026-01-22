@@ -27,17 +27,17 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  type ZipOptions = {
+  interface ZipOptions {
     mode?: 'shortest' | 'longest' | 'strict';
 
     padding?: object;
-  };
+  }
 
-  type IteratorRangeOptions<T> = {
+  interface IteratorRangeOptions<T> {
     step?: T;
 
     inclusive?: boolean;
-  };
+  }
 
   interface CoreJSPromiseLike<T> {
     /**
