@@ -5,7 +5,7 @@
 interface IteratorConstructor { // @type-options no-extends
   /**
    * Creates an iterator that sequentially yields values from the provided iterables.
-   * @param iterators The iterables to concatenate.
+   * @param iterators - The iterables to concatenate.
    * @returns An iterator yielding values from each input iterable in sequence.
    */
   concat<T, U>(...iterators: Iterable<U>[]): CoreJS.CoreJSIteratorObject<T | U>;
