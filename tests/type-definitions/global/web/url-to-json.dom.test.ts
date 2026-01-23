@@ -1,14 +1,14 @@
-import 'core-js/full';
+// URL has conflicts with @types/node
+// import 'core-js/full';
+//
+// declare const urlLike: URL;
+// const str: string = urlLike.toJSON();
+//
+// // @ts-expect-error
+// const num: number = urlLike.toJSON();
+// // @ts-expect-error
+// urlLike.toJSON('param');
 
-declare const urlLike: URL;
-const str: string = urlLike.toJSON();
-
-// @ts-expect-error
-const num: number = urlLike.toJSON();
-// @ts-expect-error
-urlLike.toJSON('param');
-
-// todo add after URL becomes constructable in types
 // const url1 = new URL('https://example.com');
 // new URL('page', 'https://example.com');
 // new URL('/path', url1);
