@@ -1,4 +1,4 @@
-// types: web/url
+// no types: because of a conflict with @types/node
 'use strict';
 var $ = require('../internals/export');
 var fails = require('../internals/fails');
