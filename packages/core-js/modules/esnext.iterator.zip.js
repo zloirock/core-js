@@ -10,6 +10,7 @@ var getModeOption = require('../internals/get-mode-option');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
+var IS_PURE = require('../internals/is-pure');
 
 var concat = uncurryThis([].concat);
 var push = uncurryThis([].push);
@@ -17,7 +18,7 @@ var THROW = 'throw';
 
 // `Iterator.zip` method
 // https://github.com/tc39/proposal-joint-iteration
-$({ target: 'Iterator', stat: true }, {
+$({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zip: function zip(iterables /* , options */) {
     anObject(iterables);
     var options = arguments.length > 1 ? anObjectOrUndefined(arguments[1]) : undefined;

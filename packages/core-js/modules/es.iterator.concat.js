@@ -5,6 +5,7 @@ var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
+var IS_PURE = require('../internals/is-pure');
 
 var $Array = Array;
 
@@ -35,7 +36,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.concat` method
 // https://github.com/tc39/proposal-iterator-sequencing
-$({ target: 'Iterator', stat: true }, {
+$({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   concat: function concat() {
     var length = arguments.length;
     var iterables = $Array(length);

@@ -6,6 +6,7 @@ import from from 'core-js-pure/es/array/from';
 import assign from 'core-js-pure/es/object/assign';
 import create from 'core-js-pure/es/object/create';
 import Symbol from 'core-js-pure/es/symbol';
+import Iterator from 'core-js-pure/es/iterator';
 import zipKeyed from 'core-js-pure/actual/iterator/zip-keyed';
 
 function nullProto(obj) {
@@ -18,6 +19,7 @@ QUnit.test('Iterator.zipKeyed', assert => {
   assert.name(zipKeyed, 'zipKeyed');
 
   let result = zipKeyed({ a: [0, 1, 2], b: [3, 4, 5], c: [7, 8, 9] });
+  assert.true(result instanceof Iterator, 'Iterator instance');
   assert.deepEqual(from(result), [{ a: 0, b: 3, c: 7 }, { a: 1, b: 4, c: 8 }, { a: 2, b: 5, c: 9 }]);
   result = zipKeyed({ a: [0, 1, 2], b: [3, 4, 5, 6], c: [7, 8, 9] });
   assert.deepEqual(from(result), [{ a: 0, b: 3, c: 7 }, { a: 1, b: 4, c: 8 }, { a: 2, b: 5, c: 9 }]);

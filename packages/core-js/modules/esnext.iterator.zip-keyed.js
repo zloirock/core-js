@@ -11,6 +11,7 @@ var getIteratorFlattenable = require('../internals/get-iterator-flattenable');
 var getModeOption = require('../internals/get-mode-option');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 var iteratorZip = require('../internals/iterator-zip');
+var IS_PURE = require('../internals/is-pure');
 
 var create = getBuiltIn('Object', 'create');
 var ownKeys = getBuiltIn('Reflect', 'ownKeys');
@@ -19,7 +20,7 @@ var THROW = 'throw';
 
 // `Iterator.zipKeyed` method
 // https://github.com/tc39/proposal-joint-iteration
-$({ target: 'Iterator', stat: true }, {
+$({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zipKeyed: function zipKeyed(iterables /* , options */) {
     anObject(iterables);
     var options = arguments.length > 1 ? anObjectOrUndefined(arguments[1]) : undefined;

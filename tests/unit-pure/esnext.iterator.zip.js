@@ -1,6 +1,7 @@
 import { createIterator } from '../helpers/helpers.js';
 
 import from from 'core-js-pure/es/array/from';
+import Iterator from 'core-js-pure/es/iterator';
 import zip from 'core-js-pure/actual/iterator/zip';
 
 QUnit.test('Iterator.zip', assert => {
@@ -9,6 +10,7 @@ QUnit.test('Iterator.zip', assert => {
   assert.name(zip, 'zip');
 
   let result = zip([[1, 2, 3], [4, 5, 6]]);
+  assert.true(result instanceof Iterator, 'Iterator instance');
   assert.deepEqual(from(result), [[1, 4], [2, 5], [3, 6]]);
   result = zip([[1, 2, 3], [4, 5, 6, 7]]);
   assert.deepEqual(from(result), [[1, 4], [2, 5], [3, 6]]);

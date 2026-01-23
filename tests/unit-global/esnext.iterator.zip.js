@@ -11,6 +11,7 @@ QUnit.test('Iterator.zip', assert => {
   assert.nonEnumerable(Iterator, 'zip');
 
   let result = zip([[1, 2, 3], [4, 5, 6]]);
+  assert.true(result instanceof Iterator, 'Iterator instance');
   assert.deepEqual(from(result), [[1, 4], [2, 5], [3, 6]]);
   result = zip([[1, 2, 3], [4, 5, 6, 7]]);
   assert.deepEqual(from(result), [[1, 4], [2, 5], [3, 6]]);
