@@ -29,6 +29,10 @@ const imports = {
 let outputFiles = {};
 
 function addType(tsVersion, subset, template, options) {
+  const exportGlobalType = options.globalType ?? true;
+  if (!exportGlobalType && subset !== 'pure') {
+    return;
+  }
   const filePath = buildFilePath(tsVersion, subset);
   if (!outputFiles[filePath]) outputFiles[filePath] = '';
   const entryWithTypes = template(options);
@@ -44,6 +48,8 @@ async function buildType(entry, options) {
   let {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
+    globalType,
+    exportGlobalType = globalType ?? true,
     template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
     customType, tsVersion, proposal, types, ownEntryPoint,
   } = options;
@@ -77,14 +83,18 @@ async function buildType(entry, options) {
   }
 
   types.forEach(type => {
-    imports.index.add(type);
-    imports[subset].add(type);
+    if (exportGlobalType) {
+      imports.index.add(type);
+      imports[subset].add(type);
+    }
     imports.pure.add(path.join('pure', type));
   });
 
   if (customType) {
-    imports.index.add(customType);
-    imports[subset].add(customType);
+    if (exportGlobalType) {
+      imports.index.add(customType);
+      imports[subset].add(customType);
+    }
     imports.pure.add(path.join('pure', customType));
   }
   options = { ...options, modules, level, entry, types };
