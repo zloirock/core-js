@@ -28,7 +28,7 @@
   "sideEffects": false,
   "main": "index.js",
   "dependencies": {
-    "@babel/helper-define-polyfill-provider": "^0.6.5",
+    "@babel/helper-define-polyfill-provider": "^0.6.6",
     "@core-js/compat": "4.0.0-alpha.0"
   },
   "engines": {
