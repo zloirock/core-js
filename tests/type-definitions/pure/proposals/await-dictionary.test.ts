@@ -1,18 +1,20 @@
 import promiseAllKeyed from '@core-js/pure/full/promise/all-keyed';
 import promiseAllSettledKeyed from '@core-js/pure/full/promise/all-settled-keyed';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { CoreJSPromiseAndPromiseLike } from '../../helpers';
+import { assertCoreJSPromiseLike } from '../../helpers';
 
-const res: CoreJSPromiseAndPromiseLike<{ a: number, b: string, c: boolean }> = promiseAllKeyed({
+const res = promiseAllKeyed({
   a: promiseResolve(1),
   b: promiseResolve('string'),
   c: promiseResolve(true),
 });
+assertCoreJSPromiseLike<{ a: number, b: string, c: boolean }>(res);
 
 declare const sym: unique symbol;
-const res2: CoreJSPromiseAndPromiseLike<{ [sym]: number }> = promiseAllKeyed({
+const res2 = promiseAllKeyed({
   [sym]: promiseResolve(1),
 });
+assertCoreJSPromiseLike<{ [sym]: number }>(res2);
 
 // @ts-expect-error
 promiseAllKeyed();
