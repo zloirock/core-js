@@ -7,7 +7,7 @@ import asyncIteratorFrom from '@core-js/pure/full/async-iterator/from';
 import $SuppressedError from '@core-js/pure/full/suppressed-error/constructor';
 import $DisposableStack from '@core-js/pure/full/disposable-stack/constructor';
 import $AsyncDisposableStack from '@core-js/pure/full/async-disposable-stack/constructor';
-import { CoreJSPromiseAndPromiseLike } from '../../helpers';
+import { assertCoreJSPromiseLike } from '../../helpers';
 
 const d: symbol = symbolDispose;
 const ad: symbol = symbolAsyncDispose;
@@ -23,7 +23,8 @@ objD[symbolDispose]();
 const objAD = {
   [symbolAsyncDispose]() { return promiseResolve(); },
 };
-const p1: CoreJSPromiseAndPromiseLike<void> = objAD[symbolAsyncDispose]();
+const p1 = objAD[symbolAsyncDispose]();
+assertCoreJSPromiseLike<void>(p1);
 
 const err1 = new $SuppressedError('err', 'suppressed', 'msg');
 err1.error;
@@ -65,7 +66,8 @@ objDS[symbolToStringTag] = 'foo';
 $AsyncDisposableStack.prototype;
 const objADS = new $AsyncDisposableStack();
 const disposedASD: boolean = objDS.disposed;
-const rda: CoreJSPromiseAndPromiseLike<void> = objADS.disposeAsync();
+const rda = objADS.disposeAsync();
+assertCoreJSPromiseLike<void>(rda);
 objADS.use(objAD);
 objADS.use(objD);
 const ruseASD3: null = objADS.use(null);
