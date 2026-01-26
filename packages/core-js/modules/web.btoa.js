@@ -10,6 +10,7 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var i2c = require('../internals/base64-map').i2c;
 
 var $btoa = getBuiltIn('btoa');
+var $Array = Array;
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
@@ -35,7 +36,8 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC) return call($btoa, globalThis, toString(data));
     var string = toString(data);
-    var output = [];
+    var output = new $Array(Math.ceil(string.length * 4 / 3));
+    var outputIndex = 0;
     var position = 0;
     var map = i2c;
     var block, charCode;
@@ -45,7 +47,7 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
         throw new (getBuiltIn('DOMException'))('The string contains characters outside of the Latin1 range', 'InvalidCharacterError');
       }
       block = block << 8 | charCode;
-      output.push(charAt(map, 63 & block >> 8 - position % 1 * 8));
+      output[outputIndex++] = charAt(map, 63 & block >> 8 - position % 1 * 8);
     } return output.join('');
   }
 });

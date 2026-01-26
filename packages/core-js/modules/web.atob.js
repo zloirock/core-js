@@ -14,6 +14,7 @@ var whitespaces = /[\t\n\f\r ]+/g;
 var finalEq = /[=]{1,2}$/;
 
 var $atob = getBuiltIn('atob');
+var $Array = Array;
 var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
@@ -47,7 +48,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
-    var output = [];
+    var output = new $Array(Math.ceil(string.length * 3 / 4));
     var position = 0;
     var bc = 0;
     var length, chr, bs;
@@ -61,7 +62,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     while (position < length) {
       chr = charAt(string, position++);
       bs = bc % 4 ? bs * 64 + c2i[chr] : c2i[chr];
-      if (bc++ % 4) output.push(fromCharCode(255 & bs >> (-2 * bc & 6)));
+      if (bc++ % 4) output[bc / 4] = fromCharCode(255 & bs >> (-2 * bc & 6));
     } return output.join('');
   }
 });
