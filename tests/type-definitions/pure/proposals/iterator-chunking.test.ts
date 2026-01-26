@@ -1,13 +1,15 @@
 import iteratorChunks from '@core-js/pure/full/iterator/chunks';
 import iteratorWindows from '@core-js/pure/full/iterator/windows';
-import { CoreJSIteratorAndIteratorLike } from '../../helpers';
+import { assertCoreJSIteratorLike } from '../../helpers';
 
 declare function getNumberIterator(): Iterator<number>;
 
 const numbersIter = getNumberIterator();
 
-const chunksObj: CoreJSIteratorAndIteratorLike<number[]> = iteratorChunks(numbersIter, 2);
-const windowsObj: CoreJSIteratorAndIteratorLike<number[]> = iteratorWindows(numbersIter, 4);
+const chunksObj = iteratorChunks(numbersIter, 2);
+assertCoreJSIteratorLike<number[]>(chunksObj);
+const windowsObj = iteratorWindows(numbersIter, 4);
+assertCoreJSIteratorLike<number[]>(windowsObj);
 
 const chunkNext = chunksObj.next();
 const windowsNext = windowsObj.next();
