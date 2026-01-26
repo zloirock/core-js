@@ -1,3 +1,4 @@
+// types: web/atob-btoa
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');

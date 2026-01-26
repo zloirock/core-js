@@ -1,6 +1,7 @@
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
+import parserTypeScript from '@typescript-eslint/parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
 import pluginASCII from 'eslint-plugin-ascii';
 import pluginDepend from 'eslint-plugin-depend';
@@ -21,6 +22,8 @@ import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
+import pluginTypeScript from '@typescript-eslint/eslint-plugin';
+import pluginTSDoc from 'eslint-plugin-tsdoc';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
@@ -40,7 +43,151 @@ function disable(rules) {
   return Object.fromEntries(Object.keys(rules).map(key => [key, OFF]));
 }
 
+// layout & formatting:
+const baseStyle = {
+  // require or disallow the Unicode Byte Order Mark
+  'unicode-bom': [ERROR, NEVER],
+  // require camel case names
+  camelcase: [ERROR, {
+    properties: NEVER,
+    ignoreDestructuring: true,
+    ignoreImports: true,
+    ignoreGlobals: true,
+  }],
+  // disallow use of multiline strings
+  'no-multi-str': ERROR,
+  // enforce spacing inside array brackets
+  '@stylistic/array-bracket-spacing': [ERROR, NEVER],
+  // require parentheses around arrow function arguments
+  '@stylistic/arrow-parens': [ERROR, 'as-needed'],
+  // enforce consistent spacing before and after the arrow in arrow functions
+  '@stylistic/arrow-spacing': ERROR,
+  // enforce spacing inside single-line blocks
+  '@stylistic/block-spacing': [ERROR, ALWAYS],
+  // enforce one true brace style
+  '@stylistic/brace-style': [ERROR, '1tbs', { allowSingleLine: true }],
+  // enforce trailing commas in multiline object literals
+  '@stylistic/comma-dangle': [ERROR, 'always-multiline'],
+  // enforce spacing after comma
+  '@stylistic/comma-spacing': ERROR,
+  // enforce one true comma style
+  '@stylistic/comma-style': [ERROR, 'last'],
+  // disallow padding inside computed properties
+  '@stylistic/computed-property-spacing': [ERROR, NEVER],
+  // enforce consistent line breaks after opening and before closing braces
+  '@stylistic/curly-newline': [ERROR, { consistent: true }],
+  // enforce newline before and after dot
+  '@stylistic/dot-location': [ERROR, 'property'],
+  // enforce one newline at the end of files
+  '@stylistic/eol-last': [ERROR, ALWAYS],
+  // disallow space between function identifier and application
+  '@stylistic/function-call-spacing': ERROR,
+  // require spacing around the `*` in `function *` expressions
+  '@stylistic/generator-star-spacing': [ERROR, 'both'],
+  // enforce the location of arrow function bodies
+  '@stylistic/implicit-arrow-linebreak': [ERROR, 'beside'],
+  // enforce consistent indentation
+  '@stylistic/indent': [ERROR, 2, {
+    ignoredNodes: ['ConditionalExpression'],
+    SwitchCase: 1,
+    VariableDeclarator: 'first',
+  }],
+  // enforces spacing between keys and values in object literal properties
+  '@stylistic/key-spacing': [ERROR, { beforeColon: false, afterColon: true }],
+  // require a space before & after certain keywords
+  '@stylistic/keyword-spacing': [ERROR, { before: true, after: true }],
+  // enforce consistent linebreak style
+  '@stylistic/linebreak-style': [ERROR, 'unix'],
+  // specify the maximum length of a line in your program
+  '@stylistic/max-len': [ERROR, {
+    code: 140,
+    tabWidth: 2,
+    ignoreRegExpLiterals: true,
+    ignoreTemplateLiterals: true,
+    ignoreUrls: true,
+    ignorePattern: '<svg[\\s\\S]*?</svg>',
+  }],
+  // enforce a maximum number of statements allowed per line
+  '@stylistic/max-statements-per-line': [ERROR, { max: 2 }],
+  // require parentheses when invoking a constructor with no arguments
+  '@stylistic/new-parens': ERROR,
+  // disallow unnecessary semicolons
+  '@stylistic/no-extra-semi': ERROR,
+  // disallow the use of leading or trailing decimal points in numeric literals
+  '@stylistic/no-floating-decimal': ERROR,
+  // disallow mixed spaces and tabs for indentation
+  '@stylistic/no-mixed-spaces-and-tabs': ERROR,
+  // disallow use of multiple spaces
+  '@stylistic/no-multi-spaces': [ERROR, { ignoreEOLComments: true }],
+  // disallow multiple empty lines and only one newline at the end
+  '@stylistic/no-multiple-empty-lines': [ERROR, { max: 1, maxEOF: 1 }],
+  // disallow tabs
+  '@stylistic/no-tabs': ERROR,
+  // disallow trailing whitespace at the end of lines
+  '@stylistic/no-trailing-spaces': ERROR,
+  // disallow whitespace before properties
+  '@stylistic/no-whitespace-before-property': ERROR,
+  // enforce the location of single-line statements
+  '@stylistic/nonblock-statement-body-position': [ERROR, 'beside'],
+  // enforce consistent line breaks after opening and before closing braces
+  '@stylistic/object-curly-newline': [ERROR, { consistent: true }],
+  // enforce spaces inside braces
+  '@stylistic/object-curly-spacing': [ERROR, ALWAYS],
+  // require newlines around variable declarations with initializations
+  '@stylistic/one-var-declaration-per-line': [ERROR, 'initializations'],
+  // enforce padding within blocks
+  '@stylistic/padded-blocks': [ERROR, NEVER],
+  // disallow blank lines after 'use strict'
+  '@stylistic/padding-line-between-statements': [ERROR, { blankLine: NEVER, prev: 'directive', next: '*' }],
+  // require or disallow use of quotes around object literal property names
+  '@stylistic/quote-props': [ERROR, 'as-needed', { keywords: false }],
+  // specify whether double or single quotes should be used
+  '@stylistic/quotes': [ERROR, 'single', { avoidEscape: true }],
+  // enforce spacing between rest and spread operators and their expressions
+  '@stylistic/rest-spread-spacing': ERROR,
+  // require or disallow use of semicolons instead of ASI
+  '@stylistic/semi': [ERROR, ALWAYS],
+  // enforce spacing before and after semicolons
+  '@stylistic/semi-spacing': ERROR,
+  // enforce location of semicolons
+  '@stylistic/semi-style': [ERROR, 'last'],
+  // require or disallow space before blocks
+  '@stylistic/space-before-blocks': ERROR,
+  // require or disallow space before function opening parenthesis
+  '@stylistic/space-before-function-paren': [ERROR, { anonymous: ALWAYS, named: NEVER }],
+  // require or disallow spaces inside parentheses
+  '@stylistic/space-in-parens': ERROR,
+  // require spaces around operators
+  '@stylistic/space-infix-ops': ERROR,
+  // require or disallow spaces before/after unary operators
+  '@stylistic/space-unary-ops': ERROR,
+  // require or disallow a space immediately following the // or /* in a comment
+  '@stylistic/spaced-comment': [ERROR, ALWAYS, {
+    line: { exceptions: ['/'] },
+    block: { exceptions: ['*'] },
+  }],
+  // enforce spacing around colons of switch statements
+  '@stylistic/switch-colon-spacing': ERROR,
+  // require or disallow spacing around embedded expressions of template strings
+  '@stylistic/template-curly-spacing': [ERROR, ALWAYS],
+  // disallow spacing between template tags and their literals
+  '@stylistic/template-tag-spacing': [ERROR, NEVER],
+  // require spacing around the `*` in `yield *` expressions
+  '@stylistic/yield-star-spacing': [ERROR, 'both'],
+  // enforce lowercase identifier and uppercase value for number literals
+  'unicorn/number-literal-case': [ERROR, { hexadecimalValue: 'uppercase' }],
+  // enforce the style of numeric separators by correctly grouping digits
+  'unicorn/numeric-separators-style': [ERROR, {
+    onlyIfContainsSeparator: true,
+    number: { minimumDigits: 0, groupLength: 3 },
+    binary: { minimumDigits: 0, groupLength: 4 },
+    octal: { minimumDigits: 0, groupLength: 4 },
+    hexadecimal: { minimumDigits: 0, groupLength: 2 },
+  }],
+};
+
 const base = {
+  ...baseStyle,
   // possible problems:
   // enforces return statements in callbacks of array's methods
   'array-callback-return': ERROR,
@@ -135,8 +282,6 @@ const base = {
   }],
   // disallow variable assignments when the value is not used
   'no-useless-assignment': ERROR,
-  // require or disallow the Unicode Byte Order Mark
-  'unicode-bom': [ERROR, NEVER],
   // disallow comparisons with the value NaN
   'use-isnan': ERROR,
   // ensure that the results of typeof are compared against a valid string
@@ -145,13 +290,6 @@ const base = {
   // suggestions:
   // enforce the use of variables within the scope they are defined
   'block-scoped-var': ERROR,
-  // require camel case names
-  camelcase: [ERROR, {
-    properties: NEVER,
-    ignoreDestructuring: true,
-    ignoreImports: true,
-    ignoreGlobals: true,
-  }],
   // enforce default clauses in switch statements to be last
   'default-case-last': ERROR,
   // enforce default parameters to be last
@@ -223,8 +361,6 @@ const base = {
   'no-lonely-if': ERROR,
   // disallow function declarations and expressions inside loop statements
   'no-loop-func': OFF,
-  // disallow use of multiline strings
-  'no-multi-str': ERROR,
   // disallow use of new operator when not part of the assignment or comparison
   'no-new': ERROR,
   // disallow use of new operator for Function object
@@ -344,126 +480,6 @@ const base = {
   'symbol-description': ERROR,
   // disallow "Yoda" conditions
   yoda: [ERROR, NEVER],
-
-  // layout & formatting:
-  // enforce spacing inside array brackets
-  '@stylistic/array-bracket-spacing': [ERROR, NEVER],
-  // require parentheses around arrow function arguments
-  '@stylistic/arrow-parens': [ERROR, 'as-needed'],
-  // enforce consistent spacing before and after the arrow in arrow functions
-  '@stylistic/arrow-spacing': ERROR,
-  // enforce spacing inside single-line blocks
-  '@stylistic/block-spacing': [ERROR, ALWAYS],
-  // enforce one true brace style
-  '@stylistic/brace-style': [ERROR, '1tbs', { allowSingleLine: true }],
-  // enforce trailing commas in multiline object literals
-  '@stylistic/comma-dangle': [ERROR, 'always-multiline'],
-  // enforce spacing after comma
-  '@stylistic/comma-spacing': ERROR,
-  // enforce one true comma style
-  '@stylistic/comma-style': [ERROR, 'last'],
-  // disallow padding inside computed properties
-  '@stylistic/computed-property-spacing': [ERROR, NEVER],
-  // enforce consistent line breaks after opening and before closing braces
-  '@stylistic/curly-newline': [ERROR, { consistent: true }],
-  // enforce newline before and after dot
-  '@stylistic/dot-location': [ERROR, 'property'],
-  // enforce one newline at the end of files
-  '@stylistic/eol-last': [ERROR, ALWAYS],
-  // disallow space between function identifier and application
-  '@stylistic/function-call-spacing': ERROR,
-  // require spacing around the `*` in `function *` expressions
-  '@stylistic/generator-star-spacing': [ERROR, 'both'],
-  // enforce the location of arrow function bodies
-  '@stylistic/implicit-arrow-linebreak': [ERROR, 'beside'],
-  // enforce consistent indentation
-  '@stylistic/indent': [ERROR, 2, {
-    ignoredNodes: ['ConditionalExpression'],
-    SwitchCase: 1,
-    VariableDeclarator: 'first',
-  }],
-  // enforces spacing between keys and values in object literal properties
-  '@stylistic/key-spacing': [ERROR, { beforeColon: false, afterColon: true }],
-  // require a space before & after certain keywords
-  '@stylistic/keyword-spacing': [ERROR, { before: true, after: true }],
-  // enforce consistent linebreak style
-  '@stylistic/linebreak-style': [ERROR, 'unix'],
-  // specify the maximum length of a line in your program
-  '@stylistic/max-len': [ERROR, {
-    code: 140,
-    tabWidth: 2,
-    ignoreRegExpLiterals: true,
-    ignoreTemplateLiterals: true,
-    ignoreUrls: true,
-    ignorePattern: '<svg[\\s\\S]*?</svg>',
-  }],
-  // enforce a maximum number of statements allowed per line
-  '@stylistic/max-statements-per-line': [ERROR, { max: 2 }],
-  // require parentheses when invoking a constructor with no arguments
-  '@stylistic/new-parens': ERROR,
-  // disallow unnecessary semicolons
-  '@stylistic/no-extra-semi': ERROR,
-  // disallow the use of leading or trailing decimal points in numeric literals
-  '@stylistic/no-floating-decimal': ERROR,
-  // disallow mixed spaces and tabs for indentation
-  '@stylistic/no-mixed-spaces-and-tabs': ERROR,
-  // disallow use of multiple spaces
-  '@stylistic/no-multi-spaces': [ERROR, { ignoreEOLComments: true }],
-  // disallow multiple empty lines and only one newline at the end
-  '@stylistic/no-multiple-empty-lines': [ERROR, { max: 1, maxEOF: 1 }],
-  // disallow tabs
-  '@stylistic/no-tabs': ERROR,
-  // disallow trailing whitespace at the end of lines
-  '@stylistic/no-trailing-spaces': ERROR,
-  // disallow whitespace before properties
-  '@stylistic/no-whitespace-before-property': ERROR,
-  // enforce the location of single-line statements
-  '@stylistic/nonblock-statement-body-position': [ERROR, 'beside'],
-  // enforce consistent line breaks after opening and before closing braces
-  '@stylistic/object-curly-newline': [ERROR, { consistent: true }],
-  // enforce spaces inside braces
-  '@stylistic/object-curly-spacing': [ERROR, ALWAYS],
-  // require newlines around variable declarations with initializations
-  '@stylistic/one-var-declaration-per-line': [ERROR, 'initializations'],
-  // enforce padding within blocks
-  '@stylistic/padded-blocks': [ERROR, NEVER],
-  // disallow blank lines after 'use strict'
-  '@stylistic/padding-line-between-statements': [ERROR, { blankLine: NEVER, prev: 'directive', next: '*' }],
-  // require or disallow use of quotes around object literal property names
-  '@stylistic/quote-props': [ERROR, 'as-needed', { keywords: false }],
-  // specify whether double or single quotes should be used
-  '@stylistic/quotes': [ERROR, 'single', { avoidEscape: true }],
-  // enforce spacing between rest and spread operators and their expressions
-  '@stylistic/rest-spread-spacing': ERROR,
-  // require or disallow use of semicolons instead of ASI
-  '@stylistic/semi': [ERROR, ALWAYS],
-  // enforce spacing before and after semicolons
-  '@stylistic/semi-spacing': ERROR,
-  // enforce location of semicolons
-  '@stylistic/semi-style': [ERROR, 'last'],
-  // require or disallow space before blocks
-  '@stylistic/space-before-blocks': ERROR,
-  // require or disallow space before function opening parenthesis
-  '@stylistic/space-before-function-paren': [ERROR, { anonymous: ALWAYS, named: NEVER }],
-  // require or disallow spaces inside parentheses
-  '@stylistic/space-in-parens': ERROR,
-  // require spaces around operators
-  '@stylistic/space-infix-ops': ERROR,
-  // require or disallow spaces before/after unary operators
-  '@stylistic/space-unary-ops': ERROR,
-  // require or disallow a space immediately following the // or /* in a comment
-  '@stylistic/spaced-comment': [ERROR, ALWAYS, {
-    line: { exceptions: ['/'] },
-    block: { exceptions: ['*'] },
-  }],
-  // enforce spacing around colons of switch statements
-  '@stylistic/switch-colon-spacing': ERROR,
-  // require or disallow spacing around embedded expressions of template strings
-  '@stylistic/template-curly-spacing': [ERROR, ALWAYS],
-  // disallow spacing between template tags and their literals
-  '@stylistic/template-tag-spacing': [ERROR, NEVER],
-  // require spacing around the `*` in `yield *` expressions
-  '@stylistic/yield-star-spacing': [ERROR, 'both'],
 
   // ascii
   // forbid non-ascii chars in ast node names
@@ -663,16 +679,6 @@ const base = {
   'unicorn/no-useless-spread': ERROR,
   // disallow useless `case` in `switch` statements
   'unicorn/no-useless-switch-case': ERROR,
-  // enforce lowercase identifier and uppercase value for number literals
-  'unicorn/number-literal-case': [ERROR, { hexadecimalValue: 'uppercase' }],
-  // enforce the style of numeric separators by correctly grouping digits
-  'unicorn/numeric-separators-style': [ERROR, {
-    onlyIfContainsSeparator: true,
-    number: { minimumDigits: 0, groupLength: 3 },
-    binary: { minimumDigits: 0, groupLength: 4 },
-    octal: { minimumDigits: 0, groupLength: 4 },
-    hexadecimal: { minimumDigits: 0, groupLength: 2 },
-  }],
   // prefer `.find()` over the first element from `.filter()`
   'unicorn/prefer-array-find': [ERROR, { checkFromLast: true }],
   // use `.flat()` to flatten an array of arrays
@@ -1903,6 +1909,47 @@ const playwright = {
   'playwright/no-useless-await': ERROR,
 };
 
+const ts = {
+  ...disable(base),
+  ...baseStyle,
+  // validating that TypeScript doc comments conform to the TSDoc specification
+  'tsdoc/syntax': ERROR,
+  // specify the maximum length of a line in your program
+  '@stylistic/max-len': [OFF, { ...base['@stylistic/max-len'][1], code: 180 }],
+  // require consistent spacing around type annotations
+  '@stylistic/type-annotation-spacing': ERROR,
+  // enforces consistent spacing inside TypeScript type generics
+  '@stylistic/type-generic-spacing': ERROR,
+  // expect space before the type declaration in the named tuple
+  '@stylistic/type-named-tuple-spacing': ERROR,
+  // require that function overload signatures be consecutive
+  '@typescript-eslint/adjacent-overload-signatures': ERROR,
+  // enforce type definitions to consistently use either `interface` or `type`
+  '@typescript-eslint/consistent-type-definitions': [ERROR, 'interface'],
+  // disallow extra non-null assertions
+  '@typescript-eslint/no-extra-non-null-assertion': ERROR,
+  // enforce the use of top-level import type qualifier when an import only has specifiers with inline type qualifiers
+  '@typescript-eslint/no-import-type-side-effects': ERROR,
+  // disallow explicit type declarations for variables or parameters initialized to a number, string, or boolean
+  '@typescript-eslint/no-inferrable-types': ERROR,
+  // disallow unnecessary constraints on generic types
+  '@typescript-eslint/no-unnecessary-type-constraint': ERROR,
+  // disallow unsafe declaration merging
+  '@typescript-eslint/no-unsafe-declaration-merging': ERROR,
+  // disallow empty exports that don't change anything in a module file
+  '@typescript-eslint/no-useless-empty-export': ERROR,
+  // enforce using function types instead of interfaces with call signatures
+  '@typescript-eslint/prefer-function-type': ERROR,
+  // require using namespace keyword over module keyword to declare custom TypeScript modules
+  '@typescript-eslint/prefer-namespace-keyword': ERROR,
+  // disallow two overloads that could be unified into one with a union or an optional / rest parameter
+  '@typescript-eslint/unified-signatures': OFF,
+};
+
+const typeDefinitionsTests = {
+  ...disable(forbidNonStandardBuiltIns),
+};
+
 const yaml = {
   // disallow empty mapping values
   'yaml/no-empty-mapping-value': ERROR,
@@ -2185,6 +2232,7 @@ export default [
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/unit-@(global|pure)/index.js',
+      'tests/type-definitions/tmp/**',
       'website/dist/**',
       'website/src/public/*',
       'website/templates/**',
@@ -2207,6 +2255,7 @@ export default [
     },
     plugins: {
       '@stylistic': pluginStylistic,
+      '@typescript-eslint': pluginTypeScript,
       'array-func': pluginArrayFunc,
       ascii: pluginASCII,
       depend: pluginDepend,
@@ -2226,6 +2275,7 @@ export default [
       redos: pluginReDoS,
       regexp: pluginRegExp,
       sonarjs: pluginSonarJS,
+      tsdoc: pluginTSDoc,
       unicorn: pluginUnicorn,
       yaml: pluginYaml,
     },
@@ -2368,6 +2418,22 @@ export default [
       // import used for tasks
       'import/first': OFF,
     },
+  },
+  {
+    files: [
+      'packages/core-js-types/src/**/*.d.ts',
+      'tests/type-definitions/**/*.ts',
+    ],
+    languageOptions: {
+      parser: parserTypeScript,
+    },
+    rules: ts,
+  },
+  {
+    files: [
+      'tests/type-definitions/**/*.ts',
+    ],
+    rules: typeDefinitionsTests,
   },
   {
     rules: {

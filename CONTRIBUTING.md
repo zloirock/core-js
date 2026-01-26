@@ -65,6 +65,29 @@ engine            | how to run tests | base data inherits from    | mandatory ch
 
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
 
+## How to add new TypeScript definitions
+
+- TypeScript definitions should be added to the [`packages/core-js-types/src/base`](./packages/core-js-types/src/base) directory.
+- Our type definitions are built on top of ES6. If any related type is missing in ES6, it must be added to the [`packages/core-js-types/src/base/core-js-types`](./packages/core-js-types/src/base/core-js-types) directory and imported via triple-slash directives in your type definition file.
+- Place your type definition into the folder that matches its kind ([`packages/core-js-types/src/base/proposals`](./packages/core-js-types/src/base/proposals), [`packages/core-js-types/src/base/web`](./packages/core-js-types/src/base/web)).
+- Type definitions for the pure version are either generated from the global version types or created manually in the [`packages/core-js-types/src/base/pure`](./packages/core-js-types/src/base/pure) folder. Type build rules for the pure version can be modified using the `@type-options` directive:
+  - `no-extends` – do not extend the base type when adding a prefix to the type/interface
+  - `no-prefix` – do not add a prefix to the type/interface name
+  - `no-constructor` – use it when the type has no constructor (for example, `Math`)
+  - `export-base-constructor` – export the base type’s constructor instead of the prefixed one
+  - `no-export` – do not export this type
+  - `no-redefine` – do not redefine the type’s constructor
+  - `prefix-return-type` – add a prefix to the return type
+- All type definitions must be covered by TSC tests. Add them to the [`tests/type-definitions`](./tests/type-definitions) directory.
+- To build the types, run the command:
+  ```sh
+  npm run build-types
+  ```
+- To test the types, run the command:
+  ```sh
+  npm run test-type-definitions
+  ```
+
 ## Style and standards
 
 The coding style should follow our [`eslint.config.js`](./tests/eslint/eslint.config.js). You can test it by calling [`npm run lint`](#testing). Different places have different syntax and standard library limitations:

@@ -1,6 +1,7 @@
 import {
   $uncurried,
   $uncurriedIterator,
+  $uncurriedWithCustomType,
   $prototype,
   $prototypeIterator,
   $static,
@@ -319,9 +320,11 @@ export const features = {
   },
   'array/flat-map': {
     modules: ['es.array.flat-map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Array',
     name: 'flatMap',
+    customType: 'proposals/array-flat-map-custom',
+    genericsCount: 3,
   },
   'array/prototype/flat-map': {
     modules: ['es.array.flat-map'],
@@ -375,11 +378,13 @@ export const features = {
     modules: ['es.array.iterator'],
     template: $uncurriedIterator,
     source: '[]',
+    namespace: 'Array',
   },
   'array/prototype/iterator': {
     modules: ['es.array.iterator'],
     template: $prototypeIterator,
     source: '[]',
+    namespace: 'Array',
   },
   'array/join': {
     modules: ['es.array.join'],
@@ -545,9 +550,11 @@ export const features = {
   },
   'array/to-spliced': {
     modules: ['es.array.to-spliced'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Array',
     name: 'toSpliced',
+    customType: 'proposals/change-array-by-copy-custom',
+    genericsCount: 1,
   },
   'array/prototype/to-spliced': {
     modules: ['es.array.to-spliced'],
@@ -1284,9 +1291,11 @@ export const features = {
   },
   'iterator/flat-map': {
     modules: ['es.iterator.flat-map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'flatMap',
+    customType: 'proposals/iterator-helpers-custom',
+    genericsCount: 2,
   },
   'iterator/prototype/flat-map': {
     modules: ['es.iterator.flat-map'],
@@ -1320,9 +1329,11 @@ export const features = {
   },
   'iterator/map': {
     modules: ['es.iterator.map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'map',
+    customType: 'proposals/iterator-helpers-custom',
+    genericsCount: 2,
   },
   'iterator/prototype/map': {
     modules: ['es.iterator.map'],
@@ -1332,9 +1343,11 @@ export const features = {
   },
   'iterator/reduce': {
     modules: ['es.iterator.reduce'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Iterator',
     name: 'reduce',
+    customType: 'proposals/iterator-helpers-custom',
+    genericsCount: 2,
   },
   'iterator/prototype/reduce': {
     modules: ['es.iterator.reduce'],
@@ -2235,9 +2248,11 @@ export const features = {
   },
   'set/symmetric-difference': {
     modules: ['es.set.symmetric-difference'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Set',
     name: 'symmetricDifference',
+    customType: 'proposals/set-methods-custom',
+    genericsCount: 2,
   },
   'set/prototype/symmetric-difference': {
     modules: ['es.set.symmetric-difference'],
@@ -2247,9 +2262,11 @@ export const features = {
   },
   'set/union': {
     modules: ['es.set.union'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'Set',
     name: 'union',
+    customType: 'proposals/set-methods-custom',
+    genericsCount: 2,
   },
   'set/prototype/union': {
     modules: ['es.set.union'],
@@ -2440,11 +2457,13 @@ export const features = {
     modules: ['es.string.iterator'],
     template: $uncurriedIterator,
     source: "''",
+    namespace: 'String',
   },
   'string/prototype/iterator': {
     modules: ['es.string.iterator'],
     template: $prototypeIterator,
     source: "''",
+    namespace: 'String',
   },
   'string/link': {
     modules: ['es.string.link'],
@@ -2526,9 +2545,11 @@ export const features = {
   },
   'string/replace-all': {
     modules: ['es.string.replace-all'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'String',
     name: 'replaceAll',
+    customType: 'proposals/string-replace-all-custom',
+    genericsCount: 2,
   },
   'string/prototype/replace-all': {
     modules: ['es.string.replace-all'],
@@ -3052,37 +3073,44 @@ export const features = {
     modules: [/^web\.url(?:-search-params)?\./],
     template: $namespace,
     name: 'URL',
+    globalType: false,
   },
   'url/constructor': {
     modules: ['web.url.constructor', 'web.url.to-json', /^web\.url-search-params?\./],
     template: $namespace,
     name: 'URL',
+    globalType: false,
   },
   'url/can-parse': {
     modules: ['web.url.can-parse'],
     template: $static,
     namespace: 'URL',
     name: 'canParse',
+    globalType: false,
   },
   'url/parse': {
     modules: ['web.url.parse'],
     template: $static,
     namespace: 'URL',
     name: 'parse',
+    globalType: false,
   },
   'url/to-json': {
     modules: ['web.url.to-json'],
     template: $justImport,
+    globalType: false,
   },
   'url-search-params/index': {
     modules: [/^web\.url-search-params\./],
     template: $namespace,
     name: 'URLSearchParams',
+    globalType: false,
   },
   'url-search-params/constructor': {
     modules: [/^web\.url-search-params\./],
     template: $namespace,
     name: 'URLSearchParams',
+    globalType: false,
   },
   'weak-map/index': {
     modules: [/^(?:es|esnext)\.weak-map\./],

@@ -18,6 +18,9 @@ core-js(-pure)/full/function/demethodize
 core-js(-pure)/full/function/prototype/demethodize
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/function-demethodize`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/function-demethodize.d.ts)
+
 ## Examples
 ```js
 const slice = Array.prototype.slice.demethodize();

@@ -3,11 +3,12 @@
     "strict": true,
     "target": "esnext",
     "module": "esnext",
-    "moduleResolution": "node",
     "esModuleInterop": true,
+    "moduleResolution": "node",
     "noEmit": true
   },
   "include": [
-    "*.ts"
+    "./builder.ts",
+    "./compat.ts"
   ]
 }

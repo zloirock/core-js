@@ -18,6 +18,9 @@ core-js/proposals/iterator-sequencing
 core-js(-pure)/es|stable|actual|full/iterator/concat
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/iterator-sequencing`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/iterator-sequencing.d.ts)
+
 ## Example
 ```js
 Iterator.concat([0, 1].values(), [2, 3], function * () {

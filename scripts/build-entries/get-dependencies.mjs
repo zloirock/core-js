@@ -6,7 +6,8 @@ const { cyan, red } = chalk;
 const allModulesSet = new Set(modules);
 
 const MODULE_PATH = /\/(?<path>(?:internals|modules)\/[\d\-.a-z]+)$/;
-const DIRECTIVE = /^ *\/\/ dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
+const DEPENDENCY_DIRECTIVE = /^ *\/\/ dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
+const TYPES_DIRECTIVE = /^ *\/\/ types: (?<types>[\d\-./a-z]+)$/gm;
 
 const cache = new Map();
 
@@ -28,27 +29,41 @@ function normalizeModulePath(unnormalizedPath) {
   return path.endsWith('.js') ? path.slice(0, -3) : path;
 }
 
-async function getSetOfAllDependenciesForModule(path, stack = new Set()) {
+async function getModuleMetadata(path, stack = new Set()) {
   if (cache.has(path)) return cache.get(path);
   if (stack.has(path)) throw new Error(red(`Circular dependency: ${ cyan(path) }`));
   stack.add(path);
   const module = String(await fs.readFile(`./packages/core-js/${ path }.js`));
   const directDependencies = konan(module).strings.map(normalizeModulePath);
-  const declaredDependencies = [...module.matchAll(DIRECTIVE)].map(it => normalizeModulePath(it.groups.module));
+  const declaredDependencies = [...module.matchAll(DEPENDENCY_DIRECTIVE)].map(it => normalizeModulePath(it.groups.module));
   const dependencies = unique([...directDependencies, ...declaredDependencies]);
-  const result = new Set([path]);
-  for (const dependency of dependencies) {
-    const dependenciesOfDependency = await getSetOfAllDependenciesForModule(dependency, new Set(stack));
-    dependenciesOfDependency.forEach(it => result.add(it));
+  const paths = new Set([path]);
+  const types = new Set();
+  for (const it of module.matchAll(TYPES_DIRECTIVE)) {
+    types.add(it.groups.types);
   }
+  for (const dependency of dependencies) {
+    const moduleMetadata = await getModuleMetadata(dependency, new Set(stack));
+    moduleMetadata.dependencies.forEach(it => paths.add(it));
+  }
+  const result = {
+    dependencies: paths,
+    types,
+  };
   cache.set(path, result);
   return result;
 }
 
-export async function getListOfDependencies(paths) {
+export async function getModulesMetadata(paths) {
   const dependencies = [];
+  const types = [];
   for (const module of paths.map(normalizeModulePath)) {
-    dependencies.push(...await getSetOfAllDependenciesForModule(module));
+    const result = await getModuleMetadata(module);
+    dependencies.push(...result.dependencies);
+    types.push(...result.types);
   }
-  return sort(unique(dependencies).filter(it => it.startsWith('modules/')).map(it => it.slice(8)));
+  return {
+    dependencies: sort(unique(dependencies).filter(it => it.startsWith('modules/')).map(it => it.slice(8))),
+    types: unique(types),
+  };
 }
