@@ -6,7 +6,7 @@ import setSymmetricDifference from '@core-js/pure/full/set/symmetric-difference'
 import setIsSubsetOf from '@core-js/pure/full/set/is-subset-of';
 import setIsSupersetOf from '@core-js/pure/full/set/is-superset-of';
 import setIsDisjointFrom from '@core-js/pure/full/set/is-disjoint-from';
-import { CoreJSSetAndSetLike } from '../../helpers';
+import { assertCoreJSSetLike } from '../../helpers';
 
 const setA = new $Set<number>([1, 2, 3]);
 const setB = new $Set<string>(['a', 'b', 'c']);
@@ -23,20 +23,31 @@ const setLikeStr = {
   size: 2,
 };
 
-const unionAB: CoreJSSetAndSetLike<number | string> = setUnion(setA, setB);
-const unionAL: CoreJSSetAndSetLike<number | string> = setUnion(setA, setLike);
-const unionALS: CoreJSSetAndSetLike<number | string> = setUnion(setA, setLikeStr);
+const unionAB = setUnion(setA, setB);
+assertCoreJSSetLike<number | string>(unionAB);
+const unionAL = setUnion(setA, setLike);
+assertCoreJSSetLike<number>(unionAL);
+const unionALS = setUnion(setA, setLikeStr);
+assertCoreJSSetLike<number | string>(unionALS);
 
-const interAB: CoreJSSetAndSetLike<number> = setIntersection(setA, setB);
-const interAN: CoreJSSetAndSetLike<number> = setIntersection(setA, setLike);
-const intersectionALS: CoreJSSetAndSetLike<number> = setIntersection(setA, setLikeStr);
+const interAB = setIntersection(setA, setB);
+assertCoreJSSetLike<number>(interAB);
+const interAN = setIntersection(setA, setLike);
+assertCoreJSSetLike<number>(interAN);
+const intersectionALS = setIntersection(setA, setLikeStr);
+assertCoreJSSetLike<number>(intersectionALS);
 
-const diffAB: CoreJSSetAndSetLike<number> = setDifference(setA, setB);
-const diffAN: CoreJSSetAndSetLike<number> = setDifference(setA, setLike);
-const diffALS: CoreJSSetAndSetLike<number> = setDifference(setA, setLikeStr);
+const diffAB = setDifference(setA, setB);
+assertCoreJSSetLike<number>(diffAB);
+const diffAN = setDifference(setA, setLike);
+assertCoreJSSetLike<number>(diffAN);
+const diffALS = setDifference(setA, setLikeStr);
+assertCoreJSSetLike<number>(diffALS);
 
-const symdiffAB: CoreJSSetAndSetLike<number | string> = setSymmetricDifference(setA, setB);
-const symdiffAL: CoreJSSetAndSetLike<number> = setSymmetricDifference(setA, setLike);
+const symdiffAB = setSymmetricDifference(setA, setB);
+assertCoreJSSetLike<number | string>(symdiffAB);
+const symdiffAL = setSymmetricDifference(setA, setLike);
+assertCoreJSSetLike<number>(symdiffAL);
 
 const sub: boolean = setIsSubsetOf(setA, setLikeStr);
 const superSet: boolean = setIsSupersetOf(setA, setLikeStr);

@@ -1,23 +1,23 @@
-export interface CoreJSPromiseLike<T> {
+interface CoreJSPromiseLike<T> {
   then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): PromiseLike<TResult1 | TResult2>;
 
   finally(onfinally?: (() => void) | undefined | null): PromiseLike<T>;
 }
-export type CoreJSPromiseAndPromiseLike<T> = CoreJSPromiseLike<T> & Promise<T>;
+export function assertCoreJSPromiseLike<T>(value: CoreJSPromiseLike<T>): asserts value is CoreJSPromiseLike<T> {}
 
 export interface CoreJSMapLike<K, V> extends Map<K, V> {
   getOrInsert(key: K, value: V): V;
 
   getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
 }
-export type CoreJSMapAndMapLike<K, V> = CoreJSMapLike<K, V> & Map<K, V>;
+export function assertCoreJSMapLike<K, V>(value: CoreJSMapLike<K, V>): asserts value is CoreJSMapLike<K, V> {}
 
 export interface CoreJSWeakMapLike<K extends WeakKey, V> extends WeakMap<K, V> {
   getOrInsert(key: K, value: V): V;
 
   getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
 }
-export type CoreJSWeakMapAndWeakMapLike<K extends WeakKey, V> = CoreJSWeakMapLike<K, V> & WeakMap<K, V>;
+export function assertCoreJSWeakMapLike<K extends WeakKey, V>(value: CoreJSWeakMapLike<K, V>): asserts value is CoreJSWeakMapLike<K, V> {}
 
 export interface CoreJSSetLike<T> extends Set<T> {
   union<U>(...args: any[]): CoreJSSetLike<T | U>;
@@ -28,10 +28,10 @@ export interface CoreJSSetLike<T> extends Set<T> {
   isSupersetOf(...args: any[]): boolean;
   isDisjointFrom(...args: any[]): boolean;
 }
-export type CoreJSSetAndSetLike<T> = CoreJSSetLike<T> & Set<T>;
+export function assertCoreJSSetLike<T>(value: CoreJSSetLike<T>): asserts value is CoreJSSetLike<T> {}
 
 export interface CoreJSWeakSetLike<T extends WeakKey> extends WeakSet<T> {}
-export type CoreJSWeakSetAndWeakSetLike<T extends WeakKey> = CoreJSWeakSetLike<T> & WeakSet<T>;
+export function assertCoreJSWeakSetLike<T extends WeakKey>(value: CoreJSWeakSetLike<T>): asserts value is CoreJSWeakSetLike<T> {}
 
 export interface CoreJSIteratorLike<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {
   chunks(...args: any[]): CoreJSIteratorLike<T[]>;
@@ -49,9 +49,9 @@ export interface CoreJSIteratorLike<T, TReturn = any, TNext = any> extends Itera
   find(...args: any[]): T | undefined;
   join(...args: any[]): string;
 }
-export type CoreJSIteratorAndIteratorLike<T> = CoreJSIteratorLike<T> & Iterator<T>;
+export function assertCoreJSIteratorLike<T>(value: CoreJSIteratorLike<T>): asserts value is CoreJSIteratorLike<T> {}
 
-export interface CoreJSAsyncIteratorLike<T> {
+interface CoreJSAsyncIteratorLike<T> {
   drop(...args: any[]): any;
   every(...args: any[]): any;
   filter(predicate: (value: T, index: number) => boolean): CoreJSAsyncIteratorLike<T>;
@@ -64,6 +64,7 @@ export interface CoreJSAsyncIteratorLike<T> {
   take(limit: number): CoreJSAsyncIteratorLike<T>;
   toArray(...args: any[]): any;
 }
+export function assertCoreJSAsyncIteratorLike<T>(value: CoreJSAsyncIteratorLike<T>): asserts value is CoreJSAsyncIteratorLike<T> {}
 
 type HasCause<T> = 'cause' extends keyof T ? T : never;
 export function assertHasCause<T extends object>(value: T): asserts value is HasCause<T> & { cause: unknown } {}
