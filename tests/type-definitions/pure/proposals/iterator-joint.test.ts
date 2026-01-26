@@ -1,12 +1,17 @@
 import iteratorZip from '@core-js/pure/full/iterator/zip';
 import iteratorZipKeyed from '@core-js/pure/full/iterator/zip-keyed';
-import { CoreJSIteratorAndIteratorLike } from '../../helpers';
+import { assertCoreJSIteratorLike } from '../../helpers';
 
-const zipped1: CoreJSIteratorAndIteratorLike<number[]> = iteratorZip([[1, 2, 3], [4, 5, 6]]);
-const zipped2: CoreJSIteratorAndIteratorLike<string[]> = iteratorZip([['a', 'b', 'c'], ['d', 'e', 'f']]);
-const zipped3: CoreJSIteratorAndIteratorLike<number[]> = iteratorZip([[1, 2, 3], [4, 5, 6]], { mode: 'shortest' });
-const zipped4: CoreJSIteratorAndIteratorLike<Record<PropertyKey, number>> = iteratorZipKeyed({ a: [1, 2, 3], b: [4, 5, 6] });
-const zipped5: CoreJSIteratorAndIteratorLike<Record<PropertyKey, string>> = iteratorZipKeyed({ a: ['a', 'b', 'c', 'd'], b: ['e', 'f'] }, { mode: 'shortest' });
+const zipped1 = iteratorZip([[1, 2, 3], [4, 5, 6]]);
+assertCoreJSIteratorLike<number[]>(zipped1);
+const zipped2 = iteratorZip([['a', 'b', 'c'], ['d', 'e', 'f']]);
+assertCoreJSIteratorLike<string[]>(zipped2);
+const zipped3 = iteratorZip([[1, 2, 3], [4, 5, 6]], { mode: 'shortest' });
+assertCoreJSIteratorLike<number[]>(zipped3);
+const zipped4 = iteratorZipKeyed({ a: [1, 2, 3], b: [4, 5, 6] });
+assertCoreJSIteratorLike<Record<PropertyKey, number>>(zipped4);
+const zipped5 = iteratorZipKeyed({ a: ['a', 'b', 'c', 'd'], b: ['e', 'f'] }, { mode: 'shortest' });
+assertCoreJSIteratorLike<Record<PropertyKey, string>>(zipped5);
 
 // @ts-expect-error
 iteratorZip(true);
