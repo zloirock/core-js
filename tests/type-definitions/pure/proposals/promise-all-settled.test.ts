@@ -1,6 +1,6 @@
 import promiseAllSettled from '@core-js/pure/full/promise/all-settled';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { CoreJSPromiseAndPromiseLike } from '../../helpers';
+import { assertCoreJSPromiseLike } from '../../helpers';
 
 interface CoreJSPromiseResult<T> {
   status: string;
@@ -10,20 +10,21 @@ interface CoreJSPromiseResult<T> {
 
 const promiseLike = { then: (cb: (val: number) => void) => cb(42) };
 
-const p1: CoreJSPromiseAndPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<number>, CoreJSPromiseResult<number>]> =
-  promiseAllSettled([promiseResolve(10), promiseResolve(20), 30]);
-const p2: CoreJSPromiseAndPromiseLike<[CoreJSPromiseResult<string>, CoreJSPromiseResult<string>, CoreJSPromiseResult<string>]> =
-  promiseAllSettled(['a', 'b', 'c']);
-const p3: CoreJSPromiseAndPromiseLike<CoreJSPromiseResult<number>[]> =
-  promiseAllSettled(new Set([1, 2, 3]));
+const p1 = promiseAllSettled([promiseResolve(10), promiseResolve(20), 30]);
+assertCoreJSPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<number>, CoreJSPromiseResult<number>]>(p1);
+const p2 = promiseAllSettled(['a', 'b', 'c']);
+assertCoreJSPromiseLike<[CoreJSPromiseResult<string>, CoreJSPromiseResult<string>, CoreJSPromiseResult<string>]>(p2);
+const p3 = promiseAllSettled(new Set([1, 2, 3]));
+assertCoreJSPromiseLike<CoreJSPromiseResult<number>[]>(p3);
 promiseAllSettled([promiseLike]);
 
 const emptyTuple: [] = [];
-const settled6: CoreJSPromiseAndPromiseLike<[]> = promiseAllSettled(emptyTuple);
+const settled6 = promiseAllSettled(emptyTuple);
+assertCoreJSPromiseLike<[]>(settled6);
 
 const mixedTuple = [42, promiseResolve('bar')] as const;
-const p4: CoreJSPromiseAndPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<string>]> =
-  promiseAllSettled(mixedTuple);
+const p4 = promiseAllSettled(mixedTuple);
+assertCoreJSPromiseLike<[CoreJSPromiseResult<number>, CoreJSPromiseResult<string>]>(p4);
 
 // @ts-expect-error
 promiseAllSettled();

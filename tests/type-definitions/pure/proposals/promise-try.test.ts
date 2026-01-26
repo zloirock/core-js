@@ -1,19 +1,27 @@
 import promiseTry from '@core-js/pure/full/promise/try';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { CoreJSPromiseAndPromiseLike } from '../../helpers';
+import { assertCoreJSPromiseLike } from '../../helpers';
 
-const pt1: CoreJSPromiseAndPromiseLike<number> = promiseTry(() => 42);
-const pt2: CoreJSPromiseAndPromiseLike<string> = promiseTry(() => promiseResolve('hi'));
-const pt3: CoreJSPromiseAndPromiseLike<number> = promiseTry((a: number, b: number) => a + b, 1, 2);
-const pt4: CoreJSPromiseAndPromiseLike<string> = promiseTry((x: string) => x + '!!', 'test');
-const pt5: CoreJSPromiseAndPromiseLike<void> = promiseTry(() => {});
-const pt6: CoreJSPromiseAndPromiseLike<boolean> = promiseTry((b: boolean) => b, false);
+const pt1 = promiseTry(() => 42);
+assertCoreJSPromiseLike<number>(pt1);
+const pt2 = promiseTry(() => promiseResolve('hi'));
+assertCoreJSPromiseLike<string>(pt2);
+const pt3 = promiseTry((a: number, b: number) => a + b, 1, 2);
+assertCoreJSPromiseLike<number>(pt3);
+const pt4 = promiseTry((x: string) => x + '!!', 'test');
+assertCoreJSPromiseLike<string>(pt4);
+const pt5 = promiseTry(() => {});
+assertCoreJSPromiseLike<void>(pt5);
+const pt6 = promiseTry((b: boolean) => b, false);
+assertCoreJSPromiseLike<boolean>(pt6);
 
-const pt7: CoreJSPromiseAndPromiseLike<number> = promiseTry((a: number, b: string, c: boolean) => c ? a : Number(b), 10, '100', true);
-const pt8: CoreJSPromiseAndPromiseLike<string> = promiseTry((a: string) => promiseResolve(a), 'bar');
+const pt7 = promiseTry((a: number, b: string, c: boolean) => c ? a : Number(b), 10, '100', true);
+assertCoreJSPromiseLike<number>(pt7);
+const pt8 = promiseTry((a: string) => promiseResolve(a), 'bar');
+assertCoreJSPromiseLike<string>(pt8);
 
-declare function returnsPromise<T>(): CoreJSPromiseAndPromiseLike<T>;
-const pt9: CoreJSPromiseAndPromiseLike<number> = promiseTry(() => returnsPromise<number>());
+const pt9 = promiseTry(() => pt1);
+assertCoreJSPromiseLike<number>(pt9);
 
 // @ts-expect-error
 promiseTry();
