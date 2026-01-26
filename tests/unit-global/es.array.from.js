@@ -1,5 +1,5 @@
 /* eslint-disable prefer-rest-params -- required for testing */
-import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
+import { GLOBAL } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Array.from', assert => {
@@ -91,8 +91,6 @@ QUnit.test('Array.from', assert => {
   assert.arrayEqual(instance, [1, 2], 'generic, array-like case, elements');
   let array = [1, 2, 3];
   done = false;
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- legacy FF case
-  array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
     return [][Symbol.iterator].call(this);
@@ -114,14 +112,12 @@ QUnit.test('Array.from', assert => {
   assert.throws(() => from([], ''), TypeError, 'Throws with "" as second argument');
   assert.throws(() => from([], false), TypeError, 'Throws with false as second argument');
   assert.throws(() => from([], {}), TypeError, 'Throws with {} as second argument');
-  if (DESCRIPTORS) {
-    let called = false;
-    defineProperty(C.prototype, 0, {
-      set() {
-        called = true;
-      },
-    });
-    from.call(C, [1, 2, 3]);
-    assert.false(called, 'Should not call prototype accessors');
-  }
+  let called = false;
+  defineProperty(C.prototype, 0, {
+    set() {
+      called = true;
+    },
+  });
+  from.call(C, [1, 2, 3]);
+  assert.false(called, 'Should not call prototype accessors');
 });

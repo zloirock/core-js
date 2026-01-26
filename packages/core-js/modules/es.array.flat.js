@@ -1,4 +1,5 @@
 'use strict';
+// dependency: es.array.unscopables.flat
 var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var toObject = require('../internals/to-object');
@@ -16,5 +17,5 @@ $({ target: 'Array', proto: true }, {
     var A = arraySpeciesCreate(O, 0);
     flattenIntoArray(A, O, O, sourceLen, 0, depthArg === undefined ? 1 : toIntegerOrInfinity(depthArg));
     return A;
-  }
+  },
 });
