@@ -9,46 +9,54 @@ import iteratorForEach from '@core-js/pure/full/iterator/for-each';
 import iteratorSome from '@core-js/pure/full/iterator/some';
 import iteratorEvery from '@core-js/pure/full/iterator/every';
 import iteratorFind from '@core-js/pure/full/iterator/find';
-import { CoreJSIteratorAndIteratorLike } from '../../helpers';
+import { assertCoreJSIteratorLike } from '../../helpers';
 
 declare const it: Iterator<number>;
 declare const itStr: Iterator<string>;
 declare const itNumStr: Iterator<number | string>;
 
-const res: CoreJSIteratorAndIteratorLike<string> = iteratorMap(it, (v, i) => String(v));
-const mappedNum: CoreJSIteratorAndIteratorLike<number> = iteratorMap(it, n => n + 1);
+const res = iteratorMap(it, (v, i) => String(v));
+assertCoreJSIteratorLike<string>(res);
+const mappedNum = iteratorMap(it, n => n + 1);
+assertCoreJSIteratorLike<number>(mappedNum);
 
 // @ts-expect-error
 iteratorMap();
 // @ts-expect-error
 iteratorMap((v, i, extra) => v + i + extra);
 
-const onlyEven: CoreJSIteratorAndIteratorLike<number> = iteratorFilter(it, v => v % 2 === 0);
-const filtered: CoreJSIteratorAndIteratorLike<number> = iteratorFilter(it, (v): v is number => typeof v === 'number');
+const onlyEven = iteratorFilter(it, v => v % 2 === 0);
+assertCoreJSIteratorLike<number>(onlyEven);
+const filtered = iteratorFilter(it, (v): v is number => typeof v === 'number');
+assertCoreJSIteratorLike<number>(filtered);
 
 // @ts-expect-error
 iteratorFilter();
 // @ts-expect-error
 iteratorFilter((v, i, extra) => true);
 
-const taken: CoreJSIteratorAndIteratorLike<number> = iteratorTake(it, 5);
+const taken = iteratorTake(it, 5);
+assertCoreJSIteratorLike<number>(taken);
 
 // @ts-expect-error
 iteratorTake();
 // @ts-expect-error
 iteratorTake('5');
 
-const dropped: CoreJSIteratorAndIteratorLike<number> = iteratorDrop(it, 3);
+const dropped = iteratorDrop(it, 3);
+assertCoreJSIteratorLike<number>(dropped);
 
 // @ts-expect-error
 iteratorDrop('3');
 
-const flatMapped: CoreJSIteratorAndIteratorLike<string> = iteratorFlatMap(it, (v, i) => itStr);
-const flatMapped2: CoreJSIteratorAndIteratorLike<string> = iteratorFlatMap(it, (v, i) => ({
+const flatMapped = iteratorFlatMap(it, (v, i) => itStr);
+assertCoreJSIteratorLike<string>(flatMapped);
+const flatMapped2 = iteratorFlatMap(it, (v, i) => ({
   [Symbol.iterator]: function * () {
     yield String(v);
   },
 }));
+assertCoreJSIteratorLike<string>(flatMapped2);
 
 // @ts-expect-error
 iteratorFlatMap();
