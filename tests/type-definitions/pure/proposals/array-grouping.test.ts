@@ -1,12 +1,14 @@
 import objectGroupBy from '@core-js/pure/full/object/group-by';
 import mapGroupBy from '@core-js/pure/full/map/group-by';
-import { CoreJSMapAndMapLike } from '../../helpers';
+import { assertCoreJSMapLike } from '../../helpers';
 
 const arr = [1, 2, 3, 4, 5];
 const objGroup: Partial<Record<'even' | 'odd', number[]>> = objectGroupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
-const mapGroup: CoreJSMapAndMapLike<'even' | 'odd', number[]> = mapGroupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
+const mapGroup = mapGroupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
+assertCoreJSMapLike<'even' | 'odd', number[]>(mapGroup);
 const objGroup2: Partial<Record<string, string[]>> = objectGroupBy(['foo', 'bar', 'baz'], (s, i) => i > 1 ? s[0] : 'x');
-const mapGroup2: CoreJSMapAndMapLike<string, string[]> = mapGroupBy(['foo', 'bar', 'baz'], (s, i) => i > 1 ? s[0] : 'x');
+const mapGroup2 = mapGroupBy(['foo', 'bar', 'baz'], (s, i) => i > 1 ? s[0] : 'x');
+assertCoreJSMapLike<string, string[]>(mapGroup2);
 
 objectGroupBy('test', c => c);
 objectGroupBy(new Set([1, 2, 3]), item => item > 2 ? 'big' : 'small');

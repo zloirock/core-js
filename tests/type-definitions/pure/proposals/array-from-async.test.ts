@@ -1,12 +1,17 @@
 import arrayFromAsync from '@core-js/pure/full/array/from-async';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { CoreJSPromiseAndPromiseLike } from '../../helpers';
+import { assertCoreJSPromiseLike } from '../../helpers';
 
-const p1: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync([1, 2, 3]);
-const p2: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync([promiseResolve(1), 2, 3]);
-const p3: CoreJSPromiseAndPromiseLike<string[]> = arrayFromAsync([1, 2, 3], (value: number, index: number) => value.toString());
-const p4: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync([promiseResolve(1), 2, 3], (value: number) => value + 1);
-const p5: CoreJSPromiseAndPromiseLike<string[]> = arrayFromAsync([1, 2, 3], function (this: { foo: string }, value: number) { return value.toString(); }, { foo: 'str' });
+const p1 = arrayFromAsync([1, 2, 3]);
+assertCoreJSPromiseLike<number[]>(p1);
+const p2 = arrayFromAsync([promiseResolve(1), 2, 3]);
+assertCoreJSPromiseLike<number[]>(p2);
+const p3 = arrayFromAsync([1, 2, 3], (value: number, index: number) => value.toString());
+assertCoreJSPromiseLike<string[]>(p3);
+const p4 = arrayFromAsync([promiseResolve(1), 2, 3], (value: number) => value + 1);
+assertCoreJSPromiseLike<number[]>(p4);
+const p5 = arrayFromAsync([1, 2, 3], function (this: { foo: string }, value: number) { return value.toString(); }, { foo: 'str' });
+assertCoreJSPromiseLike<string[]>(p5);
 
 async function t1() {
   const n: number[] = await arrayFromAsync([1, 2, 3]);
@@ -20,8 +25,10 @@ async function t2() {
 }
 
 declare const arrLike: { [index: number]: PromiseLike<number>; length: 2 };
-const p6: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync(arrLike);
-const p7: CoreJSPromiseAndPromiseLike<number[]> = arrayFromAsync(arrLike, (value: number) => value);
+const p6 = arrayFromAsync(arrLike);
+assertCoreJSPromiseLike<number[]>(p6);
+const p7 = arrayFromAsync(arrLike, (value: number) => value);
+assertCoreJSPromiseLike<number[]>(p7);
 
 // @ts-expect-error
 arrayFromAsync([1, 2, 3], (value: string) => value);
