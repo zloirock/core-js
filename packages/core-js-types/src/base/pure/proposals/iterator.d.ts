@@ -219,7 +219,7 @@ declare namespace CoreJS {
      * @param iterators - The iterables to concatenate.
      * @returns An iterator yielding values from each input iterable in sequence.
      */
-    concat<T, U>(...iterators: Iterable<U>[]): CoreJSIteratorObject<T | U>;
+    concat<T>(...iterators: Iterable<T>[]): CoreJSIteratorObject<T>;
   }
 
   var CoreJSIterator: CoreJSIteratorConstructor;
