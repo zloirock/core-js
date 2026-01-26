@@ -49,6 +49,7 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
     var output = new $Array(Math.ceil(string.length * 3 / 4));
+    var outputIndex = 0;
     var position = 0;
     var bc = 0;
     var length, chr, bs;
@@ -61,8 +62,9 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     }
     while (position < length) {
       chr = charAt(string, position++);
-      bs = bc % 4 ? bs * 64 + c2i[chr] : c2i[chr];
-      if (bc++ % 4) output[bc >> 2] = fromCharCode(255 & bs >> (-2 * bc & 6));
-    } return output.join('');
+      bs = bc & 3 ? (bs << 6) + c2i[chr] : c2i[chr];
+      if (bc++ & 3) output[outputIndex++] = fromCharCode(255 & bs >> (-2 * bc & 6));
+    }
+    return output.join('');
   }
 });
