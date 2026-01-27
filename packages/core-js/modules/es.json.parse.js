@@ -1,4 +1,4 @@
-// types: proposals/json-parse-with-source
+// @types: proposals/json-parse-with-source
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
