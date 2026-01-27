@@ -1,4 +1,4 @@
-// types: proposals/well-formed-unicode-strings
+// @types: proposals/well-formed-unicode-strings
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');

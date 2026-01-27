@@ -1,4 +1,4 @@
-// types: proposals/iterator-helpers
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');

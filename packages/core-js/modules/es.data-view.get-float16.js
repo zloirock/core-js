@@ -1,4 +1,4 @@
-// types: proposals/float16
+// @types: proposals/float16
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');

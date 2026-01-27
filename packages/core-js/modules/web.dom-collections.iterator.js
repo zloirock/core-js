@@ -1,4 +1,4 @@
-// types: web/iterable-dom-collections
+// @types: web/iterable-dom-collections
 'use strict';
 var domIterablesDefineMethod = require('../internals/dom-iterables-define-method');
 var wellKnownSymbol = require('../internals/well-known-symbol');

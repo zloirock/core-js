@@ -1,4 +1,4 @@
-// types: proposals/data-view-get-set-uint8-clamped
+// @types: proposals/data-view-get-set-uint8-clamped
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
