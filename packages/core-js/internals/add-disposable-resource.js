@@ -10,7 +10,7 @@ var getMethod = require('../internals/get-method');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ASYNC_DISPOSE = wellKnownSymbol('asyncDispose');
-// dependency: es.iterator.dispose
+// @dependency: es.iterator.dispose
 var DISPOSE = wellKnownSymbol('dispose');
 
 var push = uncurryThis([].push);

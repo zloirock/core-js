@@ -21,7 +21,7 @@ var NON_GENERIC = !!NativePromiseConstructor && fails(function () {
 // https://tc39.es/ecma262/#sec-promise.prototype.finally
 $({ target: 'Promise', proto: true, real: true, forced: NON_GENERIC }, {
   finally: function (onFinally) {
-    // dependency: es.promise.constructor
+    // @dependency: es.promise.constructor
     var C = speciesConstructor(this, getBuiltIn('Promise'));
     var isFunction = isCallable(onFinally);
     return this.then(

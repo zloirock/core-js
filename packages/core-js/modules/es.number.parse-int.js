@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 
-// dependency: es.parse-int
+// @dependency: es.parse-int
 var parseInt = getBuiltIn('parseInt');
 
 // `Number.parseInt` method
