@@ -1,4 +1,4 @@
-// types: annex-b/object-proto
+// @types: annex-b/object-proto
 'use strict';
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var isObject = require('../internals/is-object');
