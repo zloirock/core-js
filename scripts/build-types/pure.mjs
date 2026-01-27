@@ -26,7 +26,7 @@ function extractDeclareGlobalSections(lines) {
 
 function parseOptions(line) {
   const hasOptions = line.includes('@type-options');
-  const optionsStr = hasOptions ? line.match(/@type-options\s+(?<options>[A-Za-z][\s\w,-]+)$/)?.groups?.options : '';
+  const optionsStr = hasOptions ? line.match(/@type-options:\s+(?<options>[A-Za-z][\s\w,-]+)$/)?.groups?.options : '';
   return {
     noExtends: hasOptions && optionsStr.includes('no-extends'),
     noPrefix: hasOptions && optionsStr.includes('no-prefix'),
