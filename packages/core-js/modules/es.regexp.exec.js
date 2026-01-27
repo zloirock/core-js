@@ -1,5 +1,5 @@
-// types: proposals/regexp-dotall-flag
-// types: proposals/regexp-named-groups
+// @types: proposals/regexp-dotall-flag
+// @types: proposals/regexp-named-groups
 'use strict';
 var $ = require('../internals/export');
 var exec = require('../internals/regexp-exec');
