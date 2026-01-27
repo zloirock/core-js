@@ -1,4 +1,8 @@
-// use only with DOM lib
+// Fallbacks for DOM types
+interface Element {} // @type-options no-export
+interface Node {} // @type-options no-export
+interface HTMLOptionElement {} // @type-options no-export
+
 interface ArrayIterator<T> extends IteratorObject<T, any, unknown> { // @type-options no-export
   [Symbol.iterator](): ArrayIterator<T>;
 }
@@ -18,19 +22,19 @@ interface DOMTokenList { // @type-options no-export
   /**
    * Returns an iterable of keys in the DOMTokenList.
    */
-  keys(): Iterable<number>;
+  keys(): IterableIterator<number>;
 
   /**
    * Returns an iterable of values in the DOMTokenList.
    */
-  values(): Iterable<Element>;
+  values(): IterableIterator<Element>;
 
   /**
    * Returns an iterable of key, value pairs in the DOMTokenList.
    */
-  entries(): Iterable<[number, Element]>;
+  entries(): IterableIterator<[number, Element]>;
 
-  [Symbol.iterator](): Iterable<Element>;
+  [Symbol.iterator](): IterableIterator<Element>;
 }
 
 interface NodeList { // @type-options no-export
@@ -48,85 +52,85 @@ interface NodeList { // @type-options no-export
   /**
    * Returns an iterable of keys in the NodeList.
    */
-  keys(): Iterable<number>;
+  keys(): IterableIterator<number>;
 
   /**
    * Returns an iterable of values in the NodeList.
    */
-  values(): Iterable<Node>;
+  values(): IterableIterator<Node>;
 
   /**
    * Returns an iterable of key, value pairs in the NodeList.
    */
-  entries(): Iterable<[number, Node]>;
+  entries(): IterableIterator<[number, Node]>;
 
   /**
    * Returns an iterable of values in the NodeList.
    */
-  [Symbol.iterator](): Iterable<Node>;
+  [Symbol.iterator](): IterableIterator<Node>;
 }
 
 interface CSSRuleList { // @type-options no-export
   /**
    * Returns an iterable of values in the CSSRuleList.
    */
-  [Symbol.iterator](): Iterable<CSSRuleList>;
+  [Symbol.iterator](): IterableIterator<CSSRuleList>;
 }
 
 interface CSSStyleDeclaration { // @type-options no-export
   /**
    * Returns an iterable of values in the CSSStyleDeclaration.
    */
-  [Symbol.iterator](): Iterable<CSSStyleDeclaration>;
+  [Symbol.iterator](): IterableIterator<CSSStyleDeclaration>;
 }
 
 interface CSSValueList { // @type-options no-export
   /**
    * Returns an iterable of values in the CSSValueList.
    */
-  [Symbol.iterator](): Iterable<CSSValueList>;
+  [Symbol.iterator](): IterableIterator<CSSValueList>;
 }
 
 interface ClientRectList { // @type-options no-export
   /**
    * Returns an iterable of values in the ClientRectList.
    */
-  [Symbol.iterator](): Iterable<ClientRectList>;
+  [Symbol.iterator](): IterableIterator<ClientRectList>;
 }
 
 interface DOMRectList { // @type-options no-export
   /**
    * Returns an iterable of values in the DOMRectList.
    */
-  [Symbol.iterator](): Iterable<DOMRectList>;
+  [Symbol.iterator](): IterableIterator<DOMRectList>;
 }
 
 interface DOMStringList { // @type-options no-export
   /**
    * Returns an iterable of values in the DOMStringList.
    */
-  [Symbol.iterator](): Iterable<DOMStringList>;
+  [Symbol.iterator](): IterableIterator<DOMStringList>;
 }
 
 interface DataTransferItemList { // @type-options no-export
   /**
    * Returns an iterable of values in the DataTransferItemList.
    */
-  [Symbol.iterator](): Iterable<DataTransferItemList>;
+  [Symbol.iterator](): IterableIterator<DataTransferItemList>;
 }
 
 interface FileList { // @type-options no-export
   /**
    * Returns an iterable of values in the FileList.
    */
-  [Symbol.iterator](): Iterable<FileList>;
+  [Symbol.iterator](): IterableIterator<FileList>;
 }
 
 interface HTMLAllCollection { // @type-options no-export
   /**
    * Returns an iterable of values in the HTMLAllCollection.
    */
-  [Symbol.iterator](): Iterable<HTMLAllCollection>;
+  [Symbol.iterator](): IterableIterator<HTMLAllCollection>;
 }
 
 interface HTMLCollection { // @type-options no-export
@@ -140,105 +144,105 @@ interface HTMLFormElement { // @type-options no-export
   /**
    * Returns an iterable of values in the HTMLFormElement.
    */
-  [Symbol.iterator](): Iterable<Element>;
+  [Symbol.iterator](): IterableIterator<Element>;
 }
 
 interface HTMLSelectElement { // @type-options no-export
   /**
    * Returns an iterable of values in the HTMLSelectElement.
    */
-  [Symbol.iterator](): Iterable<HTMLOptionElement>;
+  [Symbol.iterator](): IterableIterator<HTMLOptionElement>;
 }
 
 interface MediaList { // @type-options no-export
   /**
    * Returns an iterable of values in the MediaList.
    */
-  [Symbol.iterator](): Iterable<MediaList>;
+  [Symbol.iterator](): IterableIterator<MediaList>;
 }
 
 interface MimeTypeArray { // @type-options no-export
   /**
    * Returns an iterable of values in the MimeTypeArray.
    */
-  [Symbol.iterator](): Iterable<MimeTypeArray>;
+  [Symbol.iterator](): IterableIterator<MimeTypeArray>;
 }
 
 interface NamedNodeMap { // @type-options no-export
   /**
    * Returns an iterable of values in the NamedNodeMap.
    */
-  [Symbol.iterator](): Iterable<NamedNodeMap>;
+  [Symbol.iterator](): IterableIterator<NamedNodeMap>;
 }
 
 interface PaintRequestList { // @type-options no-export
   /**
    * Returns an iterable of values in the PaintRequestList.
    */
-  [Symbol.iterator](): Iterable<PaintRequestList>;
+  [Symbol.iterator](): IterableIterator<PaintRequestList>;
 }
 
 interface Plugin { // @type-options no-export
   /**
    * Returns an iterable of values in the Plugin.
    */
-  [Symbol.iterator](): Iterable<Plugin>;
+  [Symbol.iterator](): IterableIterator<Plugin>;
 }
 
 interface PluginArray { // @type-options no-export
   /**
    * Returns an iterable of values in the PluginArray.
    */
-  [Symbol.iterator](): Iterable<PluginArray>;
+  [Symbol.iterator](): IterableIterator<PluginArray>;
 }
 
 interface SVGLengthList { // @type-options no-export
   /**
    * Returns an iterable of values in the SVGLengthList.
    */
-  [Symbol.iterator](): Iterable<SVGLengthList>;
+  [Symbol.iterator](): IterableIterator<SVGLengthList>;
 }
 
 interface SVGNumberList { // @type-options no-export
   /**
    * Returns an iterable of values in the SVGNumberList.
    */
-  [Symbol.iterator](): Iterable<SVGNumberList>;
+  [Symbol.iterator](): IterableIterator<SVGNumberList>;
 }
 
 interface SVGPathSegList { // @type-options no-export
   /**
    * Returns an iterable of values in the SVGPathSegList.
    */
-  [Symbol.iterator](): Iterable<SVGPathSegList>;
+  [Symbol.iterator](): IterableIterator<SVGPathSegList>;
 }
 
 interface SVGPointList { // @type-options no-export
   /**
    * Returns an iterable of values in the SVGPointList.
    */
-  [Symbol.iterator](): Iterable<SVGPointList>;
+  [Symbol.iterator](): IterableIterator<SVGPointList>;
 }
 
 interface SVGStringList { // @type-options no-export
   /**
    * Returns an iterable of values in the SVGStringList.
    */
-  [Symbol.iterator](): Iterable<SVGStringList>;
+  [Symbol.iterator](): IterableIterator<SVGStringList>;
 }
 
 interface SVGTransformList { // @type-options no-export
   /**
    * Returns an iterable of values in the SVGTransformList.
    */
-  [Symbol.iterator](): Iterable<SVGTransformList>;
+  [Symbol.iterator](): IterableIterator<SVGTransformList>;
 }
 
 interface SourceBufferList { // @type-options no-export
   /**
    * Returns an iterable of values in the SourceBufferList.
    */
-  [Symbol.iterator](): Iterable<SourceBufferList>;
+  [Symbol.iterator](): IterableIterator<SourceBufferList>;
 }
 
 interface StyleSheetList { // @type-options no-export
@@ -246,26 +250,26 @@ interface StyleSheetList { // @type-options no-export
    * Returns an iterable of values in the StyleSheetList.
    *
    */
-  [Symbol.iterator](): Iterable<SourceBufferList>;
+  [Symbol.iterator](): IterableIterator<SourceBufferList>;
 }
 
 interface TextTrackCueList { // @type-options no-export
   /**
    * Returns an iterable of values in the TextTrackCueList.
    */
-  [Symbol.iterator](): Iterable<TextTrackCueList>;
+  [Symbol.iterator](): IterableIterator<TextTrackCueList>;
 }
 
 interface TextTrackList { // @type-options no-export
   /**
    * Returns an iterable of values in the TextTrackList.
    */
-  [Symbol.iterator](): Iterable<TextTrackList>;
+  [Symbol.iterator](): IterableIterator<TextTrackList>;
 }
 
 interface TouchList { // @type-options no-export
   /**
    * Returns an iterable of values in the TouchList.
    */
-  [Symbol.iterator](): Iterable<TouchList>;
+  [Symbol.iterator](): IterableIterator<TouchList>;
 }
