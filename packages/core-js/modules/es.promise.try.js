@@ -22,9 +22,9 @@ var FORCED = !Promise || !Promise.try || perform(function () {
 // https://tc39.es/ecma262/#sec-promise.try
 $({ target: 'Promise', stat: true, forced: FORCED }, {
   try: function (callbackfn /* , ...args */) {
-    // dependency: es.promise.constructor
-    // dependency: es.promise.catch
-    // dependency: es.promise.finally
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
     var promiseCapability = newPromiseCapabilityModule.f(this);
     var args = arguments.length > 1 ? slice(arguments, 1) : [];
     var result = perform(function () {

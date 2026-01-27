@@ -16,7 +16,7 @@ var toArray = require('../internals/async-iterator-iteration').toArray;
 var fails = require('../internals/fails');
 
 var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
-// dependency: es.array.iterator
+// @dependency: es.array.iterator
 var arrayIterator = uncurryThis(getIteratorMethod([]));
 var arrayIteratorNext = uncurryThis(arrayIterator([]).next);
 
@@ -52,14 +52,14 @@ $({ target: 'Array', stat: true, forced: INCORRECT_CONSTRUCTURING }, {
     var argumentsLength = arguments.length;
     var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
     var thisArg = argumentsLength > 2 ? arguments[2] : undefined;
-    // dependency: es.promise.constructor
-    // dependency: es.promise.catch
-    // dependency: es.promise.finally
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
     return new (getBuiltIn('Promise'))(function (resolve) {
       var O = toObject(asyncItems);
       if (mapfn !== undefined) mapfn = bind(mapfn, thisArg);
       var usingAsyncIterator = getMethod(O, ASYNC_ITERATOR);
-      // dependency: es.string.iterator
+      // @dependency: es.string.iterator
       var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(O) || safeArrayIterator;
       var A = isConstructor(C) ? new C() : [];
       var iterator = usingAsyncIterator

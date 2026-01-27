@@ -17,7 +17,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   var argumentsLength = arguments.length;
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
   var mapping = mapfn !== undefined;
-  // dependency: es.string.iterator
+  // @dependency: es.string.iterator
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, thisIsBigIntArray, value, step, iterator, next;
   if (iteratorMethod && !isArrayIteratorMethod(iteratorMethod)) {
