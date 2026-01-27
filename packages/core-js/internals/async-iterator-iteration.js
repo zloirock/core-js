@@ -12,10 +12,10 @@ var setArrayLength = require('../internals/array-set-length');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var closeAsyncIteration = require('../internals/async-iterator-close');
 
-// dependency: es.promise.constructor
-// dependency: es.promise.catch
-// dependency: es.promise.finally
-// dependency: es.promise.resolve
+// @dependency: es.promise.constructor
+// @dependency: es.promise.catch
+// @dependency: es.promise.finally
+// @dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 
 var createMethod = function (TYPE) {

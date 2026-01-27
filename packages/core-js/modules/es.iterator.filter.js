@@ -33,7 +33,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.filter` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.filter
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   filter: function filter(predicate) {
     anObject(this);

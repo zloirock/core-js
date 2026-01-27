@@ -19,7 +19,7 @@ var THROW = 'throw';
 
 // `Iterator.zipKeyed` method
 // https://github.com/tc39/proposal-joint-iteration
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zipKeyed: function zipKeyed(iterables /* , options */) {
     anObject(iterables);
@@ -29,6 +29,7 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
 
     var iters = [];
     var padding = [];
+    // @dependency: es.reflect.own-keys
     var allKeys = getBuiltInStaticMethod('Reflect', 'ownKeys')(iterables);
     var keys = [];
     var propertyIsEnumerable = propertyIsEnumerableModule.f;

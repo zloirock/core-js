@@ -1,7 +1,7 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
-// dependency: es.set.constructor
+// @dependency: es.set.constructor
 var SetPrototype = Set.prototype;
 
 module.exports = {

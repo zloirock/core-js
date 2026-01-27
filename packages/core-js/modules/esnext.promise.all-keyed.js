@@ -12,7 +12,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 
 var create = Object.create;
 var forEach = uncurryThis([].forEach);
-// dependency: es.reflect.own-keys
+// @dependency: es.reflect.own-keys
 var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 
 // `Promise.allKeyed` method
@@ -20,10 +20,10 @@ var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 $({ target: 'Promise', stat: true, forced: true }, {
   allKeyed: function allKeyed(promises) {
     var C = this;
-    // dependency: es.promise.constructor
-    // dependency: es.promise.catch
-    // dependency: es.promise.finally
-    // dependency: es.promise.resolve
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
+    // @dependency: es.promise.resolve
     var capability = newPromiseCapabilityModule.f(C);
     var resolve = capability.resolve;
     var reject = capability.reject;

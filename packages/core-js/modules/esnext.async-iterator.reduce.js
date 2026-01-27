@@ -8,16 +8,16 @@ var getBuiltIn = require('../internals/get-built-in');
 var getIteratorDirect = require('../internals/get-iterator-direct');
 var closeAsyncIteration = require('../internals/async-iterator-close');
 
-// dependency: es.promise.constructor
-// dependency: es.promise.catch
-// dependency: es.promise.finally
-// dependency: es.promise.resolve
+// @dependency: es.promise.constructor
+// @dependency: es.promise.catch
+// @dependency: es.promise.finally
+// @dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 var $TypeError = TypeError;
 
 // `AsyncIterator.prototype.reduce` method
 // https://github.com/tc39/proposal-async-iterator-helpers
-// dependency: esnext.async-iterator.constructor
+// @dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);

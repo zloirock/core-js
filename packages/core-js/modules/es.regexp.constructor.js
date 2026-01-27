@@ -1,5 +1,5 @@
 'use strict';
-// dependency: es.regexp.exec
+// @dependency: es.regexp.exec
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var inheritIfRequired = require('../internals/inherit-if-required');

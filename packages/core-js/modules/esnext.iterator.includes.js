@@ -15,7 +15,7 @@ var INVALID_SKIPPED_ELEMENTS = 'skippedElements should be a positive safe intege
 
 // `Iterator.prototype.includes` method
 // https://github.com/tc39/proposal-iterator-includes
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: IS_PURE }, {
   includes: function includes(searchElement /* , skippedElements */) {
     anObject(this);

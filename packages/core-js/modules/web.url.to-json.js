@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 
-// dependency: web.url.constructor
+// @dependency: web.url.constructor
 var toString = uncurryThis(URL.prototype.toString);
 
 // `URL.prototype.toJSON` method
