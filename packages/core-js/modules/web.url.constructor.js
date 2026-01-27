@@ -1,4 +1,4 @@
-// no types: because of a conflict with @types/node
+// @no-types: because of a conflict with @types/node
 'use strict';
 var $ = require('../internals/export');
 var USE_NATIVE_URL = require('../internals/url-constructor-detection');

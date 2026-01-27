@@ -1,4 +1,4 @@
-// types: proposals/error-cause
+// @types: proposals/error-cause
 'use strict';
 var $ = require('../internals/export');
 var isPrototypeOf = require('../internals/object-is-prototype-of');

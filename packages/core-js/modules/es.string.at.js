@@ -1,4 +1,4 @@
-// types: proposals/relative-indexing-method
+// @types: proposals/relative-indexing-method
 'use strict';
 var $ = require('../internals/export');
 var requireObjectCoercible = require('../internals/require-object-coercible');

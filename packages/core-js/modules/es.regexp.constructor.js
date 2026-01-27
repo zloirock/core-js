@@ -1,5 +1,5 @@
-// types: proposals/regexp-dotall-flag
-// types: proposals/regexp-named-groups
+// @types: proposals/regexp-dotall-flag
+// @types: proposals/regexp-named-groups
 'use strict';
 // @dependency: es.regexp.exec
 var globalThis = require('../internals/global-this');
