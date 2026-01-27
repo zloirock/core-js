@@ -6,7 +6,7 @@ var toUSVString = require('../internals/to-usv-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
 var create = Object.create;
-// dependency: web.url-search-params.constructor
+// @dependency: web.url-search-params.constructor
 var $URLSearchParams = URLSearchParams;
 var URLSearchParamsPrototype = $URLSearchParams.prototype;
 var append = uncurryThis(URLSearchParamsPrototype.append);

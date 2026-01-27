@@ -3,7 +3,7 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 
-// dependency: es.array.sort
+// @dependency: es.array.sort
 var arraySort = uncurryThis(getBuiltInPrototypeMethod('Array', 'sort'));
 
 var maxInt = 2147483647; // aka. 0x7FFFFFFF or 2^31-1

@@ -10,7 +10,7 @@ var $Array = Array;
 // eslint-disable-next-line es/no-regexp-escape -- safe
 var $escape = RegExp.escape;
 var charCodeAt = uncurryThis(''.charCodeAt);
-// dependency: es.string.pad-start
+// @dependency: es.string.pad-start
 var padStart = uncurryThis(getBuiltInPrototypeMethod('String', 'padStart'));
 var numberToString = uncurryThis(1.1.toString);
 var join = uncurryThis([].join);

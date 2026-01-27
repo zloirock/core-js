@@ -4,7 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var toUSVString = require('../internals/to-usv-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 
-// dependency: web.url-search-params.constructor
+// @dependency: web.url-search-params.constructor
 var $URLSearchParams = URLSearchParams;
 var URLSearchParamsPrototype = $URLSearchParams.prototype;
 var getAll = uncurryThis(URLSearchParamsPrototype.getAll);

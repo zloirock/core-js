@@ -8,7 +8,7 @@ var roundTiesToEven = require('../internals/math-round-ties-to-even');
 
 var floor = Math.floor;
 var pow = Math.pow;
-// dependency: es.math.log2
+// @dependency: es.math.log2
 var log2 = getBuiltInStaticMethod('Math', 'log2');
 
 var MIN_INFINITY16 = 65520; // (2 - 2 ** -11) * 2 ** 15

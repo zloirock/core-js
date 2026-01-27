@@ -1,7 +1,7 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
-// dependency: es.map.constructor
+// @dependency: es.map.constructor
 var MapPrototype = Map.prototype;
 
 module.exports = {

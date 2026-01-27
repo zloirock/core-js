@@ -12,7 +12,7 @@ var $String = String;
 var $isFinite = isFinite;
 var abs = Math.abs;
 var nativeToExponential = uncurryThis(1.1.toExponential);
-// dependency: es.string.repeat
+// @dependency: es.string.repeat
 var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var join = uncurryThis([].join);
 var charAt = uncurryThis(''.charAt);

@@ -32,9 +32,9 @@ $({ target: 'Promise', stat: true, forced: FORCED }, {
     var result = perform(function () {
       return apply(aCallable(callbackfn), undefined, args);
     });
-    // dependency: es.promise.constructor
-    // dependency: es.promise.catch
-    // dependency: es.promise.finally
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
     if (!result.error) return promiseResolve(this, result.value);
     var promiseCapability = newPromiseCapabilityModule.f(this);
     var reject = promiseCapability.reject;

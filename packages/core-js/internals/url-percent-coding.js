@@ -4,13 +4,13 @@ var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-met
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
-// dependency: es.string.from-code-point
+// @dependency: es.string.from-code-point
 var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var $encodeURIComponent = encodeURIComponent;
 var $parseInt = parseInt;
 var stringSlice = uncurryThis(''.slice);
 var exec = uncurryThis(/./.exec);
-// dependency: es.string.to-well-formed
+// @dependency: es.string.to-well-formed
 var toWellFormed = uncurryThis(getBuiltInPrototypeMethod('String', 'toWellFormed'));
 
 var FALLBACK_REPLACER = '\uFFFD';

@@ -41,7 +41,7 @@ var getInternalIteratorState = internalStateGetterFor(URL_SEARCH_PARAMS_ITERATOR
 var percentDecode = percentCoding.decode;
 var percentEncode = percentCoding.encode;
 
-// dependency: es.reflect.own-keys
+// @dependency: es.reflect.own-keys
 var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 var $TypeError = TypeError;
 var NativeURL = globalThis.URL;
@@ -174,7 +174,7 @@ URLSearchParamsState.prototype = {
   },
   parseObject: function (object) {
     var entries = this.entries;
-    // dependency: es.array.iterator
+    // @dependency: es.array.iterator
     var iteratorMethod = getIteratorMethod(object);
     var index = 0;
     var iterator, next, step, entryIterator, entryNext, pair;

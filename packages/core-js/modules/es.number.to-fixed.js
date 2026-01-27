@@ -9,7 +9,7 @@ var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
 var $String = String;
-// dependency: es.string.repeat
+// @dependency: es.string.repeat
 var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var join = uncurryThis([].join);
 var stringSlice = uncurryThis(''.slice);
