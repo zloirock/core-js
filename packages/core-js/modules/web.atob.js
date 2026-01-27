@@ -13,9 +13,9 @@ var disallowed = /[^\d+/a-z]/i;
 var whitespaces = /[\t\n\f\r ]+/g;
 var finalEq = /[=]{1,2}$/;
 
-// dependency: web.dom-exception.constructor
-// dependency: web.dom-exception.stack
-// dependency: web.dom-exception.to-string-tag
+// @dependency: web.dom-exception.constructor
+// @dependency: web.dom-exception.stack
+// @dependency: web.dom-exception.to-string-tag
 var DOMException = getBuiltIn('DOMException');
 var $atob = getBuiltIn('atob');
 var $Array = Array;

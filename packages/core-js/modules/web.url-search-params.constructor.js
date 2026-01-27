@@ -43,7 +43,7 @@ var $TypeError = TypeError;
 var $encodeURIComponent = encodeURIComponent;
 var create = Object.create;
 var fromCharCode = String.fromCharCode;
-// dependency: es.string.from-code-point
+// @dependency: es.string.from-code-point
 var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var $parseInt = parseInt;
 var join = uncurryThis([].join);
@@ -249,7 +249,7 @@ URLSearchParamsState.prototype = {
   },
   parseObject: function (object) {
     var entries = this.entries;
-    // dependency: es.array.iterator
+    // @dependency: es.array.iterator
     var iteratorMethod = getIteratorMethod(object);
     var iterator, next, step, entryIterator, entryNext, first, second;
 

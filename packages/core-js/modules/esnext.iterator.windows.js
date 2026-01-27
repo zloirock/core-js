@@ -35,7 +35,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.windows` method
 // https://github.com/tc39/proposal-iterator-chunking
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   windows: function windows(windowSize /* , undersized */) {
     anObject(this);
