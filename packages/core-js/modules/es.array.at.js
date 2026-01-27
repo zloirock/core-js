@@ -1,4 +1,4 @@
-// types: proposals/relative-indexing-method
+// @types: proposals/relative-indexing-method
 'use strict';
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');

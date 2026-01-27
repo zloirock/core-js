@@ -1,6 +1,6 @@
-// types: proposals/iterator-helpers
-// types: proposals/iterator-sequencing
-// types: proposals/explicit-resource-management
+// @types: proposals/iterator-helpers
+// @types: proposals/iterator-sequencing
+// @types: proposals/explicit-resource-management
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');

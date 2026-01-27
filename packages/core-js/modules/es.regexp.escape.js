@@ -1,4 +1,4 @@
-// types: proposals/regexp-escaping
+// @types: proposals/regexp-escaping
 'use strict';
 var $ = require('../internals/export');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
