@@ -46,8 +46,8 @@ module.exports = {
         weakmap: new WeakMap(),
         map: IS_IE11 ? new Map() : null,
       });
-      // dependency: es.array.iterator
-      // dependency: web.dom-collections.iterator
+      // @dependency: es.array.iterator
+      // @dependency: web.dom-collections.iterator
       if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
 

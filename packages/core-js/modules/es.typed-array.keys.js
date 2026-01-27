@@ -4,7 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var aTypedArray = require('../internals/a-typed-array');
 
-// dependency: es.array.keys
+// @dependency: es.array.keys
 // eslint-disable-next-line es/no-array-prototype-keys -- safe
 var arrayMethod = uncurryThis([].keys);
 
