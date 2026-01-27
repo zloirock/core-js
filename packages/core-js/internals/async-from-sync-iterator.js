@@ -10,10 +10,10 @@ var getBuiltIn = require('../internals/get-built-in');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
-// dependency: es.promise.constructor
-// dependency: es.promise.catch
-// dependency: es.promise.finally
-// dependency: es.promise.resolve
+// @dependency: es.promise.constructor
+// @dependency: es.promise.catch
+// @dependency: es.promise.finally
+// @dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 
 var ASYNC_FROM_SYNC_ITERATOR = 'AsyncFromSyncIterator';

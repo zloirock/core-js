@@ -5,7 +5,7 @@ var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 
-// dependency: es.string.repeat
+// @dependency: es.string.repeat
 var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var stringSlice = uncurryThis(''.slice);
 var ceil = Math.ceil;
