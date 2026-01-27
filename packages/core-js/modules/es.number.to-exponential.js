@@ -15,7 +15,7 @@ var floor = Math.floor;
 var pow = Math.pow;
 var round = Math.round;
 var nativeToExponential = uncurryThis(1.1.toExponential);
-// dependency: es.string.repeat
+// @dependency: es.string.repeat
 var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var stringSlice = uncurryThis(''.slice);
 

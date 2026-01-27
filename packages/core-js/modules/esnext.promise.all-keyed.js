@@ -12,7 +12,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 
 var create = Object.create;
 var forEach = uncurryThis([].forEach);
-// dependency: es.reflect.own-keys
+// @dependency: es.reflect.own-keys
 var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 
 // `Promise.allKeyed` method

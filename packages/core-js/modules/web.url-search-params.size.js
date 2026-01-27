@@ -2,7 +2,7 @@
 var uncurryThis = require('../internals/function-uncurry-this');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 
-// dependency: web.url-search-params.constructor
+// @dependency: web.url-search-params.constructor
 var URLSearchParamsPrototype = URLSearchParams.prototype;
 var forEach = uncurryThis(URLSearchParamsPrototype.forEach);
 

@@ -77,16 +77,20 @@ export const $staticWithContext = t(p => dedent`
   };
 `);
 
-export const $patchableStatic = t(p => dedent`
-  ${ importModules(p) }
-
-  var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
-  var apply = ${ importInternal('function-apply', p.level) }
-
-  module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }() {
-    return apply(getBuiltInStaticMethod('${ p.namespace }', '${ p.name }'), this, arguments);
-  };
-`);
+export const $patchableStatic = t(p => {
+  const arity = globalThis?.[p.namespace]?.[p.name].length ?? p.arity;
+  const args = Array(arity).fill().map((_, i) => `arg${ i }`).join(', ');
+  return dedent`
+    ${ importModules(p) }
+  
+    var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
+    var call = ${ importInternal('function-call', p.level) }
+  
+    module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }(${ args }) {
+      return call(getBuiltInStaticMethod('${ p.namespace }', '${ p.name }'), this${ arity ? `, ${ args }` : '' });
+    };
+  `;
+});
 
 export const $namespace = t(p => dedent`
   ${ importModules(p) }
