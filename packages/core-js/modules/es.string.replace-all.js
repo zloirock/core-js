@@ -34,7 +34,7 @@ $({ target: 'String', proto: true }, {
         flags = toString(requireObjectCoercible(getRegExpFlags(searchValue)));
         if (!~indexOf(flags, 'g')) throw new $TypeError('`.replaceAll` does not allow non-global regexes');
       }
-      // dependency: es.string.replace
+      // @dependency: es.string.replace
       replacer = getMethod(searchValue, REPLACE);
       if (replacer) return call(replacer, searchValue, O, replaceValue);
       if (IS_PURE && IS_REG_EXP) return replace(toString(O), searchValue, replaceValue);
