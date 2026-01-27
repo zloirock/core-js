@@ -4,7 +4,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');
 var Int8ArrayPrototype = Int8Array.prototype;
-// dependency: es.typed-array.iterator
+// @dependency: es.typed-array.iterator
 var typedArrayIterator = Int8ArrayPrototype[ITERATOR];
 
 var ITERATOR_IS_VALUES = Int8ArrayPrototype.values === typedArrayIterator;
