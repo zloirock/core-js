@@ -29,9 +29,9 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
     aCallable(callbackfn);
     var obj = create(null);
     var k = 0;
-    // dependency: es.array.iterator
-    // dependency: es.string.iterator
-    // dependency: web.dom-collections.iterator
+    // @dependency: es.array.iterator
+    // @dependency: es.string.iterator
+    // @dependency: web.dom-collections.iterator
     iterate(items, function (value) {
       doesNotExceedSafeInteger(k);
       var key = toPropertyKey(callbackfn(value, k++));
