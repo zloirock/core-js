@@ -1,28 +1,6 @@
 const { outputFile, pathExists, readdir } = fs;
 
-function extractDeclareGlobalSections(lines) {
-  const sections = [];
-  const outside = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    if (/^\s*declare\s+global\s*\{/.test(lines[i])) {
-      let depth = 1;
-      const section = [];
-
-      for (++i; i < lines.length && depth > 0; ++i) {
-        depth += lines[i].match(/\{/g)?.length ?? 0;
-        depth -= lines[i].match(/\}/g)?.length ?? 0;
-
-        if (depth === 0 && /^\s*\}\s*$/.test(lines[i])) break;
-        if (depth > 0) section.push(lines[i]);
-      }
-      sections.push(section);
-    } else {
-      outside.push(lines[i]);
-    }
-  }
-  return { sections, outside };
-}
+const NAMESPACE = 'CoreJS';
 
 function parseOptions(line) {
   const hasOptions = line.includes('@type-options');
@@ -157,9 +135,6 @@ function wrapInNamespace(content, namespace = 'CoreJS') {
     break;
   }
 
-  const bodyLines = lines.slice(i);
-  const { sections, outside } = extractDeclareGlobalSections(bodyLines);
-
   const namespaceBody = [...processLines(outside, namespace), ...sections.flatMap(s => processLines(s, namespace))]
     .reduce((res, line) => {
       if (line?.trim() !== '' || (res.at(-1) && res.at(-1).trim() !== '')) res.push(line);
@@ -168,7 +143,7 @@ function wrapInNamespace(content, namespace = 'CoreJS') {
     .map(line => line ? `  ${ line }` : '')
     .join('\n');
 
-  return `${ headerLines.length ? `${ headerLines.join('\n') }\n` : '' }declare namespace ${ namespace } {\n${ namespaceBody }\n}\n`;
+  return `${ headerLines.length ? `${ headerLines.join('\n') }\n` : '' }declare namespace ${ NAMESPACE } {\n${ namespaceBody }\n}\n`;
 }
 
 export async function preparePureTypes(typesPath, initialPath) {
