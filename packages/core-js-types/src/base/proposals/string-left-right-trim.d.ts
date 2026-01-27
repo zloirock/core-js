@@ -4,7 +4,7 @@
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/es2019.string.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface String { // @type-options no-redefine
+interface String { // @type-options: no-redefine
   /** Removes the trailing white space and line terminator characters from a string. */
   trimEnd(): string;
 

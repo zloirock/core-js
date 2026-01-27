@@ -4,7 +4,7 @@
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/esnext.collection.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface ReadonlySetLike<T> { // @type-options no-extends, no-prefix
+interface ReadonlySetLike<T> { // @type-options: no-extends, no-prefix
   /**
    * Despite its name, returns an iterator of the values in the set-like.
    */
@@ -21,26 +21,26 @@ interface ReadonlySetLike<T> { // @type-options no-extends, no-prefix
   readonly size: number;
 }
 
-interface Set<T> { // @type-options no-redefine
+interface Set<T> { // @type-options: no-redefine
   /**
    * @returns a new Set containing all the elements in this Set and also all the elements in the argument.
    */
-  union<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
+  union<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options: prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are both in this Set and in the argument.
    */
-  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>; // @type-options prefix-return-type
+  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>; // @type-options: prefix-return-type
 
   /**
    * @returns a new Set containing all the elements in this Set which are not also in the argument.
    */
-  difference<U>(other: ReadonlySetLike<U>): Set<T>; // @type-options prefix-return-type
+  difference<U>(other: ReadonlySetLike<U>): Set<T>; // @type-options: prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are in either this Set or in the argument, but not in both.
    */
-  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
+  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options: prefix-return-type
 
   /**
    * @returns a boolean indicating whether all the elements in this Set are also in the argument.
@@ -58,26 +58,26 @@ interface Set<T> { // @type-options no-redefine
   isDisjointFrom(other: ReadonlySetLike<unknown>): boolean;
 }
 
-interface ReadonlySet<T> { // @type-options no-redefine
+interface ReadonlySet<T> { // @type-options: no-redefine
   /**
    * @returns a new Set containing all the elements in this Set and also all the elements in the argument.
    */
-  union<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
+  union<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options: prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are both in this Set and in the argument.
    */
-  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>; // @type-options prefix-return-type
+  intersection<U>(other: ReadonlySetLike<U>): Set<T & U>; // @type-options: prefix-return-type
 
   /**
    * @returns a new Set containing all the elements in this Set which are not also in the argument.
    */
-  difference<U>(other: ReadonlySetLike<U>): Set<T>; // @type-options prefix-return-type
+  difference<U>(other: ReadonlySetLike<U>): Set<T>; // @type-options: prefix-return-type
 
   /**
    * @returns a new Set containing all the elements which are in either this Set or in the argument, but not in both.
    */
-  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options prefix-return-type
+  symmetricDifference<U>(other: ReadonlySetLike<U>): Set<T | U>; // @type-options: prefix-return-type
 
   /**
    * @returns a boolean indicating whether all the elements in this Set are also in the argument.
