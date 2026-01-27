@@ -1,4 +1,4 @@
-// types: proposals/object-values-entries
+// @types: proposals/object-values-entries
 'use strict';
 var $ = require('../internals/export');
 var $values = require('../internals/object-to-array').values;

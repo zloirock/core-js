@@ -1,4 +1,4 @@
-// no types: because of a conflict with lib.dom.d.ts
+// @no-types: because of a conflict with lib.dom.d.ts
 'use strict';
 var $ = require('../internals/export');
 var safeGetBuiltIn = require('../internals/safe-get-built-in');

@@ -1,4 +1,4 @@
-// types: proposals/explicit-resource-management
+// @types: proposals/explicit-resource-management
 'use strict';
 var globalThis = require('../internals/global-this');
 var defineWellKnownSymbol = require('../internals/well-known-symbol-define');

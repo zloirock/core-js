@@ -1,4 +1,4 @@
-// types: proposals/float16
+// @types: proposals/float16
 'use strict';
 var $ = require('../internals/export');
 var sign = require('../internals/math-sign');

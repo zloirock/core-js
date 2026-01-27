@@ -1,4 +1,4 @@
-// types: proposals/array-buffer-base64
+// @types: proposals/array-buffer-base64
 'use strict';
 /* eslint-disable es/no-uint8array-prototype-tohex -- safe */
 var $ = require('../internals/export');
