@@ -14,7 +14,7 @@ var $DataView = DataView;
 var ArrayBufferPrototype = $ArrayBuffer.prototype;
 var DataViewPrototype = $DataView.prototype;
 var min = Math.min;
-// dependency: es.array-buffer.slice
+// @dependency: es.array-buffer.slice
 var slice = uncurryThis(ArrayBufferPrototype.slice);
 var isResizable = uncurryThisAccessor(ArrayBufferPrototype, 'resizable', 'get');
 var maxByteLength = uncurryThisAccessor(ArrayBufferPrototype, 'maxByteLength', 'get');

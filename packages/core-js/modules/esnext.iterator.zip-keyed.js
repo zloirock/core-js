@@ -14,14 +14,14 @@ var iteratorZip = require('../internals/iterator-zip');
 var IS_PURE = require('../internals/is-pure');
 
 var create = Object.create;
-// dependency: es.reflect.own-keys
+// @dependency: es.reflect.own-keys
 var ownKeys = getBuiltInStaticMethod('Reflect', 'ownKeys');
 var push = uncurryThis([].push);
 var THROW = 'throw';
 
 // `Iterator.zipKeyed` method
 // https://github.com/tc39/proposal-joint-iteration
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zipKeyed: function zipKeyed(iterables /* , options */) {
     anObject(iterables);

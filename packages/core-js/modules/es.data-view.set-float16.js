@@ -6,7 +6,7 @@ var aDataView = require('../internals/a-data-view');
 var toIndex = require('../internals/to-index');
 var roundTiesToEven = require('../internals/math-round-ties-to-even');
 
-// dependency: es.math.log2
+// @dependency: es.math.log2
 var log2 = getBuiltInStaticMethod('Math', 'log2');
 var pow = Math.pow;
 

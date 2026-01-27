@@ -4,7 +4,7 @@ var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 
 var fromCharCode = String.fromCharCode;
-// dependency: es.string.from-code-point
+// @dependency: es.string.from-code-point
 var fromCodePoint = getBuiltInStaticMethod('String', 'fromCodePoint');
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
