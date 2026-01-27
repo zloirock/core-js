@@ -4,7 +4,7 @@
 // https://github.com/microsoft/TypeScript/blob/6afd0fb73fa18a48021ed54f44a0c51794519bf6/src/lib/es2023.array.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-interface Array<T> { // @type-options no-redefine
+interface Array<T> { // @type-options: no-redefine
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -49,7 +49,7 @@ interface Array<T> { // @type-options no-redefine
   with(index: number, value: T): T[];
 }
 
-interface ReadonlyArray<T> { // @type-options no-export
+interface ReadonlyArray<T> { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -94,7 +94,7 @@ interface ReadonlyArray<T> { // @type-options no-export
   with(index: number, value: T): T[];
 }
 
-interface Int8Array { // @type-options no-export
+interface Int8Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -122,7 +122,7 @@ interface Int8Array { // @type-options no-export
   with(index: number, value: number): Int8Array;
 }
 
-interface Uint8Array { // @type-options no-export
+interface Uint8Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -150,7 +150,7 @@ interface Uint8Array { // @type-options no-export
   with(index: number, value: number): Uint8Array;
 }
 
-interface Uint8ClampedArray { // @type-options no-export
+interface Uint8ClampedArray { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -178,7 +178,7 @@ interface Uint8ClampedArray { // @type-options no-export
   with(index: number, value: number): Uint8ClampedArray;
 }
 
-interface Int16Array { // @type-options no-export
+interface Int16Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -206,7 +206,7 @@ interface Int16Array { // @type-options no-export
   with(index: number, value: number): Int16Array;
 }
 
-interface Uint16Array { // @type-options no-export
+interface Uint16Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -234,7 +234,7 @@ interface Uint16Array { // @type-options no-export
   with(index: number, value: number): Uint16Array;
 }
 
-interface Int32Array { // @type-options no-export
+interface Int32Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -262,7 +262,7 @@ interface Int32Array { // @type-options no-export
   with(index: number, value: number): Int32Array;
 }
 
-interface Uint32Array { // @type-options no-export
+interface Uint32Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -290,7 +290,7 @@ interface Uint32Array { // @type-options no-export
   with(index: number, value: number): Uint32Array;
 }
 
-interface Float32Array { // @type-options no-export
+interface Float32Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -318,7 +318,7 @@ interface Float32Array { // @type-options no-export
   with(index: number, value: number): Float32Array;
 }
 
-interface Float64Array { // @type-options no-export
+interface Float64Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -346,7 +346,7 @@ interface Float64Array { // @type-options no-export
   with(index: number, value: number): Float64Array;
 }
 
-interface BigInt64Array { // @type-options no-export
+interface BigInt64Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
@@ -374,7 +374,7 @@ interface BigInt64Array { // @type-options no-export
   with(index: number, value: bigint): BigInt64Array;
 }
 
-interface BigUint64Array { // @type-options no-export
+interface BigUint64Array { // @type-options: no-export
   /**
    * @returns A copy of an array with its elements reversed.
    */
