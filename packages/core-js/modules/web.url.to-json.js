@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 
-// dependency: web.url.constructor
+// @dependency: web.url.constructor
 var toString = getBuiltInPrototypeMethod('URL', 'toString');
 
 // `URL.prototype.toJSON` method

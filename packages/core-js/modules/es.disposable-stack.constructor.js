@@ -12,7 +12,7 @@ var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var addDisposableResource = require('../internals/add-disposable-resource');
 
-// dependency: es.suppressed-error.constructor
+// @dependency: es.suppressed-error.constructor
 var SuppressedError = getBuiltIn('SuppressedError');
 var $ReferenceError = ReferenceError;
 
@@ -102,7 +102,7 @@ defineBuiltInAccessor(DisposableStackPrototype, 'disposed', {
 });
 
 defineBuiltIn(DisposableStackPrototype, DISPOSE, DisposableStackPrototype.dispose, { name: 'dispose' });
-// dependency: es.object.to-string
+// @dependency: es.object.to-string
 defineBuiltIn(DisposableStackPrototype, TO_STRING_TAG, DISPOSABLE_STACK, { nonWritable: true });
 
 $({ global: true, constructor: true }, {

@@ -2,7 +2,7 @@
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
 
-// dependency: es.parse-float
+// @dependency: es.parse-float
 var parseFloat = getBuiltIn('parseFloat');
 
 // `Number.parseFloat` method

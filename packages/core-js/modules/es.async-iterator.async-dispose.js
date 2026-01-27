@@ -9,10 +9,10 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 
 var ASYNC_DISPOSE = wellKnownSymbol('asyncDispose');
-// dependency: es.promise.constructor
-// dependency: es.promise.catch
-// dependency: es.promise.finally
-// dependency: es.promise.resolve
+// @dependency: es.promise.constructor
+// @dependency: es.promise.catch
+// @dependency: es.promise.finally
+// @dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 
 if (!hasOwn(AsyncIteratorPrototype, ASYNC_DISPOSE)) {
