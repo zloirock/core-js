@@ -18,11 +18,11 @@ interface SymbolConstructor {
   readonly asyncDispose: unique symbol;
 }
 
-interface Disposable { // @type-options no-constructor
+interface Disposable { // @type-options: no-constructor
   [Symbol.dispose](): void;
 }
 
-interface AsyncDisposable { // @type-options no-constructor
+interface AsyncDisposable { // @type-options: no-constructor
   [Symbol.asyncDispose](): PromiseLike<void>;
 }
 
@@ -126,7 +126,7 @@ interface AsyncDisposableStack {
   /**
    * Disposes each resource in the stack in the reverse order that they were added.
    */
-  disposeAsync(): Promise<void>; // @type-options prefix-return-type
+  disposeAsync(): Promise<void>; // @type-options: prefix-return-type
 
   /**
    * Adds a disposable resource to the stack, returning the resource.
@@ -193,9 +193,9 @@ interface AsyncDisposableStackConstructor {
 
 declare var AsyncDisposableStack: AsyncDisposableStackConstructor;
 
-interface IteratorObject<T, TReturn = any, TNext = any> extends Disposable {} // @type-options no-extends
+interface IteratorObject<T, TReturn = any, TNext = any> extends Disposable {} // @type-options: no-extends
 
-interface AsyncIteratorObject<T, TReturn = any, TNext = undefined> extends AsyncDisposable {} // @type-options no-extends
+interface AsyncIteratorObject<T, TReturn = any, TNext = undefined> extends AsyncDisposable {} // @type-options: no-extends
 
 interface AsyncIteratorConstructor {}
 
