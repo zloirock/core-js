@@ -10,7 +10,7 @@ var $TypeError = TypeError;
 // `RegExpExec` abstract operation
 // https://tc39.es/ecma262/#sec-regexpexec
 module.exports = function (R, S) {
-  // dependency: es.regexp.exec
+  // @dependency: es.regexp.exec
   var exec = R.exec;
   if (isCallable(exec)) {
     var result = call(exec, R, S);
