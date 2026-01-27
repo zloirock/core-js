@@ -1,4 +1,4 @@
-// types: proposals/explicit-resource-management
+// @types: proposals/explicit-resource-management
 'use strict';
 // https://tc39.es/ecma262/#sec-%asynciteratorprototype%-%symbol.asyncdispose%
 var call = require('../internals/function-call');
