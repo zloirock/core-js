@@ -9,7 +9,7 @@ interface ArrayConstructor {
    * Creates an array from an async iterator or iterable object.
    * @param iterableOrArrayLike - An async iterator or array-like object to convert to an array.
    */
-  fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> | Iterable<T | PromiseLike<T>> | ArrayLike<T | PromiseLike<T>>): Promise<T[]>; // @type-options prefix-return-type
+  fromAsync<T>(iterableOrArrayLike: AsyncIterable<T> | Iterable<T | PromiseLike<T>> | ArrayLike<T | PromiseLike<T>>): Promise<T[]>; // @type-options: prefix-return-type
 
   /**
    * Creates an array from an async iterator or iterable object.
@@ -19,5 +19,5 @@ interface ArrayConstructor {
    *      Each return value is awaited before being added to result array.
    * @param thisArg - Value of 'this' used when executing mapFn.
    */
-  fromAsync<T, U>(iterableOrArrayLike: AsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapFn: (value: Awaited<T>, index: number) => U, thisArg?: any): Promise<Awaited<U>[]>; // @type-options prefix-return-type
+  fromAsync<T, U>(iterableOrArrayLike: AsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapFn: (value: Awaited<T>, index: number) => U, thisArg?: any): Promise<Awaited<U>[]>; // @type-options: prefix-return-type
 }
