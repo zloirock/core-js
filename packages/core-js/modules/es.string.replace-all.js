@@ -1,4 +1,4 @@
-// types: proposals/string-replace-all
+// @types: proposals/string-replace-all
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
