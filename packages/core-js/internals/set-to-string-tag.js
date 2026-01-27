@@ -8,7 +8,7 @@ var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 module.exports = function (target, TAG, STATIC) {
   if (target && !STATIC) target = target.prototype;
   if (target && !hasOwn(target, TO_STRING_TAG)) {
-    // dependency: es.object.to-string
+    // @dependency: es.object.to-string
     defineProperty(target, TO_STRING_TAG, { configurable: true, value: TAG });
   }
 };

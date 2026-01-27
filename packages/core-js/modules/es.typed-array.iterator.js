@@ -7,7 +7,7 @@ var wellKnownSymbol = require('../internals/well-known-symbol');
 
 var ITERATOR = wellKnownSymbol('iterator');
 
-// dependency: es.array.iterator
+// @dependency: es.array.iterator
 var arrayMethod = uncurryThis([][ITERATOR]);
 var typedArrayIterator = Int8Array.prototype[ITERATOR];
 
