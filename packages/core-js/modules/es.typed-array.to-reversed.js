@@ -1,4 +1,4 @@
-// types: proposals/change-array-by-copy
+// @types: proposals/change-array-by-copy
 'use strict';
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');

@@ -1,4 +1,4 @@
-// types: proposals/map-upsert
+// @types: proposals/map-upsert
 'use strict';
 var $ = require('../internals/export');
 var MapHelpers = require('../internals/map-helpers');
