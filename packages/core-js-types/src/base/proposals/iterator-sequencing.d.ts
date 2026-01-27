@@ -2,7 +2,7 @@
 
 // https://github.com/tc39/proposal-iterator-sequencing
 
-interface IteratorConstructor { // @type-options no-extends
+interface IteratorConstructor { // @type-options: no-extends
   /**
    * Creates an iterator that sequentially yields values from the provided iterables.
    * @param iterators - The iterables to concatenate.
