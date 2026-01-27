@@ -6,7 +6,7 @@ interface ZipOptions {
   padding?: object;
 }
 
-interface IteratorConstructor { // @type-options no-extends
+interface IteratorConstructor { // @type-options: no-extends
   /**
    * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
    * to position in the passed iterable.
@@ -16,7 +16,7 @@ interface IteratorConstructor { // @type-options no-extends
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
    */
-  zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): IteratorObject<T[]>; // @type-options prefix-return-type
+  zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): IteratorObject<T[]>; // @type-options: prefix-return-type
 
   /**
    * takes an object whose values are iterables and produces an iterable of objects where keys.
@@ -27,7 +27,7 @@ interface IteratorConstructor { // @type-options no-extends
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
    */
-  zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }>;  // @type-options prefix-return-type
+  zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }>;  // @type-options: prefix-return-type
 }
 
 declare var Iterator: IteratorConstructor;
