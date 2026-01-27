@@ -1,4 +1,4 @@
-// types: proposals/change-array-by-copy
+// @types: proposals/change-array-by-copy
 'use strict';
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');

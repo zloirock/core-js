@@ -1,4 +1,4 @@
-// types: proposals/promise-any
+// @types: proposals/promise-any
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
