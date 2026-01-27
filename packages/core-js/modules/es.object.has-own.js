@@ -1,4 +1,4 @@
-// types: proposals/accessible-object-hasownproperty
+// @types: proposals/accessible-object-hasownproperty
 'use strict';
 var $ = require('../internals/export');
 var hasOwn = require('../internals/has-own-property');
