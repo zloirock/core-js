@@ -1,7 +1,7 @@
 'use strict';
 var uncurryThis = require('../internals/function-uncurry-this');
 
-// dependency: es.weak-map.constructor
+// @dependency: es.weak-map.constructor
 var WeakMapPrototype = WeakMap.prototype;
 
 module.exports = {
