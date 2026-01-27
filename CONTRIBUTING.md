@@ -74,7 +74,7 @@ The `URL` polyfill validates domains against tables generated from the [Unicode 
 - Compare the manual mapping rules in [`packages/core-js/internals/url-domain-to-ascii.js`](./packages/core-js/internals/url-domain-to-ascii.js) with the new [IDNA mapping table](https://www.unicode.org/reports/tr46/#IDNA_Mapping_Table).
 - Update the [Web Platform Tests resources](./tests/wpt-url-resources) to a revision with the tests of this Unicode version.
 
-## How to add new TypeScript definitions
+## TypeScript type definitions
 
 - TypeScript definitions should be added to the [`packages/core-js-types/src/base`](./packages/core-js-types/src/base) directory.
 - Our type definitions are built on top of ES6. If any related type is missing in ES6, it must be added to the [`packages/core-js-types/src/base/core-js-types`](./packages/core-js-types/src/base/core-js-types) directory and imported via triple-slash directives in your type definition file.
