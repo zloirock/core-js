@@ -1,4 +1,4 @@
-// types: web/self
+// @types: web/self
 'use strict';
 var globalThis = require('../internals/global-this');
 var call = require('../internals/function-call');

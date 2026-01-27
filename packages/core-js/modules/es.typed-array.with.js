@@ -1,4 +1,4 @@
-// types: proposals/change-array-by-copy
+// @types: proposals/change-array-by-copy
 'use strict';
 var globalThis = require('../internals/global-this');
 var exportTypedArrayMethod = require('../internals/export-typed-array-method');

@@ -1,4 +1,4 @@
-// types: proposals/array-buffer-base64
+// @types: proposals/array-buffer-base64
 'use strict';
 var $ = require('../internals/export');
 var aString = require('../internals/a-string');

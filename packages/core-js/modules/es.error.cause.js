@@ -1,4 +1,4 @@
-// types: proposals/error-cause
+// @types: proposals/error-cause
 'use strict';
 /* eslint-disable no-unused-vars -- required for functions `.length` */
 var $ = require('../internals/export');

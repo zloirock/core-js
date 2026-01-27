@@ -1,4 +1,4 @@
-// types: proposals/symbol-predicates
+// @types: proposals/symbol-predicates
 'use strict';
 var $ = require('../internals/export');
 var shared = require('../internals/shared');
