@@ -1,4 +1,4 @@
-// types: web/url-to-json
+// @types: web/url-to-json
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');

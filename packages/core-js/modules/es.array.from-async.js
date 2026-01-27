@@ -1,4 +1,4 @@
-// types: proposals/array-from-async
+// @types: proposals/array-from-async
 'use strict';
 var $ = require('../internals/export');
 var bind = require('../internals/function-bind-context');

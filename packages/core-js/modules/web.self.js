@@ -1,4 +1,4 @@
-// types: web/self
+// @types: web/self
 'use strict';
 var globalThis = require('../internals/global-this');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');

@@ -1,4 +1,4 @@
-// types: proposals/iterator-sequencing
+// @types: proposals/iterator-sequencing
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
