@@ -1,4 +1,4 @@
-// types: web/dom-exception
+// @types: web/dom-exception
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');

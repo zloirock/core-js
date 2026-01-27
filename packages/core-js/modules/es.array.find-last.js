@@ -1,4 +1,4 @@
-// types: proposals/array-find-from-last
+// @types: proposals/array-find-from-last
 'use strict';
 var $ = require('../internals/export');
 var $findLast = require('../internals/array-iteration-from-last').findLast;

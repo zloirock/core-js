@@ -1,4 +1,4 @@
-// types: proposals/string-left-right-trim
+// @types: proposals/string-left-right-trim
 'use strict';
 var $ = require('../internals/export');
 var trimStart = require('../internals/string-trim-start');
