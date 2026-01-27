@@ -1,4 +1,4 @@
-// types: proposals/array-is-template-object
+// @types: proposals/array-is-template-object
 'use strict';
 var $ = require('../internals/export');
 

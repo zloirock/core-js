@@ -1,4 +1,4 @@
-// types: proposals/collection-of-from
+// @types: proposals/collection-of-from
 'use strict';
 var $ = require('../internals/export');
 var MapHelpers = require('../internals/map-helpers');
