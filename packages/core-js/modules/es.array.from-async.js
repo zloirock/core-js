@@ -62,15 +62,15 @@ $({ target: 'Array', stat: true, forced: FORCED }, {
     var argumentsLength = arguments.length;
     var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
     var thisArg = argumentsLength > 2 ? arguments[2] : undefined;
-    // dependency: es.promise.constructor
-    // dependency: es.promise.catch
-    // dependency: es.promise.finally
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
     var Promise = getBuiltIn('Promise');
     return new Promise(function (resolve, reject) {
       if (mapfn !== undefined) mapfn = bind(mapfn, thisArg);
       var usingAsyncIterator = getMethod(items, ASYNC_ITERATOR);
-      // dependency: es.array.iterator
-      // dependency: es.string.iterator
+      // @dependency: es.array.iterator
+      // @dependency: es.string.iterator
       var usingSyncIterator = usingAsyncIterator === undefined ? getIteratorMethod(items) : undefined;
       if (usingAsyncIterator !== undefined || usingSyncIterator !== undefined) {
         var iterator = usingAsyncIterator !== undefined

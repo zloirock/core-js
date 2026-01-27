@@ -20,7 +20,7 @@ var $AggregateError = function AggregateError(errors, message /* , options */) {
   installErrorStack(that, $AggregateError, that.stack, 1);
   if (arguments.length > 2) installErrorCause(that, arguments[2]);
   var errorsArray = [];
-  // dependency: es.array.iterator
+  // @dependency: es.array.iterator
   iterate(errors, push, { that: errorsArray });
   createNonEnumerableProperty(that, 'errors', errorsArray);
   return that;

@@ -18,7 +18,7 @@ var THROW = 'throw';
 
 // `Iterator.zip` method
 // https://tc39.es/ecma262/#sec-iterator.zip
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zip: function zip(iterables /* , options */) {
     anObject(iterables);

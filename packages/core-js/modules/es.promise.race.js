@@ -11,18 +11,18 @@ var PROMISE_STATICS_INCORRECT_ITERATION = require('../internals/promise-statics-
 // https://tc39.es/ecma262/#sec-promise.race
 $({ target: 'Promise', stat: true, forced: PROMISE_STATICS_INCORRECT_ITERATION }, {
   race: function race(iterable) {
-    // dependency: es.promise.constructor
-    // dependency: es.promise.catch
-    // dependency: es.promise.finally
-    // dependency: es.promise.resolve
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
+    // @dependency: es.promise.resolve
     var C = this;
     var capability = newPromiseCapabilityModule.f(C);
     var reject = capability.reject;
     var result = perform(function () {
       var $promiseResolve = aCallable(C.resolve);
-      // dependency: es.array.iterator
-      // dependency: es.string.iterator
-      // dependency: web.dom-collections.iterator
+      // @dependency: es.array.iterator
+      // @dependency: es.string.iterator
+      // @dependency: web.dom-collections.iterator
       iterate(iterable, function (promise) {
         call($promiseResolve, C, promise).then(capability.resolve, reject);
       });

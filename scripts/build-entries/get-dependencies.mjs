@@ -6,7 +6,7 @@ const { cyan, red } = chalk;
 const allModulesSet = new Set(modules);
 
 const MODULE_PATH = /\/(?<path>(?:internals|modules)\/[\d\-.a-z]+)$/;
-const DIRECTIVE = /^ *\/\/ dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
+const DIRECTIVE = /^ *\/\/ @dependency: (?<module>(?:es|esnext|web)\.[\d\-.a-z]+)$/gm;
 
 const cache = new Map();
 
