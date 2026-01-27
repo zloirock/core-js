@@ -8,7 +8,7 @@ var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-met
 var addToUnscopables = require('../internals/add-to-unscopables');
 
 var $Array = Array;
-// dependency: es.array.sort
+// @dependency: es.array.sort
 var sort = uncurryThis(getBuiltInPrototypeMethod('Array', 'sort'));
 
 // `Array.prototype.toSorted` method
