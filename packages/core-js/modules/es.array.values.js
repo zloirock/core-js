@@ -4,7 +4,7 @@ var IS_PURE = require('../internals/is-pure');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
-// dependency: es.array.iterator
+// @dependency: es.array.iterator
 var method = getIteratorMethod([]);
 
 // V8 ~ Chrome 45- bug

@@ -9,7 +9,7 @@ var fails = require('../internals/fails');
 var $RangeError = RangeError;
 var $String = String;
 var floor = Math.floor;
-// dependency: es.string.repeat
+// @dependency: es.string.repeat
 var repeat = uncurryThis(getBuiltInPrototypeMethod('String', 'repeat'));
 var stringSlice = uncurryThis(''.slice);
 var nativeToFixed = uncurryThis(1.1.toFixed);

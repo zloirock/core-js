@@ -95,7 +95,7 @@ var getReplacerFunction = function (replacer) {
 // `JSON.stringify` method
 // https://tc39.es/ecma262/#sec-json.stringify
 // https://github.com/tc39/proposal-json-parse-with-source
-// dependency: es.date.to-json
+// @dependency: es.date.to-json
 $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE || !NATIVE_RAW_JSON }, {
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = getReplacerFunction(replacer);

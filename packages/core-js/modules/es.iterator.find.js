@@ -12,7 +12,7 @@ var findWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('f
 
 // `Iterator.prototype.find` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.find
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: findWithoutClosingOnEarlyError }, {
   find: function find(predicate) {
     anObject(this);
