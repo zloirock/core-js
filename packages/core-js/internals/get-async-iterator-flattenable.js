@@ -16,9 +16,9 @@ module.exports = function (obj) {
   var method = getMethod(object, ASYNC_ITERATOR);
   var iterator;
   if (!isCallable(method)) {
-    // dependency: es.array.iterator
-    // dependency: es.string.iterator
-    // dependency: web.dom-collections.iterator
+    // @dependency: es.array.iterator
+    // @dependency: es.string.iterator
+    // @dependency: web.dom-collections.iterator
     method = getIteratorMethod(object);
     alreadyAsync = false;
   }
