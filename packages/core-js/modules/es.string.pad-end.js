@@ -1,4 +1,4 @@
-// types: proposals/string-padding
+// @types: proposals/string-padding
 'use strict';
 var $ = require('../internals/export');
 var $padEnd = require('../internals/string-pad').end;
