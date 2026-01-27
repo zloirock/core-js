@@ -33,7 +33,8 @@ export function assertCoreJSSetLike<T>(value: CoreJSSetLike<T>): asserts value i
 export interface CoreJSWeakSetLike<T extends WeakKey> extends WeakSet<T> {}
 export function assertCoreJSWeakSetLike<T extends WeakKey>(value: CoreJSWeakSetLike<T>): asserts value is CoreJSWeakSetLike<T> {}
 
-export interface CoreJSIteratorLike<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {
+// TNext undefined added because of until TS 5.6 Iterator used undefined as TNext defaults
+export interface CoreJSIteratorLike<T, TReturn = any, TNext = any | undefined> extends Iterator<T, TReturn, TNext> {
   chunks(...args: any[]): CoreJSIteratorLike<T[]>;
   windows(...args: any[]): CoreJSIteratorLike<T[]>;
   map<U>(...args: any[]): CoreJSIteratorLike<U>;
