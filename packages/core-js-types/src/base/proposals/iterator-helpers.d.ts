@@ -99,7 +99,7 @@ declare global {
     find(predicate: (value: T, index: number) => unknown): T | undefined;
   }
 
-  interface IteratorConstructor { // @type-options no-extends
+  interface IteratorConstructor { // @type-options: no-extends
     /**
      * Creates a native iterator from an iterator or iterable object.
      * Returns its input if the input already inherits from the built-in Iterator class.
