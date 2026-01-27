@@ -1,4 +1,4 @@
-// types: proposals/array-flat-map
+// @types: proposals/array-flat-map
 'use strict';
 // @dependency: es.array.unscopables.flat
 var $ = require('../internals/export');

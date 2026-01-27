@@ -1,4 +1,4 @@
-// types: proposals/iterator-join
+// @types: proposals/iterator-join
 'use strict';
 var $ = require('../internals/export');
 var $toString = require('../internals/to-string');
