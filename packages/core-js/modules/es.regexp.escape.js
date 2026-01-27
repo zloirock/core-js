@@ -9,7 +9,7 @@ var WHITESPACES = require('../internals/whitespaces');
 var $Array = Array;
 var $escape = RegExp.escape;
 var charCodeAt = uncurryThis(''.charCodeAt);
-// dependency: es.string.pad-start
+// @dependency: es.string.pad-start
 var padStart = uncurryThis(getBuiltInPrototypeMethod('String', 'padStart'));
 var numberToString = uncurryThis(1.1.toString);
 var join = uncurryThis([].join);
