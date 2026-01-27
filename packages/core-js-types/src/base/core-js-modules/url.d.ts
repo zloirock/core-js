@@ -1,3 +1,5 @@
+// TODO remove if URL conflict cannot be resolved
+
 declare module 'core-js/internals/web/url' {
   interface URL {
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/URL/hash) */

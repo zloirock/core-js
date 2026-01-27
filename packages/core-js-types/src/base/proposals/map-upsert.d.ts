@@ -1,6 +1,6 @@
 // https://github.com/tc39/proposal-upsert
 
-interface Map<K, V> { // @type-options no-redefine
+interface Map<K, V> { // @type-options: no-redefine
   /**
    * Gets the value for the given key. If the key does not exist, inserts the provided value and returns it.
    * @param key - The key to look up.
@@ -19,7 +19,7 @@ interface Map<K, V> { // @type-options no-redefine
   getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
 }
 
-interface WeakMap<K extends WeakKey, V> { // @type-options no-redefine
+interface WeakMap<K extends WeakKey, V> { // @type-options: no-redefine
   /**
    * Gets the value for the given key. If the key does not exist, inserts the provided value and returns it.
    * @param key - The key to look up.
