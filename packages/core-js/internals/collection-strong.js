@@ -36,9 +36,9 @@ module.exports = {
         last: null,
         size: 0,
       });
-      // dependency: es.array.iterator
-      // dependency: es.string.iterator
-      // dependency: web.dom-collections.iterator
+      // @dependency: es.array.iterator
+      // @dependency: es.string.iterator
+      // @dependency: web.dom-collections.iterator
       if (!isNullOrUndefined(iterable)) iterate(iterable, that[ADDER], { that: that, AS_ENTRIES: IS_MAP });
     });
 

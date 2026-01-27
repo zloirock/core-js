@@ -13,7 +13,7 @@ var NativePromisePrototype = NativePromiseConstructor && NativePromiseConstructo
 // https://tc39.es/ecma262/#sec-promise.prototype.catch
 $({ target: 'Promise', proto: true, forced: FORCED_PROMISE_CONSTRUCTOR, real: true }, {
   catch: function (onRejected) {
-    // dependency: es.promise.constructor
+    // @dependency: es.promise.constructor
     return this.then(undefined, onRejected);
   },
 });

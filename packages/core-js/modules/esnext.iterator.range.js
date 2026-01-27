@@ -101,7 +101,7 @@ addGetter('step');
 
 // `Iterator.range` method
 // https://github.com/tc39/proposal-iterator.range
-// dependency: es.iterator.constructor
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: true }, {
   range: function range(start, end, option) {
     if (typeof start == 'number') return new $NumericRangeIterator(start, end, option, 'number', 0, 1);
