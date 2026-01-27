@@ -103,7 +103,7 @@ function processLines(lines, prefix) {
     .filter(line => line !== null);
 }
 
-function wrapInNamespace(content, namespace = 'CoreJS') {
+function wrapInNamespace(content) {
   const lines = content.split('\n');
   const headerLines = [];
 
@@ -115,7 +115,7 @@ function wrapInNamespace(content, namespace = 'CoreJS') {
     // Update reference paths and add to header
     if (/\/\/\/\s*<reference types/.test(line)) {
       const match = line.match(/\/\/\/\s*<reference types="(?<path>[^"]+)"/);
-      const typePath = match?.groups?.path ?? '';
+      const typePath = match.groups.path;
       headerLines.push(line.replace(typePath, `../${ typePath }`));
       continue;
     }
@@ -135,9 +135,9 @@ function wrapInNamespace(content, namespace = 'CoreJS') {
     break;
   }
 
-  const namespaceBody = [...processLines(outside, namespace), ...sections.flatMap(s => processLines(s, namespace))]
+  const namespaceBody = processLines(lines.slice(i), NAMESPACE)
     .reduce((res, line) => {
-      if (line?.trim() !== '' || (res.at(-1) && res.at(-1).trim() !== '')) res.push(line);
+      if (line.trim() || res.at(-1)?.trim()) res.push(line);
       return res;
     }, [])
     .map(line => line ? `  ${ line }` : '')
@@ -154,14 +154,14 @@ export async function preparePureTypes(typesPath, initialPath) {
     if (entry.isDirectory()) {
       await preparePureTypes(path.join(typesPath, entry.name), initialPath);
     } else {
-      if (entry.name.includes('core-js-types.d.ts')) continue;
+      if (entry.name === 'core-js-types.d.ts') continue;
 
       const typePath = path.join(typesPath, entry.name);
       const resultFilePath = typePath.replace(initialPath, `${ initialPath }/pure/`);
 
       if (await pathExists(resultFilePath)) continue;
 
-      const content = await fs.readFile(typePath, 'utf8');
+      const content = await fs.readFile(typePath, 'utf8'); // move to spread on top
 
       const result = content.includes('declare namespace') ? content : wrapInNamespace(content);
 
