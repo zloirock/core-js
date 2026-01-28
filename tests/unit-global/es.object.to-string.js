@@ -63,7 +63,7 @@ QUnit.test('Object#toString', assert => {
     assert.same(`${ new WeakMap() }`, '[object WeakMap]', 'weakmap -> `WeakMap`');
   }
   if (GLOBAL.Promise) {
-    assert.same(`${ new Promise((() => { /* empty */ })) }`, '[object Promise]', 'promise -> `Promise`');
+    assert.same(`${ new Promise(() => { /* empty */ }) }`, '[object Promise]', 'promise -> `Promise`');
   }
   if (''[Symbol.iterator]) {
     assert.same(`${ ''[Symbol.iterator]() }`, '[object String Iterator]', 'String Iterator -> `String Iterator`');

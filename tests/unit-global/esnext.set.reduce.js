@@ -17,7 +17,7 @@ QUnit.test('Set#reduce', assert => {
     assert.same(that, set, 'correct link to set in callback');
   }, accumulator);
 
-  assert.same(new Set([1, 2, 3]).reduce(((a, b) => a + b), 1), 7, 'works with initial accumulator');
+  assert.same(new Set([1, 2, 3]).reduce((a, b) => a + b, 1), 7, 'works with initial accumulator');
 
   new Set([1, 2]).reduce((memo, value, key) => {
     assert.same(memo, 1, 'correct default accumulator');

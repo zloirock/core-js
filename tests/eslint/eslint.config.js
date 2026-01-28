@@ -401,6 +401,12 @@ const base = {
   '@stylistic/max-statements-per-line': [ERROR, { max: 2 }],
   // require parentheses when invoking a constructor with no arguments
   '@stylistic/new-parens': ERROR,
+  // disallow unnecessary parentheses
+  '@stylistic/no-extra-parens': [ERROR, 'all', {
+    nestedBinaryExpressions: false,
+    nestedConditionalExpressions: false,
+    ternaryOperandBinaryExpressions: false,
+  }],
   // disallow unnecessary semicolons
   '@stylistic/no-extra-semi': ERROR,
   // disallow the use of leading or trailing decimal points in numeric literals

@@ -33,7 +33,7 @@ QUnit.test('WeakSet', assert => {
     }));
   } catch { /* empty */ }
   assert.true(done, '.return #throw');
-  assert.false(('clear' in WeakSet.prototype), 'should not contains `.clear` method');
+  assert.false('clear' in WeakSet.prototype, 'should not contains `.clear` method');
   const array = [];
   done = false;
   // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- legacy FF case

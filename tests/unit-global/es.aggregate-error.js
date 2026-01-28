@@ -15,7 +15,7 @@ QUnit.test('AggregateError', assert => {
   assert.same(AggregateError([1]).message, '');
   assert.deepEqual(AggregateError([1, 2, 3]).errors, [1, 2, 3]);
   assert.throws(() => AggregateError([1], Symbol('AggregateError test')), 'throws on symbol as a message');
-  assert.same(({}).toString.call(AggregateError([1])), '[object Error]', 'Object#toString');
+  assert.same({}.toString.call(AggregateError([1])), '[object Error]', 'Object#toString');
 
   assert.same(AggregateError.prototype.constructor, AggregateError, 'prototype constructor');
   // eslint-disable-next-line no-prototype-builtins -- safe

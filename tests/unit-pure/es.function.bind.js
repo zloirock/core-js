@@ -15,7 +15,7 @@ QUnit.test('Function#bind', assert => {
   assert.true(instance instanceof C);
   assert.same(instance.a, 1);
   assert.same(instance.b, 2);
-  assert.same(bind((it => it), null, 42)(), 42);
+  assert.same(bind(it => it, null, 42)(), 42);
   const regExpTest = bind(RegExp.prototype.test, /a/);
   assert.true(regExpTest('a'));
   const Date2017 = bind(Date, null, 2017);

@@ -12,5 +12,5 @@ if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
   }).b(), 4, 'Child and parent properties in target');
   const object = {};
   assert.same(setPrototypeOf(object, { a: 1 }), object, 'setPrototypeOf return target');
-  assert.false(('toString' in setPrototypeOf({}, null)), 'Can set null as prototype');
+  assert.false('toString' in setPrototypeOf({}, null), 'Can set null as prototype');
 });

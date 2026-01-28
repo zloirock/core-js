@@ -42,7 +42,7 @@ QUnit.test('SuppressedError', assert => {
   assert.same(error2.name, 'SuppressedError');
 
   assert.throws(() => SuppressedError(1, 2, Symbol('SuppressedError constructor test')), 'throws on symbol as a message');
-  assert.same(({}).toString.call(SuppressedError()), '[object Error]', 'Object#toString');
+  assert.same({}.toString.call(SuppressedError()), '[object Error]', 'Object#toString');
 
   assert.same(SuppressedError.prototype.constructor, SuppressedError, 'prototype constructor');
   // eslint-disable-next-line no-prototype-builtins -- safe

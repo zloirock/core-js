@@ -8,7 +8,7 @@ QUnit.test('Function#bind', assert => {
   assert.same(function () {
     return this.a;
   }.bind({ a: 42 })(), 42);
-  assert.same(new (function () { /* empty */ })().a, undefined);
+  assert.same(new function () { /* empty */ }().a, undefined);
   function A(a, b) {
     this.a = a;
     this.b = b;

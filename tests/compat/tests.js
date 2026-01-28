@@ -115,7 +115,7 @@ var URL_AND_URL_SEARCH_PARAMS_SUPPORT = function () {
 };
 
 // eslint-disable-next-line no-proto -- safe
-var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || ({}).__proto__;
+var PROTOTYPE_SETTING_AVAILABLE = Object.setPrototypeOf || {}.__proto__;
 
 var OBJECT_PROTOTYPE_ACCESSORS_SUPPORT = function () {
   try {
@@ -774,7 +774,7 @@ GLOBAL.tests = {
     return escape;
   },
   'es.function.bind': function () {
-    var test = (function () { /* empty */ }).bind();
+    var test = function () { /* empty */ }.bind();
     // eslint-disable-next-line no-prototype-builtins -- safe
     return typeof test == 'function' && !test.hasOwnProperty('prototype');
   },

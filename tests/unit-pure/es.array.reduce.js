@@ -13,7 +13,7 @@ QUnit.test('Array#reduce', assert => {
     assert.same(key, 0, 'correct index in callback');
     assert.same(that, array, 'correct link to array in callback');
   }, accumulator);
-  assert.same(reduce([1, 2, 3], ((a, b) => a + b), 1), 7, 'works with initial accumulator');
+  assert.same(reduce([1, 2, 3], (a, b) => a + b, 1), 7, 'works with initial accumulator');
   reduce([1, 2], (memo, value, key) => {
     assert.same(memo, 1, 'correct default accumulator');
     assert.same(value, 2, 'correct start value without initial accumulator');

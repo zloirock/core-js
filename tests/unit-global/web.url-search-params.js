@@ -924,7 +924,7 @@ QUnit.test('URLSearchParams#size', assert => {
 
 QUnit.test('URLSearchParams#@@toStringTag', assert => {
   const params = new URLSearchParams('a=b');
-  assert.same(({}).toString.call(params), '[object URLSearchParams]');
+  assert.same({}.toString.call(params), '[object URLSearchParams]');
 });
 
 if (typeof Request == 'function') {

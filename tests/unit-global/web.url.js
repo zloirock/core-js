@@ -599,7 +599,7 @@ QUnit.test('URL#toString', assert => {
 
 QUnit.test('URL#@@toStringTag', assert => {
   const url = new URL('http://zloirock.ru/');
-  assert.same(({}).toString.call(url), '[object URL]');
+  assert.same({}.toString.call(url), '[object URL]');
 });
 
 QUnit.test('URL.sham', assert => {

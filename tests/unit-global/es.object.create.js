@@ -26,7 +26,7 @@ QUnit.test('Object.create', assert => {
   assert.same(create({}, { a: { value: 42 } }).a, 42);
   object = create(null, { w: { value: 2 } });
   assert.same(object, Object(object));
-  assert.false(('toString' in object));
+  assert.false('toString' in object);
   assert.same(object.w, 2);
   assert.deepEqual(getPropertyNames(create(null)), []);
 });

@@ -21,7 +21,7 @@ QUnit.test('Map#reduce', assert => {
     ['a', 1],
     ['b', 2],
     ['c', 3],
-  ]).reduce(((a, b) => a + b), 1), 7, 'works with initial accumulator');
+  ]).reduce((a, b) => a + b, 1), 7, 'works with initial accumulator');
 
   new Map([
     ['a', 1],
