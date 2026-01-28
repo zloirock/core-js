@@ -1,3 +1,5 @@
+/// <reference types="../core-js-types/core-js-types" />
+
 // https://github.com/tc39/proposal-async-iterator-helpers
 
 interface AsyncIteratorConstructor {
