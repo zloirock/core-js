@@ -1,4 +1,4 @@
-const { outputFile, pathExists, readdir } = fs;
+const { outputFile, pathExists, readdir, readFile } = fs;
 
 const NAMESPACE = 'CoreJS';
 
@@ -16,37 +16,37 @@ function parseOptions(line) {
   };
 }
 
-function processLines(lines, prefix) {
+function processLines(lines) {
   const prefixed = [];
   let noExport = false;
   return lines
-    .map(line => {
+    .flatMap(line => {
       const options = parseOptions(line);
 
       if (noExport && /^[^{]*\}/.test(line)) {
         noExport = false;
-        return null;
+        return [];
       }
-      if (noExport) return null;
+      if (noExport) return [];
       if (options.noExport) {
-        if (/^[^{]*$/.test(line) || /\{[^}]?\}/.test(line)) return null;
+        if (/^[^{]*$/.test(line) || /\{[^}]?\}/.test(line)) return [];
         noExport = true;
-        return null;
+        return [];
       }
 
-      if (line.includes('export {')) return null;
+      if (line.includes('export {')) return [];
 
       // Process interfaces that either don’t need to extend other interfaces or have already been extended
       if (/^\s*(?:declare\s+)?interface\s+\w+\s*extends/.test(line)
         || options.noExtends && /^\s*(?:declare\s+)?interface\s+\w+(?:<[^>]+>)?\s*\{/.test(line)) {
         if (!options.noPrefix) {
           const m = line.match(/interface\s+(?<name>\w+)/);
-          if (m && m.groups) {
+          if (m?.groups) {
             prefixed.push(m.groups.name);
           }
         }
         return line.replace(/^(?<indent>\s*)(?:declare\s+)?interface\s+(?<name>[\s\w,<=>]+)/,
-          `$<indent>export interface ${ !options.noPrefix ? prefix : '' }$<name>`);
+          `$<indent>export interface ${ !options.noPrefix ? NAMESPACE : '' }$<name>`);
       }
 
       // Process interfaces: prefix name, emit backing var (constructor) and make it extend original
@@ -59,7 +59,7 @@ function processLines(lines, prefix) {
           prefixed.push(iName);
         }
         const genericsForExtends = iExtend.replace(/\sextends\s[^,>]+/g, '').replace(/\s?=\s?\w+/g, '');
-        const entityName = `${ !options.noPrefix ? prefix : '' }${ iName }`;
+        const entityName = `${ !options.noPrefix ? NAMESPACE : '' }${ iName }`;
         const isConstructor = iName.includes('Constructor');
         let constructorDeclaration;
         if (isConstructor) {
@@ -76,31 +76,30 @@ function processLines(lines, prefix) {
       // Process function
       if (/^\s*(?:declare\s+)?function/.test(line)) {
         return line.replace(/^(?<indent>\s*)(?:declare\s+)?function\s+(?<name>\w+)/,
-          `$<indent>export function ${ !options.noPrefix ? prefix : '' }$<name>`);
+          `$<indent>export function ${ !options.noPrefix ? NAMESPACE : '' }$<name>`);
       }
 
       if (options.prefixReturnType) {
         return line.replace(/^(?<smth>.*):\s(?<rootType>[a-z_]\w*)(?<subType><[^;]+);/i,
-          `$<smth>: ${ prefix }.${ prefix }$<rootType>$<subType>;`);
+          `$<smth>: ${ NAMESPACE }.${ NAMESPACE }$<rootType>$<subType>;`);
       }
 
       // Replace prefixed types in the entire file
       if (/(?::|\|)\s*\w/.test(line)) {
-        const sortedPrefixed = prefixed.sort((a, b) => b.length - a.length);
-        sortedPrefixed.forEach(item => {
+        prefixed.sort((a, b) => b.length - a.length);
+        prefixed.forEach(item => {
           const reg = new RegExp(`(?<prepend>:||) ${ item }(?<type>[,;<)])`, 'g');
-          line = line.replace(reg, `$<prepend> ${ prefix }${ item }$<type>`);
+          line = line.replace(reg, `$<prepend> ${ NAMESPACE }${ item }$<type>`);
         });
       }
 
       // Handle vars: prefix variable name, keep original type
       if (/^\s*(?:declare)?\svar/.test(line)) {
         const m = line.match(/^(?<indent>\s*)(?:declare\s+)?var\s+(?<name>\w+):\s+(?<type>\w+)/);
-        return `${ m?.groups?.indent ?? '' }var ${ !options.noPrefix ? prefix : '' }${ m?.groups?.name ?? '' }: ${ m?.groups?.type };\n`;
+        return `${ m?.groups?.indent ?? '' }var ${ !options.noPrefix ? NAMESPACE : '' }${ m?.groups?.name ?? '' }: ${ m?.groups?.type };\n`;
       }
       return line;
-    })
-    .filter(line => line !== null);
+    });
 }
 
 function wrapInNamespace(content) {
@@ -120,22 +119,15 @@ function wrapInNamespace(content) {
       continue;
     }
 
-    // Update import paths and add to header
-    if (/^\s*import /.test(line)) {
-      headerLines.push(line.replace(/^\s*import\s.*from\s+["'].+["']/,
-        (_, start, importPath, end) => `${ start }../${ importPath }${ end }`));
-      continue;
-    }
-
     // Comments & new lines add to header as is
-    if (/^\s*\/\//.test(line) || /^\s*$/.test(line)) {
+    if (/^\s*(?:\/\/|$)/.test(line)) {
       headerLines.push(line);
       continue;
     }
     break;
   }
 
-  const namespaceBody = processLines(lines.slice(i), NAMESPACE)
+  const namespaceBody = processLines(lines.slice(i))
     .reduce((res, line) => {
       if (line.trim() || res.at(-1)?.trim()) res.push(line);
       return res;
@@ -149,19 +141,17 @@ function wrapInNamespace(content) {
 export async function preparePureTypes(typesPath, initialPath) {
   const entries = await readdir(typesPath, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name === 'pure') continue;
+    if (['pure', 'core-js-types.d.ts'].includes(entry.name)) continue;
 
     if (entry.isDirectory()) {
       await preparePureTypes(path.join(typesPath, entry.name), initialPath);
     } else {
-      if (entry.name === 'core-js-types.d.ts') continue;
-
       const typePath = path.join(typesPath, entry.name);
       const resultFilePath = typePath.replace(initialPath, `${ initialPath }/pure/`);
 
       if (await pathExists(resultFilePath)) continue;
 
-      const content = await fs.readFile(typePath, 'utf8'); // move to spread on top
+      const content = await readFile(typePath, 'utf8');
 
       const result = content.includes('declare namespace') ? content : wrapInNamespace(content);
 
