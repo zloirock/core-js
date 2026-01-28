@@ -1,10 +1,10 @@
+/// <reference types="../core-js-types/core-js-types" />
+
 // https://github.com/tc39/proposal-iterator-helpers
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
 // https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.iterator.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
-
-import { CoreJSIteratorObject } from '../core-js-types/core-js-types';
 
 declare global {
   interface Iterator<T> {
@@ -12,36 +12,36 @@ declare global {
      * Creates an iterator whose values are the result of applying the callback to the values from this iterator.
      * @param callbackfn - A function that accepts up to two arguments to be used to transform values from the underlying iterator.
      */
-    map<U>(callbackfn: (value: T, index: number) => U): CoreJSIteratorObject<U, undefined, unknown>;
+    map<U>(callbackfn: (value: T, index: number) => U): IteratorObject<U, undefined, unknown>;
 
     /**
      * Creates an iterator whose values are those from this iterator for which the provided predicate returns true.
      * @param predicate - A function that accepts up to two arguments to be used to test values from the underlying iterator.
      */
-    filter<S extends T>(predicate: (value: T, index: number) => value is S): CoreJSIteratorObject<S, undefined, unknown>;
+    filter<S extends T>(predicate: (value: T, index: number) => value is S): IteratorObject<S, undefined, unknown>;
     /**
      * Creates an iterator whose values are those from this iterator for which the provided predicate returns true.
      * @param predicate - A function that accepts up to two arguments to be used to test values from the underlying iterator.
      */
-    filter(predicate: (value: T, index: number) => unknown): CoreJSIteratorObject<T, undefined, unknown>;
+    filter(predicate: (value: T, index: number) => unknown): IteratorObject<T, undefined, unknown>;
 
     /**
      * Creates an iterator whose values are the values from this iterator, stopping once the provided limit is reached.
      * @param limit - The maximum number of values to yield.
      */
-    take(limit: number): CoreJSIteratorObject<T, undefined, unknown>;
+    take(limit: number): IteratorObject<T, undefined, unknown>;
 
     /**
      * Creates an iterator whose values are the values from this iterator after skipping the provided count.
      * @param count - The number of values to drop.
      */
-    drop(count: number): CoreJSIteratorObject<T, undefined, unknown>;
+    drop(count: number): IteratorObject<T, undefined, unknown>;
 
     /**
      * Creates an iterator whose values are the result of applying the callback to the values from this iterator and then flattening the resulting iterators or iterables.
      * @param callback - A function that accepts up to two arguments to be used to transform values from the underlying iterator into new iterators or iterables to be flattened into the result.
      */
-    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): CoreJSIteratorObject<U, undefined, unknown>;  // ts < 5.6 Iterable<T>
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): IteratorObject<U, undefined, unknown>;  // ts < 5.6 Iterable<T>
 
     /**
      * Calls the specified callback function for all the elements in this iterator. The return value of the callback function is the accumulated result, and is provided as an argument in the next call to the callback function.
@@ -105,7 +105,7 @@ declare global {
      * Returns its input if the input already inherits from the built-in Iterator class.
      * @param value - An iterator or iterable object to convert a native iterator.
      */
-    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T>): CoreJSIteratorObject<T>;
+    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T>): IteratorObject<T>;
   }
 
   var Iterator: IteratorConstructor;
