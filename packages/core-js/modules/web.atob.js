@@ -18,6 +18,7 @@ var $Array = Array;
 var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
+var join = uncurryThis([].join);
 var exec = uncurryThis(disallowed.exec);
 
 var BASIC = !!$atob && !fails(function () {
@@ -48,8 +49,6 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC && !NO_SPACES_IGNORE && !NO_ENCODING_CHECK) return call($atob, globalThis, data);
     var string = replace(toString(data), whitespaces, '');
-    var output = new $Array(Math.ceil(string.length * 3 / 4));
-    var outputIndex = 0;
     var position = 0;
     var bc = 0;
     var length, chr, bs;
@@ -60,11 +59,18 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     if (length % 4 === 1 || exec(disallowed, string)) {
       throw new (getBuiltIn('DOMException'))('The string is not correctly encoded', 'InvalidCharacterError');
     }
+    // (length >> 2) is equivalent for length / 4 floored; * 3 then multiplies the
+    // number of bytes for full quanta
+    // length & 3 is length % 4; if 0, we have no more quanta and shouldn't subtract
+    // from output length.  If there's 2 or 3 bytes it's 1 or 2 bytes of extra output
+    // respectively, so -1
+    var output = new $Array((length >> 2) * 3 + ((length & 3) ? (length & 3) - 1 : 0));
+    var outputIndex = 0;
     while (position < length) {
       chr = charAt(string, position++);
       bs = bc & 3 ? (bs << 6) + c2i[chr] : c2i[chr];
       if (bc++ & 3) output[outputIndex++] = fromCharCode(255 & bs >> (-2 * bc & 6));
     }
-    return output.join('');
+    return join(output, '');
   }
 });
