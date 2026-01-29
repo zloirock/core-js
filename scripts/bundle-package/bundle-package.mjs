@@ -12,16 +12,16 @@ function log(kind, name, code) {
 }
 
 async function bundle({ bundled, minified, options = {} }) {
-  const { code, map } = await builder({ modules: 'full', ...options });
+  const { script, map } = await builder({ modules: 'full', ...options });
 
-  log('bundling minified', minified, code);
-  await fs.writeFile(`${ PATH }${ minified }.js`, code);
+  log('bundling minified', minified, script);
+  await fs.writeFile(`${ PATH }${ minified }.js`, script);
   await fs.writeFile(`${ PATH }${ minified }.js.map`, map);
 
-  const { code2, map2 } = await builder({ modules: 'full', minify: false, ...options });
+  const { script: script2, map: map2 } = await builder({ modules: 'full', minify: false, ...options });
 
-  log('bundling regular', bundled, code2);
-  await fs.writeFile(`${ PATH }${ bundled }.js`, code2);
+  log('bundling regular', bundled, script2);
+  await fs.writeFile(`${ PATH }${ bundled }.js`, script2);
   await fs.writeFile(`${ PATH }${ bundled }.js.map`, map2);
 }
 
