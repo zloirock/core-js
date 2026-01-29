@@ -25,6 +25,6 @@ const { script: bundle } = await builder({
 });
 
 ok(!bundle.includes("import 'core-js/modules/es.error.cause.js';"), 'bundled format contains import');
-ok(!bundle.includes("__webpack_require__"), 'bundled format did not minify internal function name');
+ok(!bundle.includes('__webpack_require__'), 'bundled format did not minify internal function name');
 
 echo(chalk.green('builder tested'));
