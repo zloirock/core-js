@@ -14,6 +14,7 @@ var whitespaces = /[\t\n\f\r ]+/g;
 var finalEq = /[=]{1,2}$/;
 
 var $atob = getBuiltIn('atob');
+var $max = Math.max;
 var $Array = Array;
 var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
@@ -61,10 +62,9 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     }
     // (length >> 2) is equivalent for length / 4 floored; * 3 then multiplies the
     // number of bytes for full quanta
-    // length & 3 is length % 4; if 0, we have no more quanta and shouldn't subtract
-    // from output length.  If there's 2 or 3 bytes it's 1 or 2 bytes of extra output
-    // respectively, so -1
-    var output = new $Array((length >> 2) * 3 + ((length & 3) ? (length & 3) - 1 : 0));
+    // length & 3 is length % 4; if there's 2 or 3 bytes it's 1 or 2 bytes of extra output
+    // respectively, so -1, however max with 0 to ensure 0 does not get -1 onto length
+    var output = new $Array((length >> 2) * 3 + $max((length & 3) - 1, 0));
     var outputIndex = 0;
     while (position < length) {
       chr = charAt(string, position++);
