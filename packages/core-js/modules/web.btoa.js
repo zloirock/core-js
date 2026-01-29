@@ -41,7 +41,7 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
     // does the ceil automatically.  << 2 will truncate the integer
     // while also doing *4.  ceil(length / 3) quanta, 4 bytes output
     // per quanta for base64.
-    var output = new $Array((((string.length + 2) / 3) << 2));
+    var output = new $Array((string.length + 2) / 3 << 2);
     var outputIndex = 0;
     var position = 0;
     var map = i2c;
