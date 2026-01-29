@@ -144,5 +144,3 @@ await writeExportsField('./packages/core-js-pure/package.json');
 await writeJson('packages/core-js-compat/entries.json', entriesMap, { spaces: '  ' });
 
 echo(chalk.green('entries data rebuilt'));
-
-echo(chalk.green('built-in definitions rebuilt'));
