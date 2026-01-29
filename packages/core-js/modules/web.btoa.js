@@ -11,6 +11,7 @@ var i2c = require('../internals/base64-map').i2c;
 
 var $btoa = getBuiltIn('btoa');
 var $Array = Array;
+var join = uncurryThis([].join);
 var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
@@ -36,7 +37,11 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
     // `webpack` dev server bug on IE global methods - use call(fn, global, ...)
     if (BASIC) return call($btoa, globalThis, toString(data));
     var string = toString(data);
-    var output = new $Array(Math.ceil(string.length * 4 / 3));
+    // (string.length + 2) / 3) and then truncating to integer
+    // does the ceil automatically.  << 2 will truncate the integer
+    // while also doing *4.  ceil(length / 3) quanta, 4 bytes output
+    // per quanta for base64.
+    var output = new $Array((((string.length + 2) / 3) << 2));
     var outputIndex = 0;
     var position = 0;
     var map = i2c;
@@ -48,6 +53,6 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
       }
       block = block << 8 | charCode;
       output[outputIndex++] = charAt(map, 63 & block >> 8 - position % 1 * 8);
-    } return output.join('');
+    } return join(output, '');
   }
 });
