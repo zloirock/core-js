@@ -14,7 +14,6 @@ var whitespaces = /[\t\n\f\r ]+/g;
 var finalEq = /[=]{1,2}$/;
 
 var $atob = getBuiltIn('atob');
-var $max = Math.max;
 var $Array = Array;
 var fromCharCode = String.fromCharCode;
 var charAt = uncurryThis(''.charAt);
@@ -53,18 +52,19 @@ $({ global: true, bind: true, enumerable: true, forced: FORCED }, {
     var position = 0;
     var bc = 0;
     var length, chr, bs;
-    if (string.length % 4 === 0) {
+    if (!(string.length & 3)) {
       string = replace(string, finalEq, '');
     }
     length = string.length;
-    if (length % 4 === 1 || exec(disallowed, string)) {
+    var lenmod = length & 3;
+    if (lenmod === 1 || exec(disallowed, string)) {
       throw new (getBuiltIn('DOMException'))('The string is not correctly encoded', 'InvalidCharacterError');
     }
     // (length >> 2) is equivalent for length / 4 floored; * 3 then multiplies the
     // number of bytes for full quanta
-    // length & 3 is length % 4; if there's 2 or 3 bytes it's 1 or 2 bytes of extra output
-    // respectively, so -1, however max with 0 to ensure 0 does not get -1 onto length
-    var output = new $Array((length >> 2) * 3 + $max((length & 3) - 1, 0));
+    // lenmod is length % 4; if there's 2 or 3 bytes it's 1 or 2 bytes of extra output
+    // respectively, so -1, however use a ternary to ensure 0 does not get -1 onto length
+    var output = new $Array((length >> 2) * 3 + (lenmod ? lenmod - 1 : 0));
     var outputIndex = 0;
     while (position < length) {
       chr = charAt(string, position++);
