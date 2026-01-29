@@ -413,6 +413,10 @@
           {
             "title": "Iterable DOM collections",
             "url": "{docs-version}/docs/features/web-standards/iterable-dom-collections"
+          },
+            {
+            "title": "atob and btoa",
+            "url": "{docs-version}/docs/features/web-standards/atob-and-btoa"
           }
         ]
       },
