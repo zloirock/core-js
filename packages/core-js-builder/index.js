@@ -135,8 +135,8 @@ module.exports = async function ({
   format = 'bundle',
   filename = null,
   summary = {},
-  sourceMap = format == "bundle",
-  minify = format == "bundle",
+  sourceMap = format === "bundle",
+  minify = format === "bundle",
 } = {}) {
   if (!['bundle', 'cjs', 'esm'].includes(format)) throw new TypeError('Incorrect output type');
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
