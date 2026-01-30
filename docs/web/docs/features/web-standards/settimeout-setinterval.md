@@ -1,7 +1,9 @@
 # `setTimeout` and `setInterval`
 
+Additional arguments fix for IE9-.
+
 ## Module 
-[`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js). Additional arguments fix for IE9-.
+[`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js).
 
 ## Built-ins signatures
 ```ts
