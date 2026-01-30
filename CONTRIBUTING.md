@@ -16,7 +16,7 @@ There are always some ["help wanted" issues](https://github.com/zloirock/core-js
 - To export the polyfill, in all common cases use the [`internals/export`](./packages/core-js/internals/export.js) helper. Use something else only if this helper is not applicable - for example, if you want to polyfill accessors.
 - If the code of the pure version implementation should significantly differ from the global version (*that's not a frequent situation, in most cases [`internals/is-pure`](./packages/core-js/internals/is-pure.js) constant is enough*), you can add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest of `@core-js/pure` will be copied from the `core-js` package.
 - Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs) (this data is also used for getting the default list of polyfills at bundling and generation indexes), how to do it [see below](#how-to-update-core-js-compat-data).
-- Add it to entries definitions, see [`scripts/build-entries/entries-definitions.mjs`](./scripts/build-entries/entries-definitions.mjs).
+- Add it to entries definitions, see [`scripts/build-entries-and-types/entries-definitions.mjs`](scripts/build-entries-and-types/entries-definitions.mjs).
 - Add unit tests to [`tests/unit-global`](./tests/unit-global) and [`tests/unit-pure`](./tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](./tests/entries/unit.mjs).
 - Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) pass.
