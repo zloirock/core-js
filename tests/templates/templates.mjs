@@ -4,7 +4,7 @@ import {
   $uncurriedIterator, $static, $staticWithContext,
   $prototype,
   $prototypeIterator,
-} from '../../scripts/build-entries/templates.mjs';
+} from '../../scripts/build-entries-and-types/templates.mjs';
 import { deepEqual } from 'node:assert/strict';
 
 const props = {
