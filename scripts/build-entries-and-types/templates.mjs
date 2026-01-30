@@ -112,7 +112,7 @@ export const $prototypeIterator = p => ({
     
     var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
   
-    module.exports = getIteratorMethod(${ p.source });
+    module.exports = getIteratorMethod(${ p.namespace }());
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
@@ -162,7 +162,7 @@ export const $uncurriedIterator = p => ({
     var uncurryThis = ${ importInternal('function-uncurry-this', p.level) }
     var getIteratorMethod = ${ importInternal('get-iterator-method', p.level) }
   
-    module.exports = uncurryThis(getIteratorMethod(${ p.source }));
+    module.exports = uncurryThis(getIteratorMethod(${ p.namespace }()));
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
