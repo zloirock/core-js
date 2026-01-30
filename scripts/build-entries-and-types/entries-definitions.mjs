@@ -377,13 +377,11 @@ export const features = {
   'array/iterator': {
     modules: ['es.array.iterator'],
     template: $uncurriedIterator,
-    source: '[]',
     namespace: 'Array',
   },
   'array/prototype/iterator': {
     modules: ['es.array.iterator'],
     template: $prototypeIterator,
-    source: '[]',
     namespace: 'Array',
   },
   'array/join': {
@@ -2462,13 +2460,11 @@ export const features = {
   'string/iterator': {
     modules: ['es.string.iterator'],
     template: $uncurriedIterator,
-    source: "''",
     namespace: 'String',
   },
   'string/prototype/iterator': {
     modules: ['es.string.iterator'],
     template: $prototypeIterator,
-    source: "''",
     namespace: 'String',
   },
   'string/link': {
