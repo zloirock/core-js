@@ -1,5 +1,5 @@
 {
-  "name": "scripts/build-entries",
+  "name": "scripts/build-entries-and-types",
   "devDependencies": {
     "dedent": "^1.7.1"
   }
