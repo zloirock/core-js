@@ -1,9 +1,9 @@
-import { features, proposals } from '../build-entries/entries-definitions.mjs';
-import { $path, $proposal } from '../build-entries/templates.mjs';
+import { features, proposals } from './entries-definitions.mjs';
+import { $path, $proposal } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
-import { getModulesMetadata } from '../build-entries/get-dependencies.mjs';
-import { expandModules, modulesToStage } from '../build-entries/helpers.mjs';
-import { preparePureTypes } from './pure.mjs';
+import { getModulesMetadata } from './get-dependencies.mjs';
+import { expandModules, modulesToStage } from './helpers.mjs';
+import { preparePureTypes } from './build-types-pure.mjs';
 
 const { copy, outputFile, pathExists, readdir, readFile, readJson, remove, writeJson } = fs;
 const { green } = chalk;
