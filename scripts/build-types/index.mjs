@@ -15,7 +15,7 @@ const PACKAGE_NAME_PURE = '@core-js/pure/';
 const PACKAGE_TEMPLATE = 'packages/core-js-types/package.tpl.json';
 const SRC_DIR = 'packages/core-js-types/src/';
 const SRC_BASE = 'base';
-const TS_VERSION_BREAKPOINTS = [5.2, 5.6];
+const TS_VERSION_BREAKPOINTS = [5.6];
 const TYPE_PREFIX = 'CoreJS.CoreJS';
 
 const imports = {
