@@ -341,6 +341,7 @@ export default {
     [136, '39.0'],
     [138, '40.0'],
     [140, '41.0'],
+    [142, '42.0'],
   ],
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/firefox_android.json
   FirefoxToFirefoxAndroid(firefox) {
