@@ -1906,6 +1906,8 @@ const nodeDev = {
   ...disable(forbidModernBuiltIns),
   ...forbidES2024BuiltIns,
   'es/no-regexp-v-flag': OFF,
+  'es/no-string-prototype-iswellformed': OFF,
+  'es/no-string-prototype-towellformed': OFF,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
   ...forbidES2025IntlBuiltIns,
