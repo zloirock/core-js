@@ -1,6 +1,5 @@
 'use strict';
 const SEMVER = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
-// eslint-disable-next-line redos/no-vulnerable -- ok
 const SEMVER_WITH_REQUIRED_MINOR_COMPONENT = /(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/;
 
 class SemVer {
