@@ -1,6 +1,6 @@
 # Changelog
 ### Unreleased
-- Improved performance of `atob` / `btoa` functions dramatically by using bitwise operators and preallocating the correct array length
+- Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Compat data improvements:
   - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
