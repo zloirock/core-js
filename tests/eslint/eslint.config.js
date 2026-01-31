@@ -28,7 +28,7 @@ import { yaml as pluginYaml } from 'eslint-yaml';
 pluginFilename.rules.match.meta.schema = false;
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
-const DEV_NODE_VERSIONS = '^18.12';
+const DEV_NODE_VERSIONS = '^20.19';
 
 const ERROR = 'error';
 const OFF = 'off';
@@ -1904,13 +1904,10 @@ const nodeDev = {
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
   ...disable(forbidModernBuiltIns),
-  ...forbidES2023BuiltIns,
-  'es/no-array-prototype-findlast-findlastindex': OFF,
   ...forbidES2024BuiltIns,
+  'es/no-regexp-v-flag': OFF,
   ...forbidES2025BuiltIns,
   ...forbidES2026BuiltIns,
-  'es/no-intl-supportedvaluesof': ERROR,
-  ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
   ...forbidES2026IntlBuiltIns,
   // ReDoS vulnerability check
