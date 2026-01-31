@@ -1,3 +1,4 @@
+// @types: proposals/array-unique
 'use strict';
 var $ = require('../internals/export');
 var addToUnscopables = require('../internals/add-to-unscopables');
