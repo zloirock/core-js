@@ -46,6 +46,9 @@ function getGenericsForNamespace(namespace) {
   if (namespace === 'WeakMap') {
     return '<K extends WeakKey, V>';
   }
+  if (namespace === 'WeakSet') {
+    return '<T extends WeakKey>';
+  }
   if (namespacesWithTwoGeneric.includes(namespace)) {
     return '<K, V>';
   }
