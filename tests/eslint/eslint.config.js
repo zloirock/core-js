@@ -25,7 +25,7 @@ import pluginStylistic from '@stylistic/eslint-plugin';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
-const PACKAGES_NODE_VERSIONS = '^18.12';
+const PACKAGES_NODE_VERSIONS = '^20.19';
 const DEV_NODE_VERSIONS = '^20.19';
 
 const ERROR = 'error';
@@ -1740,30 +1740,6 @@ const nodePackages = {
   'node/no-unsupported-features/es-syntax': [ERROR, { version: PACKAGES_NODE_VERSIONS }],
   // disallow unsupported ECMAScript built-ins on the specified version
   'node/no-unsupported-features/node-builtins': [ERROR, { version: PACKAGES_NODE_VERSIONS, allowExperimental: false }],
-  ...forbidES2023BuiltIns,
-  'es/no-array-prototype-findlast-findlastindex': OFF,
-  ...forbidES2024BuiltIns,
-  ...forbidES2025BuiltIns,
-  ...forbidES2026BuiltIns,
-  ...forbidES2027BuiltIns,
-  'es/no-intl-supportedvaluesof': ERROR,
-  ...forbidES2023IntlBuiltIns,
-  ...forbidES2025BuiltIns,
-  ...forbidES2026IntlBuiltIns,
-  // prefer using `structuredClone` to create a deep clone
-  'unicorn/prefer-structured-clone': OFF,
-  ...forbidSomeES2025Syntax,
-  // disallow explicit resource management syntax
-  'es/no-using-declarations': ERROR,
-  // prefer top-level await
-  'unicorn/prefer-top-level-await': ERROR,
-};
-
-const nodeDev = {
-  // disallow unsupported ECMAScript syntax on the specified version
-  'node/no-unsupported-features/es-syntax': [ERROR, { version: DEV_NODE_VERSIONS }],
-  // disallow unsupported ECMAScript built-ins on the specified version
-  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
   ...forbidES2024BuiltIns,
   'es/no-regexp-v-flag': OFF,
   'es/no-string-prototype-iswellformed': OFF,
@@ -1780,6 +1756,14 @@ const nodeDev = {
   ...forbidSomeES2025Syntax,
   // disallow explicit resource management syntax
   'es/no-using-declarations': ERROR,
+};
+
+const nodeDev = {
+  ...nodePackages,
+  // disallow unsupported ECMAScript syntax on the specified version
+  'node/no-unsupported-features/es-syntax': [ERROR, { version: DEV_NODE_VERSIONS }],
+  // disallow unsupported ECMAScript built-ins on the specified version
+  'node/no-unsupported-features/node-builtins': [ERROR, { version: DEV_NODE_VERSIONS, ignores: ['fetch'], allowExperimental: false }],
 };
 
 const tests = {
