@@ -8,9 +8,10 @@ var createProperty = require('../internals/create-property');
 $({ target: 'Object', stat: true }, {
   fromEntries: function fromEntries(iterable) {
     var obj = {};
+    // @dependency: es.array.iterator
     iterate(iterable, function (k, v) {
       createProperty(obj, k, v);
     }, { AS_ENTRIES: true });
     return obj;
-  }
+  },
 });

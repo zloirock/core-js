@@ -1,6 +1,4 @@
 /* eslint-disable symbol-description -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants.js';
-
 QUnit.test('Symbol#description', assert => {
   assert.same(Symbol('foo').description, 'foo');
   assert.same(Symbol('').description, '');
@@ -11,13 +9,13 @@ QUnit.test('Symbol#description', assert => {
   assert.same(Symbol().description, undefined);
   assert.same(Object(Symbol('foo')).description, 'foo');
   assert.same(Object(Symbol()).description, undefined);
-  if (DESCRIPTORS) {
-    assert.false(Object.hasOwn(Symbol('foo'), 'description'));
-    const descriptor = Object.getOwnPropertyDescriptor(Symbol.prototype, 'description');
-    assert.false(descriptor.enumerable);
-    assert.true(descriptor.configurable);
-    assert.same(typeof descriptor.get, 'function');
-  }
+
+  assert.false(Object.hasOwn(Symbol('foo'), 'description'));
+  const descriptor = Object.getOwnPropertyDescriptor(Symbol.prototype, 'description');
+  assert.false(descriptor.enumerable);
+  assert.true(descriptor.configurable);
+  assert.same(typeof descriptor.get, 'function');
+
   if (typeof Symbol() == 'symbol') {
     assert.same(Symbol('foo').toString(), 'Symbol(foo)');
     assert.same(String(Symbol('foo')), 'Symbol(foo)');
