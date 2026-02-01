@@ -3487,7 +3487,6 @@ export const proposals = {
     link: 'https://github.com/tc39/proposal-iterator-sequencing',
     stage: 4,
     modules: [
-      'es.iterator.constructor',
       'es.iterator.concat',
     ],
   },
