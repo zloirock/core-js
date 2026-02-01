@@ -1,6 +1,4 @@
-import { minify } from 'terser';
 import builder from '@core-js/builder';
-import config from '@core-js/builder/config.js';
 
 const { cyan, green } = chalk;
 const ESMODULES = argv._.includes('esmodules');
@@ -14,40 +12,17 @@ function log(kind, name, code) {
 }
 
 async function bundle({ bundled, minified, options = {} }) {
-  const { script } = await builder({ modules: 'full', ...options });
+  const { script, map } = await builder({ modules: 'full', ...options });
 
-  log('bundling', bundled, script);
-  await fs.writeFile(`${ PATH }${ bundled }.js`, script);
-
-  const { code, map } = await minify(script, {
-    ecma: 5,
-    safari10: true,
-    keep_fnames: true,
-    compress: {
-      hoist_funs: true,
-      hoist_vars: true,
-      passes: 2,
-      pure_getters: true,
-      // document.all detection case
-      typeofs: false,
-      unsafe_proto: true,
-      unsafe_undefined: true,
-    },
-    format: {
-      max_line_len: 32000,
-      preamble: config.banner,
-      webkit: true,
-      // https://v8.dev/blog/preparser#pife
-      wrap_func_args: false,
-    },
-    sourceMap: {
-      url: `${ minified }.js.map`,
-    },
-  });
-
-  await fs.writeFile(`${ PATH }${ minified }.js`, code);
+  log('bundling minified', minified, script);
+  await fs.writeFile(`${ PATH }${ minified }.js`, script);
   await fs.writeFile(`${ PATH }${ minified }.js.map`, map);
-  log('minification', minified, code);
+
+  const { script: script2, map: map2 } = await builder({ modules: 'full', minify: false, ...options });
+
+  log('bundling regular', bundled, script2);
+  await fs.writeFile(`${ PATH }${ bundled }.js`, script2);
+  await fs.writeFile(`${ PATH }${ bundled }.js.map`, map2);
 }
 
 await bundle({

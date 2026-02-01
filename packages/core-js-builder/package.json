@@ -29,8 +29,10 @@
   "main": "index.js",
   "types": "index.d.ts",
   "dependencies": {
-    "core-js": "4.0.0-alpha.0",
+    "@ampproject/remapping": "^2.3.0",
     "@core-js/compat": "4.0.0-alpha.0",
+    "core-js": "4.0.0-alpha.0",
+    "magic-string": "^0.30.21",
     "webpack": "^5.104.1"
   },
   "engines": {

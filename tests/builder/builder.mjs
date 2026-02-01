@@ -17,4 +17,14 @@ ok(!script.includes("import 'core-js/modules/es.typed-array.with.js';"), 'actual
 ok(!script.includes("import 'core-js/modules/es.object.group-by.js';"), 'actual node 16 #7');
 ok(!script.includes("import 'core-js/modules/esnext.weak-set.from.js';"), 'actual node 16 #8');
 
+const { script: bundle } = await builder({
+  modules: 'actual',
+  exclude: [/group-by/, 'es.typed-array.with'],
+  targets: { node: 16 },
+  format: 'bundle',
+});
+
+ok(!bundle.includes("import 'core-js/modules/es.error.cause.js';"), 'bundled format contains import');
+ok(!bundle.includes('__webpack_require__'), 'bundled format did not minify internal function name');
+
 echo(chalk.green('builder tested'));
