@@ -482,3 +482,13 @@ export const $proposal = p => ({
   `,
   types: '',
 });
+
+export const $typeDummy = p => ({
+  entry: '',
+  types: dedent`
+    declare module '${ buildModulePath(p) }' {
+      const method: any;
+      export = method;
+    }
+  `,
+});
