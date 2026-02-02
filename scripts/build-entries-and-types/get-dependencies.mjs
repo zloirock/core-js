@@ -45,6 +45,7 @@ async function getModuleMetadata(path, stack = new Set()) {
   for (const dependency of dependencies) {
     const moduleMetadata = await getModuleMetadata(dependency, new Set(stack));
     moduleMetadata.dependencies.forEach(it => paths.add(it));
+    moduleMetadata.types.forEach(it => types.add(it));
   }
   const result = {
     dependencies: paths,
