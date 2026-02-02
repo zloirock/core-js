@@ -1,4 +1,4 @@
-// @no-types: because of a conflict with lib.dom.d.ts
+// @types: web/url
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');
