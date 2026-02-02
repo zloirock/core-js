@@ -1,5 +1,5 @@
 import { features, proposals } from './entries-definitions.mjs';
-import { $path, $proposal } from './templates.mjs';
+import { $path, $proposal, $typeDummy } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 import { getModulesMetadata } from './get-dependencies.mjs';
 import { expandModules, modulesToStage } from './helpers.mjs';
@@ -48,6 +48,8 @@ async function buildType(entry, options) {
   let {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
+    typeDummy,
+    isTypeDummy = typeDummy ?? false,
     globalType,
     exportGlobalType = globalType ?? true,
     template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
@@ -71,6 +73,9 @@ async function buildType(entry, options) {
       break;
   }
 
+  if (isTypeDummy) {
+    template = $typeDummy;
+  }
   const level = entry.split('/').length - 1;
 
   if (!types) {
