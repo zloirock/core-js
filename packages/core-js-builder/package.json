@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "type": "commonjs",
+  "type": "module",
   "description": "core-js builder",
   "repository": {
     "type": "git",
@@ -26,14 +26,26 @@
     "url": "http://zloirock.ru"
   },
   "sideEffects": false,
-  "main": "index.js",
+  "main": "index.mjs",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.mjs"
+    },
+    "./index.mjs": {
+      "types": "./index.d.ts",
+      "default": "./index.mjs"
+    },
+    "./config.mjs": "./config.mjs"
+  },
   "types": "index.d.ts",
   "dependencies": {
-    "core-js": "4.0.0-alpha.0",
     "@core-js/compat": "4.0.0-alpha.0",
-    "webpack": "^5.104.1"
+    "@swc/core": "^1.15.11",
+    "core-js": "4.0.0-alpha.0",
+    "rolldown": "^1.0.0-rc.2"
   },
   "engines": {
-    "node": ">=20.19.0"
+    "node": "^20.19.0 || >=22.12.0"
   }
 }
