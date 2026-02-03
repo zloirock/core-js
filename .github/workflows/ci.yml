@@ -73,9 +73,8 @@ jobs:
           - windows-latest
           - macos-latest
         node:
-          - 20.9
-          - 21
-          - ^22.5.1
+          - ^20.19
+          - ^22.12
           - 23
           - 24
           - 25
