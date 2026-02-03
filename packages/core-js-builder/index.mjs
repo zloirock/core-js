@@ -35,6 +35,7 @@ export default async function ({
   exclude = [],
   targets = null,
   format = 'bundle',
+  minify = true,
   filename = null,
   summary = {},
 } = {}) {
@@ -81,16 +82,48 @@ export default async function ({
       }
 
       // rolldown helpers / wrappers contain es2015 syntax
-      code = (await transform(code, {
+      const swcOptions = {
         env: {
           include: [
             'transform-arrow-functions',
             'transform-shorthand-properties',
           ],
         },
-      })).code;
+      };
 
-      code = `!function (undefined) { 'use strict'; ${ code } }();\n`;
+      if (minify) Object.assign(swcOptions, {
+        minify: true,
+        jsc: {
+          minify: {
+            compress: {
+              arrows: false,
+              ecma: 5,
+              hoist_funs: true,
+              keep_fnames: true,
+              pure_getters: true,
+              reduce_funcs: true,
+              // document.all detection case
+              typeofs: false,
+              unsafe_proto: true,
+              unsafe_undefined: true,
+            },
+            mangle: {
+              keep_fnames: true,
+              safari10: true,
+              toplevel: true,
+            },
+            format: {
+              comments: false,
+              ecma: 5,
+            },
+          },
+        },
+      });
+
+      code = (await transform(code, swcOptions)).code;
+
+      // swc considers output code as a module and drops 'use strict`
+      code = `!function () { 'use strict'; ${ code } }();\n`;
     } else {
       code = importModules(list, format);
     }
