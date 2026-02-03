@@ -31,6 +31,8 @@ const { script } = await builder({
   // output format, 'bundle' by default, can be 'cjs' or 'esm', and in this case
   // the result will not be bundled and will contain imports of required modules
   format: 'bundle',
+  // minify the output in the case of format: bundle, `true` by default
+  minify: true,
   // optional target filename, if it's missed a file will not be created
   filename: PATH_TO_MY_COREJS_BUNDLE,
 });
