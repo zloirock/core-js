@@ -54,9 +54,11 @@ async function buildType(entry, options) {
     customType, tsVersion, proposal, types, ownEntryPoint,
   } = options;
 
+  let typesFilter = null;
   switch (subset) {
     case 'es':
       filter ??= ESSet;
+      typesFilter = '/web/';
       break;
     case 'stable':
       filter ??= StableSet;
@@ -74,15 +76,18 @@ async function buildType(entry, options) {
   if (typeDummy) {
     template = $typeDummy;
   }
+
   const level = entry.split('/').length - 1;
 
   if (!types) {
     if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
     modules = expandModules(modules, filter, AllModules);
-    const { dependencies, types: typePaths } = await getModulesMetadata(modules);
-    modules = dependencies;
-    if (filter) modules = modules.filter(it => filter.has(it));
+    const { types: typePaths } = await getModulesMetadata(modules);
     types = typePaths;
+  }
+
+  if (typesFilter) {
+    types = types.filter(it => !it.includes(typesFilter));
   }
 
   types.forEach(type => {
