@@ -1,3 +1,4 @@
+// @types: proposals/array-buffer-transfer
 'use strict';
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
 var isDetached = require('../internals/array-buffer-is-detached');
