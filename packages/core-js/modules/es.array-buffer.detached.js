@@ -1,3 +1,4 @@
+// @types: proposals/array-buffer-transfer
 'use strict';
 var fails = require('../internals/fails');
 var defineBuiltInAccessor = require('../internals/define-built-in-accessor');
