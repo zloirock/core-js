@@ -36,7 +36,7 @@ module.exports = async function ({
   if (!['bundle', 'cjs', 'esm'].includes(format)) throw new TypeError('Incorrect output type');
   summary = { comment: normalizeSummary(summary.comment), console: normalizeSummary(summary.console) };
 
-  const TITLE = filename !== null || filename !== undefined ? filename : '`core-js`';
+  const TITLE = filename !== null && filename !== undefined ? filename : '`core-js`';
   let script = banner;
   let code = '\n';
 
