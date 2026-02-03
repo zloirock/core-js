@@ -24,6 +24,7 @@ node_modules/
 /packages/core-js/LICENSE
 /packages/core-js-babel-plugin/LICENSE
 /packages/core-js-builder/LICENSE
+/packages/core-js-builder/__tmp__/
 /packages/core-js-bundle/LICENSE
 /packages/core-js-bundle/index.js
 /packages/core-js-bundle/minified.js

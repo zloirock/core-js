@@ -4,6 +4,8 @@ require("core-js/modules/es.async-iterator.async-dispose");
 require("core-js/modules/es.disposable-stack.constructor");
 require("core-js/modules/es.iterator.concat");
 require("core-js/modules/es.iterator.dispose");
+require("core-js/modules/es.iterator.drop");
+require("core-js/modules/es.iterator.take");
 require("core-js/modules/es.iterator.zip");
 require("core-js/modules/es.iterator.zip-keyed");
 require("core-js/modules/es.map.get-or-insert");
