@@ -2218,6 +2218,7 @@ export default [
       '.work/**',
       'deno/corejs/**',
       'docs/**',
+      'packages/core-js-builder/__tmp__/**',
       'packages/core-js-bundle/!(package.json)',
       'packages/core-js-compat/!(package).json',
       'packages/core-js-pure/override/**',
@@ -2282,6 +2283,7 @@ export default [
   {
     files: [
       '**/*.mjs',
+      'packages/core-js-builder/**',
       'tests/eslint/**',
     ],
     languageOptions: {
