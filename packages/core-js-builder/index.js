@@ -62,7 +62,7 @@ module.exports = async function ({
         },
       });
 
-      const file = await readFile(tempFile);
+      const file = await readFile(tempFile, 'utf8');
 
       await unlink(tempFile);
 

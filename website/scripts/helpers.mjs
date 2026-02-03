@@ -151,7 +151,7 @@ export async function getDefaultVersion(versionFile, defaultVersion = null) {
 }
 
 export async function readJSON(filePath) {
-  const buffer = await readFile(filePath);
+  const buffer = await readFile(filePath, 'utf8');
   return JSON.parse(buffer);
 }
 
