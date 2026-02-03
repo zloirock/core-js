@@ -40,7 +40,6 @@ deepEqual(compat({
     'es.math.log2',
     'es.math.sum-precise',
     'es.math.to-string-tag',
-    'es.string.iterator',
   ],
   targets: {
     'es.object.to-string': { firefox: '27' },
@@ -57,11 +56,11 @@ deepEqual(compat({
     'es.reflect.set': { firefox: '27' },
     'es.reflect.set-prototype-of': { firefox: '27' },
     'es.reflect.to-string-tag': { firefox: '27' },
+    'es.array.at': { firefox: '27' },
     'es.array.iterator': { firefox: '27' },
     'es.math.acosh': { firefox: '27' },
     'es.math.asinh': { firefox: '27' },
     'es.math.atanh': { firefox: '27' },
-    'es.array.at': { firefox: '27' },
     'es.math.cbrt': { firefox: '27' },
     'es.math.clz32': { firefox: '27' },
     'es.math.expm1': { firefox: '27' },
@@ -70,7 +69,6 @@ deepEqual(compat({
     'es.math.log2': { firefox: '27' },
     'es.math.sum-precise': { firefox: '27' },
     'es.math.to-string-tag': { firefox: '27' },
-    'es.string.iterator': { firefox: '27' },
   },
 }, 'basic');
 
@@ -142,7 +140,6 @@ deepEqual(compat({
     'es.math.sum-precise',
     'es.math.tanh',
     'es.math.to-string-tag',
-    'es.string.iterator',
   ],
   targets: {
     'es.object.to-string': { chrome: '40', firefox: '27' },
@@ -161,7 +158,6 @@ deepEqual(compat({
     'es.math.sum-precise': { chrome: '40', firefox: '27' },
     'es.math.tanh': { chrome: '40' },
     'es.math.to-string-tag': { chrome: '40', firefox: '27' },
-    'es.string.iterator': { chrome: '40', firefox: '27' },
   },
 }, 'some targets');
 
