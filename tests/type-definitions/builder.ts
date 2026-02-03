@@ -61,6 +61,7 @@ await builder({
     browsers: ['> 1%'],
   },
   format: 'bundle',
+  minify: false,
   filename: '/foo/bar/baz.js',
   summary: {
     console: { size: false, modules: true },
