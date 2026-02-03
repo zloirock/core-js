@@ -67,7 +67,6 @@ $({ target: 'Math', stat: true, forced: FORCED }, {
     var state = MINUS_ZERO;
 
     // @dependency: es.array.iterator
-    // @dependency: es.string.iterator
     iterate(items, function (n) {
       if (++count > MAX_SAFE_INTEGER) throw new $RangeError('Maximum allowed index exceeded');
       if (typeof n != 'number') throw new $TypeError('Value is not a number');
