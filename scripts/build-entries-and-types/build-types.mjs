@@ -48,10 +48,8 @@ async function buildType(entry, options) {
   let {
     entryFromNamespace,
     subset = entryFromNamespace ?? 'full',
-    typeDummy,
-    isTypeDummy = typeDummy ?? false,
-    globalType,
-    exportGlobalType = globalType ?? true,
+    typeDummy = false,
+    globalType = true,
     template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
     customType, tsVersion, proposal, types, ownEntryPoint,
   } = options;
@@ -73,7 +71,7 @@ async function buildType(entry, options) {
       break;
   }
 
-  if (isTypeDummy) {
+  if (typeDummy) {
     template = $typeDummy;
   }
   const level = entry.split('/').length - 1;
@@ -88,7 +86,7 @@ async function buildType(entry, options) {
   }
 
   types.forEach(type => {
-    if (exportGlobalType) {
+    if (globalType) {
       imports.index.add(type);
       imports[subset].add(type);
     }
@@ -96,7 +94,7 @@ async function buildType(entry, options) {
   });
 
   if (customType) {
-    if (exportGlobalType) {
+    if (globalType) {
       imports.index.add(customType);
       imports[subset].add(customType);
     }
