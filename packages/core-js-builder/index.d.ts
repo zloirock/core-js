@@ -22,6 +22,8 @@ type Options = Pick<CompatOptions, "exclude" | "modules" | "targets"> & {
   format?: Format,
   /** optional target filename, if it's missed a file will not be created */
   filename?: string,
+  /** minify the output in the case of format: bundle, `true` by default */
+  minify?: boolean,
   /** shows summary for the bundle, disabled by default */
   summary?: Summary,
 };
