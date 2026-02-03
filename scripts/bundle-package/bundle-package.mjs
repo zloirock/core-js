@@ -1,6 +1,6 @@
 import { minify } from 'terser';
 import builder from '@core-js/builder';
-import config from '@core-js/builder/config.js';
+import config from '@core-js/builder/config.mjs';
 
 const { cyan, green } = chalk;
 const ESMODULES = argv._.includes('esmodules');
