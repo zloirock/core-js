@@ -38,7 +38,7 @@ const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
-await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(OLD_YEAR, CURRENT_YEAR));
+await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
 
 const usage = await readFile(USAGE, 'utf8');
 await writeFile(USAGE, usage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
