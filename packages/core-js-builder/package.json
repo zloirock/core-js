@@ -41,9 +41,9 @@
   "types": "index.d.ts",
   "dependencies": {
     "@core-js/compat": "4.0.0-alpha.0",
-    "@swc/core": "^1.15.43",
+    "@swc/core": "^1.15.47",
     "core-js": "4.0.0-alpha.0",
-    "rolldown": "^1.1.5"
+    "rolldown": "^1.2.2"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
