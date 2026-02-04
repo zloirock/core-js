@@ -1,11 +1,22 @@
 import 'core-js/full';
+import padStart from 'core-js/full/string/pad-start';
+import padEnd from 'core-js/full/string/pad-end';
+import { assertString } from '../../helpers';
 
 const s = 'foo';
-const p1: string = s.padStart(5);
-const p2: string = s.padStart(10, '0');
-const p3: string = s.padEnd(8);
-const p4: string = s.padEnd(4, '-');
 
+assertString(padStart(s, 5));
+assertString(padEnd(s, 8));
+
+assertString(s.padStart(5));
+assertString(s.padStart(10, '0'));
+assertString(s.padEnd(8));
+assertString(s.padEnd(4, '-'));
+
+// @ts-expect-error
+padStart(s);
+// @ts-expect-error
+padEnd(s);
 // @ts-expect-error
 s.padStart();
 // @ts-expect-error

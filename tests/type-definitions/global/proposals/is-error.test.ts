@@ -1,9 +1,15 @@
 import 'core-js/full';
+import isError from 'core-js/full/error/is-error';
+import { assertBool } from '../../helpers';
 
 const e = new Error();
 const ne = { foo: 1 };
 
-const re1: boolean = Error.isError(e);
+assertBool(isError(e));
+// @ts-expect-error
+isError();
+
+assertBool(Error.isError(e));
 Error.isError(ne);
 Error.isError(undefined);
 Error.isError('str');

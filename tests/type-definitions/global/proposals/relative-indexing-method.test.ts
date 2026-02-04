@@ -1,10 +1,18 @@
 import 'core-js/full';
+import stringAt from 'core-js/full/string/at';
+import arrayAt from 'core-js/full/array/at';
 
 const str = 'hello';
+
+const res: string | undefined = stringAt(str, 0);
+
 const s1: string | undefined = str.at(0);
 const s2: string | undefined = str.at(-1);
 
 const arr: number[] = [10, 20, 30];
+
+const res2: number | undefined = arrayAt(arr, 1);
+
 const a1: number | undefined = arr.at(1);
 const a2: number | undefined = arr.at(-2);
 
@@ -40,7 +48,7 @@ const f32$1: number | undefined = f32.at(-1);
 const f64 = new Float64Array([11.1, 22.2, 33.3]);
 const f64$1: number | undefined = f64.at(0);
 
-// todo for es6
+// TODO for es6
 // const bi64 = new (BigInt64Array as { new(arr: ArrayLike<bigint>): BigInt64Array })([BigInt(1), BigInt(2), BigInt(3)]);
 // const bi64_1: bigint | undefined = bi64.at(2);
 //
@@ -48,11 +56,17 @@ const f64$1: number | undefined = f64.at(0);
 // const bu64_1: bigint | undefined = bu64.at(-1);
 
 // @ts-expect-error
+stringAt(str);
+
+// @ts-expect-error
 str.at();
 // @ts-expect-error
 str.at('1');
 // @ts-expect-error
 str.at(1, 2);
+
+// @ts-expect-error
+arrayAt();
 
 // @ts-expect-error
 arr.at();
