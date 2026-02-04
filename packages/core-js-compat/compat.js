@@ -1,6 +1,7 @@
 'use strict';
 const { compare, filterOutStabilizedProposals, intersection } = require('./helpers');
 const data = require('./data');
+const externalData = require('./external');
 const entries = require('./entries');
 const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
 const allModules = require('./modules');
@@ -32,7 +33,7 @@ function normalizeModules(option) {
   return new Set(Array.isArray(option) ? option.flatMap(getModules) : getModules(option));
 }
 
-function checkModule(name, targets) {
+function checkModule(name, targets, external) {
   const result = {
     required: !targets,
     targets: {},
@@ -40,7 +41,7 @@ function checkModule(name, targets) {
 
   if (!targets) return result;
 
-  const requirements = data[name];
+  const requirements = (external ? externalData : data)[name];
 
   for (const [engine, version] of targets) {
     if (!hasOwn(requirements, engine) || compare(version, '<', requirements[engine])) {
@@ -58,9 +59,8 @@ module.exports = function ({
   targets = null,
   version = null,
   inverse = false,
+  __external: external = false,
 } = {}) {
-  inverse = !!inverse;
-
   const parsedTargets = targets ? targetsParser(targets) : null;
 
   const result = {
@@ -68,18 +68,22 @@ module.exports = function ({
     targets: {},
   };
 
-  exclude = normalizeModules(exclude);
+  if (!external) {
+    inverse = !!inverse;
 
-  modules = modules ? [...normalizeModules(modules)] : actual;
+    exclude = normalizeModules(exclude);
 
-  if (exclude.size) modules = modules.filter(it => !exclude.has(it));
+    modules = modules ? [...normalizeModules(modules)] : actual;
 
-  modules = intersection(modules, version ? getModulesListForTargetVersion(version) : allModules);
+    if (exclude.size) modules = modules.filter(it => !exclude.has(it));
 
-  if (!inverse) modules = filterOutStabilizedProposals(modules);
+    modules = intersection(modules, version ? getModulesListForTargetVersion(version) : allModules);
+
+    if (!inverse) modules = filterOutStabilizedProposals(modules);
+  }
 
   for (const key of modules) {
-    const check = checkModule(key, parsedTargets);
+    const check = checkModule(key, parsedTargets, external);
 
     if (check.required ^ inverse) {
       result.list.push(key);
