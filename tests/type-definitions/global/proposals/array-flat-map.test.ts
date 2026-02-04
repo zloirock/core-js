@@ -1,12 +1,23 @@
 import 'core-js/full';
+import flatMap from 'core-js/full/array/flat-map';
+import flatMapJS from 'core-js/full/array/flat-map.js';
+import { assertNumberArray, assertStringArray } from '../../helpers';
 
-const flatMapped: number[] = [1, 2, 3].flatMap(x => [x, x * 2]);
-const flatMapped2: string[] = ['a', 'b', 'c'].flatMap(x => [x, x.toUpperCase()]);
+assertNumberArray(flatMap([1, 2, 3], x => [x, x * 2]));
+assertNumberArray(flatMapJS([1, 2, 3], x => [x, x * 2]));
+
+// @ts-expect-error
+flatMap([1, 2, 3]);
+// @ts-expect-error
+flatMapJS([1, 2, 3]);
+
+assertNumberArray([1, 2, 3].flatMap(x => [x, x * 2]));
+assertStringArray(['a', 'b', 'c'].flatMap(x => [x, x.toUpperCase()]));
 [1, 2, 3].flatMap(x => x > 1 ? [x, x] : []);
 [1, 2, 3].flatMap(function (x) { return [this, x]; }, 123);
 [1, 2, 3].flatMap((x, i, arr) => arr);
 
-const flatted: number[] = [[1], [2], [3]].flat();
+assertNumberArray([[1], [2], [3]].flat());
 const flatted2: (string[] | string)[] = ['a', ['b', ['c']]].flat();
 [[1], [2], [3]].flat(2);
 [1, [2, [3, [4]]]].flat(2);
