@@ -6,7 +6,7 @@ import { styleText } from 'node:util';
 import { build } from 'rolldown';
 import { transform } from '@swc/core';
 import compat from '@core-js/compat/compat.js';
-import banner from './config.mjs';
+import { banner } from './config.mjs';
 
 function normalizeSummary(unit = {}) {
   let size, modules;
@@ -81,15 +81,22 @@ export default async function ({
         await rm(tempFile, { force: true });
       }
 
+      const swcOptions = {};
+
       // rolldown helpers / wrappers contain es2015 syntax
-      const swcOptions = {
+      let syntax = ['arrow-functions', 'shorthand-properties'];
+
+      if (targets) {
+        syntax = compat({ targets, modules: syntax, __external: true }).list;
+      }
+
+      const swcTransforms = syntax.map(it => `transform-${ it }`);
+
+      if (swcTransforms.length) Object.assign(swcOptions, {
         env: {
-          include: [
-            'transform-arrow-functions',
-            'transform-shorthand-properties',
-          ],
+          include: swcTransforms,
         },
-      };
+      });
 
       if (minify) Object.assign(swcOptions, {
         minify: true,
@@ -120,9 +127,11 @@ export default async function ({
         },
       });
 
-      code = (await transform(code, swcOptions)).code;
+      if (swcTransforms.length || minify) {
+        code = (await transform(code, swcOptions)).code;
+      }
 
-      // swc considers output code as a module and drops 'use strict`
+      // swc and rolldown considers output code as a module and drops 'use strict'
       code = `!function () { 'use strict'; ${ code } }();\n`;
     } else {
       code = importModules(list, format);
