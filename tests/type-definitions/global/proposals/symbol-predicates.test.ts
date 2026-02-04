@@ -1,17 +1,34 @@
 import 'core-js/full';
+import isRegisteredSymbol from 'core-js/full/symbol/is-registered-symbol';
+import isWellKnownSymbol from 'core-js/full/symbol/is-well-known-symbol';
+import $Symbol from 'core-js/full/symbol';
+import { assertBool } from '../../helpers';
 
-const rsymbol1: boolean = Symbol.isRegisteredSymbol(Symbol.for('foo'));
-const rsymbol2: boolean = Symbol.isRegisteredSymbol(undefined);
-const rsymbol3: boolean = Symbol.isRegisteredSymbol(Symbol('bar'));
+assertBool(isRegisteredSymbol($Symbol.for('foo')));
+assertBool(isWellKnownSymbol($Symbol.iterator));
+assertBool($Symbol.isRegisteredSymbol($Symbol.for('foo')));
+assertBool($Symbol.isWellKnownSymbol($Symbol.iterator));
 
-const rsymbol4: boolean = Symbol.isWellKnownSymbol(Symbol.iterator);
-const rsymbol5: boolean = Symbol.isWellKnownSymbol({});
-const rsymbol6: boolean = Symbol.isWellKnownSymbol(Symbol('baz'));
+assertBool(Symbol.isRegisteredSymbol(Symbol.for('foo')));
+assertBool(Symbol.isRegisteredSymbol(undefined));
+assertBool(Symbol.isRegisteredSymbol(Symbol('bar')));
+
+assertBool(Symbol.isWellKnownSymbol(Symbol.iterator));
+assertBool(Symbol.isWellKnownSymbol({}));
+assertBool(Symbol.isWellKnownSymbol(Symbol('baz')));
 
 declare const u: unknown;
 Symbol.isRegisteredSymbol(u);
 Symbol.isWellKnownSymbol(u);
 
+// @ts-expect-error
+isRegisteredSymbol();
+// @ts-expect-error
+$Symbol.isRegisteredSymbol();
+// @ts-expect-error
+isWellKnownSymbol();
+// @ts-expect-error
+$Symbol.isWellKnownSymbol();
 // @ts-expect-error
 Symbol.isRegisteredSymbol();
 // @ts-expect-error

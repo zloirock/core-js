@@ -1,4 +1,7 @@
 import 'core-js/full';
+import $Uint8Array from 'core-js/full/typed-array/uint8-array';
+
+$Uint8Array.fromBase64('SGVsbG8gd29ybGQ=', { alphabet: 'base64', lastChunkHandling: 'loose' });
 
 function acceptUint8Array(v: Uint8Array) {}
 function acceptProcessMetadata(v: { read: number; written: number }) {}

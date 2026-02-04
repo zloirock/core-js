@@ -9,7 +9,7 @@ import iteratorForEach from '@core-js/pure/full/iterator/for-each';
 import iteratorSome from '@core-js/pure/full/iterator/some';
 import iteratorEvery from '@core-js/pure/full/iterator/every';
 import iteratorFind from '@core-js/pure/full/iterator/find';
-import { assertCoreJSIteratorLike } from '../../helpers';
+import { assertCoreJSIteratorLike } from '../../helpers.pure';
 
 declare const it: Iterator<number>;
 declare const itStr: Iterator<string>;

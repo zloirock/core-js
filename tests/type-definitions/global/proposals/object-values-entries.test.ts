@@ -1,4 +1,7 @@
 import 'core-js/full';
+import values from 'core-js/full/object/values';
+import entries from 'core-js/full/object/entries';
+import { assertNumberArray, assertStringArray } from '../../helpers';
 
 const obj = { a: 1, b: 2 };
 const arr = [1, 2, 3];
@@ -6,11 +9,15 @@ const strArr = ['a', 'b', 'c'];
 const arrLike: ArrayLike<number> = { 0: 10, 1: 20, length: 2 };
 const emptyObj = {};
 
-const values1: number[] = Object.values(obj);
-const values2: number[] = Object.values(arr);
-const values3: string[] = Object.values(strArr);
-const values4: number[] = Object.values(arrLike);
-const values5: any[] = Object.values(emptyObj);
+assertNumberArray(values(obj));
+
+assertNumberArray(Object.values(obj));
+assertNumberArray(Object.values(arr));
+assertStringArray(Object.values(strArr));
+assertNumberArray(Object.values(arrLike));
+const res: any[] = Object.values(emptyObj);
+
+const entriesNS: [string, number][] = entries(obj);
 
 const entries1: [string, number][] = Object.entries(obj);
 const entries2: [string, number][] = Object.entries(arr);
@@ -22,7 +29,11 @@ const valuesAnyArr: any[] = Object.values({ foo: 123, bar: 'baz' });
 const entriesAnyArr: [string, any][] = Object.entries({ foo: 123, bar: 'baz' });
 
 // @ts-expect-error
-Object.values();
+values();
+// @ts-expect-error
+entries();
 
+// @ts-expect-error
+Object.values();
 // @ts-expect-error
 Object.entries();
