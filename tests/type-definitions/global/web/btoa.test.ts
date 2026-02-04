@@ -1,10 +1,16 @@
 import 'core-js/full';
+import $btoa from 'core-js/full/btoa';
+import { assertString } from '../../helpers';
 
-const s: string = btoa('SGVsbG8gd29ybGQ=');
+assertString($btoa('SGVsbG8gd29ybGQ='));
+
+assertString(btoa('SGVsbG8gd29ybGQ='));
 
 // @ts-expect-error
-atob();
+$btoa();
 // @ts-expect-error
-atob(123);
+btoa();
 // @ts-expect-error
-atob({});
+btoa(123);
+// @ts-expect-error
+btoa({});

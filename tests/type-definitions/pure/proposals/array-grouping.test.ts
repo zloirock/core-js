@@ -1,6 +1,6 @@
 import objectGroupBy from '@core-js/pure/full/object/group-by';
 import mapGroupBy from '@core-js/pure/full/map/group-by';
-import { assertCoreJSMapLike } from '../../helpers';
+import { assertCoreJSMapLike } from '../../helpers.pure';
 
 const arr = [1, 2, 3, 4, 5];
 const objGroup: Partial<Record<'even' | 'odd', number[]>> = objectGroupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
