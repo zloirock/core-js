@@ -1,13 +1,20 @@
 import 'core-js/full';
+import f16round from 'core-js/full/math/f16round';
+import { assertNumber } from '../../helpers';
 
-const res: number = Math.f16round(1);
+assertNumber(f16round(1));
+// @ts-expect-error
+f16round('123');
+
+assertNumber(Math.f16round(1));
 
 // @ts-expect-error
 Math.f16round('123');
 
 const view = new DataView(new ArrayBuffer(4));
 view.setFloat16(0, 1.5);
-const res2: number = view.getFloat16(0);
+assertNumber(view.getFloat16(0));
+
 // @ts-expect-error
 view.setFloat16(0, '123');
 // @ts-expect-error

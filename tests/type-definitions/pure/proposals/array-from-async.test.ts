@@ -1,6 +1,6 @@
 import arrayFromAsync from '@core-js/pure/full/array/from-async';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { assertCoreJSPromiseLike } from '../../helpers';
+import { assertCoreJSPromiseLike } from '../../helpers.pure';
 
 const p1 = arrayFromAsync([1, 2, 3]);
 assertCoreJSPromiseLike<number[]>(p1);
