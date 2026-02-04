@@ -1,4 +1,11 @@
 import 'core-js/full';
+import setUnion from 'core-js/full/set/union';
+import setIntersection from 'core-js/full/set/intersection';
+import setDifference from 'core-js/full/set/difference';
+import setSymmetricDifference from 'core-js/full/set/symmetric-difference';
+import setIsSubsetOf from 'core-js/full/set/is-subset-of';
+import setIsSupersetOf from 'core-js/full/set/is-superset-of';
+import setIsDisjointFrom from 'core-js/full/set/is-disjoint-from';
 
 const setA = new Set<number>([1, 2, 3]);
 const setB = new Set<string>(['a', 'b', 'c']);
@@ -17,20 +24,33 @@ const setLikeStr: ReadonlySetLike<string> = {
 
 const arrSet: ReadonlySet<number> = new Set([4, 5, 6]);
 
+const unionABNS: Set<number | string> = setUnion(setA, setB);
+
 const unionAB: Set<number | string> = setA.union(setB);
 const unionAN: Set<number> = setA.union(setLike);
+
+const interABNS: Set<number> = setIntersection(setA, setLike);
 
 const interAB: Set<number & string> = setA.intersection(setB);
 const interAN: Set<number> = setA.intersection(setLike);
 
+const diffABNS: Set<number> = setDifference(setA, setB);
+
 const diffAB: Set<number> = setA.difference(setB);
 const diffAN: Set<number> = setA.difference(setLike);
+
+const symdiffALNS: Set<number> = setSymmetricDifference(setA, setLike);
 
 const symdiffAB: Set<number | string> = setA.symmetricDifference(setB);
 const symdiffAL: Set<number> = setA.symmetricDifference(setLike);
 
+const subNS: boolean = setIsSubsetOf(setA, setLikeStr);
 const sub: boolean = setA.isSubsetOf(setLikeStr);
+
+const superSetNS: boolean = setIsSupersetOf(setA, setLikeStr);
 const superSet: boolean = setA.isSupersetOf(setLikeStr);
+
+const isDisjointNS: boolean = setIsDisjointFrom(setA, setLike);
 const isDisjoint: boolean = setA.isDisjointFrom(setLike);
 
 const unionR: Set<number> = arrSet.union(setLike);

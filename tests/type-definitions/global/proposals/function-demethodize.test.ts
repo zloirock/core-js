@@ -1,9 +1,11 @@
 import 'core-js/full';
+import demethodize from 'core-js/full/function/demethodize';
 
 function sumTo(this: { base: number }, a: number, b: number): number {
   return this.base + a + b;
 }
 const sumToD = sumTo.demethodize();
+const sumToDNS = demethodize(sumTo);
 const rsumd: number = sumToD({ base: 1 }, 2, 3);
 // @ts-expect-error
 sumToD(2, 3);
