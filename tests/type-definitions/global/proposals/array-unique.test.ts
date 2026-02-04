@@ -1,4 +1,11 @@
 import 'core-js/full';
+import uniqueBy from 'core-js/full/array/unique-by';
+import { assertNumberArray } from '../../helpers';
+
+const uniqueByNS: number[] = uniqueBy([1, 2, 1, 3]);
+
+// @ts-expect-error
+uniqueBy([1, 2, 3], 123);
 
 interface Obj {
   a: number;
@@ -10,8 +17,8 @@ const arrRes2: Obj[] = arr.uniqueBy('a');
 const arrRes3: Obj[] = arr.uniqueBy(obj => obj.b);
 
 const numArr: number[] = [1, 2, 1, 3];
-const numArrRes: number[] = numArr.uniqueBy();
-const numArrRes2: number[] = numArr.uniqueBy(x => x % 2);
+assertNumberArray(numArr.uniqueBy());
+assertNumberArray(numArr.uniqueBy(x => x % 2));
 
 const i8 = new Int8Array([1, 2, 2, 3]);
 const i8Res: Int8Array = i8.uniqueBy();

@@ -1,4 +1,7 @@
 import 'core-js/full';
+import promiseTry from 'core-js/full/promise/try';
+
+const ptNS: Promise<number> = promiseTry(() => 42);
 
 const pt1: Promise<number> = Promise.try(() => 42);
 const pt2: Promise<string> = Promise.try(() => Promise.resolve('hi'));
@@ -14,22 +17,19 @@ declare function returnsPromise<T>(): Promise<T>;
 const pt9: Promise<number> = Promise.try(() => returnsPromise<number>());
 
 // @ts-expect-error
-Promise.try();
+promiseTry();
 
+// @ts-expect-error
+Promise.try();
 // @ts-expect-error
 Promise.try(42);
-
 // @ts-expect-error
 Promise.try('callback');
-
 // @ts-expect-error
 Promise.try({});
-
 // @ts-expect-error
 Promise.try([]);
-
 // @ts-expect-error
 Promise.try(() => 1, 2, 'a', Symbol('x'));
-
 // @ts-expect-error
 Promise.try((a: boolean) => a, 123);

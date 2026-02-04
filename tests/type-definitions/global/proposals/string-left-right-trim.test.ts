@@ -1,10 +1,21 @@
 import 'core-js/full';
+import trimEnd from 'core-js/full/string/trim-end';
+import trimStart from 'core-js/full/string/trim-start';
+import trimLeft from 'core-js/full/string/trim-left';
+import trimRight from 'core-js/full/string/trim-right';
+import { assertString } from '../../helpers';
 
 const s = 'abc';
-const t1: string = s.trimEnd();
-const t2: string = s.trimStart();
-const t3: string = s.trimLeft();
-const t4: string = s.trimRight();
+
+assertString(trimEnd(s));
+assertString(trimStart(s));
+assertString(trimLeft(s));
+assertString(trimRight(s));
+
+assertString(s.trimEnd());
+assertString(s.trimStart());
+assertString(s.trimLeft());
+assertString(s.trimRight());
 
 // @ts-expect-error
 s.trimEnd(123);

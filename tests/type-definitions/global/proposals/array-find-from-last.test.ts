@@ -1,4 +1,23 @@
 import 'core-js/full';
+import findLast from 'core-js/full/array/find-last';
+import findLastJS from 'core-js/full/array/find-last.js';
+import findLastIndex from 'core-js/full/array/find-last-index';
+import findLastIndexJS from 'core-js/full/array/find-last-index.js';
+import { assertNumber } from '../../helpers';
+
+const resNS1: number | undefined = findLast([1, 2, 3], v => v > 1);
+const resNS2: number | undefined = findLastJS([1, 2, 3], v => v > 1);
+assertNumber(findLastIndex([1, 2, 3], v => v > 1, {}));
+assertNumber(findLastIndexJS([1, 2, 3], v => v > 1, {}));
+
+// @ts-expect-error
+findLast([1, 2, 3]);
+// @ts-expect-error
+findLastJS([1, 2, 3]);
+// @ts-expect-error
+findLastIndex([1, 2, 3]);
+// @ts-expect-error
+findLastIndexJS([1, 2, 3]);
 
 const res: number | undefined = [1, 2, 3].findLast(v => v > 1);
 [1, 2, 3].findLast((v): v is 2 => v === 2);
@@ -18,7 +37,7 @@ new Uint8Array([1, 2, 3]).findLast(v => v > 0);
 new Uint8Array([1, 2, 3]).findLastIndex(v => v < 0);
 new Float64Array([1, 2, 3]).findLast(v => v > 1.1);
 new Float64Array([1, 2, 3]).findLastIndex(v => v > 100);
-// todo for es6
+// TODO for es6
 // (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast(v => v > BigInt(1));
 // (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLast((v): v is bigint => v === BigInt(2));
 // (new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)])).findLastIndex(v => v > BigInt(0));
