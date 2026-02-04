@@ -1,6 +1,6 @@
 import promiseTry from '@core-js/pure/full/promise/try';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { assertCoreJSPromiseLike } from '../../helpers';
+import { assertCoreJSPromiseLike } from '../../helpers.pure';
 
 const pt1 = promiseTry(() => 42);
 assertCoreJSPromiseLike<number>(pt1);

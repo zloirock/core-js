@@ -1,7 +1,11 @@
 import 'core-js/full';
+import $ArrayBuffer from 'core-js/full/array-buffer';
+
+const abFromNamespace = new $ArrayBuffer(16);
+const abFNSTransfer: ArrayBuffer = abFromNamespace.transfer();
 
 const ab = new ArrayBuffer(16);
-// todo uncomment when fixed
+// TODO uncomment when fixed
 // const abDetached: boolean = ab.detached;
 const abTransfer: ArrayBuffer = ab.transfer();
 const abTransfer2: ArrayBuffer = ab.transfer(32);
