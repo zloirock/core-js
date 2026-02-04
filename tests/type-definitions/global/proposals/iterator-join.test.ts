@@ -1,13 +1,20 @@
 import 'core-js/full';
+import join from 'core-js/full/iterator/join';
+import { assertString } from '../../helpers';
 
 declare const it: Iterator<number>;
 
-const res1: string = it.join();
-const res2: string = it.join(' ');
-const res3: string = it.join(5);
-const res4: string = it.join(Symbol('x'));
-const res5: string = it.join(undefined);
-const res6: string = it.join(null);
+assertString(join(it, ' '));
+
+// @ts-expect-error
+join(it, '+', '_');
+
+assertString(it.join());
+assertString(it.join(' '));
+assertString(it.join(5));
+assertString(it.join(Symbol('x')));
+assertString(it.join(undefined));
+assertString(it.join(null));
 
 // @ts-expect-error
 it.join('+', '_');

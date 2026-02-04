@@ -1,19 +1,39 @@
 import 'core-js/full';
+import toSorted from 'core-js/full/array/to-sorted';
+import toSpliced from 'core-js/full/array/to-spliced';
+import toReversed from 'core-js/full/array/to-reversed';
+import withArray from 'core-js/full/array/with';
+import { assertNumberArray, assertStringArray } from '../../helpers';
 
 const arr: number[] = [1, 2, 3];
-const arrRev: number[] = arr.toReversed();
-const arrSorted: number[] = arr.toSorted();
-const arrSorted2: number[] = arr.toSorted((a, b) => b - a);
-const arrSpliced: number[] = arr.toSpliced(1, 1, 4, 5);
-const arrSpliced2: number[] = arr.toSpliced(1);
-const arrSpliced3: number[] = arr.toSpliced(1, 2);
-const arrWith: number[] = arr.with(1, 42);
+
+assertNumberArray(toSorted(arr));
+assertNumberArray(toSpliced(arr, 1, 1, 4, 5));
+assertNumberArray(toReversed(arr));
+assertNumberArray(withArray(arr, 1, 42));
+
+// @ts-expect-error
+toSorted(arr, 'not a function');
+// @ts-expect-error
+toSpliced(arr, '1', 1);
+// @ts-expect-error
+toReversed(arr, 1);
+// @ts-expect-error
+withArray(arr);
+
+assertNumberArray(arr.toReversed());
+assertNumberArray(arr.toSorted());
+assertNumberArray(arr.toSorted((a, b) => b - a));
+assertNumberArray(arr.toSpliced(1, 1, 4, 5));
+assertNumberArray(arr.toSpliced(1));
+assertNumberArray(arr.toSpliced(1, 2));
+assertNumberArray(arr.with(1, 42));
 
 const sarr: string[] = ['a', 'b', 'c'];
-const sarrRev: string[] = sarr.toReversed();
-const sarrSorted: string[] = sarr.toSorted();
-const sarrWith: string[] = sarr.with(0, 'z');
-const sarrSpliced: string[] = sarr.toSpliced(0, 1, 'x');
+assertStringArray(sarr.toReversed());
+assertStringArray(sarr.toSorted());
+assertStringArray(sarr.with(0, 'z'));
+assertStringArray(sarr.toSpliced(0, 1, 'x'));
 
 const i8 = new Int8Array([1, 2, 3]);
 const i8Rev: Int8Array = i8.toReversed();

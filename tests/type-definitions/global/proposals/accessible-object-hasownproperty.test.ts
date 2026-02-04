@@ -1,4 +1,14 @@
 import 'core-js/full';
+import hasOwn from 'core-js/full/object/has-own';
+import $Object from 'core-js/full/object';
+
+$Object.hasOwn({ a: 1 }, 'a');
+hasOwn({ a: 1 }, 'a');
+
+// @ts-expect-error
+hasOwn(1, 'a');
+// @ts-expect-error
+$Object.hasOwn(1, 'a');
 
 Object.hasOwn({ a: 1 }, 'a');
 Object.hasOwn([], 0);
