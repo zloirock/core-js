@@ -1,6 +1,6 @@
 import $AggregateError from '@core-js/pure/full/aggregate-error';
 // import $Error from '@core-js/pure/full/error'; TODO separated entry points
-import { assertHasCause } from '../../helpers';
+import { assertHasCause } from '../../helpers.pure';
 
 const prevError = new Error('Prev error');
 const someError = new Error('Some error');
