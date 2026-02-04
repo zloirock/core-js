@@ -1,9 +1,13 @@
 import 'core-js/full';
+import dedent from 'core-js/full/string/dedent';
+import { assertString } from '../../helpers';
 
-const rdedent1: string = String.dedent`foo\nbar`;
-const rdedent2: string = String.dedent`line1
+assertString(dedent`foo\nbar`);
+
+assertString(String.dedent`foo\nbar`);
+assertString(String.dedent`line1
   line2
-  line3`;
+  line3`);
 
 const tpl = Object.assign(['foo', 'bar'], { raw: ['foo', 'bar'] });
 String.dedent(tpl, 1, 2);
@@ -21,5 +25,7 @@ myAndDedent`line1
 // @ts-expect-error
 'string\ndedent'.dedent();
 
+// @ts-expect-error
+dedent();
 // @ts-expect-error
 String.dedent();

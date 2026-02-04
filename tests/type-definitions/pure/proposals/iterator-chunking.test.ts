@@ -1,6 +1,6 @@
 import iteratorChunks from '@core-js/pure/full/iterator/chunks';
 import iteratorWindows from '@core-js/pure/full/iterator/windows';
-import { assertCoreJSIteratorLike } from '../../helpers';
+import { assertCoreJSIteratorLike } from '../../helpers.pure';
 
 declare function getNumberIterator(): Iterator<number>;
 

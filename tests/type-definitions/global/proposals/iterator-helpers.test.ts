@@ -1,8 +1,21 @@
 import 'core-js/full';
+import map from 'core-js/full/iterator/map';
+import filter from 'core-js/full/iterator/filter';
+import take from 'core-js/full/iterator/take';
+import drop from 'core-js/full/iterator/drop';
+import flatMap from 'core-js/full/iterator/flat-map';
+import reduce from 'core-js/full/iterator/reduce';
+import forEach from 'core-js/full/iterator/for-each';
+import some from 'core-js/full/iterator/some';
+import every from 'core-js/full/iterator/every';
+import find from 'core-js/full/iterator/find';
+import { assertBool, assertNumber, assertNumberArray, assertString } from '../../helpers';
 
 declare const it: Iterator<number>;
 declare const itStr: Iterator<string>;
 declare const itNumStr: Iterator<number | string>;
+
+const mappedNumNS: Iterator<number> = map(it, n => n + 1);
 
 const mappedStr: Iterator<string> = it.map((v, i) => String(v));
 const mappedNum: Iterator<number> = it.map(n => n + 1);
@@ -12,6 +25,8 @@ it.map();
 // @ts-expect-error
 it.map((v, i, extra) => v + i + extra);
 
+const onlyEvenNS: Iterator<number> = filter(it, v => v % 2 === 0);
+
 const onlyEven: Iterator<number> = it.filter(v => v % 2 === 0);
 const filtered: Iterator<number> = it.filter((v): v is number => typeof v === 'number');
 
@@ -20,6 +35,8 @@ it.filter();
 // @ts-expect-error
 it.filter((v, i, extra) => true);
 
+const takenNS: Iterator<number> = take(it, 5);
+
 const taken: Iterator<number> = it.take(5);
 
 // @ts-expect-error
@@ -27,10 +44,14 @@ it.take();
 // @ts-expect-error
 it.take('5');
 
+const droppedNS: Iterator<number> = drop(it, 3);
+
 const dropped: Iterator<number> = it.drop(3);
 
 // @ts-expect-error
 it.drop('3');
+
+const flatMappedNS: Iterator<string> = flatMap(it, (v, i) => itStr);
 
 const flatMapped: Iterator<string> = it.flatMap((v, i) => itStr);
 const flatMapped2: Iterator<string> = it.flatMap((v, i) => ({
@@ -42,19 +63,26 @@ const flatMapped2: Iterator<string> = it.flatMap((v, i) => ({
 // @ts-expect-error
 it.flatMap();
 
-const sum1: number = it.reduce((a, b, c) => a + b + c);
-const sum2: number = it.reduce((a, b, c) => a + b + c, 0);
-const strReduce: string = it.reduce(
+assertNumber(reduce(it, (a, b, c) => a + b + c));
+
+assertNumber(it.reduce((a, b, c) => a + b + c));
+assertNumber(it.reduce((a, b, c) => a + b + c, 0));
+assertString(it.reduce(
   (acc: string, val) => acc + val,
   '',
-);
+));
 
 // @ts-expect-error
 it.reduce();
 // @ts-expect-error
 it.reduce((a, b, c, d) => a);
 
-const arr: number[] = it.toArray();
+assertNumberArray(it.toArray());
+
+forEach(it, (value, idx) => {
+  const x: number = value;
+  const y: number = idx;
+});
 
 it.forEach((value, idx) => {
   const x: number = value;
@@ -64,19 +92,23 @@ it.forEach((value, idx) => {
 // @ts-expect-error
 it.forEach();
 
-const hasPositive: boolean = it.some((v, i) => v > 0);
+assertBool(some(it, (v, i) => v > 0));
+assertBool(it.some((v, i) => v > 0));
 
 // @ts-expect-error
 it.some();
 // @ts-expect-error
 it.some((v, i, extra) => true);
 
-const allPositive: boolean = it.every((v, i) => v > 0);
+assertBool(every(it, (v, i) => v > 0));
+assertBool(it.every((v, i) => v > 0));
 
 // @ts-expect-error
 it.every();
 // @ts-expect-error
 it.every((v, i, extra) => true);
+
+const found1NS: number | undefined = find(it, (v, i) => v > 5);
 
 const found1: number | undefined = it.find((v, i) => v > 5);
 const findString: string | number | undefined = itNumStr.find((v): v is string => typeof v === 'string');

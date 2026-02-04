@@ -1,57 +1,65 @@
 import 'core-js/full';
+import includes from 'core-js/full/array/includes';
+import { assertBool } from '../../helpers';
 
-const arr: number[] = [1, 2, 3];
-const arrRes: boolean = arr.includes(2);
-const arrRes2: boolean = arr.includes(2, 1);
+const arr = [1, 2, 3];
+
+assertBool(includes(arr, 2));
+
+// @ts-expect-error
+includes(arr);
+
+assertBool(arr.includes(2));
+assertBool(arr.includes(2, 1));
 
 const strArr: string[] = ['a', 'b', 'c'];
-const strArrRes: boolean = strArr.includes('b');
-const strArrRes2: boolean = strArr.includes('b', 1);
+assertBool(strArr.includes('b'));
+assertBool(strArr.includes('b', 1));
 
 const i8 = new Int8Array([1, 2, 3]);
-const i8Res: boolean = i8.includes(2);
-const i8Res2: boolean = i8.includes(2, 1);
+assertBool(i8.includes(2));
+assertBool(i8.includes(2, 1));
 
 const u8 = new Uint8Array([1, 2, 3]);
-const u8Res: boolean = u8.includes(2);
-const u8Res2: boolean = u8.includes(2, 1);
+assertBool(u8.includes(2));
+assertBool(u8.includes(2, 1));
 
 const u8c = new Uint8ClampedArray([1, 2, 3]);
-const u8cRes: boolean = u8c.includes(2);
-const u8cRes2: boolean = u8c.includes(2, 1);
+assertBool(u8c.includes(2));
+assertBool(u8c.includes(2, 1));
 
 const i16 = new Int16Array([1, 2, 3]);
-const i16Res: boolean = i16.includes(2);
-const i16Res2: boolean = i16.includes(2, 1);
+assertBool(i16.includes(2));
+assertBool(i16.includes(2, 1));
 
 const u16 = new Uint16Array([1, 2, 3]);
-const u16Res: boolean = u16.includes(2);
-const u16Res2: boolean = u16.includes(2, 1);
+assertBool(u16.includes(2));
+assertBool(u16.includes(2, 1));
 
 const i32 = new Int32Array([1, 2, 3]);
-const i32Res: boolean = i32.includes(2);
-const i32Res2: boolean = i32.includes(2, 1);
+assertBool(i32.includes(2));
+assertBool(i32.includes(2, 1));
 
 const u32 = new Uint32Array([1, 2, 3]);
-const u32Res: boolean = u32.includes(2);
-const u32Res2: boolean = u32.includes(2, 1);
+assertBool(u32.includes(2));
+assertBool(u32.includes(2, 1));
 
 const f32 = new Float32Array([1.5, 2.5, 3.5]);
-const f32Res: boolean = f32.includes(2.5);
-const f32Res2: boolean = f32.includes(2.5, 1);
+assertBool(f32.includes(2.5));
+assertBool(f32.includes(2.5, 1));
 
 const f64 = new Float64Array([1.5, 2.5, 3.5]);
-const f64Res: boolean = f64.includes(2.5);
-const f64Res2: boolean = f64.includes(2.5, 1);
+assertBool(f64.includes(2.5));
+assertBool(f64.includes(2.5, 1));
 
 // todo for es6
 // const bi64 = new BigInt64Array([BigInt(1), BigInt(2), BigInt(3)]);
-// const bi64Res: boolean = bi64.includes(BigInt(2));
-// const bi64Res2: boolean = bi64.includes(BigInt(2), 1);
+// assertBool(bi64.includes(BigInt(2));
+// assertBool(bi64.includes(BigInt(2), 1);
 //
 // const bu64 = new BigUint64Array([BigInt(1), BigInt(2), BigInt(3)]);
-// const bu64Res: boolean = bu64.includes(BigInt(2));
-// const bu64Res2: boolean = bu64.includes(BigInt(2), 1);
+// assertBool(bu64.includes(BigInt(2));
+// assertBool(bu64.includes(BigInt(2), 1);
 
 // @ts-expect-error
 arr.includes();
