@@ -1,4 +1,8 @@
 import 'core-js/full';
+import promiseWithResolvers from 'core-js/full/promise/with-resolvers';
+
+const prNS = promiseWithResolvers<number>();
+const pNS1: Promise<number> = prNS.promise;
 
 const pr = Promise.withResolvers<number>();
 const pr2 = Promise.withResolvers<string>();
@@ -28,7 +32,9 @@ gr.resolve(true);
 gr.reject();
 
 // @ts-expect-error
-Promise.withResolvers(123);
+promiseWithResolvers(123);
 
+// @ts-expect-error
+Promise.withResolvers(123);
 // @ts-expect-error
 Promise.withResolvers<string>(123);

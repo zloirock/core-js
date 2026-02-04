@@ -1,13 +1,19 @@
 import 'core-js/full';
+import sumPrecise from 'core-js/full/math/sum-precise';
+import { assertNumber } from '../../helpers';
 
-function acceptsNumber(x: number) {}
 declare const it: Iterable<number>;
 
-acceptsNumber(Math.sumPrecise(it));
-acceptsNumber(Math.sumPrecise([1, 2]));
+assertNumber(sumPrecise(it));
+
+assertNumber(Math.sumPrecise(it));
+assertNumber(Math.sumPrecise([1, 2]));
+
+// @ts-expect-error
+sumPrecise('10');
 
 // @ts-expect-error
 Math.sumPrecise('10');
-
 // @ts-expect-error
 Math.sumPrecise(1, 2);
+
