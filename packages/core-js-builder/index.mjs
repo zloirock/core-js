@@ -6,7 +6,7 @@ import { styleText } from 'node:util';
 import { build } from 'rolldown';
 import { transform } from '@swc/core';
 import compat from '@core-js/compat/compat.js';
-import { banner } from './config.mjs';
+import { banner, getRolldownOptions, MinifyOptions, ModernSyntax } from './config.mjs';
 
 function normalizeSummary(unit = {}) {
   let size, modules;
@@ -62,18 +62,7 @@ export default async function ({
         await mkdir(tempDir, { recursive: true });
         await writeFile(templateFile, importModules(list));
 
-        await build({
-          input: templateFile,
-          platform: 'neutral',
-          treeshake: false,
-          output: {
-            externalLiveBindings: false,
-            format: 'iife',
-            file: tempFile,
-            keepNames: true,
-            minifyInternalExports: true,
-          },
-        });
+        await build(getRolldownOptions(templateFile, tempFile));
 
         code = String(await readFile(tempFile, 'utf8'));
       } finally {
@@ -84,7 +73,7 @@ export default async function ({
       const swcOptions = {};
 
       // rolldown helpers / wrappers contain es2015 syntax
-      let syntax = ['arrow-functions', 'shorthand-properties'];
+      let syntax = ModernSyntax;
 
       if (targets) {
         syntax = compat({ targets, modules: syntax, __external: true }).list;
@@ -98,34 +87,7 @@ export default async function ({
         },
       });
 
-      if (minify) Object.assign(swcOptions, {
-        minify: true,
-        jsc: {
-          minify: {
-            compress: {
-              arrows: false,
-              ecma: 5,
-              hoist_funs: true,
-              keep_fnames: true,
-              pure_getters: true,
-              reduce_funcs: true,
-              // document.all detection case
-              typeofs: false,
-              unsafe_proto: true,
-              unsafe_undefined: true,
-            },
-            mangle: {
-              keep_fnames: true,
-              safari10: true,
-              toplevel: true,
-            },
-            format: {
-              comments: false,
-              ecma: 5,
-            },
-          },
-        },
-      });
+      if (minify) Object.assign(swcOptions, MinifyOptions);
 
       if (swcTransforms.length || minify) {
         code = (await transform(code, swcOptions)).code;
