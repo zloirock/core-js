@@ -11,7 +11,7 @@ import some from '@core-js/pure/full/async-iterator/some';
 import take from '@core-js/pure/full/async-iterator/take';
 import toArray from '@core-js/pure/full/async-iterator/to-array';
 import toAsync from '@core-js/pure/full/iterator/to-async';
-import { assertCoreJSAsyncIteratorLike, assertCoreJSPromiseLike } from '../../helpers';
+import { assertCoreJSAsyncIteratorLike, assertCoreJSPromiseLike } from '../../helpers.pure';
 
 const aitn = from([1]);
 assertCoreJSAsyncIteratorLike<number>(aitn);

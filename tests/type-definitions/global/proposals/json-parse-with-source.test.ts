@@ -1,11 +1,22 @@
 import 'core-js/full';
+import rawJSON from 'core-js/full/json/raw-json';
+import isRawJSON from 'core-js/full/json/is-raw-json';
+import { assertBool } from '../../helpers';
+
+const resNS: CoreJSRawJSON = rawJSON('{"a":123}');
+assertBool(isRawJSON(resNS));
+
+// @ts-expect-error
+rawJSON();
+// @ts-expect-error
+isRawJSON();
 
 const r: CoreJSRawJSON = JSON.rawJSON('{"a":123}');
 
-const isr1: boolean = JSON.isRawJSON(r);
-const isr2: boolean = JSON.isRawJSON({});
-const isr3: boolean = JSON.isRawJSON('abc');
-const isr4: boolean = JSON.isRawJSON(undefined);
+assertBool(JSON.isRawJSON(r));
+assertBool(JSON.isRawJSON({}));
+assertBool(JSON.isRawJSON('abc'));
+assertBool(JSON.isRawJSON(undefined));
 
 declare const smth: unknown;
 

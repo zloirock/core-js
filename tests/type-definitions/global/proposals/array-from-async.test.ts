@@ -1,4 +1,26 @@
 import 'core-js/full';
+import fromAsync from 'core-js/full/array/from-async';
+import fromAsyncJS from 'core-js/full/array/from-async.js';
+import $Array from 'core-js/full/array';
+import $ArrayIndex from 'core-js/full/array/index';
+import $ArrayIndexJS from 'core-js/full/array/index.js';
+
+const pNS: Promise<number[]> = fromAsync([1, 2, 3]);
+const pNS2: Promise<number[]> = fromAsyncJS([1, 2, 3]);
+const pNS3: Promise<number[]> = $Array.fromAsync([1, 2, 3]);
+const pNS4: Promise<number[]> = $ArrayIndex.fromAsync([1, 2, 3]);
+const pNS5: Promise<number[]> = $ArrayIndexJS.fromAsync([1, 2, 3]);
+
+// @ts-expect-error
+fromAsync([1, 2, 3], 'not a function');
+// @ts-expect-error
+fromAsyncJS([1, 2, 3], 'not a function');
+// @ts-expect-error
+$Array.fromAsync([1, 2, 3], 'not a function');
+// @ts-expect-error
+$ArrayIndex.fromAsync([1, 2, 3], 'not a function');
+// @ts-expect-error
+$ArrayIndexJS.fromAsync([1, 2, 3], 'not a function');
 
 const p1: Promise<number[]> = Array.fromAsync([1, 2, 3]);
 const p2: Promise<number[]> = Array.fromAsync([Promise.resolve(1), 2, 3]);

@@ -1,8 +1,20 @@
 import 'core-js/full';
+import isWellFormed from 'core-js/full/string/is-well-formed';
+import toWellFormed from 'core-js/full/string/to-well-formed';
+import { assertBool, assertString } from '../../helpers';
 
 const s = 'test';
-const b: boolean = s.isWellFormed();
-const str: string = s.toWellFormed();
+
+assertBool(isWellFormed(s));
+assertString(toWellFormed(s));
+
+assertBool(s.isWellFormed());
+assertString(s.toWellFormed());
+
+// @ts-expect-error
+isWellFormed(123);
+// @ts-expect-error
+toWellFormed([]);
 
 // @ts-expect-error
 s.isWellFormed(123);
