@@ -1,9 +1,13 @@
 import 'core-js/full';
+import escape from 'core-js/full/regexp/escape';
+import { assertString } from '../../helpers';
 
-const escaped1: string = RegExp.escape('foo.*+?^${}()|[]\\');
-const escaped2: string = RegExp.escape('');
-const s = 'abc';
-const escaped3: string = RegExp.escape(s);
+assertString(escape('foo.*+?^${}()|[]\\'));
+assertString(RegExp.escape('foo.*+?^${}()|[]\\'));
+assertString(RegExp.escape(''));
+
+// @ts-expect-error
+escape();
 
 // @ts-expect-error
 RegExp.escape();

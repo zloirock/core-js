@@ -1,6 +1,6 @@
 import iteratorZip from '@core-js/pure/full/iterator/zip';
 import iteratorZipKeyed from '@core-js/pure/full/iterator/zip-keyed';
-import { assertCoreJSIteratorLike } from '../../helpers';
+import { assertCoreJSIteratorLike } from '../../helpers.pure';
 
 const zipped1 = iteratorZip([[1, 2, 3], [4, 5, 6]]);
 assertCoreJSIteratorLike<number[]>(zipped1);
