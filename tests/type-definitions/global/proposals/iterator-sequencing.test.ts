@@ -1,10 +1,16 @@
 import 'core-js/full';
+import concat from 'core-js/full/iterator/concat';
 
 declare const its1: Iterable<string>;
 declare const arrs: string[];
 declare const arrn: number[];
 declare const arrb: boolean[];
 declare const itb1: Iterable<boolean>;
+
+const resNS: Iterator<number> = concat(arrn);
+
+// @ts-expect-error
+concat(1);
 
 const ri1: Iterator<number | string> = Iterator.concat(its1);
 const ri2: Iterator<number | string> = Iterator.concat(arrs);

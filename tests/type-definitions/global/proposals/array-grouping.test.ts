@@ -1,6 +1,17 @@
 import 'core-js/full';
+import objectGroupBy from 'core-js/full/object/group-by';
+import mapGroupBy from 'core-js/full/map/group-by';
 
 const arr = [1, 2, 3, 4, 5];
+
+const objGroupNS: Partial<Record<'even' | 'odd', number[]>> = objectGroupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
+const mapGroupNS2: Map<'even' | 'odd', number[]> = mapGroupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
+
+// @ts-expect-error
+objectGroupBy();
+// @ts-expect-error
+mapGroupBy();
+
 const objGroup: Partial<Record<'even' | 'odd', number[]>> = Object.groupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
 const mapGroup: Map<'even' | 'odd', number[]> = Map.groupBy(arr, x => x % 2 === 0 ? 'even' : 'odd');
 const objGroup2: Partial<Record<string, string[]>> = Object.groupBy(['foo', 'bar', 'baz'], (s, i) => i > 1 ? s[0] : 'x');
