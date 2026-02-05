@@ -1,5 +1,5 @@
 import { features, proposals } from './entries-definitions.mjs';
-import { $path, $proposal, $typeDummy } from './templates.mjs';
+import { $namespace, $path, $proposal, $typeDummy } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 import { getModulesMetadata } from './get-dependencies.mjs';
 import { expandModules, modulesToStage } from './helpers.mjs';
@@ -25,6 +25,7 @@ const imports = {
   full: new Set(),
   pure: new Set(),
   index: new Set(),
+  configurator: new Set(),
 };
 let outputFiles = {};
 
@@ -42,6 +43,9 @@ function addType(tsVersion, subset, template, options) {
 function addEntryTypes(tsVersion, template, options) {
   addType(tsVersion, 'index', template, { ...options, packageName: PACKAGE_NAME });
   addType(tsVersion, 'pure', template, { ...options, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
+  if (options.exportForSubset) {
+    addType(tsVersion, options.subset, template, { ...options, packageName: PACKAGE_NAME });
+  }
 }
 
 async function buildType(entry, options) {
@@ -105,7 +109,7 @@ async function buildType(entry, options) {
     }
     imports.pure.add(path.join('pure', customType));
   }
-  options = { ...options, modules, level, entry, types };
+  options = { ...options, modules, level, entry, types, subset };
 
   addEntryTypes(tsVersion, template, options);
   if (!entry.endsWith('/')) { // add alias with .js ending
@@ -226,6 +230,16 @@ async function buildTypesForTSVersion(tsVersion) {
   await buildType('full/index', { template: $path, modules: AllModules, tsVersion });
   await buildType('index', { template: $path, modules: ActualModules, tsVersion });
 
+  await buildType('configurator', {
+    entryFromNamespace: 'configurator',
+    template: $namespace,
+    modules: ['configurator'],
+    name: 'configurator',
+    tsVersion,
+    types: ['configurator'],
+    exportForSubset: true,
+  });
+
   await prependImports(tsVersion);
   await saveOutputFiles();
 }
@@ -293,6 +307,7 @@ const namespaces = {
   pure: { isDir: false },
   proposals: { isDir: true },
   index: { isDir: false },
+  configurator: { isDir: false },
 };
 await buildPackageJson(TS_VERSION_BREAKPOINTS, namespaces);
 
