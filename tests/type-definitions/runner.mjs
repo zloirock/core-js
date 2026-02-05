@@ -164,8 +164,8 @@ tasks.push(
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/stable/tsconfig.json'] },
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/es/tsconfig.json'] },
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/proposals/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/global/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/pure/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/global-symlinks/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/pure-symlinks/tsconfig.json'] },
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/configurator/tsconfig.json'] },
 );
 
