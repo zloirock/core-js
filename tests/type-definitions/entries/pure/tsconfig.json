@@ -1,6 +1,8 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["./imports.ts"],
+  "include": [
+    "./imports.pure.test.ts"
+  ],
   "compilerOptions": {
     "types": ["@core-js/types/pure"]
   }
