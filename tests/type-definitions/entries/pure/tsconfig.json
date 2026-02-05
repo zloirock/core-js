@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["./imports.ts"],
+  "compilerOptions": {
+    "types": ["@core-js/types/pure"]
+  }
+}
