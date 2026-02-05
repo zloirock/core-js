@@ -1,5 +1,5 @@
-import 'core-js/full';
-import $queueMicrotask from 'core-js/full/queue-microtask';
+import 'core-js/stable';
+import $queueMicrotask from 'core-js/stable/queue-microtask';
 
 $queueMicrotask((): void => {});
 
