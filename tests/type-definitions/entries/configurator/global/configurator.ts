@@ -1,0 +1,1 @@
+configurator({ something: 'value' });

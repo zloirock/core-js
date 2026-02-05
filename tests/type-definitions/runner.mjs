@@ -166,6 +166,8 @@ tasks.push(
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/proposals/tsconfig.json'] },
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/global/tsconfig.json'] },
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/pure/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/configurator/global/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/configurator/import/tsconfig.json'] },
 );
 
 let envs;
