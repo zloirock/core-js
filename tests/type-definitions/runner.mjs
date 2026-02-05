@@ -159,11 +159,11 @@ tasks.push(
   { args: ['-p', 'typescript@5.9', 'tsc'] },
   { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'templates/tsconfig.json'] },
   { args: ['-p', 'typescript@5.9', '-p', '@types/node@24', 'tsc', '-p', 'templates/tsconfig.require.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/tsconfig.full.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/tsconfig.actual.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/tsconfig.stable.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/tsconfig.es.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/tsconfig.proposals.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/full/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/actual/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/stable/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/es/tsconfig.json'] },
+  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/proposals/tsconfig.json'] },
 );
 
 let envs;
