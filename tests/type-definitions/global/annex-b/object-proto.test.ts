@@ -1,3 +1,4 @@
 import 'core-js/full';
 
-const objectProto: object | null = {}.__proto__;
+declare const obj: Object;
+const objectProto: object | null = obj.__proto__;
