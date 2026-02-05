@@ -1,4 +1,6 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["./entries.ts"]
+  "include": [
+    "./entries.proposals.test.ts"
+  ]
 }
