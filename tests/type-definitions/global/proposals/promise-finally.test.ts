@@ -1,5 +1,5 @@
-import 'core-js/full';
-import promiseFinally from 'core-js/full/promise/finally';
+import 'core-js/es';
+import promiseFinally from 'core-js/es/promise/finally';
 
 const p1 = Promise.resolve(42);
 

@@ -1,6 +1,6 @@
-import 'core-js/full';
-import hasOwn from 'core-js/full/object/has-own';
-import $Object from 'core-js/full/object';
+import 'core-js/es';
+import hasOwn from 'core-js/es/object/has-own';
+import $Object from 'core-js/es/object';
 
 $Object.hasOwn({ a: 1 }, 'a');
 hasOwn({ a: 1 }, 'a');
