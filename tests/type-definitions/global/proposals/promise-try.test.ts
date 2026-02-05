@@ -1,5 +1,5 @@
-import 'core-js/full';
-import promiseTry from 'core-js/full/promise/try';
+import 'core-js/es';
+import promiseTry from 'core-js/es/promise/try';
 
 const ptNS: Promise<number> = promiseTry(() => 42);
 
