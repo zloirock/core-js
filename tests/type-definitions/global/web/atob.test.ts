@@ -1,5 +1,5 @@
-import 'core-js/full';
-import $atob from 'core-js/full/atob';
+import 'core-js/stable';
+import $atob from 'core-js/stable/atob';
 import { assertString } from '../../helpers';
 
 assertString($atob('SGVsbG8gd29ybGQ='));
