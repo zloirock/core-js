@@ -1,8 +1,8 @@
-import 'core-js/full';
-import trimEnd from 'core-js/full/string/trim-end';
-import trimStart from 'core-js/full/string/trim-start';
-import trimLeft from 'core-js/full/string/trim-left';
-import trimRight from 'core-js/full/string/trim-right';
+import 'core-js/es';
+import trimEnd from 'core-js/es/string/trim-end';
+import trimStart from 'core-js/es/string/trim-start';
+import trimLeft from 'core-js/es/string/trim-left';
+import trimRight from 'core-js/es/string/trim-right';
 import { assertString } from '../../helpers';
 
 const s = 'abc';

@@ -1,6 +1,6 @@
-import 'core-js/full';
-import flatMap from 'core-js/full/array/flat-map';
-import flatMapJS from 'core-js/full/array/flat-map.js';
+import 'core-js/es';
+import flatMap from 'core-js/es/array/flat-map';
+import flatMapJS from 'core-js/es/array/flat-map.js';
 import { assertNumberArray, assertStringArray } from '../../helpers';
 
 assertNumberArray(flatMap([1, 2, 3], x => [x, x * 2]));

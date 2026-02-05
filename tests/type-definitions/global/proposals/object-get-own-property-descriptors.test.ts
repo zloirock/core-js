@@ -1,5 +1,5 @@
-import 'core-js/full';
-import getOwnPropertyDescriptors from 'core-js/full/object/get-own-property-descriptors';
+import 'core-js/es';
+import getOwnPropertyDescriptors from 'core-js/es/object/get-own-property-descriptors';
 
 const obj = { a: 1, b: 'x', c: true };
 

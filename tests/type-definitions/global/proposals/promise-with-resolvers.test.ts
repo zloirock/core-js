@@ -1,5 +1,5 @@
-import 'core-js/full';
-import promiseWithResolvers from 'core-js/full/promise/with-resolvers';
+import 'core-js/es';
+import promiseWithResolvers from 'core-js/es/promise/with-resolvers';
 
 const prNS = promiseWithResolvers<number>();
 const pNS1: Promise<number> = prNS.promise;
