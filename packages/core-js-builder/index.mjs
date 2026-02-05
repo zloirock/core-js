@@ -70,7 +70,7 @@ export default async function ({
         await rm(tempFile, { force: true });
       }
 
-      const swcOptions = {};
+      const SWCOptions = {};
 
       // rolldown helpers / wrappers contain es2015 syntax
       let syntax = ModernSyntax;
@@ -79,18 +79,16 @@ export default async function ({
         syntax = compat({ targets, modules: syntax, __external: true }).list;
       }
 
-      const swcTransforms = syntax.map(it => `transform-${ it }`);
-
-      if (swcTransforms.length) Object.assign(swcOptions, {
+      if (syntax.length) Object.assign(SWCOptions, {
         env: {
-          include: swcTransforms,
+          include: syntax.map(it => `transform-${ it }`),
         },
       });
 
-      if (minify) Object.assign(swcOptions, MinifyOptions);
+      if (minify) Object.assign(SWCOptions, MinifyOptions);
 
-      if (swcTransforms.length || minify) {
-        code = (await transform(code, swcOptions)).code;
+      if (syntax.length || minify) {
+        code = (await transform(code, SWCOptions)).code;
       }
 
       // swc and rolldown considers output code as a module and drops 'use strict'
