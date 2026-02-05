@@ -1,6 +1,8 @@
 {
   "extends": "../../../tsconfig.json",
-  "include": ["./configurator.ts"],
+  "include": [
+    "./configurator.global.test.ts"
+  ],
   "compilerOptions": {
     "types": [
       "@core-js/types"
