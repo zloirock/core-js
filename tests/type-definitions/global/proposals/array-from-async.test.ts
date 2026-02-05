@@ -1,9 +1,9 @@
-import 'core-js/full';
-import fromAsync from 'core-js/full/array/from-async';
-import fromAsyncJS from 'core-js/full/array/from-async.js';
-import $Array from 'core-js/full/array';
-import $ArrayIndex from 'core-js/full/array/index';
-import $ArrayIndexJS from 'core-js/full/array/index.js';
+import 'core-js/es';
+import fromAsync from 'core-js/es/array/from-async';
+import fromAsyncJS from 'core-js/es/array/from-async.js';
+import $Array from 'core-js/es/array';
+import $ArrayIndex from 'core-js/es/array/index';
+import $ArrayIndexJS from 'core-js/es/array/index.js';
 
 const pNS: Promise<number[]> = fromAsync([1, 2, 3]);
 const pNS2: Promise<number[]> = fromAsyncJS([1, 2, 3]);

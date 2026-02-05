@@ -1,5 +1,5 @@
-import 'core-js/full';
-import replaceAll from 'core-js/full/string/replace-all';
+import 'core-js/es';
+import replaceAll from 'core-js/es/string/replace-all';
 import { assertString } from '../../helpers';
 
 const s = 'foo bar foo';

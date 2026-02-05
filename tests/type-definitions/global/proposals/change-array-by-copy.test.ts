@@ -1,8 +1,8 @@
-import 'core-js/full';
-import toSorted from 'core-js/full/array/to-sorted';
-import toSpliced from 'core-js/full/array/to-spliced';
-import toReversed from 'core-js/full/array/to-reversed';
-import withArray from 'core-js/full/array/with';
+import 'core-js/es';
+import toSorted from 'core-js/es/array/to-sorted';
+import toSpliced from 'core-js/es/array/to-spliced';
+import toReversed from 'core-js/es/array/to-reversed';
+import withArray from 'core-js/es/array/with';
 import { assertNumberArray, assertStringArray } from '../../helpers';
 
 const arr: number[] = [1, 2, 3];
