@@ -1,14 +1,14 @@
-import 'core-js/full';
-import map from 'core-js/full/iterator/map';
-import filter from 'core-js/full/iterator/filter';
-import take from 'core-js/full/iterator/take';
-import drop from 'core-js/full/iterator/drop';
-import flatMap from 'core-js/full/iterator/flat-map';
-import reduce from 'core-js/full/iterator/reduce';
-import forEach from 'core-js/full/iterator/for-each';
-import some from 'core-js/full/iterator/some';
-import every from 'core-js/full/iterator/every';
-import find from 'core-js/full/iterator/find';
+import 'core-js/es';
+import map from 'core-js/es/iterator/map';
+import filter from 'core-js/es/iterator/filter';
+import take from 'core-js/es/iterator/take';
+import drop from 'core-js/es/iterator/drop';
+import flatMap from 'core-js/es/iterator/flat-map';
+import reduce from 'core-js/es/iterator/reduce';
+import forEach from 'core-js/es/iterator/for-each';
+import some from 'core-js/es/iterator/some';
+import every from 'core-js/es/iterator/every';
+import find from 'core-js/es/iterator/find';
 import { assertBool, assertNumber, assertNumberArray, assertString } from '../../helpers';
 
 declare const it: Iterator<number>;

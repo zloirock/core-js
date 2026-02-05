@@ -1,8 +1,8 @@
-import 'core-js/full';
-import mapGetOrInsert from 'core-js/full/map/get-or-insert';
-import mapGetOrInsertComputed from 'core-js/full/map/get-or-insert-computed';
-import wMapGetOrInsert from 'core-js/full/weak-map/get-or-insert';
-import wMapGetOrInsertComputed from 'core-js/full/weak-map/get-or-insert-computed';
+import 'core-js/es';
+import mapGetOrInsert from 'core-js/es/map/get-or-insert';
+import mapGetOrInsertComputed from 'core-js/es/map/get-or-insert-computed';
+import wMapGetOrInsert from 'core-js/es/weak-map/get-or-insert';
+import wMapGetOrInsertComputed from 'core-js/es/weak-map/get-or-insert-computed';
 import { assertBool, assertNumber } from '../../helpers';
 
 declare const map: Map<string, number>;
