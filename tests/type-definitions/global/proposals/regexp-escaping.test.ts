@@ -1,5 +1,5 @@
-import 'core-js/full';
-import escape from 'core-js/full/regexp/escape';
+import 'core-js/es';
+import escape from 'core-js/es/regexp/escape';
 import { assertString } from '../../helpers';
 
 assertString(escape('foo.*+?^${}()|[]\\'));
