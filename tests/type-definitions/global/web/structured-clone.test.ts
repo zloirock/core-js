@@ -1,5 +1,5 @@
-import 'core-js/full';
-import $structuredClone from 'core-js/full/structured-clone';
+import 'core-js/stable';
+import $structuredClone from 'core-js/stable/structured-clone';
 import { assertNumber, assertString } from '../../helpers';
 
 assertNumber($structuredClone(5));
