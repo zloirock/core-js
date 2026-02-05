@@ -1,4 +1,6 @@
 {
   "extends": "../../../tsconfig.json",
-  "include": ["./configurator.ts"]
+  "include": [
+    "./configurator.import.test.ts"
+  ]
 }
