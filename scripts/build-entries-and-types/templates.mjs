@@ -492,3 +492,13 @@ export const $typeDummy = p => ({
     }
   `,
 });
+
+export const $functionWithCustomType = p => ({
+  entry: '',
+  types: dedent`
+    declare module '${ buildModulePath(p) }' {
+      const resultFunction: typeof ${ buildCoreJSTypeName('', p.name) };
+      export = resultFunction;
+    }
+  `,
+});
