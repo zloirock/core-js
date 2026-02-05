@@ -1,5 +1,5 @@
 import { features, proposals } from './entries-definitions.mjs';
-import { $namespace, $path, $proposal, $typeDummy } from './templates.mjs';
+import { $functionWithCustomType, $path, $proposal, $typeDummy } from './templates.mjs';
 import { modules as AllModules } from '@core-js/compat/src/data.mjs';
 import { getModulesMetadata } from './get-dependencies.mjs';
 import { expandModules, modulesToStage } from './helpers.mjs';
@@ -42,7 +42,9 @@ function addType(tsVersion, subset, template, options) {
 
 function addEntryTypes(tsVersion, template, options) {
   addType(tsVersion, 'index', template, { ...options, packageName: PACKAGE_NAME });
-  addType(tsVersion, 'pure', template, { ...options, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
+  if (!options.noPure) {
+    addType(tsVersion, 'pure', template, { ...options, packageName: PACKAGE_NAME_PURE, prefix: TYPE_PREFIX });
+  }
   if (options.exportForSubset) {
     addType(tsVersion, options.subset, template, { ...options, packageName: PACKAGE_NAME });
   }
@@ -54,6 +56,7 @@ async function buildType(entry, options) {
     subset = entryFromNamespace ?? 'full',
     typeDummy = false,
     globalType = true,
+    noPure = false,
     template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
     customType, tsVersion, proposal, types, ownEntryPoint,
   } = options;
@@ -84,10 +87,13 @@ async function buildType(entry, options) {
   const level = entry.split('/').length - 1;
 
   if (!types) {
-    if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
-    modules = expandModules(modules, filter, AllModules);
-    const { types: typePaths } = await getModulesMetadata(modules);
-    types = typePaths;
+    types = [];
+    if (!customType) {
+      if (!enforceEntryCreation && !expandModules(modules[0], filter, AllModules).length) return;
+      modules = expandModules(modules, filter, AllModules);
+      const { types: typePaths } = await getModulesMetadata(modules);
+      types = typePaths;
+    }
   }
 
   if (typesFilter) {
@@ -99,7 +105,7 @@ async function buildType(entry, options) {
       imports.index.add(type);
       imports[subset].add(type);
     }
-    imports.pure.add(path.join('pure', type));
+    if (!noPure) imports.pure.add(path.join('pure', type));
   });
 
   if (customType) {
@@ -107,9 +113,9 @@ async function buildType(entry, options) {
       imports.index.add(customType);
       imports[subset].add(customType);
     }
-    imports.pure.add(path.join('pure', customType));
+    if (!noPure) imports.pure.add(path.join('pure', customType));
   }
-  options = { ...options, modules, level, entry, types, subset };
+  options = { ...options, modules, level, entry, types, subset, noPure };
 
   addEntryTypes(tsVersion, template, options);
   if (!entry.endsWith('/')) { // add alias with .js ending
@@ -231,13 +237,14 @@ async function buildTypesForTSVersion(tsVersion) {
   await buildType('index', { template: $path, modules: ActualModules, tsVersion });
 
   await buildType('configurator', {
+    customType: 'configurator-custom',
     entryFromNamespace: 'configurator',
-    template: $namespace,
+    template: $functionWithCustomType,
     modules: ['configurator'],
     name: 'configurator',
     tsVersion,
-    types: ['configurator'],
     exportForSubset: true,
+    noPure: true,
   });
 
   await prependImports(tsVersion);
