@@ -1,5 +1,5 @@
-import 'core-js/full';
-import fromEntries from 'core-js/full/object/from-entries';
+import 'core-js/es';
+import fromEntries from 'core-js/es/object/from-entries';
 
 declare const objEntries: Iterable<readonly [PropertyKey, number]>;
 declare const mixedEntries: Iterable<readonly any[]>;

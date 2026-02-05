@@ -1,8 +1,8 @@
-import 'core-js/full';
-import findLast from 'core-js/full/array/find-last';
-import findLastJS from 'core-js/full/array/find-last.js';
-import findLastIndex from 'core-js/full/array/find-last-index';
-import findLastIndexJS from 'core-js/full/array/find-last-index.js';
+import 'core-js/es';
+import findLast from 'core-js/es/array/find-last';
+import findLastJS from 'core-js/es/array/find-last.js';
+import findLastIndex from 'core-js/es/array/find-last-index';
+import findLastIndexJS from 'core-js/es/array/find-last-index.js';
 import { assertNumber } from '../../helpers';
 
 const resNS1: number | undefined = findLast([1, 2, 3], v => v > 1);
