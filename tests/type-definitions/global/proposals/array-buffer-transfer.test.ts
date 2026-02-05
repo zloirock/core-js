@@ -1,5 +1,5 @@
-import 'core-js/full';
-import $ArrayBuffer from 'core-js/full/array-buffer';
+import 'core-js/es';
+import $ArrayBuffer from 'core-js/es/array-buffer';
 
 const abFromNamespace = new $ArrayBuffer(16);
 const abFNSTransfer: ArrayBuffer = abFromNamespace.transfer();

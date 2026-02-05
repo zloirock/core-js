@@ -1,5 +1,5 @@
-import 'core-js/full';
-import sumPrecise from 'core-js/full/math/sum-precise';
+import 'core-js/es';
+import sumPrecise from 'core-js/es/math/sum-precise';
 import { assertNumber } from '../../helpers';
 
 declare const it: Iterable<number>;

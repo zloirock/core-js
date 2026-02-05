@@ -1,5 +1,5 @@
-import 'core-js/full';
-import f16round from 'core-js/full/math/f16round';
+import 'core-js/es';
+import f16round from 'core-js/es/math/f16round';
 import { assertNumber } from '../../helpers';
 
 assertNumber(f16round(1));
