@@ -1,0 +1,9 @@
+{
+  "extends": "../../../tsconfig.json",
+  "include": ["./configurator.ts"],
+  "compilerOptions": {
+    "types": [
+      "@core-js/types"
+    ]
+  }
+}
