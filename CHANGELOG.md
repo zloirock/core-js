@@ -4,6 +4,7 @@
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Compat data improvements:
+  - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
   - Added Oculus Quest Browser 42 compat data mapping
 

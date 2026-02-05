@@ -697,6 +697,7 @@ export const data = {
   },
   'es.iterator.concat': {
     bun: '1.3.7',
+    chrome: '146',
     firefox: '147',
   },
   'es.iterator.dispose': {
