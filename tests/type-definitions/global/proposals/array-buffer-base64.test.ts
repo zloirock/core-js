@@ -1,5 +1,5 @@
-import 'core-js/full';
-import $Uint8Array from 'core-js/full/typed-array/uint8-array';
+import 'core-js/es';
+import $Uint8Array from 'core-js/es/typed-array/uint8-array';
 
 $Uint8Array.fromBase64('SGVsbG8gd29ybGQ=', { alphabet: 'base64', lastChunkHandling: 'loose' });
 

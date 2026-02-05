@@ -1,6 +1,6 @@
-import 'core-js/full';
-import isWellFormed from 'core-js/full/string/is-well-formed';
-import toWellFormed from 'core-js/full/string/to-well-formed';
+import 'core-js/es';
+import isWellFormed from 'core-js/es/string/is-well-formed';
+import toWellFormed from 'core-js/es/string/to-well-formed';
 import { assertBool, assertString } from '../../helpers';
 
 const s = 'test';

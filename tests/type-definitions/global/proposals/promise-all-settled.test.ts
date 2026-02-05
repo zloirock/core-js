@@ -1,6 +1,6 @@
-import 'core-js/full';
-import allSettled from 'core-js/full/promise/all-settled';
-import $Promise from 'core-js/full/promise';
+import 'core-js/es';
+import allSettled from 'core-js/es/promise/all-settled';
+import $Promise from 'core-js/es/promise';
 
 const promises = [Promise.resolve(1), Promise.resolve('foo'), 3] as const;
 const arr = [Promise.resolve(1), Promise.resolve(2)];
