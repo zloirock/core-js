@@ -1,5 +1,5 @@
-import 'core-js/full';
-import matchAll from 'core-js/full/string/match-all';
+import 'core-js/es';
+import matchAll from 'core-js/es/string/match-all';
 
 const s = 'abcabc';
 const re = /abc/g;

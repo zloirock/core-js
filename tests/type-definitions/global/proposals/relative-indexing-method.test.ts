@@ -1,6 +1,6 @@
-import 'core-js/full';
-import stringAt from 'core-js/full/string/at';
-import arrayAt from 'core-js/full/array/at';
+import 'core-js/es';
+import stringAt from 'core-js/es/string/at';
+import arrayAt from 'core-js/es/array/at';
 
 const str = 'hello';
 
