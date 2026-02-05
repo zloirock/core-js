@@ -1,5 +1,5 @@
-import 'core-js/full';
-import isError from 'core-js/full/error/is-error';
+import 'core-js/es';
+import isError from 'core-js/es/error/is-error';
 import { assertBool } from '../../helpers';
 
 const e = new Error();

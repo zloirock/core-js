@@ -1,6 +1,6 @@
-import 'core-js/full';
-import objectGroupBy from 'core-js/full/object/group-by';
-import mapGroupBy from 'core-js/full/map/group-by';
+import 'core-js/es';
+import objectGroupBy from 'core-js/es/object/group-by';
+import mapGroupBy from 'core-js/es/map/group-by';
 
 const arr = [1, 2, 3, 4, 5];
 

@@ -1,5 +1,5 @@
-import 'core-js/full';
-import promiseAny from 'core-js/full/promise/any';
+import 'core-js/es';
+import promiseAny from 'core-js/es/promise/any';
 
 const arr = [Promise.resolve(1), Promise.resolve('foo'), 3] as const;
 const justNumbers = [1, 2, 3];
