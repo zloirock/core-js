@@ -1,6 +1,6 @@
-import 'core-js/full';
-import rawJSON from 'core-js/full/json/raw-json';
-import isRawJSON from 'core-js/full/json/is-raw-json';
+import 'core-js/es';
+import rawJSON from 'core-js/es/json/raw-json';
+import isRawJSON from 'core-js/es/json/is-raw-json';
 import { assertBool } from '../../helpers';
 
 const resNS: CoreJSRawJSON = rawJSON('{"a":123}');

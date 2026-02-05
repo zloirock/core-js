@@ -1,6 +1,6 @@
-import 'core-js/full';
-import padStart from 'core-js/full/string/pad-start';
-import padEnd from 'core-js/full/string/pad-end';
+import 'core-js/es';
+import padStart from 'core-js/es/string/pad-start';
+import padEnd from 'core-js/es/string/pad-end';
 import { assertString } from '../../helpers';
 
 const s = 'foo';

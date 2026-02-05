@@ -1,7 +1,7 @@
-import 'core-js/full';
-import zip from 'core-js/full/iterator/zip';
-import zipKeyed from 'core-js/full/iterator/zip-keyed';
-import $Iterator from 'core-js/full/iterator';
+import 'core-js/actual';
+import zip from 'core-js/actual/iterator/zip';
+import zipKeyed from 'core-js/actual/iterator/zip-keyed';
+import $Iterator from 'core-js/actual/iterator';
 
 zip([[1, 2, 3], [4, 5, 6]]);
 $Iterator.zip([[1, 2, 3], [4, 5, 6]]);

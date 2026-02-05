@@ -1,5 +1,5 @@
-import 'core-js/full';
-import concat from 'core-js/full/iterator/concat';
+import 'core-js/es';
+import concat from 'core-js/es/iterator/concat';
 
 declare const its1: Iterable<string>;
 declare const arrs: string[];

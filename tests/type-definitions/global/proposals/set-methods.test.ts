@@ -1,11 +1,11 @@
-import 'core-js/full';
-import setUnion from 'core-js/full/set/union';
-import setIntersection from 'core-js/full/set/intersection';
-import setDifference from 'core-js/full/set/difference';
-import setSymmetricDifference from 'core-js/full/set/symmetric-difference';
-import setIsSubsetOf from 'core-js/full/set/is-subset-of';
-import setIsSupersetOf from 'core-js/full/set/is-superset-of';
-import setIsDisjointFrom from 'core-js/full/set/is-disjoint-from';
+import 'core-js/es';
+import setUnion from 'core-js/es/set/union';
+import setIntersection from 'core-js/es/set/intersection';
+import setDifference from 'core-js/es/set/difference';
+import setSymmetricDifference from 'core-js/es/set/symmetric-difference';
+import setIsSubsetOf from 'core-js/es/set/is-subset-of';
+import setIsSupersetOf from 'core-js/es/set/is-superset-of';
+import setIsDisjointFrom from 'core-js/es/set/is-disjoint-from';
 
 const setA = new Set<number>([1, 2, 3]);
 const setB = new Set<string>(['a', 'b', 'c']);
