@@ -2481,6 +2481,8 @@ export const data = {
   },
   'esnext.number.clamp': {
   },
+  'esnext.object.keys-length': {
+  },
   'esnext.promise.all-keyed': {
   },
   'esnext.promise.all-settled-keyed': {
