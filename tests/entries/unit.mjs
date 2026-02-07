@@ -753,6 +753,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'map/of')([1, 2], [3, 4]) instanceof Map);
     ok(load(NS, 'number/clamp')(6, 2, 4) === 4);
     ok(load(NS, 'number/prototype/clamp').call(6, 2, 4) === 4);
+    ok(typeof load(NS, 'object/keys-length') == 'function');
     ok(load(NS, 'promise/all-keyed')({}) instanceof Promise);
     ok(load(NS, 'promise/all-settled-keyed')({}) instanceof Promise);
     ok(load(NS, 'set/from')([1, 2, 3, 2, 1]) instanceof Set);
@@ -830,6 +831,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
   load('proposals/math-sum');
   load('proposals/object-from-entries');
   load('proposals/object-getownpropertydescriptors');
+  load('proposals/object-keys-length');
   load('proposals/object-values-entries');
   load('proposals/pattern-matching');
   load('proposals/promise-all-keyed');
