@@ -315,6 +315,10 @@
               {
                 "title": "Extractors",
                 "url": "{docs-version}/docs/features/proposals/extractors"
+              },
+              {
+                "title": "Object.keysLength",
+                "url": "{docs-version}/docs/features/proposals/object-keys-length"
               }
             ]
           },
