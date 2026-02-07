@@ -1,3 +1,4 @@
+import { fixupPluginRules } from '@eslint/compat';
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
@@ -6,7 +7,7 @@ import pluginASCII from 'eslint-plugin-ascii';
 import pluginDepend from 'eslint-plugin-depend';
 import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
-import pluginFilename from 'eslint-plugin-filename';
+import $pluginFilename from 'eslint-plugin-filename';
 import pluginImport from 'eslint-plugin-import-x';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
@@ -16,7 +17,7 @@ import pluginNodeDependencies from 'eslint-plugin-node-dependencies';
 import * as pluginPackageJSON from 'eslint-plugin-package-json';
 import pluginPlaywright from 'eslint-plugin-playwright';
 import pluginPromise from 'eslint-plugin-promise';
-import pluginQUnit from 'eslint-plugin-qunit';
+import $pluginQUnit from 'eslint-plugin-qunit';
 import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
@@ -25,7 +26,10 @@ import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
 // https://github.com/benyasin/eslint-plugin-filename/issues/1
-pluginFilename.rules.match.meta.schema = false;
+$pluginFilename.rules.match.meta.schema = false;
+const pluginFilename = fixupPluginRules($pluginFilename);
+// https://github.com/qunitjs/eslint-plugin-qunit/issues/655
+const pluginQUnit = fixupPluginRules($pluginQUnit);
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^20.19';
@@ -259,7 +263,7 @@ const base = {
   // disallow declaration of variables already declared in the outer scope
   'no-shadow': ERROR,
   // disallow shadowing of names such as arguments
-  'no-shadow-restricted-names': ERROR,
+  'no-shadow-restricted-names': [ERROR, { reportGlobalThis: false }],
   // restrict what can be thrown as an exception
   'no-throw-literal': ERROR,
   // disallow initializing variables to `undefined`
