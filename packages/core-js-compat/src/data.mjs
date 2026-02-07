@@ -2502,6 +2502,8 @@ export const data = {
   },
   'esnext.number.clamp': {
   },
+  'esnext.object.keys-length': {
+  },
   'esnext.promise.all-keyed': {
     firefox: '155',
   },
