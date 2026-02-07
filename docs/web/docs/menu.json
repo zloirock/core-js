@@ -307,6 +307,10 @@
               {
                 "title": "Symbol.customMatcher for extractors",
                 "url": "{docs-version}/docs/features/proposals/symbol-custommatcher-for-extractors"
+              },
+              {
+                "title": "Object.keysLength",
+                "url": "{docs-version}/docs/features/proposals/object-keys-length"
               }
             ]
           },
