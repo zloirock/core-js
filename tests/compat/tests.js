@@ -1940,6 +1940,9 @@ GLOBAL.tests = {
   'esnext.number.clamp': function () {
     return Number.prototype.clamp;
   },
+  'esnext.object.keys-length': function () {
+    return Object.keysLength;
+  },
   'esnext.promise.all-keyed': function () {
     return Promise.allKeyed;
   },
