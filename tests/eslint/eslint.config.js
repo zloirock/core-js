@@ -1695,6 +1695,8 @@ const forbidES2026BuiltIns = {
   'es/no-json-israwjson': ERROR,
   'es/no-json-parse-reviver-context-parameter': ERROR,
   'es/no-json-rawjson': ERROR,
+  'es/no-map-prototype-getorinsert': ERROR,
+  'es/no-map-prototype-getorinsertcomputed': ERROR,
   'es/no-math-sumprecise': ERROR,
   'es/no-suppressederror': ERROR,
   'es/no-symbol-asyncdispose': ERROR,
@@ -1705,6 +1707,8 @@ const forbidES2026BuiltIns = {
   'es/no-uint8array-prototype-setfromhex': ERROR,
   'es/no-uint8array-prototype-tobase64': ERROR,
   'es/no-uint8array-prototype-tohex': ERROR,
+  'es/no-weakmap-prototype-getorinsert': ERROR,
+  'es/no-weakmap-prototype-getorinsertcomputed': ERROR,
   // enforce the use of `Math.sumPrecise` instead of other summation methods
   'math/prefer-math-sum-precise': OFF,
 };
