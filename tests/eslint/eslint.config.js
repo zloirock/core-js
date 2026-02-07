@@ -1,4 +1,3 @@
-import { fixupPluginRules } from '@eslint/compat';
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
@@ -7,12 +6,12 @@ import pluginASCII from 'eslint-plugin-ascii';
 import pluginDepend from 'eslint-plugin-depend';
 import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
-import $pluginFilename from 'eslint-plugin-filename';
 import pluginImport from 'eslint-plugin-import-x';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
 import pluginMath from 'eslint-plugin-math';
 import pluginN from 'eslint-plugin-n';
+import pluginName from 'eslint-plugin-name';
 import pluginNodeDependencies from 'eslint-plugin-node-dependencies';
 import * as pluginPackageJSON from 'eslint-plugin-package-json';
 import pluginPlaywright from 'eslint-plugin-playwright';
@@ -24,10 +23,6 @@ import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
-
-// https://github.com/benyasin/eslint-plugin-filename/issues/1
-$pluginFilename.rules.match.meta.schema = false;
-const pluginFilename = fixupPluginRules($pluginFilename);
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^20.19';
@@ -2370,11 +2365,11 @@ export default [
       depend: pluginDepend,
       es: pluginESX,
       'eslint-comments': pluginESlintComments,
-      filename: pluginFilename,
       import: pluginImport,
       jsonc: pluginJSONC,
       markdown: pluginMarkdown,
       math: pluginMath,
+      name: pluginName,
       node: pluginN,
       'node-dependencies': pluginNodeDependencies,
       'package-json': pluginPackageJSON,
@@ -2536,7 +2531,7 @@ export default [
   {
     rules: {
       // ensure that filenames match a convention
-      'filename/match': [ERROR, /^[\da-z][\d\-.a-z]*[\da-z]$/],
+      'name/match': [ERROR, /^[\da-z][\d\-.a-z]*[\da-z]$/],
     },
   },
   {
@@ -2545,7 +2540,7 @@ export default [
     ],
     rules: {
       // ensure that filenames match a convention
-      'filename/match': [ERROR, /^(?:es|esnext|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
+      'name/match': [ERROR, /^(?:es|esnext|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
     },
   },
   {
@@ -2554,7 +2549,7 @@ export default [
     ],
     rules: {
       // ensure that filenames match a convention
-      'filename/match': [ERROR, /^(?:es|esnext|helpers|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
+      'name/match': [ERROR, /^(?:es|esnext|helpers|web)(?:\.[a-z][\d\-a-z]*[\da-z])+$/],
     },
   },
   {
@@ -2598,7 +2593,7 @@ export default [
       // enforce a case style for filenames
       'unicorn/filename-case': OFF,
       // ensure that filenames match a convention
-      'filename/match': OFF,
+      'name/match': OFF,
     },
   },
   {
