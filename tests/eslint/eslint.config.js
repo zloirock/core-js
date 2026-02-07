@@ -17,7 +17,7 @@ import pluginNodeDependencies from 'eslint-plugin-node-dependencies';
 import * as pluginPackageJSON from 'eslint-plugin-package-json';
 import pluginPlaywright from 'eslint-plugin-playwright';
 import pluginPromise from 'eslint-plugin-promise';
-import $pluginQUnit from 'eslint-plugin-qunit';
+import pluginQUnit from 'eslint-plugin-qunit';
 import pluginReDoS from 'eslint-plugin-redos';
 import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
@@ -28,8 +28,6 @@ import { yaml as pluginYaml } from 'eslint-yaml';
 // https://github.com/benyasin/eslint-plugin-filename/issues/1
 $pluginFilename.rules.match.meta.schema = false;
 const pluginFilename = fixupPluginRules($pluginFilename);
-// https://github.com/qunitjs/eslint-plugin-qunit/issues/655
-const pluginQUnit = fixupPluginRules($pluginQUnit);
 
 const PACKAGES_NODE_VERSIONS = '8.9.0';
 const DEV_NODE_VERSIONS = '^20.19';

@@ -21,7 +21,7 @@
     "eslint-plugin-package-json": "^0.88.2",
     "eslint-plugin-playwright": "^2.5.1",
     "eslint-plugin-promise": "^7.2.1",
-    "eslint-plugin-qunit": "^8.2.5",
+    "eslint-plugin-qunit": "^8.2.6",
     "eslint-plugin-redos": "^4.5.0",
     "eslint-plugin-regexp": "^3.0.0",
     "eslint-plugin-sonarjs": "^3.0.6",
