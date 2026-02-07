@@ -181,6 +181,7 @@ structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
       - [`String.dedent`](#stringdedent)
       - [`Symbol` predicates](#symbol-predicates)
       - [`Symbol.customMatcher` for extractors](#symbolcustommatcher-for-extractors)
+      - [`Object.keysLength`](#objectkeyslength)
     - [Stage 1 proposals](#stage-1-proposals)
       - [`.of` and `.from` methods on collection constructors](#of-and-from-methods-on-collection-constructors)
       - [`Array` filtering](#array-filtering)
@@ -2989,6 +2990,23 @@ class Symbol {
 ```
 core-js/proposals/pattern-extractors
 core-js(-pure)/full/symbol/custom-matcher
+```
+
+##### [`Object.keysLength`](https://github.com/tc39/proposal-object-keys-length)[⬆](#index)
+Module [`esnext.object.keys-length`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.object.keys-length.js).
+```ts
+class Object {
+  static keysLength(obj: Object): number;
+}
+```
+[*CommonJS entry points:*](#commonjs-api)
+```
+core-js/proposals/object-keys-length
+core-js(-pure)/full/object/keys-length
+```
+*Examples*:
+```js
+Object.keysLength({ a: 1, b: 2 }); // => 2
 ```
 
 #### Stage 1 proposals[⬆](#index)
