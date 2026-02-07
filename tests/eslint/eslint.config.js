@@ -1284,7 +1284,7 @@ const forbidCompletelyNonExistentBuiltIns = {
     'clamp',
   ] }],
   'es/no-nonstandard-object-properties': [ERROR, { allow: [
-    // empty
+    'keysLength',
   ] }],
   'es/no-nonstandard-promise-properties': [ERROR, { allow: [
     'allKeyed',
