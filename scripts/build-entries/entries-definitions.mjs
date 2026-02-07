@@ -1860,6 +1860,12 @@ export const features = {
     namespace: 'Object',
     name: 'keys',
   },
+  'object/keys-length': {
+    modules: ['esnext.object.keys-length'],
+    template: $static,
+    namespace: 'Object',
+    name: 'keysLength',
+  },
   'object/lookup-getter': {
     modules: ['es.object.lookup-getter'],
     template: $uncurried,
@@ -3576,6 +3582,13 @@ export const proposals = {
     stage: 4,
     modules: [
       'es.object.get-own-property-descriptors',
+    ],
+  },
+  'object-keys-length': {
+    link: 'https://github.com/tc39/proposal-object-keys-length',
+    stage: 2,
+    modules: [
+      'esnext.object.keys-length',
     ],
   },
   'object-values-entries': {
