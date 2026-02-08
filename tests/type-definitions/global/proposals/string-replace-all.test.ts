@@ -1,6 +1,6 @@
 import 'core-js/es';
 import replaceAll from 'core-js/es/string/replace-all';
-import { assertString } from '../../helpers';
+import { assertString } from '../../helpers.js';
 
 const s = 'foo bar foo';
 

@@ -1,5 +1,5 @@
 import iteratorRange from '@core-js/pure/full/iterator/range';
-import { assertCoreJSIteratorLike } from '../../helpers.pure';
+import { assertCoreJSIteratorLike } from '../../helpers.pure.js';
 
 const rir1 = iteratorRange(1, 10);
 assertCoreJSIteratorLike<number>(rir1);
