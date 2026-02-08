@@ -1,26 +1,33 @@
-import os from 'node:os';
+import { cpus } from 'node:os';
 import { fs } from 'zx';
 
 const { mkdir, writeJson } = fs;
-const TMP_DIR = './tmp/';
+
 const ALL_TESTS = process.env.ALL_TYPE_DEFINITIONS_TESTS === '1';
+const NUM_CPUS = cpus().length;
+const TMP_DIR = './tmp/';
 
 const TARGETS = [
   'esnext',
   'es2022',
   'es6',
 ];
-const TYPE_SCRIPT_VERSIONS = [
+
+const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
   '5.9',
   '5.8',
   '5.7',
   '5.6',
-  // '5.5', fails with node types: Named property 'next' of types 'AsyncIterator<T, TReturn, TNext>' and 'AsyncIteratorObject<T, TReturn, TNext>' are not identical.
+  // '5.5', // fails with node types: Named property 'next' of types 'AsyncIterator<T, TReturn, TNext>' and 'AsyncIteratorObject<T, TReturn, TNext>' are not identical.
   // '5.4',
   // '5.3',
   // '5.2',
+] : [
+  '5.9',
+  '5.6',
 ];
-const ENVS = [
+
+const ENVS = ALL_TESTS ? [
   null,
   // '@types/node@25', // fails
   '@types/node@24',
@@ -30,15 +37,22 @@ const ENVS = [
   '@types/node@16',
   // '@types/node@15', // fails
   // '@types/bun@latest', // conflicts with DOM types (TextDecorator, SharedArrayBuffer...)
+  // '@types/deno@latest', // fails
+] : [
+  null,
+  '@types/node@24',
 ];
+
 const TYPES = [
   'global',
   'pure',
 ];
+
 const LIBS = [
   'dom',
   null,
 ];
+
 const TARGET_RULES = {
   es6: ['**/*es2018*test.ts'],
 };
@@ -57,13 +71,10 @@ function getEnvPath(env) {
 
 async function runLimited(tasks, limit) {
   let i = 0;
-  async function worker() {
-    while (i < tasks.length) {
-      const idx = i++;
-      await runTask(tasks[idx]);
-    }
-  }
-  await Promise.all(Array.from({ length: limit }, worker));
+
+  await Promise.all(Array(limit).fill().map(async () => {
+    while (i < tasks.length) await runTask(tasks[i++]);
+  }));
 }
 
 async function runTask({ cwd, ts, config, args = [] }) {
@@ -81,8 +92,7 @@ async function runTask({ cwd, ts, config, args = [] }) {
   }
 }
 
-function buildTasks(types, targets, typeScriptVersions, envs, libs) {
-  const tasks = [];
+function * buildTasks(types, targets, typeScriptVersions, envs, libs) {
   for (const type of types) {
     for (const target of targets) {
       for (const ts of typeScriptVersions) {
@@ -107,13 +117,12 @@ function buildTasks(types, targets, typeScriptVersions, envs, libs) {
               const envLibName = env ? `,${ env.substring(0, env.lastIndexOf('@')) }` : '';
               task.args.push('--types', `@core-js/types${ typesSuffix }${ envLibName }`);
             }
-            tasks.push(task);
+            yield task;
           }
         }
       }
     }
   }
-  return tasks;
 }
 
 async function clearTmpDir() {
@@ -152,7 +161,7 @@ async function prepareEnvironment(environments, coreJsTypes) {
   }
 }
 
-let tasks = [
+const tasks = [
   { ts: '5.9', config: 'tools/tsconfig.json' },
   { ts: '5.9', config: 'templates/tsconfig.json' },
   { ts: '5.9', config: 'templates/tsconfig.require.json' },
@@ -164,19 +173,13 @@ let tasks = [
   { ts: '5.9', config: 'entries/global-symlinks/tsconfig.json' },
   { ts: '5.9', config: 'entries/pure-symlinks/tsconfig.json' },
   { ts: '5.9', config: 'entries/configurator/tsconfig.json' },
+  ...buildTasks(TYPES, TARGETS, TYPE_SCRIPT_VERSIONS, ENVS, LIBS),
 ];
 
-let envs;
-if (ALL_TESTS) {
-  envs = ENVS;
-  tasks = [...tasks, ...buildTasks(TYPES, TARGETS, TYPE_SCRIPT_VERSIONS, envs, LIBS)];
-} else {
-  envs = [null, '@types/node@24'];
-  tasks = [...tasks, ...buildTasks(TYPES, ['esnext', 'es2022', 'es6'], ['5.9', '5.6'], envs, ['dom', null])];
-}
-const numCPUs = os.cpus().length;
-await prepareEnvironment(envs, TYPES);
-await runLimited(tasks, Math.max(numCPUs - 1, 1));
+await prepareEnvironment(ENVS, TYPES);
+await runLimited(tasks, Math.max(NUM_CPUS - 1, 1));
 await clearTmpDir();
+
 echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
+
 if (failed) throw new Error('Some tests have failed');
