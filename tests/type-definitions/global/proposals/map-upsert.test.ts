@@ -3,7 +3,7 @@ import mapGetOrInsert from 'core-js/es/map/get-or-insert';
 import mapGetOrInsertComputed from 'core-js/es/map/get-or-insert-computed';
 import wMapGetOrInsert from 'core-js/es/weak-map/get-or-insert';
 import wMapGetOrInsertComputed from 'core-js/es/weak-map/get-or-insert-computed';
-import { assertBool, assertNumber } from '../../helpers';
+import { assertBool, assertNumber } from '../../helpers.js';
 
 declare const map: Map<string, number>;
 

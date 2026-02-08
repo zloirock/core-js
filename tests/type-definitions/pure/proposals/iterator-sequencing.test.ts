@@ -1,5 +1,5 @@
 import iteratorConcat from '@core-js/pure/full/iterator/concat';
-import { assertCoreJSIteratorLike } from '../../helpers.pure';
+import { assertCoreJSIteratorLike } from '../../helpers.pure.js';
 
 declare const its1: Iterable<string>;
 declare const arrs: string[];
