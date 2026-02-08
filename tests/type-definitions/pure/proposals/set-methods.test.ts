@@ -6,7 +6,7 @@ import setSymmetricDifference from '@core-js/pure/full/set/symmetric-difference'
 import setIsSubsetOf from '@core-js/pure/full/set/is-subset-of';
 import setIsSupersetOf from '@core-js/pure/full/set/is-superset-of';
 import setIsDisjointFrom from '@core-js/pure/full/set/is-disjoint-from';
-import { assertCoreJSSetLike } from '../../helpers.pure';
+import { assertCoreJSSetLike } from '../../helpers.pure.js';
 
 const setA = new $Set<number>([1, 2, 3]);
 const setB = new $Set<string>(['a', 'b', 'c']);
