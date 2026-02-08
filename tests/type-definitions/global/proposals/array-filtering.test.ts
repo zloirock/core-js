@@ -1,7 +1,7 @@
 import 'core-js/full';
 import filterReject from 'core-js/full/array/filter-reject';
 import filterRejectJS from 'core-js/full/array/filter-reject.js';
-import { assertNumberArray } from '../../helpers';
+import { assertNumberArray } from '../../helpers.js';
 
 filterReject([1, 2, 3], (v, i, arr) => v > 1);
 filterRejectJS([1, 2, 3], (v, i, arr) => v > 1);

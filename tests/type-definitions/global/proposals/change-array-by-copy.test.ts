@@ -3,7 +3,7 @@ import toSorted from 'core-js/es/array/to-sorted';
 import toSpliced from 'core-js/es/array/to-spliced';
 import toReversed from 'core-js/es/array/to-reversed';
 import withArray from 'core-js/es/array/with';
-import { assertNumberArray, assertStringArray } from '../../helpers';
+import { assertNumberArray, assertStringArray } from '../../helpers.js';
 
 const arr: number[] = [1, 2, 3];
 
