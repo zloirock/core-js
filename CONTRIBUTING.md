@@ -16,7 +16,7 @@ There is always some ["help wanted" issues](https://github.com/zloirock/core-js/
 - For export the polyfill, in all common cases use [`internals/export`](./packages/core-js/modules/export.js) helper. Use something else only if this helper is not applicable - for example, if you want to polyfill accessors.
 - If the code of the pure version implementation should significantly differ from the global version (*that's not a frequent situation, in most cases [`internals/is-pure`](./packages/core-js/modules/is-pure.js) constant is enough*), you can add it to [`packages/core-js-pure/override`](./packages/core-js-pure/override) directory. The rest parts of `@core-js/pure` will be copied from `core-js` package.
 - Add the feature detection of the polyfill to [`tests/compat/tests.js`](./tests/compat/tests.js), add the compatibility data to [`packages/core-js-compat/src/data.mjs`](./packages/core-js-compat/src/data.mjs), how to do it [see below](#how-to-update-core-js-compat-data).
-- Add it to entries definitions, see [`scripts/build-entries/entries-definitions.mjs`](./scripts/build-entries/entries-definitions.mjs).
+- Add it to entries definitions, see [`scripts/build-entries-and-types/entries-definitions.mjs`](scripts/build-entries-and-types/entries-definitions.mjs).
 - Add unit tests to [`tests/unit-global`](./tests/unit-global) and [`tests/unit-pure`](./tests/unit-pure).
 - Add tests of entry points to [`tests/entries/unit.mjs`](./tests/entries/unit.mjs).
 - Make sure that you are following [our coding style](#style-and-standards) and [all tests](#testing) are passed.
@@ -64,6 +64,29 @@ engine            | how to run tests | base data inherits from    | mandatory ch
 `samsung`         | browser runner   | `chrome-android`           |                  | required
 
 If you have no access to all required browsers / versions of browsers, use [Sauce Labs](https://saucelabs.com/), [BrowserStack](https://www.browserstack.com/) or [Cloud Browser](https://ieonchrome.com/).
+
+## TypeScript type definitions
+
+- TypeScript definitions should be added to the [`packages/core-js-types/src/base`](./packages/core-js-types/src/base) directory.
+- Our type definitions are built on top of ES6. If any related type is missing in ES6, it must be added to the [`packages/core-js-types/src/base/core-js-types`](./packages/core-js-types/src/base/core-js-types) directory and imported via triple-slash directives in your type definition file.
+- Place your type definition into the folder that matches its kind ([`packages/core-js-types/src/base/proposals`](./packages/core-js-types/src/base/proposals), [`packages/core-js-types/src/base/web`](./packages/core-js-types/src/base/web)).
+- Type definitions for the pure version are either generated from the global version types or created manually in the [`packages/core-js-types/src/base/pure`](./packages/core-js-types/src/base/pure) folder. Type build rules for the pure version can be modified using the `@type-options` directive:
+  - `no-extends` – do not extend the base type when adding a prefix to the type/interface
+  - `no-prefix` – do not add a prefix to the type/interface name
+  - `no-constructor` – use it when the type has no constructor (for example, `Math`)
+  - `export-base-constructor` – export the base type’s constructor instead of the prefixed one
+  - `no-export` – do not export this type
+  - `no-redefine` – do not redefine the type’s constructor
+  - `prefix-return-type` – add a prefix to the return type
+- All type definitions must be covered by TSC tests. Add them to the [`tests/type-definitions`](./tests/type-definitions) directory.
+- To build the types, run the command:
+  ```sh
+  npm run build-types
+  ```
+- To test the types, run the command:
+  ```sh
+  npm run test-type-definitions
+  ```
 
 ## Style and standards
 
