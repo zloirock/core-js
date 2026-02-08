@@ -14,7 +14,7 @@ const ES_TARGETS = [
 ];
 
 const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
-  // '6.0.0-dev.20260208',
+  '6.0.0-dev.20260208',
   '5.9',
   '5.8',
   '5.7',
