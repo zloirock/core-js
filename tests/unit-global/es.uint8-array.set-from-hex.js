@@ -37,6 +37,15 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
     assert.throws(() => array5.setFromHex('48656c6c6f20576f726c64'), TypeError, 'detached');
   }
 
+  // Should not throw an error with an empty string being set.  This verifies that
+  // we aren't using the result of segments = stringMatch(string, /.{2}/g) unsafely
+  // in cases where no matches are found, since it returns null instead of []
+  const arrayEmpty = new Uint8Array(4);
+  const resultEmpty = array1.setFromHex('');
+
+  assert.deepEqual(arrayEmpty, new Uint8Array([0, 0, 0, 0]), 'array empty string test');
+  assert.deepEqual(resultEmpty, { read: 0, written: 0 }, 'result empty string test');
+  
   // Should not throw an error on length-tracking views over ResizableArrayBuffer
   // https://issues.chromium.org/issues/454630441
   assert.notThrows(() => {

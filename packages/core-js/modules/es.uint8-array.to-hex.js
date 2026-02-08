@@ -5,7 +5,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
 
-var numberToString = uncurryThis(.1.toString);
+var numberToString = uncurryThis(1.1.toString);
 var join = uncurryThis([].join);
 var $Array = Array;
 
