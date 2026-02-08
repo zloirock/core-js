@@ -1,5 +1,5 @@
 import keysLength from '@core-js/pure/full/object/keys-length';
-import { assertNumber } from '../../helpers';
+import { assertNumber } from '../../helpers.js';
 
 const obj = { a: 1, b: 2 };
 const arr = [1, 2, 3];
