@@ -1,6 +1,6 @@
 import 'core-js/full';
 import clamp from 'core-js/full/number/clamp';
-import { assertNumber } from '../../helpers';
+import { assertNumber } from '../../helpers.js';
 
 declare const num: number;
 

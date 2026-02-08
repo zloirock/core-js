@@ -9,7 +9,7 @@ import forEach from 'core-js/es/iterator/for-each';
 import some from 'core-js/es/iterator/some';
 import every from 'core-js/es/iterator/every';
 import find from 'core-js/es/iterator/find';
-import { assertBool, assertNumber, assertNumberArray, assertString } from '../../helpers';
+import { assertBool, assertNumber, assertNumberArray, assertString } from '../../helpers.js';
 
 declare const it: Iterator<number>;
 declare const itStr: Iterator<string>;
