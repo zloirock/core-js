@@ -151,7 +151,7 @@ async function prepareEnvironment(environments, coreJsTypes) {
 }
 
 let tasks = [
-  { ts: '5.9', config: 'tsconfig.json' },
+  { ts: '5.9', config: 'tools/tsconfig.json' },
   { ts: '5.9', config: 'templates/tsconfig.json' },
   { ts: '5.9', config: 'templates/tsconfig.require.json' },
   { ts: '5.9', config: 'entries/full/tsconfig.json' },
