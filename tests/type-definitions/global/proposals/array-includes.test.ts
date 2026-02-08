@@ -1,6 +1,6 @@
 import 'core-js/es';
 import includes from 'core-js/es/array/includes';
-import { assertBool } from '../../helpers';
+import { assertBool } from '../../helpers.js';
 
 const arr = [1, 2, 3];
 
