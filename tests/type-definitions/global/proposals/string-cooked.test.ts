@@ -1,7 +1,7 @@
 import 'core-js/full';
 import cooked from 'core-js/full/string/cooked';
 import $String from 'core-js/full/string';
-import { assertString } from '../../helpers';
+import { assertString } from '../../helpers.js';
 
 assertString(cooked([]));
 $String.cooked([]);

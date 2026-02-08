@@ -1,6 +1,6 @@
 import 'core-js/es';
 import escape from 'core-js/es/regexp/escape';
-import { assertString } from '../../helpers';
+import { assertString } from '../../helpers.js';
 
 assertString(escape('foo.*+?^${}()|[]\\'));
 assertString(RegExp.escape('foo.*+?^${}()|[]\\'));
