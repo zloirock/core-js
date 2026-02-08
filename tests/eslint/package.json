@@ -2,6 +2,7 @@
   "name": "tests/eslint",
   "type": "module",
   "devDependencies": {
+    "@eslint/compat": "^2.0.2",
     "@eslint/markdown": "^7.5.1",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.6.0",
     "@stylistic/eslint-plugin": "^5.7.1",

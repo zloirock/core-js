@@ -1,3 +1,4 @@
+import { fixupPluginRules } from '@eslint/compat';
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import parserJSONC from 'jsonc-eslint-parser';
@@ -23,9 +24,11 @@ import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
 import pluginTypeScript from '@typescript-eslint/eslint-plugin';
-import pluginTSDoc from 'eslint-plugin-tsdoc';
+import $pluginTSDoc from 'eslint-plugin-tsdoc';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
+
+const pluginTSDoc = fixupPluginRules($pluginTSDoc);
 
 const PACKAGES_NODE_VERSIONS = '^20.19';
 const DEV_NODE_VERSIONS = '^20.19';
