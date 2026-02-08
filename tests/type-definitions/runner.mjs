@@ -22,7 +22,9 @@ const TYPE_SCRIPT_VERSIONS = [
 ];
 const ENVS = [
   null,
+  // '@types/node@25', // fails
   '@types/node@24',
+  '@types/node@22',
   '@types/node@20',
   '@types/node@18',
   '@types/node@16',
