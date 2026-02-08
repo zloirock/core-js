@@ -35,7 +35,7 @@ const TYPES = [
 ];
 const LIBS = [
   'dom',
-  // null,  // fails on web types
+  null,
 ];
 const TARGET_RULES = {
   es6: ['**/*es2018*test.ts'],
