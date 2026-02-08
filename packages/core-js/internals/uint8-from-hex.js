@@ -16,9 +16,8 @@ module.exports = function (string, into) {
   var maxLength = (into && into.length < (stringLength >> 1) ? into.length : (stringLength >> 1));
   var bytes = into || new Uint8Array(maxLength);
   var segments = stringMatch(string, /.{2}/g)
-  var written = 0;
-  while (written < maxLength) {
-    bytes[written++] = parseInt(segments[written], 16);
+  for (var written = 0; written < maxLength; written++) {
+    bytes[written] = parseInt(segments[written], 16);
   }
   return { bytes: bytes, read: written << 1 };
 };
