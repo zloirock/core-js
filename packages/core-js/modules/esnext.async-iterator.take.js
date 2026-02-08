@@ -16,7 +16,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   if (!state.remaining--) {
     var resultDone = createIterResultObject(undefined, true);
     state.done = true;
-    returnMethod = iterator['return'];
+    returnMethod = iterator.return;
     if (returnMethod !== undefined) {
       return Promise.resolve(call(returnMethod, iterator, undefined)).then(function () {
         return resultDone;
@@ -36,12 +36,13 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.take` method
 // https://github.com/tc39/proposal-async-iterator-helpers
+// @dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   take: function take(limit) {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

@@ -18,6 +18,7 @@ var THROW = 'throw';
 
 // `Iterator.zip` method
 // https://github.com/tc39/proposal-joint-iteration
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   zip: function zip(iterables /* , options */) {
     anObject(iterables);
@@ -88,5 +89,5 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
     }
 
     return iteratorZip(iters, mode, padding);
-  }
+  },
 });

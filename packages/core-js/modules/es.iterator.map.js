@@ -26,6 +26,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.map` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.map
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   map: function map(mapper) {
     anObject(this);
@@ -38,7 +39,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (mapWithoutClosingOnEarlyError) return call(mapWithoutClosingOnEarlyError, this, mapper);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      mapper: mapper
+      mapper: mapper,
     });
-  }
+  },
 });

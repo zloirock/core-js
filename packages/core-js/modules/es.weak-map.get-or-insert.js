@@ -15,5 +15,5 @@ $({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
     if (has(aWeakMap(this), key)) return get(this, key);
     set(this, key, value);
     return value;
-  }
+  },
 });

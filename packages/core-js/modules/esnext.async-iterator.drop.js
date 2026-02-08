@@ -39,12 +39,13 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.drop` method
 // https://github.com/tc39/proposal-async-iterator-helpers
+// @dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   drop: function drop(limit) {
     anObject(this);
     var remaining = toPositiveInteger(notANaN(+limit));
     return new AsyncIteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });
