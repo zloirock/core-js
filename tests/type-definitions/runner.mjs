@@ -1,19 +1,20 @@
 import { cpus } from 'node:os';
 import { fs } from 'zx';
 
-const { mkdir, writeJson } = fs;
+const { mkdir, rm, writeJson } = fs;
 
 const ALL_TESTS = process.env.ALL_TYPE_DEFINITIONS_TESTS === '1';
 const NUM_CPUS = cpus().length;
 const TMP_DIR = './tmp/';
 
-const TARGETS = [
+const ES_TARGETS = [
   'esnext',
   'es2022',
   'es6',
 ];
 
 const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
+  // '6.0.0-dev.20260208',
   '5.9',
   '5.8',
   '5.7',
@@ -27,7 +28,7 @@ const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
   '5.6',
 ];
 
-const ENVS = ALL_TESTS ? [
+const ENVIRONMENTS = ALL_TESTS ? [
   null,
   // '@types/node@25', // fails
   '@types/node@24',
@@ -43,7 +44,7 @@ const ENVS = ALL_TESTS ? [
   '@types/node@24',
 ];
 
-const TYPES = [
+const CORE_JS_MODES = [
   'global',
   'pure',
 ];
@@ -64,12 +65,13 @@ const LIB_RULES = {
 let tested = 0;
 let failed = 0;
 
-function getEnvPath(env) {
+function getTmpEnvDir(env) {
   if (!env) return null;
   return path.join(TMP_DIR, env.replaceAll('/', '-').replaceAll('@', ''));
 }
 
-async function runLimited(tasks, limit) {
+async function runTasksInParallel() {
+  const limit = Math.max(NUM_CPUS - 1, 1);
   let i = 0;
 
   await Promise.all(Array(limit).fill().map(async () => {
@@ -92,32 +94,24 @@ async function runTask({ cwd, ts, config, args = [] }) {
   }
 }
 
-function * buildTasks(types, targets, typeScriptVersions, envs, libs) {
-  for (const type of types) {
-    for (const target of targets) {
-      for (const ts of typeScriptVersions) {
-        for (const env of envs) {
-          for (const lib of libs) {
-            let tsConfigPostfix = TARGET_RULES[target] ? `.${ target }` : '';
-            tsConfigPostfix += lib && LIB_RULES[lib] ? `.${ lib }` : '';
-            const libsStr = lib ? `${ target },${ lib }` : target;
-            const config = env ? `./tsconfig.${ type }${ tsConfigPostfix }.json` : `${ type }/tsconfig${ tsConfigPostfix }.json`;
-            const task = {
-              cwd: getEnvPath(env),
-              ts,
-              config,
-              args: [
-                '--target', target,
-                '--lib', `${ libsStr }`,
-              ],
-            };
-            // eslint-disable-next-line max-depth -- it's needed here
-            if (type) {
-              const typesSuffix = type === 'pure' ? '/pure' : '';
-              const envLibName = env ? `,${ env.substring(0, env.lastIndexOf('@')) }` : '';
-              task.args.push('--types', `@core-js/types${ typesSuffix }${ envLibName }`);
-            }
-            yield task;
+function * buildTasks() {
+  for (const mode of CORE_JS_MODES) {
+    for (const target of ES_TARGETS) {
+      for (const ts of TYPE_SCRIPT_VERSIONS) {
+        for (const env of ENVIRONMENTS) {
+          for (const lib of LIBS) {
+            const tsConfigPostfix = `${ TARGET_RULES[target] ? `.${ target }` : '' }${ LIB_RULES[lib] ? `.${ lib }` : '' }`;
+            const config = env ? `./tsconfig.${ mode }${ tsConfigPostfix }.json` : `${ mode }/tsconfig${ tsConfigPostfix }.json`;
+            const libWithTarget = lib ? `${ target },${ lib }` : target;
+            const types = [`@core-js/types${ mode === 'pure' ? '/pure' : '' }`];
+            // eslint-disable-next-line max-depth -- ok
+            if (env) types.push(env.replace(/^(?<envWithoutVersion>@?[^@]+)@.+$/, '$<envWithoutVersion>'));
+            const args = [
+              '--target', target,
+              '--lib', libWithTarget,
+              '--types', types.join(','),
+            ];
+            yield { cwd: getTmpEnvDir(env), ts, config, args };
           }
         }
       }
@@ -126,36 +120,36 @@ function * buildTasks(types, targets, typeScriptVersions, envs, libs) {
 }
 
 async function clearTmpDir() {
-  await $`rm -rf ${ TMP_DIR }`;
+  await rm(TMP_DIR, { recursive: true, force: true });
 }
 
-async function prepareEnvironment(environments, coreJsTypes) {
+async function prepareEnvironments() {
   await clearTmpDir();
-  for (const env of environments) {
+  for (const env of ENVIRONMENTS) {
     if (!env) continue;
-    const tmpEnvDir = getEnvPath(env);
+    const tmpEnvDir = getTmpEnvDir(env);
     await mkdir(tmpEnvDir, { recursive: true });
-    await $({ cwd: tmpEnvDir })`npm init -y > /dev/null 2>&1`;
+    await $({ cwd: tmpEnvDir, verbose: false })`npm init --yes`;
     await $({ cwd: tmpEnvDir })`npm install ${ env }`;
-    for (const type of coreJsTypes) {
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.json`), {
+    for (const mode of CORE_JS_MODES) {
+      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.json`), {
         extends: '../../tsconfig.json',
-        include: [`../../${ type }/**/*.ts`],
-        exclude: [`../../${ type }/**/${ LIB_RULES.dom }`],
+        include: [`../../${ mode }/**/*.ts`],
+        exclude: [`../../${ mode }/**/${ LIB_RULES.dom }`],
       });
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.dom.json`), {
+      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.dom.json`), {
         extends: '../../tsconfig.json',
-        include: [`../../${ type }/**/*.ts`],
+        include: [`../../${ mode }/**/*.ts`],
       });
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.es6.json`), {
+      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.es6.json`), {
         extends: '../../tsconfig.json',
-        include: [`../../${ type }/**/*.ts`],
-        exclude: [`../../${ type }/**/${ TARGET_RULES.es6 }`, `../../${ type }/${ LIB_RULES.dom }`],
+        include: [`../../${ mode }/**/*.ts`],
+        exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`, `../../${ mode }/${ LIB_RULES.dom }`],
       });
-      await writeJson(path.join(tmpEnvDir, `tsconfig.${ type }.es6.dom.json`), {
+      await writeJson(path.join(tmpEnvDir, `tsconfig.${ mode }.es6.dom.json`), {
         extends: '../../tsconfig.json',
-        include: [`../../${ type }/**/*.ts`],
-        exclude: [`../../${ type }/**/${ TARGET_RULES.es6 }`],
+        include: [`../../${ mode }/**/*.ts`],
+        exclude: [`../../${ mode }/**/${ TARGET_RULES.es6 }`],
       });
     }
   }
@@ -173,11 +167,11 @@ const tasks = [
   { ts: '5.9', config: 'entries/global-symlinks/tsconfig.json' },
   { ts: '5.9', config: 'entries/pure-symlinks/tsconfig.json' },
   { ts: '5.9', config: 'entries/configurator/tsconfig.json' },
-  ...buildTasks(TYPES, TARGETS, TYPE_SCRIPT_VERSIONS, ENVS, LIBS),
+  ...buildTasks(),
 ];
 
-await prepareEnvironment(ENVS, TYPES);
-await runLimited(tasks, Math.max(NUM_CPUS - 1, 1));
+await prepareEnvironments();
+await runTasksInParallel();
 await clearTmpDir();
 
 echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
