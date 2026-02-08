@@ -18,7 +18,7 @@ module.exports = function (string, into) {
   var segments = stringMatch(string, /.{2}/g)
   var written = 0;
   while (written < maxLength) {
-    bytes[written++] = parseInt(segments[written-1], 16);
+    bytes[written++] = parseInt(segments[written], 16);
   }
   return { bytes: bytes, read: written << 1 };
 };
