@@ -297,7 +297,7 @@ export default {
     [142, 93],
     [143, 94],
   ],
-  // https://developers.meta.com/horizon/documentation/web/browser-release-notes/
+  // https://developers.meta.com/horizon/release-notes/web/
   // https://www.meta.com/experiences/browser/1916519981771802/
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
   // https://whatmyuseragent.com/browser/oc/oculus-browser
