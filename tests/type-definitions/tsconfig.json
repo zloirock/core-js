@@ -6,9 +6,5 @@
     "esModuleInterop": true,
     "moduleResolution": "node",
     "noEmit": true
-  },
-  "include": [
-    "./builder.ts",
-    "./compat.ts"
-  ]
+  }
 }
