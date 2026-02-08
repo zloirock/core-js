@@ -64,21 +64,18 @@ async function runLimited(tasks, limit) {
   await Promise.all(Array.from({ length: limit }, worker));
 }
 
-async function runTask(config) {
-  $.verbose = false;
-  const command = `$ npx ${ config.args.join(' ') }`;
+async function runTask({ cwd, ts, config, args = [] }) {
+  const task = $({ cwd, verbose: false })`npx --package typescript@${ ts } tsc --project ${ config } ${ args }`;
+  // eslint-disable-next-line no-underscore-dangle -- third-party code
+  const { cmd } = task._snapshot;
+  echo`run ${ chalk.cyan(cmd) }`;
+  tested++;
   try {
-    tested++;
-    echo(command);
-    if (config.cwd) {
-      await $({ cwd: config.cwd })`npx ${ config.args }`.quiet();
-    } else {
-      await $`npx ${ config.args }`.quiet();
-    }
-    echo(chalk.green(command));
+    await task;
+    echo(chalk.green(`success ${ chalk.cyan(cmd) }`));
   } catch (error) {
     failed++;
-    echo(chalk.red(`${ command }\n ${ error }`));
+    echo(chalk.red(`fail ${ chalk.cyan(cmd) }:\n${ chalk.grey(error) }`));
   }
 }
 
@@ -86,19 +83,18 @@ function buildTasks(types, targets, typeScriptVersions, envs, libs) {
   const tasks = [];
   for (const type of types) {
     for (const target of targets) {
-      for (const typeScriptVersion of typeScriptVersions) {
+      for (const ts of typeScriptVersions) {
         for (const env of envs) {
           for (const lib of libs) {
             let tsConfigPostfix = TARGET_RULES[target] ? `.${ target }` : '';
             tsConfigPostfix += lib && LIB_RULES[lib] ? `.${ lib }` : '';
             const libsStr = lib ? `${ target },${ lib }` : target;
-            const tsConfigPath = env ? `./tsconfig.${ type }${ tsConfigPostfix }.json` : `${ type }/tsconfig${ tsConfigPostfix }.json`;
-            const taskConfig = {
+            const config = env ? `./tsconfig.${ type }${ tsConfigPostfix }.json` : `${ type }/tsconfig${ tsConfigPostfix }.json`;
+            const task = {
               cwd: getEnvPath(env),
+              ts,
+              config,
               args: [
-                '-p', `typescript@${ typeScriptVersion }`,
-                'tsc',
-                '-p', tsConfigPath,
                 '--target', target,
                 '--lib', `${ libsStr }`,
               ],
@@ -107,9 +103,9 @@ function buildTasks(types, targets, typeScriptVersions, envs, libs) {
             if (type) {
               const typesSuffix = type === 'pure' ? '/pure' : '';
               const envLibName = env ? `,${ env.substring(0, env.lastIndexOf('@')) }` : '';
-              taskConfig.args.push('--types', `@core-js/types${ typesSuffix }${ envLibName }`);
+              task.args.push('--types', `@core-js/types${ typesSuffix }${ envLibName }`);
             }
-            tasks.push(taskConfig);
+            tasks.push(task);
           }
         }
       }
@@ -154,20 +150,19 @@ async function prepareEnvironment(environments, coreJsTypes) {
   }
 }
 
-let tasks = [];
-tasks.push(
-  { args: ['-p', 'typescript@5.9', 'tsc'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'templates/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', '-p', '@types/node@24', 'tsc', '-p', 'templates/tsconfig.require.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/full/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/actual/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/stable/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/es/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/proposals/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/global-symlinks/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/pure-symlinks/tsconfig.json'] },
-  { args: ['-p', 'typescript@5.9', 'tsc', '-p', 'entries/configurator/tsconfig.json'] },
-);
+let tasks = [
+  { ts: '5.9', config: 'tsconfig.json' },
+  { ts: '5.9', config: 'templates/tsconfig.json' },
+  { ts: '5.9', config: 'templates/tsconfig.require.json' },
+  { ts: '5.9', config: 'entries/full/tsconfig.json' },
+  { ts: '5.9', config: 'entries/actual/tsconfig.json' },
+  { ts: '5.9', config: 'entries/stable/tsconfig.json' },
+  { ts: '5.9', config: 'entries/es/tsconfig.json' },
+  { ts: '5.9', config: 'entries/proposals/tsconfig.json' },
+  { ts: '5.9', config: 'entries/global-symlinks/tsconfig.json' },
+  { ts: '5.9', config: 'entries/pure-symlinks/tsconfig.json' },
+  { ts: '5.9', config: 'entries/configurator/tsconfig.json' },
+];
 
 let envs;
 if (ALL_TESTS) {
