@@ -1,6 +1,6 @@
 import 'core-js/es';
 import f16round from 'core-js/es/math/f16round';
-import { assertNumber } from '../../helpers';
+import { assertNumber } from '../../helpers.js';
 
 assertNumber(f16round(1));
 // @ts-expect-error

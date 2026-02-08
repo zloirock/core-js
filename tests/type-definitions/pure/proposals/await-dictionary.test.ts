@@ -1,7 +1,7 @@
 import promiseAllKeyed from '@core-js/pure/full/promise/all-keyed';
 import promiseAllSettledKeyed from '@core-js/pure/full/promise/all-settled-keyed';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
-import { assertCoreJSPromiseLike } from '../../helpers.pure';
+import { assertCoreJSPromiseLike } from '../../helpers.pure.js';
 
 const res = promiseAllKeyed({
   a: promiseResolve(1),
