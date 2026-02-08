@@ -1,6 +1,6 @@
 import 'core-js/full';
 import uniqueBy from 'core-js/full/array/unique-by';
-import { assertNumberArray } from '../../helpers';
+import { assertNumberArray } from '../../helpers.js';
 
 const uniqueByNS: number[] = uniqueBy([1, 2, 1, 3]);
 
