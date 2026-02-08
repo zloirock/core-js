@@ -1,3 +1,4 @@
+// @types: proposals/object-keys-length
 'use strict';
 var $ = require('../internals/export');
 var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
