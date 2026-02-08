@@ -1,6 +1,6 @@
 import 'core-js/full';
 import dedent from 'core-js/full/string/dedent';
-import { assertString } from '../../helpers';
+import { assertString } from '../../helpers.js';
 
 assertString(dedent`foo\nbar`);
 

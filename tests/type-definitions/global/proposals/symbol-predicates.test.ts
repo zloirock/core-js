@@ -2,7 +2,7 @@ import 'core-js/full';
 import isRegisteredSymbol from 'core-js/full/symbol/is-registered-symbol';
 import isWellKnownSymbol from 'core-js/full/symbol/is-well-known-symbol';
 import $Symbol from 'core-js/full/symbol';
-import { assertBool } from '../../helpers';
+import { assertBool } from '../../helpers.js';
 
 assertBool(isRegisteredSymbol($Symbol.for('foo')));
 assertBool(isWellKnownSymbol($Symbol.iterator));
