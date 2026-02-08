@@ -13,7 +13,7 @@ module.exports = function (string, into) {
   var stringLength = string.length;
   if (stringLength & 1) throw new SyntaxError('String should be an even number of characters');
   if (exec(NOT_HEX, string)) throw new SyntaxError('String should only contain hex characters');
-  var maxLength = into && into.length < stringLength >> 1 ? into.length : stringLength >> 1;
+  var maxLength = (into && into.length < (stringLength >> 1) ? into.length : (stringLength >> 1));
   var bytes = into || new Uint8Array(maxLength);
   var segments = stringMatch(string, /.{2}/g)
   var written = 0;
