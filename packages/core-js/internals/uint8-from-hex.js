@@ -20,5 +20,5 @@ module.exports = function (string, into) {
   while (written < maxLength) {
     bytes[written++] = parseInt(segments[written-1], 16);
   }
-  return { bytes: bytes, read: written >> 1 };
+  return { bytes: bytes, read: written << 1 };
 };
