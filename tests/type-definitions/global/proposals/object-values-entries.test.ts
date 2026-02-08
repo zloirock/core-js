@@ -1,7 +1,7 @@
 import 'core-js/es';
 import values from 'core-js/es/object/values';
 import entries from 'core-js/es/object/entries';
-import { assertNumberArray, assertStringArray } from '../../helpers';
+import { assertNumberArray, assertStringArray } from '../../helpers.js';
 
 const obj = { a: 1, b: 2 };
 const arr = [1, 2, 3];

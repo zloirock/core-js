@@ -3,7 +3,7 @@ import findLast from 'core-js/es/array/find-last';
 import findLastJS from 'core-js/es/array/find-last.js';
 import findLastIndex from 'core-js/es/array/find-last-index';
 import findLastIndexJS from 'core-js/es/array/find-last-index.js';
-import { assertNumber } from '../../helpers';
+import { assertNumber } from '../../helpers.js';
 
 const resNS1: number | undefined = findLast([1, 2, 3], v => v > 1);
 const resNS2: number | undefined = findLastJS([1, 2, 3], v => v > 1);

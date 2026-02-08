@@ -1,7 +1,7 @@
 import promiseFinally from '@core-js/pure/full/promise/finally';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
 import promiseReject from '@core-js/pure/full/promise/reject';
-import { assertCoreJSPromiseLike } from '../../helpers.pure';
+import { assertCoreJSPromiseLike } from '../../helpers.pure.js';
 
 const pr1 = promiseResolve(42);
 assertCoreJSPromiseLike<number>(pr1);

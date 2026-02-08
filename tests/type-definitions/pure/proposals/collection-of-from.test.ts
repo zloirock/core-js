@@ -6,7 +6,7 @@ import weakMapFrom from '@core-js/pure/full/weak-map/from';
 import weakMapOf from '@core-js/pure/full/weak-map/of';
 import weakSetFrom from '@core-js/pure/full/weak-set/from';
 import weakSetOf from '@core-js/pure/full/weak-set/of';
-import { assertCoreJSMapLike, assertCoreJSSetLike, assertCoreJSWeakMapLike, assertCoreJSWeakSetLike } from '../../helpers.pure';
+import { assertCoreJSMapLike, assertCoreJSSetLike, assertCoreJSWeakMapLike, assertCoreJSWeakSetLike } from '../../helpers.pure.js';
 
 const rm = mapFrom([[1, 'a'], [2, 'b']] as [number, string][]);
 assertCoreJSMapLike<number, string>(rm);
