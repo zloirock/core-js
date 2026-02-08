@@ -1,6 +1,6 @@
 import 'core-js/full';
 import join from 'core-js/full/iterator/join';
-import { assertString } from '../../helpers';
+import { assertString } from '../../helpers.js';
 
 declare const it: Iterator<number>;
 
