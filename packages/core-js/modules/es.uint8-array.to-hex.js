@@ -5,7 +5,9 @@ var uncurryThis = require('../internals/function-uncurry-this');
 var anUint8Array = require('../internals/an-uint8-array');
 var notDetached = require('../internals/array-buffer-not-detached');
 
-var numberToString = uncurryThis(1.1.toString);
+var numberToString = uncurryThis(.1.toString);
+var join = uncurryThis([].join);
+var $Array = Array;
 
 var Uint8Array = globalThis.Uint8Array;
 
@@ -24,11 +26,11 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
   toHex: function toHex() {
     anUint8Array(this);
     notDetached(this.buffer);
-    var result = '';
+    var result = $Array(this.length);
     for (var i = 0, length = this.length; i < length; i++) {
       var hex = numberToString(this[i], 16);
-      result += hex.length === 1 ? '0' + hex : hex;
+      result[i] = hex.length === 1 ? '0' + hex : hex;
     }
-    return result;
+    return join(result, '');
   }
 });
