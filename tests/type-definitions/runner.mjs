@@ -25,23 +25,25 @@ const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
   // '5.2',
 ] : [
   '5.9',
+  '5.7',
   '5.6',
 ];
 
 const ENVIRONMENTS = ALL_TESTS ? [
   null,
-  // '@types/node@25', // fails
+  '@types/node@25',
   '@types/node@24',
   '@types/node@22',
   '@types/node@20',
   '@types/node@18',
   '@types/node@16',
   // '@types/node@15', // fails
-  // '@types/bun@latest', // conflicts with DOM types (TextDecorator, SharedArrayBuffer...)
+  // '@types/bun@latest', // ArrayBuffer.resize signature incorrect. Return type ArrayBuffer instead of void.
   // '@types/deno@latest', // fails
 ] : [
   null,
   '@types/node@24',
+  '@types/node@25',
 ];
 
 const CORE_JS_MODES = [
