@@ -45,7 +45,7 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
 
   assert.deepEqual(arrayEmpty, new Uint8Array([0, 0, 0, 0]), 'array empty string test');
   assert.deepEqual(resultEmpty, { read: 0, written: 0 }, 'result empty string test');
-  
+
   // Should not throw an error on length-tracking views over ResizableArrayBuffer
   // https://issues.chromium.org/issues/454630441
   assert.notThrows(() => {

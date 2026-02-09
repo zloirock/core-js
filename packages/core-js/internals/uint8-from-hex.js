@@ -23,8 +23,9 @@ module.exports = function (string, into) {
     // is maximally strict, except for whitespace which it ignores, so special-case
     // this.
     var result = $Number('0x' + segments[written]);
-    if ($isNaN(result) || segments[written].trim() !== segments[written])
+    if ($isNaN(result) || segments[written].trim() !== segments[written]) {
       throw new SyntaxError('String should only contain hex characters');
+    }
     bytes[written] = result;
   }
   return { bytes: bytes, read: written << 1 };
