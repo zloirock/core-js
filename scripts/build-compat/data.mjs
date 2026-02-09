@@ -1,8 +1,8 @@
 /* https://github.com/import-js/eslint-plugin-import/issues/2181 */
-import { dataWithIgnored as data, ignored, modules } from '@core-js/compat/src/data.mjs';
-import external from '@core-js/compat/src/external.mjs';
-import mappings from '@core-js/compat/src/mapping.mjs';
-import helpers from '@core-js/compat/helpers.js';
+import { dataWithIgnored as data, ignored, modules } from '../../packages/core-js-compat/src/data.mjs';
+import external from '../../packages/core-js-compat/src/external.mjs';
+import mappings from '../../packages/core-js-compat/src/mapping.mjs';
+import helpers from '../../packages/core-js-compat/helpers.js';
 
 const { compare, semver, sortObjectByKey } = helpers;
 const { hasOwn } = Object;
