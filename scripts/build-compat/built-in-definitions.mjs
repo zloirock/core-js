@@ -2,7 +2,7 @@ import {
   Globals,
   StaticProperties,
   InstanceProperties,
-} from '@core-js/compat/src/built-in-definitions.mjs';
+} from '../../packages/core-js-compat/src/built-in-definitions.mjs';
 
 const entries = new Set(Object.keys(await fs.readJson('packages/core-js-compat/entries.json')));
 
