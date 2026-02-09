@@ -1,4 +1,4 @@
-import { modules as AllModules } from '@core-js/compat/src/data.mjs';
+import { modules as AllModules } from '../../packages/core-js-compat/src/data.mjs';
 
 const { readFile } = fs;
 const { red } = chalk;
