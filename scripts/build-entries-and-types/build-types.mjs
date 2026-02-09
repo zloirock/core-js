@@ -1,6 +1,6 @@
 import { features, proposals } from './entries-definitions.mjs';
 import { $functionWithCustomType, $path, $proposal, $typeDummy } from './templates.mjs';
-import { modules as AllModules } from '@core-js/compat/src/data.mjs';
+import { modules as AllModules } from '../../packages/core-js-compat/src/data.mjs';
 import { getModulesMetadata } from './get-dependencies.mjs';
 import { expandModules, modulesToStage } from './helpers.mjs';
 import { preparePureTypes } from './build-types-pure.mjs';
