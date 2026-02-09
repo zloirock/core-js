@@ -1,5 +1,5 @@
 import konan from 'konan';
-import { modules } from '@core-js/compat/src/data.mjs';
+import { modules } from '../../packages/core-js-compat/src/data.mjs';
 
 const { cyan, red } = chalk;
 

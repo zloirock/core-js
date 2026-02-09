@@ -1,5 +1,5 @@
 import coerce from 'semver/functions/coerce.js';
-import { modules } from '@core-js/compat/src/data.mjs';
+import { modules } from '../../packages/core-js-compat/src/data.mjs';
 
 const { version } = await fs.readJson('package.json');
 const $version = coerce(version);
