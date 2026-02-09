@@ -28,6 +28,56 @@
   "sideEffects": false,
   "main": "index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./index.js": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./built-in-definitions": "./built-in-definitions.json",
+    "./built-in-definitions.json": "./built-in-definitions.json",
+    "./compat": {
+      "types": "./compat.d.ts",
+      "default": "./compat.js"
+    },
+    "./compat.js": {
+      "types": "./compat.d.ts",
+      "default": "./compat.js"
+    },
+    "./data": "./data.json",
+    "./data.json": "./data.json",
+    "./entries": "./entries.json",
+    "./entries.json": "./entries.json",
+    "./entries-by-versions": "./entries-by-versions.json",
+    "./entries-by-versions.json": "./entries-by-versions.json",
+    "./external": "./external.json",
+    "./external.json": "./external.json",
+    "./get-entries-list-for-target-version": {
+      "types": "./get-entries-list-for-target-version.d.ts",
+      "default": "./get-entries-list-for-target-version.js"
+    },
+    "./get-entries-list-for-target-version.js": {
+      "types": "./get-entries-list-for-target-version.d.ts",
+      "default": "./get-entries-list-for-target-version.js"
+    },
+    "./get-modules-list-for-target-version": {
+      "types": "./get-modules-list-for-target-version.d.ts",
+      "default": "./get-modules-list-for-target-version.js"
+    },
+    "./get-modules-list-for-target-version.js": {
+      "types": "./get-modules-list-for-target-version.d.ts",
+      "default": "./get-modules-list-for-target-version.js"
+    },
+    "./modules": "./modules.json",
+    "./modules.json": "./modules.json",
+    "./modules-by-versions": "./modules-by-versions.json",
+    "./modules-by-versions.json": "./modules-by-versions.json",
+    "./targets-parser": "./targets-parser.js",
+    "./targets-parser.js": "./targets-parser.js"
+  },
   "dependencies": {
     "browserslist": "^4.28.1"
   }
