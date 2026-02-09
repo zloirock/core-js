@@ -12,7 +12,7 @@
     "eslint-plugin-depend": "^1.4.0",
     "eslint-plugin-es-x": "^9.4.0",
     "eslint-plugin-import-x": "^4.16.1",
-    "eslint-plugin-jsonc": "^2.21.0",
+    "eslint-plugin-jsonc": "^2.21.1",
     "eslint-plugin-math": "^0.13.1",
     "eslint-plugin-n": "^17.23.2",
     "eslint-plugin-name": "^0.0.1",
