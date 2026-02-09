@@ -1,5 +1,5 @@
 import { parseAsync, traverse } from '@babel/core';
-import { modules, ignored } from '@core-js/compat/src/data.mjs';
+import { modules, ignored } from '../../packages/core-js-compat/src/data.mjs';
 import '../compat/tests.js';
 
 const modulesSet = new Set([
