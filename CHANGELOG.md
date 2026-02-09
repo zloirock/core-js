@@ -1,6 +1,6 @@
 # Changelog
 ### Unreleased
-- Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
+- Improved performance of `atob`, `btoa`, `Uint8Array.fromHex`, `Uint8Array.prototype.setFromHex`, and `Uint8Array.prototype.toHex` -- [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464), [#1510](https://github.com/zloirock/core-js/issues/1510)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Compat data improvements:

@@ -18,7 +18,7 @@ module.exports = function (string, into) {
   var segments = stringMatch(string, /.{2}/g);
   var written = 0;
   for (; written < maxLength; written++) {
-    // Attempt to construct a Number and then checking for NaN is aproximately
+    // Attempt to construct a Number and then checking for NaN is approximately
     // 2x faster than naively using a regex to check each hexit.  Number constructor
     // is maximally strict, except for whitespace which it ignores, so special-case
     // this.
