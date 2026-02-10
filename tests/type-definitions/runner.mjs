@@ -166,8 +166,8 @@ const tasks = [
   { ts: '5.9', config: 'entries/stable/tsconfig.json' },
   { ts: '5.9', config: 'entries/es/tsconfig.json' },
   { ts: '5.9', config: 'entries/proposals/tsconfig.json' },
-  { ts: '5.9', config: 'entries/global-symlinks/tsconfig.json' },
-  { ts: '5.9', config: 'entries/pure-symlinks/tsconfig.json' },
+  { ts: '5.9', config: 'entries/global-imports/tsconfig.json' },
+  { ts: '5.9', config: 'entries/pure-imports/tsconfig.json' },
   { ts: '5.9', config: 'entries/configurator/tsconfig.json' },
   ...buildTasks(),
 ];
