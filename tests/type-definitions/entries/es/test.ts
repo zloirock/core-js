@@ -2,6 +2,8 @@ import '@core-js/types/es';
 
 const concat = Iterator.concat([1, 2, 3]);
 
+structuredClone({ name: 'core-js' });
+
 // @ts-expect-error
 Iterator.zipKeyed({ a: [1, 2], b: [3, 4] });
 // @ts-expect-error
