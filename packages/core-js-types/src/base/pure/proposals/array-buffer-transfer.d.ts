@@ -37,7 +37,8 @@ declare namespace CoreJS {
   var CoreJSArrayBuffer: CoreJSArrayBufferConstructor;
 }
 
-// Type compatibility hack for AllowSharedBufferSource in TypeScript < 5.9: https://github.com/microsoft/TypeScript/issues/61480
+// Type compatibility hack for AllowSharedBufferSource in TypeScript < 5.9
+// https://github.com/microsoft/TypeScript/issues/61480
 interface SharedArrayBuffer {
   readonly resizable: boolean;
 
