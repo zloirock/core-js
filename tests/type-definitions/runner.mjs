@@ -25,7 +25,6 @@ const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
   // '5.2',
 ] : [
   '5.9',
-  '5.7',
   '5.6',
 ];
 
@@ -42,7 +41,6 @@ const ENVIRONMENTS = ALL_TESTS ? [
   // '@types/deno@latest', // fails
 ] : [
   null,
-  '@types/node@24',
   '@types/node@25',
 ];
 
