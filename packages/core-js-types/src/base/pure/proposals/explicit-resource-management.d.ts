@@ -1,4 +1,5 @@
 /// <reference types="./symbol" />
+/// <reference types="../core-js-types/promise" />
 
 // Motivation: Symbol is replaced with our own
 
@@ -125,7 +126,7 @@ declare namespace CoreJS {
     /**
      * Disposes each resource in the stack in the reverse order that they were added.
      */
-    disposeAsync(): CoreJSPromise<void>;
+    disposeAsync(): CoreJS.CoreJSPromise<void>;
 
     /**
      * Adds a disposable resource to the stack, returning the resource.
@@ -179,7 +180,7 @@ declare namespace CoreJS {
      */
     move(): CoreJSAsyncDisposableStack;
 
-    [CoreJSSymbol.asyncDispose](): Promise<void>;
+    [CoreJSSymbol.asyncDispose](): CoreJS.CoreJSPromise<void>;
   }
 
   export interface CoreJSAsyncDisposableStackConstructor {
