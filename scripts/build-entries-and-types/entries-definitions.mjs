@@ -716,9 +716,11 @@ export const features = {
   },
   'async-iterator/flat-map': {
     modules: ['esnext.async-iterator.flat-map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'AsyncIterator',
     name: 'flatMap',
+    customType: 'proposals/async-iterator-helpers-custom',
+    genericsCount: 2,
   },
   'async-iterator/prototype/flat-map': {
     modules: ['esnext.async-iterator.flat-map'],
@@ -740,9 +742,11 @@ export const features = {
   },
   'async-iterator/map': {
     modules: ['esnext.async-iterator.map'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'AsyncIterator',
     name: 'map',
+    customType: 'proposals/async-iterator-helpers-custom',
+    genericsCount: 2,
   },
   'async-iterator/prototype/map': {
     modules: ['esnext.async-iterator.map'],
@@ -752,9 +756,11 @@ export const features = {
   },
   'async-iterator/reduce': {
     modules: ['esnext.async-iterator.reduce'],
-    template: $uncurried,
+    template: $uncurriedWithCustomType,
     namespace: 'AsyncIterator',
     name: 'reduce',
+    customType: 'proposals/async-iterator-helpers-custom',
+    genericsCount: 2,
   },
   'async-iterator/prototype/reduce': {
     modules: ['esnext.async-iterator.reduce'],

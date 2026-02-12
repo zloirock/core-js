@@ -6,16 +6,16 @@ interface CoreJSPromiseLike<T> {
 export function assertCoreJSPromiseLike<T>(value: CoreJSPromiseLike<T>): asserts value is CoreJSPromiseLike<T> {}
 
 export interface CoreJSMapLike<K, V> extends Map<K, V> {
-  getOrInsert(key: K, value: V): V;
+  getOrInsert(key: K, defaultValue: V): V;
 
-  getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
+  getOrInsertComputed(key: K, callback: (key: K) => V): V;
 }
 export function assertCoreJSMapLike<K, V>(value: CoreJSMapLike<K, V>): asserts value is CoreJSMapLike<K, V> {}
 
 export interface CoreJSWeakMapLike<K extends WeakKey, V> extends WeakMap<K, V> {
-  getOrInsert(key: K, value: V): V;
+  getOrInsert(key: K, defaultValue: V): V;
 
-  getOrInsertComputed<R extends V>(key: K, callbackFn: (key: K) => R): R;
+  getOrInsertComputed(key: K, callback: (key: K) => V): V;
 }
 export function assertCoreJSWeakMapLike<K extends WeakKey, V>(value: CoreJSWeakMapLike<K, V>): asserts value is CoreJSWeakMapLike<K, V> {}
 
@@ -52,14 +52,14 @@ export interface CoreJSIteratorLike<T, TReturn = any, TNext = any | undefined> e
 }
 export function assertCoreJSIteratorLike<T>(value: CoreJSIteratorLike<T>): asserts value is CoreJSIteratorLike<T> {}
 
-interface CoreJSAsyncIteratorLike<T> {
+interface CoreJSAsyncIteratorLike<T, TReturn = any, TNext = any> {
   drop(...args: any[]): any;
   every(...args: any[]): any;
-  filter(predicate: (value: T, index: number) => boolean): CoreJSAsyncIteratorLike<T>;
+  filter<S extends T>(...args: any[]): CoreJSAsyncIteratorLike<S>;
   find(...args: any[]): any;
   flatMap(...args: any[]): any;
   forEach(...args: any[]): any;
-  map(mapper: (value: T, index: number) => any): CoreJSAsyncIteratorLike<T>;
+  map<U>(mapper: (value: T, index: number) => U): CoreJSAsyncIteratorLike<U>;
   reduce(...args: any[]): any;
   some(...args: any[]): any;
   take(limit: number): CoreJSAsyncIteratorLike<T>;
