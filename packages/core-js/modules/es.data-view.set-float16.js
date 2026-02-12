@@ -7,6 +7,7 @@ var toIndex = require('../internals/to-index');
 var log2 = require('../internals/math-log2');
 var roundTiesToEven = require('../internals/math-round-ties-to-even');
 
+var floor = Math.floor;
 var pow = Math.pow;
 
 var MIN_INFINITY16 = 65520; // (2 - 2 ** -11) * 2 ** 15
@@ -25,7 +26,7 @@ var packFloat16 = function (value) {
   if (value < MIN_NORMAL16) return neg << 15 | roundTiesToEven(value * REC_MIN_SUBNORMAL16); // subnormal
 
   // normal
-  var exponent = log2(value) | 0;
+  var exponent = floor(log2(value));
   if (exponent === -15) {
     // we round from a value between 2 ** -15 * (1 + 1022/1024) (the largest subnormal) and 2 ** -14 * (1 + 0/1024) (the smallest normal)
     // to the latter (former impossible because of the subnormal check above)
