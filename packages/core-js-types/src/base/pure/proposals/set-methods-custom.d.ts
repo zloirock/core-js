@@ -1,4 +1,4 @@
-/// <reference types="../core-js-types/set.d.ts" />
+/// <reference types="../core-js-types/set" />
 
 // Motivation: Custom type needed to keep generics strict & return our CoreJSSet type
 

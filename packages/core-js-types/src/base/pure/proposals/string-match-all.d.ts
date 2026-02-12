@@ -1,5 +1,5 @@
-/// <reference types="../core-js-types/string-base.d.ts" />
-/// <reference types="../../core-js-types/iterator-object.ts" />
+/// <reference types="../core-js-types/string-base" />
+/// <reference types="../core-js-types/iterator-object" />
 
 // Motivation: We should use String without the matchAll method to avoid signature conflicts
 
