@@ -1,3 +1,1 @@
-declare namespace CoreJS {
-  export interface CoreJSIteratorObject<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {}
-}
+interface IteratorObject<T, TReturn, TNext> extends Iterator<T, TReturn, TNext> {}
