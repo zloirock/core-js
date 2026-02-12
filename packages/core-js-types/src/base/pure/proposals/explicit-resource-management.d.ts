@@ -1,4 +1,4 @@
-/// <reference types="./symbol.d.ts" />
+/// <reference types="./symbol" />
 
 // Motivation: Symbol is replaced with our own
 
