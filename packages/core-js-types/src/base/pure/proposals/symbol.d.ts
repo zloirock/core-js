@@ -45,6 +45,7 @@ declare namespace CoreJS {
   type CoreJSCustomMatcherSymbolType = typeof CoreJSCustomMatcherSymbol;
   type CoreJSMetadataSymbolType = typeof CoreJSMetadataSymbol;
   type CoreJSMatchAllSymbolType = typeof CoreJSMatchAllSymbol;
+  type CoreJSIteratorSymbolType = typeof CoreJSMatchAllSymbol;
 
   type GetNativeWithFallback<T, K extends PropertyKey, Fallback> = K extends keyof T ? T[K] : Fallback;
 
@@ -82,6 +83,8 @@ declare namespace CoreJS {
     readonly metadata: GetNativeWithFallback<SymbolConstructor, 'metadata', CoreJSMetadataSymbolType>;
 
     readonly matchAll: GetNativeWithFallback<SymbolConstructor, 'matchAll', CoreJSMatchAllSymbolType>;
+
+    readonly iterator: GetNativeWithFallback<SymbolConstructor, 'iterator', CoreJSIteratorSymbolType>;
   }
 
   export interface CoreJSSymbol extends Symbol {

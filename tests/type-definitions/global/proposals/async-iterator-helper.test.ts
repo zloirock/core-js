@@ -17,7 +17,7 @@ drop(ait, 1);
 every(ait, (v: number, i: number) => v > 0);
 filter(ait, (v: number, i: number) => v > 0);
 find(ait, (v: number, i: number) => v > 0);
-flatMap(ait, (v: number, i: number) => v);
+flatMap(ait, (v: number, i: number) => [v, v * 2]);
 forEach(ait, (v: number, i: number) => { });
 map(ait, (v: number, i: number) => v * 2);
 reduce(ait, (acc: number, v: number, i: number) => acc + v, 0);
@@ -66,8 +66,8 @@ const raitn: AsyncIterator<number> = itn.toAsync();
 const r1: AsyncIterator<number> = ain.drop(3);
 const r2: Promise<boolean> = ain.every((v: number, i: number) => v > 0);
 const r3: AsyncIterator<number> = ain.filter((v: number, i: number) => v > 0);
-const r4: Promise<number> = ain.find((v: number, i: number) => v > 0);
-const r5: AsyncIterator<string> = ain.flatMap((v: number, i: number) => v);
+const r4: Promise<number | undefined> = ain.find((v: number, i: number) => v > 0);
+const r5: AsyncIterator<number> = ain.flatMap((v: number, i: number) => [v, v * 2]);
 const r6: Promise<void> = ain.forEach((v: number, i: number) => { });
 const r7: AsyncIterator<number> = ain.map((v: number, i: number) => v * 2);
 const r8: Promise<number> = ain.reduce((acc: number, v: number, i: number) => acc + v, 0);
@@ -99,7 +99,7 @@ ain.take();
 ain.toArray(1);
 
 const s0: Promise<string[]> = ais.toArray();
-const f0: Promise<string> = ais.find((v: string, i: number) => v.length === 1);
+const f0: Promise<string | undefined> = ais.find((v: string, i: number) => v.length === 1);
 
 // @ts-expect-error
 ais.map((v: string, i: number) => v.length === 1, 'extra');
