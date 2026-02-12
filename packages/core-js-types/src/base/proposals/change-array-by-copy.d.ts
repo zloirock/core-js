@@ -274,8 +274,8 @@ interface Uint32Array { // @type-options: no-export
    * a negative value if the first argument is less than the second argument, zero if they're equal, and a positive
    * value otherwise. If omitted, the elements are sorted in ascending order.
    * ```ts
-   * const myNums = Int32Array.from([11, 2, -22, 1]);
-   * myNums.toSorted((a, b) => a - b) // Int32Array(4) [-22, 1, 2, 11]
+   * const myNums = Uint32Array.from([11, 2, -22, 1]);
+   * myNums.toSorted((a, b) => a - b) // Uint32Array(4) [-22, 1, 2, 11]
    * ```
    */
   toSorted(compareFn?: (a: number, b: number) => number): Uint32Array;
@@ -303,7 +303,7 @@ interface Float32Array { // @type-options: no-export
    * value otherwise. If omitted, the elements are sorted in ascending order.
    * ```ts
    * const myNums = Float32Array.from([11.25, 2, -22.5, 1]);
-   * myNums.toSorted((a, b) => a - b) // Float32Array(4) [-22.5, 1, 2, 11.5]
+   * myNums.toSorted((a, b) => a - b) // Float32Array(4) [-22.5, 1, 2, 11.25]
    * ```
    */
   toSorted(compareFn?: (a: number, b: number) => number): Float32Array;
@@ -331,7 +331,7 @@ interface Float64Array { // @type-options: no-export
    * value otherwise. If omitted, the elements are sorted in ascending order.
    * ```ts
    * const myNums = Float64Array.from([11.25, 2, -22.5, 1]);
-   * myNums.toSorted((a, b) => a - b) // Float64Array(4) [-22.5, 1, 2, 11.5]
+   * myNums.toSorted((a, b) => a - b) // Float64Array(4) [-22.5, 1, 2, 11.25]
    * ```
    */
   toSorted(compareFn?: (a: number, b: number) => number): Float64Array;
