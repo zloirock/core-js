@@ -3060,7 +3060,7 @@ export const features = {
     name: 'URL',
   },
   'url/constructor': {
-    modules: ['web.url.constructor', 'web.url.to-json', /^web\.url-search-params?\./],
+    modules: ['web.url.constructor', 'web.url.to-json', /^web\.url-search-params\./],
     template: $namespace,
     name: 'URL',
   },
