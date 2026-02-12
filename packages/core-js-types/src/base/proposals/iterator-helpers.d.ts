@@ -1,4 +1,4 @@
-/// <reference types="../core-js-types/core-js-types" />
+/// <reference types="../core-js-types/iterator-object" />
 
 // https://github.com/tc39/proposal-iterator-helpers
 

@@ -1,4 +1,4 @@
-/// <reference types="../../core-js-types/iterator-object.d.ts" />
+/// <reference types="../core-js-types/iterator-object" />
 
 // Motivation: Using our own type for IteratorObject
 
