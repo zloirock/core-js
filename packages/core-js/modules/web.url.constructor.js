@@ -825,7 +825,7 @@ URLState.prototype = {
     var scheme = this.scheme;
     var port = this.port;
     if (scheme === 'blob') try {
-      return new URLConstructor(scheme.path[0]).origin;
+      return new URLConstructor(this.path[0]).origin;
     } catch (error) {
       return 'null';
     }
