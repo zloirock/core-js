@@ -1,4 +1,4 @@
-/// <reference types="./url-search-params.d.ts" />
+/// <reference types="./url-search-params" />
 
 declare namespace CoreJS {
   export interface CoreJSURL {
