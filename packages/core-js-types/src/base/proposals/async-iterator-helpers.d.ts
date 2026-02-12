@@ -26,13 +26,14 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @param predicate - A function that tests each element of the iterator
    * @returns A promise that resolves to `true` if all elements pass the test, otherwise `false`
    */
-  every(predicate: (value: T, index: number) => boolean): Promise<boolean>;
+  every(predicate: (value: T, index: number) => unknown): Promise<boolean>;
 
   /**
    * Creates a new `AsyncIterator` that contains only the elements that pass the `predicate` function.
    * @param predicate - A function that tests each element of the iterator
    * @returns A new `AsyncIterator`
    */
+  filter<S extends T>(predicate: (value: T, index: number) => value is S): AsyncIteratorObject<S, undefined, unknown>;
   filter(predicate: (value: T, index: number) => boolean): AsyncIteratorObject<T>;
 
   /**
@@ -40,14 +41,15 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @param predicate - A function that tests each element of the iterator
    * @returns A `Promise` that resolves to the found element, or `undefined` if no element satisfies the `predicate`
    */
-  find(predicate: (value: T, index: number) => boolean): Promise<T>;
+  find<S extends T>(predicate: (value: T, index: number) => value is S): Promise<S | undefined>;
+  find(predicate: (value: T, index: number) => boolean): Promise<T | undefined>;
 
   /**
    * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator and flattening the result.
-   * @param mapper - A function that transforms each element of the iterator
+   * @param callback - A function that transforms each element of the iterator
    * @returns A new `AsyncIterator`
    */
-  flatMap(mapper: (value: T, index: number) => any): AsyncIteratorObject<any>;
+  flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined> | AsyncIterator<U> | AsyncIterable<U>): AsyncIteratorObject<U, undefined, unknown>;
 
   /**
    * Executes a provided function once for each element in the iterator.
@@ -61,7 +63,7 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @param mapper - A function that transforms each element of the iterator
    * @returns A new `AsyncIterator`
    */
-  map(mapper: (value: T, index: number) => any): AsyncIteratorObject<T>;
+  map<U>(mapper: (value: T, index: number) => U): AsyncIteratorObject<U, undefined, unknown>;
 
   /**
    * Reduces the elements of the iterator to a single value using the `reducer` function.
@@ -69,14 +71,15 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @param initialValue - An optional initial value to start the reduction
    * @returns A `Promise` that resolves to the reduced value
    */
-  reduce(reducer: (accumulator: any, value: T, index: number) => any, initialValue?: any): Promise<any>;
+  reduce<U>(reducer: (accumulator: U, value: T, index: number) => U, initialValue?: U): Promise<U>;
+  reduce(reducer: (accumulator: T, value: T, index: number) => T, initialValue?: T): Promise<T>;
 
   /**
    * Checks if any value in the iterator matches a given `predicate`
    * @param predicate - A function that tests each element of the iterator
    * @returns A `Promise` that resolves to `true` if any element passes the `predicate`, otherwise `false`
    */
-  some(predicate: (value: T, index: number) => boolean): Promise<boolean>;
+  some(predicate: (value: T, index: number) => unknown): Promise<boolean>;
 
   /**
    * Creates a new `AsyncIterator` that yields only the first `limit` elements from the original iterator.
