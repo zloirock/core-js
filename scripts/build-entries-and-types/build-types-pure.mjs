@@ -85,9 +85,9 @@ function processLines(lines) {
       }
 
       // Replace prefixed types in the entire file
-      if (/(?::|\|)\s*\w/.test(line)) {
+      if (/:\s*\w/.test(line)) {
         prefixed.toSorted((a, b) => b.length - a.length).forEach(item => {
-          const reg = new RegExp(`(?<prepend>:||) ${ item }(?<type>[,;<)])`, 'g');
+          const reg = new RegExp(`(?<prepend>:) ${ item }(?<type>[,;<)])`, 'g');
           line = line.replace(reg, `$<prepend> ${ NAMESPACE }${ item }$<type>`);
         });
       }
