@@ -1,4 +1,4 @@
-/// <reference types="../core-js-types/core-js-types" />
+/// <reference types="../core-js-types/async-iterator" />
 
 // https://github.com/tc39/proposal-async-iterator-helpers
 
