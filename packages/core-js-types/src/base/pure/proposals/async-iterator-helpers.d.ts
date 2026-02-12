@@ -31,13 +31,14 @@ declare namespace CoreJS {
      * @param predicate - A function that tests each element of the iterator
      * @returns A promise that resolves to `true` if all elements pass the test, otherwise `false`
      */
-    every(predicate: (value: T, index: number) => boolean): CoreJSPromise<boolean>;
+    every(predicate: (value: T, index: number) => unknown): CoreJSPromise<boolean>;
 
     /**
      * Creates a new `AsyncIterator` that contains only the elements that pass the `predicate` function.
      * @param predicate - A function that tests each element of the iterator
      * @returns A new `AsyncIterator`
      */
+    filter<S extends T>(predicate: (value: T, index: number) => value is S): CoreJSAsyncIteratorObject<S>;
     filter(predicate: (value: T, index: number) => boolean): CoreJSAsyncIteratorObject<T>;
 
     /**
@@ -45,7 +46,8 @@ declare namespace CoreJS {
      * @param predicate - A function that tests each element of the iterator
      * @returns A `Promise` that resolves to the found element, or `undefined` if no element satisfies the `predicate`
      */
-    find(predicate: (value: T, index: number) => boolean): CoreJSPromise<T>;
+    find<S extends T>(predicate: (value: T, index: number) => value is S): CoreJSPromise<S | undefined>;
+    find(predicate: (value: T, index: number) => boolean): CoreJSPromise<T | undefined>;
 
     /**
      * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator and flattening the result.
@@ -66,7 +68,7 @@ declare namespace CoreJS {
      * @param mapper - A function that transforms each element of the iterator
      * @returns A new `AsyncIterator`
      */
-    map(mapper: (value: T, index: number) => any): CoreJSAsyncIteratorObject<T>;
+    map<U>(mapper: (value: T, index: number) => U): CoreJSAsyncIteratorObject<U>;
 
     /**
      * Reduces the elements of the iterator to a single value using the `reducer` function.
@@ -81,7 +83,7 @@ declare namespace CoreJS {
      * @param predicate - A function that tests each element of the iterator
      * @returns A `Promise` that resolves to `true` if any element passes the `predicate`, otherwise `false`
      */
-    some(predicate: (value: T, index: number) => boolean): CoreJSPromise<boolean>;
+    some(predicate: (value: T, index: number) => unknown): CoreJSPromise<boolean>;
 
     /**
      * Creates a new `AsyncIterator` that yields only the first `limit` elements from the original iterator.
