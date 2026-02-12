@@ -1,4 +1,4 @@
-/// <reference types="../core-js-types/flat-array.d.ts" />
+/// <reference types="../core-js-types/flat-array" />
 
 // https://github.com/tc39/proposal-flatMap
 
