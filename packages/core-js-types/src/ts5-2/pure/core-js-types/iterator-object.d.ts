@@ -1,4 +1,4 @@
-/// <reference types="../proposals/iterator.ts" />
+/// <reference types="../proposals/iterator" />
 
 // Motivation: Iterator until TS 5.6 used undefined as TNext defaults
 
