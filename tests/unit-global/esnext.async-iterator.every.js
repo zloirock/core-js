@@ -26,7 +26,10 @@ QUnit.test('AsyncIterator#every', assert => {
     return every.call(createIterator([1, 2, 3]), it => it === 2);
   }).then(result => {
     assert.false(result, 'basic functionality, -');
-    return every.call(createIterator([1, 2, 3]), (value, counter) => { counters.push(counter); return true; });
+    return every.call(createIterator([1, 2, 3]), (value, counter) => {
+      counters.push(counter);
+      return true;
+    });
   }).then(() => {
     assert.arrayEqual(counters, [0, 1, 2], 'counter incremented');
     return every.call(createIterator([1]), function (arg, counter) {

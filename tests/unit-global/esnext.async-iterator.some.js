@@ -26,7 +26,10 @@ QUnit.test('AsyncIterator#some', assert => {
     return some.call(createIterator([1, 2, 3]), it => it === 4);
   }).then(result => {
     assert.false(result, 'basic functionality, -');
-    return some.call(createIterator([1, 2, 3]), (value, counter) => { counters.push(counter); return false; });
+    return some.call(createIterator([1, 2, 3]), (value, counter) => {
+      counters.push(counter);
+      return false;
+    });
   }).then(() => {
     assert.arrayEqual(counters, [0, 1, 2], 'counter incremented');
     return some.call(createIterator([1]), function (arg, counter) {

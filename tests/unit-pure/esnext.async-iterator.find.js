@@ -26,7 +26,10 @@ QUnit.test('AsyncIterator#find', assert => {
     return find.call(createIterator([1, 2, 3]), it => it === 4);
   }).then(result => {
     assert.same(result, undefined, 'basic functionality, -');
-    return find.call(createIterator([1, 2, 3]), (value, counter) => { counters.push(counter); return false; });
+    return find.call(createIterator([1, 2, 3]), (value, counter) => {
+      counters.push(counter);
+      return false;
+    });
   }).then(() => {
     assert.arrayEqual(counters, [0, 1, 2], 'counter incremented');
     return find.call(createIterator([1]), function (arg, counter) {
