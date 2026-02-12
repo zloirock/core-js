@@ -19,11 +19,16 @@ QUnit.test('AsyncIterator#some', assert => {
   assert.throws(() => some.call(createIterator([1]), null), TypeError);
   assert.throws(() => some.call(createIterator([1]), {}), TypeError);
 
+  const counters = [];
+
   return some.call(createIterator([1, 2, 3]), it => it === 2).then(result => {
     assert.true(result, 'basic functionality, +');
     return some.call(createIterator([1, 2, 3]), it => it === 4);
   }).then(result => {
     assert.false(result, 'basic functionality, -');
+    return some.call(createIterator([1, 2, 3]), (value, counter) => { counters.push(counter); return false; });
+  }).then(() => {
+    assert.arrayEqual(counters, [0, 1, 2], 'counter incremented');
     return some.call(createIterator([1]), function (arg, counter) {
       assert.same(this, STRICT_THIS, 'this');
       assert.same(arguments.length, 2, 'arguments length');

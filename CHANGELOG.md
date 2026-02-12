@@ -4,6 +4,7 @@
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
+- Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
