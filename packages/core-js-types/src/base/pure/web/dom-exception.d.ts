@@ -40,6 +40,7 @@ declare namespace CoreJS {
   interface CoreJSDomExceptionConstructor {
     prototype: CoreJSDOMException;
     new(message?: string, name?: string): CoreJSDOMException;
+    new(message?: string, options?: { name?: string; cause?: unknown }): CoreJSDOMException;
     readonly INDEX_SIZE_ERR: 1;
     readonly DOMSTRING_SIZE_ERR: 2;
     readonly HIERARCHY_REQUEST_ERR: 3;
@@ -67,5 +68,5 @@ declare namespace CoreJS {
     readonly DATA_CLONE_ERR: 25;
   }
 
-  var CoreJSDOMException: CoreJSDOMException;
+  var CoreJSDOMException: CoreJSDomExceptionConstructor;
 }

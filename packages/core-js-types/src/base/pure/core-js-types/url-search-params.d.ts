@@ -1,3 +1,6 @@
+/// <reference types="./iterator-object" />
+/// <reference types="../proposals/symbol" />
+
 declare namespace CoreJS {
   export interface CoreJSURLSearchParams {
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/URLSearchParams/size) */
@@ -43,6 +46,15 @@ declare namespace CoreJS {
     /** Returns a string containing a query string suitable for use in a URL. Does not include the question mark. */
     toString(): string;
     forEach(callbackfn: (value: string, key: string, parent: CoreJSURLSearchParams) => void, thisArg?: any): void;
+
+    [CoreJS.CoreJSSymbol.iterator](): CoreJSURLSearchParamsIterator<[string, string]>;
+    entries(): CoreJSURLSearchParamsIterator<[string, string]>;
+    keys(): CoreJSURLSearchParamsIterator<string>;
+    values(): CoreJSURLSearchParamsIterator<string>;
+  }
+
+  interface CoreJSURLSearchParamsIterator<T> extends CoreJSIteratorObject<T, BuiltinIteratorReturn, unknown> {
+    [Symbol.iterator](): CoreJSURLSearchParamsIterator<T>;
   }
 
   export interface CoreJSURLSearchParamsConstructor {
