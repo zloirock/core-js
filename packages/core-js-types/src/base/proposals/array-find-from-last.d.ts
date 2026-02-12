@@ -267,6 +267,15 @@ interface Float64Array { // @type-options: no-export
   findLast<S extends number>(predicate: (value: number, index: number, array: this) => value is S, thisArg?: any): S | undefined;
   findLast(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number | undefined;
 
+  /**
+   * Returns the index of the last element in the array where predicate is true, and -1
+   * otherwise.
+   * @param predicate - findLastIndex calls predicate once for each element of the array, in descending
+   * order, until it finds one where predicate returns true. If such an element is found,
+   * findLastIndex immediately returns that element index. Otherwise, findLastIndex returns -1.
+   * @param thisArg - If provided, it will be used as this value for each invocation of
+   * predicate. If it is not provided, undefined is used instead.
+   */
   findLastIndex(predicate: (value: number, index: number, array: this) => unknown, thisArg?: any): number;
 }
 
