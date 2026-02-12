@@ -1,3 +1,5 @@
+// @types: proposals/promise-any
+// @types: proposals/error-cause
 'use strict';
 var $ = require('../internals/export');
 var getBuiltIn = require('../internals/get-built-in');

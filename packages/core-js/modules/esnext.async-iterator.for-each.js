@@ -1,3 +1,4 @@
+// @types: proposals/async-iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var $forEach = require('../internals/async-iterator-iteration').forEach;

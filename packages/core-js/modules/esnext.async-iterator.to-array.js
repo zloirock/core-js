@@ -1,3 +1,4 @@
+// @types: proposals/async-iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var $toArray = require('../internals/async-iterator-iteration').toArray;

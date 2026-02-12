@@ -1,3 +1,4 @@
+// @types: proposals/number-clamp
 'use strict';
 var $ = require('../internals/export');
 var aNumber = require('../internals/a-number');
