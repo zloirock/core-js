@@ -9,7 +9,7 @@ interface PromiseConstructor {
    * @param promises - An object of promises
    * @returns A new `Promise` that resolves to an object of fulfilled values or rejects if any promise rejects.
    */
-  allKeyed<D extends Record<PropertyKey, Promise<any>>>(promises: D): Promise <{ [k in keyof D]: Awaited<D[k]> }>;
+  allKeyed<D extends Record<PropertyKey, Promise<any>>>(promises: D): Promise<{ [k in keyof D]: Awaited<D[k]> }>;
 
   /**
    * Takes an object whose values are promises and returns a single `Promise` that resolves
@@ -18,7 +18,7 @@ interface PromiseConstructor {
    * @returns A new Promise that resolves to an object with the same keys as the input object,
    * where each key maps to the settlement result (`{ status, value }` or `{ status, reason }`) of the corresponding promise.
    */
-  allSettledKeyed<D extends Record<PropertyKey, Promise<any>>>(promises: D): Promise <{ [k in keyof D]: CoreJS.CoreJSPromiseSettledResult<Awaited<D[k]>> }>;
+  allSettledKeyed<D extends Record<PropertyKey, Promise<any>>>(promises: D): Promise<{ [k in keyof D]: CoreJS.CoreJSPromiseSettledResult<Awaited<D[k]>> }>;
 }
 
 declare var Promise: PromiseConstructor;

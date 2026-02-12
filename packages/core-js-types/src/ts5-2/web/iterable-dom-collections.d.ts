@@ -2,6 +2,11 @@
 interface Element {} // @type-options: no-export
 interface Node {} // @type-options: no-export
 interface HTMLOptionElement {} // @type-options: no-export
+interface CSSValue {} // @type-options: no-export
+interface CSSRule {} // @type-options: no-export
+interface ClientRect {} // @type-options: no-export
+interface DOMRect {} // @type-options: no-export
+interface StyleSheet {} // @type-options: no-export
 
 interface ArrayIterator<T> extends IteratorObject<T, any, unknown> { // @type-options: no-export
   [Symbol.iterator](): ArrayIterator<T>;
@@ -34,7 +39,7 @@ interface DOMTokenList { // @type-options: no-export
    */
   entries(): IterableIterator<[number, Element]>;
 
-  [Symbol.iterator](): IterableIterator<Element>;
+  [Symbol.iterator](): IterableIterator<string>;
 }
 
 interface NodeList { // @type-options: no-export
@@ -72,37 +77,37 @@ interface NodeList { // @type-options: no-export
 
 interface CSSRuleList { // @type-options: no-export
   /**
-   * Returns an iterable of values in the CSSRuleList.
+   * Returns an iterable of CSSRule values.
    */
-  [Symbol.iterator](): IterableIterator<CSSRuleList>;
+  [Symbol.iterator](): IterableIterator<CSSRule>;
 }
 
 interface CSSStyleDeclaration { // @type-options: no-export
   /**
-   * Returns an iterable of values in the CSSStyleDeclaration.
+   * Returns an iterable of string values.
    */
-  [Symbol.iterator](): IterableIterator<CSSStyleDeclaration>;
+  [Symbol.iterator](): IterableIterator<string>;
 }
 
 interface CSSValueList { // @type-options: no-export
   /**
-   * Returns an iterable of values in the CSSValueList.
+   * Returns an iterable of CSSValue values.
    */
-  [Symbol.iterator](): IterableIterator<CSSValueList>;
+  [Symbol.iterator](): IterableIterator<CSSValue>;
 }
 
 interface ClientRectList { // @type-options: no-export
   /**
-   * Returns an iterable of values in the ClientRectList.
+   * Returns an iterable of ClientRect values.
    */
-  [Symbol.iterator](): IterableIterator<ClientRectList>;
+  [Symbol.iterator](): IterableIterator<ClientRect>;
 }
 
 interface DOMRectList { // @type-options: no-export
   /**
-   * Returns an iterable of values in the DOMRectList.
+   * Returns an iterable of DOMRect values.
    */
-  [Symbol.iterator](): IterableIterator<DOMRectList>;
+  [Symbol.iterator](): IterableIterator<DOMRect>;
 }
 
 interface DOMStringList { // @type-options: no-export
@@ -247,10 +252,10 @@ interface SourceBufferList { // @type-options: no-export
 
 interface StyleSheetList { // @type-options: no-export
   /**
-   * Returns an iterable of values in the StyleSheetList.
+   * Returns an iterable of StyleSheet values.
    *
    */
-  [Symbol.iterator](): IterableIterator<SourceBufferList>;
+  [Symbol.iterator](): IterableIterator<StyleSheet>;
 }
 
 interface TextTrackCueList { // @type-options: no-export
