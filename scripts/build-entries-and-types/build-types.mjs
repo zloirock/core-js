@@ -164,7 +164,7 @@ async function fillCustomImportsForPure(typesPath, initialPath) {
       await fillCustomImportsForPure(path.join(typesPath, entry.name), initialPath);
     } else {
       const filePath = path.join(typesPath, entry.name);
-      const fileContent = await readFile(filePath).toString();
+      const fileContent = (await readFile(filePath)).toString();
       if (fileContent.startsWith('// empty')) continue;
       imports.pure.add(filePath.replace(`${ initialPath }/`, '').replace('.d.ts', ''));
     }
