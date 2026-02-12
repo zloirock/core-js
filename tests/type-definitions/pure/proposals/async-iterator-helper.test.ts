@@ -41,7 +41,7 @@ from({ next: () => 1 });
 const r1 = every(aiton, (v: number, i: number) => v > 0);
 assertCoreJSPromiseLike<boolean>(r1);
 const r2 = find(aiton, (v: number, i: number) => v > 0);
-assertCoreJSPromiseLike<number>(r2);
+assertCoreJSPromiseLike<number | undefined>(r2);
 const r3 = forEach(aiton, (v: number, i: number) => { });
 assertCoreJSPromiseLike<void>(r3);
 const r4 = reduce(aiton, (acc: number, v: number, i: number) => acc + v, 0);
@@ -67,32 +67,32 @@ assertCoreJSAsyncIteratorLike<number>(ait6);
 toAsync(is);
 
 // @ts-expect-error
-drop(ain);
+drop(aitn);
 // @ts-expect-error
-every(ain);
+every(aitn);
 // @ts-expect-error
-filter(ain);
+filter(aitn);
 // @ts-expect-error
-find(ain);
+find(aitn);
 // @ts-expect-error
-flatMap(ain);
+flatMap(aitn);
 // @ts-expect-error
-forEach(ain);
+forEach(aitn);
 // @ts-expect-error
-map(ain);
+map(aitn);
 // @ts-expect-error
-reduce(ain);
+reduce(aitn);
 // @ts-expect-error
-some(ain);
+some(aitn);
 // @ts-expect-error
-take(ain);
+take(aitn);
 // @ts-expect-error
-toArray(ain, 1);
+toArray(aitn, 1);
 
 const s0 = toArray(aiton);
 assertCoreJSPromiseLike<number[]>(s0);
 const f0 = find(aitos, (v: string, i: number) => v.length === 1);
-assertCoreJSPromiseLike<string>(f0);
+assertCoreJSPromiseLike<string | undefined>(f0);
 
 // @ts-expect-error
-map(ais, (v: string, i: number) => v.length === 1, 'extra');
+map(aitos, (v: string, i: number) => v.length === 1, 'extra');
