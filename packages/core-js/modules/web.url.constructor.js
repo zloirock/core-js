@@ -51,8 +51,7 @@ var INVALID_HOST = 'Invalid host';
 var INVALID_PORT = 'Invalid port';
 
 var ALPHA = /[a-z]/i;
-// eslint-disable-next-line regexp/no-obscure-range -- safe
-var ALPHANUMERIC = /[\d+-.a-z]/i;
+var ALPHANUMERIC_PLUS_MINUS_DOT = /[\d+\-.a-z]/i;
 var DIGIT = /\d/;
 var HEX_START = /^0x/i;
 var OCT = /^[0-7]+$/;
@@ -383,7 +382,7 @@ URLState.prototype = {
           break;
 
         case SCHEME:
-          if (chr && (exec(ALPHANUMERIC, chr) || chr === '+' || chr === '-' || chr === '.')) {
+          if (chr && exec(ALPHANUMERIC_PLUS_MINUS_DOT, chr)) {
             buffer += toLowerCase(chr);
           } else if (chr === ':') {
             if (stateOverride && (

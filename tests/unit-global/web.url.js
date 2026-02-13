@@ -53,6 +53,8 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:fg]'), 'incorrect IPv6');
   // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF
   assert.throws(() => new URL('1http://zloirock.ru'), 'incorrect scheme');
+  assert.throws(() => new URL('a,b://example.com'), 'comma in scheme');
+  assert.same(String(new URL('a+b-c.d://example.com')), 'a+b-c.d://example.com', 'valid scheme with +, -, .');
 });
 
 QUnit.test('URL#href', assert => {
