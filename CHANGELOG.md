@@ -3,6 +3,7 @@
 - Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
+- Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
