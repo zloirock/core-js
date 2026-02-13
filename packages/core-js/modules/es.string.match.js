@@ -35,9 +35,9 @@ fixRegExpWellKnownSymbolLogic('match', function (MATCH, nativeMatch, maybeCallNa
 
       var flags = toString(getRegExpFlags(rx));
 
-      if (stringIndexOf(flags, 'g') === -1) return regExpExec(rx, S);
+      if (!~stringIndexOf(flags, 'g')) return regExpExec(rx, S);
 
-      var fullUnicode = stringIndexOf(flags, 'u') !== -1;
+      var fullUnicode = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
       rx.lastIndex = 0;
       var A = [];
       var n = 0;
