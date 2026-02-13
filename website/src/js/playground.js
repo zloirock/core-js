@@ -252,7 +252,7 @@ function init() {
       runCode(codeInput.value);
       if (!elementInViewport(resultBlock)) {
         window.scrollTo({
-          top: resultBlock.getBoundingClientRect().top,
+          top: resultBlock.getBoundingClientRect().top + window.scrollY,
           behavior: 'smooth',
         });
       }
