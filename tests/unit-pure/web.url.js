@@ -473,6 +473,12 @@ QUnit.test('URL#search', assert => {
   url = new URL('http://zloirock.ru/?foo=bar');
   assert.same(url.search, '?foo=bar');
 
+  // query percent-encode set
+  assert.same(new URL('http://x/?a="<>').search, '?a=%22%3C%3E', 'query percent-encodes ", <, >');
+  assert.same(new URL('http://x/?a=\'').search, '?a=%27', 'special query percent-encodes \'');
+  // fails in modern Chrome (~145)
+  // assert.same(new URL('foo://x/?a=\'').search, '?a=\'', 'non-special query does not percent-encode \'');
+
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/?');
     assert.same(url.search, '');

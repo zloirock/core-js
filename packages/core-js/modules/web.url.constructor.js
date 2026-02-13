@@ -29,6 +29,7 @@ var getInternalSearchParamsState = URLSearchParamsModule.getState;
 
 var NativeURL = globalThis.URL;
 var TypeError = globalThis.TypeError;
+var encodeURIComponent = globalThis.encodeURIComponent;
 var parseInt = globalThis.parseInt;
 var floor = Math.floor;
 var pow = Math.pow;
@@ -242,6 +243,12 @@ var serializeHost = function (host) {
 };
 
 var C0ControlPercentEncodeSet = {};
+var queryPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
+  ' ': 1, '"': 1, '#': 1, '<': 1, '>': 1
+});
+var specialQueryPercentEncodeSet = assign({}, queryPercentEncodeSet, {
+  "'": 1
+});
 var fragmentPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
   ' ': 1, '"': 1, '<': 1, '>': 1, '`': 1
 });
@@ -254,7 +261,8 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
 
 var percentEncode = function (chr, set) {
   var code = codeAt(chr, 0);
-  return code > 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : encodeURIComponent(chr);
+  // encodeURIComponent does not encode ', which is in the special-query percent-encode set
+  return code > 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : chr === "'" && hasOwn(set, chr) ? '%27' : encodeURIComponent(chr);
 };
 
 // https://url.spec.whatwg.org/#special-scheme
@@ -730,9 +738,7 @@ URLState.prototype = {
             url.fragment = '';
             state = FRAGMENT;
           } else if (chr !== EOF) {
-            if (chr === "'" && url.isSpecial()) url.query += '%27';
-            else if (chr === '#') url.query += '%23';
-            else url.query += percentEncode(chr, C0ControlPercentEncodeSet);
+            url.query += percentEncode(chr, url.isSpecial() ? specialQueryPercentEncodeSet : queryPercentEncodeSet);
           } break;
 
         case FRAGMENT:
