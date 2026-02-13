@@ -443,8 +443,8 @@ var tryToTransfer = function (rawTransfer, map) {
 
   while (i < length) {
     value = transfer[i++];
-
     type = classof(value);
+    transferred = undefined;
 
     if (type === 'ArrayBuffer' ? setHas(buffers, value) : mapHas(map, value)) {
       throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);

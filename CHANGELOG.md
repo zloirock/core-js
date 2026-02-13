@@ -6,6 +6,7 @@
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed counter in some cases of some `AsyncIterator` methods
+- Fixed lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
