@@ -34,11 +34,11 @@ QUnit.test('Iterator.range', assert => {
   assert.deepEqual(from(range(0, 0)), []);
   assert.deepEqual(from(range(0, -5, 1)), []);
 
-  assert.deepEqual(from(range(NaN, 0)), []);
-  assert.deepEqual(from(range(0, NaN)), []);
-  assert.deepEqual(from(range(NaN, NaN)), []);
-  assert.deepEqual(from(range(0, 0, { step: NaN })), []);
-  assert.deepEqual(from(range(0, 5, NaN)), []);
+  assert.throws(() => range(NaN, 0), RangeError, 'NaN as start');
+  assert.throws(() => range(0, NaN), RangeError, 'NaN as end');
+  assert.throws(() => range(NaN, NaN), RangeError, 'NaN as start and end');
+  assert.throws(() => range(0, 0, { step: NaN }), RangeError, 'NaN as step option');
+  assert.throws(() => range(0, 5, NaN), RangeError, 'NaN as step argument');
 
   iterator = range(1, 3);
   assert.deepEqual(iterator.start, 1);

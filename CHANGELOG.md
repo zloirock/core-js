@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
 - Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
+- [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version to throw a `RangeError` on `NaN` `start` / `end` / `step`
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfill in the `strict` mode
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
