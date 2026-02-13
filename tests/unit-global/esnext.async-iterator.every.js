@@ -44,5 +44,14 @@ QUnit.test('AsyncIterator#every', assert => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error');
+  }).then(() => {
+    return every.call(
+      createIterator([1], { return() { throw 43; } }),
+      () => { throw 42; },
+    );
+  }).then(() => {
+    assert.avoid();
+  }, error => {
+    assert.same(error, 42, 'rejection on a callback error even if return() throws');
   });
 });

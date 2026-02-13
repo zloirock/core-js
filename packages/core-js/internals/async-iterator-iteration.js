@@ -36,7 +36,9 @@ var createMethod = function (TYPE) {
         try {
           if (MAPPING) try {
             doesNotExceedSafeInteger(counter);
-          } catch (error5) { ifAbruptCloseAsyncIterator(error5); }
+          } catch (error5) {
+            return ifAbruptCloseAsyncIterator(error5);
+          }
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
