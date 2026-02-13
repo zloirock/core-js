@@ -15,8 +15,9 @@ var toBigInt = require('../internals/to-big-int');
 module.exports = function from(source /* , mapfn, thisArg */) {
   var C = aConstructor(this);
   var argumentsLength = arguments.length;
-  var mapfn = argumentsLength > 1 ? aCallable(arguments[1]) : undefined;
+  var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
   var mapping = mapfn !== undefined;
+  if (mapping) aCallable(mapfn);
   var O = toObject(source);
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, thisIsBigIntArray, value, step, iterator, next;
