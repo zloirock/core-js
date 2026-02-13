@@ -147,11 +147,7 @@ var decode = function (input) {
           var nextByte = parseHexOctet(input, i + 1);
 
           // eslint-disable-next-line no-self-compare -- NaN check
-          if (nextByte !== nextByte) {
-            i += 3;
-            break;
-          }
-          if (nextByte > 191 || nextByte < 128) break;
+          if (nextByte !== nextByte || nextByte > 191 || nextByte < 128) break;
 
           push(octets, nextByte);
           i += 2;

@@ -131,6 +131,7 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(String(new URLSearchParams('%F0%9F%D0%90')), '%EF%BF%BD%D0%90=');
   assert.same(String(new URLSearchParams('%25')), '%25=');
   assert.same(String(new URLSearchParams('%4')), '%254=');
+  assert.same(String(new URLSearchParams('%C3%ZZ')), '%EF%BF%BD%25ZZ=', 'invalid hex in continuation byte preserved');
 
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },

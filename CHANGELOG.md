@@ -6,6 +6,7 @@
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed `URLSearchParams#delete` polyfill with duplicate key-value pairs
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
+- Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
