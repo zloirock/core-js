@@ -75,7 +75,7 @@ function init() {
         },
         ImportDeclaration(path) {
           const { node } = path;
-          if (!node.specifiers.length && /^core-js\/|$/.test(node.source.value)) {
+          if (!node.specifiers.length && /^core-js(?:\/|$)/.test(node.source.value)) {
             path.remove();
           }
         },
