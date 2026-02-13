@@ -62,7 +62,7 @@ async function getDocsMenuItems(version) {
     return docsMenuItems[version];
   } catch {
     echo(chalk.yellow(`Menu JSON file not found: ${ jsonPath }`));
-    return '';
+    return [];
   }
 }
 
