@@ -5,6 +5,7 @@
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed `URLSearchParams#delete` polyfill with duplicate key-value pairs
+- Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill

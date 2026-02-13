@@ -484,7 +484,7 @@ URLState.prototype = {
             url.host = base.host;
             url.port = base.port;
             url.path = arraySlice(base.path);
-            url.path.length--;
+            if (url.path.length) url.path.length--;
             state = PATH;
             continue;
           } break;

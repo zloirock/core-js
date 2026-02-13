@@ -56,6 +56,8 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('1http://zloirock.ru'), 'incorrect scheme');
   assert.throws(() => new URL('a,b://example.com'), 'comma in scheme');
   assert.same(String(new URL('a+b-c.d://example.com')), 'a+b-c.d://example.com', 'valid scheme with +, -, .');
+  assert.same(String(new URL('relative', 'foo://host')), 'foo://host/relative', 'relative URL with non-special base with empty path');
+  assert.same(String(new URL('bar', 'foo://host/a/b')), 'foo://host/a/bar', 'relative URL with non-special base with path');
 });
 
 QUnit.test('URL#href', assert => {
