@@ -1,6 +1,7 @@
 'use strict';
 var bind = require('../internals/function-bind-context');
 var call = require('../internals/function-call');
+var aCallable = require('../internals/a-callable');
 var aConstructor = require('../internals/a-constructor');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
@@ -13,10 +14,10 @@ var toBigInt = require('../internals/to-big-int');
 
 module.exports = function from(source /* , mapfn, thisArg */) {
   var C = aConstructor(this);
-  var O = toObject(source);
   var argumentsLength = arguments.length;
-  var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
+  var mapfn = argumentsLength > 1 ? aCallable(arguments[1]) : undefined;
   var mapping = mapfn !== undefined;
+  var O = toObject(source);
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, thisIsBigIntArray, value, step, iterator, next;
   if (iteratorMethod && !isArrayIteratorMethod(iteratorMethod)) {
