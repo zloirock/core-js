@@ -9,11 +9,12 @@ module.exports = function (iterator, method, argument, reject) {
     if (returnMethod) {
       return getBuiltIn('Promise').resolve(call(returnMethod, iterator)).then(function () {
         method(argument);
-      }, function (error) {
-        reject(error);
+      }, function () {
+        method(argument);
       });
     }
   } catch (error2) {
-    return reject(error2);
+    // the original error (`argument`) takes priority over `return()` errors
+    return method === reject ? reject(argument) : reject(error2);
   } method(argument);
 };
