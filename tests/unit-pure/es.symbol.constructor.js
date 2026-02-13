@@ -160,6 +160,15 @@ if (DESCRIPTORS) {
       enumerable: true,
       value: 'e',
     }, 'redefined non-enum key');
+    const g = Symbol('g');
+    defineProperty(object, g, { configurable: true, enumerable: true, writable: true, value: 1 });
+    defineProperty(object, g, { value: 2 });
+    assert.deepEqual(getOwnPropertyDescriptor(object, g), {
+      configurable: true,
+      writable: true,
+      enumerable: true,
+      value: 2,
+    }, 'redefine with partial descriptor preserves enumerable');
   });
 
   QUnit.test('Symbols & Object.defineProperties', assert => {
