@@ -4,6 +4,7 @@
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
+- Fixed `URLSearchParams#delete` polyfill with duplicate key-value pairs
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable

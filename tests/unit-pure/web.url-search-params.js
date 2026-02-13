@@ -266,6 +266,10 @@ QUnit.test('URLSearchParams#delete', assert => {
   params.delete('a', 2);
   assert.same(String(params), 'a=1&a=null&a=3&b=4');
 
+  params = new URLSearchParams('a=1&a=1&b=2&a=1');
+  params.delete('a', '1');
+  assert.same(String(params), 'b=2', 'delete with value removes all matching name+value pairs');
+
   params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
   params.delete('a', null);
   assert.same(String(params), 'a=1&a=2&a=3&b=4');

@@ -330,7 +330,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
       var entry = entries[index];
       if (entry.key === key && (value === undefined || entry.value === value)) {
         splice(entries, index, 1);
-        if (value !== undefined) break;
       } else index++;
     }
     if (!DESCRIPTORS) this.size = entries.length;
