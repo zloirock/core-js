@@ -120,24 +120,6 @@ function init() {
       return 'Promise { <value> }';
     }
 
-    if (typeof value === 'object') {
-      if (visited.has(value)) return '[Circular]';
-      visited.add(value);
-    }
-
-    if (value instanceof Set) {
-      const arr = Array.from(value, v => serializeLog(v, visited));
-      return `Set { ${ arr.join(', ') } }`;
-    }
-
-    if (value instanceof Map) {
-      const arr = Array.from(
-        value,
-        ([k, v]) => `${ serializeLog(k, visited) } => ${ serializeLog(v, visited) }`,
-      );
-      return `Map { ${ arr.join(', ') } }`;
-    }
-
     if (value instanceof ArrayBuffer) {
       return `ArrayBuffer(${ value.byteLength })`;
     }
@@ -146,19 +128,14 @@ function init() {
       return `DataView(${ value.byteLength })`;
     }
 
-    if (value instanceof Blob) {
-      return `Blob { size: ${ value.size }, type: "${ value.type }" }`;
-    }
-
     if (ArrayBuffer.isView(value)) {
       const type = value.constructor.name;
       const objFormat = Array.from(value, (v, i) => `"${ i }": ${ serializeLog(v, visited) }`);
       return `${ type } { ${ objFormat.join(', ') } }`;
     }
 
-    if (Array.isArray(value)) {
-      const arr = value.map(v => serializeLog(v, visited));
-      return `[${ arr.join(', ') }]`;
+    if (globalThis.Blob && value instanceof Blob) {
+      return `Blob { size: ${ value.size }, type: "${ value.type }" }`;
     }
 
     if (value instanceof Error) {
@@ -166,29 +143,50 @@ function init() {
     }
 
     if (value instanceof Date) {
-      return `Date "${ value.toString() }"`;
+      return `Date "${ String(value) }"`;
     }
 
     if (value instanceof RegExp) {
-      return `RegExp ${ value.toString() }`;
+      return `RegExp ${ String(value) }`;
     }
 
-    if (typeof value === 'object') {
+    if (visited.has(value)) return '[Circular]';
+
+    visited.add(value);
+
+    try {
+      if (value instanceof Set) {
+        const arr = Array.from(value, v => serializeLog(v, visited));
+        return `Set { ${ arr.join(', ') } }`;
+      }
+
+      if (value instanceof Map) {
+        const arr = Array.from(
+          value,
+          ([k, v]) => `${ serializeLog(k, visited) } => ${ serializeLog(v, visited) }`,
+        );
+        return `Map { ${ arr.join(', ') } }`;
+      }
+
+      if (Array.isArray(value)) {
+        const arr = value.map(v => serializeLog(v, visited));
+        return `[${ arr.join(', ') }]`;
+      }
+
       const isPlain = Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null;
       const keys = Reflect.ownKeys(value);
       const props = keys.map(k => {
         // eslint-disable-next-line unicorn/no-instanceof-builtins -- it's needed here
-        const displayKey = Object(k) instanceof Symbol ? `[${ k.toString() }]` : k;
+        const displayKey = Object(k) instanceof Symbol ? `[${ String(k) }]` : k;
         return `${ displayKey }: ${ serializeLog(value[k], visited) }`;
       });
-      if (visited.has(value)) visited.delete(value);
 
       return isPlain
         ? `{ ${ props.join(', ') } }`
         : `${ value.constructor?.name ?? 'Object' } { ${ props.join(', ') } }`;
+    } finally {
+      visited.delete(value);
     }
-
-    return String(value);
   }
 
   function elementInViewport(el) {
@@ -263,9 +261,9 @@ function init() {
     linkButton.addEventListener('click', e => {
       e.preventDefault();
       pageParams.set('code', codeInput.value);
-      location.hash = pageParams.toString();
+      location.hash = String(pageParams);
       try {
-        copyToClipboard(location.toString());
+        copyToClipboard(String(location));
         showTooltip(linkButton, 'Link copied');
       } catch {
         showTooltip(linkButton, 'Can\'t copy link. Please copy the link manually');
