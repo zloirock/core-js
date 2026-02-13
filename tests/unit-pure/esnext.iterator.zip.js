@@ -64,6 +64,26 @@ QUnit.test('Iterator.zip', assert => {
   }
 
   {
+    const expectedError = new TypeError('strict next error');
+    let it2calls = 0;
+    const it2 = createIterator([2], {
+      next() {
+        if (it2calls++) throw expectedError;
+        return { value: 2, done: false };
+      },
+    });
+    result = zip([createIterator([1]), it2], { mode: 'strict' });
+    result.next();
+    let caught;
+    try {
+      result.next();
+    } catch (error) {
+      caught = error;
+    }
+    assert.same(caught, expectedError, 'strict mode propagates error from .next() during exhaustion check');
+  }
+
+  {
     const $result = zip([
       [0, 1, 2],
       [3, 4, 5, 6, 7],
