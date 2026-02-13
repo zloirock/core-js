@@ -15,6 +15,7 @@
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
 - Fixed lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
+- Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
 - Fixed order of `%TypedArray%.from` arguments validation
 - Fixed `esmodules: intersect` option of `core-js-compat`
