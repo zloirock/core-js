@@ -1,3 +1,3 @@
-$`actions-up --dry-run`;
+await $`actions-up --dry-run`;
 
 echo(chalk.green('actions dependencies checked'));
