@@ -32,6 +32,15 @@ QUnit.test('AsyncIterator#reduce', assert => {
     return reduce.call(createIterator([1, 2, 3]), (a, b) => a + b);
   }).then(it => {
     assert.same(it, 6, 'basic functionality, no initial');
+    // counter increments unconditionally, so first reducer call gets counter=1
+    const countersNoInit = [];
+    return reduce.call(createIterator([10, 20, 30]), (a, b, counter) => {
+      countersNoInit.push(counter);
+      return a + b;
+    }).then(() => {
+      assert.deepEqual(countersNoInit, [1, 2], 'counter without initial value');
+    });
+  }).then(() => {
     return reduce.call(createIterator([]), (a, b) => a + b);
   }).catch(() => {
     assert.true(true, 'reduce an empty iterable with no initial');
