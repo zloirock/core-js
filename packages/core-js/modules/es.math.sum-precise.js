@@ -41,7 +41,7 @@ $({ target: 'Math', stat: true }, {
     var state = MINUS_ZERO;
 
     iterate(items, function (n) {
-      if (++count >= MAX_SAFE_INTEGER) throw new $RangeError('Maximum allowed index exceeded');
+      if (++count > MAX_SAFE_INTEGER) throw new $RangeError('Maximum allowed index exceeded');
       if (typeof n != 'number') throw new $TypeError('Value is not a number');
       if (state !== NOT_A_NUMBER) {
         // eslint-disable-next-line no-self-compare -- NaN check
