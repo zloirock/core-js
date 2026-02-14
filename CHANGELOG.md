@@ -17,6 +17,7 @@
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
+- Fixed lack of error on `\u{}` in `String.dedent` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
 - Fixed lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
