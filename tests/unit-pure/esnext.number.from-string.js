@@ -44,4 +44,15 @@ QUnit.test('Number.fromString', assert => {
   assert.throws(() => fromString('1234', 37), RangeError);
   assert.throws(() => fromString('010'), SyntaxError);
   assert.throws(() => fromString('1_000_000_000'), SyntaxError);
+
+  assert.throws(() => fromString('19', 8), SyntaxError, 'Invalid digit for radix #1');
+  assert.throws(() => fromString('1g', 16), SyntaxError, 'Invalid digit for radix #2');
+  assert.throws(() => fromString('fg', 16), SyntaxError, 'Invalid digit for radix #3');
+  assert.throws(() => fromString('89', 8), SyntaxError, 'Invalid digit for radix #4');
+  assert.throws(() => fromString('1.2.3', 16), SyntaxError, 'Multiple dots #1');
+  assert.throws(() => fromString('1.2.3', 10), SyntaxError, 'Multiple dots #2');
+  assert.throws(() => fromString('.5', 16), SyntaxError, 'Leading dot #1');
+  assert.throws(() => fromString('5.', 16), SyntaxError, 'Trailing dot #1');
+  assert.throws(() => fromString('.5', 10), SyntaxError, 'Leading dot #2');
+  assert.throws(() => fromString('5.', 10), SyntaxError, 'Trailing dot #2');
 });
