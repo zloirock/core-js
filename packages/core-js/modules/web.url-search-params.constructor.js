@@ -440,7 +440,7 @@ defineBuiltIn(URLSearchParamsPrototype, 'toString', function toString() {
 }, { enumerable: true });
 
 // `URLSearchParams.prototype.size` getter
-// https://github.com/whatwg/url/pull/734
+// https://url.spec.whatwg.org/#dom-urlsearchparams-size
 if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
   get: function size() {
     return getInternalParamsState(this).entries.length;
