@@ -24,6 +24,7 @@
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
 - Fixed order of `%TypedArray%.from` arguments validation
+- Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
