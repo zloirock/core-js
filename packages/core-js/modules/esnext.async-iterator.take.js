@@ -3,6 +3,7 @@ var $ = require('../internals/export');
 var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var getIteratorDirect = require('../internals/get-iterator-direct');
+var getMethod = require('../internals/get-method');
 var notANaN = require('../internals/not-a-nan');
 var toPositiveInteger = require('../internals/to-positive-integer');
 var createAsyncIteratorProxy = require('../internals/async-iterator-create-proxy');
@@ -16,7 +17,7 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
   if (!state.remaining--) {
     var resultDone = createIterResultObject(undefined, true);
     state.done = true;
-    returnMethod = iterator['return'];
+    returnMethod = getMethod(iterator, 'return');
     if (returnMethod !== undefined) {
       return Promise.resolve(call(returnMethod, iterator, undefined)).then(function () {
         return resultDone;
