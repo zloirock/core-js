@@ -114,6 +114,11 @@ QUnit.test('Array#sort', assert => {
 
   assert.same(result, 'DGBEFHACIJK', 'stable #2');
 
+  // default comparator returns 0 for equal string representations
+  const obj1 = { toString() { return 'a'; } };
+  const obj2 = { toString() { return 'a'; } };
+  assert.same([obj1, obj2].sort()[0], obj1, 'stable sort for equal string representations');
+
   assert.notThrows(() => [1, 2, 3].sort(undefined).length === 3, 'works with undefined');
   assert.throws(() => [1, 2, 3].sort(null), 'throws on null');
   assert.throws(() => [1, 2, 3].sort({}), 'throws on {}');
