@@ -5,7 +5,7 @@
 - `Math.atanh` has become slightly more correct with small values
 - Fixed one more case (`Iterator#take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
-- Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfill
+- Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed iterator closing in `Set#{ isDisjointFrom, isSupersetOf }` polyfill
 - Fixed `DataView#setFloat16` polyfill in (0, 1) range
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
@@ -16,6 +16,8 @@
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
+- Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
+- Fixed `Reflect.set` polyfills with some cases of malformed descriptors
 - Fixed lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
 - Fixed lack of error on `\u{}` in `String.dedent` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods

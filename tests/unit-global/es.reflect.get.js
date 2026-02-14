@@ -1,4 +1,5 @@
 import { DESCRIPTORS, NATIVE } from '../helpers/constants.js';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 QUnit.test('Reflect.get', assert => {
   const { defineProperty, create } = Object;
@@ -30,6 +31,12 @@ QUnit.test('Reflect.get', assert => {
     assert.same(get(target, 'z', receiver), 3, 'get z');
     assert.same(get(target, 'w', receiver), receiver, 'get w');
     assert.same(get(target, 'u', receiver), undefined, 'get u');
+
+    // ToPropertyKey should be called exactly once even with prototype chain traversal
+    const keyObj = createConversionChecker(1, 'x');
+    get(create({ x: 42 }), keyObj, {});
+    assert.same(keyObj.$valueOf, 0, 'ToPropertyKey called once in Reflect.get, #1');
+    assert.same(keyObj.$toString, 1, 'ToPropertyKey called once in Reflect.get, #2');
   }
   assert.throws(() => get(42, 'constructor'), TypeError, 'throws on primitive');
 });

@@ -1,4 +1,5 @@
 import { DESCRIPTORS } from '../helpers/constants.js';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 QUnit.test('Reflect.deleteProperty', assert => {
   const { deleteProperty } = Reflect;
@@ -17,4 +18,10 @@ QUnit.test('Reflect.deleteProperty', assert => {
     }), 'foo'));
   }
   assert.throws(() => deleteProperty(42, 'foo'), TypeError, 'throws on primitive');
+
+  // ToPropertyKey should be called exactly once
+  const keyObj = createConversionChecker(1, 'bar');
+  deleteProperty({ bar: 1 }, keyObj);
+  assert.same(keyObj.$valueOf, 0, 'ToPropertyKey called once in Reflect.deleteProperty, #1');
+  assert.same(keyObj.$toString, 1, 'ToPropertyKey called once in Reflect.deleteProperty, #2');
 });
