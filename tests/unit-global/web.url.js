@@ -350,10 +350,10 @@ QUnit.test('URL#hostname', assert => {
     assert.same(url.hostname, 'example.com');
     assert.same(String(url), 'http://example.com:81/');
 
-    // url = new URL('http://zloirock.ru:81/');
-    // url.hostname = 'example.com:82';
-    // assert.same(url.hostname, 'example.com'); // '' in Chrome
-    // assert.same(String(url), 'http://example.com:81/'); // 'http://example.com:82:81/' in Chrome
+    url = new URL('http://zloirock.ru:81/');
+    url.hostname = 'example.com:82';
+    assert.same(url.hostname, 'zloirock.ru', 'hostname with port is rejected');
+    assert.same(String(url), 'http://zloirock.ru:81/', 'hostname with port is rejected');
 
     url = new URL('http://zloirock.ru/foo');
     url.hostname = '測試';
@@ -452,6 +452,9 @@ QUnit.test('URL#pathname', assert => {
   }
 
   assert.same(url.pathname, '/foo/bar');
+
+  url = new URL('http://example.com/a^b');
+  assert.same(url.pathname, '/a%5Eb', 'caret in path is percent-encoded');
 
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/');
