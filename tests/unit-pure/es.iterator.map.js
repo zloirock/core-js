@@ -29,7 +29,7 @@ QUnit.test('Iterator#map', assert => {
   assert.throws(() => map.call(createIterator([1]), null), TypeError);
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => map.call(it, {}), TypeError);
-  assert.true(it.closed, "map closes iterator on validation error");
+  assert.true(it.closed, 'map closes iterator on validation error');
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => map.call({ next: null }, () => { /* empty */ }).next(), TypeError);
 });

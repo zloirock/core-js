@@ -29,7 +29,7 @@ QUnit.test('Iterator#filter', assert => {
   assert.throws(() => filter.call(createIterator([1]), null), TypeError);
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => filter.call(it, {}), TypeError);
-  assert.true(it.closed, "filter closes iterator on validation error");
+  assert.true(it.closed, 'filter closes iterator on validation error');
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => filter.call({ next: null }, () => { /* empty */ }).next(), TypeError);
 });
