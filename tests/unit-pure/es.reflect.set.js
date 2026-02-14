@@ -1,4 +1,5 @@
 import { DESCRIPTORS } from '../helpers/constants.js';
+import { createConversionChecker } from '../helpers/helpers.js';
 
 import create from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
@@ -83,6 +84,20 @@ QUnit.test('Reflect.set', assert => {
       set(v) { /* empty */ },
     });
     assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
+    assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
+
+    // accessor descriptor with get: undefined, set: undefined on receiver should return false
+    const accessorReceiver = {};
+    defineProperty(accessorReceiver, 'prop', { get: undefined, set: undefined, configurable: true });
+    const accessorTarget = defineProperty({}, 'prop', { value: 1, writable: true, configurable: true });
+    assert.false(set(accessorTarget, 'prop', 2, accessorReceiver), 'accessor descriptor on receiver with undefined get/set');
+
+    // ToPropertyKey should be called exactly once
+    const keyObj = createConversionChecker(1, 'x');
+    set(create({ x: 42 }), keyObj, 1);
+    assert.same(keyObj.$valueOf, 0, 'ToPropertyKey called once in Reflect.set, #1');
+    assert.same(keyObj.$toString, 1, 'ToPropertyKey called once in Reflect.set, #2');
   }
+
   assert.throws(() => set(42, 'q', 42), TypeError, 'throws on primitive');
 });

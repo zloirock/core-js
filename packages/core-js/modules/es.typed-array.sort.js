@@ -52,11 +52,11 @@ var getSortCompare = function (comparefn) {
   return function (x, y) {
     if (comparefn !== undefined) return +comparefn(x, y) || 0;
     // eslint-disable-next-line no-self-compare -- NaN check
-    if (y !== y) return -1;
+    if (y !== y) return x !== x ? 0 : -1;
     // eslint-disable-next-line no-self-compare -- NaN check
     if (x !== x) return 1;
-    if (x === 0 && y === 0) return 1 / x > 0 && 1 / y < 0 ? 1 : -1;
-    return x > y;
+    if (x === 0 && y === 0) return 1 / x > 0 ? (1 / y > 0 ? 0 : 1) : (1 / y > 0 ? -1 : 0);
+    return x > y ? 1 : x < y ? -1 : 0;
   };
 };
 

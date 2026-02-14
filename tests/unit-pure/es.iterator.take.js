@@ -25,5 +25,7 @@ QUnit.test('Iterator#take', assert => {
   assert.throws(() => take.call(createIterator([1, 2, 3]), -1), RangeError, 'negative');
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => take.call(it, NaN), RangeError, 'NaN');
-  assert.true(it.closed, "take doesn't close iterator on validation error");
+  assert.true(it.closed, 'take closes iterator on validation error');
+  // https://issues.chromium.org/issues/336839115
+  assert.throws(() => take.call({ next: null }, 1).next(), TypeError);
 });

@@ -36,5 +36,5 @@ QUnit.test('Array#findLast', assert => {
   }, () => {
     throw new Error();
   }) === undefined, 'uses ToLength');
-  assert.true('find' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
+  assert.true('findLast' in Array.prototype[Symbol.unscopables], 'In Array#@@unscopables');
 });

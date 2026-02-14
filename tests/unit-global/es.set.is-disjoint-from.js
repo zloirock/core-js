@@ -46,6 +46,25 @@ QUnit.test('Set#isDisjointFrom', assert => {
     },
   }));
 
+  let closed = false;
+  assert.false(new Set([1, 2, 3, 4]).isDisjointFrom({
+    size: 3,
+    has() { return true; },
+    keys() {
+      let index = 0;
+      return {
+        next() {
+          return { value: [5, 1, 6][index++], done: index > 3 };
+        },
+        return() {
+          closed = true;
+          return { done: true };
+        },
+      };
+    },
+  }));
+  assert.true(closed, 'iterator is closed on early exit');
+
   assert.throws(() => new Set([1, 2, 3]).isDisjointFrom(), TypeError);
   assert.throws(() => isDisjointFrom.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => isDisjointFrom.call(undefined, [1, 2, 3]), TypeError);

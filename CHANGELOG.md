@@ -1,11 +1,49 @@
 # Changelog
 ### Unreleased
 - Improved performance of `atob`, `btoa`, `Uint8Array.fromHex`, `Uint8Array.prototype.setFromHex`, and `Uint8Array.prototype.toHex` -- [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464), [#1510](https://github.com/zloirock/core-js/issues/1510)
+- [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
+  - Throw a `RangeError` on `NaN` `start` / `end` / `step`
+  - Allow `null` as `optionOrStep`
+- `Math.atanh` has become slightly more correct with small values
+- Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
+- Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
+- Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
+- Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
+- Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
+- Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
+- Fixed `URLSearchParam.prototype.delete` polyfill with duplicate key-value pairs
+- Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
+- Fixed some percent encode character sets in the `URL` polyfill
+- Fixed host parsing with `hostname = host:port` in the `URL` polyfill
+- Fixed invalid code points handling in UTF-8 decode in the `URLSearchParams` polyfill
+- Fixed `URL` polyfill `.origin` getter with `blob` scheme
+- Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
+- Fixed allowing unexpected symbols in scheme in the `URL` polyfill
+- Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
+- Fixed `Reflect.set` polyfills with some cases of malformed descriptors
+- Fixed a lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
+- Fixed a lack of error on `\u{}` in `String.dedent` polyfill
+- Fixed counter in some cases of some `AsyncIterator` methods
+- Fixed order of async iterators closing
+- Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
+- Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
+- Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
+- Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
+- Fixed order of `%TypedArray%.from` arguments validation
+- Fixed a lack of error on passing an `ArrayBuffer` and a negative length to the `%TypedArray%` constructor polyfill
+- Fixed some cases of `ToUint8Clamp` conversion
+- Fixed false positive on a `WeakMap` validation in the pure version
+- Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
+- Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
+- In case of bugs in `String.prototype.{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
+- Just in case, added an extra input string validation to the  polyfill of obsolete `Number.fromString` proposals
+- Many minor stylistic fixes and optimizations
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
+  - Added [Opera Android 95](https://forums.opera.com/topic/87912/opera-for-android-95) compat data mapping
   - Added Oculus Quest Browser 42 compat data mapping
 
 ### [3.48.0 - 2026.01.21](https://github.com/zloirock/core-js/releases/tag/v3.48.0)

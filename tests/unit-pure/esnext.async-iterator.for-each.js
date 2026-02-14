@@ -20,9 +20,13 @@ QUnit.test('AsyncIterator#forEach', assert => {
   assert.throws(() => forEach.call(createIterator([1]), {}), TypeError);
 
   const array = [];
+  const counters = [];
 
   return forEach.call(createIterator([1, 2, 3]), it => array.push(it)).then(() => {
     assert.arrayEqual(array, [1, 2, 3], 'basic functionality');
+    return forEach.call(createIterator([1, 2, 3]), (value, counter) => counters.push(counter));
+  }).then(() => {
+    assert.arrayEqual(counters, [0, 1, 2], 'counter incremented');
     return forEach.call(createIterator([1]), function (arg, counter) {
       assert.same(this, STRICT_THIS, 'this');
       assert.same(arguments.length, 2, 'arguments length');
@@ -35,5 +39,14 @@ QUnit.test('AsyncIterator#forEach', assert => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error');
+  }).then(() => {
+    return forEach.call(
+      createIterator([1], { return() { throw 43; } }),
+      () => { throw 42; },
+    );
+  }).then(() => {
+    assert.avoid();
+  }, error => {
+    assert.same(error, 42, 'rejection on a callback error even if return() throws');
   });
 });

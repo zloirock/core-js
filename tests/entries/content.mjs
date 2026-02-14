@@ -4,6 +4,8 @@ import konan from 'konan';
 const allModules = await fs.readJson('packages/core-js-compat/modules.json');
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 
+let fail = false;
+
 function filter(regexp) {
   return allModules.filter(it => regexp.test(it));
 }
@@ -143,6 +145,7 @@ async function unexpectedInnerNamespace(namespace, unexpected) {
     for (const dependency of konan(String(await fs.readFile(path, 'utf8'))).strings) {
       if (unexpected.test(dependency)) {
         echo(chalk.red(`${ chalk.cyan(path) }: found unexpected dependency: ${ chalk.cyan(dependency) }`));
+        fail = true;
       }
     }
   }));
@@ -154,5 +157,7 @@ await Promise.all([
   unexpectedInnerNamespace('actual', /\/(?:es|full)\//),
   unexpectedInnerNamespace('full', /\/(?:es|stable)\//),
 ]);
+
+if (fail) throw new Error('entry points content test failed');
 
 echo(chalk.green('entry points content tested'));

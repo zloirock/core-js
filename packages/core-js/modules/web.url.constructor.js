@@ -29,6 +29,7 @@ var getInternalSearchParamsState = URLSearchParamsModule.getState;
 
 var NativeURL = globalThis.URL;
 var TypeError = globalThis.TypeError;
+var encodeURIComponent = globalThis.encodeURIComponent;
 var parseInt = globalThis.parseInt;
 var floor = Math.floor;
 var pow = Math.pow;
@@ -51,8 +52,7 @@ var INVALID_HOST = 'Invalid host';
 var INVALID_PORT = 'Invalid port';
 
 var ALPHA = /[a-z]/i;
-// eslint-disable-next-line regexp/no-obscure-range -- safe
-var ALPHANUMERIC = /[\d+-.a-z]/i;
+var ALPHANUMERIC_PLUS_MINUS_DOT = /[\d+\-.a-z]/i;
 var DIGIT = /\d/;
 var HEX_START = /^0x/i;
 var OCT = /^[0-7]+$/;
@@ -243,11 +243,17 @@ var serializeHost = function (host) {
 };
 
 var C0ControlPercentEncodeSet = {};
+var queryPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
+  ' ': 1, '"': 1, '#': 1, '<': 1, '>': 1
+});
+var specialQueryPercentEncodeSet = assign({}, queryPercentEncodeSet, {
+  "'": 1
+});
 var fragmentPercentEncodeSet = assign({}, C0ControlPercentEncodeSet, {
   ' ': 1, '"': 1, '<': 1, '>': 1, '`': 1
 });
 var pathPercentEncodeSet = assign({}, fragmentPercentEncodeSet, {
-  '#': 1, '?': 1, '{': 1, '}': 1
+  '#': 1, '?': 1, '{': 1, '}': 1, '^': 1
 });
 var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
   '/': 1, ':': 1, ';': 1, '=': 1, '@': 1, '[': 1, '\\': 1, ']': 1, '^': 1, '|': 1
@@ -255,7 +261,8 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
 
 var percentEncode = function (chr, set) {
   var code = codeAt(chr, 0);
-  return code > 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : encodeURIComponent(chr);
+  // encodeURIComponent does not encode ', which is in the special-query percent-encode set
+  return code > 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : chr === "'" && hasOwn(set, chr) ? '%27' : encodeURIComponent(chr);
 };
 
 // https://url.spec.whatwg.org/#special-scheme
@@ -383,7 +390,7 @@ URLState.prototype = {
           break;
 
         case SCHEME:
-          if (chr && (exec(ALPHANUMERIC, chr) || chr === '+' || chr === '-' || chr === '.')) {
+          if (chr && exec(ALPHANUMERIC_PLUS_MINUS_DOT, chr)) {
             buffer += toLowerCase(chr);
           } else if (chr === ':') {
             if (stateOverride && (
@@ -485,7 +492,7 @@ URLState.prototype = {
             url.host = base.host;
             url.port = base.port;
             url.path = arraySlice(base.path);
-            url.path.length--;
+            if (url.path.length) url.path.length--;
             state = PATH;
             continue;
           } break;
@@ -506,7 +513,7 @@ URLState.prototype = {
 
         case SPECIAL_AUTHORITY_SLASHES:
           state = SPECIAL_AUTHORITY_IGNORE_SLASHES;
-          if (chr !== '/' || charAt(buffer, pointer + 1) !== '/') continue;
+          if (chr !== '/' || codePoints[pointer + 1] !== '/') continue;
           pointer++;
           break;
 
@@ -550,11 +557,11 @@ URLState.prototype = {
             continue;
           } else if (chr === ':' && !seenBracket) {
             if (buffer === '') return INVALID_HOST;
+            if (stateOverride === HOSTNAME) return;
             failure = url.parseHost(buffer);
             if (failure) return failure;
             buffer = '';
             state = PORT;
-            if (stateOverride === HOSTNAME) return;
           } else if (
             chr === EOF || chr === '/' || chr === '?' || chr === '#' ||
             (chr === '\\' && url.isSpecial())
@@ -731,9 +738,7 @@ URLState.prototype = {
             url.fragment = '';
             state = FRAGMENT;
           } else if (chr !== EOF) {
-            if (chr === "'" && url.isSpecial()) url.query += '%27';
-            else if (chr === '#') url.query += '%23';
-            else url.query += percentEncode(chr, C0ControlPercentEncodeSet);
+            url.query += percentEncode(chr, url.isSpecial() ? specialQueryPercentEncodeSet : queryPercentEncodeSet);
           } break;
 
         case FRAGMENT:
@@ -825,7 +830,7 @@ URLState.prototype = {
     var scheme = this.scheme;
     var port = this.port;
     if (scheme === 'blob') try {
-      return new URLConstructor(scheme.path[0]).origin;
+      return new URLConstructor(this.path[0]).origin;
     } catch (error) {
       return 'null';
     }

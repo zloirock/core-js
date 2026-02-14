@@ -97,15 +97,13 @@ var handleNCG = function (string) {
         break;
       case chr === '(':
         result += chr;
-        // ignore non-capturing groups
-        if (stringSlice(string, index + 1, index + 3) === '?:') {
-          continue;
-        }
         if (exec(IS_NCG, stringSlice(string, index + 1))) {
           index += 2;
           ncg = true;
+          groupid++;
+        } else if (charAt(string, index + 1) !== '?') {
+          groupid++;
         }
-        groupid++;
         continue;
       case chr === '>' && ncg:
         if (groupname === '' || hasOwn(names, groupname)) {

@@ -10,6 +10,7 @@ var advanceStringIndex = require('../internals/advance-string-index');
 var toLength = require('../internals/to-length');
 var toString = require('../internals/to-string');
 var getMethod = require('../internals/get-method');
+var getRegExpFlags = require('../internals/regexp-get-flags');
 var regExpExec = require('../internals/regexp-exec-abstract');
 var stickyHelpers = require('../internals/regexp-sticky-helpers');
 var fails = require('../internals/fails');
@@ -19,6 +20,7 @@ var MAX_UINT32 = 0xFFFFFFFF;
 var min = Math.min;
 var push = uncurryThis([].push);
 var stringSlice = uncurryThis(''.slice);
+var stringIndexOf = uncurryThis(''.indexOf);
 
 // Chrome 51 has a buggy "split" implementation when RegExp#exec !== nativeExec
 // Weex JS has frozen built-in prototypes, so use try / catch wrapper
@@ -71,11 +73,11 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
       }
 
       var C = speciesConstructor(rx, RegExp);
-      var unicodeMatching = rx.unicode;
-      var flags = (rx.ignoreCase ? 'i' : '') +
-                  (rx.multiline ? 'm' : '') +
-                  (rx.unicode ? 'u' : '') +
-                  (UNSUPPORTED_Y ? 'g' : 'y');
+      var flags = toString(getRegExpFlags(rx));
+      var unicodeMatching = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
+      if (UNSUPPORTED_Y) {
+        if (!~stringIndexOf(flags, 'g')) flags += 'g';
+      } else if (!~stringIndexOf(flags, 'y')) flags += 'y';
       // ^(? + rx + ) is needed, in combination with some S slicing, to
       // simulate the 'y' flag.
       var splitter = new C(UNSUPPORTED_Y ? '^(?:' + rx.source + ')' : rx, flags);

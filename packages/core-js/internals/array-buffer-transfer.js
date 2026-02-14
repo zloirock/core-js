@@ -11,6 +11,7 @@ var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-pr
 var structuredClone = globalThis.structuredClone;
 var ArrayBuffer = globalThis.ArrayBuffer;
 var DataView = globalThis.DataView;
+var max = Math.max;
 var min = Math.min;
 var ArrayBufferPrototype = ArrayBuffer.prototype;
 var DataViewPrototype = DataView.prototype;
@@ -33,7 +34,9 @@ module.exports = (PROPER_STRUCTURED_CLONE_TRANSFER || detachTransferable) && fun
   if (byteLength >= newByteLength && (!preserveResizability || fixedLength)) {
     newBuffer = slice(arrayBuffer, 0, newByteLength);
   } else {
-    var options = preserveResizability && !fixedLength && maxByteLength ? { maxByteLength: maxByteLength(arrayBuffer) } : undefined;
+    var options = preserveResizability && !fixedLength && maxByteLength
+      ? { maxByteLength: max(newByteLength, maxByteLength(arrayBuffer)) }
+      : undefined;
     newBuffer = new ArrayBuffer(newByteLength, options);
     var a = new DataView(arrayBuffer);
     var b = new DataView(newBuffer);

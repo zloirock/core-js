@@ -126,6 +126,11 @@ QUnit.test('JSON.parse', assert => {
     assert.same(parse('\n\t -0\n   ', reviver), -0, `negative-zero-4 ${ note }`);
     assert.same(parse(-0, reviver), 0, `negative-zero-5 ${ note }`);
 
+    assert.throws(() => parse('1.', reviver), SyntaxError, `number-fraction-no-digits-1 ${ note }`);
+    assert.throws(() => parse('-0.', reviver), SyntaxError, `number-fraction-no-digits-2 ${ note }`);
+    assert.throws(() => parse('1.e5', reviver), SyntaxError, `number-fraction-no-digits-3 ${ note }`);
+    assert.throws(() => parse('[1.,2]', reviver), SyntaxError, `number-fraction-no-digits-4 ${ note }`);
+
     assert.throws(() => parse(undefined, reviver), SyntaxError, `undefined ${ note }`);
     assert.throws(() => parse(Symbol('JSON.parse test'), reviver), TypeError, `symbol ${ note }`);
     assert.same(parse(null, reviver), null, `null ${ note }`);

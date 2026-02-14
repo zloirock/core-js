@@ -1,5 +1,5 @@
 /* eslint-disable prefer-regex-literals, regexp/no-invalid-regexp, regexp/sort-flags -- required for testing */
-/* eslint-disable regexp/no-useless-character-class, regexp/no-useless-flag -- required for testing */
+/* eslint-disable regexp/no-useless-assertions, regexp/no-useless-character-class, regexp/no-useless-flag -- required for testing */
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
@@ -104,5 +104,16 @@ if (DESCRIPTORS) {
     assert.throws(() => RegExp('(?<1a>b)'), SyntaxError, 'incorrect group name #1');
     assert.throws(() => RegExp('(?<a#>b)'), SyntaxError, 'incorrect group name #2');
     assert.throws(() => RegExp('(?< a >b)'), SyntaxError, 'incorrect group name #3');
+
+    // regression — lookahead / lookbehind assertions should not increment group counter
+    assert.same(RegExp('(?=b)(?<a>b)').exec('b').groups?.a, 'b', 'NCG with positive lookahead');
+    assert.same(RegExp('(?!c)(?<a>b)').exec('b').groups?.a, 'b', 'NCG with negative lookahead');
+    // prevent crash in ancient engines without lookbehind support
+    try {
+      assert.same(RegExp('(?<=a)(?<b>b)').exec('ab').groups?.b, 'b', 'NCG with positive lookbehind');
+      assert.same(RegExp('(?<!c)(?<a>b)').exec('ab').groups?.a, 'b', 'NCG with negative lookbehind');
+    } catch { /* empty */ }
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
+    assert.same(RegExp('(?=b)(b)(?<a>c)').exec('bc').groups?.a, 'c', 'NCG with lookahead and capturing group');
   });
 }

@@ -6,7 +6,10 @@ await Promise.all([
   --output-filename ${ output }.js \
 `));
 
-fs.copyFile('../../packages/core-js-bundle/index.js', '../../tests/bundles/core-js-bundle.js');
+await Promise.all([
+  fs.copyFile('../../packages/core-js-bundle/index.js', '../../tests/bundles/core-js-bundle.js'),
+  fs.copyFile('./node_modules/@slowcheetah/qunitjs-1/qunit/qunit.js', '../../tests/bundles/qunit.js'),
+  fs.copyFile('./node_modules/@slowcheetah/qunitjs-1/qunit/qunit.css', '../../tests/bundles/qunit.css'),
+]);
 
-fs.copyFile('./node_modules/@slowcheetah/qunitjs-1/qunit/qunit.js', '../../tests/bundles/qunit.js');
-fs.copyFile('./node_modules/@slowcheetah/qunitjs-1/qunit/qunit.css', '../../tests/bundles/qunit.css');
+echo(chalk.green('\ntests bundled, qunit and core-js bundles copied into /tests/bundles/'));

@@ -20,6 +20,12 @@ QUnit.test('URL constructor', assert => {
 
   assert.same(String(new URL('nonspecial://example.com/')), 'nonspecial://example.com/');
 
+  // SPECIAL_AUTHORITY_SLASHES state - special schemes without base
+  assert.same(String(new URL('http://example.com/path')), 'http://example.com/path', 'special authority slashes with //');
+  assert.same(String(new URL('http:/example.com/path')), 'http://example.com/path', 'special authority slashes with single /');
+  assert.same(String(new URL('http:example.com/path')), 'http://example.com/path', 'special authority slashes without /');
+  assert.same(String(new URL('https:////example.com/path')), 'https://example.com/path', 'special authority slashes with extra /');
+
   assert.same(String(new URL('https://測試')), 'https://xn--g6w251d/', 'unicode parsing');
   assert.same(String(new URL('https://xxпривет.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
   assert.same(String(new URL('https://xxПРИВЕТ.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
@@ -53,6 +59,10 @@ QUnit.test('URL constructor', assert => {
   assert.throws(() => new URL('http://[20:0:0:1:0:0:0:fg]'), 'incorrect IPv6');
   // assert.throws(() => new URL('http://a%b'), 'forbidden host code point'); // no error in FF
   assert.throws(() => new URL('1http://zloirock.ru'), 'incorrect scheme');
+  assert.throws(() => new URL('a,b://example.com'), 'comma in scheme');
+  assert.same(String(new URL('a+b-c.d://example.com')), 'a+b-c.d://example.com', 'valid scheme with +, -, .');
+  assert.same(String(new URL('relative', 'foo://host')), 'foo://host/relative', 'relative URL with non-special base with empty path');
+  assert.same(String(new URL('bar', 'foo://host/a/b')), 'foo://host/a/bar', 'relative URL with non-special base with path');
 });
 
 QUnit.test('URL#href', assert => {
@@ -340,10 +350,10 @@ QUnit.test('URL#hostname', assert => {
     assert.same(url.hostname, 'example.com');
     assert.same(String(url), 'http://example.com:81/');
 
-    // url = new URL('http://zloirock.ru:81/');
-    // url.hostname = 'example.com:82';
-    // assert.same(url.hostname, 'example.com'); // '' in Chrome
-    // assert.same(String(url), 'http://example.com:81/'); // 'http://example.com:82:81/' in Chrome
+    url = new URL('http://zloirock.ru:81/');
+    url.hostname = 'example.com:82';
+    assert.same(url.hostname, 'zloirock.ru', 'hostname with port is rejected');
+    assert.same(String(url), 'http://zloirock.ru:81/', 'hostname with port is rejected');
 
     url = new URL('http://zloirock.ru/foo');
     url.hostname = '測試';
@@ -443,6 +453,10 @@ QUnit.test('URL#pathname', assert => {
 
   assert.same(url.pathname, '/foo/bar');
 
+  // fails in Node 23-
+  // url = new URL('http://example.com/a^b');
+  // assert.same(url.pathname, '/a%5Eb', 'caret in path is percent-encoded');
+
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/');
     url.pathname = 'bar/baz';
@@ -467,6 +481,12 @@ QUnit.test('URL#search', assert => {
 
   url = new URL('http://zloirock.ru/?foo=bar');
   assert.same(url.search, '?foo=bar');
+
+  // query percent-encode set
+  assert.same(new URL('http://x/?a="<>').search, '?a=%22%3C%3E', 'query percent-encodes ", <, >');
+  assert.same(new URL('http://x/?a=\'').search, '?a=%27', 'special query percent-encodes \'');
+  // fails in modern Chrome (~145)
+  // assert.same(new URL('foo://x/?a=\'').search, '?a=\'', 'non-special query does not percent-encode \'');
 
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/?');

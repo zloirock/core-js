@@ -443,8 +443,8 @@ var tryToTransfer = function (rawTransfer, map) {
 
   while (i < length) {
     value = transfer[i++];
-
     type = classof(value);
+    transferred = undefined;
 
     if (type === 'ArrayBuffer' ? setHas(buffers, value) : mapHas(map, value)) {
       throw new DOMException('Duplicate transferable', DATA_CLONE_ERROR);
@@ -500,7 +500,7 @@ var tryToTransfer = function (rawTransfer, map) {
 var detachBuffers = function (buffers) {
   setIterate(buffers, function (buffer) {
     if (PROPER_STRUCTURED_CLONE_TRANSFER) {
-      nativeRestrictedStructuredClone(buffer, { transfer: [buffer] });
+      nativeStructuredClone(buffer, { transfer: [buffer] });
     } else if (isCallable(buffer.transfer)) {
       buffer.transfer();
     } else if (detachTransferable) {

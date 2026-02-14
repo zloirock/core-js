@@ -59,7 +59,7 @@ var IteratorProxy = createIteratorProxy(function () {
               open = open.value;
             } catch (error) {
               openIters[k] = undefined;
-              return iteratorCloseAll(openIters, THROW, open);
+              return iteratorCloseAll(openIters, THROW, error);
             }
             // eslint-disable-next-line max-depth -- specification case
             if (openDone) {

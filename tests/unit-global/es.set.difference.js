@@ -70,4 +70,19 @@ QUnit.test('Set#difference', assert => {
   const baseSet = new Set([1, 2, 3, 4]);
   const result = baseSet.difference(setLike);
   assert.deepEqual(from(result), [1, 3, 4], 'incorrect behavior when this updated while Set#difference is being executed');
+
+  // Mutation via has() in the size(O) <= otherRec.size branch should not skip elements
+  const mutatingSet = new Set([1, 2, 3]);
+  const mutatingResult = mutatingSet.difference({
+    size: 10,
+    has(v) {
+      if (v === 1) {
+        mutatingSet.delete(2);
+        return true;
+      }
+      return false;
+    },
+    keys() { return { next() { return { done: true }; } }; },
+  });
+  assert.deepEqual(from(mutatingResult), [2, 3], 'iterates copy, not live set in has() branch');
 });

@@ -131,6 +131,17 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(String(new URLSearchParams('%F0%9F%D0%90')), '%EF%BF%BD%D0%90=');
   assert.same(String(new URLSearchParams('%25')), '%25=');
   assert.same(String(new URLSearchParams('%4')), '%254=');
+  assert.same(String(new URLSearchParams('%C3%ZZ')), '%EF%BF%BD%25ZZ=', 'invalid hex in continuation byte preserved');
+
+  // overlong UTF-8 encodings
+  assert.same(String(new URLSearchParams('%C0%AF')), '%EF%BF%BD%EF%BF%BD=', 'overlong 2-byte slash');
+  assert.same(String(new URLSearchParams('%C0%80')), '%EF%BF%BD%EF%BF%BD=', 'overlong 2-byte NUL');
+  assert.same(String(new URLSearchParams('%E0%80%AF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'overlong 3-byte slash');
+  assert.same(String(new URLSearchParams('%F0%80%80%AF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'overlong 4-byte slash');
+
+  // surrogate codepoints encoded in UTF-8
+  assert.same(String(new URLSearchParams('%ED%A0%80')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+D800');
+  assert.same(String(new URLSearchParams('%ED%BF%BF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+DFFF');
 
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
@@ -265,6 +276,10 @@ QUnit.test('URLSearchParams#delete', assert => {
   params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
   params.delete('a', 2);
   assert.same(String(params), 'a=1&a=null&a=3&b=4');
+
+  params = new URLSearchParams('a=1&a=1&b=2&a=1');
+  params.delete('a', '1');
+  assert.same(String(params), 'b=2', 'delete with value removes all matching name+value pairs');
 
   params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
   params.delete('a', null);
