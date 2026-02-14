@@ -46,6 +46,25 @@ QUnit.test('Set#isSupersetOf', assert => {
     },
   }));
 
+  let closed = false;
+  assert.false(new Set([1, 2, 3, 4]).isSupersetOf({
+    size: 3,
+    has() { return true; },
+    keys() {
+      let index = 0;
+      return {
+        next() {
+          return { value: [1, 5, 3][index++], done: index > 3 };
+        },
+        return() {
+          closed = true;
+          return { done: true };
+        },
+      };
+    },
+  }));
+  assert.true(closed, 'iterator is closed on early exit');
+
   assert.throws(() => new Set([1, 2, 3]).isSupersetOf(), TypeError);
   assert.throws(() => isSupersetOf.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => isSupersetOf.call(undefined, [1, 2, 3]), TypeError);
