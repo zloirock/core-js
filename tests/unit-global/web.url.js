@@ -20,6 +20,12 @@ QUnit.test('URL constructor', assert => {
 
   assert.same(String(new URL('nonspecial://example.com/')), 'nonspecial://example.com/');
 
+  // SPECIAL_AUTHORITY_SLASHES state - special schemes without base
+  assert.same(String(new URL('http://example.com/path')), 'http://example.com/path', 'special authority slashes with //');
+  assert.same(String(new URL('http:/example.com/path')), 'http://example.com/path', 'special authority slashes with single /');
+  assert.same(String(new URL('http:example.com/path')), 'http://example.com/path', 'special authority slashes without /');
+  assert.same(String(new URL('https:////example.com/path')), 'https://example.com/path', 'special authority slashes with extra /');
+
   assert.same(String(new URL('https://測試')), 'https://xn--g6w251d/', 'unicode parsing');
   assert.same(String(new URL('https://xxпривет.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');
   assert.same(String(new URL('https://xxПРИВЕТ.тест')), 'https://xn--xx-flcmn5bht.xn--e1aybc/', 'unicode parsing');

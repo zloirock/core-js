@@ -513,7 +513,7 @@ URLState.prototype = {
 
         case SPECIAL_AUTHORITY_SLASHES:
           state = SPECIAL_AUTHORITY_IGNORE_SLASHES;
-          if (chr !== '/' || charAt(buffer, pointer + 1) !== '/') continue;
+          if (chr !== '/' || codePoints[pointer + 1] !== '/') continue;
           pointer++;
           break;
 
