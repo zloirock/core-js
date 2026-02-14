@@ -22,15 +22,16 @@
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
 - Fixed `Reflect.set` polyfills with some cases of malformed descriptors
-- Fixed lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
-- Fixed lack of error on `\u{}` in `String.dedent` polyfill
+- Fixed a lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
+- Fixed a lack of error on `\u{}` in `String.dedent` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
 - Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
-- Fixed lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
+- Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
 - Fixed order of `%TypedArray%.from` arguments validation
+- Fixed a lack of error on passing an `ArrayBuffer` and a negative length to the `%TypedArray%` constructor polyfill
 - Fixed some cases of `ToUint8Clamp` conversion
 - Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed `esmodules: intersect` option of `core-js-compat`
