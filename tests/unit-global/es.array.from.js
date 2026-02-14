@@ -47,8 +47,8 @@ QUnit.test('Array.from', assert => {
     const context = {};
     assert.arrayEqual(from(data, function (value, key) {
       assert.same(this, context, `Works with ${ type }, correct callback context`);
-      assert.same(value, type === 'string' ? '1' : 1, `Works with ${ type }, correct callback key`);
-      assert.same(key, 0, `Works with ${ type }, correct callback value`);
+      assert.same(value, type === 'string' ? '1' : 1, `Works with ${ type }, correct callback value`);
+      assert.same(key, 0, `Works with ${ type }, correct callback key`);
       assert.same(arguments.length, 2, `Works with ${ type }, correct callback arguments number`);
       return 42;
     }, context), [42], `Works with ${ type }, correct result`);
