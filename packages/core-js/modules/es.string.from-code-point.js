@@ -22,9 +22,9 @@ $({ target: 'String', stat: true, arity: 1, forced: INCORRECT_LENGTH }, {
     var i = 0;
     var code;
     while (length > i) {
-      code = +arguments[i++];
+      code = +arguments[i];
       if (toAbsoluteIndex(code, 0x10FFFF) !== code) throw new $RangeError(code + ' is not a valid code point');
-      elements[i] = code < 0x10000
+      elements[i++] = code < 0x10000
         ? fromCharCode(code)
         : fromCharCode(((code -= 0x10000) >> 10) + 0xD800, code % 0x400 + 0xDC00);
     } return join(elements, '');

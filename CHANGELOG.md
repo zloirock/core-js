@@ -10,7 +10,7 @@
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
-- Fixed `URLSearchParam.prototype.#delete` polyfill with duplicate key-value pairs
+- Fixed `URLSearchParam.prototype.delete` polyfill with duplicate key-value pairs
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode character sets in the `URL` polyfill
 - Fixed invalid code points handling in UTF-8 decode in the `URLSearchParams` polyfill
@@ -33,7 +33,7 @@
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
 - In case of bugs in `String.prototype.{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
-- Many minor stylistic fixes
+- Many minor stylistic fixes and optimizations
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
