@@ -4,7 +4,7 @@ var $ = require('../internals/export');
 var NumericRangeIterator = require('../internals/numeric-range-iterator');
 
 // `BigInt.range` method
-// https://github.com/tc39/proposal-Number.range
+// https://github.com/tc39/proposal-iterator.range
 // TODO: Remove from `core-js@4`
 if (typeof BigInt == 'function') {
   $({ target: 'BigInt', stat: true, forced: true }, {

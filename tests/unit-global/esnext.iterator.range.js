@@ -53,6 +53,12 @@ QUnit.test('Iterator.range', assert => {
   assert.same(iterator.step, -1);
   assert.true(iterator.inclusive);
 
+  iterator = range(0, 5, null);
+  assert.same(iterator.start, 0, 'null option: start');
+  assert.same(iterator.end, 5, 'null option: end');
+  assert.same(iterator.step, 1, 'null option: step defaults to 1');
+  assert.false(iterator.inclusive, 'null option: inclusive defaults to false');
+
   iterator = range(-1, -3, { step: 4, inclusive() { /* empty */ } });
   assert.same(iterator.start, -1);
   assert.same(iterator.end, -3);

@@ -1,4 +1,5 @@
 'use strict';
+// https://github.com/tc39/proposal-iterator.range
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var createIterResultObject = require('../internals/create-iter-result-object');
@@ -31,7 +32,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   var ifIncrease = end > start;
   var inclusiveEnd = false;
   var step;
-  if (option === undefined) {
+  if (isNullOrUndefined(option)) {
     step = undefined;
   } else if (isObject(option)) {
     step = option.step;
