@@ -81,8 +81,9 @@ var getLeadingOnes = function (octet) {
 
 var utf8Decode = function (octets) {
   var codePoint = null;
+  var length = octets.length;
 
-  switch (octets.length) {
+  switch (length) {
     case 1:
       codePoint = octets[0];
       break;
@@ -97,7 +98,14 @@ var utf8Decode = function (octets) {
       break;
   }
 
-  return codePoint > 0x10FFFF ? null : codePoint;
+  // reject surrogates, overlong encodings, and out-of-range codepoints
+  if (codePoint === null
+    || codePoint > 0x10FFFF
+    || (codePoint >= 0xD800 && codePoint <= 0xDFFF)
+    || codePoint < (length > 3 ? 0x10000 : length > 2 ? 0x800 : length > 1 ? 0x80 : 0)
+  ) return null;
+
+  return codePoint;
 };
 
 var decode = function (input) {
@@ -161,7 +169,9 @@ var decode = function (input) {
 
         var codePoint = utf8Decode(octets);
         if (codePoint === null) {
-          result += FALLBACK_REPLACER;
+          for (var replacement = 0; replacement < byteSequenceLength; replacement++) result += FALLBACK_REPLACER;
+          i++;
+          continue;
         } else {
           decodedChar = fromCodePoint(codePoint);
         }

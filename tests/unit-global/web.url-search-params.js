@@ -131,6 +131,16 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(String(new URLSearchParams('%4')), '%254=');
   assert.same(String(new URLSearchParams('%C3%ZZ')), '%EF%BF%BD%25ZZ=', 'invalid hex in continuation byte preserved');
 
+  // overlong UTF-8 encodings
+  assert.same(String(new URLSearchParams('%C0%AF')), '%EF%BF%BD%EF%BF%BD=', 'overlong 2-byte slash');
+  assert.same(String(new URLSearchParams('%C0%80')), '%EF%BF%BD%EF%BF%BD=', 'overlong 2-byte NUL');
+  assert.same(String(new URLSearchParams('%E0%80%AF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'overlong 3-byte slash');
+  assert.same(String(new URLSearchParams('%F0%80%80%AF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'overlong 4-byte slash');
+
+  // surrogate codepoints encoded in UTF-8
+  assert.same(String(new URLSearchParams('%ED%A0%80')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+D800');
+  assert.same(String(new URLSearchParams('%ED%BF%BF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+DFFF');
+
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
