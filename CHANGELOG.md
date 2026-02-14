@@ -25,6 +25,7 @@
 - Fixed a lack of error in `JSON.parse` polyfill on unterminated object and array literals
 - Fixed a lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
 - Fixed a lack of error on `\u{}` in `String.dedent` polyfill
+- Fixed some cases of hex escaping in the end of string in `String.dedent` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
 - Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
