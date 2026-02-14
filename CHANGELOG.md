@@ -22,6 +22,7 @@
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
 - Fixed `Reflect.set` polyfills with some cases of malformed descriptors
+- Fixed a lack of error in `JSON.parse` polyfill on unterminated object and array literals
 - Fixed a lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
 - Fixed a lack of error on `\u{}` in `String.dedent` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods

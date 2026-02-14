@@ -130,10 +130,12 @@ Context.prototype = {
     var expectKeypair = false;
     var object = {};
     var nodes = {};
+    var closed = false;
     while (i < source.length) {
       i = this.until(['"', '}'], i);
       if (at(source, i) === '}' && !expectKeypair) {
         i++;
+        closed = true;
         break;
       }
       // Parsing the key
@@ -153,9 +155,11 @@ Context.prototype = {
         i++;
       } else if (chr === '}') {
         i++;
+        closed = true;
         break;
       }
     }
+    if (!closed) throw new SyntaxError('Unterminated object at: ' + i);
     return this.node(OBJECT, object, this.index, i, nodes);
   },
   array: function () {
@@ -164,10 +168,12 @@ Context.prototype = {
     var expectElement = false;
     var array = [];
     var nodes = [];
+    var closed = false;
     while (i < source.length) {
       i = this.skip(IS_WHITESPACE, i);
       if (at(source, i) === ']' && !expectElement) {
         i++;
+        closed = true;
         break;
       }
       var result = this.fork(i).parse();
@@ -179,9 +185,11 @@ Context.prototype = {
         i++;
       } else if (at(source, i) === ']') {
         i++;
+        closed = true;
         break;
       }
     }
+    if (!closed) throw new SyntaxError('Unterminated array at: ' + i);
     return this.node(OBJECT, array, this.index, i, nodes);
   },
   string: function () {
