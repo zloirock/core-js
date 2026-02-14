@@ -3,13 +3,14 @@
 - Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version to throw a `RangeError` on `NaN` `start` / `end` / `step`
 - `Math.atanh` has become slightly more correct with small values
-- Fixed one more case (`Iterator#take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
+- Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
-- Fixed iterator closing in `Set#{ isDisjointFrom, isSupersetOf }` polyfill
-- Fixed `DataView#setFloat16` polyfill in (0, 1) range
+- Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
+- Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
+- Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
-- Fixed `URLSearchParams#delete` polyfill with duplicate key-value pairs
+- Fixed `URLSearchParam.prototype.#delete` polyfill with duplicate key-value pairs
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode character sets in the `URL` polyfill
 - Fixed invalid code points handling in UTF-8 decode in the `URLSearchParams` polyfill
@@ -22,7 +23,7 @@
 - Fixed lack of error on `\u{}` in `String.dedent` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
-- Fixed iterator closing in `AsyncIterator#take` polyfill with `return: null`
+- Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
 - Fixed lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
@@ -31,7 +32,7 @@
 - Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
-- In case of bugs in `String#{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
+- In case of bugs in `String.prototype.{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
 - Many minor stylistic fixes
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
