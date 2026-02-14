@@ -120,4 +120,38 @@ QUnit.test('Iterator.zip', assert => {
       ['A', 7, 'C'],
     ]);
   }
+
+  {
+    const expectedError = new TypeError('not iterable');
+    const badIterable = { [Symbol.iterator]() { throw expectedError; } };
+    const it1 = createIterator([1, 2], observableReturn);
+    let caught;
+    try {
+      zip([it1, badIterable]);
+    } catch (error) {
+      caught = error;
+    }
+    assert.same(caught, expectedError, 'original error is preserved');
+    assert.true(it1.called, 'first iterator return called on non-iterable second element');
+  }
+
+  {
+    const expectedError = new TypeError('inner return error');
+    const throwingReturn = {
+      return() {
+        throw expectedError;
+      },
+    };
+    const it1 = createIterator([1, 2], throwingReturn);
+    const it2 = createIterator([3, 4], observableReturn);
+    result = zip([it1, it2]);
+    result.next();
+    let caught;
+    try {
+      result.return();
+    } catch (error) {
+      caught = error;
+    }
+    assert.same(caught, expectedError, 'propagates the original error from inner return()');
+  }
 });
