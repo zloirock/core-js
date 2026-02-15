@@ -117,6 +117,14 @@ var handleNCG = function (string) {
     }
     if (ncg) groupname += chr;
     else result += chr;
+  }
+  // convert `\k<name>`` backreferences to numbered backreferences
+  for (var ni = 0; ni < named.length; ni++) {
+    var backref = '\\k<' + named[ni][0] + '>';
+    var numRef = '\\' + named[ni][1];
+    while (stringIndexOf(result, backref) > -1) {
+      result = replace(result, backref, numRef);
+    }
   } return [result, named];
 };
 

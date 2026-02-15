@@ -120,5 +120,10 @@ if (DESCRIPTORS) {
     } catch { /* empty */ }
     // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
     assert.same(RegExp('(?=b)(b)(?<a>c)').exec('bc').groups?.a, 'c', 'NCG with lookahead and capturing group');
+
+    // named backreferences
+    assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2024')?.[0], '2024-2024', 'NCG \\k backreference #1');
+    assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2025'), null, 'NCG \\k backreference #2');
+    assert.same(RegExp('(?<a>.)(?<b>.)\\k<b>\\k<a>').exec('abba')?.[0], 'abba', 'NCG \\k multiple backreferences');
   });
 }
