@@ -18,6 +18,7 @@
 - Fixed host parsing with `hostname = host:port` in the `URL` polyfill
 - Fixed invalid code points handling in UTF-8 decode in the `URLSearchParams` polyfill
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
+- Fixed a lack of error in `URLSearchParams.prototype.set` polyfill on calling only with 1 argument
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills

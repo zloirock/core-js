@@ -385,7 +385,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   // https://url.spec.whatwg.org/#dom-urlsearchparams-set
   set: function set(name, value) {
     var state = getInternalParamsState(this);
-    validateArgumentsLength(arguments.length, 1);
+    validateArgumentsLength(arguments.length, 2);
     var entries = state.entries;
     var found = false;
     var key = $toString(name);

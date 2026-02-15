@@ -482,9 +482,9 @@ QUnit.test('URLSearchParams#set', assert => {
   assert.same(params.get('a'), '4', 'search params object has name "a" with value "4"');
   assert.same(String(params), 'a=4&first=4');
 
-  assert.throws(() => {
-    return new URLSearchParams('').set();
-  }, 'throws w/o arguments');
+  assert.throws(() => new URLSearchParams('').set(), 'throws w/o arguments');
+
+  assert.throws(() => new URLSearchParams('').set('a'), 'throws with only 1 argument');
 });
 
 QUnit.test('URLSearchParams#sort', assert => {
