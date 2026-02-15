@@ -1,5 +1,6 @@
 import { DESCRIPTORS } from './constants.js';
 import assign from 'core-js-pure/es/object/assign';
+import create from 'core-js-pure/es/object/create';
 import defineProperties from 'core-js-pure/es/object/define-properties';
 import getOwnPropertyNames from 'core-js-pure/es/object/get-own-property-names';
 import reduce from 'core-js-pure/es/array/reduce';
@@ -8,6 +9,8 @@ import ASYNC_ITERATOR from 'core-js-pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // for Babel template transform
+// eslint-disable-next-line es/no-object-create -- safe
+if (!Object.create) Object.create = create;
 // eslint-disable-next-line es/no-object-freeze -- safe
 if (!Object.freeze) Object.freeze = Object;
 // eslint-disable-next-line es/no-object-defineproperties -- safe
