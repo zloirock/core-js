@@ -7,7 +7,7 @@
 - `Math.atanh` has become slightly more correct with small values
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
-- Fixed double `.return` calling in case of throwing error in this method in the internal `iterate` helper that affects some polyfills
+- Fixed double `.return` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
@@ -15,6 +15,7 @@
 - Fixed named backreferences in `RegExp` NCG polyfill
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed some cases of `RegExp` NCG polyfill in combination with `dotAll`
+- Fixed handling of some line terminators in case of `multiline` + `sticky` mode in `RegExp` polyfill
 - Fixed `URLSearchParam.prototype.delete` polyfill with duplicate key-value pairs
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode cases / character sets in the `URL` polyfill
