@@ -7,6 +7,7 @@
 - `Math.atanh` has become slightly more correct with small values
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
+- Fixed double `.return` calling in case of throwing error in this method in the internal `iterate` helper that affects some polyfills
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
