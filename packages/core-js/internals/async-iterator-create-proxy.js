@@ -11,7 +11,6 @@ var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
-var iteratorClose = require('../internals/iterator-close');
 
 var Promise = getBuiltIn('Promise');
 
@@ -57,26 +56,51 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       state.done = true;
       var iterator = state.iterator;
       var returnMethod, result;
-      var completion = perform(function () {
-        if (state.inner) try {
-          iteratorClose(state.inner.iterator, 'normal');
-        } catch (error) {
-          return iteratorClose(iterator, 'throw', error);
+      var closeOuterIterator = function () {
+        var completion = perform(function () {
+          return getMethod(iterator, 'return');
+        });
+        returnMethod = result = completion.value;
+        if (completion.error) return Promise.reject(result);
+        if (returnMethod === undefined) return Promise.resolve(createIterResultObject(undefined, true));
+        completion = perform(function () {
+          return call(returnMethod, iterator);
+        });
+        result = completion.value;
+        if (completion.error) return Promise.reject(result);
+        return IS_ITERATOR ? Promise.resolve(result) : Promise.resolve(result).then(function (resolved) {
+          anObject(resolved);
+          return createIterResultObject(undefined, true);
+        });
+      };
+
+      var closeAndReject = function (error) {
+        return closeOuterIterator().then(function () {
+          throw error;
+        }, function () {
+          throw error;
+        });
+      };
+
+      if (state.inner) {
+        var completion = perform(function () {
+          var innerReturn = getMethod(state.inner.iterator, 'return');
+          if (innerReturn) return call(innerReturn, state.inner.iterator);
+        });
+        if (completion.error) return closeAndReject(completion.value);
+        if (completion.value) {
+          return Promise.resolve(completion.value).then(function (innerResult) {
+            try {
+              anObject(innerResult);
+            } catch (error) {
+              return closeAndReject(error);
+            }
+            return closeOuterIterator();
+          }, closeAndReject);
         }
-        return getMethod(iterator, 'return');
-      });
-      returnMethod = result = completion.value;
-      if (completion.error) return Promise.reject(result);
-      if (returnMethod === undefined) return Promise.resolve(createIterResultObject(undefined, true));
-      completion = perform(function () {
-        return call(returnMethod, iterator);
-      });
-      result = completion.value;
-      if (completion.error) return Promise.reject(result);
-      return IS_ITERATOR ? Promise.resolve(result) : Promise.resolve(result).then(function (resolved) {
-        anObject(resolved);
-        return createIterResultObject(undefined, true);
-      });
+      }
+
+      return closeOuterIterator();
     }
   });
 };

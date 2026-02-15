@@ -33,6 +33,7 @@
 - Fixed some cases of hex escaping in the end of string in `String.dedent` polyfill
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
+- Fixed iterator closing in `AsyncIterator.prototype.flatMap` polyfill
 - Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
 - Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
@@ -44,7 +45,7 @@
 - Fixed some cases of `ToUint8Clamp` conversion
 - Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed some minor `{ Map, Set }.prototype.forEach` moments in the pure version
-- Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposals polyfill
+- Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposal polyfill
 - Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
