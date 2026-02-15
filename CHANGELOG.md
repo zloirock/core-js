@@ -32,6 +32,7 @@
 - Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
+- Fixed return value of `Object.defineProperty` in `Symbol` polyfill in Android ~ 2
 - Fixed order of `%TypedArray%.from` arguments validation
 - Fixed a lack of error on passing an `ArrayBuffer` and a negative length to the `%TypedArray%` constructor polyfill
 - Fixed some cases of `ToUint8Clamp` conversion
