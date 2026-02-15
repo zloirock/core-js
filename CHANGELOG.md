@@ -35,6 +35,7 @@
 - Fixed return value of `Object.defineProperty` in `Symbol` polyfill in Android ~ 2
 - Fixed order of `%TypedArray%.from` arguments validation
 - Fixed a lack of error on passing an `ArrayBuffer` and a negative length to the `%TypedArray%` constructor polyfill
+- Fixed some cases of `@@toStringTag` on `%TypedArray%` polyfill
 - Fixed some cases of `ToUint8Clamp` conversion
 - Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed `esmodules: intersect` option of `core-js-compat`
