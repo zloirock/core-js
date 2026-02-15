@@ -1824,8 +1824,6 @@ const transpiledAndPolyfilled = {
   'es/no-async-functions': ERROR,
   // disallow async iteration
   'es/no-async-iteration': ERROR,
-  // disallow generators
-  'es/no-generators': ERROR,
   // disallow top-level `await`
   'es/no-top-level-await': ERROR,
   // unpolyfillable es2015 builtins
