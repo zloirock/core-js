@@ -126,3 +126,22 @@ QUnit.test('AsyncIterator.from, throw closes iterator without throw method', ass
     async();
   });
 });
+
+QUnit.test('AsyncIterator.from, return(value) without iterator return method', assert => {
+  assert.expect(2);
+  const async = assert.async();
+
+  const iter = AsyncIterator.from({
+    next() { return { value: 1, done: false }; },
+    [ITERATOR]() { return this; },
+  });
+
+  iter.return(42).then(result => {
+    assert.same(result.value, 42, 'return(value) forwards value when no return method');
+    assert.true(result.done, 'done is true');
+    async();
+  }).catch(() => {
+    assert.avoid();
+    async();
+  });
+});

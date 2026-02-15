@@ -53,7 +53,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
     var value = arguments.length > 0 ? arguments[0] : undefined;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
-      if ($return === undefined) return resolve(createIterResultObject(undefined, true));
+      if ($return === undefined) return resolve(createIterResultObject(value, true));
       var result = anObject(call($return, iterator, value));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator);
     });
