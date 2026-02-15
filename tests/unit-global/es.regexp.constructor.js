@@ -75,6 +75,11 @@ if (DESCRIPTORS) {
     match = re.exec(string);
     assert.same(match[1], '789', 's with y #3');
     assert.same(re.lastIndex, 14, 's with y #4');
+
+    // dotAll combined with NCG - groups should be populated
+    const dotAllNCG = RegExp('(?<a>.).(?<b>.)', 's').exec('a\nb');
+    assert.same(dotAllNCG?.groups?.a, 'a', 'dotAll + NCG groups #1');
+    assert.same(dotAllNCG?.groups?.b, 'b', 'dotAll + NCG groups #2');
   });
 
   QUnit.test('RegExp NCG', assert => {

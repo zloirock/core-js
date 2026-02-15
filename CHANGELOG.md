@@ -12,6 +12,7 @@
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
+- Fixed some cases of `RegExp` NCG polyfill in combination with `dotAll`
 - Fixed `URLSearchParam.prototype.delete` polyfill with duplicate key-value pairs
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode character sets in the `URL` polyfill
