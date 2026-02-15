@@ -44,6 +44,7 @@
 - Fixed some cases of `ToUint8Clamp` conversion
 - Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed some minor `{ Map, Set }.prototype.forEach` moments in the pure version
+- Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposals polyfill
 - Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
