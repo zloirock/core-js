@@ -262,7 +262,7 @@ var userinfoPercentEncodeSet = assign({}, pathPercentEncodeSet, {
 var percentEncode = function (chr, set) {
   var code = codeAt(chr, 0);
   // encodeURIComponent does not encode ', which is in the special-query percent-encode set
-  return code > 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : chr === "'" && hasOwn(set, chr) ? '%27' : encodeURIComponent(chr);
+  return code >= 0x20 && code < 0x7F && !hasOwn(set, chr) ? chr : chr === "'" && hasOwn(set, chr) ? '%27' : encodeURIComponent(chr);
 };
 
 // https://url.spec.whatwg.org/#special-scheme

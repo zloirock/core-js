@@ -489,6 +489,12 @@ QUnit.test('URL#search', assert => {
   // fails in modern Chrome (~145)
   // assert.same(new URL('foo://x/?a=\'').search, '?a=\'', 'non-special query does not percent-encode \'');
 
+  // space in opaque paths should not be percent-encoded
+  // eslint-disable-next-line no-script-url -- safe
+  assert.same(new URL('javascript:void 0').href, 'javascript:void 0', 'space preserved in opaque path');
+  // eslint-disable-next-line no-script-url -- safe
+  assert.same(new URL('javascript:void 0').pathname, 'void 0', 'space preserved in opaque pathname');
+
   if (DESCRIPTORS) {
     url = new URL('http://zloirock.ru/?');
     assert.same(url.search, '');
