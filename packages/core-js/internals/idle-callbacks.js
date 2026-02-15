@@ -104,7 +104,7 @@ exports.request = function requestIdleCallback(callback, options) {
   __idleRequestCallbacks.push(handle);
   if (options && options.timeout && options.timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
-    // options.timeout, however maintainng such a queue would be very dedious 
+    // options.timeout, however maintainng such a queue would be very tedious
     $setTimeout(function timeoutCallback() {
       var cb = get(__idleCallbackMap, handle);
       if (!cb) return;
