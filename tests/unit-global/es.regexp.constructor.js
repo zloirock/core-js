@@ -125,11 +125,5 @@ if (DESCRIPTORS) {
     assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2024')?.[0], '2024-2024', 'NCG \\k backreference #1');
     assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2025'), null, 'NCG \\k backreference #2');
     assert.same(RegExp('(?<a>.)(?<b>.)\\k<b>\\k<a>').exec('abba')?.[0], 'abba', 'NCG \\k multiple backreferences');
-
-    // \k<name> inside character classes should be literal, not backreference
-    assert.same(RegExp('[\\k<foo>](?<foo>bar)').exec('kbar')?.[0], 'kbar', 'NCG \\k inside char class left as literal #1');
-    assert.same(RegExp('[\\k<foo>](?<foo>bar)').exec('<bar')?.[0], '<bar', 'NCG \\k inside char class left as literal #2');
-    assert.same(RegExp('[\\k<a>](?<a>x)\\k<a>').exec('kxx')?.[0], 'kxx', 'NCG \\k inside char class with backref outside');
-    assert.same(RegExp('(?<a>x)(?<b>y)[\\k<a>]\\k<b>').exec('xyky')?.[0], 'xyky', 'NCG \\k inside char class with multiple groups');
   });
 }

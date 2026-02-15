@@ -119,32 +119,12 @@ var handleNCG = function (string) {
     else result += chr;
   }
   // convert `\k<name>` backreferences to numbered backreferences
-  // only outside of character classes
   for (var ni = 0; ni < named.length; ni++) {
     var backref = '\\k<' + named[ni][0] + '>';
-    var backrefLength = backref.length;
     var numRef = '\\' + named[ni][1];
-    var newResult = '';
-    var inBrackets = false;
-    var ri = 0;
-    while (ri < result.length) {
-      var rch = charAt(result, ri);
-      if (rch === '\\' && ri + 1 < result.length) {
-        if (!inBrackets && stringSlice(result, ri, ri + backrefLength) === backref) {
-          newResult += numRef;
-          ri += backrefLength;
-          continue;
-        }
-        newResult += rch + charAt(result, ri + 1);
-        ri += 2;
-        continue;
-      }
-      if (rch === '[') inBrackets = true;
-      else if (rch === ']') inBrackets = false;
-      newResult += rch;
-      ri++;
+    while (stringIndexOf(result, backref) > -1) {
+      result = replace(result, backref, numRef);
     }
-    result = newResult;
   } return [result, named];
 };
 
