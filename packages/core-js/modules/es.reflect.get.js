@@ -22,6 +22,6 @@ var $get = function (target, propertyKey, receiver) {
 
 $({ target: 'Reflect', stat: true }, {
   get: function get(target, propertyKey /* , receiver */) {
-    return $get(target, toPropertyKey(propertyKey), arguments.length < 3 ? target : arguments[2]);
+    return $get(anObject(target), toPropertyKey(propertyKey), arguments.length < 3 ? target : arguments[2]);
   }
 });

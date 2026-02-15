@@ -48,6 +48,6 @@ var MS_EDGE_BUG = fails(function () {
 
 $({ target: 'Reflect', stat: true, forced: MS_EDGE_BUG }, {
   set: function set(target, propertyKey, V /* , receiver */) {
-    return $set(target, toPropertyKey(propertyKey), V, arguments.length < 4 ? target : arguments[3]);
+    return $set(anObject(target), toPropertyKey(propertyKey), V, arguments.length < 4 ? target : arguments[3]);
   }
 });

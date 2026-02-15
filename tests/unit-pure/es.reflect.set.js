@@ -100,4 +100,9 @@ QUnit.test('Reflect.set', assert => {
   }
 
   assert.throws(() => set(42, 'q', 42), TypeError, 'throws on primitive');
+
+  // argument order: target should be validated before ToPropertyKey
+  const orderChecker = createConversionChecker(1, 'qux');
+  assert.throws(() => set(42, orderChecker, 1), TypeError, 'throws on primitive before ToPropertyKey');
+  assert.same(orderChecker.$toString, 0, 'ToPropertyKey not called before target validation in Reflect.set');
 });

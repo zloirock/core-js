@@ -39,5 +39,10 @@ QUnit.test('Reflect.get', assert => {
     assert.same(keyObj.$toString, 1, 'ToPropertyKey called once in Reflect.get, #2');
   }
   assert.throws(() => get(42, 'constructor'), TypeError, 'throws on primitive');
+
+  // argument order: target should be validated before ToPropertyKey
+  const orderChecker = createConversionChecker(1, 'qux');
+  assert.throws(() => get(42, orderChecker), TypeError, 'throws on primitive before ToPropertyKey');
+  assert.same(orderChecker.$toString, 0, 'ToPropertyKey not called before target validation in Reflect.get');
 });
 

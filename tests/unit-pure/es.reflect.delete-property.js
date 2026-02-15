@@ -26,4 +26,9 @@ QUnit.test('Reflect.deleteProperty', assert => {
   deleteProperty({ bar: 1 }, keyObj);
   assert.same(keyObj.$valueOf, 0, 'ToPropertyKey called once in Reflect.deleteProperty, #1');
   assert.same(keyObj.$toString, 1, 'ToPropertyKey called once in Reflect.deleteProperty, #2');
+
+  // argument order: target should be validated before ToPropertyKey
+  const orderChecker = createConversionChecker(1, 'qux');
+  assert.throws(() => deleteProperty(42, orderChecker), TypeError, 'throws on primitive before ToPropertyKey');
+  assert.same(orderChecker.$toString, 0, 'ToPropertyKey not called before target validation in Reflect.deleteProperty');
 });
