@@ -38,6 +38,7 @@
 - Fixed some cases of `@@toStringTag` on `%TypedArray%` polyfill
 - Fixed some cases of `ToUint8Clamp` conversion
 - Fixed false positive on a `WeakMap` validation in the pure version
+- Fixed some minor `{ Map, Set }.prototype.forEach` moments in the pure version
 - Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
