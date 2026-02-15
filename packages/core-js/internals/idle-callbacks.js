@@ -1,7 +1,7 @@
 /* eslint no-underscore-dangle: 0 -- internal vars use __ for private state */
 'use strict';
-var uncurryThis = require('function-uncurry-this');
-var globalThis = require('global-this');
+var uncurryThis = require('./function-uncurry-this');
+var globalThis = require('./global-this');
 
 var $Date = globalThis.Date;
 var $Map = globalThis.Map;
@@ -125,11 +125,11 @@ exports.request = function requestIdleCallback(callback, options) {
   // Start running things on the next frame if needed
   scheduleNextIdle();
   return handle;
-}
+};
 exports.cancel = function cancelIdleCallback(handle) {
   mpDelete(__idleCallbackMap, handle);
   var i = indexOf(__idleRequestCallbacks, handle);
   if (i > -1) splice(__idleRequestCallbacks, i, 1);
   i = indexOf(__runnableIdleCallbacks, handle);
   if (i > -1) splice(__runnableIdleCallbacks, i, 1);
-}
+};
