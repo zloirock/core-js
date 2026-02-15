@@ -29,6 +29,11 @@ QUnit.test('DataView.prototype.{ getFloat16, setFloat16 }', assert => {
     // [0b0111110000000001, NaN], <- what NaN representation should be used?
     [0b0111110000000000, Infinity],
     [0b1111110000000000, -Infinity],
+    // normal values in (0, 1) — regression test for floor vs truncation of log2
+    [0b0011100000000000, 0.5],
+    [0b0011101000000000, 0.75],
+    [0b0011010000000000, 0.25],
+    [0b0011000000000000, 0.125],
   ];
 
   const buffer = new ArrayBuffer(2);
@@ -57,6 +62,11 @@ QUnit.test('DataView.prototype.{ getFloat16, setFloat16 }', assert => {
     [-MIN_FLOAT16 / 2, -0],
     [2.980232238769531911744490042422139897126953655970282852649688720703125e-8, MIN_FLOAT16],
     [-2.980232238769531911744490042422139897126953655970282852649688720703125e-8, -MIN_FLOAT16],
+    // normal values in (0, 1) — regression test for floor vs truncation of log2
+    [0.3, 0.300048828125],
+    [0.7, 0.7001953125],
+    [-0.3, -0.300048828125],
+    [-0.7, -0.7001953125],
   ];
 
   for (const [from, to] of conversions) for (const LE of [false, true]) {

@@ -236,3 +236,9 @@ QUnit.test('RegExp#@@match delegates to exec', assert => {
 });
 
 QUnit.test('RegExp#@@match implementation', patchRegExp$exec(run));
+
+QUnit.test('RegExp#@@match global+unicode empty match at string end', assert => {
+  // eslint-disable-next-line regexp/no-empty-group -- testing
+  const result = 'abc'.match(/(?:)/gu);
+  assert.arrayEqual(result, ['', '', '', ''], 'does not infinite loop on global+unicode empty match');
+});

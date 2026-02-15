@@ -114,6 +114,11 @@ QUnit.test('Array#sort', assert => {
 
   assert.same(result, 'DGBEFHACIJK', 'stable #2');
 
+  // default comparator returns 0 for equal string representations
+  const obj1 = { toString() { return 'a'; } };
+  const obj2 = { toString() { return 'a'; } };
+  assert.same(sort([obj1, obj2])[0], obj1, 'stable sort for equal string representations');
+
   /* eslint-disable es/no-symbol -- safe */
   if (typeof Symbol == 'function') {
     assert.throws(() => sort([Symbol(1), Symbol(2)]), 'w/o cmp throws on symbols');

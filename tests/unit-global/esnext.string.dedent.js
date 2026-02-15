@@ -53,4 +53,12 @@ QUnit.test('String.dedent', assert => {
   assert.throws(() => dedent({ raw: freeze(['\n  qwe', 5, '\n   ']) }, 1, 2), TypeError, 'wrong part');
   assert.throws(() => dedent([undefined]), TypeError);
   assert.throws(() => dedent(null), TypeError);
+
+  // \u{} (empty braces) should be an invalid escape, causing TypeError
+  assert.same(dedent({ raw: freeze(['\n  \\u{41}\n  ']) }), 'A', 'valid unicode brace escape in raw');
+  assert.throws(() => dedent({ raw: freeze(['\n  \\u{}\n  ']) }), TypeError, '\\u{} is an invalid escape');
+
+  // hex/unicode escapes at end of string segment
+  assert.same(dedent({ raw: freeze(['\n  \\x41\n  ']) }), 'A', 'hex escape at end of raw string');
+  assert.same(dedent({ raw: freeze(['\n  \\u0041\n  ']) }), 'A', 'unicode escape at end of raw string');
 });

@@ -65,6 +65,26 @@ QUnit.test('Iterator.zip', assert => {
   }
 
   {
+    const expectedError = new TypeError('strict next error');
+    let it2calls = 0;
+    const it2 = createIterator([2], {
+      next() {
+        if (it2calls++) throw expectedError;
+        return { value: 2, done: false };
+      },
+    });
+    result = zip([createIterator([1]), it2], { mode: 'strict' });
+    result.next();
+    let caught;
+    try {
+      result.next();
+    } catch (error) {
+      caught = error;
+    }
+    assert.same(caught, expectedError, 'strict mode propagates error from .next() during exhaustion check');
+  }
+
+  {
     const $result = zip([
       [0, 1, 2],
       [3, 4, 5, 6, 7],
@@ -99,5 +119,39 @@ QUnit.test('Iterator.zip', assert => {
       ['A', 6, 'C'],
       ['A', 7, 'C'],
     ]);
+  }
+
+  {
+    const expectedError = new TypeError('not iterable');
+    const badIterable = { [Symbol.iterator]() { throw expectedError; } };
+    const it1 = createIterator([1, 2], observableReturn);
+    let caught;
+    try {
+      zip([it1, badIterable]);
+    } catch (error) {
+      caught = error;
+    }
+    assert.same(caught, expectedError, 'original error is preserved');
+    assert.true(it1.called, 'first iterator return called on non-iterable second element');
+  }
+
+  {
+    const expectedError = new TypeError('inner return error');
+    const throwingReturn = {
+      return() {
+        throw expectedError;
+      },
+    };
+    const it1 = createIterator([1, 2], throwingReturn);
+    const it2 = createIterator([3, 4], observableReturn);
+    result = zip([it1, it2]);
+    result.next();
+    let caught;
+    try {
+      result.return();
+    } catch (error) {
+      caught = error;
+    }
+    assert.same(caught, expectedError, 'propagates the original error from inner return()');
   }
 });

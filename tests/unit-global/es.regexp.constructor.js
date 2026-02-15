@@ -1,5 +1,5 @@
 /* eslint-disable prefer-regex-literals, regexp/no-invalid-regexp, regexp/sort-flags -- required for testing */
-/* eslint-disable regexp/no-useless-character-class, regexp/no-useless-flag -- required for testing */
+/* eslint-disable regexp/no-useless-assertions, regexp/no-useless-character-class, regexp/no-useless-flag -- required for testing */
 import { DESCRIPTORS, GLOBAL } from '../helpers/constants.js';
 import { nativeSubclass } from '../helpers/helpers.js';
 
@@ -75,6 +75,11 @@ if (DESCRIPTORS) {
     match = re.exec(string);
     assert.same(match[1], '789', 's with y #3');
     assert.same(re.lastIndex, 14, 's with y #4');
+
+    // dotAll combined with NCG - groups should be populated
+    const dotAllNCG = RegExp('(?<a>.).(?<b>.)', 's').exec('a\nb');
+    assert.same(dotAllNCG?.groups?.a, 'a', 'dotAll + NCG groups #1');
+    assert.same(dotAllNCG?.groups?.b, 'b', 'dotAll + NCG groups #2');
   });
 
   QUnit.test('RegExp NCG', assert => {
@@ -104,5 +109,21 @@ if (DESCRIPTORS) {
     assert.throws(() => RegExp('(?<1a>b)'), SyntaxError, 'incorrect group name #1');
     assert.throws(() => RegExp('(?<a#>b)'), SyntaxError, 'incorrect group name #2');
     assert.throws(() => RegExp('(?< a >b)'), SyntaxError, 'incorrect group name #3');
+
+    // regression — lookahead / lookbehind assertions should not increment group counter
+    assert.same(RegExp('(?=b)(?<a>b)').exec('b').groups?.a, 'b', 'NCG with positive lookahead');
+    assert.same(RegExp('(?!c)(?<a>b)').exec('b').groups?.a, 'b', 'NCG with negative lookahead');
+    // prevent crash in ancient engines without lookbehind support
+    try {
+      assert.same(RegExp('(?<=a)(?<b>b)').exec('ab').groups?.b, 'b', 'NCG with positive lookbehind');
+      assert.same(RegExp('(?<!c)(?<a>b)').exec('ab').groups?.a, 'b', 'NCG with negative lookbehind');
+    } catch { /* empty */ }
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
+    assert.same(RegExp('(?=b)(b)(?<a>c)').exec('bc').groups?.a, 'c', 'NCG with lookahead and capturing group');
+
+    // named backreferences
+    assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2024')?.[0], '2024-2024', 'NCG \\k backreference #1');
+    assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2025'), null, 'NCG \\k backreference #2');
+    assert.same(RegExp('(?<a>.)(?<b>.)\\k<b>\\k<a>').exec('abba')?.[0], 'abba', 'NCG \\k multiple backreferences');
   });
 }

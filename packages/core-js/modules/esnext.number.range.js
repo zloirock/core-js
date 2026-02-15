@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var NumericRangeIterator = require('../internals/numeric-range-iterator');
 
 // `Number.range` method
-// https://github.com/tc39/proposal-Number.range
+// https://github.com/tc39/proposal-iterator.range
 // TODO: Remove from `core-js@4`
 $({ target: 'Number', stat: true, forced: true }, {
   range: function range(start, end, option) {

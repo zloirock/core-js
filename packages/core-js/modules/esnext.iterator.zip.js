@@ -40,7 +40,7 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
         try {
           iter = getIteratorFlattenable(next.value, true);
         } catch (error) {
-          return iteratorCloseAll(concat([inputIter.iterator], iters), THROW, error);
+          return iteratorCloseAll(concat([inputIter], iters), THROW, error);
         }
         push(iters, iter);
       }

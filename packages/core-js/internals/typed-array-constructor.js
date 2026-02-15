@@ -10,7 +10,6 @@ var anInstance = require('../internals/an-instance');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var isIntegralNumber = require('../internals/is-integral-number');
-var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var toOffset = require('../internals/to-offset');
 var toUint8Clamped = require('../internals/to-uint8-clamped');
@@ -162,7 +161,7 @@ if (DESCRIPTORS) {
             byteLength = $len - byteOffset;
             if (byteLength < 0) throw new RangeError(WRONG_LENGTH);
           } else {
-            byteLength = toLength($length) * BYTES;
+            byteLength = toIndex($length) * BYTES;
             if (byteLength + byteOffset > $len) throw new RangeError(WRONG_LENGTH);
           }
           length = byteLength / BYTES;

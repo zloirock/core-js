@@ -23,7 +23,7 @@ var isDigit = function (str, index) {
 };
 
 var parseHex = function (str, index, end) {
-  if (end >= str.length) return -1;
+  if (end > str.length || index >= end) return -1;
   var n = 0;
   for (; index < end; index++) {
     var c = hexToInt(charCodeAt(str, index));

@@ -5,6 +5,7 @@ var call = require('../internals/function-call');
 var anObject = require('../internals/an-object');
 var isConstructor = require('../internals/is-constructor');
 var getIterator = require('../internals/get-iterator');
+var getIteratorMethod = require('../internals/get-iterator-method');
 var getMethod = require('../internals/get-method');
 var iterate = require('../internals/iterate');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -23,9 +24,11 @@ $({ target: 'Observable', stat: true, forced: true }, {
         return observable.subscribe(observer);
       });
     }
-    var iterator = getIterator(x);
+    var iteratorMethod = getIteratorMethod(x);
+    // validate that x is iterable synchronously during `from()` call
+    if (!iteratorMethod) getIterator(x);
     return new C(function (observer) {
-      iterate(iterator, function (it, stop) {
+      iterate(getIterator(x, iteratorMethod), function (it, stop) {
         observer.next(it);
         if (observer.closed) return stop();
       }, { IS_ITERATOR: true, INTERRUPTED: true });

@@ -526,9 +526,11 @@ const base = {
   // prefer global
   'node/prefer-global/buffer': [ERROR, ALWAYS],
   'node/prefer-global/console': [ERROR, ALWAYS],
+  'node/prefer-global/crypto': [ERROR, ALWAYS],
   'node/prefer-global/process': [ERROR, ALWAYS],
   'node/prefer-global/text-decoder': [ERROR, ALWAYS],
   'node/prefer-global/text-encoder': [ERROR, ALWAYS],
+  'node/prefer-global/timers': [ERROR, ALWAYS],
   'node/prefer-global/url-search-params': [ERROR, ALWAYS],
   'node/prefer-global/url': [ERROR, ALWAYS],
   // prefer promises
@@ -1822,8 +1824,6 @@ const transpiledAndPolyfilled = {
   'es/no-async-functions': ERROR,
   // disallow async iteration
   'es/no-async-iteration': ERROR,
-  // disallow generators
-  'es/no-generators': ERROR,
   // disallow top-level `await`
   'es/no-top-level-await': ERROR,
   // unpolyfillable es2015 builtins

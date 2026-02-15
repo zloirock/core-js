@@ -1,4 +1,5 @@
 'use strict';
+// https://github.com/tc39/proposal-iterator.range
 var InternalStateModule = require('../internals/internal-state');
 var createIteratorConstructor = require('../internals/iterator-create-constructor');
 var createIterResultObject = require('../internals/create-iter-result-object');
@@ -17,6 +18,10 @@ var $RangeError = RangeError;
 var $TypeError = TypeError;
 
 var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(start, end, option, type, zero, one) {
+  // eslint-disable-next-line no-self-compare -- NaN check
+  if (start !== start || end !== end) {
+    throw new $RangeError(INCORRECT_RANGE);
+  }
   // TODO: Drop the first `typeof` check after removing legacy methods in `core-js@4`
   if (typeof start != type || (end !== Infinity && end !== -Infinity && typeof end != type)) {
     throw new $TypeError(INCORRECT_RANGE);
@@ -27,7 +32,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   var ifIncrease = end > start;
   var inclusiveEnd = false;
   var step;
-  if (option === undefined) {
+  if (isNullOrUndefined(option)) {
     step = undefined;
   } else if (isObject(option)) {
     step = option.step;
@@ -43,11 +48,11 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   if (typeof step != type) {
     throw new $TypeError(INCORRECT_RANGE);
   }
-  if (step === Infinity || step === -Infinity || (step === zero && start !== end)) {
+  // eslint-disable-next-line no-self-compare -- NaN check
+  if (step !== step || step === Infinity || step === -Infinity || (step === zero && start !== end)) {
     throw new $RangeError(INCORRECT_RANGE);
   }
-  // eslint-disable-next-line no-self-compare -- NaN check
-  var hitsEnd = start !== start || end !== end || step !== step || (end > start) !== (step > zero);
+  var hitsEnd = end > start !== step > zero;
   setInternalState(this, {
     type: NUMERIC_RANGE_ITERATOR,
     start: start,

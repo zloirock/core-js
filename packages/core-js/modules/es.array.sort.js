@@ -71,7 +71,9 @@ var getSortCompare = function (comparefn) {
     if (y === undefined) return -1;
     if (x === undefined) return 1;
     if (comparefn !== undefined) return +comparefn(x, y) || 0;
-    return toString(x) > toString(y) ? 1 : -1;
+    var xString = toString(x);
+    var yString = toString(y);
+    return xString === yString ? 0 : xString > yString ? 1 : -1;
   };
 };
 
