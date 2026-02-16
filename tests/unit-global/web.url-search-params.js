@@ -295,6 +295,19 @@ QUnit.test('URLSearchParams#delete', assert => {
   params.delete('a', undefined);
   assert.same(String(params), 'b=4');
 
+  // delete with value should not drop entries with the same key before the target
+  params = new URLSearchParams('b=1&a=2&b=3');
+  params.delete('a', '2');
+  assert.same(String(params), 'b=1&b=3', 'entries before target with same key preserved');
+
+  params = new URLSearchParams('a=1&a=2&b=3');
+  params.delete('a', '1');
+  assert.same(String(params), 'a=2&b=3', 'only matching name+value pairs removed, rest preserved');
+
+  params = new URLSearchParams('a=1&b=2');
+  params.delete('a', '999');
+  assert.same(String(params), 'a=1&b=2', 'no match leaves all entries intact');
+
   if (DESCRIPTORS) {
     let url = new URL('http://example.com/?param1&param2');
     url.searchParams.delete('param1');

@@ -22,6 +22,7 @@
 - Fixed handling of some line terminators in case of `multiline` + `sticky` mode in `RegExp` polyfill
 - Fixed handling of empty groups with `global` and `unicode` flags in polyfills
 - Fixed `URLSearchParam.prototype.delete` polyfill with duplicate key-value pairs
+- Fixed possible removal of unnecessary entries in `URLSearchParam.prototype.delete` polyfill with second argument
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode cases / character sets in the `URL` polyfill
 - Fixed host parsing with `hostname = host:port` in the `URL` polyfill
