@@ -7,6 +7,8 @@ Note that `requestIdleCallback`` cannot really be polyfilled as we don't know wh
 ## Modules 
 [`web.request-idle-callback`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.request-idle-callback.js), [`web.cancel-idle-callback`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.cancel-idle-callback.js).
 
+Note that if using ``core-js-builder``, ``es.map`` must also be put in the ``modules`` list if you want to build for old browsers.
+
 ## Built-ins signatures
 ```ts
 function requestIdleCallback(
@@ -20,4 +22,14 @@ function cancelIdleCallback(handle: number): void;
 ```plaintext
 core-js(-pure)/stable|actual|full|web/request-idle-callback
 core-js(-pure)/stable|actual|full|web/cancel-idle-callback
+```
+
+## Examples
+```js
+requestIdleCallback(
+  deadline => {
+    console.log('Did timeout:', deadline.didTimeout, '| Time remaining (ms):', deadline.timeRemaining());
+  },
+  { timeout: 2000 } // forces callback after 2 seconds max
+);
 ```
