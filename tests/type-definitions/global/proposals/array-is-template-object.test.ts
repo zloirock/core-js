@@ -1,6 +1,6 @@
 import 'core-js/full';
 import isTemplateObject from 'core-js/full/array/is-template-object';
-import { assertBool } from '../../helpers.js';
+import { assertBool } from '../../helpers/helpers.js';
 
 const res: boolean = isTemplateObject([]);
 
