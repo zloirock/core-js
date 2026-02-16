@@ -71,7 +71,7 @@ declare namespace CoreJS {
      * @param chunkSize - The maximum number of elements per chunk. Must be a positive integer.
      * @returns An iterator yielding arrays of at most `chunkSize` elements from the source iterator.
      */
-    chunks(chunkSize: number): CoreJSIteratorObject<T[]>;
+    chunks(chunkSize: number): CoreJSIteratorObject<T[], undefined, unknown>;
 
     /**
      * Yields overlapping arrays (windows) of the given size from the iterator.
@@ -79,7 +79,7 @@ declare namespace CoreJS {
      * @param undersized - 'only-full' (default) to yield only full windows | 'allow-partial' to yield all windows.
      * @returns An iterator yielding arrays of the specified window size.
      */
-    windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): CoreJSIteratorObject<T[]>;
+    windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): CoreJSIteratorObject<T[], undefined, unknown>;
 
     /**
      * Creates an iterator whose values are the result of applying the callback to the values from this iterator.
@@ -180,7 +180,7 @@ declare namespace CoreJS {
      * Returns its input if the input already inherits from the built-in Iterator class.
      * @param value - An iterator or iterable object to convert a native iterator.
      */
-    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T>): CoreJSIteratorObject<T>;
+    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T>): CoreJSIteratorObject<T, undefined, unknown>;
 
     /**
      * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
@@ -191,7 +191,7 @@ declare namespace CoreJS {
      *  - padding: an object specifying padding values for each key when mode is 'longest'.
      * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
      */
-    zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): CoreJSIteratorObject<T[]>;
+    zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): CoreJSIteratorObject<T[], undefined, unknown>;
 
     /**
      * takes an object whose values are iterables and produces an iterable of objects where keys.
@@ -202,7 +202,7 @@ declare namespace CoreJS {
      *  - padding: an object specifying padding values for each key when mode is 'longest'.
      * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
      */
-    zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }>;
+    zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
 
     /**
      * Returns an iterator that generates a sequence of numbers or bigints within a range.
@@ -213,14 +213,14 @@ declare namespace CoreJS {
      *   - inclusive: If true, the end value is included in the range (default is false).
      * @returns An iterator of numbers or bigints.
      */
-    range<T>(start: T, end: T | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: T | IteratorRangeOptions<T>): CoreJSIteratorObject<T>
+    range<T>(start: T, end: T | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: T | IteratorRangeOptions<T>): CoreJSIteratorObject<T, undefined, unknown>
 
     /**
      * Creates an iterator that sequentially yields values from the provided iterables.
      * @param iterators - The iterables to concatenate.
      * @returns An iterator yielding values from each input iterable in sequence.
      */
-    concat<T>(...iterators: Iterable<T>[]): CoreJSIteratorObject<T>;
+    concat<T>(...iterators: Iterable<T>[]): CoreJSIteratorObject<T, undefined, unknown>;
   }
 
   var CoreJSIterator: CoreJSIteratorConstructor;
