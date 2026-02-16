@@ -26,4 +26,7 @@ QUnit.test('Symbol#description', assert => {
     assert.same(Symbol().toString(), 'Symbol()');
     assert.same(String(Symbol()), 'Symbol()');
   }
+  // Symbol.for with empty string key should have '' description
+  assert.same(Symbol.for('').description, '', 'Symbol.for("").description');
+  assert.same(Symbol.for('foo').description, 'foo', 'Symbol.for("foo").description');
 });

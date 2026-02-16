@@ -5,6 +5,7 @@
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
   - Allow `null` as `optionOrStep`
 - `Math.atanh` has become slightly more correct with small values
+- Wrap `Symbol.for` in `Symbol.prototype.description` polyfill for correct handling of empty string descriptions
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed double `.return` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
