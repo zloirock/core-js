@@ -26,7 +26,7 @@ module.exports = function (string, into) {
     if ($isNaN(result)) {
       throw new SyntaxError('String should only contain hex characters');
     }
-    bytes[written] = result << 4;
+    bytes[written] = result >> 4;
   }
   return { bytes: bytes, read: written << 1 };
 };
