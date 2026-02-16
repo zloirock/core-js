@@ -37,7 +37,7 @@ declare namespace CoreJS {
     readonly DATA_CLONE_ERR: 25;
   }
 
-  interface CoreJSDomExceptionConstructor {
+  interface CoreJSDOMExceptionConstructor {
     prototype: CoreJSDOMException;
     new(message?: string, name?: string): CoreJSDOMException;
     new(message?: string, options?: { name?: string; cause?: unknown }): CoreJSDOMException;
@@ -68,5 +68,5 @@ declare namespace CoreJS {
     readonly DATA_CLONE_ERR: 25;
   }
 
-  var CoreJSDOMException: CoreJSDomExceptionConstructor;
+  var CoreJSDOMException: CoreJSDOMExceptionConstructor;
 }
