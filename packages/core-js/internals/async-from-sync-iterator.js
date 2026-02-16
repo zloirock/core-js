@@ -70,7 +70,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
         } catch (error) {
           return reject(error);
         }
-        return reject(value);
+        return reject(new TypeError('The iterator does not provide a throw method'));
       }
       var result = anObject(call($throw, iterator, value));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator, true);
