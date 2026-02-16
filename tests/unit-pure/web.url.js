@@ -163,6 +163,9 @@ QUnit.test('URL#origin', assert => {
   assert.same(url.origin, 'http://es6.zloirock.ru');
 
   assert.same(new URL('https://測試/tests').origin, 'https://xn--g6w251d');
+
+  // blob URL origin should resolve to the inner URL's origin
+  assert.same(new URL('blob:https://example.com/some-uuid').origin, 'https://example.com');
 });
 
 QUnit.test('URL#protocol', assert => {
