@@ -1,7 +1,7 @@
 import 'core-js/es';
 import padStart from 'core-js/es/string/pad-start';
 import padEnd from 'core-js/es/string/pad-end';
-import { assertString } from '../../helpers.js';
+import { assertString } from '../../helpers/helpers.js';
 
 const s = 'foo';
 
