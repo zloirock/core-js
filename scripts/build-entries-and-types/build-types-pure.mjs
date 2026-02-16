@@ -2,6 +2,18 @@ const { outputFile, pathExists, readdir, readFile } = fs;
 
 const NAMESPACE = 'CoreJS';
 
+/**
+ * @param line - A line of code from the type declaration file, potentially containing a @type-options comment
+ * @return {{
+ * noExtends, // Don’t make interfaces extend the original ones
+ * noPrefix, // Don’t prefix the interface name with the namespace
+ * noConstructor, // Don’t emit a backing var (constructor) for the interface
+ * exportBaseConstructor, // When emitting a constructor for an interface, export the original interface as the type of the constructor
+ * noExport, // Don’t export the interface at all
+ * noRedefine, // Don’t emit a backing var (constructor) for the interface
+ * prefixReturnType // Prefix return types with the namespace
+ * }}
+ */
 function parseOptions(line) {
   const hasOptions = line.includes('@type-options');
   const optionsStr = hasOptions ? line.match(/@type-options:\s+(?<options>[A-Za-z][\s\w,-]+)$/)?.groups?.options : '';
