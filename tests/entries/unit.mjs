@@ -1027,6 +1027,8 @@ for (PATH of ['core-js-pure', 'core-js']) {
   ok(load('web/timers'));
   ok(load('web/url'));
   ok(load('web/url-search-params'));
+  ok(load('web/request-idle-callback'));
+  ok(load('web/cancel-idle-callback'));
   ok(load('web'));
 
   for (const key in entries) {

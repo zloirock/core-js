@@ -2,6 +2,6 @@
 var $ = require('../internals/export');
 var requestIdleCallback = require('../internals/idle-callbacks').request;
 
-$({ global: true }, {
+$({ global: true, arity: 2 }, {
   requestIdleCallback: requestIdleCallback
 });
