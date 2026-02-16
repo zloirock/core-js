@@ -3,7 +3,7 @@ import trimEnd from 'core-js/es/string/trim-end';
 import trimStart from 'core-js/es/string/trim-start';
 import trimLeft from 'core-js/es/string/trim-left';
 import trimRight from 'core-js/es/string/trim-right';
-import { assertString } from '../../helpers.js';
+import { assertString } from '../../helpers/helpers.js';
 
 const s = 'abc';
 
