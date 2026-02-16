@@ -2271,9 +2271,9 @@ GLOBAL.tests = {
     return 'size' in URLSearchParams.prototype;
   }],
   'web.request-idle-callback': function () {
-    return GLOBAL.requestIdleCallback !== undefined;
+    return (GLOBAL.requestIdleCallback !== undefined) && (GLOBAL.cancelIdleCallback !== undefined);
   },
   'web.cancel-idle-callback': function () {
-    return GLOBAL.cancelIdleCallback !== undefined;
+    return (GLOBAL.requestIdleCallback !== undefined) && (GLOBAL.cancelIdleCallback !== undefined);
   }
 };
