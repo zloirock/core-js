@@ -113,7 +113,7 @@ declare namespace CoreJS {
      * Creates an iterator whose values are the result of applying the callback to the values from this iterator and then flattening the resulting iterators or iterables.
      * @param callback - A function that accepts up to two arguments to be used to transform values from the underlying iterator into new iterators or iterables to be flattened into the result.
      */
-    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): CoreJSIteratorObject<U, undefined, unknown>;  // ts < 5.6 Iterable<T>
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): CoreJSIteratorObject<U, undefined, unknown>;  // ts < 5.6 Iterable<U>
 
     /**
      * Calls the specified callback function for all the elements in this iterator. The return value of the callback function is the accumulated result, and is provided as an argument in the next call to the callback function.
