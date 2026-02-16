@@ -1,6 +1,6 @@
 import 'core-js/es';
 import isError from 'core-js/es/error/is-error';
-import { assertBool } from '../../helpers.js';
+import { assertBool } from '../../helpers/helpers.js';
 
 const e = new Error();
 const ne = { foo: 1 };
