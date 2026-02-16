@@ -396,7 +396,7 @@ URLState.prototype = {
             if (stateOverride && (
               (url.isSpecial() !== hasOwn(specialSchemes, buffer)) ||
               (buffer === 'file' && (url.includesCredentials() || url.port !== null)) ||
-              (url.scheme === 'file' && !url.host)
+              (url.scheme === 'file' && url.host === '')
             )) return;
             url.scheme = buffer;
             if (stateOverride) {
@@ -700,7 +700,7 @@ URLState.prototype = {
               }
             } else {
               if (url.scheme === 'file' && !url.path.length && isWindowsDriveLetter(buffer)) {
-                if (url.host) url.host = '';
+                if (url.host !== null && url.host !== '') url.host = '';
                 buffer = charAt(buffer, 0) + ':'; // normalize windows drive letter
               }
               push(url.path, buffer);
@@ -776,7 +776,7 @@ URLState.prototype = {
   },
   // https://url.spec.whatwg.org/#cannot-have-a-username-password-port
   cannotHaveUsernamePasswordPort: function () {
-    return !this.host || this.cannotBeABaseURL || this.scheme === 'file';
+    return this.host === null || this.host === '' || this.cannotBeABaseURL || this.scheme === 'file';
   },
   // https://url.spec.whatwg.org/#include-credentials
   includesCredentials: function () {

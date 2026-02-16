@@ -221,6 +221,12 @@ QUnit.test('URL#username', assert => {
     url.username = 'username';
     assert.same(url.username, 'username');
     assert.same(String(url), 'http://username@zloirock.ru/');
+
+    // IPv4 address 0.0.0.0 (stored as number 0) should allow username
+    url = new URL('http://0.0.0.0/');
+    url.username = 'user';
+    assert.same(url.username, 'user', 'username settable on 0.0.0.0');
+    assert.same(String(url), 'http://user@0.0.0.0/', 'href correct after setting username on 0.0.0.0');
   }
 });
 
@@ -443,6 +449,12 @@ QUnit.test('URL#port', assert => {
     // url.port = 1e10;
     // assert.same(url.port, '1234'); // '0' in Chrome
     // assert.same(String(url), 'http://zloirock.ru:1234/'); // 'http://zloirock.ru:0/' in Chrome
+
+    // IPv4 address 0.0.0.0 (stored as number 0) should allow port
+    url = new URL('http://0.0.0.0/');
+    url.port = '8080';
+    assert.same(url.port, '8080', 'port settable on 0.0.0.0');
+    assert.same(String(url), 'http://0.0.0.0:8080/', 'href correct after setting port on 0.0.0.0');
   }
 });
 
