@@ -1,5 +1,7 @@
 import { GLOBAL } from '../helpers/constants.js';
 
+// setTimeouts have loose limits
+// as CI is very slow
 QUnit.test('requestIdleCallback', assert => {
   // Mock requestAnimationFrame to be slow so we can
   // test timeouts; this is relevant to our custom implementatino
@@ -16,7 +18,7 @@ QUnit.test('requestIdleCallback', assert => {
   assert.arity(requestIdleCallback, 1);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
-  const done = assert.async(2);
+  const done = assert.async(5);
 
   let called = false;
 
@@ -29,7 +31,7 @@ QUnit.test('requestIdleCallback', assert => {
   setTimeout(() => {
     assert.true(called);
     done();
-  }, 1000);
+  }, 100);
 
   // See comment at top of file.
   if (GLOBAL.requestIdleCallback.toString().indexOf('[native code]') === -1) {
@@ -41,35 +43,35 @@ QUnit.test('requestIdleCallback', assert => {
     done();
   }
 
-  // assert.true(typeof cancelIdleCallback === 'function');
-  // assert.arity(cancelIdleCallback, 1);
-  // assert.name(cancelIdleCallback, 'cancelIdleCallback');
+  assert.true(typeof cancelIdleCallback === 'function');
+  assert.arity(cancelIdleCallback, 1);
+  assert.name(cancelIdleCallback, 'cancelIdleCallback');
 
-  // const handle = requestIdleCallback(() => {
-  //   // Shouldn't ever be called.
-  //   assert.true(false);
-  // });
-  // cancelIdleCallback(handle);
+  const handle = requestIdleCallback(() => {
+    // Shouldn't ever be called.
+    assert.true(false);
+  });
+  cancelIdleCallback(handle);
 
-  // // Give the inner "shouldn't ever be called"
-  // // assert a chance to run and fail.
-  // setTimeout(() => {
-  //   done();
-  // }, 20);
+  // Give the inner "shouldn't ever be called"
+  // assert a chance to run and fail.
+  setTimeout(() => {
+    done();
+  }, 100);
 
-  // let ran = false;
-  // requestIdleCallback(() => {
-  //   ran = true;
-  // });
-  // requestIdleCallback(() => {
-  //   // Test that the operation is FIFO.
-  //   assert.true(ran === true);
-  //   done();
-  // });
+  let ran = false;
+  requestIdleCallback(() => {
+    ran = true;
+  });
+  requestIdleCallback(() => {
+    // Test that the operation is FIFO.
+    assert.true(ran === true);
+    done();
+  });
 
-  // // Restore mock
+  // Restore mock
   setTimeout(() => {
     GLOBAL.requestAnimationFrame = originalRAF;
     done();
-  }, 3000);
+  }, 1000);
 });
