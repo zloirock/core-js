@@ -7,5 +7,5 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  export type StringReplaceAll<T, U> = ((searchValue: string | RegExp, replaceValue: string) => string) | ((searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string) => string);
+  export type StringReplaceAll = ((searchValue: string | RegExp, replaceValue: string) => string) | ((searchValue: string | RegExp, replacer: (substring: string, ...args: any[]) => string) => string);
 }
