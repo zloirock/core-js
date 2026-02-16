@@ -2,6 +2,7 @@ import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 import AsyncIterator from 'core-js-pure/actual/async-iterator';
+import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('AsyncIterator#take', assert => {
   const { take } = AsyncIterator.prototype;
@@ -29,5 +30,25 @@ QUnit.test('AsyncIterator#take', assert => {
     return take.call(createIterator([1, 2, 3]), 0).toArray();
   }).then(it => {
     assert.arrayEqual(it, [], 'zero');
+  });
+});
+
+QUnit.test('AsyncIterator#take, return() result validated as object', assert => {
+  assert.expect(1);
+  const async = assert.async();
+
+  const iter = {
+    i: 0,
+    next() { return { value: ++this.i, done: false }; },
+    return() { return 42; },
+    [Symbol.iterator]() { return this; },
+  };
+
+  AsyncIterator.from(iter).take(1).toArray().then(() => {
+    assert.avoid();
+    async();
+  }).catch(error => {
+    assert.true(error instanceof TypeError, 'rejects with TypeError when return() gives non-object');
+    async();
   });
 });

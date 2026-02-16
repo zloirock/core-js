@@ -31,3 +31,23 @@ QUnit.test('AsyncIterator#take', assert => {
     assert.arrayEqual(it, [], 'zero');
   });
 });
+
+QUnit.test('AsyncIterator#take, return() result validated as object', assert => {
+  assert.expect(1);
+  const async = assert.async();
+
+  const iter = {
+    i: 0,
+    next() { return { value: ++this.i, done: false }; },
+    return() { return 42; },
+    [Symbol.iterator]() { return this; },
+  };
+
+  AsyncIterator.from(iter).take(1).toArray().then(() => {
+    assert.avoid();
+    async();
+  }).catch(error => {
+    assert.true(error instanceof TypeError, 'rejects with TypeError when return() gives non-object');
+    async();
+  });
+});

@@ -45,6 +45,7 @@
 - Fixed order of async iterators closing
 - Fixed iterator closing in `AsyncIterator.prototype.flatMap` polyfill
 - Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
+- Fixed validation `return()` result as object in `AsyncIterator.prototype.take` polyfill
 - Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
