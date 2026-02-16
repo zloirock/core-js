@@ -1,4 +1,4 @@
 'use strict';
-var parent = require('../actual/request-idle-callback');
+var parent = require('../actual/cancel-idle-callback');
 
 module.exports = parent;
