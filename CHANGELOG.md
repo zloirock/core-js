@@ -28,7 +28,7 @@
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
-- Fixed `Reflect.set` polyfill with some cases of malformed descriptors
+- Fixed `Reflect.set` polyfill with some descriptors cases
 - Fixed a lack of error in `Reflect.defineProperty` polyfill with malformed descriptor
 - Fixed a lack of error in `JSON.parse` polyfill on unterminated object and array literals
 - Fixed a lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part

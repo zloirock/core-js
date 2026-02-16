@@ -101,6 +101,17 @@ QUnit.test('Reflect.set', assert => {
 
   assert.throws(() => set(42, 'q', 42), TypeError, 'throws on primitive');
 
+  // Reflect.set should pass only { value: V } to [[DefineOwnProperty]] when updating existing data property
+  if (DESCRIPTORS) {
+    const obj = defineProperty({}, 'x', { value: 1, writable: true, enumerable: true, configurable: true });
+    assert.true(set(obj, 'x', 42), 'set existing writable property');
+    const desc = getOwnPropertyDescriptor(obj, 'x');
+    assert.same(desc.value, 42, 'value updated');
+    assert.true(desc.writable, 'writable preserved');
+    assert.true(desc.enumerable, 'enumerable preserved');
+    assert.true(desc.configurable, 'configurable preserved');
+  }
+
   // argument order: target should be validated before ToPropertyKey
   const orderChecker = createConversionChecker(1, 'qux');
   assert.throws(() => set(42, orderChecker, 1), TypeError, 'throws on primitive before ToPropertyKey');
