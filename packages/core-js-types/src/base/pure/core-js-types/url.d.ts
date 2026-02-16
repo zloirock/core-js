@@ -48,13 +48,13 @@ declare namespace CoreJS {
     new(url: string | CoreJSURL, base?: string): CoreJSURL;
 
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/URL/canParse_static) */
-    canParse(url: string, base?: string): boolean;
+    canParse(url: string | CoreJSURL, base?: string): boolean;
 
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/URL/createObjectURL_static) */
     createObjectURL(obj: any): string;
 
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/URL/parse_static) */
-    parse(url: string, base?: string): CoreJSURL | null;
+    parse(url: string | CoreJSURL, base?: string): CoreJSURL | null;
 
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/URL/revokeObjectURL_static) */
     revokeObjectURL(url: string): void;
