@@ -36,7 +36,7 @@ QUnit.test('requestIdleCallback', assert => {
   }, 100);
 
   // See comment at top of file.
-  if (GLOBAL.requestIdleCallback.toString().indexOf('[native code]') === -1) {
+  if (requestIdleCallback.toString().indexOf('[native code]') === -1) {
     requestIdleCallback(deadline => {
       assert.true(deadline.didTimeout);
       done();
@@ -67,7 +67,7 @@ QUnit.test('requestIdleCallback', assert => {
   });
   requestIdleCallback(() => {
     // Test that the operation is FIFO.
-    assert.true(ran === true);
+    assert.true(ran);
     done();
   });
 
