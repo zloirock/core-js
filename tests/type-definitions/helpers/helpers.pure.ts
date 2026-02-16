@@ -42,7 +42,7 @@ export interface CoreJSIteratorLike<T, TReturn = any, TNext = any | undefined> e
   take(...args: any[]): CoreJSIteratorLike<T>;
   drop(...args: any[]): CoreJSIteratorLike<T>;
   flatMap<U>(...args: any[]): CoreJSIteratorLike<U>;
-  reduce<U>(...args: any[]): CoreJSIteratorLike<U>;
+  reduce<U>(...args: any[]): U;
   toArray(): T[];
   forEach(...args: any[]): void;
   some(...args: any[]): boolean;
