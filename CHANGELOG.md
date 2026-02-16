@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added polyfill for ``requestIdleCallback`` and ``cancelIdleCallback``
 - Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
