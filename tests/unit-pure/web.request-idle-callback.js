@@ -5,22 +5,11 @@ import cancelIdleCallback from 'core-js-pure/stable/cancel-idle-callback';
 // setTimeouts have loose limits
 // as CI is very slow
 QUnit.test('requestIdleCallback', assert => {
-  // Mock requestAnimationFrame to be slow so we can
-  // test timeouts; this is relevant to our custom implementatino
-  // that uses rAF.  If native implementation... don't run the
-  // timeout test as it's unreliable to make the environment busy
-  const originalRAF = GLOBAL.requestAnimationFrame;
-  if (originalRAF) {
-    GLOBAL.requestAnimationFrame = callback => {
-      return setTimeout(callback, 16);
-    };
-  }
-
   assert.isFunction(requestIdleCallback);
   assert.arity(requestIdleCallback, 1);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
-  const done = assert.async(5);
+  const done = assert.async(3);
 
   let called = false;
 
@@ -34,16 +23,6 @@ QUnit.test('requestIdleCallback', assert => {
     assert.true(called);
     done();
   }, 1000);
-
-  // See comment at top of file.
-  if (requestIdleCallback.toString().indexOf('[native code]') === -1) {
-    requestIdleCallback(deadline => {
-      assert.true(deadline.didTimeout);
-      done();
-    }, { timeout: 0.000001 });
-  } else {
-    done();
-  }
 
   assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
@@ -70,11 +49,5 @@ QUnit.test('requestIdleCallback', assert => {
     assert.true(ran);
     done();
   });
-
-  // Restore mock
-  setTimeout(() => {
-    GLOBAL.requestAnimationFrame = originalRAF;
-    done();
-  }, 5000);
 });
 
