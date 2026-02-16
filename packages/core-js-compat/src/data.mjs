@@ -3217,7 +3217,7 @@ export const data = {
     edge: '79',
     firefox: '55',
     opera: '34',
-  }
+  },
 };
 
 export const renamed = new Map([

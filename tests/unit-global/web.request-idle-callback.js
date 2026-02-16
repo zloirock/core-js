@@ -7,13 +7,13 @@ QUnit.test('requestIdleCallback', assert => {
   // timeout test as it's unreliable to make the environment busy
   const originalRAF = GLOBAL.requestAnimationFrame;
   if (originalRAF) {
-    GLOBAL.requestAnimationFrame = (callback) => {
+    GLOBAL.requestAnimationFrame = callback => {
       return setTimeout(callback, 16);
     };
   }
 
   assert.isFunction(requestIdleCallback);
-  assert.arity(requestIdleCallback, 2);
+  assert.arity(requestIdleCallback, 1);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
   const done = assert.async(2);
@@ -22,6 +22,7 @@ QUnit.test('requestIdleCallback', assert => {
 
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout);
+    assert.true(deadline.timeRemaining() > 0);
     called = true;
   });
 
@@ -31,15 +32,14 @@ QUnit.test('requestIdleCallback', assert => {
   }, 1000);
 
   // See comment at top of file.
-  // if (GLOBAL.requestIdleCallback.toString().indexOf('[native code]') === -1) {
-  //   requestIdleCallback(deadline => {
-  //     assert.true(deadline.didTimeout);
-  //     done();
-  //   }, { timeout: 0.000001 });
-  // } else {
-  //   done();
-  // }
-
+  if (GLOBAL.requestIdleCallback.toString().indexOf('[native code]') === -1) {
+    requestIdleCallback(deadline => {
+      assert.true(deadline.didTimeout);
+      done();
+    }, { timeout: 0.000001 });
+  } else {
+    done();
+  }
 
   // assert.true(typeof cancelIdleCallback === 'function');
   // assert.arity(cancelIdleCallback, 1);

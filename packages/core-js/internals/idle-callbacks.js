@@ -2,9 +2,10 @@
 'use strict';
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
+var MapHelpers = require('./map-helpers');
 
 var $Date = globalThis.Date;
-var $Map = globalThis.Map;
+var $Map = MapHelpers.Map;
 var $setTimeout = globalThis.setTimeout;
 var getTime = uncurryThis($Date.prototype.getTime);
 var $performance = globalThis.performance;
@@ -31,8 +32,8 @@ var indexOf = function (arr, value) {
   }
   return -1;
 };
-var get = uncurryThis(new $Map().get);
-var mpDelete = uncurryThis(new $Map()['delete']);
+var get = MapHelpers.get;
+var mpDelete = MapHelpers.remove;
 
 var __idleRequestCallbacks = [];
 var __runnableIdleCallbacks = [];
@@ -98,7 +99,8 @@ function startIdlePeriod() {
 }
 
 // Exported methods
-exports.request = function requestIdleCallback(callback, options) {
+exports.request = function requestIdleCallback(callback) {
+  var options = arguments[1] || null;
   var handle = ++__idleCallbackId;
   __idleCallbackMap.set(handle, callback);
   __idleRequestCallbacks.push(handle);
