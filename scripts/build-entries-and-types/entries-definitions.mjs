@@ -2565,11 +2565,9 @@ export const features = {
   },
   'string/replace-all': {
     modules: ['es.string.replace-all'],
-    template: $uncurriedWithCustomType,
+    template: $uncurried,
     namespace: 'String',
     name: 'replaceAll',
-    customType: 'proposals/string-replace-all-custom',
-    genericsCount: 2,
   },
   'string/prototype/replace-all': {
     modules: ['es.string.replace-all'],
