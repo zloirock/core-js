@@ -8,6 +8,7 @@
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed double `.return` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
+- Fixed closing iterator on `IteratorValue` errors in the internal `iterate` helper that affected some polyfills
 - Fixed iterator closing in `Array.from` polyfill on failure to create array property
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
@@ -24,7 +25,7 @@
 - Fixed some percent encode cases / character sets in the `URL` polyfill
 - Fixed host parsing with `hostname = host:port` in the `URL` polyfill
 - Fixed invalid code points handling in UTF-8 decode in the `URLSearchParams` polyfill
-- Fixed some cases of serialization in `URL` polyfill (`/.` prefix for non-special URLs with null host and path starting with empty segment)
+- Fixed some cases of serialization in `URL` polyfill (`/.` prefix for non-special URLs with `null` host and path starting with empty segment)
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed a lack of error in `URLSearchParams.prototype.set` polyfill on calling only with 1 argument
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
