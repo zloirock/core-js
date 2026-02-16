@@ -1,5 +1,5 @@
-QUnit.test('request-idle-callback', assert => {
-  assert.isFunction(requestIdleCallback);
+QUnit.test('requestIdleCallback', assert => {
+  assert.true(typeof requestIdleCallback === 'function');
   assert.arity(requestIdleCallback, 2);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
@@ -7,17 +7,17 @@ QUnit.test('request-idle-callback', assert => {
 
   let called = false;
 
-  requestIdleCallback((deadline) => {
+  requestIdleCallback(() => {
     called = true;
   });
 
   setTimeout(() => {
-    assert.ok(called, 'callback should have been called after ~10 ms');
+    assert.true(called);
     done();
-  }, 10); 
+  }, 10);
 
-  requestIdleCallback((deadline) => {
-    assert.ok(deadline.didTimeout, 'timeout works');
+  requestIdleCallback(deadline => {
+    assert.true(deadline.didTimeout);
     done();
-  }, {timeout: 0.000001});
+  }, { timeout: 0.000001 });
 });
