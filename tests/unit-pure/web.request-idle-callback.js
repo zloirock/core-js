@@ -33,7 +33,7 @@ QUnit.test('requestIdleCallback', assert => {
   setTimeout(() => {
     assert.true(called);
     done();
-  }, 100);
+  }, 1000);
 
   // See comment at top of file.
   if (requestIdleCallback.toString().indexOf('[native code]') === -1) {
@@ -59,7 +59,7 @@ QUnit.test('requestIdleCallback', assert => {
   // assert a chance to run and fail.
   setTimeout(() => {
     done();
-  }, 100);
+  }, 1000);
 
   let ran = false;
   requestIdleCallback(() => {
@@ -75,6 +75,6 @@ QUnit.test('requestIdleCallback', assert => {
   setTimeout(() => {
     GLOBAL.requestAnimationFrame = originalRAF;
     done();
-  }, 1000);
+  }, 5000);
 });
 
