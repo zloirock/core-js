@@ -24,7 +24,7 @@
 - Fixed some percent encode cases / character sets in the `URL` polyfill
 - Fixed host parsing with `hostname = host:port` in the `URL` polyfill
 - Fixed invalid code points handling in UTF-8 decode in the `URLSearchParams` polyfill
-- Fixed some cases of serialization in `URL` polyfill ([step 3](https://url.spec.whatwg.org/#url-serializing))
+- Fixed some cases of serialization in `URL` polyfill (`/.` prefix for non-special URLs with null host and path starting with empty segment)
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed a lack of error in `URLSearchParams.prototype.set` polyfill on calling only with 1 argument
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
