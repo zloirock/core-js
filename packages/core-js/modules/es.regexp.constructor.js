@@ -97,15 +97,13 @@ var handleNCG = function (string) {
         break;
       case chr === '(':
         result += chr;
-        // ignore non-capturing groups
-        if (stringSlice(string, index + 1, index + 3) === '?:') {
-          continue;
-        }
         if (exec(IS_NCG, stringSlice(string, index + 1))) {
           index += 2;
           ncg = true;
+          groupid++;
+        } else if (charAt(string, index + 1) !== '?') {
+          groupid++;
         }
-        groupid++;
         continue;
       case chr === '>' && ncg:
         if (groupname === '' || hasOwn(names, groupname)) {
@@ -119,6 +117,14 @@ var handleNCG = function (string) {
     }
     if (ncg) groupname += chr;
     else result += chr;
+  }
+  // convert `\k<name>` backreferences to numbered backreferences
+  for (var ni = 0; ni < named.length; ni++) {
+    var backref = '\\k<' + named[ni][0] + '>';
+    var numRef = '\\' + named[ni][1];
+    while (stringIndexOf(result, backref) > -1) {
+      result = replace(result, backref, numRef);
+    }
   } return [result, named];
 };
 

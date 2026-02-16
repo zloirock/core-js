@@ -228,3 +228,8 @@ QUnit.test('RegExp#@@replace correctly handles substitutions', assert => {
 });
 
 QUnit.test('RegExp#@@replace implementation', patchRegExp$exec(run));
+
+QUnit.test('RegExp#@@replace global+unicode empty match at string end', assert => {
+  // eslint-disable-next-line regexp/no-empty-group -- testing
+  assert.same('abc'.replace(/(?:)/gu, '-'), '-a-b-c-', 'does not infinite loop on global+unicode empty match');
+});

@@ -29,5 +29,15 @@ QUnit.test('Iterator#find', assert => {
   assert.throws(() => find.call(createIterator([1]), null), TypeError);
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => find.call(it, {}), TypeError);
-  assert.true(it.closed, "find doesn't close iterator on validation error");
+  assert.true(it.closed, 'find closes iterator on validation error');
+
+  let returnCount = 0;
+  const it2 = createIterator([1, 2, 3], {
+    return() {
+      returnCount++;
+      throw new Error('close error');
+    },
+  });
+  assert.throws(() => find.call(it2, () => true), Error, 'iterator.return() throwing on stop');
+  assert.same(returnCount, 1, 'iterator.return() called exactly once when it throws');
 });

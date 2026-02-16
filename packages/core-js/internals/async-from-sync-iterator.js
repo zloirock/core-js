@@ -41,18 +41,39 @@ var AsyncFromSyncIterator = function AsyncIterator(iteratorRecord) {
 AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
   next: function next() {
     var state = getInternalState(this);
+    var value = arguments.length > 0 ? arguments[0] : undefined;
     return new Promise(function (resolve, reject) {
-      var result = anObject(call(state.next, state.iterator));
+      var result = anObject(call(state.next, state.iterator, value));
       asyncFromSyncIteratorContinuation(result, resolve, reject, state.iterator, true);
     });
   },
   'return': function () {
-    var iterator = getInternalState(this).iterator;
+    var state = getInternalState(this);
+    var iterator = state.iterator;
+    var value = arguments.length > 0 ? arguments[0] : undefined;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
-      if ($return === undefined) return resolve(createIterResultObject(undefined, true));
-      var result = anObject(call($return, iterator));
+      if ($return === undefined) return resolve(createIterResultObject(value, true));
+      var result = anObject(call($return, iterator, value));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator);
+    });
+  },
+  'throw': function () {
+    var state = getInternalState(this);
+    var iterator = state.iterator;
+    var value = arguments.length > 0 ? arguments[0] : undefined;
+    return new Promise(function (resolve, reject) {
+      var $throw = getMethod(iterator, 'throw');
+      if ($throw === undefined) {
+        try {
+          iteratorClose(iterator, 'normal');
+        } catch (error) {
+          return reject(error);
+        }
+        return reject(value);
+      }
+      var result = anObject(call($throw, iterator, value));
+      asyncFromSyncIteratorContinuation(result, resolve, reject, iterator, true);
     });
   }
 });

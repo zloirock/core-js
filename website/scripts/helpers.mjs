@@ -157,7 +157,7 @@ export async function readJSON(filePath) {
 
 export function expandVersionsConfig(config) {
   let defaultIndex = null;
-  const $config = config.map(({ label, branch, path, default: $default }, index) => {
+  const $config = config.map(({ label, branch, path, tag, default: $default }, index) => {
     if ($default) {
       if (defaultIndex !== null) throw new Error('Duplicate default');
       defaultIndex = index;
@@ -167,6 +167,7 @@ export function expandVersionsConfig(config) {
       default: false,
       label,
       path: path ?? label,
+      tag,
     };
   });
 

@@ -1,6 +1,8 @@
 import { createIterator, createIterable } from '../helpers/helpers.js';
 import { STRICT, STRICT_THIS } from '../helpers/constants.js';
 
+const { from } = AsyncIterator;
+
 QUnit.test('AsyncIterator#flatMap', assert => {
   const { flatMap } = AsyncIterator.prototype;
 
@@ -34,5 +36,54 @@ QUnit.test('AsyncIterator#flatMap', assert => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error');
+  });
+});
+
+QUnit.test('AsyncIterator#flatMap, inner iterator async close on return', assert => {
+  assert.expect(3);
+  const async = assert.async();
+
+  let innerReturnAwaited = false;
+
+  const outer = from({
+    next() {
+      return Promise.resolve({ value: [1, 2, 3], done: false });
+    },
+    return() {
+      assert.true(innerReturnAwaited, 'inner return() fully awaited before outer return()');
+      return Promise.resolve({ value: undefined, done: true });
+    },
+    [Symbol.asyncIterator]() { return this; },
+  });
+
+  const helper = outer.flatMap(arr => {
+    let i = 0;
+    return {
+      next() {
+        return Promise.resolve(i < arr.length
+          ? { value: arr[i++], done: false }
+          : { value: undefined, done: true });
+      },
+      return() {
+        assert.required('inner return() called');
+        return new Promise(resolve => {
+          setTimeout(() => {
+            innerReturnAwaited = true;
+            resolve({ value: undefined, done: true });
+          }, 50);
+        });
+      },
+      [Symbol.asyncIterator]() { return this; },
+    };
+  });
+
+  helper.next().then(first => {
+    assert.same(first.value, 1, 'got first value');
+    return helper.return();
+  }).then(() => {
+    async();
+  }, () => {
+    assert.avoid();
+    async();
   });
 });

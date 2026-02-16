@@ -53,7 +53,8 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       if (state.openIters) try {
         iteratorCloseAll(state.openIters, NORMAL);
       } catch (error) {
-        return iteratorClose(iterator, THROW, error);
+        if (iterator) return iteratorClose(iterator, THROW, error);
+        throw error;
       }
       if (iterator) iteratorClose(iterator, NORMAL);
       return createIterResultObject(undefined, true);

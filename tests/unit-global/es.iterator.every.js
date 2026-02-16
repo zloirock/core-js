@@ -30,5 +30,5 @@ QUnit.test('Iterator#every', assert => {
   assert.throws(() => every.call(createIterator([1]), null), TypeError);
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => every.call(it, {}), TypeError);
-  assert.true(it.closed, "every doesn't close iterator on validation error");
+  assert.true(it.closed, 'every closes iterator on validation error');
 });

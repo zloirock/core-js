@@ -90,6 +90,22 @@ QUnit.test('Array.fromAsync', assert => {
     assert.avoid();
   }, error => {
     assert.true(error instanceof TypeError);
+    // sync iterable: return() should be called through AsyncFromSyncIterator on early termination
+    const closable = createIterable([1, 2, 3], {
+      return() {
+        closable.closed = true;
+        return { value: undefined, done: true };
+      },
+    });
+    return fromAsync(closable, item => {
+      if (item === 2) throw 42;
+      return item;
+    }).then(() => {
+      assert.avoid();
+    }, err => {
+      assert.same(err, 42, 'sync iterable: rejection on callback error');
+      assert.true(closable.closed, 'sync iterable: return() called on early termination');
+    });
   });
   /* Tests are temporarily disabled due to the lack of proper async feature detection in native implementations.
   .then(() => {

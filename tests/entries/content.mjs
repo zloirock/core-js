@@ -4,6 +4,8 @@ import konan from 'konan';
 const allModules = await fs.readJson('packages/core-js-compat/modules.json');
 const entries = await fs.readJson('packages/core-js-compat/entries.json');
 
+let fail = false;
+
 function filter(regexp) {
   return allModules.filter(it => regexp.test(it));
 }
@@ -52,7 +54,8 @@ superset('core-js/es/symbol', /^es\.symbol/);
 superset('core-js/es/typed-array', /^es\.typed-array\./);
 superset('core-js/es/weak-map', /^es\.weak-map/);
 superset('core-js/es/weak-set', /^es\.weak-set/);
-equal('core-js/web', /^web\./);
+// web entry points could include ES polyfill dependencies.
+superset('core-js/web', /^web\./);
 equal('core-js/stable', /^(?:es|web)\./);
 superset('core-js/stable/array', /^es\.array\./);
 superset('core-js/stable/array-buffer', /^es\.array-buffer\./);
@@ -143,6 +146,7 @@ async function unexpectedInnerNamespace(namespace, unexpected) {
     for (const dependency of konan(String(await fs.readFile(path, 'utf8'))).strings) {
       if (unexpected.test(dependency)) {
         echo(chalk.red(`${ chalk.cyan(path) }: found unexpected dependency: ${ chalk.cyan(dependency) }`));
+        fail = true;
       }
     }
   }));
@@ -154,5 +158,7 @@ await Promise.all([
   unexpectedInnerNamespace('actual', /\/(?:es|full)\//),
   unexpectedInnerNamespace('full', /\/(?:es|stable)\//),
 ]);
+
+if (fail) throw new Error('entry points content test failed');
 
 echo(chalk.green('entry points content tested'));

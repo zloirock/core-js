@@ -9,23 +9,24 @@ var definePropertyModule = require('../internals/object-define-property');
 var getOwnPropertyDescriptorModule = require('../internals/object-get-own-property-descriptor');
 var getPrototypeOf = require('../internals/object-get-prototype-of');
 var createPropertyDescriptor = require('../internals/create-property-descriptor');
+var toPropertyKey = require('../internals/to-property-key');
 
 // `Reflect.set` method
 // https://tc39.es/ecma262/#sec-reflect.set
-function set(target, propertyKey, V /* , receiver */) {
-  var receiver = arguments.length < 4 ? target : arguments[3];
+var $set = function (target, propertyKey, V, receiver) {
   var ownDescriptor = getOwnPropertyDescriptorModule.f(anObject(target), propertyKey);
   var existingDescriptor, prototype, setter;
   if (!ownDescriptor) {
     if (isObject(prototype = getPrototypeOf(target))) {
-      return set(prototype, propertyKey, V, receiver);
+      return $set(prototype, propertyKey, V, receiver);
     }
     ownDescriptor = createPropertyDescriptor(0);
   }
   if (isDataDescriptor(ownDescriptor)) {
     if (ownDescriptor.writable === false || !isObject(receiver)) return false;
     if (existingDescriptor = getOwnPropertyDescriptorModule.f(receiver, propertyKey)) {
-      if (existingDescriptor.get || existingDescriptor.set || existingDescriptor.writable === false) return false;
+      if (existingDescriptor.get || existingDescriptor.set ||
+        !isDataDescriptor(existingDescriptor) || existingDescriptor.writable === false) return false;
       existingDescriptor.value = V;
       definePropertyModule.f(receiver, propertyKey, existingDescriptor);
     } else definePropertyModule.f(receiver, propertyKey, createPropertyDescriptor(0, V));
@@ -34,7 +35,7 @@ function set(target, propertyKey, V /* , receiver */) {
     if (setter === undefined) return false;
     call(setter, receiver, V);
   } return true;
-}
+};
 
 // MS Edge 17-18 Reflect.set allows setting the property to object
 // with non-writable property on the prototype
@@ -46,5 +47,7 @@ var MS_EDGE_BUG = fails(function () {
 });
 
 $({ target: 'Reflect', stat: true, forced: MS_EDGE_BUG }, {
-  set: set
+  set: function set(target, propertyKey, V /* , receiver */) {
+    return $set(anObject(target), toPropertyKey(propertyKey), V, arguments.length < 4 ? target : arguments[3]);
+  }
 });

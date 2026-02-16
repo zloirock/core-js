@@ -16,7 +16,7 @@ module.exports = function difference(other) {
   var O = aSet(this);
   var otherRec = getSetRecord(other);
   var result = clone(O);
-  if (size(O) <= otherRec.size) iterateSet(O, function (e) {
+  if (size(result) <= otherRec.size) iterateSet(result, function (e) {
     if (otherRec.includes(e)) remove(result, e);
   });
   else iterateSimple(otherRec.getIterator(), function (e) {

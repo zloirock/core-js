@@ -40,7 +40,7 @@ module.exports = async function ({
   let script = banner;
   let code = '\n';
 
-  const { list, targets: compatTargets } = compat({ targets, modules, exclude: exclude || blacklist });
+  const { list, targets: compatTargets } = compat({ targets, modules, exclude: blacklist || exclude });
 
   if (list.length) {
     if (format === 'bundle') {

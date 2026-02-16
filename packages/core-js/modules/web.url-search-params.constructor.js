@@ -81,8 +81,9 @@ var getLeadingOnes = function (octet) {
 
 var utf8Decode = function (octets) {
   var codePoint = null;
+  var length = octets.length;
 
-  switch (octets.length) {
+  switch (length) {
     case 1:
       codePoint = octets[0];
       break;
@@ -97,7 +98,14 @@ var utf8Decode = function (octets) {
       break;
   }
 
-  return codePoint > 0x10FFFF ? null : codePoint;
+  // reject surrogates, overlong encodings, and out-of-range codepoints
+  if (codePoint === null
+    || codePoint > 0x10FFFF
+    || (codePoint >= 0xD800 && codePoint <= 0xDFFF)
+    || codePoint < (length > 3 ? 0x10000 : length > 2 ? 0x800 : length > 1 ? 0x80 : 0)
+  ) return null;
+
+  return codePoint;
 };
 
 var decode = function (input) {
@@ -147,11 +155,7 @@ var decode = function (input) {
           var nextByte = parseHexOctet(input, i + 1);
 
           // eslint-disable-next-line no-self-compare -- NaN check
-          if (nextByte !== nextByte) {
-            i += 3;
-            break;
-          }
-          if (nextByte > 191 || nextByte < 128) break;
+          if (nextByte !== nextByte || nextByte > 191 || nextByte < 128) break;
 
           push(octets, nextByte);
           i += 2;
@@ -165,7 +169,9 @@ var decode = function (input) {
 
         var codePoint = utf8Decode(octets);
         if (codePoint === null) {
-          result += FALLBACK_REPLACER;
+          for (var replacement = 0; replacement < byteSequenceLength; replacement++) result += FALLBACK_REPLACER;
+          i++;
+          continue;
         } else {
           decodedChar = fromCodePoint(codePoint);
         }
@@ -330,7 +336,6 @@ defineBuiltIns(URLSearchParamsPrototype, {
       var entry = entries[index];
       if (entry.key === key && (value === undefined || entry.value === value)) {
         splice(entries, index, 1);
-        if (value !== undefined) break;
       } else index++;
     }
     if (!DESCRIPTORS) this.size = entries.length;
@@ -380,7 +385,7 @@ defineBuiltIns(URLSearchParamsPrototype, {
   // https://url.spec.whatwg.org/#dom-urlsearchparams-set
   set: function set(name, value) {
     var state = getInternalParamsState(this);
-    validateArgumentsLength(arguments.length, 1);
+    validateArgumentsLength(arguments.length, 2);
     var entries = state.entries;
     var found = false;
     var key = $toString(name);
@@ -445,7 +450,7 @@ defineBuiltIn(URLSearchParamsPrototype, 'toString', function toString() {
 }, { enumerable: true });
 
 // `URLSearchParams.prototype.size` getter
-// https://github.com/whatwg/url/pull/734
+// https://url.spec.whatwg.org/#dom-urlsearchparams-size
 if (DESCRIPTORS) defineBuiltInAccessor(URLSearchParamsPrototype, 'size', {
   get: function size() {
     return getInternalParamsState(this).entries.length;

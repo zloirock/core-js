@@ -36,7 +36,9 @@ var createMethod = function (TYPE) {
         try {
           if (MAPPING) try {
             doesNotExceedSafeInteger(counter);
-          } catch (error5) { ifAbruptCloseAsyncIterator(error5); }
+          } catch (error5) {
+            return ifAbruptCloseAsyncIterator(error5);
+          }
           Promise.resolve(anObject(call(next, iterator))).then(function (step) {
             try {
               if (anObject(step).done) {
@@ -48,7 +50,8 @@ var createMethod = function (TYPE) {
                 var value = step.value;
                 try {
                   if (MAPPING) {
-                    var result = fn(value, counter);
+                    var index = counter++;
+                    var result = fn(value, index);
 
                     var handler = function ($result) {
                       if (IS_FOR_EACH) {
@@ -57,7 +60,7 @@ var createMethod = function (TYPE) {
                         $result ? loop() : closeAsyncIteration(iterator, resolve, false, reject);
                       } else if (IS_TO_ARRAY) {
                         try {
-                          createProperty(target, counter++, $result);
+                          createProperty(target, index, $result);
                           loop();
                         } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
                       } else {

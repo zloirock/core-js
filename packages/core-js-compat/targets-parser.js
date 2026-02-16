@@ -62,9 +62,11 @@ module.exports = function (targets) {
       list.push(...Object.entries(browsers));
     }
   }
+
   if (normalizedESModules === true) {
     list.push(...Object.entries(external.modules));
   }
+
   if (node) {
     list.push(['node', node === 'current' ? process.versions.node : node]);
   }
@@ -84,10 +86,23 @@ module.exports = function (targets) {
   });
 
   const reduced = new Map();
-  const operator = normalizedESModules === 'intersect' ? '>' : '<=';
+
   for (const [engine, version] of normalized) {
-    if (!reduced.has(engine) || compare(version, operator, reduced.get(engine))) {
+    if (!reduced.has(engine) || compare(version, '<=', reduced.get(engine))) {
       reduced.set(engine, version);
+    }
+  }
+
+  if (normalizedESModules === 'intersect') {
+    const modulesData = external.modules;
+    for (const [engine, version] of reduced) {
+      if (has(modulesData, engine)) {
+        if (compare(modulesData[engine], '>', version)) {
+          reduced.set(engine, modulesData[engine]);
+        }
+      } else {
+        reduced.delete(engine);
+      }
     }
   }
 

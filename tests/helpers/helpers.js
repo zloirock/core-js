@@ -91,7 +91,7 @@ export function createConversionChecker(value, string) {
     },
     toString() {
       checker.$toString++;
-      return arguments.length > 1 ? string : String(value);
+      return string !== undefined ? string : String(value);
     },
   };
 

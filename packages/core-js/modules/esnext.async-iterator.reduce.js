@@ -40,9 +40,10 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
                 if (noInitial) {
                   noInitial = false;
                   accumulator = value;
+                  counter++;
                   loop();
                 } else try {
-                  var result = reducer(accumulator, value, counter);
+                  var result = reducer(accumulator, value, counter++);
 
                   var handler = function ($result) {
                     accumulator = $result;
@@ -53,7 +54,6 @@ $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
                   else handler(result);
                 } catch (error3) { ifAbruptCloseAsyncIterator(error3); }
               }
-              counter++;
             } catch (error2) { reject(error2); }
           }, reject);
         } catch (error) { reject(error); }

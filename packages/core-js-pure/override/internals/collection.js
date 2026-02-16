@@ -2,6 +2,7 @@
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var InternalMetadataModule = require('../internals/internal-metadata');
+var call = require('../internals/function-call');
 var fails = require('../internals/fails');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var iterate = require('../internals/iterate');
@@ -50,10 +51,13 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
       var IS_ADDER = KEY === 'add' || KEY === 'set';
       if (KEY in NativePrototype && !(IS_WEAK && KEY === 'clear')) {
         createNonEnumerableProperty(Prototype, KEY, function (a, b) {
-          var collection = getInternalState(this).collection;
+          var that = this;
+          var collection = getInternalState(that).collection;
           if (!IS_ADDER && IS_WEAK && !isObject(a)) return KEY === 'get' ? undefined : false;
-          var result = collection[KEY](a === 0 ? 0 : a, b);
-          return IS_ADDER ? this : result;
+          var result = collection[KEY](KEY === 'forEach' ? function (value, key) {
+            call(a, b, value, key, that);
+          } : a === 0 ? 0 : a, b);
+          return IS_ADDER ? that : result;
         });
       }
     });

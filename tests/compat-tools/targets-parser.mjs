@@ -118,8 +118,24 @@ deepEqual(targetsParser({
   browsers: 'ie 11, chrome 56',
   chrome: 77,
 }), new Map([
-  ['chrome', '77'],
-  ['ie', '11'],
-]), 'targets.esmodules: intersect');
+  ['chrome', '61'],
+]), 'targets.esmodules: intersect, ie removed, chrome raised to esmodules minimum');
+
+deepEqual(targetsParser({
+  esmodules: 'intersect',
+  browsers: 'chrome 56, firefox 50, safari 10',
+}), new Map([
+  ['chrome', '61'],
+  ['firefox', '60'],
+  ['safari', '10.1'],
+]), 'targets.esmodules: intersect, versions raised to esmodules minimum');
+
+deepEqual(targetsParser({
+  esmodules: 'intersect',
+  browsers: 'chrome 80, firefox 70',
+}), new Map([
+  ['chrome', '80'],
+  ['firefox', '70'],
+]), 'targets.esmodules: intersect, versions above esmodules minimum unchanged');
 
 echo(chalk.green('targets parser tested'));

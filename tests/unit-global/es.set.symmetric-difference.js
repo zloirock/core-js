@@ -32,6 +32,22 @@ QUnit.test('Set#symmetricDifference', assert => {
   assert.throws(() => symmetricDifference.call(undefined, [1, 2, 3]), TypeError);
   assert.throws(() => symmetricDifference.call(null, [1, 2, 3]), TypeError);
 
+  // Duplicate keys in other's iterator: value present in O should be removed idempotently
+  {
+    const baseSet = new Set([1, 2, 3]);
+    const setLike = {
+      size: 2,
+      has() { return false; },
+      keys() {
+        const vals = [2, 2];
+        let i = 0;
+        return { next() { return i < vals.length ? { done: false, value: vals[i++] } : { done: true }; } };
+      },
+    };
+    // 2 is in O → both occurrences remove 2 from result (second is a no-op)
+    assert.deepEqual(from(baseSet.symmetricDifference(setLike)), [1, 3]);
+  }
+
   {
     // https://github.com/WebKit/WebKit/pull/27264/files#diff-7bdbbad7ceaa222787994f2db702dd45403fa98e14d6270aa65aaf09754dcfe0R8
     const baseSet = new Set(['a', 'b', 'c', 'd', 'e']);
