@@ -139,6 +139,12 @@ QUnit.test('URL#href', assert => {
     // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
     // assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
   }
+
+  // URL serializing step 3 - /. prefix for non-special URLs with null host and path starting with empty segment
+  assert.same(new URL('x:/a/..//b').href, 'x:/.//b', '/. prefix prevents ambiguous serialization');
+  assert.same(new URL('x:/a/..//b').pathname, '//b', 'pathname is not affected by /. prefix');
+  assert.same(new URL('x:/.//b').href, 'x:/.//b', '/. prefix is idempotent');
+  assert.same(new URL(new URL('x:/a/..//b').href).pathname, '//b', '/. prefix round-trips correctly');
 });
 
 QUnit.test('URL#origin', assert => {
