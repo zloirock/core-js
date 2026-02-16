@@ -142,10 +142,11 @@ QUnit.test('URL#href', assert => {
   }
 
   // URL serializing step 3 - /. prefix for non-special URLs with null host and path starting with empty segment
-  assert.same(new URL('x:/a/..//b').href, 'x:/.//b', '/. prefix prevents ambiguous serialization');
-  assert.same(new URL('x:/a/..//b').pathname, '//b', 'pathname is not affected by /. prefix');
-  assert.same(new URL('x:/.//b').href, 'x:/.//b', '/. prefix is idempotent');
-  assert.same(new URL(new URL('x:/a/..//b').href).pathname, '//b', '/. prefix round-trips correctly');
+  // Headless Chromium ~ 145 on Windows capitalize `x` as a Windows drive letter
+  assert.same(new URL('x:/a/..//b').href.toLowerCase(), 'x:/.//b', '/. prefix prevents ambiguous serialization');
+  assert.same(new URL('x:/a/..//b').pathname.toLowerCase(), '//b', 'pathname is not affected by /. prefix');
+  assert.same(new URL('x:/.//b').href.toLowerCase(), 'x:/.//b', '/. prefix is idempotent');
+  assert.same(new URL(new URL('x:/a/..//b').href).pathname.toLowerCase(), '//b', '/. prefix round-trips correctly');
 });
 
 QUnit.test('URL#origin', assert => {
