@@ -30,6 +30,7 @@
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed a lack of error in `URLSearchParams.prototype.set` polyfill on calling only with 1 argument
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
+- Fixed incomplete sequences with out-of-range continuation bytes handling in `URLSearchParams` polyfill
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
 - Fixed `Reflect.set` polyfill with some descriptors cases

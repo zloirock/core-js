@@ -143,6 +143,12 @@ QUnit.test('URLSearchParams', assert => {
   assert.same(String(new URLSearchParams('%ED%A0%80')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+D800');
   assert.same(String(new URLSearchParams('%ED%BF%BF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+DFFF');
 
+  // incomplete sequences with out-of-range continuation bytes per WHATWG encoding spec
+  assert.same(String(new URLSearchParams('%ED%A0')), '%EF%BF%BD%EF%BF%BD=', 'incomplete surrogate: ED A0');
+  assert.same(String(new URLSearchParams('%E0%80')), '%EF%BF%BD%EF%BF%BD=', 'incomplete overlong 3-byte: E0 80');
+  assert.same(String(new URLSearchParams('%F0%80%80')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'incomplete overlong 4-byte: F0 80 80');
+  assert.same(String(new URLSearchParams('%F4%90')), '%EF%BF%BD%EF%BF%BD=', 'incomplete out-of-range 4-byte: F4 90');
+
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
     { input: { '+': '%C2' }, output: [['+', '%C2']], name: 'object with +' },
