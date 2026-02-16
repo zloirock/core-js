@@ -1,4 +1,3 @@
-import { GLOBAL } from '../helpers/constants.js';
 import requestIdleCallback from 'core-js-pure/stable/request-idle-callback';
 import cancelIdleCallback from 'core-js-pure/stable/cancel-idle-callback';
 

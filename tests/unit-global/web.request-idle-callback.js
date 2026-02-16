@@ -1,5 +1,3 @@
-import { GLOBAL } from '../helpers/constants.js';
-
 // setTimeouts have loose limits
 // as CI is very slow
 QUnit.test('requestIdleCallback', assert => {
