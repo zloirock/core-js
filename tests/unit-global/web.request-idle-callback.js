@@ -16,20 +16,19 @@ QUnit.test('requestIdleCallback', assert => {
   assert.arity(requestIdleCallback, 2);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
-  // const done = assert.async();
+  const done = assert.async(2);
 
-  // let called = false;
+  let called = false;
 
-  // requestIdleCallback(deadline => {
-  //   assert.false(deadline.didTimeout);
-  //   assert.true(typeof deadline.timeRemaining() == 'number');
-  //   called = true;
-  // });
+  requestIdleCallback(deadline => {
+    assert.false(deadline.didTimeout);
+    called = true;
+  });
 
-  // setTimeout(() => {
-  //   assert.true(called);
-  //   done();
-  // }, 20);
+  setTimeout(() => {
+    assert.true(called);
+    done();
+  }, 1000);
 
   // See comment at top of file.
   // if (GLOBAL.requestIdleCallback.toString().indexOf('[native code]') === -1) {
@@ -69,5 +68,8 @@ QUnit.test('requestIdleCallback', assert => {
   // });
 
   // // Restore mock
-  GLOBAL.requestAnimationFrame = originalRAF;
+  setTimeout(() => {
+    GLOBAL.requestAnimationFrame = originalRAF;
+    done();
+  }, 3000);
 });
