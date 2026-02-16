@@ -1,7 +1,7 @@
 declare namespace CoreJS {
   export interface CoreJSMap<K, V> extends Map<K, V> {}
 
-  export interface CoreJSMapConstructor {
+  export interface CoreJSMapConstructor extends MapConstructor {
     readonly prototype: CoreJSMap<any, any>;
 
     new (): CoreJSMap<any, any>;
