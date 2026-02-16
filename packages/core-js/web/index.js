@@ -27,6 +27,7 @@ require('../modules/web.url-search-params.delete');
 require('../modules/web.url-search-params.has');
 require('../modules/web.url-search-params.size');
 require('../modules/web.request-idle-callback');
+require('../modules/web.cancel-idle-callback');
 var path = require('../internals/path');
 
 module.exports = path;
