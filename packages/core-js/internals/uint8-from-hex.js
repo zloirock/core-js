@@ -4,6 +4,7 @@ var uncurryThis = require('../internals/function-uncurry-this');
 
 var Uint8Array = globalThis.Uint8Array;
 var SyntaxError = globalThis.SyntaxError;
+var min = Math.min;
 var $Number = globalThis.Number;
 var $isNaN = globalThis.isNaN;
 var stringMatch = uncurryThis(''.match);
