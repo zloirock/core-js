@@ -1,6 +1,6 @@
 import 'core-js/stable';
 import $btoa from 'core-js/stable/btoa';
-import { assertString } from '../../helpers.js';
+import { assertString } from '../../helpers/helpers.js';
 
 assertString($btoa('SGVsbG8gd29ybGQ='));
 
