@@ -41,27 +41,30 @@ var AsyncFromSyncIterator = function AsyncIterator(iteratorRecord) {
 AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype), {
   next: function next() {
     var state = getInternalState(this);
-    var value = arguments.length > 0 ? arguments[0] : undefined;
+    var hasValue = arguments.length > 0;
+    var value = hasValue ? arguments[0] : undefined;
     return new Promise(function (resolve, reject) {
-      var result = anObject(call(state.next, state.iterator, value));
+      var result = anObject(hasValue ? call(state.next, state.iterator, value) : call(state.next, state.iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject, state.iterator, true);
     });
   },
   'return': function () {
     var state = getInternalState(this);
     var iterator = state.iterator;
-    var value = arguments.length > 0 ? arguments[0] : undefined;
+    var hasValue = arguments.length > 0;
+    var value = hasValue ? arguments[0] : undefined;
     return new Promise(function (resolve, reject) {
       var $return = getMethod(iterator, 'return');
       if ($return === undefined) return resolve(createIterResultObject(value, true));
-      var result = anObject(call($return, iterator, value));
+      var result = anObject(hasValue ? call($return, iterator, value) : call($return, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator);
     });
   },
   'throw': function () {
     var state = getInternalState(this);
     var iterator = state.iterator;
-    var value = arguments.length > 0 ? arguments[0] : undefined;
+    var hasValue = arguments.length > 0;
+    var value = hasValue ? arguments[0] : undefined;
     return new Promise(function (resolve, reject) {
       var $throw = getMethod(iterator, 'throw');
       if ($throw === undefined) {
@@ -72,7 +75,7 @@ AsyncFromSyncIterator.prototype = defineBuiltIns(create(AsyncIteratorPrototype),
         }
         return reject(new TypeError('The iterator does not provide a throw method'));
       }
-      var result = anObject(call($throw, iterator, value));
+      var result = anObject(hasValue ? call($throw, iterator, value) : call($throw, iterator));
       asyncFromSyncIteratorContinuation(result, resolve, reject, iterator, true);
     });
   }

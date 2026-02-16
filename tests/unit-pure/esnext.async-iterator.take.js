@@ -33,6 +33,28 @@ QUnit.test('AsyncIterator#take', assert => {
   });
 });
 
+QUnit.test('AsyncIterator#take, return() does not pass extra argument', assert => {
+  assert.expect(2);
+  const async = assert.async();
+
+  let returnArgs;
+  const iter = {
+    i: 0,
+    next() { return { value: ++this.i, done: false }; },
+    return(...args) { returnArgs = args; return { value: undefined, done: true }; },
+    [Symbol.iterator]() { return this; },
+  };
+
+  AsyncIterator.from(iter).take(1).toArray().then(() => {
+    assert.same(returnArgs.length, 0, 'return() called with no arguments');
+    assert.true(true, 'take completes successfully');
+    async();
+  }).catch(() => {
+    assert.avoid();
+    async();
+  });
+});
+
 QUnit.test('AsyncIterator#take, return() result validated as object', assert => {
   assert.expect(1);
   const async = assert.async();
