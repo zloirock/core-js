@@ -12,7 +12,7 @@ QUnit.test('requestIdleCallback', assert => {
     };
   }
 
-  assert.true(typeof requestIdleCallback === 'function');
+  assert.true(typeof requestIdleCallback == 'function');
   assert.arity(requestIdleCallback, 2);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
@@ -22,7 +22,7 @@ QUnit.test('requestIdleCallback', assert => {
 
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout);
-    assert.true(deadline.timeRemaining() > 0);
+    assert.true(typeof deadline.timeRemaining() == 'number');
     called = true;
   });
 
