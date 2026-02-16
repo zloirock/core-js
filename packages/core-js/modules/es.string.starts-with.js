@@ -25,8 +25,8 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
   startsWith: function startsWith(searchString /* , position = 0 */) {
     var that = toString(requireObjectCoercible(this));
     notARegExp(searchString);
-    var index = toLength(min(arguments.length > 1 ? arguments[1] : undefined, that.length));
     var search = toString(searchString);
+    var index = toLength(min(arguments.length > 1 ? arguments[1] : undefined, that.length));
     return stringSlice(that, index, index + search.length) === search;
   }
 });

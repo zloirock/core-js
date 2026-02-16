@@ -25,10 +25,10 @@ $({ target: 'String', proto: true, forced: !MDN_POLYFILL_BUG && !CORRECT_IS_REGE
   endsWith: function endsWith(searchString /* , endPosition = @length */) {
     var that = toString(requireObjectCoercible(this));
     notARegExp(searchString);
+    var search = toString(searchString);
     var endPosition = arguments.length > 1 ? arguments[1] : undefined;
     var len = that.length;
     var end = endPosition === undefined ? len : min(toLength(endPosition), len);
-    var search = toString(searchString);
     return slice(that, end - search.length, end) === search;
   }
 });

@@ -41,4 +41,11 @@ QUnit.test('String#startsWith', assert => {
   assert.notThrows(() => '[object Object]'.startsWith(object));
   object[Symbol.match] = true;
   assert.throws(() => '[object Object]'.startsWith(object), TypeError);
+  // side-effect ordering: ToString(searchString) should happen before ToIntegerOrInfinity(position)
+  const order = [];
+  'abc'.startsWith(
+    { toString() { order.push('search'); return 'a'; } },
+    { valueOf() { order.push('pos'); return 0; } },
+  );
+  assert.deepEqual(order, ['search', 'pos'], 'ToString(searchString) before ToIntegerOrInfinity(position)');
 });
