@@ -43,7 +43,7 @@ QUnit.test('requestIdleCallback', assert => {
     done();
   }
 
-  assert.true(typeof cancelIdleCallback === 'function');
+  assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
   assert.name(cancelIdleCallback, 'cancelIdleCallback');
 
@@ -65,7 +65,7 @@ QUnit.test('requestIdleCallback', assert => {
   });
   requestIdleCallback(() => {
     // Test that the operation is FIFO.
-    assert.true(ran === true);
+    assert.true(ran);
     done();
   });
 

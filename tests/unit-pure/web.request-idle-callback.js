@@ -45,7 +45,7 @@ QUnit.test('requestIdleCallback', assert => {
     done();
   }
 
-  assert.true(typeof cancelIdleCallback === 'function');
+  assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
   assert.name(cancelIdleCallback, 'cancelIdleCallback');
 
