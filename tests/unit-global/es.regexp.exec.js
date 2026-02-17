@@ -51,6 +51,7 @@ if (DESCRIPTORS) {
     const result = re.exec(str);
     assert.deepEqual(result, ['a'], '#6');
     assert.same(result.index, 2, '#7');
+    assert.same(result.input, str, 'match.input is the original string');
     assert.same(re.lastIndex, 3, '#8');
 
     assert.same(re.exec(str), null, '#9');

@@ -97,7 +97,7 @@ if (PATCH) {
 
     if (sticky) {
       if (match) {
-        match.input = stringSlice(match.input, charsAdded);
+        match.input = str;
         match[0] = stringSlice(match[0], charsAdded);
         match.index = re.lastIndex;
         re.lastIndex += match[0].length;
