@@ -73,6 +73,23 @@ declare namespace CoreJS {
     /**
      * Reduces the elements of the iterator to a single value using the `reducer` function.
      * @param reducer - A function that combines two elements of the iterator
+     * @param initialValue - The initial value to start the accumulation. Required when the accumulator type differs from the element type.
+     * @returns A `Promise` that resolves to the reduced value
+     */
+
+    reduce<U>(reducer: (accumulator: U, value: T, index: number) => U, initialValue: U): CoreJSPromise<U>;
+    /**
+     * Reduces the elements of the iterator to a single value using the `reducer` function.
+     * @param reducer - A function that combines two elements of the iterator
+     * @param initialValue - An optional initial value to start the reduction
+     * @returns A `Promise` that resolves to the reduced value
+     */
+    reduce(reducer: (accumulator: T, value: T, index: number) => T, initialValue?: T): CoreJSPromise<T>;
+
+    /**
+     * Reduces the elements of the iterator to a single value using the `reducer` function.
+     * For maximum flexibility with any types.
+     * @param reducer - A function that combines two elements of the iterator
      * @param initialValue - An optional initial value to start the reduction
      * @returns A `Promise` that resolves to the reduced value
      */
