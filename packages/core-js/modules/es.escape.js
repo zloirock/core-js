@@ -33,7 +33,7 @@ $({ global: true }, {
       } else {
         code = charCodeAt(chr, 0);
         if (code < 256) {
-          result += '%' + hex(code, 2);
+          result += '%' + toUpperCase(hex(code, 2));
         } else {
           result += '%u' + toUpperCase(hex(code, 4));
         }
