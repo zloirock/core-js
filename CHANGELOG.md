@@ -16,6 +16,7 @@
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed order of arguments validation in `String.prototype.{ startsWith, endsWith }` polyfills
+- Fixed handling of `Infinity` in `String.prototype.substr` polyfill
 - Fixed some cases of chars case in `escape` polyfill
 - Fixed named backreferences in `RegExp` NCG polyfill
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
