@@ -18,6 +18,7 @@
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed order of arguments validation in `String.prototype.{ startsWith, endsWith }` polyfills
 - Fixed some cases of `Infinity` handling in `String.prototype.substr` polyfill
+- Fixed `String.prototype.repeat` polyfill with a counter exceeding 2 ** 32
 - Fixed some cases of chars case in `escape` polyfill
 - Fixed named backreferences in `RegExp` NCG polyfill
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
@@ -39,7 +40,7 @@
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
 - Fixed `Reflect.set` polyfill with some descriptors cases
-- Fixed the order of `Reflect.construct` arguments validation (observable only with the error message)
+- Fixed the order of `Reflect.construct` polyfill arguments validation (observable only in the error message)
 - Fixed a lack of error in `Reflect.defineProperty` polyfill with malformed descriptor
 - Fixed a lack of error in `JSON.parse` polyfill on unterminated object and array literals
 - Fixed a lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
