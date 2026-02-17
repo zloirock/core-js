@@ -52,7 +52,17 @@ $({ target: 'Number', stat: true, forced: true }, {
     var parts = split(string, '.');
     var mathNum = $parseInt(parts[0], R);
     if (parts.length > 1) mathNum += $parseInt(parts[1], R) / pow(R, parts[1].length);
-    if (R === 10 && numberToString(mathNum, R) !== string) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+    if (R === 10) {
+      var compareString = string;
+      if (parts.length > 1) {
+        var fraction = parts[1];
+        while (fraction.length && charAt(fraction, fraction.length - 1) === '0') {
+          fraction = stringSlice(fraction, 0, -1);
+        }
+        compareString = fraction.length ? parts[0] + '.' + fraction : parts[0];
+      }
+      if (numberToString(mathNum, R) !== compareString) throw new $SyntaxError(INVALID_NUMBER_REPRESENTATION);
+    }
     return sign * mathNum;
   }
 });

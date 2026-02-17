@@ -66,6 +66,7 @@
 - Fixed some minor `{ Map, Set }.prototype.forEach` moments in the pure version
 - Fixed possible error in `Array.isTemplateObject` polyfill on frozen array
 - Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposal polyfill
+- Fixed handling of ending zeroes in the fraction part in `Number.fromString` polyfill
 - Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
