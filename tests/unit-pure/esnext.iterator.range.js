@@ -32,6 +32,7 @@ QUnit.test('Iterator.range', assert => {
     [MAX_SAFE_INTEGER, MAX_SAFE_INTEGER + 1],
   );
   assert.deepEqual(from(range(0, 0)), []);
+  assert.deepEqual(from(range(0, 0, { step: 1, inclusive: true })), []);
   assert.deepEqual(from(range(0, -5, 1)), []);
 
   assert.throws(() => range(NaN, 0), RangeError, 'NaN as start');
@@ -99,6 +100,7 @@ QUnit.test('Iterator.range', assert => {
       [BigInt('9007199254740991'), BigInt('9007199254740992')],
     );
     assert.deepEqual(from(range(BigInt(0), BigInt(0))), []);
+    assert.deepEqual(from(range(BigInt(0), BigInt(0), { step: BigInt(1), inclusive: true })), []);
     assert.deepEqual(from(range(BigInt(0), BigInt(-5), BigInt(1))), []);
 
     iterator = range(BigInt(1), BigInt(3));
