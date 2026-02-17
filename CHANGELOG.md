@@ -60,6 +60,7 @@
 - Fixed a lack of error on passing an `ArrayBuffer` and a negative length to the `%TypedArray%` constructor polyfill
 - Fixed some cases of `@@toStringTag` on `%TypedArray%` polyfill
 - Fixed some cases of `ToUint8Clamp` conversion
+- Fixed `NaN` handling in `Date.prototype.setYear` polyfill
 - Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed some minor `{ Map, Set }.prototype.forEach` moments in the pure version
 - Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposal polyfill
