@@ -31,8 +31,8 @@ var FORCED = NEW_TARGET_BUG || ARGS_BUG;
 $({ target: 'Reflect', stat: true, forced: FORCED, sham: FORCED }, {
   construct: function construct(Target, args /* , newTarget */) {
     aConstructor(Target);
-    anObject(args);
     var newTarget = arguments.length < 3 ? Target : aConstructor(arguments[2]);
+    anObject(args);
     if (ARGS_BUG && !NEW_TARGET_BUG) return nativeConstruct(Target, args, newTarget);
     if (Target === newTarget) {
       // w/o altered newTarget, optimization for 0-4 arguments
