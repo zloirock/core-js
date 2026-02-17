@@ -31,7 +31,7 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromBase64', assert => {
     const array = new Uint8Array(16);
     array.buffer.transfer();
 
-    assert.throws(() => array.setFromHex('SGVsbG8gV29ybGQ='), TypeError, 'detached');
+    assert.throws(() => array.setFromBase64('SGVsbG8gV29ybGQ='), TypeError, 'detached');
   }
 
   // Test262
