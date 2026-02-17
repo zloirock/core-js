@@ -699,6 +699,7 @@ export const data = {
     bun: '1.3.7',
     chrome: '146',
     firefox: '147',
+    safari: '26.4',
   },
   'es.iterator.dispose': {
     bun: '1.3.0',

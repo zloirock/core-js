@@ -4,7 +4,7 @@
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
   - Allow `null` as `optionOrStep`
-  - Fixed some edge cases
+  - Fixed some other edge cases
 - `Math.atanh` has become slightly more correct with small values
 - Wrap `Symbol.for` in `Symbol.prototype.description` polyfill for correct handling of empty string descriptions
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
@@ -17,7 +17,7 @@
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
 - Fixed order of arguments validation in `String.prototype.{ startsWith, endsWith }` polyfills
-- Fixed handling of `Infinity` in `String.prototype.substr` polyfill
+- Fixed some cases of `Infinity` handling in `String.prototype.substr` polyfill
 - Fixed some cases of chars case in `escape` polyfill
 - Fixed named backreferences in `RegExp` NCG polyfill
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
@@ -69,6 +69,7 @@
 - Many minor stylistic fixes and optimizations
 - Compat data improvements:
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
+  - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Safari 26.4
   - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
   - Added [Opera Android 95](https://forums.opera.com/topic/87912/opera-for-android-95) compat data mapping
   - Added Oculus Quest Browser 42 compat data mapping
