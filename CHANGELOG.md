@@ -64,6 +64,7 @@
 - Fixed `NaN` handling in `Date.prototype.setYear` polyfill
 - Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed some minor `{ Map, Set }.prototype.forEach` moments in the pure version
+- Fixed possible error in `Array.isTemplateObject` polyfill on frozen array
 - Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposal polyfill
 - Fixed `esmodules: intersect` option of `core-js-compat`
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
