@@ -56,7 +56,7 @@ declare namespace CoreJS {
     [CoreJSSymbol.asyncIterator](): CoreJSAsyncIterator<T, TReturn, TNext>;
   }
 
-  export interface CoreJSIteratorObject<T, TReturn = any, TNext = undefined> extends CoreJSDisposable {}
+  export interface CoreJSIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSDisposable {}
 
   export interface CoreJSIterator<T, TReturn = any, TNext = undefined> extends Iterator<T, TReturn, TNext> {
     /**
