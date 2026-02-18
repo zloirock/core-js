@@ -21,7 +21,7 @@ Iterator.zip(true);
 // @ts-expect-error
 Iterator.zip([[1, 2, 3], [4, 5, 6]], { mode: 'incorrect' });
 // @ts-expect-error
-Iterator.zip(arrays, { mode: 'invalid' });
+Iterator.zip([[1, 2, 3], [4, 5, 6]], { mode: 'invalid' });
 // @ts-expect-error
 Iterator.zipKeyed(42);
 // @ts-expect-error
