@@ -281,7 +281,7 @@ async function buildPackageJson(breakpoints, namespaces) {
   });
   packageJson.exports = exports;
 
-  writeJson(path.join(PACKAGE_JSON_DIR, 'package.json'), packageJson, { spaces: 2 });
+  await writeJson(path.join(PACKAGE_JSON_DIR, 'package.json'), packageJson, { spaces: 2 });
 }
 
 async function clearPackage() {
