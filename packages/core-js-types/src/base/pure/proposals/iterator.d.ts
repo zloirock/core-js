@@ -30,7 +30,7 @@ declare namespace CoreJS {
   interface ZipOptions {
     mode?: 'shortest' | 'longest' | 'strict';
 
-    padding?: object;
+    padding?: Iterable<unknown>;
   }
 
   interface IteratorRangeOptions<T> {
