@@ -51,7 +51,7 @@
 - Fixed `%AsyncFromSyncIteratorPrototype%` to make it a little stricter
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
-- Fixed iterator closing in `AsyncIterator.prototype.flatMap` polyfill
+- Fixed iterator closing in `AsyncIterator.prototype.{ map, flatMap }` polyfills
 - Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
 - Fixed validation `return()` result as object in `AsyncIterator.prototype.take` polyfill
 - Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable

@@ -41,5 +41,21 @@ QUnit.test('AsyncIterator#map', assert => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error');
+  }).then(() => {
+    let calls = 0;
+    const iterator = createIterator([1, 2, 3], {
+      next() { calls++; throw 43; },
+    });
+    const mapped = map.call(iterator, it => it);
+    return mapped.next().then(() => {
+      assert.avoid();
+    }, error => {
+      assert.same(error, 43, 'rejection on next() sync error');
+      assert.same(calls, 1, 'next() called once');
+      return mapped.next();
+    }).then(result => {
+      assert.true(result.done, 'done after next() sync error');
+      assert.same(calls, 1, 'next() not called again after sync error');
+    });
   });
 });

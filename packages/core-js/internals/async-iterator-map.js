@@ -23,26 +23,28 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
       closeAsyncIteration(iterator, doneAndReject, error, doneAndReject);
     };
 
-    Promise.resolve(anObject(call(state.next, iterator))).then(function (step) {
-      try {
-        if (anObject(step).done) {
-          state.done = true;
-          resolve(createIterResultObject(undefined, true));
-        } else {
-          var value = step.value;
-          try {
-            var result = mapper(value, state.counter++);
+    try {
+      Promise.resolve(anObject(call(state.next, iterator))).then(function (step) {
+        try {
+          if (anObject(step).done) {
+            state.done = true;
+            resolve(createIterResultObject(undefined, true));
+          } else {
+            var value = step.value;
+            try {
+              var result = mapper(value, state.counter++);
 
-            var handler = function (mapped) {
-              resolve(createIterResultObject(mapped, false));
-            };
+              var handler = function (mapped) {
+                resolve(createIterResultObject(mapped, false));
+              };
 
-            if (isObject(result)) Promise.resolve(result).then(handler, ifAbruptCloseAsyncIterator);
-            else handler(result);
-          } catch (error2) { ifAbruptCloseAsyncIterator(error2); }
-        }
-      } catch (error) { doneAndReject(error); }
-    }, doneAndReject);
+              if (isObject(result)) Promise.resolve(result).then(handler, ifAbruptCloseAsyncIterator);
+              else handler(result);
+            } catch (error2) { ifAbruptCloseAsyncIterator(error2); }
+          }
+        } catch (error) { doneAndReject(error); }
+      }, doneAndReject);
+    } catch (error) { doneAndReject(error); }
   });
 });
 
