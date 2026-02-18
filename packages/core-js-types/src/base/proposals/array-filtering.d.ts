@@ -19,7 +19,7 @@ interface ReadonlyArray<T> { // @type-options: no-export
    * @param thisArg - If provided, it will be used as this value for each invocation of
    * predicate. If it is not provided, undefined is used instead.
    */
-  filterReject(callbackFn: (value: T, index: number, target: T[]) => boolean, thisArg?: any): T[];
+  filterReject(callbackFn: (value: T, index: number, target: readonly T[]) => boolean, thisArg?: any): T[];
 }
 
 interface Int8Array { // @type-options: no-export
