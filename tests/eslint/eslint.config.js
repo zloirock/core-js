@@ -1302,8 +1302,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'keyBy',
   ] }],
   'es/no-nonstandard-map-prototype-properties': [ERROR, { allow: [
-    'getOrInsert',
-    'getOrInsertComputed',
     // TODO: drop from `core-js@4`
     'deleteAll',
     'emplace',
@@ -1421,8 +1419,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'of',
   ] }],
   'es/no-nonstandard-weakmap-prototype-properties': [ERROR, { allow: [
-    'getOrInsert',
-    'getOrInsertComputed',
     // TODO: drop from `core-js@4`
     'deleteAll',
     'emplace',
