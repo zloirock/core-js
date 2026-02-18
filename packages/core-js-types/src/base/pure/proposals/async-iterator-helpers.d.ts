@@ -4,7 +4,6 @@
 
 // Motivation: Has dependencies on internal types, e.g. AsyncIterable, AsyncIteratorObject
 
-// proposal stage: 2
 // https://github.com/tc39/proposal-async-iterator-helpers
 
 declare namespace CoreJS {
