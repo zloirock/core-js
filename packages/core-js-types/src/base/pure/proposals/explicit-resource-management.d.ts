@@ -150,33 +150,7 @@ declare namespace CoreJS {
     defer(onDisposeAsync: () => PromiseLike<void> | void): void;
 
     /**
-     * Move all resources out of this stack and into a new `DisposableStack`, and marks this stack as disposed.
-     * @example
-     * ```ts
-     * class C {
-     *   #res1: CoreJSDisposable;
-     *   #res2: CoreJSDisposable;
-     *   #disposables: CoreJSDisposableStack;
-     *   constructor() {
-     *     // stack will be disposed when exiting constructor for any reason
-     *     using stack = new DisposableStack();
-     *
-     *     // get first resource
-     *     this.#res1 = stack.use(getResource1());
-     *
-     *     // get second resource. If this fails, both `stack` and `#res1` will be disposed.
-     *     this.#res2 = stack.use(getResource2());
-     *
-     *     // all operations succeeded, move resources out of `stack` so that they aren't disposed
-     *     // when constructor exits
-     *     this.#disposables = stack.move();
-     *   }
-     *
-     *   [CoreJSSymbol.dispose]() {
-     *     this.#disposables.dispose();
-     *   }
-     * }
-     * ```
+     * Move all resources out of this stack and into a new `AsyncDisposableStack`, and marks this stack as disposed.
      */
     move(): CoreJSAsyncDisposableStack;
 
