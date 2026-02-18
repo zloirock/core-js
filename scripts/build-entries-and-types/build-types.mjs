@@ -18,16 +18,20 @@ const SRC_BASE = 'base';
 const TS_VERSION_BREAKPOINTS = [5.6];
 const TYPE_PREFIX = 'CoreJS.CoreJS';
 
-const imports = {
-  es: new Set(),
-  stable: new Set(),
-  actual: new Set(),
-  full: new Set(),
-  pure: new Set(),
-  index: new Set(),
-  configurator: new Set(),
-};
+let imports;
 let outputFiles = {};
+
+function setDefaultNamespacesForImports() {
+  imports = {
+    es: new Set(),
+    stable: new Set(),
+    actual: new Set(),
+    full: new Set(),
+    pure: new Set(),
+    index: new Set(),
+    configurator: new Set(),
+  };
+}
 
 function addType(tsVersion, subset, template, options) {
   const exportGlobalType = options.globalType ?? true;
@@ -303,6 +307,7 @@ async function saveOutputFiles() {
 await clearPackage();
 
 for (const version of TS_VERSION_BREAKPOINTS) {
+  setDefaultNamespacesForImports();
   await buildTypesForTSVersion(version);
 }
 
