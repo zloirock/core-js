@@ -212,7 +212,7 @@ declare namespace CoreJS {
      *   - inclusive: If true, the end value is included in the range (default is false).
      * @returns An iterator of numbers or bigints.
      */
-    range<T>(start: T, end: T | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: T | IteratorRangeOptions<T>): CoreJSIteratorObject<T, undefined, unknown>
+    range<T extends number | bigint>(start: T, end: T | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: T | IteratorRangeOptions<T>): CoreJSIteratorObject<T, undefined, unknown>
 
     /**
      * Creates an iterator that sequentially yields values from the provided iterables.
