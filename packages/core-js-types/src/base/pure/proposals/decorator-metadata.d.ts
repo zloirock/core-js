@@ -2,7 +2,6 @@
 
 // Motivation: Symbol is replaced with our own
 
-// proposal stage: 3
 // https://github.com/tc39/proposal-decorator-metadata
 
 declare namespace CoreJS {
