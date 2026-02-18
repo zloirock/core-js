@@ -49,19 +49,19 @@ declare namespace CoreJS {
     then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | CoreJSPromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | CoreJSPromiseLike<TResult2>) | undefined | null): CoreJSPromiseLike<TResult1 | TResult2>;
   }
 
-  interface CoreJSAsyncIterator<T, TReturn = any, TNext = any> {
+  interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
     next(...[value]: [] | [TNext]): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
     return?(value?: TReturn | CoreJSPromiseLike<TReturn>): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
     throw?(e?: any): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
   }
 
-  export interface CoreJSAsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
-  export interface CoreJSAsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends CoreJSAsyncDisposable {}
+  export interface CoreJSAsyncIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
+  export interface CoreJSAsyncIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSAsyncDisposable {}
   export interface CoreJSAsyncIterable<T, TReturn = any, TNext = any> {
     [CoreJSSymbol.asyncIterator](): CoreJSAsyncIterator<T, TReturn, TNext>;
   }
 
-  export interface CoreJSIteratorObject<T, TReturn = any, TNext = any> extends CoreJSDisposable {}
+  export interface CoreJSIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSDisposable {}
 
   export interface CoreJSIterator<T, TReturn = any, TNext = any> extends Iterator<T, TReturn, TNext> {
     /**
