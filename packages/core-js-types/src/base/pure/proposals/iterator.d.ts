@@ -107,7 +107,7 @@ declare namespace CoreJS {
      * Creates an iterator whose values are the result of applying the callback to the values from this iterator and then flattening the resulting iterators or iterables.
      * @param callback - A function that accepts up to two arguments to be used to transform values from the underlying iterator into new iterators or iterables to be flattened into the result.
      */
-    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): CoreJSIteratorObject<U, undefined, unknown>;  // ts < 5.6 Iterable<U>
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>): CoreJSIteratorObject<U, undefined, unknown>;
 
     /**
      * Calls the specified callback function for all the elements in this iterator. The return value of the callback function is the accumulated result, and is provided as an argument in the next call to the callback function.
@@ -198,15 +198,26 @@ declare namespace CoreJS {
     zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
 
     /**
-     * Returns an iterator that generates a sequence of numbers or bigints within a range.
+     * Returns an iterator that generates a sequence of numbers within a range.
      * @param start - The starting value of the sequence.
      * @param end - The end value of the sequence (exclusive by default).
      * @param options - Optional object:
      *   - step: The difference between consecutive values (default is 1).
      *   - inclusive: If true, the end value is included in the range (default is false).
-     * @returns An iterator of numbers or bigints.
+     * @returns An iterator of numbers.
      */
-    range<T extends number | bigint>(start: T, end: T | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: T | IteratorRangeOptions<T>): CoreJSIteratorObject<T, undefined, unknown>
+    range(start: number, end: number | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: number | IteratorRangeOptions<number>): CoreJSIteratorObject<number, undefined, unknown>
+
+    /**
+     * Returns an iterator that generates a sequence of bigints within a range.
+     * @param start - The starting value of the sequence.
+     * @param end - The end value of the sequence (exclusive by default).
+     * @param options - Optional object:
+     *   - step: The difference between consecutive values (default is 1n).
+     *   - inclusive: If true, the end value is included in the range (default is false).
+     * @returns An iterator of bigints.
+     */
+    range(start: bigint, end: bigint, options?: bigint | IteratorRangeOptions<bigint>): CoreJSIteratorObject<bigint, undefined, unknown>
 
     /**
      * Creates an iterator that sequentially yields values from the provided iterables.
