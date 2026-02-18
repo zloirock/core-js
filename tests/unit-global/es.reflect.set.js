@@ -1,4 +1,4 @@
-import { DESCRIPTORS, NATIVE } from '../helpers/constants.js';
+import { DESCRIPTORS, FREEZING, NATIVE } from '../helpers/constants.js';
 import { createConversionChecker } from '../helpers/helpers.js';
 
 QUnit.test('Reflect.set', assert => {
@@ -111,5 +111,13 @@ QUnit.test('Reflect.set', assert => {
   // argument order: target should be validated before ToPropertyKey
   const orderChecker = createConversionChecker(1, 'qux');
   assert.throws(() => set(42, orderChecker, 1), TypeError, 'throws on primitive before ToPropertyKey');
+
+  // non-extensible receiver should return false, not throw
+  if (FREEZING) {
+    assert.false(set({}, 'x', 42, Object.freeze({})), 'frozen empty receiver returns false');
+    assert.false(set({}, 'x', 42, Object.preventExtensions({})), 'non-extensible receiver returns false');
+    assert.false(set({}, 'x', 42, Object.seal({})), 'sealed empty receiver returns false');
+  }
+
   assert.same(orderChecker.$toString, 0, 'ToPropertyKey not called before target validation in Reflect.set');
 });

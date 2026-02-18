@@ -41,6 +41,7 @@
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
 - Fixed `Reflect.set` polyfill with some descriptors cases
+- Fixed `Reflect.set` polyfill with some non-extensible receiver cases
 - Fixed the order of `Reflect.construct` polyfill arguments validation (observable only in the error message)
 - Fixed a lack of error in `Reflect.defineProperty` polyfill with malformed descriptor
 - Fixed a lack of error in `JSON.parse` polyfill on unterminated object and array literals

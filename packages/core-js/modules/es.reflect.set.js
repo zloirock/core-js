@@ -27,7 +27,11 @@ var $set = function (target, propertyKey, V, receiver) {
     if (existingDescriptor = getOwnPropertyDescriptorModule.f(receiver, propertyKey)) {
       if (!isDataDescriptor(existingDescriptor) || existingDescriptor.writable === false) return false;
       definePropertyModule.f(receiver, propertyKey, { value: V });
-    } else definePropertyModule.f(receiver, propertyKey, createPropertyDescriptor(0, V));
+    } else try {
+      definePropertyModule.f(receiver, propertyKey, createPropertyDescriptor(0, V));
+    } catch (error) {
+      return false;
+    }
   } else {
     setter = ownDescriptor.set;
     if (setter === undefined) return false;
