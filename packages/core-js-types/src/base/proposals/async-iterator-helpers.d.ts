@@ -79,7 +79,7 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @returns A promise that resolves to the reduced value
    */
   reduce(reducer: (accumulator: T, value: T, index: number) => T, initialValue: T): Promise<T>;
-  
+
   /**
    * Reduces the elements of the iterator to a single value using the `reducer` function.
    * @param reducer - A function that combines two elements of the iterator
