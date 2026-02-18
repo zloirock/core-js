@@ -17,7 +17,7 @@ interface IteratorConstructor { // @type-options: no-extends
    * @returns An iterator of numbers.
    */
   range(start: number, end: number | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: number | IteratorRangeOptions<number>): IteratorObject<number>; // @type-options: prefix-return-type
-  
+
   /**
    * Returns an iterator that generates a sequence of bigints within a range.
    * @param start - The starting value of the sequence.
