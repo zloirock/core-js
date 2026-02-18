@@ -20,7 +20,7 @@ interface DOMTokenList { // @type-options: no-export
    * @param thisArg - Value to use as this when executing `callbackfn`.
    */
   forEach(
-    callbackfn: (value: Element, index: number, collection: DOMTokenList) => void,
+    callbackfn: (value: string, index: number, collection: DOMTokenList) => void,
     thisArg?: any
   ): void;
 
@@ -32,7 +32,7 @@ interface DOMTokenList { // @type-options: no-export
   /**
    * Returns an iterable of values in the DOMTokenList.
    */
-  values(): IterableIterator<Element>;
+  values(): IterableIterator<string>;
 
   /**
    * Returns an iterable of key, value pairs in the DOMTokenList.
