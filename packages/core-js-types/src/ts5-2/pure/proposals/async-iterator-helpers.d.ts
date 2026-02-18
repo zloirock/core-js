@@ -5,7 +5,6 @@
 // Motivation: Has dependencies on internal types, e.g. AsyncIterable, AsyncIteratorObject
 // Motivation: Iterator until TS 5.6 used undefined as TNext defaults
 
-// proposal stage: 2
 // https://github.com/tc39/proposal-async-iterator-helpers
 
 declare namespace CoreJS {
