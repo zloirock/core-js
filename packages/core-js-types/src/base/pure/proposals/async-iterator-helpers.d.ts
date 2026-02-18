@@ -17,7 +17,7 @@ declare namespace CoreJS {
     from<T>(iterable: CoreJSAsyncIterable<T> | Iterable<T> | CoreJSAsyncIteratorObject<T>): CoreJSAsyncIteratorObject<T>;
   }
 
-  export interface CoreJSAsyncIterator<T, TReturn = any, TNext = any> {
+  export interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
 
     /**
      * Drops elements from the iterator until the limit is reached
