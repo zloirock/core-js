@@ -39,7 +39,7 @@ interface DOMTokenList { // @type-options: no-export
   /**
    * Returns an iterable of key, value pairs in the DOMTokenList.
    */
-  entries(): IterableIterator<[number, Element]>;
+  entries(): IterableIterator<[number, string]>;
 
   [Symbol.iterator](): IterableIterator<string>;
 }
