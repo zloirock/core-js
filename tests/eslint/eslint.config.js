@@ -2043,6 +2043,8 @@ const qunit = {
 const playwright = {
   // enforce Playwright APIs to be awaited
   'playwright/missing-playwright-await': ERROR,
+  // disallow multiple `test.slow()` calls in the same test
+  'playwright/no-duplicate-slow': ERROR,
   // disallow usage of `page.$eval()` and `page.$$eval()`
   'playwright/no-eval': ERROR,
   // disallow using `page.pause()`
@@ -2051,6 +2053,8 @@ const playwright = {
   'playwright/no-unsafe-references': ERROR,
   // disallow unnecessary awaits for Playwright methods
   'playwright/no-useless-await': ERROR,
+  // require a timeout option for `toPass()`
+  'playwright/require-to-pass-timeout': ERROR,
 };
 
 const yaml = {
