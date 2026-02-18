@@ -4,21 +4,21 @@
 // https://github.com/microsoft/TypeScript/blob/d3be7e171bf3149fe93c3ce5a85280f1eba3ef8d/src/lib/esnext.typedarrays.d.ts
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
-type alphabet = 'base64' | 'base64url';
+type CoreJSAlphabet = 'base64' | 'base64url';
 
-type lastChunkHandling = 'loose' | 'strict' | 'stop-before-partial';
+type CoreJSLastChunkHandling = 'loose' | 'strict' | 'stop-before-partial';
 
-interface fromBase64Options {
-  alphabet?: alphabet;
-  lastChunkHandling?: lastChunkHandling;
+interface CoreJSFromBase64Options {
+  alphabet?: CoreJSAlphabet;
+  lastChunkHandling?: CoreJSLastChunkHandling;
 }
 
-interface toBase64Options {
-  alphabet?: alphabet;
+interface CoreJSToBase64Options {
+  alphabet?: CoreJSAlphabet;
   omitPadding?: boolean;
 }
 
-interface processMetadata {
+interface CoreJSProcessMetadata {
   read: number;
   written: number;
 }
@@ -32,7 +32,7 @@ interface Uint8ArrayConstructor {
    * @throws SyntaxError If the input string contains characters outside the specified alphabet, or if the last
    * chunk is inconsistent with the `lastChunkHandling` option.
    */
-  fromBase64(string: string, options?: fromBase64Options): Uint8Array;
+  fromBase64(string: string, options?: CoreJSFromBase64Options): Uint8Array;
 
   /**
    * Creates a new `Uint8Array` from a base16-encoded string.
@@ -50,21 +50,21 @@ interface Uint8Array {
    * @throws SyntaxError If the input string contains characters outside the specified alphabet, or if the last
    * chunk is inconsistent with the `lastChunkHandling` option.
    */
-  setFromBase64(string: string, options?: fromBase64Options): processMetadata;
+  setFromBase64(string: string, options?: CoreJSFromBase64Options): CoreJSProcessMetadata;
 
   /**
    * Sets the `Uint8Array` from a base16-encoded string.
    * @param string - The base16-encoded string.
    * @returns An object containing the number of bytes read and written.
    */
-  setFromHex(string: string): processMetadata;
+  setFromHex(string: string): CoreJSProcessMetadata;
 
   /**
    * Converts the `Uint8Array` to a base64-encoded string.
    * @param options - If provided, sets the alphabet and padding behavior used.
    * @returns A base64-encoded string.
    */
-  toBase64(options?: toBase64Options): string;
+  toBase64(options?: CoreJSToBase64Options): string;
 
   /**
    * Converts the `Uint8Array` to a base16-encoded string.
