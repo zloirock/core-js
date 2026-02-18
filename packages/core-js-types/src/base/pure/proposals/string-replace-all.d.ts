@@ -2,7 +2,6 @@
 
 // Motivation: We should use String without the matchAll method to avoid signature conflicts
 
-// proposal stage: 4
 // https://github.com/tc39/proposal-string-replaceall
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
