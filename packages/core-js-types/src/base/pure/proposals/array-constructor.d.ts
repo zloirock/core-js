@@ -3,10 +3,8 @@
 
 // Motivation: We must omit methods `fromAsync` and `isTemplateObject` because they cause a signature mismatch error.
 
-// proposal stage: 2
 // https://github.com/tc39/proposal-array-is-template-object
 
-// proposal stage: 3
 // https://github.com/tc39/proposal-array-from-async
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
