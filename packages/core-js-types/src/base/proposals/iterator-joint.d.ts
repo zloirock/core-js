@@ -3,7 +3,7 @@
 interface ZipOptions {
   mode?: 'shortest' | 'longest' | 'strict';
 
-  padding?: object;
+  padding?: Iterable<unknown>;
 }
 
 interface IteratorConstructor { // @type-options: no-extends
