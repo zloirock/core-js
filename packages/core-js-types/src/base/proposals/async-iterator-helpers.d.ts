@@ -34,7 +34,7 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @returns A new `AsyncIterator`
    */
   filter<S extends T>(predicate: (value: T, index: number) => value is S): AsyncIteratorObject<S, undefined, unknown>;
-  filter(predicate: (value: T, index: number) => boolean): AsyncIteratorObject<T>;
+  filter(predicate: (value: T, index: number) => unknown): AsyncIteratorObject<T>;
 
   /**
    * Finds the first element in the iterator that satisfies the `predicate` function.
@@ -42,7 +42,7 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @returns A `Promise` that resolves to the found element, or `undefined` if no element satisfies the `predicate`
    */
   find<S extends T>(predicate: (value: T, index: number) => value is S): Promise<S | undefined>;
-  find(predicate: (value: T, index: number) => boolean): Promise<T | undefined>;
+  find(predicate: (value: T, index: number) => unknown): Promise<T | undefined>;
 
   /**
    * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator and flattening the result.
