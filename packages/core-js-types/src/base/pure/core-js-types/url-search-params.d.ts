@@ -54,7 +54,7 @@ declare namespace CoreJS {
   }
 
   interface CoreJSURLSearchParamsIterator<T> extends CoreJSIteratorObject<T, BuiltinIteratorReturn, unknown> {
-    [Symbol.iterator](): CoreJSURLSearchParamsIterator<T>;
+    [CoreJS.CoreJSSymbol.iterator](): CoreJSURLSearchParamsIterator<T>;
   }
 
   export interface CoreJSURLSearchParamsConstructor {
