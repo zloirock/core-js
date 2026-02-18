@@ -38,6 +38,7 @@ declare namespace CoreJS {
   const CoreJSCustomMatcherSymbol: unique symbol;
   const CoreJSMetadataSymbol: unique symbol;
   const CoreJSMatchAllSymbol: unique symbol;
+  const CoreJSIteratorSymbol: unique symbol;
 
   type CoreJSDisposeSymbolType = typeof CoreJSDisposeSymbol;
   type CoreJSAsyncDisposeSymbolType = typeof CoreJSAsyncDisposeSymbol;
@@ -45,7 +46,7 @@ declare namespace CoreJS {
   type CoreJSCustomMatcherSymbolType = typeof CoreJSCustomMatcherSymbol;
   type CoreJSMetadataSymbolType = typeof CoreJSMetadataSymbol;
   type CoreJSMatchAllSymbolType = typeof CoreJSMatchAllSymbol;
-  type CoreJSIteratorSymbolType = typeof CoreJSMatchAllSymbol;
+  type CoreJSIteratorSymbolType = typeof CoreJSIteratorSymbol;
 
   type GetNativeWithFallback<T, K extends PropertyKey, Fallback> = K extends keyof T ? T[K] : Fallback;
 
