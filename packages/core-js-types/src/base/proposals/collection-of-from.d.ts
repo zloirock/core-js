@@ -68,7 +68,6 @@ declare var WeakMap: WeakMapConstructor;
 interface WeakSetConstructor {
   /**
    * Creates a new `WeakSet` instance from an iterable of objects, optionally transforming with mapFn.
-   *
    * @param source - Iterable of objects to add to WeakSet.
    * @param mapFn - Optional mapping function transforming each object.
    * @param thisArg - Value to use as `this` in `mapFn`.
