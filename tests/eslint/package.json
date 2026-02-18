@@ -23,11 +23,10 @@
     "eslint-plugin-qunit": "^8.2.6",
     "eslint-plugin-redos": "^4.5.0",
     "eslint-plugin-regexp": "^3.0.0",
-    "eslint-plugin-sonarjs": "^3.0.7",
+    "eslint-plugin-sonarjs": "^4.0.0",
     "eslint-plugin-unicorn": "^63.0.0",
     "eslint-yaml": "^0.1.0",
     "globals": "^17.3.0",
-    "jsonc-eslint-parser": "^2.4.2",
-    "ts-api-utils": "^2.4.0"
+    "jsonc-eslint-parser": "^2.4.2"
   }
 }

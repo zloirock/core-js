@@ -864,8 +864,6 @@ const base = {
   'sonarjs/stateful-regex': ERROR,
   // comparison operators should not be used with strings
   'sonarjs/strings-comparison': ERROR,
-  // `super()` should be invoked appropriately
-  'sonarjs/super-invocation': ERROR,
   // results of operations on strings should not be ignored
   'sonarjs/useless-string-operation': ERROR,
   // values not convertible to numbers should not be used in numeric comparisons
