@@ -1,30 +1,23 @@
 // Motivation: We should use all unique symbols in SymbolConstructor with fallback
 
-// proposal stage: 3
 // https://github.com/tc39/proposal-explicit-resource-management
 
-// proposal stage: 2
 // https://github.com/tc39/proposal-symbol-predicates
 
-// proposal stage: 4
 // https://github.com/tc39/proposal-async-iteration
 
-// proposal stage: 1
 // https://github.com/tc39/proposal-pattern-matching
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
 // https://github.com/microsoft/TypeScript/blob/069de743dbd17b47cc2fc58e1d16da5410911284/src/lib/es2018.asynciterable.d.ts#L4
 
-// proposal stage: 3
 // https://github.com/tc39/proposal-decorator-metadata
 
-// proposal stage: 4
 // https://github.com/tc39/proposal-string-matchall
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
 // https://github.com/microsoft/TypeScript/blob/f450c1b80ce6dc7b04e81899db00534018932234/src/lib/es2020.string.d.ts
 
-// proposal stage: 4
 // https://github.com/tc39/proposal-Symbol-description
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
