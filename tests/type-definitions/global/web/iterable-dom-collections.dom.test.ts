@@ -20,8 +20,8 @@ nodeList.entries('string');
 
 declare const domTokenList: DOMTokenList;
 
-domTokenList.forEach((value: Node, key: number, list: DOMTokenList): void => {});
-domTokenList.forEach((value: Node, key: number, list: DOMTokenList): void => {}, []);
+domTokenList.forEach((value: string, key: number, list: DOMTokenList): void => {});
+domTokenList.forEach((value: string, key: number, list: DOMTokenList): void => {}, []);
 // @ts-expect-error
 domTokenList.forEach();
 
@@ -29,7 +29,7 @@ const fomKeys: IterableIterator<number> = domTokenList.keys();
 // @ts-expect-error
 domTokenList.keys('string');
 
-const domValues: IterableIterator<Element> = domTokenList.values();
+const domValues: IterableIterator<string> = domTokenList.values();
 // @ts-expect-error
 domTokenList.values('string');
 
