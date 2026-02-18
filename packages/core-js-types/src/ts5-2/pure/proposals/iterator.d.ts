@@ -5,22 +5,16 @@
 // Motivation: Has dependencies on internal types
 // Motivation: Iterable until TS 5.6 used only one type parameter
 
-// proposal stage: 2.7
 // https://github.com/tc39/proposal-iterator-chunking
 
-// proposal stage: 4
 // https://github.com/tc39/proposal-iterator-helpers
 
-// proposal stage: 0
 // https://github.com/bakkot/proposal-iterator-join
 
-// proposal stage: 2.7
 // https://github.com/tc39/proposal-joint-iteration
 
-// proposal stage: 2
 // https://github.com/tc39/proposal-iterator.range
 
-// proposal stage: 2.7
 // https://github.com/tc39/proposal-iterator-sequencing
 
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
