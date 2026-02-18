@@ -7,7 +7,7 @@ interface CoreJSRawJSON {
 }
 
 interface CoreJSReviverContext {
-  source: string;
+  source: string | undefined;
 }
 
 const r: CoreJSRawJSON = $rawJSON('{"a":123}');
