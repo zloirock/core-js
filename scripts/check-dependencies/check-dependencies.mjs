@@ -3,6 +3,10 @@ const ignore = {
     'mkdirp',
     'webpack',
   ],
+  'tests/eslint': [
+    // https://github.com/mskelton/eslint-plugin-playwright/issues/425
+    'eslint-plugin-playwright',
+  ],
   'tests/observables': [
     'moon-unit',
   ],
