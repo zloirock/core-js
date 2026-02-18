@@ -257,10 +257,11 @@ async function buildTypesForTSVersion(tsVersion) {
 
 async function buildPackageJson(breakpoints, namespaces) {
   breakpoints = breakpoints.sort().reverse();
-  const defaultBreakpoint = Math.max(...breakpoints);
+  const defaultBreakpoint = Math.max(...breakpoints).toString().replace('.', '-');
 
   const packageJson = await readJson(PACKAGE_TEMPLATE);
   packageJson.typesVersions = {};
+  packageJson.typesVersions['*'] = { '*': [`./ts${ defaultBreakpoint }/*`] };
   breakpoints.forEach(breakpoint => {
     packageJson.typesVersions[`>=${ breakpoint }`] = {
       '*': [`./ts${ breakpoint.toString().replace('.', '-') }/*`],
@@ -276,7 +277,7 @@ async function buildPackageJson(breakpoints, namespaces) {
       const breakpointString = `ts${ breakpoint.toString().replace('.', '-') }`;
       packageJson.exports[namespaceKey][`types${ isLast ? '' : `@>=${ breakpoint }` }`] = `./${ breakpointString }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
     });
-    packageJson.exports[namespaceKey].default = `./ts${ defaultBreakpoint.toString().replace('.', '-') }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
+    packageJson.exports[namespaceKey].default = `./ts${ defaultBreakpoint }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
   });
   const exportsKeys = Object.keys(packageJson.exports).sort();
   const exports = {};
