@@ -8,15 +8,26 @@ interface IteratorRangeOptions<T> {
 
 interface IteratorConstructor { // @type-options: no-extends
   /**
-   * Returns an iterator that generates a sequence of numbers or bigints within a range.
+   * Returns an iterator that generates a sequence of numbers within a range.
    * @param start - The starting value of the sequence.
    * @param end - The end value of the sequence (exclusive by default).
    * @param options - Optional object:
    *   - step: The difference between consecutive values (default is 1).
    *   - inclusive: If true, the end value is included in the range (default is false).
-   * @returns An iterator of numbers or bigints.
+   * @returns An iterator of numbers.
    */
-  range<T extends number | bigint>(start: T, end: T | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: T | IteratorRangeOptions<T>): IteratorObject<T>; // @type-options: prefix-return-type
+  range(start: number, end: number | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: number | IteratorRangeOptions<number>): IteratorObject<number>; // @type-options: prefix-return-type
+  
+  /**
+   * Returns an iterator that generates a sequence of bigints within a range.
+   * @param start - The starting value of the sequence.
+   * @param end - The end value of the sequence (exclusive by default).
+   * @param options - Optional object:
+   *   - step: The difference between consecutive values (default is 1n).
+   *   - inclusive: If true, the end value is included in the range (default is false).
+   * @returns An iterator of bigints.
+   */
+  range(start: bigint, end: bigint, options?: bigint | IteratorRangeOptions<bigint>): IteratorObject<bigint>; // @type-options: prefix-return-type
 }
 
 declare var Iterator: IteratorConstructor;
