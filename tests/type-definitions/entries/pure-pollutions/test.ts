@@ -2,7 +2,7 @@ import '@core-js/types/pure';
 
 // no global pollution
 // @ts-expect-error
-Iterator.chunks(num, 2);
+Iterator.chunks([1, 2, 3], 2);
 // @ts-expect-error
 Iterator.zipKeyed({ a: [1, 2], b: [3, 4] });
 // @ts-expect-error
