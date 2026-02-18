@@ -33,6 +33,6 @@ const domValues: IterableIterator<string> = domTokenList.values();
 // @ts-expect-error
 domTokenList.values('string');
 
-const domEntries: IterableIterator<[number, Element]> = domTokenList.entries();
+const domEntries: IterableIterator<[number, string]> = domTokenList.entries();
 // @ts-expect-error
 domTokenList.entries('string');
