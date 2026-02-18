@@ -37,6 +37,7 @@ declare global {
     : {
       prototype: DOMException;
       new(message?: string, name?: string): DOMException;
+      // core-js not realize the second argument options-bag, but it's necessary for compatibility with @type/node lib
       new(message?: string, options?: { name?: string; cause?: unknown }): DOMException;
       readonly INDEX_SIZE_ERR: 1;
       readonly DOMSTRING_SIZE_ERR: 2;
