@@ -9,7 +9,7 @@ interface Iterator<T> {
    * @param chunkSize - The maximum number of elements per chunk. Must be a positive integer.
    * @returns An iterator yielding arrays of at most `chunkSize` elements from the source iterator.
    */
-  chunks(chunkSize: number): IteratorObject<T[]>;
+  chunks(chunkSize: number): IteratorObject<T[], undefined, unknown>;
 
   /**
    * Yields overlapping arrays (windows) of the given size from the iterator.
@@ -17,5 +17,5 @@ interface Iterator<T> {
    * @param undersized - 'only-full' (default) to yield only full windows | 'allow-partial' to yield all windows.
    * @returns An iterator yielding arrays of the specified window size.
    */
-  windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): IteratorObject<T[]>;
+  windows(windowSize: number, undersized?: 'only-full' | 'allow-partial' | undefined): IteratorObject<T[], undefined, unknown>;
 }
