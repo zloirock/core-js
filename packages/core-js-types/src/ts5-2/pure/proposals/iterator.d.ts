@@ -25,7 +25,7 @@ declare namespace CoreJS {
   interface ZipOptions {
     mode?: 'shortest' | 'longest' | 'strict';
 
-    padding?: object;
+    padding?: Iterable<unknown>;
   }
 
   interface IteratorRangeOptions<T> {
@@ -44,14 +44,14 @@ declare namespace CoreJS {
     then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | CoreJSPromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | CoreJSPromiseLike<TResult2>) | undefined | null): CoreJSPromiseLike<TResult1 | TResult2>;
   }
 
-  interface CoreJSAsyncIterator<T, TReturn = any, TNext = any> {
+  interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
     next(...[value]: [] | [TNext]): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
     return?(value?: TReturn | CoreJSPromiseLike<TReturn>): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
     throw?(e?: any): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
   }
 
-  export interface CoreJSAsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
-  export interface CoreJSAsyncIteratorObject<T, TReturn = unknown, TNext = unknown> extends CoreJSAsyncDisposable {}
+  export interface CoreJSAsyncIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
+  export interface CoreJSAsyncIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSAsyncDisposable {}
   export interface CoreJSAsyncIterable<T, TReturn = any, TNext = any> {
     [CoreJSSymbol.asyncIterator](): CoreJSAsyncIterator<T, TReturn, TNext>;
   }
@@ -108,7 +108,7 @@ declare namespace CoreJS {
      * Creates an iterator whose values are the result of applying the callback to the values from this iterator and then flattening the resulting iterators or iterables.
      * @param callback - A function that accepts up to two arguments to be used to transform values from the underlying iterator into new iterators or iterables to be flattened into the result.
      */
-    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U>): CoreJSIteratorObject<U, undefined, unknown>;
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U>): CoreJSIteratorObject<U, undefined, unknown>; // ts < 5.6 Iterable<U>
 
     /**
      * Calls the specified callback function for all the elements in this iterator. The return value of the callback function is the accumulated result, and is provided as an argument in the next call to the callback function.
@@ -199,15 +199,26 @@ declare namespace CoreJS {
     zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
 
     /**
-     * Returns an iterator that generates a sequence of numbers or bigints within a range.
+     * Returns an iterator that generates a sequence of numbers within a range.
      * @param start - The starting value of the sequence.
      * @param end - The end value of the sequence (exclusive by default).
      * @param options - Optional object:
      *   - step: The difference between consecutive values (default is 1).
      *   - inclusive: If true, the end value is included in the range (default is false).
-     * @returns An iterator of numbers or bigints.
+     * @returns An iterator of numbers.
      */
-    range<T>(start: T, end: T | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: T | IteratorRangeOptions<T>): CoreJSIteratorObject<T, undefined, unknown>
+    range(start: number, end: number | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: number | IteratorRangeOptions<number>): CoreJSIteratorObject<number, undefined, unknown>
+
+    /**
+     * Returns an iterator that generates a sequence of bigints within a range.
+     * @param start - The starting value of the sequence.
+     * @param end - The end value of the sequence (exclusive by default).
+     * @param options - Optional object:
+     *   - step: The difference between consecutive values (default is 1n).
+     *   - inclusive: If true, the end value is included in the range (default is false).
+     * @returns An iterator of bigints.
+     */
+    range(start: bigint, end: bigint, options?: bigint | IteratorRangeOptions<bigint>): CoreJSIteratorObject<bigint, undefined, unknown>
 
     /**
      * Creates an iterator that sequentially yields values from the provided iterables.
