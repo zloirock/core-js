@@ -16,5 +16,5 @@ for (const moduleName of Modules) {
 }
 
 if (hasErrors) {
-  throw Error('Some modules have no types');
+  throw new Error('Some modules have no types');
 }
