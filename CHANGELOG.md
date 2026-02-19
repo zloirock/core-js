@@ -13,6 +13,7 @@
 - Fixed double `.return()` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
 - Fixed closing iterator on `IteratorValue` errors in the internal `iterate` helper that affected some polyfills
 - Fixed iterator closing in `Array.from` polyfill on failure to create array property
+- Fixed handling strings as iterables in `Iterator.zip` polyfill
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`

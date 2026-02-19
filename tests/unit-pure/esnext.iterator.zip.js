@@ -154,4 +154,7 @@ QUnit.test('Iterator.zip', assert => {
     }
     assert.same(caught, expectedError, 'propagates the original error from inner return()');
   }
+
+  assert.throws(() => zip(['hello', [1, 2, 3]]), TypeError, 'rejects string iterables');
+  assert.throws(() => zip([42, [1, 2, 3]]), TypeError, 'rejects number iterables');
 });
