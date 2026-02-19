@@ -52,7 +52,7 @@ var $RangeIterator = createIteratorConstructor(function NumericRangeIterator(sta
   if (step !== step || step === Infinity || step === -Infinity || (step === zero && start !== end)) {
     throw new $RangeError(INCORRECT_RANGE);
   }
-    var hitsEnd = end > start !== step > zero;
+  var hitsEnd = end > start !== step > zero;
   setInternalState(this, {
     type: NUMERIC_RANGE_ITERATOR,
     start: start,
