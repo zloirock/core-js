@@ -6,6 +6,12 @@ interface ZipOptions {
   padding?: Iterable<unknown>;
 }
 
+interface ZipKeyedOptions {
+  mode?: 'shortest' | 'longest' | 'strict';
+
+  padding?: Record<PropertyKey, unknown>;
+}
+
 interface IteratorConstructor { // @type-options: no-extends
   /**
    * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
@@ -27,7 +33,7 @@ interface IteratorConstructor { // @type-options: no-extends
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
    */
-  zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;  // @type-options: prefix-return-type
+  zipKeyed<T extends { [K in PropertyKey]: Iterable<unknown> }>(record: T, options?: ZipKeyedOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;  // @type-options: prefix-return-type
 }
 
 declare var Iterator: IteratorConstructor;
