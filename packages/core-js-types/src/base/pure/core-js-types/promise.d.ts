@@ -1,3 +1,5 @@
+/// <reference types="./promise-like" />
+
 declare namespace CoreJS {
   export interface CoreJSPromise<T> extends Promise<T> {}
 
@@ -10,7 +12,7 @@ declare namespace CoreJS {
      * a resolve callback used to resolve the promise with a value or the result of another promise,
      * and a reject callback used to reject the promise with a provided reason or error.
      */
-    new<T>(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void): CoreJSPromise<T>;
+    new<T>(executor: (resolve: (value: T | CoreJS.CoreJSPromiseLike<T>) => void, reject: (reason?: any) => void) => void): CoreJSPromise<T>;
 
     /**
      * Creates a Promise that is resolved with an array of results when all of the provided Promises
@@ -45,7 +47,7 @@ declare namespace CoreJS {
      * @param value - A promise.
      * @returns A promise whose internal state matches the provided promise.
      */
-    resolve<T>(value: T | PromiseLike<T>): CoreJSPromise<Awaited<T>>;
+    resolve<T>(value: T | CoreJS.CoreJSPromiseLike<T>): CoreJSPromise<Awaited<T>>;
   }
 
   var CoreJSPromise: CoreJSPromiseConstructor;
