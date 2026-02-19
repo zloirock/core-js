@@ -44,8 +44,12 @@ const r2 = find(aiton, (v: number, i: number) => v > 0);
 assertCoreJSPromiseLike<number | undefined>(r2);
 const r3 = forEach(aiton, (v: number, i: number) => { });
 assertCoreJSPromiseLike<void>(r3);
+const reduceNoInit = reduce(aiton, (acc: number, v: number) => acc + v);
+assertCoreJSPromiseLike<number>(reduceNoInit);
 const r4 = reduce(aiton, (acc: number, v: number, i: number) => acc + v, 0);
 assertCoreJSPromiseLike<number>(r4);
+const reduceDiffType = reduce(aiton, (acc: string, v: number) => acc + v, '');
+assertCoreJSPromiseLike<string>(reduceDiffType);
 const r5 = some(aiton, (v: number, i: number) => v > 0);
 assertCoreJSPromiseLike<boolean>(r5);
 const r6 = toArray(aiton);
@@ -95,7 +99,11 @@ forEach(aitn);
 // @ts-expect-error
 map(aitn);
 // @ts-expect-error
+map(aitos, (v: string, i: number) => v.length === 1, 'extra');
+// @ts-expect-error
 reduce(aitn);
+// @ts-expect-error
+reduce(aiton, (acc: string, v: number) => acc + v, 1);
 // @ts-expect-error
 some(aitn);
 // @ts-expect-error
@@ -107,6 +115,3 @@ const s0 = toArray(aiton);
 assertCoreJSPromiseLike<number[]>(s0);
 const f0 = find(aitos, (v: string, i: number) => v.length === 1);
 assertCoreJSPromiseLike<string | undefined>(f0);
-
-// @ts-expect-error
-map(aitos, (v: string, i: number) => v.length === 1, 'extra');
