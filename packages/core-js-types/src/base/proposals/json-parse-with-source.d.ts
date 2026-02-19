@@ -3,7 +3,7 @@
 interface CoreJSReviverContext { // @type-options: no-extends, no-prefix
   readonly __brand: unique symbol;
 
-  source: string | undefined;
+  readonly source: string | undefined;
 }
 
 interface CoreJSRawJSON { // @type-options: no-extends, no-prefix
