@@ -9,7 +9,8 @@
 - Wrap `Symbol.for` in `Symbol.prototype.description` polyfill for correct handling of empty string descriptions
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
-- Fixed double `.return` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
+- Fixed proxying `.return()` on exhausted iterator from some methods of iterator helpers polyfill to the underlying iterator
+- Fixed double `.return()` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
 - Fixed closing iterator on `IteratorValue` errors in the internal `iterate` helper that affected some polyfills
 - Fixed iterator closing in `Array.from` polyfill on failure to create array property
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
@@ -52,9 +53,9 @@
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
 - Fixed iterator closing in `AsyncIterator.prototype.flatMap` polyfill
-- Fixed iterator closing in `AsyncIterator.prototype.map` polyfill on error in inner iterator `.next`
+- Fixed iterator closing in `AsyncIterator.prototype.map` polyfill on error in underlying iterator `.next()`
 - Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
-- Fixed validation `return()` result as object in `AsyncIterator.prototype.take` polyfill
+- Fixed validation `.return()` result as object in `AsyncIterator.prototype.take` polyfill
 - Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
