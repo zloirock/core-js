@@ -105,7 +105,7 @@ function processLines(lines) {
       }
 
       // Handle vars: prefix variable name, keep original type
-      if (/^\s*(?:declare)?\svar/.test(line)) {
+      if (/^\s*(?:declare\s+)?var/.test(line)) {
         const m = line.match(/^(?<indent>\s*)(?:declare\s+)?var\s+(?<name>\w+):\s+(?<type>\w+)/);
         return `${ m?.groups?.indent ?? '' }var ${ !options.noPrefix ? NAMESPACE : '' }${ m?.groups?.name ?? '' }: ${ m?.groups?.type };\n`;
       }
