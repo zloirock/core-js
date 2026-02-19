@@ -23,8 +23,8 @@ arrayUniqueBy({});
 arrayUniqueBy('');
 
 // @ts-expect-error
-numarrayUniqueBy(1);
+arrayUniqueBy(1);
 // @ts-expect-error
-numarrayUniqueBy({});
+arrayUniqueBy({});
 // @ts-expect-error
-numarrayUniqueBy(true);
+arrayUniqueBy(true);
