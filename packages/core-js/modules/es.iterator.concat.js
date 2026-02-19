@@ -21,7 +21,7 @@ var IteratorProxy = createIteratorProxy(function () {
       }
       var entry = iterables[iterableIndex];
       this.iterables[iterableIndex] = null;
-      iterator = this.iterator = call(entry.method, entry.iterable);
+      iterator = this.iterator = anObject(call(entry.method, entry.iterable));
       this.next = iterator.next;
     }
     var result = anObject(call(this.next, iterator));
