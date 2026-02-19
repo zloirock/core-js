@@ -53,5 +53,14 @@ QUnit.test('AsyncIterator#some', assert => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error even if return() throws');
+  }).then(() => {
+    return some.call(
+      createIterator([1, 2, 3], { return() { return 42; } }),
+      it => it === 1,
+    );
+  }).then(() => {
+    assert.avoid();
+  }, error => {
+    assert.true(error instanceof TypeError, 'rejects when return() yields non-object on normal close');
   });
 });

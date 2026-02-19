@@ -9,7 +9,12 @@ module.exports = function (iterator, method, argument, reject) {
     var returnMethod = getMethod(iterator, 'return');
     if (returnMethod) {
       return getBuiltIn('Promise').resolve(call(returnMethod, iterator)).then(function (result) {
-        if (method !== reject) anObject(result);
+        try {
+          if (method !== reject) anObject(result);
+        } catch (error3) {
+          reject(error3);
+          return;
+        }
         method(argument);
       }, function (error) {
         method === reject ? method(argument) : reject(error);
