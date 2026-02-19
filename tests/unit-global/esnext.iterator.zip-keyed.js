@@ -98,4 +98,7 @@ QUnit.test('Iterator.zipKeyed', assert => {
       nullProto({ a: 'A', b: 7, c: 'C' }),
     ]);
   }
+
+  assert.throws(() => zipKeyed({ a: [1, 2], b: 'hello' }), TypeError, 'rejects string iterables');
+  assert.throws(() => zipKeyed({ a: [1, 2], b: 42 }), TypeError, 'rejects number iterables');
 });

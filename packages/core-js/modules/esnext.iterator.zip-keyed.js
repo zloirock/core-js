@@ -39,7 +39,7 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       value = iterables[key];
       if (value !== undefined) {
         push(keys, key);
-        push(iters, getIteratorFlattenable(value, true));
+        push(iters, getIteratorFlattenable(value, false));
       }
     } catch (error) {
       return iteratorCloseAll(iters, THROW, error);
