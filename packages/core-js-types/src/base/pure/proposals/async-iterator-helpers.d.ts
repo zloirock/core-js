@@ -38,7 +38,7 @@ declare namespace CoreJS {
      * @returns A new `AsyncIterator`
      */
     filter<S extends T>(predicate: (value: T, index: number) => value is S): CoreJSAsyncIteratorObject<S>;
-    filter(predicate: (value: T, index: number) => boolean): CoreJSAsyncIteratorObject<T>;
+    filter(predicate: (value: T, index: number) => unknown): CoreJSAsyncIteratorObject<T>;
 
     /**
      * Finds the first element in the iterator that satisfies the `predicate` function.
@@ -46,7 +46,7 @@ declare namespace CoreJS {
      * @returns A `Promise` that resolves to the found element, or `undefined` if no element satisfies the `predicate`
      */
     find<S extends T>(predicate: (value: T, index: number) => value is S): CoreJSPromise<S | undefined>;
-    find(predicate: (value: T, index: number) => boolean): CoreJSPromise<T | undefined>;
+    find(predicate: (value: T, index: number) => unknown): CoreJSPromise<T | undefined>;
 
     /**
      * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator and flattening the result.
