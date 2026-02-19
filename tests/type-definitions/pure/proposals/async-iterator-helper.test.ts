@@ -64,6 +64,20 @@ assertCoreJSAsyncIteratorLike<number>(ait5);
 const ait6 = toAsync(itn);
 assertCoreJSAsyncIteratorLike<number>(ait6);
 
+const filterWithNull = filter(aiton, (v: number) => v > 0 ? v : null);
+assertCoreJSAsyncIteratorLike<number>(filterWithNull);
+const filterWithString = filter(aiton, (v: number) => v > 0 ? 'yes' : '');
+assertCoreJSAsyncIteratorLike<number>(filterWithString);
+const filterWithNumber = filter(aiton, (v: number) => v);
+assertCoreJSAsyncIteratorLike<number>(filterWithNumber);
+
+const findWithNull = find(aiton, (v: number) => v > 0 ? v : null);
+assertCoreJSPromiseLike<number | undefined>(findWithNull);
+const findWithString = find(aiton, (v: number) => v > 0 ? 'yes' : '');
+assertCoreJSPromiseLike<number | undefined>(findWithString);
+const findWithNumber = find(aiton, (v: number) => v);
+assertCoreJSPromiseLike<number | undefined>(findWithNumber);
+
 toAsync(is);
 
 // @ts-expect-error
