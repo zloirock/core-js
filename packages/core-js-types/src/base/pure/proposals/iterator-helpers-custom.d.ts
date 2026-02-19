@@ -9,7 +9,7 @@
 // License: https://github.com/microsoft/TypeScript/blob/v5.9.3/LICENSE.txt
 
 declare namespace CoreJS {
-  export type IteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U>) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
+  export type IteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
 
   export type IteratorMap<T, U> = (callback: (value: T, index: number) => U) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
 
