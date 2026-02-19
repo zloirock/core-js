@@ -1,6 +1,6 @@
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
-import parserJSONC from 'jsonc-eslint-parser';
+import * as parserJSONC from 'jsonc-eslint-parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
 import pluginASCII from 'eslint-plugin-ascii';
 import pluginDepend from 'eslint-plugin-depend';
