@@ -25,7 +25,7 @@ declare namespace CoreJS {
   interface ZipOptions {
     mode?: 'shortest' | 'longest' | 'strict';
 
-    padding?: Iterable<unknown>;
+    padding?: Iterable<unknown, unknown, undefined>;
   }
 
   interface IteratorRangeOptions<T> {
@@ -164,7 +164,7 @@ declare namespace CoreJS {
      * Returns its input if the input already inherits from the built-in Iterator class.
      * @param value - An iterator or iterable object to convert a native iterator.
      */
-    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T>): CoreJSIteratorObject<T, undefined, unknown>;
+    from<T>(value: Iterator<T, unknown, undefined> | Iterable<T, unknown, undefined>): CoreJSIteratorObject<T, undefined, unknown>;
 
     /**
      * Takes an iterable of iterables and produces an iterable of arrays where position corresponds
@@ -175,7 +175,7 @@ declare namespace CoreJS {
      *  - padding: an object specifying padding values for each key when mode is 'longest'.
      * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
      */
-    zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): CoreJSIteratorObject<T[], undefined, unknown>;
+    zip<T>(iterables: Iterable<Iterable<T, unknown, undefined>>, options?: ZipOptions): CoreJSIteratorObject<T[], undefined, unknown>;
 
     /**
      * takes an object whose values are iterables and produces an iterable of objects where keys.
@@ -186,7 +186,7 @@ declare namespace CoreJS {
      *  - padding: an object specifying padding values for each key when mode is 'longest'.
      * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
      */
-    zipKeyed<T extends { [K in PropertyKey]: Iterable<any> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
+    zipKeyed<T extends { [K in PropertyKey]: Iterable<any, unknown, undefined> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
 
     /**
      * Returns an iterator that generates a sequence of numbers within a range.
@@ -215,7 +215,7 @@ declare namespace CoreJS {
      * @param iterators - The iterables to concatenate.
      * @returns An iterator yielding values from each input iterable in sequence.
      */
-    concat<T>(...iterators: Iterable<T>[]): CoreJSIteratorObject<T, undefined, unknown>;
+    concat<T>(...iterators: Iterable<T, unknown, undefined>[]): CoreJSIteratorObject<T, undefined, unknown>;
   }
 
   var CoreJSIterator: CoreJSIteratorConstructor;
