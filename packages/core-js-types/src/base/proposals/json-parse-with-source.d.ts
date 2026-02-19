@@ -29,7 +29,7 @@ interface JSON {  // @type-options: no-constructor
    * containing the source text and position.
    * @returns Parsed JavaScript value.
    */
-  parse<T = any>(text: string, reviver?: (key: string, value: any, context: CoreJSReviverContext) => any): T;
+  parse(text: string, reviver?: (key: string, value: any, context: CoreJSReviverContext) => any): any;
 
   /**
    * Creates a RawJSON object from a JSON string.
