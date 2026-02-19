@@ -53,7 +53,7 @@ declare namespace CoreJS {
      * @param mapper - A function that transforms each element of the iterator
      * @returns A new `AsyncIterator`
      */
-    flatMap<U>(mapper: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined> | CoreJSAsyncIterator<U> | CoreJSAsyncIterable<U>): CoreJSAsyncIteratorObject<any>;
+    flatMap<U>(mapper: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined> | CoreJSAsyncIterator<U> | CoreJSAsyncIterable<U>): CoreJSAsyncIteratorObject<U, undefined, unknown>;
 
     /**
      * Executes a provided function once for each element in the iterator.
