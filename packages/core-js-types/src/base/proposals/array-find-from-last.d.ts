@@ -39,8 +39,8 @@ interface ReadonlyArray<T> { // @type-options: no-export
    * @param thisArg - If provided, it will be used as this value for each invocation of
    * predicate. If it is not provided, undefined is used instead.
    */
-  findLast<S extends T>(predicate: (value: T, index: number, array: T[]) => value is S, thisArg?: any): S | undefined;
-  findLast(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T | undefined;
+  findLast<S extends T>(predicate: (value: T, index: number, array: readonly T[]) => value is S, thisArg?: any): S | undefined;
+  findLast(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T | undefined;
 
   /**
    * Returns the index of the last element in the array where predicate is true, and -1
@@ -51,7 +51,7 @@ interface ReadonlyArray<T> { // @type-options: no-export
    * @param thisArg - If provided, it will be used as this value for each invocation of
    * predicate. If it is not provided, undefined is used instead.
    */
-  findLastIndex(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): number;
+  findLastIndex(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): number;
 }
 
 interface Int8Array { // @type-options: no-export
