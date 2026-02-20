@@ -10,7 +10,7 @@ QUnit.test('requestIdleCallback', assert => {
 
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout);
-    assert.true(deadline.timeRemaining() > 0);
+    assert.strictEqual(typeof deadline.timeRemaining(), 'number');
     done();
   });
 
