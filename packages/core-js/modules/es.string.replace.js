@@ -87,8 +87,6 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
         if (res.done) return res.value;
       }
 
-      console.log("Custom logic");
-
       var functionalReplace = isCallable(replaceValue);
       if (!functionalReplace) replaceValue = toString(replaceValue);
 
@@ -104,7 +102,6 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
       var result;
       while (true) {
         result = regExpExec(rx, S);
-        console.log(rx, S, result);
         if (result === null) break;
 
         push(results, result);
