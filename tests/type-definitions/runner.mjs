@@ -55,11 +55,11 @@ const LIBS = [
 ];
 
 const TARGET_RULES = {
-  es6: ['**/*es2018*test.ts'],
+  es6: '**/*es2018*test.ts',
 };
 
 const LIB_RULES = {
-  dom: ['**/*dom*test.ts'],
+  dom: '**/*dom*test.ts',
 };
 
 let tested = 0;
