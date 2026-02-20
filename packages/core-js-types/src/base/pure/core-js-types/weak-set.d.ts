@@ -5,6 +5,7 @@ declare namespace CoreJS {
     readonly prototype: CoreJSWeakSet<WeakKey>;
 
     new<T extends WeakKey = WeakKey>(values?: readonly T[] | null): CoreJSWeakSet<T>;
+    new<T extends WeakKey>(iterable: Iterable<T>): CoreJSWeakSet<T>;
   }
 
   var CoreJSWeakSet: CoreJSWeakSetConstructor;
