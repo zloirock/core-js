@@ -24,6 +24,11 @@ core-js(-pure)/stable|actual|full|web/request-idle-callback
 core-js(-pure)/stable|actual|full|web/cancel-idle-callback
 ```
 
+Moments in regards to usage of both functions together:
+- Some browsers (like Safari's Technical Preview) has ``requestIdleCallback`` but not ``cancelIdleCallback``.  If either function is missing and the global version is used, importing either ``request-idle-callback`` or ``cancel-idle-callback`` will polyfill both functions.
+- In the pure version, native functions are only used if the browser has both ``requestIdleCallback`` and ``cancelIdleCallback``; otherwise, the entry points both expose customly-polyfilled versions.
+- Polyfilled versions of the functions cannot be used to cancel an idle callback scheduled through the browser's native interface; likewise, polyfilled versions cannot be used to schedule a callback that can be cancelled through native functions.
+
 ## Examples
 ```js
 requestIdleCallback(
