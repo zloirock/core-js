@@ -9,7 +9,7 @@ interface MapConstructor {
    * @param thisArg - Value to use as this when executing mapFn.
    * @returns A new `Map` instance.
    */
-  from<K, V, VOut = V>(source: Iterable<[K, V]>, mapFn?: (value: V, key: K) => VOut, thisArg?: any): Map<K, VOut>;
+  from<K, V, KOut = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): Map<KOut, VOut>;
 
   /**
    * Creates a new `Map` instance from a variable number of arguments,
@@ -52,7 +52,7 @@ interface WeakMapConstructor {
    * @param thisArg - Value to use as this when executing mapFn.
    * @returns A new `WeakMap` instance.
    */
-  from<K extends object, V, VOut = V>(source: Iterable<[K, V]>, mapFn?: (value: V, key: K) => VOut, thisArg?: any): WeakMap<K, VOut>;
+  from<K extends object, V, KOut extends object = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): WeakMap<KOut, VOut>;
 
   /**
    * Creates a new `WeakMap` instance from a variable number of arguments,
