@@ -1,5 +1,6 @@
 /// <reference types="./explicit-resource-management" />
 /// <reference types="../core-js-types/promise" />
+/// <reference types="../core-js-types/promise-like" />
 /// <reference types="../core-js-types/iterator-object" />
 
 // Motivation: Has dependencies on internal types
@@ -52,7 +53,7 @@ declare namespace CoreJS {
 
   interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
     next(...[value]: [] | [TNext]): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
-    return?(value?: TReturn | CoreJSPromiseLike<TReturn>): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
+    return?(value?: TReturn | CoreJS.CoreJSPromiseLike<TReturn>): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
     throw?(e?: any): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
   }
 
