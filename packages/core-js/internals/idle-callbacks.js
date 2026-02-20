@@ -1,8 +1,9 @@
-/* eslint no-underscore-dangle: 0 -- internal vars use __ for private state */
+/* eslint no-underscore-dangle: 0 -- internal vars use sharedStore.__ for private state */
 'use strict';
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
 var MapHelpers = require('./map-helpers');
+var sharedStore = require('./shared-store');
 
 var $Date = globalThis.Date;
 var $Map = MapHelpers.Map;
@@ -35,11 +36,13 @@ var indexOf = function (arr, value) {
 var get = MapHelpers.get;
 var mpDelete = MapHelpers.remove;
 
-var __idleRequestCallbacks = [];
-var __runnableIdleCallbacks = [];
-var __idleCallbackId = 0;
-var __idleCallbackMap = new $Map();
-var __idleRafScheduled = false;
+if (sharedStore.idleCallbackPolyfilled === undefined) {
+  sharedStore.idleCallbackPolyfilled = true;
+  sharedStore.__idleRequestCallbacks = [];
+  sharedStore.__runnableIdleCallbacks = [];
+  sharedStore.__idleCallbackId = 0;
+  sharedStore.__idleCallbackMap = new $Map();
+  sharedStore.__idleRafScheduled = false;
 
 function IdleDeadline(deadlineTime, didTimeout) {
   this.__deadlineTime = deadlineTime;
@@ -54,8 +57,8 @@ IdleDeadline.prototype.timeRemaining = function () {
 };
 
 function scheduleNextIdle() {
-  if (__idleRafScheduled) return;
-  __idleRafScheduled = true;
+  if (sharedStore.__idleRafScheduled) return;
+  sharedStore.__idleRafScheduled = true;
 
   rAF(function () {
     $setTimeout(startIdlePeriod, 0);
@@ -65,23 +68,23 @@ function scheduleNextIdle() {
 // Start an idle period
 function startIdlePeriod() {
   // Move pending to runnable
-  if (__idleRequestCallbacks.length) {
-    $pushApply(__runnableIdleCallbacks, __idleRequestCallbacks);
-    __idleRequestCallbacks.length = 0;
+  if (sharedStore.__idleRequestCallbacks.length) {
+    $pushApply(sharedStore.__runnableIdleCallbacks, sharedStore.__idleRequestCallbacks);
+    sharedStore.__idleRequestCallbacks.length = 0;
   }
-  __idleRafScheduled = false;
+  sharedStore.__idleRafScheduled = false;
   // If no runnable callbacks or already scheduled, exit
-  if (!__runnableIdleCallbacks.length) return;
+  if (!sharedStore.__runnableIdleCallbacks.length) return;
   // 8 does not drop framerate in most places; there's no way
   // to actually get how much time we have before the browser
   // starts to paint the next frame
   var deadlineTime = now() + 8;
-  while (__runnableIdleCallbacks.length) {
-    var handle = shift(__runnableIdleCallbacks);
-    var cb = get(__idleCallbackMap, handle);
+  while (sharedStore.__runnableIdleCallbacks.length) {
+    var handle = shift(sharedStore.__runnableIdleCallbacks);
+    var cb = get(sharedStore.__idleCallbackMap, handle);
     if (!cb) continue; // cancelled
     // Cancel this, so we no longer call it on timeout
-    mpDelete(__idleCallbackMap, handle);
+    mpDelete(sharedStore.__idleCallbackMap, handle);
 
     var deadline = new IdleDeadline(deadlineTime, false);
     try {
@@ -93,7 +96,7 @@ function startIdlePeriod() {
   }
 
   // Reschedule if any callbacks remain
-  if (__runnableIdleCallbacks.length) {
+  if (sharedStore.__runnableIdleCallbacks.length) {
     scheduleNextIdle();
   }
 }
@@ -101,19 +104,19 @@ function startIdlePeriod() {
 // Exported methods
 exports.request = function requestIdleCallback(callback) {
   var options = arguments[1] || null;
-  var handle = ++__idleCallbackId;
-  __idleCallbackMap.set(handle, callback);
-  __idleRequestCallbacks.push(handle);
+  var handle = ++sharedStore.__idleCallbackId;
+  sharedStore.__idleCallbackMap.set(handle, callback);
+  sharedStore.__idleRequestCallbacks.push(handle);
   if (options && options.timeout && options.timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // options.timeout, however maintainng such a queue would be very tedious
     $setTimeout(function timeoutCallback() {
-      var cb = get(__idleCallbackMap, handle);
+      var cb = get(sharedStore.__idleCallbackMap, handle);
       if (!cb) return;
-      var i = indexOf(__idleRequestCallbacks, handle);
-      if (i > -1) splice(__idleRequestCallbacks, i, 1);
-      i = indexOf(__runnableIdleCallbacks, handle);
-      if (i > -1) splice(__runnableIdleCallbacks, i, 1);
+      var i = indexOf(sharedStore.__idleRequestCallbacks, handle);
+      if (i > -1) splice(sharedStore.__idleRequestCallbacks, i, 1);
+      i = indexOf(sharedStore.__runnableIdleCallbacks, handle);
+      if (i > -1) splice(sharedStore.__runnableIdleCallbacks, i, 1);
       var deadline = new IdleDeadline(now(), true);
       try {
         cb(deadline);
@@ -129,9 +132,9 @@ exports.request = function requestIdleCallback(callback) {
   return handle;
 };
 exports.cancel = function cancelIdleCallback(handle) {
-  mpDelete(__idleCallbackMap, handle);
-  var i = indexOf(__idleRequestCallbacks, handle);
-  if (i > -1) splice(__idleRequestCallbacks, i, 1);
-  i = indexOf(__runnableIdleCallbacks, handle);
-  if (i > -1) splice(__runnableIdleCallbacks, i, 1);
+  mpDelete(sharedStore.__idleCallbackMap, handle);
+  var i = indexOf(sharedStore.__idleRequestCallbacks, handle);
+  if (i > -1) splice(sharedStore.__idleRequestCallbacks, i, 1);
+  i = indexOf(sharedStore.__runnableIdleCallbacks, handle);
+  if (i > -1) splice(sharedStore.__runnableIdleCallbacks, i, 1);
 };
