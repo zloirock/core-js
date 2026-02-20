@@ -22,6 +22,20 @@ QUnit.test('Promise.allKeyed, resolved', assert => {
   });
 });
 
+QUnit.test('Promise.allKeyed, resolved with primitives', assert => {
+  return Promise.allKeyed({
+    a: 1,
+    b: Promise.resolve(2),
+    c: 3,
+  }).then(it => {
+    assert.deepEqual(it, {
+      a: 1,
+      b: 2,
+      c: 3,
+    }, 'resolved with a correct value');
+  });
+});
+
 QUnit.test('Promise.allKeyed, resolved with rejection', assert => {
   return Promise.allKeyed({
     a: Promise.resolve(1),
