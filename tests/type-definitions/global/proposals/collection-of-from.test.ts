@@ -10,11 +10,11 @@ import weakMapOf from 'core-js/full/weak-map/of';
 
 const arrEntries: Array<[string, number]> = [['a', 1], ['b', 2]];
 
-const resNS: Map<string, string> = mapFrom(arrEntries, v => String(v));
+const resNS: Map<string, string> = mapFrom(arrEntries, ([k, v]) => [k, String(v)]);
 const resNS2: Map<string, number> = mapOf(['a', 1], ['b', 2]);
 
-const res: Map<string, string> = Map.from(arrEntries, v => String(v));
-const res2: Map<string, boolean> = Map.from(arrEntries, v => v > 1);
+const res: Map<string, string> = Map.from(arrEntries, ([k, v]) => [k, String(v)]);
+const res2: Map<string, boolean> = Map.from(arrEntries, ([k, v]) => [k, v > 1]);
 const res3: Map<string, number> = Map.from(arrEntries);
 const res4: Map<string, number> = Map.of(['a', 1], ['b', 2]);
 
@@ -43,7 +43,7 @@ const resNS7: WeakMap<object, string> = weakMapFrom(wmArr);
 const resNS8: WeakMap<object, number> = weakMapOf([ws1, 1], [ws2, 2]);
 
 const res12: WeakMap<object, string> = WeakMap.from(wmArr);
-const res13: WeakMap<object, number> = WeakMap.from(wmArr, v => Number(v.length));
+const res13: WeakMap<object, number> = WeakMap.from(wmArr, ([k, v]) => [k, Number(v.length)]);
 const res14: WeakMap<object, string> = WeakMap.of([ws1, 'a'], [ws2, 'b']);
 
 // @ts-expect-error
