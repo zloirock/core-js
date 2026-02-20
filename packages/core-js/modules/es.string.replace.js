@@ -91,7 +91,6 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
       if (!functionalReplace) replaceValue = toString(replaceValue);
 
       var global = !!~stringIndexOf(flags, 'g');
-      var sticky = !!~stringIndexOf(flags, 'y');
       var fullUnicode;
       if (global) {
         fullUnicode = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
@@ -105,7 +104,7 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
         if (result === null) break;
 
         push(results, result);
-        if (!global || sticky) break;
+        if (!global) break;
 
         var matchStr = toString(result[0]);
         if (matchStr === '') rx.lastIndex = advanceStringIndex(S, toLength(rx.lastIndex), fullUnicode);
@@ -134,8 +133,6 @@ fixRegExpWellKnownSymbolLogic('replace', function (_, nativeReplace, maybeCallNa
         } else {
           replacement = getSubstitution(matched, S, position, captures, namedCaptures, replaceValue);
         }
-        var originalSubstr = stringSlice(S, position, position + matched.length);
-        if (matched !== originalSubstr) continue;
         if (position >= nextSourcePosition) {
           accumulatedResult += stringSlice(S, nextSourcePosition, position) + replacement;
           nextSourcePosition = position + matched.length;
