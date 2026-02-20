@@ -10,9 +10,9 @@ import { assertCoreJSMapLike, assertCoreJSSetLike, assertCoreJSWeakMapLike, asse
 
 const rm = mapFrom([[1, 'a'], [2, 'b']] as [number, string][]);
 assertCoreJSMapLike<number, string>(rm);
-const rm2 = mapFrom([[1, 10], [2, 20]] as [number, number][], (v: number, k: number) => v + k);
+const rm2 = mapFrom([[1, 10], [2, 20]] as [number, number][], ([k, v]: [number, number]) => [k, v + k] as [number, number]);
 assertCoreJSMapLike<number, number>(rm2);
-mapFrom([[1, 10], [2, 20]] as [number, number][], function (this: { n: number }, v: number) { return v + this.n; }, { n: 2 });
+mapFrom([[1, 10], [2, 20]] as [number, number][], function (this: { n: number }, [k, v]: [number, number]) { return [k, v + this.n] as [number, number]; }, { n: 2 });
 // @ts-expect-error
 mapFrom([['a', 1], ['b', 2]], (v: string, k: number) => v);
 // @ts-expect-error
@@ -49,9 +49,9 @@ setOf({ foo: 'bar' }, 2);
 
 const rwm1 = weakMapFrom([[{ a: 1 }, 'x']] as [{ a: number }, string][]);
 assertCoreJSWeakMapLike<{ a: number }, string>(rwm1);
-const rwm2 = weakMapFrom([[{}, 1], [{}, 2]] as [object, number][], (v, k) => v.toString());
+const rwm2 = weakMapFrom([[{}, 1], [{}, 2]] as [object, number][], ([k, v]) => [k, v.toString()] as [object, string]);
 assertCoreJSWeakMapLike<object, string>(rwm2);
-weakMapFrom([[{}, 1], [{}, 2]] as [object, number][], function (this: { s: string }, v: number) { return this.s + v; }, { s: '-' });
+weakMapFrom([[{}, 1], [{}, 2]] as [object, number][], function (this: { s: string }, [k, v]: [object, number]) { return [k, this.s + v] as [object, string]; }, { s: '-' });
 // @ts-expect-error
 weakMapFrom([[1, 2], [2, 3]]);
 // @ts-expect-error

@@ -17,7 +17,7 @@ declare namespace CoreJS {
      * @param thisArg - Value to use as this when executing mapFn.
      * @returns A new `Map` instance.
      */
-    from<K, V, VOut = V>(source: Iterable<[K, V]>, mapFn?: (value: V, key: K) => VOut, thisArg?: any): CoreJS.CoreJSMap<K, VOut>;
+    from<K, V, KOut = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): CoreJS.CoreJSMap<KOut, VOut>;
 
     /**
      * Creates a new `Map` instance from a variable number of arguments,
@@ -60,13 +60,13 @@ declare namespace CoreJS {
      * @param thisArg - Value to use as this when executing mapFn.
      * @returns A new `WeakMap` instance.
      */
-    from<K extends object, V, VOut = V>(source: Iterable<[K, V]>, mapFn?: (value: V, key: K) => VOut, thisArg?: any): CoreJS.CoreJSWeakMap<K, VOut>;
+    from<K extends object, V, KOut extends object = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): CoreJS.CoreJSWeakMap<KOut, VOut>;
 
     /**
      * Creates a new `WeakMap` instance from a variable number of arguments,
      * where each pair of arguments is interpreted as a key and a value.
      * @param items - An even number of arguments representing key-value pairs.
-     * @returns A new `Weak` instance.
+     * @returns A new `WeakMap` instance.
      */
     of<K extends object, V>(...items: [K, V][]): CoreJS.CoreJSWeakMap<K, V>;
   }
