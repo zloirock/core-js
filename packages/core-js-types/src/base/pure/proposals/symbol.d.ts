@@ -58,13 +58,13 @@ declare namespace CoreJS {
      * Determines whether the given value is a registered symbol.
      * @param value - The value to be checked.
      */
-    isRegisteredSymbol(value: any): boolean;
+    isRegisteredSymbol(value: unknown): value is symbol;
 
     /**
      * Determines whether the given value is a well-known symbol.
      * @param value - The value to be checked.
      */
-    isWellKnownSymbol(value: any): boolean;
+    isWellKnownSymbol(value: unknown): value is symbol;
 
     /**
      * A method that returns the default async iterator for an object. Called by the semantics of
