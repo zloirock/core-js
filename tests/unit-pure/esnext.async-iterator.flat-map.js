@@ -87,3 +87,43 @@ QUnit.test('AsyncIterator#flatMap, inner iterator async close on return', assert
     async();
   });
 });
+
+QUnit.test('AsyncIterator#flatMap, return() validates inner return result', assert => {
+  assert.expect(1);
+  const async = assert.async();
+
+  const outer = AsyncIterator.from({
+    next() {
+      return Promise.resolve({ value: [1, 2], done: false });
+    },
+    return() {
+      return Promise.resolve({ value: undefined, done: true });
+    },
+    [Symbol.asyncIterator]() { return this; },
+  });
+
+  const helper = outer.flatMap(arr => {
+    let i = 0;
+    return {
+      next() {
+        return Promise.resolve(i < arr.length
+          ? { value: arr[i++], done: false }
+          : { value: undefined, done: true });
+      },
+      return() {
+        return null;
+      },
+      [Symbol.asyncIterator]() { return this; },
+    };
+  });
+
+  helper.next().then(() => {
+    return helper.return();
+  }).then(() => {
+    assert.avoid();
+    async();
+  }, error => {
+    assert.true(error instanceof TypeError, 'TypeError when inner return() returns non-object');
+    async();
+  });
+});
