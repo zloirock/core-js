@@ -132,7 +132,6 @@ const run = assert => {
 
   assert.throws(() => ''.replace.call(Symbol('replace test'), /./, ''), 'throws on symbol context');
 
-  console.log("Replacmenet test");
   assert.same('.a'.replace(new RegExp('a', 'gy'), '.'), '.a', 'Replacement for y');
 };
 
