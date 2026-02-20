@@ -95,13 +95,6 @@ if (PATCH) {
 
     var match = call(nativeExec, sticky ? reCopy : re, strCopy);
 
-    if (sticky && match) {
-      var matchedText = charsAdded ? stringSlice(match[0], charsAdded) : match[0];
-      var originalSubstr = stringSlice(str, re.lastIndex, re.lastIndex + matchedText.length);
-      if (originalSubstr !== matchedText) {
-        match = null;
-      }
-    }
     if (sticky) {
       if (match) {
         match.input = str;
