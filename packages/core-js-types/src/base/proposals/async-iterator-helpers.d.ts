@@ -56,7 +56,7 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
    * @param callbackFn - A function that is called for each element of the iterator
    * @returns A `Promise` that resolves when all elements have been processed
    */
-  forEach(callbackFn: (value: T, index: number) => void): Promise<void>;
+  forEach(callbackFn: (value: T, index: number) => void | PromiseLike<void>): Promise<void>;
 
   /**
    * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator.
