@@ -22,6 +22,7 @@ interface IteratorConstructor { // @type-options: no-extends
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
    */
+  zip<T extends readonly Iterable<unknown>[]>(iterables: T, options?: ZipOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never }, undefined, unknown>; // @type-options: prefix-return-type
   zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): IteratorObject<T[], undefined, unknown>; // @type-options: prefix-return-type
 
   /**
