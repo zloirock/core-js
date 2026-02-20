@@ -66,6 +66,8 @@ if (DESCRIPTORS) {
 
     assert.same(re.exec(str), null, '#15');
     assert.same(re.lastIndex, 0, '#16');
+
+    assert.strictEqual('.a'.replace(/a/gy, '.'), '.a', "GitHub #810");
   });
 
   QUnit.test('RegExp#exec sticky anchored', assert => {
