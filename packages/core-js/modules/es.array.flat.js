@@ -13,8 +13,9 @@ $({ target: 'Array', proto: true }, {
     var depthArg = arguments.length ? arguments[0] : undefined;
     var O = toObject(this);
     var sourceLen = lengthOfArrayLike(O);
+    var depthNum = depthArg === undefined ? 1 : toIntegerOrInfinity(depthArg);
     var A = arraySpeciesCreate(O, 0);
-    flattenIntoArray(A, O, O, sourceLen, 0, depthArg === undefined ? 1 : toIntegerOrInfinity(depthArg));
+    flattenIntoArray(A, O, O, sourceLen, 0, depthNum);
     return A;
   }
 });
