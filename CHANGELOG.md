@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
 - Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
+- Fix `String.replace` not supporting sticky flag properly, [#810](https://github.com/zloirock/core-js/issues/810), [#1514](https://zloirock/core-js/issues/1514)
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
   - Allow `null` as `optionOrStep`
