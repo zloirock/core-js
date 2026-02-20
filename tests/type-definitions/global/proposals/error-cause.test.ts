@@ -1,4 +1,4 @@
-import 'core-js/full';
+import 'core-js/es';
 
 const prevError = new Error('Prev error');
 
