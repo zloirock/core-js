@@ -114,6 +114,7 @@ exports.request = function requestIdleCallback(callback) {
     $setTimeout(function timeoutCallback() {
       var cb = get(sharedStore.__idleCallbackMap, handle);
       if (!cb) return;
+      mpDelete(sharedStore.__idleCallbackMap, handle);
       var i = indexOf(sharedStore.__idleRequestCallbacks, handle);
       if (i > -1) splice(sharedStore.__idleRequestCallbacks, i, 1);
       i = indexOf(sharedStore.__runnableIdleCallbacks, handle);
