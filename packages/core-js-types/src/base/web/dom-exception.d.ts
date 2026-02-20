@@ -1,7 +1,14 @@
 type _DOMException = typeof globalThis extends { onmessage: any } ? {} : DOMException;
 interface DOMException extends Error {
+  /**
+   * @deprecated
+   *
+   * [MDN Reference](https://developer.mozilla.org/docs/Web/API/DOMException/code)
+   */
   readonly code: number;
+  /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/DOMException/message) */
   readonly message: string;
+  /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/DOMException/name) */
   readonly name: string;
   readonly INDEX_SIZE_ERR: 1;
   readonly DOMSTRING_SIZE_ERR: 2;
