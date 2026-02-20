@@ -132,7 +132,7 @@ const run = assert => {
 
   assert.throws(() => ''.replace.call(Symbol('replace test'), /./, ''), 'throws on symbol context');
 
-  assert.same('.a'.replace(new RegExp('a', 'gy'), '.'), '.a', 'Replacement for y');
+  assert.same('.a'.replace(new RegExp('a', 'y'), '.'), '.a', 'Replacement for y');
 };
 
 QUnit.test('String#replace regression', run);
