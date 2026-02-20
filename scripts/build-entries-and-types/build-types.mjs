@@ -261,12 +261,12 @@ async function buildPackageJson(breakpoints, namespaces) {
 
   const packageJson = await readJson(PACKAGE_TEMPLATE);
   packageJson.typesVersions = {};
-  packageJson.typesVersions['*'] = { '*': [`./ts${ defaultBreakpoint }/*`] };
   breakpoints.forEach(breakpoint => {
     packageJson.typesVersions[`>=${ breakpoint }`] = {
       '*': [`./ts${ breakpoint.toString().replace('.', '-') }/*`],
     };
   });
+  packageJson.typesVersions['*'] = { '*': [`./ts${ defaultBreakpoint }/*`] };
 
   packageJson.exports = {};
   Object.entries(namespaces).forEach(([namespace, options]) => {
