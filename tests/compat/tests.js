@@ -2271,9 +2271,9 @@ GLOBAL.tests = {
     return 'size' in URLSearchParams.prototype;
   }],
   'web.request-idle-callback': function () {
-    return (GLOBAL.requestIdleCallback !== undefined) && (GLOBAL.cancelIdleCallback !== undefined);
+    return (requestIdleCallback !== undefined) && (cancelIdleCallback !== undefined);
   },
   'web.cancel-idle-callback': function () {
-    return (GLOBAL.requestIdleCallback !== undefined) && (GLOBAL.cancelIdleCallback !== undefined);
+    return (requestIdleCallback !== undefined) && (cancelIdleCallback !== undefined);
   }
 };
