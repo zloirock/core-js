@@ -16,16 +16,34 @@ const res2 = promiseAllKeyed({
 });
 assertCoreJSPromiseLike<{ [sym]: number }>(res2);
 
+promiseAllKeyed({
+  a: 1,
+  b: promiseResolve('string'),
+  c: 3,
+});
+
 // @ts-expect-error
 promiseAllKeyed();
 // @ts-expect-error
-promiseAllKeyed({ a: 1, b: promiseResolve(2) });
-// @ts-expect-error
 promiseAllKeyed([promiseResolve(1), promiseResolve(2)]);
+
+promiseAllSettledKeyed({
+  a: Promise.resolve(1),
+  b: Promise.resolve('string'),
+  c: Promise.resolve(true),
+});
+
+promiseAllSettledKeyed({
+  [sym]: Promise.resolve(1),
+});
+
+promiseAllSettledKeyed({
+  a: 1,
+  b: Promise.resolve('string'),
+  c: 3,
+});
 
 // @ts-expect-error
 promiseAllSettledKeyed();
-// @ts-expect-error
-promiseAllSettledKeyed({ a: 1, b: promiseResolve(2) });
 // @ts-expect-error
 promiseAllSettledKeyed([promiseResolve(1), promiseResolve(2)]);

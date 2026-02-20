@@ -6,6 +6,20 @@ QUnit.test('Promise.allKeyed', assert => {
   assert.true(Promise.allKeyed({}) instanceof Promise, 'returns a promise');
 });
 
+QUnit.test('Promise.allKeyed, resolved with primitives', assert => {
+  return Promise.allKeyed({
+    a: 1,
+    b: Promise.resolve(2),
+    c: 3,
+  }).then(it => {
+    assert.deepEqual(it, {
+      a: 1,
+      b: 2,
+      c: 3,
+    }, 'resolved with a correct value');
+  });
+});
+
 QUnit.test('Promise.allKeyed, resolved', assert => {
   return Promise.allKeyed({
     a: Promise.resolve(1),
