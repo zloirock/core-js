@@ -9,7 +9,7 @@ interface CoreJSReviverContext { // @type-options: no-extends, no-prefix
 interface CoreJSRawJSON { // @type-options: no-extends, no-prefix
   readonly __brand: unique symbol;
 
-  rawJSON: string;
+  readonly rawJSON: string;
 }
 
 interface JSON {  // @type-options: no-constructor
