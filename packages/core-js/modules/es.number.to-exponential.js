@@ -18,6 +18,8 @@ var nativeToExponential = uncurryThis(1.1.toExponential);
 var repeat = uncurryThis($repeat);
 var stringSlice = uncurryThis(''.slice);
 
+var POW_10_308 = pow(10, 308);
+
 // Edge 17-
 var ROUNDS_PROPERLY = nativeToExponential(-6.9e-11, 4) === '-6.9000e-11'
   // IE11- && Edge 14-
@@ -58,7 +60,7 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
     if (f < 0 || f > 20) throw new $RangeError('Incorrect fraction digits');
     if (ROUNDS_PROPERLY) return nativeToExponential(x, f);
     var s = '';
-    var m, e, c, d;
+    var m, e, c, d, l, n, xScaled;
     if (x < 0) {
       s = '-';
       x = -x;
@@ -67,13 +69,20 @@ $({ target: 'Number', proto: true, forced: FORCED }, {
       e = 0;
       m = repeat('0', f + 1);
     } else {
-      // this block is based on https://gist.github.com/SheetJSDev/1100ad56b9f856c95299ed0e068eea08
       // TODO: improve accuracy with big fraction digits
-      var l = log10(x);
+      l = log10(x);
       e = floor(l);
-      var w = pow(10, e - f);
-      var n = round(x / w);
-      if (2 * x >= (2 * n + 1) * w) {
+      // compute x / pow(10, e - f) and round, avoiding underflow/overflow
+      if (f - e >= 308) {
+        // pow(10, e - f) would underflow to a subnormal or zero; split computation
+        xScaled = x * POW_10_308 * pow(10, f - e - 308);
+      } else {
+        xScaled = x / pow(10, e - f);
+      }
+      n = round(xScaled);
+      // correct tie-breaking: round half up
+      // avoids `2 * x` overflow for values near MAX_VALUE
+      if (xScaled - n >= 0.5) {
         n += 1;
       }
       if (n >= pow(10, f + 1)) {
