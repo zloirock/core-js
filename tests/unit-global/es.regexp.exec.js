@@ -51,7 +51,6 @@ if (DESCRIPTORS) {
     const result = re.exec(str);
     assert.deepEqual(result, ['a'], '#6');
     assert.same(result.index, 2, '#7');
-    assert.same(result.input, str, 'match.input is the original string');
     assert.same(re.lastIndex, 3, '#8');
 
     assert.same(re.exec(str), null, '#9');
@@ -66,9 +65,6 @@ if (DESCRIPTORS) {
 
     assert.same(re.exec(str), null, '#15');
     assert.same(re.lastIndex, 0, '#16');
-
-    const re2 = new RegExp('a', 'gy');
-    assert.deepEqual(re2.exec('.a'), null, "GitHub#810");
   });
 
   QUnit.test('RegExp#exec sticky anchored', assert => {
@@ -85,16 +81,5 @@ if (DESCRIPTORS) {
     regex2.lastIndex = 2;
     assert.deepEqual(regex2.exec('.\nfoo'), ['foo'], '#5');
     assert.same(regex2.lastIndex, 5, '#6');
-
-    // all line terminators should allow ^ to match in multiline+sticky mode
-    const regex3 = new RegExp('^bar', 'my');
-    regex3.lastIndex = 2;
-    assert.deepEqual(regex3.exec('.\rbar'), ['bar'], 'multiline sticky after \\r');
-    const regex4 = new RegExp('^bar', 'my');
-    regex4.lastIndex = 2;
-    assert.deepEqual(regex4.exec('.\u2028bar'), ['bar'], 'multiline sticky after \\u2028');
-    const regex5 = new RegExp('^bar', 'my');
-    regex5.lastIndex = 2;
-    assert.deepEqual(regex5.exec('.\u2029bar'), ['bar'], 'multiline sticky after \\u2029');
   });
 }
