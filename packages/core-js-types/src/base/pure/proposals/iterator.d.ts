@@ -28,6 +28,12 @@ declare namespace CoreJS {
     padding?: Iterable<unknown, unknown, undefined>;
   }
 
+  interface ZipKeyedOptions {
+    mode?: 'shortest' | 'longest' | 'strict';
+
+    padding?: Record<PropertyKey, unknown>;
+  }
+
   interface IteratorRangeOptions<T> {
     step?: T;
 
@@ -186,7 +192,7 @@ declare namespace CoreJS {
      *  - padding: an object specifying padding values for each key when mode is 'longest'.
      * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
      */
-    zipKeyed<T extends { [K in PropertyKey]: Iterable<any, unknown, undefined> }>(record: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
+    zipKeyed<T extends { [K in PropertyKey]: Iterable<any, unknown, undefined> }>(record: T, options?: ZipKeyedOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;
 
     /**
      * Returns an iterator that generates a sequence of numbers within a range.
