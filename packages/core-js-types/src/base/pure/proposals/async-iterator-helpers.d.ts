@@ -60,7 +60,7 @@ declare namespace CoreJS {
      * @param callbackFn - A function that is called for each element of the iterator
      * @returns A `Promise` that resolves when all elements have been processed
      */
-    forEach(callbackFn: (value: T, index: number) => void): CoreJSPromise<void>;
+    forEach(callbackFn: (value: T, index: number) => void | PromiseLike<void>): CoreJSPromise<void>;
 
     /**
      * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator.
