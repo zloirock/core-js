@@ -1,27 +1,21 @@
 import requestIdleCallback from 'core-js-pure/stable/request-idle-callback';
 import cancelIdleCallback from 'core-js-pure/stable/cancel-idle-callback';
 
-// setTimeouts have loose limits
-// as CI is very slow
 QUnit.test('requestIdleCallback', assert => {
+  // Avoid infinite waiting if a handle is not called.
+  assert.timeout(3000);
+
   assert.isFunction(requestIdleCallback);
   assert.arity(requestIdleCallback, 1);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
   const done = assert.async(3);
 
-  let called = false;
-
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout);
     assert.true(deadline.timeRemaining() > 0);
-    called = true;
-  });
-
-  setTimeout(() => {
-    assert.true(called);
     done();
-  }, 1000);
+  });
 
   assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
@@ -37,7 +31,7 @@ QUnit.test('requestIdleCallback', assert => {
   // assert a chance to run and fail.
   setTimeout(() => {
     done();
-  }, 1000);
+  }, 500);
 
   let ran = false;
   requestIdleCallback(() => {
@@ -49,4 +43,3 @@ QUnit.test('requestIdleCallback', assert => {
     done();
   });
 });
-
