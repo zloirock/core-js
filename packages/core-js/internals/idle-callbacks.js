@@ -43,6 +43,7 @@ if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.__idleCallbackId = 0;
   sharedStore.__idleCallbackMap = new $Map();
   sharedStore.__idleRafScheduled = false;
+}
 
 function IdleDeadline(deadlineTime, didTimeout) {
   this.__deadlineTime = deadlineTime;
