@@ -25,6 +25,5 @@
     "email": "zloirock@zloirock.ru",
     "url": "http://zloirock.ru"
   },
-  "types": "./index.d.ts",
   "sideEffects": false
 }
