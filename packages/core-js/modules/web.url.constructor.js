@@ -602,6 +602,7 @@ URLState.prototype = {
 
         case FILE:
           url.scheme = 'file';
+          url.host = '';
           if (chr === '/' || chr === '\\') state = FILE_SLASH;
           else if (base && base.scheme === 'file') {
             switch (chr) {
@@ -624,8 +625,8 @@ URLState.prototype = {
                 state = FRAGMENT;
                 break;
               default:
+                url.host = base.host;
                 if (!startsWithWindowsDriveLetter(join(arraySlice(codePoints, pointer), ''))) {
-                  url.host = base.host;
                   url.path = arraySlice(base.path);
                   url.shortenPath();
                 }
