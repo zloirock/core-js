@@ -1,5 +1,3 @@
-/// <reference types="./promise-like" />
-
 // For ensuring compatibility with TypeScript standard types, this code is aligned with:
 // https://github.com/microsoft/TypeScript/blob/347254895823a36a1b1b1c80471422da54ad77de/src/lib/es2021.promise.d.ts#L16
 // https://github.com/microsoft/TypeScript/blob/347254895823a36a1b1b1c80471422da54ad77de/src/lib/es2025.promise.d.ts#L4
@@ -8,7 +6,7 @@
 declare namespace CoreJS {
   interface CoreJSPromiseWithResolvers<T> {
     promise: CoreJSPromise<T>;
-    resolve: (value: T | CoreJS.CoreJSPromiseLike<T>) => void;
+    resolve: (value: T | PromiseLike<T>) => void;
     reject: (reason?: any) => void;
   }
 
@@ -23,7 +21,7 @@ declare namespace CoreJS {
      * a resolve callback used to resolve the promise with a value or the result of another promise,
      * and a reject callback used to reject the promise with a provided reason or error.
      */
-    new<T>(executor: (resolve: (value: T | CoreJS.CoreJSPromiseLike<T>) => void, reject: (reason?: any) => void) => void): CoreJSPromise<T>;
+    new<T>(executor: (resolve: (value: T | PromiseLike<T>) => void, reject: (reason?: any) => void) => void): CoreJSPromise<T>;
 
     /**
      * Creates a Promise that is resolved with an array of results when all of the provided Promises
@@ -58,7 +56,7 @@ declare namespace CoreJS {
      * @param value - A promise.
      * @returns A promise whose internal state matches the provided promise.
      */
-    resolve<T>(value: T | CoreJS.CoreJSPromiseLike<T>): CoreJSPromise<Awaited<T>>;
+    resolve<T>(value: T | PromiseLike<T>): CoreJSPromise<Awaited<T>>;
 
     // allSettled, any, try
 
@@ -73,7 +71,7 @@ declare namespace CoreJS {
      * @param values - An array or iterable of Promises.
      * @returns A new Promise.
      */
-    any<T>(values: Iterable<T | CoreJS.CoreJSPromiseLike<T>>): CoreJSPromise<Awaited<T>>;
+    any<T>(values: Iterable<T | PromiseLike<T>>): CoreJSPromise<Awaited<T>>;
 
     /**
      * Takes a callback of any kind (returns or throws, synchronously or asynchronously) and wraps its result
@@ -88,7 +86,7 @@ declare namespace CoreJS {
      * - Already rejected, if the callback synchronously throws an error.
      * - Asynchronously fulfilled or rejected, if the callback returns a promise.
      */
-    try<T, U extends unknown[]>(callbackFn: (...args: U) => T | CoreJS.CoreJSPromiseLike<T>, ...args: U): CoreJSPromise<Awaited<T>>;
+    try<T, U extends unknown[]>(callbackFn: (...args: U) => T | PromiseLike<T>, ...args: U): CoreJSPromise<Awaited<T>>;
   }
 
   var CoreJSPromise: CoreJSPromiseConstructor;
