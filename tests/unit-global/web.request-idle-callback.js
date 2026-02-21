@@ -9,8 +9,8 @@ QUnit.test('requestIdleCallback', assert => {
   const done = assert.async(3);
 
   requestIdleCallback(deadline => {
-    assert.false(deadline.didTimeout, "timed out without a timeout");
-    assert.strictEqual(typeof deadline.timeRemaining(), 'number', "not a number");
+    assert.false(deadline.didTimeout, 'timed out without a timeout');
+    assert.strictEqual(typeof deadline.timeRemaining(), 'number', 'not a number');
     done();
   });
 
@@ -20,7 +20,7 @@ QUnit.test('requestIdleCallback', assert => {
 
   const handle = requestIdleCallback(() => {
     // Shouldn't ever be called.
-    assert.true(false, "canceled callback called");
+    assert.true(false, 'canceled callback called');
   });
   cancelIdleCallback(handle);
 
@@ -36,7 +36,7 @@ QUnit.test('requestIdleCallback', assert => {
   });
   requestIdleCallback(() => {
     // Test that the operation is FIFO.
-    assert.true(ran, "not FIFO");
+    assert.true(ran, 'not FIFO');
     done();
   });
 });
