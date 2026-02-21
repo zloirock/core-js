@@ -25,6 +25,7 @@ async function checkPackage(path) {
   const { stdout } = await $({ verbose: false })`updates \
     --json \
     --file ${ path } \
+    --timeout 20000 \
     --exclude ${ Array.isArray(exclude) ? exclude.join(',') : '' } \
   `;
 
