@@ -1,3 +1,5 @@
+import { cpus } from 'node:os';
+
 const ignore = {
   'core-js-builder': [
     'mkdirp',
@@ -14,7 +16,7 @@ const pkgs = await glob([
   '@(packages|scripts|tests)/*/package.json',
 ]);
 
-await Promise.all(pkgs.map(async path => {
+async function checkPackage(path) {
   const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
   if (!dependencies && !devDependencies) return;
 
@@ -32,6 +34,19 @@ await Promise.all(pkgs.map(async path => {
   if (Object.keys(obsolete).length) {
     echo(chalk.cyan(`${ name }:`));
     console.table(obsolete);
+  }
+}
+
+let i = 0;
+
+await Promise.all(Array(cpus().length).fill().map(async () => {
+  while (i < pkgs.length) {
+    const path = pkgs[i++];
+    try {
+      await checkPackage(path);
+    } catch {
+      echo(chalk.red(`${ chalk.cyan(path) } check error`));
+    }
   }
 }));
 
