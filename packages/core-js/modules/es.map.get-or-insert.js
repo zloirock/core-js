@@ -12,7 +12,7 @@ var set = MapHelpers.set;
 // https://github.com/tc39/proposal-upsert
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   getOrInsert: function getOrInsert(key, value) {
-    if (has(aMap(this), key)) return get(this, key);
+    if (has(IS_PURE ? aMap(this) : this, key)) return get(this, key);
     set(this, key, value);
     return value;
   }

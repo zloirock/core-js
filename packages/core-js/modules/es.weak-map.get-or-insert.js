@@ -12,7 +12,7 @@ var set = WeakMapHelpers.set;
 // https://github.com/tc39/proposal-upsert
 $({ target: 'WeakMap', proto: true, real: true, forced: IS_PURE }, {
   getOrInsert: function getOrInsert(key, value) {
-    if (has(aWeakMap(this), key)) return get(this, key);
+    if (has(IS_PURE ? aWeakMap(this) : this, key)) return get(this, key);
     set(this, key, value);
     return value;
   }

@@ -6,6 +6,7 @@
   - Allow `null` as `optionOrStep`
 - Improved accuracy of `Math.{ asinh, atanh }` polyfills with big and small values
 - Improved accuracy of `Number.prototype.toExponential` polyfills with big and small values
+- Minor performance optimization of polyfills of methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert)
 - Wrap `Symbol.for` in `Symbol.prototype.description` polyfill for correct handling of empty string descriptions
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
