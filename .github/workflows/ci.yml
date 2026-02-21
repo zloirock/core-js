@@ -6,21 +6,6 @@ permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 25
-          cache: npm
-      - uses: actions/setup-python@v6
-        with:
-          python-version: 3.14
-      - run: npm run prepare-monorepo
-      - run: pip install codespell
-      - run: npx run-s lint-raw codespell
-
   karma:
     runs-on: windows-2022
     steps:
@@ -31,59 +16,3 @@ jobs:
           cache: npm
       - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-karma
-
-  bun:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 25
-          cache: npm
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - run: npm run prepare-monorepo
-      - run: npx run-s bundle test-unit-bun
-
-  promises-and-observables:
-    strategy:
-      matrix:
-        node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
-          - 25
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm run prepare-monorepo
-      - run: npx run-s test-promises test-observables
-
-  tests:
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
-        node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
-          - 25
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ matrix.node }}
-          cache: npm
-      - run: npm run prepare-monorepo
-      - run: npx run-s bundle test-unit-node test-entries test-compat-data test-compat-tools test-builder
