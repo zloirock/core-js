@@ -22,7 +22,7 @@ var FORCED = IS_PURE || !function () {
 }();
 
 // `WeakMap.prototype.getOrInsertComputed` method
-// https://github.com/tc39/proposal-upsert
+// https://tc39.es/ecma262/#sec-weakmap.prototype.getorinsertcomputed
 $({ target: 'WeakMap', proto: true, real: true, forced: FORCED }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     aWeakMap(this);

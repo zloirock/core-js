@@ -35,7 +35,7 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.concat` method
-// https://github.com/tc39/proposal-iterator-sequencing
+// https://tc39.es/ecma262/#sec-iterator.concat
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   concat: function concat() {
     var length = arguments.length;

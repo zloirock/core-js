@@ -16,7 +16,7 @@ var INCORRECT_CONSTRUCTURING = !nativeFromAsync || fails(function () {
 });
 
 // `Array.fromAsync` method
-// https://github.com/tc39/proposal-array-from-async
+// https://tc39.es/ecma262/#sec-array.fromasync
 $({ target: 'Array', stat: true, forced: INCORRECT_CONSTRUCTURING }, {
   fromAsync: fromAsync
 });

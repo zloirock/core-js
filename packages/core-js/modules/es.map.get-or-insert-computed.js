@@ -10,7 +10,7 @@ var has = MapHelpers.has;
 var set = MapHelpers.set;
 
 // `Map.prototype.getOrInsertComputed` method
-// https://github.com/tc39/proposal-upsert
+// https://tc39.es/ecma262/#sec-map.prototype.getorinsertcomputed
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
     var hasKey = has(IS_PURE ? aMap(this) : this, key);

@@ -19,7 +19,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.t
 })();
 
 // `Uint8Array.prototype.toHex` method
-// https://github.com/tc39/proposal-arraybuffer-base64
+// https://tc39.es/ecma262/#sec-uint8array.prototype.tohex
 if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   toHex: function toHex() {
     anUint8Array(this);

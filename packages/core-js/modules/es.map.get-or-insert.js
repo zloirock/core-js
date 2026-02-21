@@ -9,7 +9,7 @@ var has = MapHelpers.has;
 var set = MapHelpers.set;
 
 // `Map.prototype.getOrInsert` method
-// https://github.com/tc39/proposal-upsert
+// https://tc39.es/ecma262/#sec-map.prototype.getorinsert
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   getOrInsert: function getOrInsert(key, value) {
     if (has(IS_PURE ? aMap(this) : this, key)) return get(this, key);

@@ -20,7 +20,7 @@ function throwsOnLengthTrackingView() {
 }
 
 // `Uint8Array.prototype.setFromHex` method
-// https://github.com/tc39/proposal-arraybuffer-base64
+// https://tc39.es/ecma262/#sec-uint8array.prototype.setfromhex
 if (globalThis.Uint8Array) $({ target: 'Uint8Array', proto: true, forced: throwsOnLengthTrackingView() }, {
   setFromHex: function setFromHex(string) {
     anUint8Array(this);
