@@ -19,3 +19,6 @@ class %TypedArray% {
 ```plaintext
 core-js/proposals/array-find-from-last
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-find-from-last`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-find-from-last.d.ts)

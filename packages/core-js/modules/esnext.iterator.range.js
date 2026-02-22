@@ -1,3 +1,4 @@
+// @types: proposals/iterator-range
 'use strict';
 /* eslint-disable es/no-bigint -- safe */
 var $ = require('../internals/export');

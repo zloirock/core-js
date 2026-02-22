@@ -58,6 +58,9 @@ core-js/stable|actual|full/dom-collections/values
 core-js/stable|actual|full/dom-collections/for-each
 ```
 
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/web/iterable-dom-collections`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/web/iterable-dom-collections.d.ts)
+
 ## Examples
 ```js
 for (let { id } of document.querySelectorAll('*')) {
