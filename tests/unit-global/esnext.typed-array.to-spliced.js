@@ -7,7 +7,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSpliced', assert => {
     const { toSpliced } = TypedArray.prototype;
 
     assert.isFunction(toSpliced, `${ name }::toSpliced is function`);
-    assert.arity(toSpliced, 2, `${ name }::toSpliced arity is 1`);
+    assert.arity(toSpliced, 2, `${ name }::toSpliced arity is 2`);
     assert.name(toSpliced, 'toSpliced', `${ name }::toSpliced name is 'toSpliced'`);
     assert.looksNative(toSpliced, `${ name }::toSpliced looks native`);
 

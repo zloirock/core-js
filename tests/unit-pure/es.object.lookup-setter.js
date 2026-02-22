@@ -13,8 +13,8 @@ if (DESCRIPTORS) {
     const object = {};
     function setter() { /* empty */ }
     __defineSetter__(object, 'key', setter);
-    assert.same(__lookupSetter__(object, 'key'), setter, 'own getter');
-    assert.same(__lookupSetter__(create(object), 'key'), setter, 'proto getter');
+    assert.same(__lookupSetter__(object, 'key'), setter, 'own setter');
+    assert.same(__lookupSetter__(create(object), 'key'), setter, 'proto setter');
     assert.same(__lookupSetter__(create(object), 'foo'), undefined, 'empty proto');
     if (STRICT) {
       assert.throws(() => __lookupSetter__(null, 1, () => { /* empty */ }), TypeError, 'Throws on null as `this`');

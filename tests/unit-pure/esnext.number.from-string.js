@@ -5,7 +5,7 @@ QUnit.test('Number.fromString', assert => {
   assert.name(fromString, 'fromString');
   assert.arity(fromString, 2);
   assert.throws(() => fromString(undefined), TypeError, 'The first argument should be a string #1');
-  assert.throws(() => fromString(Object('10')), TypeError, 'The first argument should be a string #1');
+  assert.throws(() => fromString(Object('10')), TypeError, 'The first argument should be a string #2');
   assert.throws(() => fromString(''), SyntaxError, 'Empty string');
   assert.same(fromString('-10', 2), -2, 'Works with negative numbers');
   assert.throws(() => fromString('-'), SyntaxError, '-');
