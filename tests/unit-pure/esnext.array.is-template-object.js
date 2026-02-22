@@ -15,7 +15,7 @@ QUnit.test('Array.isTemplateObject', assert => {
   }()));
   assert.false(isTemplateObject([]));
   assert.false(isTemplateObject(freeze([])), 'frozen string array without .raw should return false #1');
-  assert.false(isTemplateObject(freeze(['hello']), 'frozen string array without .raw should return false #2'));
+  assert.false(isTemplateObject(freeze(['hello'])), 'frozen string array without .raw should return false #2');
 
   const template = (() => {
     try {
