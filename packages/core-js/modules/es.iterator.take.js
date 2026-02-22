@@ -30,6 +30,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.take` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.take
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   take: function take(limit) {
     anObject(this);
@@ -43,7 +44,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (takeWithoutClosingOnEarlyError) return call(takeWithoutClosingOnEarlyError, this, remaining);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

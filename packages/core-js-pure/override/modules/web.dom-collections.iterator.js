@@ -1,11 +1,14 @@
 'use strict';
-require('../modules/es.array.iterator');
-var DOMIterables = require('../internals/dom-iterables');
 var globalThis = require('../internals/global-this');
+var getIteratorMethod = require('../internals/get-iterator-method');
 var setToStringTag = require('../internals/set-to-string-tag');
+var DOMIterables = require('../internals/dom-iterables');
 var Iterators = require('../internals/iterators');
 
-for (var COLLECTION_NAME in DOMIterables) {
-  setToStringTag(globalThis[COLLECTION_NAME], COLLECTION_NAME);
-  Iterators[COLLECTION_NAME] = Iterators.Array;
-}
+// dependency: es.array.iterator
+var ArrayValues = getIteratorMethod([]);
+
+Object.keys(DOMIterables).forEach(function (collectionName) {
+  setToStringTag(globalThis[collectionName], collectionName);
+  Iterators[collectionName] = ArrayValues;
+});

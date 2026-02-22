@@ -1,9 +1,8 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import keys from 'core-js-pure/es/object/keys';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import deleteProperty from 'core-js-pure/es/reflect/delete-property';
+import keys from '@core-js/pure/es/object/keys';
+import defineProperty from '@core-js/pure/es/object/define-property';
+import deleteProperty from '@core-js/pure/es/reflect/delete-property';
 
 QUnit.test('Reflect.deleteProperty', assert => {
   assert.isFunction(deleteProperty);
@@ -14,11 +13,11 @@ QUnit.test('Reflect.deleteProperty', assert => {
   const object = { bar: 456 };
   assert.true(deleteProperty(object, 'bar'));
   assert.same(keys(object).length, 0);
-  if (DESCRIPTORS) {
-    assert.false(deleteProperty(defineProperty({}, 'foo', {
-      value: 42,
-    }), 'foo'));
-  }
+
+  assert.false(deleteProperty(defineProperty({}, 'foo', {
+    value: 42,
+  }), 'foo'));
+
   assert.throws(() => deleteProperty(42, 'foo'), TypeError, 'throws on primitive');
 
   // ToPropertyKey should be called exactly once

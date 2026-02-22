@@ -1,4 +1,5 @@
 'use strict';
+// @dependency: es.array.unscopables.flat-map
 var $ = require('../internals/export');
 var flattenIntoArray = require('../internals/flatten-into-array');
 var aCallable = require('../internals/a-callable');
@@ -17,5 +18,5 @@ $({ target: 'Array', proto: true }, {
     A = arraySpeciesCreate(O, 0);
     flattenIntoArray(A, O, O, sourceLen, 0, 1, callbackfn, arguments.length > 1 ? arguments[1] : undefined);
     return A;
-  }
+  },
 });

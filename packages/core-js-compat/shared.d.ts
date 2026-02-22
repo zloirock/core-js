@@ -1,3 +1,5 @@
+export type EntryName = string;
+
 export type ModuleName = string;
 
 export type Target =
@@ -16,17 +18,10 @@ export type Target =
   | 'node'
   | 'opera'
   | 'opera-android'
-  | 'phantom'
   | 'quest'
   | 'react-native'
   | 'rhino'
   | 'safari'
-  | 'samsung'
-  /** `quest` alias */
-  | 'oculus'
-  /** `react-native` alias */
-  | 'react'
-  /** @deprecated use `opera-android` instead */
-  | 'opera_mobile';
+  | 'samsung';
 
 export type TargetVersion = string;
