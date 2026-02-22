@@ -18,7 +18,7 @@ QUnit.test('Set#every', assert => {
   }, context);
 
   assert.true(new Set([1, 2, 3]).every(it => typeof it == 'number'));
-  assert.false(new Set(['1', '2', '3']).some(it => typeof it == 'number'));
+  assert.false(new Set(['1', '2', '3']).every(it => typeof it == 'number'));
   assert.false(new Set([1, '2', 3]).every(it => typeof it == 'number'));
   assert.true(new Set().every(it => typeof it == 'number'));
 
