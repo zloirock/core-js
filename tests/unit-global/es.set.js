@@ -65,7 +65,7 @@ QUnit.test('Set', assert => {
   new Set().add(object);
   if (DESCRIPTORS) {
     const results = [];
-    for (const key in results) keys.push(key);
+    for (const key in object) results.push(key);
     assert.arrayEqual(results, []);
     assert.arrayEqual(keys(object), []);
   }
