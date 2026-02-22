@@ -87,7 +87,6 @@ QUnit.test('Reflect.set', assert => {
       set(v) { /* empty */ },
     });
     assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
-    assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
 
     // accessor descriptor with get: undefined, set: undefined on receiver should return false
     const accessorReceiver = {};
