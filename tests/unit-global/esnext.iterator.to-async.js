@@ -1,5 +1,4 @@
 import { STRICT } from '../helpers/constants.js';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
 
 QUnit.test('Iterator#toAsync', assert => {
   const { toAsync } = Iterator.prototype;
@@ -17,7 +16,7 @@ QUnit.test('Iterator#toAsync', assert => {
 
   const closableIterator = {
     closed: false,
-    [ITERATOR]() { return this; },
+    [Symbol.iterator]() { return this; },
     next() {
       return { value: Promise.reject(42), done: false };
     },
