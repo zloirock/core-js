@@ -175,16 +175,18 @@ QUnit.module('structuredClone', () => {
         });
       });
 
-      if (typeof DataView != 'undefined') QUnit.test('DataView', assert => {
-        const array = new Int8Array([1, 2, 3, 4]);
-        const view = new DataView(array.buffer);
+      if (fromSource('({}).toString.call(new DataView(new ArrayBuffer([1, 2]))) === "[object DataView]"')){
+        QUnit.test('DataView', assert => {
+          const array = new Int8Array([1, 2, 3, 4]);
+          const view = new DataView(array.buffer);
 
-        cloneObjectTest(assert, view, (orig, clone) => {
-          assert.same(orig.byteLength, clone.byteLength);
-          assert.same(orig.byteOffset, clone.byteOffset);
-          assert.arrayEqual(new Int8Array(orig.buffer), new Int8Array(clone.buffer));
+          cloneObjectTest(assert, view, (orig, clone) => {
+            assert.same(orig.byteLength, clone.byteLength);
+            assert.same(orig.byteOffset, clone.byteOffset);
+            assert.arrayEqual(new Int8Array(orig.buffer), new Int8Array(clone.buffer));
+          });
         });
-      });
+      }
     }
 
     if ('resizable' in ArrayBuffer.prototype) {
