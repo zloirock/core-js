@@ -2402,7 +2402,7 @@ export default [
   {
     files: [
       'packages/core-js?(-pure)/**',
-      'tests/@(compat|worker)/*.js',
+      'tests/compat/*.js',
     ],
     languageOptions: {
       ecmaVersion: 3,
@@ -2412,7 +2412,7 @@ export default [
   {
     files: [
       'packages/core-js?(-pure)/**',
-      'tests/@(helpers|unit-pure|worker)/**',
+      'tests/@(helpers|unit-pure)/**',
       'tests/compat/@(browsers|hermes|node|rhino)-runner.js',
     ],
     rules: forbidModernBuiltIns,
