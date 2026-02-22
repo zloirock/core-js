@@ -1,4 +1,4 @@
-QUnit.test('JSON.rawJSON', assert => {
+QUnit.test('JSON.isRawJSON', assert => {
   const { isRawJSON, rawJSON } = JSON;
   const { freeze } = Object;
 
