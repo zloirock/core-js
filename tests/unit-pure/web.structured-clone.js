@@ -175,7 +175,7 @@ QUnit.module('structuredClone', () => {
         });
       });
 
-      if (fromSource('({}).toString.call(new DataView(new ArrayBuffer([1, 2]))) === "[object DataView]"')){
+      if (fromSource('({}).toString.call(new DataView(new ArrayBuffer([1, 2]))) === "[object DataView]"')) {
         QUnit.test('DataView', assert => {
           const array = new Int8Array([1, 2, 3, 4]);
           const view = new DataView(array.buffer);
