@@ -861,7 +861,7 @@ QUnit.test('URLSearchParams#values', assert => {
   // fails in Chrome 66-
   if (DESCRIPTORS) {
     const url = new URL('http://a.b/c?a=a&b=b&c=c&d=d');
-    iterator = url.searchParams.keys();
+    iterator = url.searchParams.values();
     result = '';
     while (!(entry = iterator.next()).done) {
       const { value } = entry;
