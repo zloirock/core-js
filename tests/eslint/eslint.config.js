@@ -1788,6 +1788,7 @@ const forbidModernBuiltIns = {
   ...forbidES2022IntlBuiltIns,
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
+  ...forbidES2026IntlBuiltIns,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
 };
