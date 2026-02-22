@@ -42,7 +42,6 @@ QUnit.test('Iterator.concat', assert => {
   assert.arrayEqual(from(iterator), [1, 2, 3, 4, 5, 6], 'proper values, mixed');
 
   iterator = concat(createIterable([1, 2, 3]));
-  iterator.next();
   assert.deepEqual(iterator.return(), { done: true, value: undefined }, '.return with no active inner iterator result');
   assert.deepEqual(iterator.next(), { done: true, value: undefined }, '.return with no active inner iterator result on closed iterator');
 
