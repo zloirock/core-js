@@ -789,9 +789,9 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(load(NS, 'map/find')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 3);
     ok(load(NS, 'map/find-key')(new Map([[1, 2], [2, 3], [3, 4]]), it => it % 2) === 2);
     ok(load(NS, 'map/from')([[1, 2], [3, 4]]) instanceof Map);
-    ok(load(NS, 'map/includes')(new Map([[1, 2]]), 2), true);
+    ok(load(NS, 'map/includes')(new Map([[1, 2]]), 2) === true);
     ok(load(NS, 'map/key-by')([], it => it) instanceof Map);
-    ok(load(NS, 'map/key-of')(new Map([[1, 2]]), 2), 1);
+    ok(load(NS, 'map/key-of')(new Map([[1, 2]]), 2) === 1);
     ok(load(NS, 'map/map-keys')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
     ok(load(NS, 'map/map-values')(new Map([[1, 2], [2, 3], [3, 4]]), it => it).size === 3);
     ok(load(NS, 'map/merge')(new Map([[1, 2], [2, 3]]), [[2, 4], [4, 5]]).size === 3);
