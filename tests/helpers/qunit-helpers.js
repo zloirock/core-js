@@ -1,13 +1,23 @@
 import { GLOBAL } from './constants.js';
+import Symbol from '@core-js/pure/es/symbol';
+import globalThis from '@core-js/pure/es/global-this';
 import assign from '@core-js/pure/es/object/assign';
 import isIterable from '@core-js/pure/es/is-iterable';
-import ITERATOR from '@core-js/pure/es/symbol/iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
 
 // Karma buffers 50 results over HTTP polling. Report completed tests so slow batches do not time out.
 const { __karma__: karma } = GLOBAL;
 if (karma) {
   QUnit.testDone(() => karma.info({}));
+}
+
+function toPropertyKey(it) {
+  return typeof it === 'symbol' ? it : String(it);
+}
+
+// for Babel / Regenerator runtime
+if (!globalThis.Symbol || toPropertyKey(globalThis.Symbol.iterator) !== toPropertyKey(Symbol.iterator)) {
+  globalThis.Symbol = Symbol;
 }
 
 const { getOwnPropertyDescriptor, getOwnPropertyNames, getPrototypeOf } = Object;
@@ -61,7 +71,7 @@ assign(assert, {
   },
   isIterable(actual, message = 'The value is iterable') {
     this.pushResult({
-      result: GLOBAL.PURE ? isIterable(actual) : typeof (actual?.[ITERATOR] ?? actual?.['@@iterator']) == 'function',
+      result: GLOBAL.PURE ? isIterable(actual) : typeof (actual?.[Symbol.iterator] ?? actual?.['@@iterator']) == 'function',
       actual,
       expected: 'The value should be iterable',
       message,
