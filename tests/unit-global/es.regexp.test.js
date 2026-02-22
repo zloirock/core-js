@@ -19,5 +19,5 @@ QUnit.test('RegExp#test delegates to exec', assert => {
   re = /a/;
   // Does not return an object, should throw
   re.exec = () => 3;
-  assert.throws(() => re.test('abc', '#4'));
+  assert.throws(() => re.test('abc'), '#4');
 });
