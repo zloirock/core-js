@@ -171,10 +171,10 @@ QUnit.module('structuredClone', () => {
         const array = new Int8Array([1, 2, 3, 4]);
         const view = new DataView(array.buffer);
 
-        cloneObjectTest(assert, array, (orig, clone) => {
+        cloneObjectTest(assert, view, (orig, clone) => {
           assert.same(orig.byteLength, clone.byteLength);
           assert.same(orig.byteOffset, clone.byteOffset);
-          assert.arrayEqual(new Int8Array(view.buffer), array);
+          assert.arrayEqual(new Int8Array(orig.buffer), new Int8Array(clone.buffer));
         });
       });
     }
