@@ -35,7 +35,7 @@ QUnit.test('Function.isConstructor', assert => {
   }
   const asyncFunc = fromSource('async function () {}');
   if (asyncFunc) assert.false(isConstructor(asyncFunc), 'asyncFunc');
-  const asyncGen = fromSource('async * function () {}');
+  const asyncGen = fromSource('async function* () {}');
   if (asyncGen) assert.false(isConstructor(asyncGen), 'asyncGen');
   const method = fromSource('({f(){}}).f');
   // Safari 9 bug
