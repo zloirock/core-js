@@ -1,7 +1,17 @@
+import Symbol from '@core-js/pure/es/symbol';
+import globalThis from '@core-js/pure/es/global-this';
 import assign from '@core-js/pure/es/object/assign';
 import isIterable from '@core-js/pure/es/is-iterable';
-import ASYNC_ITERATOR from '@core-js/pure/es/symbol/async-iterator';
 import { is, arrayFromArrayLike } from './helpers.js';
+
+function toPropertyKey(it) {
+  return typeof it === 'symbol' ? it : String(it);
+}
+
+// for Babel / Regenerator runtime
+if (!globalThis.Symbol || toPropertyKey(globalThis.Symbol.iterator) !== toPropertyKey(Symbol.iterator)) {
+  globalThis.Symbol = Symbol;
+}
 
 const { getOwnPropertyDescriptor, getOwnPropertyNames } = Object;
 const { toString, propertyIsEnumerable } = Object.prototype;
@@ -46,7 +56,7 @@ assign(assert, {
   },
   isAsyncIterable(actual, message = 'The value is async iterable') {
     this.pushResult({
-      result: typeof actual == 'object' && typeof actual[ASYNC_ITERATOR] == 'function',
+      result: typeof actual == 'object' && typeof actual[Symbol.asyncIterator] == 'function',
       actual,
       expected: 'The value should be async iterable',
       message,
