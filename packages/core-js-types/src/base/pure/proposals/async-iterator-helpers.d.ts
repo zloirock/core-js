@@ -13,7 +13,7 @@ declare namespace CoreJS {
      * @param iterable - An `AsyncIterable`, `Iterable`, or `AsyncIterator` to convert to an `AsyncIterator`
      * @returns A new `AsyncIterator` instance
      */
-    from<T>(iterable: CoreJSAsyncIterable<T> | Iterable<T> | CoreJSAsyncIteratorObject<T>): CoreJSAsyncIteratorObject<T, undefined, unknown>;
+    from<T>(iterable: CoreJSAsyncIterable<T> | Iterable<T> | CoreJSAsyncIterator<T>): CoreJSAsyncIteratorObject<T, undefined, unknown>;
   }
 
   export interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
@@ -67,7 +67,7 @@ declare namespace CoreJS {
      * @param mapper - A function that transforms each element of the iterator
      * @returns A new `AsyncIterator`
      */
-    map<U>(mapper: (value: T, index: number) => U): CoreJSAsyncIteratorObject<U, undefined, unknown>;
+    map<U>(mapper: (value: T, index: number) => U): CoreJSAsyncIteratorObject<Awaited<U>, undefined, unknown>;
 
     /**
      * Reduces the elements of the iterator to a single value using the `reducer` function.
