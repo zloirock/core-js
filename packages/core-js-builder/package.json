@@ -41,7 +41,7 @@
   "types": "index.d.ts",
   "dependencies": {
     "@core-js/compat": "4.0.0-alpha.0",
-    "@swc/core": "^1.15.11",
+    "@swc/core": "^1.15.13",
     "core-js": "4.0.0-alpha.0",
     "rolldown": "^1.0.0-rc.5"
   },
