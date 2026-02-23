@@ -180,7 +180,7 @@ QUnit.skip('Unhandled rejection tracking', assert => {
         assert.same(it.reason, 42, 'addEventListener(unhandledrejection), reason');
         GLOBAL.removeEventListener('unhandledrejection', onunhandledrejection);
       }
-      GLOBAL.addEventListener('rejectionhandled', onunhandledrejection);
+      GLOBAL.addEventListener('unhandledrejection', onunhandledrejection);
       function onrejectionhandled(it) {
         assert.same(it.promise, $promise, 'addEventListener(rejectionhandled), promise');
         assert.same(it.reason, 42, 'addEventListener(rejectionhandled), reason');
