@@ -11,5 +11,5 @@ QUnit.test('isIterable helper', assert => {
     return arguments;
   }()));
   assert.true(isIterable(Array.prototype));
-  assert.true(isIterable({}));
+  assert.false(isIterable({}));
 });
