@@ -236,9 +236,9 @@ async function buildTypesForTSVersion(tsVersion) {
 
   await buildType('es/index', { template: $path, modules: ESModules, subset: 'es', tsVersion });
   await buildType('stable/index', { template: $path, modules: StableModules, subset: 'stable', tsVersion });
-  await buildType('actual/index', { template: $path, modules: ActualModules, tsVersion });
+  await buildType('actual/index', { template: $path, modules: ActualModules, subset: 'actual', tsVersion });
   await buildType('full/index', { template: $path, modules: AllModules, tsVersion });
-  await buildType('index', { template: $path, modules: ActualModules, tsVersion });
+  await buildType('index', { template: $path, modules: ActualModules, subset: 'actual', tsVersion });
 
   await buildType('configurator', {
     customType: 'configurator-custom',
