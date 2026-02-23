@@ -148,7 +148,7 @@ QUnit.test('RegExp#@@replace basic behavior', assert => {
   assert.same(/([a-z]+)(\d+)/[Symbol.replace]('abc12 def34', (a, b, c) => c + b), '12abc def34');
 });
 
-QUnit.test('String.replace delegates to @@replace', assert => {
+QUnit.test('String#replace delegates to @@replace', assert => {
   const string = STRICT ? 'string' : Object('string');
   const number = STRICT ? 42 : Object(42);
   const object = {};

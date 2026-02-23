@@ -102,7 +102,7 @@ QUnit.test('WeakSet#has', assert => {
   assert.notThrows(() => !weakset.has(1), 'return false on primitive');
 });
 
-QUnit.test('WeakSet::@@toStringTag', assert => {
-  assert.same(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
+QUnit.test('WeakSet#@@toStringTag', assert => {
+  assert.same(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet#@@toStringTag is `WeakSet`');
   assert.same(String(new WeakSet()), '[object WeakSet]', 'correct stringification');
 });
