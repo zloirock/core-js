@@ -52,7 +52,7 @@ interface WeakMapConstructor {
    * @param thisArg - Value to use as this when executing mapFn.
    * @returns A new `WeakMap` instance.
    */
-  from<K extends object, V, KOut extends object = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): WeakMap<KOut, VOut>;
+  from<K extends WeakKey, V, KOut extends WeakKey = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): WeakMap<KOut, VOut>;
 
   /**
    * Creates a new `WeakMap` instance from a variable number of arguments,
@@ -60,7 +60,7 @@ interface WeakMapConstructor {
    * @param items - An even number of arguments representing key-value pairs.
    * @returns A new `WeakMap` instance.
    */
-  of<K extends object, V>(...items: [K, V][]): WeakMap<K, V>;
+  of<K extends WeakKey, V>(...items: [K, V][]): WeakMap<K, V>;
 }
 
 declare var WeakMap: WeakMapConstructor;
@@ -73,14 +73,14 @@ interface WeakSetConstructor {
    * @param thisArg - Value to use as `this` in `mapFn`.
    * @returns New `WeakSet` instance.
    */
-  from<T extends object, U extends object = T>(source: Iterable<T>, mapFn?: (value: T, index: number) => U, thisArg?: any): WeakSet<U>;
+  from<T extends WeakKey, U extends WeakKey = T>(source: Iterable<T>, mapFn?: (value: T, index: number) => U, thisArg?: any): WeakSet<U>;
 
   /**
    * Creates a new `WeakSet` instance from object arguments.
    * @param items - Zero or more objects to add as WeakSet elements.
    * @returns New `WeakSet` instance.
    */
-  of<T extends object>(...items: T[]): WeakSet<T>;
+  of<T extends WeakKey>(...items: T[]): WeakSet<T>;
 }
 
 declare var WeakSet: WeakSetConstructor;
