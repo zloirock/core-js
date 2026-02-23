@@ -1542,7 +1542,7 @@ const forbidES2015BuiltIns = {
   'math/prefer-math-hypot': OFF,
   // enforce the use of `Math.log10` instead of other ways
   'math/prefer-math-log10': OFF,
-  // enforce the use of `Math.log10` instead of other ways
+  // enforce the use of `Math.log2` instead of other ways
   'math/prefer-math-log2': OFF,
   // enforce the use of `Math.trunc()` instead of other truncations
   'math/prefer-math-trunc': OFF,
@@ -2486,9 +2486,9 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-@(data|tools)|eslint|entries|observables|promises-aplus|unit-@(karma|node))/**',
-      'website/runner.mjs',
-      'website/helpers.mjs',
+      'tests/@(compat-@(data|tools)|eslint|entries|observables|promises|unit-@(karma|node))/**',
+      'website/scripts/runner.mjs',
+      'website/scripts/helpers.mjs',
     ],
     rules: nodeDev,
   },
