@@ -41,7 +41,7 @@ function processLines(lines) {
       }
       if (noExport) return [];
       if (options.noExport) {
-        if (/^[^{]*$/.test(line) || /\{[^}]?\}/.test(line)) return [];
+        if (/^[^{]*$/.test(line) || /\{[^{}]*\}/.test(line)) return [];
         noExport = true;
         return [];
       }
@@ -164,7 +164,14 @@ export async function preparePureTypes(typesPath, initialPath) {
 
       const content = await readFile(typePath, 'utf8');
 
-      const result = content.includes('declare namespace') ? content : wrapInNamespace(content);
+      const adjustedContent = content.replace(
+        /(?<open>\/\/\/\s*<reference\s+types=")(?<path>[^"]+)(?<close>"\s*\/>)/g,
+        (...args) => {
+          const { open, path, close } = args.at(-1);
+          return `${ open }../${ path }${ close }`;
+        },
+      );
+      const result = content.includes('declare namespace') ? adjustedContent : wrapInNamespace(content);
 
       await outputFile(resultFilePath, result);
     }
