@@ -1,6 +1,5 @@
 /// <reference types="./explicit-resource-management" />
 /// <reference types="../core-js-types/promise" />
-/// <reference types="../core-js-types/promise-like" />
 /// <reference types="../core-js-types/iterator-object" />
 
 // Motivation: Has dependencies on internal types
