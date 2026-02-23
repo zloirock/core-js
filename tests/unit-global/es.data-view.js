@@ -29,7 +29,7 @@ QUnit.test('DataView', assert => {
     assert.same(dataview.byteLength, 0, '#byteLength, passed buffer and byteOffset with buffer length');
     // TypeError in IE + FF bug - TypeError instead of RangeError
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), RangeError, 'If offset < 0, throw a RangeError exception');
-    assert.throws(() => new DataView(new ArrayBuffer(8), 16), RangeError, 'If newByteLength < 0, throw a RangeError exception');
+    assert.throws(() => new DataView(new ArrayBuffer(8), 16), RangeError, 'If offset > bufferByteLength, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), RangeError, 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(8), 0, -1), RangeError, 'negative byteLength throws RangeError');
     // Android ~ 4.0
@@ -38,7 +38,7 @@ QUnit.test('DataView', assert => {
   } else {
     // FF bug - TypeError instead of RangeError
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
-    assert.throws(() => new DataView(new ArrayBuffer(8), 16), 'If newByteLength < 0, throw a RangeError exception');
+    assert.throws(() => new DataView(new ArrayBuffer(8), 16), 'If offset > bufferByteLength, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(24), 8, 24), 'If offset+newByteLength > bufferByteLength, throw a RangeError exception');
     assert.throws(() => new DataView(new ArrayBuffer(8), 0, -1), 'negative byteLength throws');
   }

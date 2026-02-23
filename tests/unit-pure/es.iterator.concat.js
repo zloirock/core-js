@@ -42,12 +42,12 @@ QUnit.test('Iterator.concat', assert => {
 
   iterator = concat(createIterable([1, 2, 3]));
   assert.deepEqual(iterator.return(), { done: true, value: undefined }, '.return with no active inner iterator result');
-  assert.deepEqual(iterator.next(), { done: true, value: undefined }, '.return with no active inner iterator result on closed iterator');
+  assert.deepEqual(iterator.next(), { done: true, value: undefined }, '.next on closed iterator');
 
   iterator = concat(createIterable([1, 2, 3]));
   assert.deepEqual(iterator.next(), { done: false, value: 1 }, '.next with active inner iterator result');
   assert.deepEqual(iterator.return(), { done: true, value: undefined }, '.return with active inner iterator result');
-  assert.deepEqual(iterator.next(), { done: true, value: undefined }, '.return with active inner iterator result on closed iterator');
+  assert.deepEqual(iterator.next(), { done: true, value: undefined }, '.next on closed iterator after .return with active inner iterator');
 
   let called = false;
   iterator = concat(createIterable([1, 2, 3], {
