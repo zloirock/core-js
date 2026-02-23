@@ -55,14 +55,14 @@ QUnit.test('DOMException', assert => {
 
   for (const name in errors) {
     error = new DOMException(42, name);
-    assert.true(error instanceof DOMException, `new DOMException({}, "${ name }") instanceof DOMException`);
-    assert.same(error.message, '42', `new DOMException({}, "${ name }").message`);
-    assert.same(error.name, name, `new DOMException({}, "${ name }").name`);
-    if (errors[name].m) assert.same(error.code, errors[name].c, `new DOMException({}, "${ name }").code`);
+    assert.true(error instanceof DOMException, `new DOMException(42, "${ name }") instanceof DOMException`);
+    assert.same(error.message, '42', `new DOMException(42, "${ name }").message`);
+    assert.same(error.name, name, `new DOMException(42, "${ name }").name`);
+    if (errors[name].m) assert.same(error.code, errors[name].c, `new DOMException(42, "${ name }").code`);
     // NodeJS and Deno set codes to deprecated errors
-    else if (!NODE) assert.same(error.code, 0, `new DOMException({}, "${ name }").code`);
-    assert.same(String(error), `${ name }: 42`, `String(new DOMException({}, "${ name }"))`); // Safari 10.1 bug
-    if (HAS_STACK) assert.true('stack' in error, `'stack' in new DOMException({}, "${ name }")`);
+    else if (!NODE) assert.same(error.code, 0, `new DOMException(42, "${ name }").code`);
+    assert.same(String(error), `${ name }: 42`, `String(new DOMException(42, "${ name }"))`); // Safari 10.1 bug
+    if (HAS_STACK) assert.true('stack' in error, `'stack' in new DOMException(42, "${ name }")`);
 
     assert.same(DOMException[errors[name].s], errors[name].c, `DOMException.${ errors[name].s }`);
     assert.same(DOMException.prototype[errors[name].s], errors[name].c, `DOMException.prototype.${ errors[name].s }`);

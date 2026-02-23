@@ -7,14 +7,14 @@ QUnit.test('Map#reduce', assert => {
   assert.looksNative(reduce);
   assert.nonEnumerable(Map.prototype, 'reduce');
 
-  const set = new Map([['a', 1]]);
+  const map = new Map([['a', 1]]);
   const accumulator = {};
-  set.reduce(function (memo, value, key, that) {
+  map.reduce(function (memo, value, key, that) {
     assert.same(arguments.length, 4, 'correct number of callback arguments');
     assert.same(memo, accumulator, 'correct callback accumulator');
     assert.same(value, 1, 'correct value in callback');
-    assert.same(key, 'a', 'correct index in callback');
-    assert.same(that, set, 'correct link to set in callback');
+    assert.same(key, 'a', 'correct key in callback');
+    assert.same(that, map, 'correct link to map in callback');
   }, accumulator);
 
   assert.same(new Map([
@@ -29,7 +29,7 @@ QUnit.test('Map#reduce', assert => {
   ]).reduce((memo, value, key) => {
     assert.same(memo, 1, 'correct default accumulator');
     assert.same(value, 2, 'correct start value without initial accumulator');
-    assert.same(key, 'b', 'correct start index without initial accumulator');
+    assert.same(key, 'b', 'correct start key without initial accumulator');
   });
 
   assert.same(new Map([

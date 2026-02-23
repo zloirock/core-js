@@ -689,7 +689,7 @@ const run = assert => {
     }
   }
 
-  assert.throws(() => ''.split.call(Symbol('aplit test'), /./), 'throws on symbol context');
+  assert.throws(() => ''.split.call(Symbol('split test'), /./), 'throws on symbol context');
 };
 
 QUnit.test('String#split regression', run);
