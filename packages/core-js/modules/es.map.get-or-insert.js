@@ -1,6 +1,5 @@
 'use strict';
 var $ = require('../internals/export');
-var aMap = require('../internals/a-map');
 var MapHelpers = require('../internals/map-helpers');
 var IS_PURE = require('../internals/is-pure');
 
@@ -12,7 +11,7 @@ var set = MapHelpers.set;
 // https://tc39.es/ecma262/#sec-map.prototype.getorinsert
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   getOrInsert: function getOrInsert(key, value) {
-    if (has(IS_PURE ? aMap(this) : this, key)) return get(this, key);
+    if (has(this, key)) return get(this, key);
     set(this, key, value);
     return value;
   }

@@ -1,7 +1,6 @@
 'use strict';
 var $ = require('../internals/export');
 var aCallable = require('../internals/a-callable');
-var aMap = require('../internals/a-map');
 var MapHelpers = require('../internals/map-helpers');
 var IS_PURE = require('../internals/is-pure');
 
@@ -13,7 +12,7 @@ var set = MapHelpers.set;
 // https://tc39.es/ecma262/#sec-map.prototype.getorinsertcomputed
 $({ target: 'Map', proto: true, real: true, forced: IS_PURE }, {
   getOrInsertComputed: function getOrInsertComputed(key, callbackfn) {
-    var hasKey = has(IS_PURE ? aMap(this) : this, key);
+    var hasKey = has(this, key);
     aCallable(callbackfn);
     if (hasKey) return get(this, key);
     // CanonicalizeKeyedCollectionKey
