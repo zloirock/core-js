@@ -11,6 +11,6 @@ QUnit.test('escape', assert => {
   assert.same(escape(undefined), 'undefined');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
-    assert.throws(() => unescape(Symbol('escape test')), 'throws on symbol argument');
+    assert.throws(() => escape(Symbol('escape test')), 'throws on symbol argument');
   }
 });
