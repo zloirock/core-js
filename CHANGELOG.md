@@ -86,6 +86,7 @@
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Safari 26.4
   - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
+  - Added Electron 42 compat data mapping
   - Added [Opera Android 95](https://forums.opera.com/topic/87912/opera-for-android-95) compat data mapping
   - Added Oculus Quest Browser 42 compat data mapping
 
