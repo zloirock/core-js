@@ -50,7 +50,7 @@ QUnit.test('Array#toReversed', assert => {
   assert.true(toReversed(array) instanceof Array, 'non-generic');
 
   if (STRICT) {
-    assert.throws(() => toReversed(null, () => { /* empty */ }, 1), TypeError);
-    assert.throws(() => toReversed(undefined, () => { /* empty */ }, 1), TypeError);
+    assert.throws(() => toReversed(null), TypeError);
+    assert.throws(() => toReversed(undefined), TypeError);
   }
 });
