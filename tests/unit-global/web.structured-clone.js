@@ -119,10 +119,6 @@ QUnit.module('structuredClone', () => {
       /abc/g,
       /abc/i,
       /abc/gi,
-      /abc/,
-      /abc/g,
-      /abc/i,
-      /abc/gi,
     ];
 
     const giuy = fromSource('/abc/giuy');
