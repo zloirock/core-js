@@ -274,8 +274,8 @@ interface Uint32Array { // @type-options: no-export
    * a negative value if the first argument is less than the second argument, zero if they're equal, and a positive
    * value otherwise. If omitted, the elements are sorted in ascending order.
    * ```ts
-   * const myNums = Uint32Array.from([11, 2, -22, 1]);
-   * myNums.toSorted((a, b) => a - b) // Uint32Array(4) [-22, 1, 2, 11]
+   * const myNums = Uint32Array.from([11, 2, 1]);
+   * myNums.toSorted((a, b) => a - b) // Uint32Array(3) [1, 2, 11]
    * ```
    */
   toSorted(compareFn?: (a: number, b: number) => number): Uint32Array;
