@@ -14,7 +14,7 @@ QUnit.test('Set#reduce', assert => {
     assert.same(arguments.length, 4, 'correct number of callback arguments');
     assert.same(memo, accumulator, 'correct callback accumulator');
     assert.same(value, 1, 'correct value in callback');
-    assert.same(key, 1, 'correct index in callback');
+    assert.same(key, 1, 'correct key in callback');
     assert.same(that, set, 'correct link to set in callback');
   }, accumulator);
 
@@ -23,7 +23,7 @@ QUnit.test('Set#reduce', assert => {
   new Set([1, 2]).reduce((memo, value, key) => {
     assert.same(memo, 1, 'correct default accumulator');
     assert.same(value, 2, 'correct start value without initial accumulator');
-    assert.same(key, 2, 'correct start index without initial accumulator');
+    assert.same(key, 2, 'correct start key without initial accumulator');
   });
 
   assert.same(new Set([1, 2, 3]).reduce((a, b) => a + b), 6, 'works without initial accumulator');

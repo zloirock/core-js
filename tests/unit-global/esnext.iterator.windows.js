@@ -27,7 +27,7 @@ QUnit.test('Iterator#windows', assert => {
   assert.true(result instanceof Iterator, 'returns iterator');
   assert.deepEqual(result.next(), { done: false, value: [1, 2, 3] }, '.next with active inner iterator result');
   assert.deepEqual(result.return(), { done: true, value: undefined }, '.return with active inner iterator result');
-  assert.deepEqual(result.next(), { done: true, value: undefined }, '.return with active inner iterator result on closed iterator');
+  assert.deepEqual(result.next(), { done: true, value: undefined }, '.next on closed iterator');
 
   if (STRICT) {
     assert.throws(() => windows.call('', 1), TypeError, 'iterable non-object this');

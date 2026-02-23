@@ -42,7 +42,7 @@ QUnit.test('AsyncIterator.from', assert => {
     assert.avoid();
   }, error => {
     assert.same(error, 42, 'rejection on a callback error');
-    assert.true(closableIterator.closed, 'doesn\'t close sync iterator on promise rejection');
+    assert.true(closableIterator.closed, 'closes sync iterator on promise rejection');
   });
 });
 
