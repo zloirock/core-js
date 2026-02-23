@@ -85,6 +85,7 @@ superset('core-js/actual/array-buffer', /^es\.array-buffer\./);
 superset('core-js/actual/data-view', /^es\.data-view\./);
 superset('core-js/actual/date', /^es\.date\./);
 superset('core-js/actual/dom-collections', /^web\.dom-collections\./);
+superset('core-js/actual/error', /^es\.error\./);
 superset('core-js/actual/function', /^es\.function\./);
 superset('core-js/actual/json', /^es\.json\./);
 superset('core-js/actual/map', /^es\.map/);
