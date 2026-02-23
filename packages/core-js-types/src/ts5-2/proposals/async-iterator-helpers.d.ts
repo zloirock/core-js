@@ -8,7 +8,7 @@ interface AsyncIteratorConstructor {
    * @param iterable - An `AsyncIterable`, `Iterable`, or `AsyncIterator` to convert to an `AsyncIterator`
    * @returns A new `AsyncIterator` instance
    */
-  from<T>(iterable: AsyncIterable<T> | Iterable<T> | AsyncIteratorObject<T>): AsyncIteratorObject<T>;
+  from<T>(iterable: AsyncIterable<T> | Iterable<T> | AsyncIterator<T>): AsyncIteratorObject<T>;
 }
 
 declare var AsyncIterator: AsyncIteratorConstructor;
@@ -61,7 +61,7 @@ interface AsyncIterator<T, TReturn = any, TNext = undefined> {
    * @param mapper - A function that transforms each element of the iterator
    * @returns A new `AsyncIterator`
    */
-  map(mapper: (value: T, index: number) => any): AsyncIteratorObject<T>;
+  map(mapper: (value: T, index: number) => any): AsyncIteratorObject<Awaited<T>>;
 
   /**
    * Reduces the elements of the iterator to a single value using the `reducer` function.
