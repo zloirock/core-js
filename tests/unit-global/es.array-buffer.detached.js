@@ -11,7 +11,7 @@ QUnit.test('ArrayBuffer#detached', assert => {
 
   if (detached.byteLength === 0) {
     // works incorrectly in ancient WebKit
-    assert.skip.true(detached.detached, true, 'detached');
+    assert.skip.true(detached.detached, 'detached');
   }
 
   if (DESCRIPTORS) {
