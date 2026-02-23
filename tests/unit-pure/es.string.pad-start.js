@@ -13,7 +13,7 @@ QUnit.test('String#padStart', assert => {
   assert.same(padStart('foo', 1), 'foo');
   assert.same(padStart('foo', 5, ''), 'foo');
 
-  const symbol = Symbol('padEnd test');
+  const symbol = Symbol('padStart test');
   assert.throws(() => padStart(symbol, 10, 'a'), 'throws on symbol context');
   assert.throws(() => padStart('a', 10, symbol), 'throws on symbol argument');
 

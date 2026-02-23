@@ -11,8 +11,8 @@ QUnit.test('Symbol.isWellKnownSymbol', assert => {
   assert.true(isWellKnownSymbol(Symbol.patternMatch), 'well-known-3');
   assert.true(isWellKnownSymbol(Object(Symbol.patternMatch)), 'well-known-4, boxed');
   const symbol = Symbol('Symbol.isWellKnownSymbol test');
-  assert.false(isWellKnownSymbol(symbol), 'non-registered');
-  assert.false(isWellKnownSymbol(Object(symbol)), 'non-registered, boxed');
+  assert.false(isWellKnownSymbol(symbol), 'non-well-known');
+  assert.false(isWellKnownSymbol(Object(symbol)), 'non-well-known, boxed');
   assert.false(isWellKnownSymbol(1), '1');
   assert.false(isWellKnownSymbol(true), 'true');
   assert.false(isWellKnownSymbol('1'), 'string');
