@@ -34,7 +34,6 @@ QUnit.test('DataView', assert => {
     assert.throws(() => new DataView(new ArrayBuffer(8), 0, -1), RangeError, 'negative byteLength throws RangeError');
     // Android ~ 4.0
     assert.throws(() => DataView(1), TypeError, 'throws without `new`');
-
   } else {
     // FF bug - TypeError instead of RangeError
     assert.throws(() => new DataView(new ArrayBuffer(8), -1), 'If offset < 0, throw a RangeError exception');
