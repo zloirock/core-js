@@ -419,7 +419,7 @@ QUnit.test('Set#@@iterator', assert => {
   assert.arity(Set.prototype[Symbol.iterator], 0);
   assert.looksNative(Set.prototype[Symbol.iterator]);
   assert.same(Set.prototype[Symbol.iterator], Set.prototype.values);
-  assert.nonEnumerable(Set.prototype, 'values');
+  assert.nonEnumerable(Set.prototype, Symbol.iterator);
   const set = new Set();
   set.add('q');
   set.add('w');
