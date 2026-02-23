@@ -8,7 +8,7 @@
 declare namespace CoreJS {
   export type AsyncIteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined> | CoreJS.CoreJSAsyncIterator<U> | CoreJS.CoreJSAsyncIterable<U>) => CoreJS.CoreJSAsyncIteratorObject<U, undefined, unknown>;
 
-  export type AsyncIteratorMap<T, U> = (callback: (value: T, index: number) => U) => CoreJS.CoreJSAsyncIteratorObject<U, undefined, unknown>;
+  export type AsyncIteratorMap<T, U> = (callback: (value: T, index: number) => U) => CoreJS.CoreJSAsyncIteratorObject<Awaited<U>, undefined, unknown>;
 
   export type AsyncIteratorReduce<T, U = T> = (callback: (accumulator: U, value: T, index: number) => U, initialValue?: U) => CoreJS.CoreJSPromise<U>;
 }
