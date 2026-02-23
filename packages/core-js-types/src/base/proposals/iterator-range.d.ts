@@ -16,7 +16,7 @@ interface IteratorConstructor { // @type-options: no-extends
    *   - inclusive: If true, the end value is included in the range (default is false).
    * @returns An iterator of numbers.
    */
-  range(start: number, end: number | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: number | IteratorRangeOptions<number>): IteratorObject<number>; // @type-options: prefix-return-type
+  range(start: number, end: number | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: number | IteratorRangeOptions<number>): IteratorObject<number, undefined, unknown>; // @type-options: prefix-return-type
 
   /**
    * Returns an iterator that generates a sequence of bigints within a range.
@@ -27,7 +27,7 @@ interface IteratorConstructor { // @type-options: no-extends
    *   - inclusive: If true, the end value is included in the range (default is false).
    * @returns An iterator of bigints.
    */
-  range(start: bigint, end: bigint, options?: bigint | IteratorRangeOptions<bigint>): IteratorObject<bigint>; // @type-options: prefix-return-type
+  range(start: bigint, end: bigint, options?: bigint | IteratorRangeOptions<bigint>): IteratorObject<bigint, undefined, unknown>; // @type-options: prefix-return-type
 }
 
 declare var Iterator: IteratorConstructor;
