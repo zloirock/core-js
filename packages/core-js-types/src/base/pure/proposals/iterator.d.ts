@@ -1,6 +1,7 @@
 /// <reference types="./explicit-resource-management" />
-/// <reference types="../core-js-types/promise" />
+/// <reference types="../core-js-types/async-iterator" />
 /// <reference types="../core-js-types/iterator-object" />
+/// <reference types="../core-js-types/promise" />
 
 // Motivation: Has dependencies on internal types
 
@@ -39,16 +40,10 @@ declare namespace CoreJS {
     inclusive?: boolean;
   }
 
-  interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
-    next(...[value]: [] | [TNext]): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
-    return?(value?: TReturn | PromiseLike<TReturn>): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
-    throw?(e?: any): CoreJS.CoreJSPromise<IteratorResult<T, TReturn>>;
-  }
-
-  export interface CoreJSAsyncIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSAsyncIterator<T, TReturn, TNext> {}
+  export interface CoreJSAsyncIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJS.CoreJSAsyncIterator<T, TReturn, TNext> {}
   export interface CoreJSAsyncIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSAsyncDisposable {}
   export interface CoreJSAsyncIterable<T, TReturn = any, TNext = any> {
-    [CoreJSSymbol.asyncIterator](): CoreJSAsyncIterator<T, TReturn, TNext>;
+    [CoreJSSymbol.asyncIterator](): CoreJS.CoreJSAsyncIterator<T, TReturn, TNext>;
   }
 
   export interface CoreJSIteratorObject<T, TReturn = undefined, TNext = undefined> extends CoreJSDisposable {}
