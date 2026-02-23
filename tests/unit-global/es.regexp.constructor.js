@@ -24,7 +24,7 @@ if (DESCRIPTORS) {
     object[Symbol.match] = true;
     object.constructor = RegExp;
     assert.same(object, RegExp(object), 'RegExp(O) is O, changed Symbol.match');
-    assert.same(String(regexp), '/a/g', 'b is /a/g');
+    assert.same(String(regexp), '/a/g', 'regexp is /a/g');
     assert.same(String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags');
     assert.true(new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof');
     assert.same(new RegExp(/a/g, 'im').constructor, RegExp, 'Has the right constructor');
