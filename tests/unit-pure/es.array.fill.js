@@ -1,4 +1,4 @@
-import { STRICT } from '../helpers/constants.js';
+import { DESCRIPTORS, STRICT } from '../helpers/constants.js';
 
 import fill from 'core-js-pure/es/array/fill';
 
@@ -15,5 +15,15 @@ QUnit.test('Array#fill', assert => {
   if (STRICT) {
     assert.throws(() => fill(null, 0), TypeError);
     assert.throws(() => fill(undefined, 0), TypeError);
+  }
+  if (DESCRIPTORS) {
+    // eslint-disable-next-line es/no-object-defineproperty -- required for testing
+    assert.notThrows(() => fill(Object.defineProperty({
+      length: -1,
+    }, 0, {
+      set() {
+        throw new Error();
+      },
+    })), 'uses ToLength');
   }
 });

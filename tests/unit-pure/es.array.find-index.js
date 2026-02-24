@@ -7,10 +7,11 @@ QUnit.test('Array#findIndex', assert => {
   const array = [1];
   const context = {};
   findIndex(array, function (value, key, that) {
-    assert.same(this, context);
-    assert.same(value, 1);
-    assert.same(key, 0);
-    assert.same(that, array);
+    assert.same(arguments.length, 3, 'correct number of callback arguments');
+    assert.same(value, 1, 'correct value in callback');
+    assert.same(key, 0, 'correct index in callback');
+    assert.same(that, array, 'correct link to array in callback');
+    assert.same(this, context, 'correct callback context');
   }, context);
   assert.same(findIndex([1, 3, NaN, 42, {}], it => it === 42), 3);
   assert.same(findIndex([1, 3, NaN, 42, {}], it => it === 43), -1);
