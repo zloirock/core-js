@@ -4,6 +4,8 @@ import isSafeInteger from 'core-js-pure/es/number/is-safe-integer';
 
 QUnit.test('Number.isSafeInteger', assert => {
   assert.isFunction(isSafeInteger);
+  assert.name(isSafeInteger, 'isSafeInteger');
+  assert.arity(isSafeInteger, 1);
   const safeIntegers = [
     1,
     -1,

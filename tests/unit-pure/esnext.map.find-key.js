@@ -4,6 +4,7 @@ QUnit.test('Map#findKey', assert => {
   const { findKey } = Map.prototype;
 
   assert.isFunction(findKey);
+  assert.name(findKey, 'findKey');
   assert.arity(findKey, 1);
   assert.nonEnumerable(Map.prototype, 'findKey');
 

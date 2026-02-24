@@ -4,6 +4,8 @@ import asinh from 'core-js-pure/es/math/asinh';
 
 QUnit.test('Math.asinh', assert => {
   assert.isFunction(asinh);
+  assert.name(asinh, 'asinh');
+  assert.arity(asinh, 1);
   assert.same(asinh(NaN), NaN);
   assert.same(asinh(0), 0);
   assert.same(asinh(-0), -0);

@@ -5,6 +5,8 @@ import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('Object.getOwnPropertySymbols', assert => {
   assert.isFunction(getOwnPropertySymbols);
+  assert.name(getOwnPropertySymbols, 'getOwnPropertySymbols');
+  assert.arity(getOwnPropertySymbols, 1);
   const prototype = { q: 1, w: 2, e: 3 };
   prototype[Symbol('getOwnPropertySymbols test 1')] = 42;
   prototype[Symbol('getOwnPropertySymbols test 2')] = 43;

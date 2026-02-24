@@ -4,6 +4,8 @@ import log10 from 'core-js-pure/es/math/log10';
 
 QUnit.test('Math.log10', assert => {
   assert.isFunction(log10);
+  assert.name(log10, 'log10');
+  assert.arity(log10, 1);
   assert.same(log10(''), log10(0));
   assert.same(log10(NaN), NaN);
   assert.same(log10(-1), NaN);

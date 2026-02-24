@@ -4,6 +4,8 @@ import log2 from 'core-js-pure/es/math/log2';
 
 QUnit.test('Math.log2', assert => {
   assert.isFunction(log2);
+  assert.name(log2, 'log2');
+  assert.arity(log2, 1);
   assert.same(log2(''), log2(0));
   assert.same(log2(NaN), NaN);
   assert.same(log2(-1), NaN);

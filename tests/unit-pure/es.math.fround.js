@@ -6,6 +6,8 @@ const { MAX_VALUE, MIN_VALUE } = Number;
 
 QUnit.test('Math.fround', assert => {
   assert.isFunction(fround);
+  assert.name(fround, 'fround');
+  assert.arity(fround, 1);
   assert.same(fround(), NaN);
   assert.same(fround(undefined), NaN);
   assert.same(fround(NaN), NaN);

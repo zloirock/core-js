@@ -4,6 +4,8 @@ import clz32 from 'core-js-pure/es/math/clz32';
 
 QUnit.test('Math.clz32', assert => {
   assert.isFunction(clz32);
+  assert.name(clz32, 'clz32');
+  assert.arity(clz32, 1);
   assert.same(clz32(0), 32);
   assert.same(clz32(1), 31);
   assert.same(clz32(-1), 0);

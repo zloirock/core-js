@@ -4,6 +4,8 @@ import atanh from 'core-js-pure/es/math/atanh';
 
 QUnit.test('Math.atanh', assert => {
   assert.isFunction(atanh);
+  assert.name(atanh, 'atanh');
+  assert.arity(atanh, 1);
   assert.same(atanh(NaN), NaN);
   assert.same(atanh(-2), NaN);
   assert.same(atanh(-1.5), NaN);

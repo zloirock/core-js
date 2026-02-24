@@ -3,6 +3,8 @@ import isInteger from 'core-js-pure/es/number/is-integer';
 
 QUnit.test('Number.isInteger', assert => {
   assert.isFunction(isInteger);
+  assert.name(isInteger, 'isInteger');
+  assert.arity(isInteger, 1);
   const integers = [
     1,
     -1,

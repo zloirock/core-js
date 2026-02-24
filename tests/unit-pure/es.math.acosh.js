@@ -5,6 +5,8 @@ import EPSILON from 'core-js-pure/es/number/epsilon';
 
 QUnit.test('Math.acosh', assert => {
   assert.isFunction(acosh);
+  assert.name(acosh, 'acosh');
+  assert.arity(acosh, 1);
   assert.same(acosh(NaN), NaN);
   assert.same(acosh(0.5), NaN);
   assert.same(acosh(-1), NaN);
