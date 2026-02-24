@@ -1,6 +1,7 @@
 QUnit.test('Map#upsert', assert => {
   const { upsert } = Map.prototype;
   assert.isFunction(upsert);
+  assert.name(upsert, 'upsert');
   assert.arity(upsert, 2);
   assert.looksNative(upsert);
   assert.nonEnumerable(Map.prototype, 'upsert');

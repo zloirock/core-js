@@ -2,6 +2,7 @@ import { createIterable } from '../helpers/helpers.js';
 
 QUnit.test('Promise.any', assert => {
   assert.isFunction(Promise.any);
+  assert.name(Promise.any, 'any');
   assert.arity(Promise.any, 1);
   assert.looksNative(Promise.any);
   assert.nonEnumerable(Promise, 'any');

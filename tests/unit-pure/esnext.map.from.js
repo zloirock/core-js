@@ -6,6 +6,7 @@ import Map from 'core-js-pure/full/map';
 QUnit.test('Map.from', assert => {
   const { from } = Map;
   assert.isFunction(from);
+  assert.name(from, 'from');
   assert.arity(from, 1);
   assert.true(from([]) instanceof Map);
   assert.deepEqual(toArray(from([])), []);

@@ -4,6 +4,7 @@ QUnit.test('WeakMap#deleteAll', assert => {
   const { deleteAll } = WeakMap.prototype;
 
   assert.isFunction(deleteAll);
+  assert.name(deleteAll, 'deleteAll');
   assert.arity(deleteAll, 0);
   assert.nonEnumerable(WeakMap.prototype, 'deleteAll');
 

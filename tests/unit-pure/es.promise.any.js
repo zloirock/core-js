@@ -9,6 +9,7 @@ import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('Promise.any', assert => {
   assert.isFunction(Promise.any);
+  assert.name(Promise.any, 'any');
   assert.arity(Promise.any, 1);
   assert.true(Promise.any([1, 2, 3]) instanceof Promise, 'returns a promise');
 });

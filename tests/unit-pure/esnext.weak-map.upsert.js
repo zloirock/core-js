@@ -3,6 +3,7 @@ import WeakMap from 'core-js-pure/full/weak-map';
 QUnit.test('WeakMap#upsert', assert => {
   const { upsert } = WeakMap.prototype;
   assert.isFunction(upsert);
+  assert.name(upsert, 'upsert');
   assert.arity(upsert, 2);
   assert.nonEnumerable(WeakMap.prototype, 'upsert');
 

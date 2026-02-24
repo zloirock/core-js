@@ -3,6 +3,7 @@ import Map from 'core-js-pure/full/map';
 QUnit.test('Map#upsert', assert => {
   const { upsert } = Map.prototype;
   assert.isFunction(upsert);
+  assert.name(upsert, 'upsert');
   assert.arity(upsert, 2);
   assert.nonEnumerable(Map.prototype, 'upsert');
 

@@ -4,6 +4,7 @@ import Set from 'core-js-pure/full/set';
 QUnit.test('Set.of', assert => {
   const { of } = Set;
   assert.isFunction(of);
+  assert.name(of, 'of');
   assert.arity(of, 0);
   assert.true(of() instanceof Set);
   assert.deepEqual(from(of(1)), [1]);

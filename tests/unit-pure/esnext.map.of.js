@@ -4,6 +4,7 @@ import Map from 'core-js-pure/full/map';
 QUnit.test('Map.of', assert => {
   const { of } = Map;
   assert.isFunction(of);
+  assert.name(of, 'of');
   assert.arity(of, 0);
   assert.true(of() instanceof Map);
   assert.deepEqual(from(of([1, 2])), [[1, 2]]);

@@ -5,6 +5,7 @@ import WeakMap from 'core-js-pure/full/weak-map';
 QUnit.test('WeakMap.from', assert => {
   const { from } = WeakMap;
   assert.isFunction(from);
+  assert.name(from, 'from');
   assert.arity(from, 1);
   assert.true(from([]) instanceof WeakMap);
   const array = [];

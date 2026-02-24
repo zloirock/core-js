@@ -5,6 +5,7 @@ QUnit.test('Map#deleteAll', assert => {
   const { deleteAll } = Map.prototype;
 
   assert.isFunction(deleteAll);
+  assert.name(deleteAll, 'deleteAll');
   assert.arity(deleteAll, 0);
   assert.nonEnumerable(Map.prototype, 'deleteAll');
 
