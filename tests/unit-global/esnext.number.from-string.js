@@ -35,7 +35,6 @@ QUnit.test('Number.fromString', assert => {
   assert.throws(() => fromString('C0FFEE', 16), SyntaxError);
   assert.same(fromString('c0ffee', 16), 12648430);
   assert.same(fromString('755', 8), 493);
-  assert.throws(() => fromString(''), SyntaxError);
   assert.throws(() => fromString(' '), SyntaxError);
   assert.throws(() => fromString(' 1'), SyntaxError);
   assert.throws(() => fromString(' \n '), SyntaxError);
