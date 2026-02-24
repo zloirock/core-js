@@ -16,6 +16,7 @@ QUnit.test('Array#flatMap', assert => {
     assert.same(index, 0);
     assert.same(that, array);
     assert.same(this, context);
+    return value;
   }, context);
   if (STRICT) {
     assert.throws(() => flatMap(null, it => it), TypeError);
