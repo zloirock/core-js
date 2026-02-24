@@ -53,24 +53,24 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
 
   /**
    * Executes a provided function once for each element in the iterator.
-   * @param callbackFn - A function that is called for each element of the iterator
+   * @param callbackfn - A function that is called for each element of the iterator
    * @returns A `Promise` that resolves when all elements have been processed
    */
-  forEach(callbackFn: (value: T, index: number) => void | PromiseLike<void>): Promise<void>;
+  forEach(callbackfn: (value: T, index: number) => void | PromiseLike<void>): Promise<void>;
 
   /**
-   * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator.
-   * @param mapper - A function that transforms each element of the iterator
+   * Creates a new `AsyncIterator` by applying the `callbackfn` function to each element of the original iterator.
+   * @param callbackfn - A function that transforms each element of the iterator
    * @returns A new `AsyncIterator`
    */
-  map<U>(mapper: (value: T, index: number) => U): AsyncIteratorObject<Awaited<U>, undefined, unknown>;
+  map<U>(callbackfn: (value: T, index: number) => U): AsyncIteratorObject<Awaited<U>, undefined, unknown>;
 
   /**
-   * Reduces the elements of the iterator to a single value using the `reducer` function.
-   * @param reducer - A function that combines two elements of the iterator
+   * Reduces the elements of the iterator to a single value using the `callbackfn` function.
+   * @param callbackfn - A function that combines two elements of the iterator
    * @returns A promise that resolves to the reduced value
    */
-  reduce(reducer: (accumulator: T, value: T, index: number) => T): Promise<T>;
+  reduce(callbackfn: (accumulator: T, value: T, index: number) => T): Promise<T>;
 
   /**
    * Reduces the elements of the iterator to a single value using the `reducer` function.
