@@ -45,7 +45,7 @@ interface AsyncIterator<T, TReturn = any, TNext = any> {
   find(predicate: (value: T, index: number) => unknown): Promise<T | undefined>;
 
   /**
-   * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator and flattening the result.
+   * Creates a new `AsyncIterator` by applying the `callback` function to each element of the original iterator and flattening the result.
    * @param callback - A function that transforms each element of the iterator
    * @returns A new `AsyncIterator`
    */
