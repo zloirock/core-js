@@ -18,4 +18,7 @@ QUnit.test('Array#findIndex', assert => {
     assert.throws(() => findIndex(null, 0), TypeError);
     assert.throws(() => findIndex(undefined, 0), TypeError);
   }
+  assert.notThrows(() => findIndex({ length: -1, 0: 1 }, () => {
+    throw new Error();
+  }), 'uses ToLength');
 });

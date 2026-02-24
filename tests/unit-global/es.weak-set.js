@@ -79,7 +79,8 @@ QUnit.test('WeakSet#add', assert => {
 
 QUnit.test('WeakSet#delete', assert => {
   assert.isFunction(WeakSet.prototype.delete);
-  if (NATIVE) assert.arity(WeakSet.prototype.delete, 1);
+  assert.arity(WeakSet.prototype.delete, 1);
+  if (NATIVE) assert.name(WeakSet.prototype.delete, 'delete');
   assert.looksNative(WeakSet.prototype.delete);
   assert.nonEnumerable(WeakSet.prototype, 'delete');
   const a = {};

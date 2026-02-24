@@ -3,6 +3,7 @@ import Promise from 'core-js-pure/es/promise';
 QUnit.test('Promise.reject', assert => {
   const { reject } = Promise;
   assert.isFunction(reject);
+  assert.arity(reject, 1);
   assert.name(reject, 'reject');
 });
 

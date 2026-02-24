@@ -18,4 +18,7 @@ QUnit.test('Array#find', assert => {
     assert.throws(() => find(null, 0), TypeError);
     assert.throws(() => find(undefined, 0), TypeError);
   }
+  assert.notThrows(() => find({ length: -1, 0: 1 }, () => {
+    throw new Error();
+  }), 'uses ToLength');
 });

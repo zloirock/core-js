@@ -20,6 +20,9 @@ QUnit.test('Array#filterOut', assert => {
     assert.throws(() => filterOut(null, () => { /* empty */ }), TypeError);
     assert.throws(() => filterOut(undefined, () => { /* empty */ }), TypeError);
   }
+  assert.notThrows(() => filterOut({ length: -1, 0: 1 }, () => {
+    throw new Error();
+  }), 'uses ToLength');
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {

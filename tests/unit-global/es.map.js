@@ -439,6 +439,7 @@ QUnit.test('Map#@@iterator', assert => {
   assert.arity(Map.prototype.entries, 0);
   assert.looksNative(Map.prototype[Symbol.iterator]);
   assert.same(Map.prototype[Symbol.iterator], Map.prototype.entries);
+  assert.nonEnumerable(Map.prototype, Symbol.iterator);
   const map = new Map();
   map.set('a', 'q');
   map.set('s', 'w');

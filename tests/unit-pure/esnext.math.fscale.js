@@ -1,5 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
+import fround from 'core-js-pure/full/math/fround';
 import fscale from 'core-js-pure/full/math/fscale';
 
 QUnit.test('Math.fscale', assert => {
@@ -10,6 +11,7 @@ QUnit.test('Math.fscale', assert => {
   assert.same(fscale(0, 3, 5, 8, 10), 5);
   assert.same(fscale(1, 1, 1, 1, 1), NaN);
   assert.same(fscale(-1, -1, -1, -1, -1), NaN);
+  assert.same(fscale(3, 1, 2, 1, Math.PI), fround((3 - 1) * (Math.PI - 1) / (2 - 1) + 1));
 
   const checker1 = createConversionChecker(3);
   const checker2 = createConversionChecker(1);
