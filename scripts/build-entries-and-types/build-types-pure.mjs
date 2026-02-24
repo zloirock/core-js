@@ -143,6 +143,7 @@ function wrapInNamespace(content) {
       if (line.trim() || res.at(-1)?.trim()) res.push(line);
       return res;
     }, [])
+    .flatMap(line => line.split('\n'))
     .map(line => line ? `  ${ line }` : '')
     .join('\n');
 
