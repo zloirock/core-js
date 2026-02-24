@@ -1,6 +1,5 @@
 /// <reference types="../core-js-types/string-base" />
 /// <reference types="../core-js-types/iterator-object" />
-/// <reference types="./symbol" />
 
 // Motivation: We should use String without the matchAll method to avoid signature conflicts
 
@@ -12,7 +11,7 @@
 
 declare namespace CoreJS {
   interface CoreJSRegExpStringIterator<T> extends CoreJSIteratorObject<T> {
-    [CoreJS.CoreJSSymbol.iterator](): CoreJSRegExpStringIterator<T>;
+    [Symbol.iterator](): CoreJSRegExpStringIterator<T>;
   }
 
   export interface CoreJSString extends StringBase {
