@@ -57,40 +57,40 @@ declare namespace CoreJS {
 
     /**
      * Executes a provided function once for each element in the iterator.
-     * @param callbackFn - A function that is called for each element of the iterator
+     * @param callbackfn - A function that is called for each element of the iterator
      * @returns A `Promise` that resolves when all elements have been processed
      */
-    forEach(callbackFn: (value: T, index: number) => void | PromiseLike<void>): CoreJSPromise<void>;
+    forEach(callbackfn: (value: T, index: number) => void | PromiseLike<void>): CoreJSPromise<void>;
 
     /**
-     * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator.
-     * @param mapper - A function that transforms each element of the iterator
+     * Creates a new `AsyncIterator` by applying the `callbackfn` function to each element of the original iterator.
+     * @param callbackfn - A function that transforms each element of the iterator
      * @returns A new `AsyncIterator`
      */
-    map<U>(mapper: (value: T, index: number) => U): CoreJSAsyncIteratorObject<Awaited<U>, undefined, unknown>;
+    map<U>(callbackfn: (value: T, index: number) => U): CoreJSAsyncIteratorObject<Awaited<U>, undefined, unknown>;
 
     /**
-     * Reduces the elements of the iterator to a single value using the `reducer` function.
-     * @param reducer - A function that combines two elements of the iterator
+     * Reduces the elements of the iterator to a single value using the `callbackfn` function.
+     * @param callbackfn - A function that combines two elements of the iterator
      * @returns A `Promise` that resolves to the reduced value
      */
-    reduce(reducer: (accumulator: T, value: T, index: number) => T): CoreJSPromise<T>;
+    reduce(callbackfn: (accumulator: T, value: T, index: number) => T): CoreJSPromise<T>;
 
     /**
-     * Reduces the elements of the iterator to a single value using the `reducer` function.
-     * @param reducer - A function that combines two elements of the iterator
+     * Reduces the elements of the iterator to a single value using the `callbackfn` function.
+     * @param callbackfn - A function that combines two elements of the iterator
      * @param initialValue - The initial value to start the reduction
      * @returns A `Promise` that resolves to the reduced value
      */
-    reduce(reducer: (accumulator: T, value: T, index: number) => T, initialValue: T): CoreJSPromise<T>;
+    reduce(callbackfn: (accumulator: T, value: T, index: number) => T, initialValue: T): CoreJSPromise<T>;
 
     /**
-     * Reduces the elements of the iterator to a single value using the `reducer` function.
-     * @param reducer - A function that combines two elements of the iterator
+     * Reduces the elements of the iterator to a single value using the `callbackfn` function.
+     * @param callbackfn - A function that combines two elements of the iterator
      * @param initialValue - The initial value to start the accumulation. Required when the accumulator type differs from the element type.
      * @returns A `Promise` that resolves to the reduced value
      */
-    reduce<U>(reducer: (accumulator: U, value: T, index: number) => U, initialValue: U): CoreJSPromise<U>;
+    reduce<U>(callbackfn: (accumulator: U, value: T, index: number) => U, initialValue: U): CoreJSPromise<U>;
 
     /**
      * Checks if any value in the iterator matches a given `predicate`
