@@ -1,5 +1,4 @@
 /// <reference types="./iterator-object" />
-/// <reference types="../proposals/symbol" />
 
 declare namespace CoreJS {
   export interface CoreJSURLSearchParams {
@@ -47,14 +46,14 @@ declare namespace CoreJS {
     toString(): string;
     forEach(callbackfn: (value: string, key: string, parent: CoreJSURLSearchParams) => void, thisArg?: any): void;
 
-    [CoreJS.CoreJSSymbol.iterator](): CoreJSURLSearchParamsIterator<[string, string]>;
+    [Symbol.iterator](): CoreJSURLSearchParamsIterator<[string, string]>;
     entries(): CoreJSURLSearchParamsIterator<[string, string]>;
     keys(): CoreJSURLSearchParamsIterator<string>;
     values(): CoreJSURLSearchParamsIterator<string>;
   }
 
   interface CoreJSURLSearchParamsIterator<T> extends CoreJSIteratorObject<T, BuiltinIteratorReturn, unknown> {
-    [CoreJS.CoreJSSymbol.iterator](): CoreJSURLSearchParamsIterator<T>;
+    [Symbol.iterator](): CoreJSURLSearchParamsIterator<T>;
   }
 
   export interface CoreJSURLSearchParamsConstructor {
