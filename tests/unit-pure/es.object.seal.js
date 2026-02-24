@@ -7,6 +7,7 @@ import seal from 'core-js-pure/es/object/seal';
 QUnit.test('Object.seal', assert => {
   assert.isFunction(seal);
   assert.arity(seal, 1);
+  assert.name(seal, 'seal');
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
     assert.notThrows(() => seal(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);

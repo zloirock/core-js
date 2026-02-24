@@ -3,6 +3,7 @@ import seededPRNG from 'core-js-pure/full/math/seeded-prng';
 QUnit.test('Math.seededPRNG', assert => {
   assert.isFunction(seededPRNG);
   assert.arity(seededPRNG, 1);
+  assert.name(seededPRNG, 'seededPRNG');
 
   for (const gen of [seededPRNG({ seed: 42 }), seededPRNG({ seed: 42 })]) {
     assert.deepEqual(gen.next(), { value: 0.16461519912315087, done: false });

@@ -70,6 +70,8 @@ if (DESCRIPTORS) QUnit.test('Promise operations order', assert => {
 
 QUnit.test('Promise#then', assert => {
   assert.isFunction(Promise.prototype.then);
+  assert.arity(Promise.prototype.then, 2);
+  assert.name(Promise.prototype.then, 'then');
   assert.nonEnumerable(Promise.prototype, 'then');
   let promise = new Promise(resolve => {
     resolve(42);

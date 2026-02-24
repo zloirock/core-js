@@ -4,6 +4,8 @@ import Symbol from 'core-js-pure/es/symbol';
 QUnit.test('Promise.resolve', assert => {
   const { resolve } = Promise;
   assert.isFunction(resolve);
+  assert.arity(resolve, 1);
+  assert.name(resolve, 'resolve');
   assert.true(Promise.resolve(42) instanceof Promise, 'returns a promise');
 });
 

@@ -11,6 +11,7 @@ QUnit.test('AsyncIterator.from', assert => {
 
   assert.isFunction(from);
   assert.arity(from, 1);
+  assert.name(from, 'from');
 
   assert.true(AsyncIterator.from(values([])) instanceof AsyncIterator, 'proxy, iterator');
 

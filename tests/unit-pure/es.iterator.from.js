@@ -8,6 +8,7 @@ QUnit.test('Iterator.from', assert => {
 
   assert.isFunction(from);
   assert.arity(from, 1);
+  assert.name(from, 'from');
 
   assert.true(Iterator.from(createIterator([1, 2, 3])) instanceof Iterator, 'proxy, iterator');
 

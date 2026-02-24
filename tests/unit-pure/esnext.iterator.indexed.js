@@ -7,6 +7,7 @@ QUnit.test('Iterator#indexed', assert => {
   const { indexed } = Iterator.prototype;
 
   assert.isFunction(indexed);
+  assert.name(indexed, 'indexed');
   assert.arity(indexed, 0);
   assert.nonEnumerable(Iterator.prototype, 'indexed');
 

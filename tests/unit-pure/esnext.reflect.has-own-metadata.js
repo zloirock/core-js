@@ -5,6 +5,7 @@ import hasOwnMetadata from 'core-js-pure/full/reflect/has-own-metadata';
 QUnit.test('Reflect.hasOwnMetadata', assert => {
   assert.isFunction(hasOwnMetadata);
   assert.arity(hasOwnMetadata, 2);
+  assert.name(hasOwnMetadata, 'hasOwnMetadata');
   assert.throws(() => hasOwnMetadata('key', undefined, undefined), TypeError);
   assert.false(hasOwnMetadata('key', {}, undefined));
   let object = {};

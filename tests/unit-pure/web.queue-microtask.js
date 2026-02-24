@@ -5,6 +5,7 @@ import queueMicrotask from 'core-js-pure/full/queue-microtask';
 QUnit.test('queueMicrotask', assert => {
   assert.isFunction(queueMicrotask);
   assert.arity(queueMicrotask, 1);
+  assert.name(queueMicrotask, 'queueMicrotask');
 
   return timeLimitedPromise(3e3, resolve => {
     let called = false;

@@ -3,6 +3,7 @@ import unescape from 'core-js-pure/es/unescape';
 QUnit.test('unescape', assert => {
   assert.isFunction(unescape);
   assert.arity(unescape, 1);
+  assert.name(unescape, 'unescape');
   assert.same(unescape('%21q2%u0444'), '!q2ф');
   assert.same(unescape('%u044q2%21'), '%u044q2!');
   assert.same(unescape(null), 'null');

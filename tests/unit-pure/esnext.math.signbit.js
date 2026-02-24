@@ -4,6 +4,8 @@ import signbit from 'core-js-pure/full/math/signbit';
 
 QUnit.test('Math.signbit', assert => {
   assert.isFunction(signbit);
+  assert.arity(signbit, 1);
+  assert.name(signbit, 'signbit');
   assert.false(signbit(NaN));
   assert.false(signbit());
   assert.true(signbit(-0));

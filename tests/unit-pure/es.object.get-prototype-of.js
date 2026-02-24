@@ -6,6 +6,7 @@ import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
 QUnit.test('Object.getPrototypeOf', assert => {
   assert.isFunction(getPrototypeOf);
   assert.arity(getPrototypeOf, 1);
+  assert.name(getPrototypeOf, 'getPrototypeOf');
   assert.same(getPrototypeOf({}), Object.prototype);
   assert.same(getPrototypeOf([]), Array.prototype);
   function F() { /* empty */ }

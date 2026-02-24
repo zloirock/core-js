@@ -7,6 +7,7 @@ import freeze from 'core-js-pure/es/object/freeze';
 QUnit.test('Object.freeze', assert => {
   assert.isFunction(freeze);
   assert.arity(freeze, 1);
+  assert.name(freeze, 'freeze');
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
     assert.notThrows(() => freeze(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);

@@ -6,6 +6,7 @@ import deleteMetadata from 'core-js-pure/full/reflect/delete-metadata';
 QUnit.test('Reflect.deleteMetadata', assert => {
   assert.isFunction(deleteMetadata);
   assert.arity(deleteMetadata, 2);
+  assert.name(deleteMetadata, 'deleteMetadata');
   assert.throws(() => deleteMetadata('key', undefined, undefined), TypeError);
   assert.false(deleteMetadata('key', {}, undefined));
   let object = {};

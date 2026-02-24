@@ -12,6 +12,7 @@ import set from 'core-js-pure/es/reflect/set';
 
 QUnit.test('Reflect.set', assert => {
   assert.isFunction(set);
+  assert.arity(set, 3);
   if ('name' in set) {
     assert.name(set, 'set');
   }

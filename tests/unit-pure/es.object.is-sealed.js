@@ -3,6 +3,7 @@ import isSealed from 'core-js-pure/es/object/is-sealed';
 QUnit.test('Object.isSealed', assert => {
   assert.isFunction(isSealed);
   assert.arity(isSealed, 1);
+  assert.name(isSealed, 'isSealed');
   const primitives = [42, 'string', false, null, undefined];
   for (const value of primitives) {
     assert.notThrows(() => isSealed(value) || true, `accept ${ value }`);

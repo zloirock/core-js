@@ -6,6 +6,7 @@ import Observable from 'core-js-pure/full/observable';
 QUnit.test('Observable', assert => {
   assert.isFunction(Observable);
   assert.arity(Observable, 1);
+  assert.name(Observable, 'Observable');
   const observable = new Observable(function (subscriptionObserver) {
     assert.same(typeof subscriptionObserver, 'object', 'Subscription observer is object');
     assert.same(subscriptionObserver.constructor, Object);
