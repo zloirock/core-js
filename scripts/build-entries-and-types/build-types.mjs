@@ -69,7 +69,7 @@ async function buildType(entry, options) {
   switch (subset) {
     case 'es':
       filter ??= ESSet;
-      typesFilter = '/web/';
+      typesFilter = 'web/';
       break;
     case 'stable':
       filter ??= StableSet;
