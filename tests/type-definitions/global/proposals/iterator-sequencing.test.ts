@@ -16,7 +16,8 @@ const ri1: Iterator<number | string> = Iterator.concat(its1);
 const ri2: Iterator<number | string> = Iterator.concat(arrs);
 const ri3: Iterator<number> = Iterator.concat(arrn);
 const ri4: Iterator<number | boolean> = Iterator.concat(arrb, itb1);
-const ri5: Iterator<number> = Iterator.concat();
+const ri5: Iterator<unknown> = Iterator.concat();
+const ri6: Iterator<string | number> = Iterator.concat(arrs, arrn);
 
 // @ts-expect-error
 Iterator.concat(1);
