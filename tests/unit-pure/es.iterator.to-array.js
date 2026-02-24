@@ -8,6 +8,7 @@ QUnit.test('Iterator#toArray', assert => {
 
   assert.isFunction(toArray);
   assert.arity(toArray, 0);
+  assert.name(toArray, 'toArray');
   assert.nonEnumerable(Iterator.prototype, 'toArray');
 
   assert.arrayEqual(Iterator.from('123').toArray(), ['1', '2', '3']);

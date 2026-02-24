@@ -9,6 +9,7 @@ QUnit.test('Iterator#flatMap', assert => {
 
   assert.isFunction(flatMap);
   assert.arity(flatMap, 1);
+  assert.name(flatMap, 'flatMap');
   assert.nonEnumerable(Iterator.prototype, 'flatMap');
 
   assert.arrayEqual(

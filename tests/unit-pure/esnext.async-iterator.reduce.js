@@ -8,6 +8,7 @@ QUnit.test('AsyncIterator#reduce', assert => {
 
   assert.isFunction(reduce);
   assert.arity(reduce, 1);
+  assert.name(reduce, 'reduce');
   assert.nonEnumerable(AsyncIterator.prototype, 'reduce');
 
   if (STRICT) {

@@ -8,6 +8,7 @@ QUnit.test('AsyncIterator#indexed', assert => {
 
   assert.isFunction(indexed);
   assert.arity(indexed, 0);
+  assert.name(indexed, 'indexed');
   assert.nonEnumerable(AsyncIterator.prototype, 'indexed');
 
   if (STRICT) {

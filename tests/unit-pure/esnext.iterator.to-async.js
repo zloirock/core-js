@@ -11,6 +11,7 @@ QUnit.test('Iterator#toAsync', assert => {
 
   assert.isFunction(toAsync);
   assert.arity(toAsync, 0);
+  assert.name(toAsync, 'toAsync');
 
   if (STRICT) {
     assert.throws(() => toAsync.call(undefined), TypeError);

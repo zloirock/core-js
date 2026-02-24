@@ -9,6 +9,7 @@ QUnit.test('Iterator#filter', assert => {
 
   assert.isFunction(filter);
   assert.arity(filter, 1);
+  assert.name(filter, 'filter');
   assert.nonEnumerable(Iterator.prototype, 'filter');
 
   assert.arrayEqual(filter.call(createIterator([1, 2, 3]), it => it % 2).toArray(), [1, 3], 'basic functionality');

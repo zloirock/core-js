@@ -8,6 +8,7 @@ QUnit.test('Iterator#forEach', assert => {
 
   assert.isFunction(forEach);
   assert.arity(forEach, 1);
+  assert.name(forEach, 'forEach');
   assert.nonEnumerable(Iterator.prototype, 'forEach');
 
   const array = [];

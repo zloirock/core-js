@@ -10,6 +10,7 @@ QUnit.test('AsyncIterator#flatMap', assert => {
 
   assert.isFunction(flatMap);
   assert.arity(flatMap, 1);
+  assert.name(flatMap, 'flatMap');
   assert.nonEnumerable(AsyncIterator.prototype, 'flatMap');
 
   if (STRICT) {

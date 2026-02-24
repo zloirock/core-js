@@ -8,6 +8,7 @@ QUnit.test('Iterator#every', assert => {
 
   assert.isFunction(every);
   assert.arity(every, 1);
+  assert.name(every, 'every');
   assert.nonEnumerable(Iterator.prototype, 'every');
 
   assert.true(every.call(createIterator([1, 2, 3]), it => typeof it == 'number'), 'basic functionality #1');
