@@ -168,7 +168,7 @@ declare namespace CoreJS {
     /**
      * Creates a native iterator from an iterator or iterable object.
      * Returns its input if the input already inherits from the built-in Iterator class.
-     * @param value - An iterator or iterable object to convert a native iterator.
+     * @param value - An iterator or iterable object to convert to a native iterator.
      */
     from<T>(value: Iterator<T, unknown, undefined> | Iterable<T>): CoreJSIteratorObject<T, undefined, unknown>;
 
