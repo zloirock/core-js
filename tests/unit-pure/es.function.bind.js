@@ -6,7 +6,8 @@ QUnit.test('Function#bind', assert => {
   assert.same(bind(function () {
     return this.a;
   }, object)(), 42);
-  assert.same(new (bind(() => { /* empty */ }, object))().a, undefined);
+  // eslint-disable-next-line prefer-arrow-callback -- required for `new`
+  assert.same(new (bind(function () { /* empty */ }, object))().a, undefined);
   function C(a, b) {
     this.a = a;
     this.b = b;
