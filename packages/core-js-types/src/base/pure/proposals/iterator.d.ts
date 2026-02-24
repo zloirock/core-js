@@ -216,7 +216,7 @@ declare namespace CoreJS {
      * @param iterators - The iterables to concatenate.
      * @returns An iterator yielding values from each input iterable in sequence.
      */
-    concat<T>(...iterators: Iterable<T, unknown, undefined>[]): CoreJSIteratorObject<T, undefined, unknown>;
+    concat<T extends readonly Iterable<unknown>[]>(...iterators: T): CoreJSIteratorObject<T[number] extends Iterable<infer V> ? V : never, undefined, unknown>;
   }
 
   var CoreJSIterator: CoreJSIteratorConstructor;
