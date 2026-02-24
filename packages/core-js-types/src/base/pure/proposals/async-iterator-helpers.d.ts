@@ -49,11 +49,11 @@ declare namespace CoreJS {
     find(predicate: (value: T, index: number) => unknown): CoreJSPromise<T | undefined>;
 
     /**
-     * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator and flattening the result.
-     * @param mapper - A function that transforms each element of the iterator
+     * Creates a new `AsyncIterator` by applying the `callback` function to each element of the original iterator and flattening the result.
+     * @param callback - A function that transforms each element of the iterator
      * @returns A new `AsyncIterator`
      */
-    flatMap<U>(mapper: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined> | CoreJSAsyncIterator<U> | CoreJSAsyncIterable<U>): CoreJSAsyncIteratorObject<U, undefined, unknown>;
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined> | CoreJSAsyncIterator<U> | CoreJSAsyncIterable<U>): CoreJSAsyncIteratorObject<U, undefined, unknown>;
 
     /**
      * Executes a provided function once for each element in the iterator.
