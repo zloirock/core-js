@@ -17,6 +17,8 @@ const ri4 = iteratorConcat(arrb, itb1);
 assertCoreJSIteratorLike<boolean>(ri4);
 const ri5 = iteratorConcat();
 assertCoreJSIteratorLike<unknown>(ri5);
+const ri6 = iteratorConcat(arrs, arrn);
+assertCoreJSIteratorLike<string | number>(ri6);
 
 // @ts-expect-error
 iteratorConcat(1);
