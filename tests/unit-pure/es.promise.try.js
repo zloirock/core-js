@@ -26,7 +26,7 @@ QUnit.test('Promise.try, rejected', assert => {
   }).then(() => {
     assert.avoid();
   }, () => {
-    assert.true(true, 'rejected as expected');
+    assert.required('rejected as expected');
   });
 });
 
