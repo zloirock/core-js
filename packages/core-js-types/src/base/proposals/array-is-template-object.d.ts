@@ -2,7 +2,7 @@
 
 interface ArrayConstructor { // @type-options: no-export
   /**
-   * Determines whether an `value` is a `TemplateStringsArray`
+   * Determines whether a `value` is a `TemplateStringsArray`
    * @param value - The value to be checked
    * @returns `true` if `value` is a `TemplateStringsArray`, otherwise `false`
    */
