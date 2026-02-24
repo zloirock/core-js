@@ -8,7 +8,7 @@ interface IteratorConstructor { // @type-options: no-extends
    * @param iterators - The iterables to concatenate.
    * @returns An iterator yielding values from each input iterable in sequence.
    */
-  concat<T>(...iterators: Iterable<T>[]): IteratorObject<T, undefined, unknown>;
+  concat<T extends readonly Iterable<unknown>[]>(...iterators: T): IteratorObject<T[number] extends Iterable<infer V> ? V : never, undefined, unknown>;
 }
 
 declare var Iterator: IteratorConstructor;
