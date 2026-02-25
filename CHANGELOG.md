@@ -81,6 +81,7 @@
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
 - In case of bugs in `String.prototype.{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
 - Just in case, added an extra input string validation to the  polyfill of obsolete `Number.fromString` proposals
+- Simplified `iOS` detection
 - Many minor stylistic fixes and optimizations
 - Compat data improvements:
   - [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum) marked as [shipped in V8 ~ Chrome 147](https://issues.chromium.org/issues/374310075#comment16)
