@@ -85,7 +85,11 @@ If you have no access to all required browsers / versions of browsers, use [Sauc
   ```
 - To test the types, run the command:
   ```sh
-  npm run test-type-definitions
+  npm run test-type-definitions-all
+  ```
+- To run the fast subset of the types test, run the command:
+  ```sh
+  npm run test-type-definitions-smoke
   ```
 
 ## Style and standards
