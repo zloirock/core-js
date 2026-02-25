@@ -3,7 +3,14 @@ import { fs } from 'zx';
 
 const { mkdir, rm, writeJson } = fs;
 
-const ALL_TESTS = process.env.ALL_TYPE_DEFINITIONS_TESTS === '1';
+const { TYPE_DEFINITIONS_TESTS } = process.env;
+
+if (!['ALL', 'CI', 'SMOKE'].includes(TYPE_DEFINITIONS_TESTS)) {
+  throw new Error('Incorrect or lack of TYPE_DEFINITIONS_TESTS');
+}
+
+const ALL_TESTS = TYPE_DEFINITIONS_TESTS === 'ALL';
+const CI_TESTS = TYPE_DEFINITIONS_TESTS === 'CI';
 const NUM_CPUS = cpus().length;
 const TMP_DIR = './tmp/';
 
@@ -13,9 +20,10 @@ const ES_TARGETS = [
   'es6',
 ];
 
-const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
+const DEFAULT_TYPE_SCRIPT_VERSION = '5.9';
+
+const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
   '6.0.0-beta',
-  '5.9',
   '5.8',
   '5.7',
   '5.6',
@@ -23,13 +31,14 @@ const TYPE_SCRIPT_VERSIONS = ALL_TESTS ? [
   // '5.4',
   // '5.3',
   // '5.2',
-] : [
-  '5.9',
+] : CI_TESTS ? [
+  '6.0.0-beta',
   '5.6',
-];
+] : [
+  // empty
+]];
 
 const ENVIRONMENTS = ALL_TESTS ? [
-  null,
   '@types/node@25',
   '@types/node@24',
   '@types/node@22',
@@ -39,19 +48,22 @@ const ENVIRONMENTS = ALL_TESTS ? [
   // '@types/node@15', // fails
   // '@types/bun@latest', // ArrayBuffer.resize signature incorrect. Return type ArrayBuffer instead of void.
   // '@types/deno@latest', // fails
-] : [
-  null,
+] : CI_TESTS ? [
   '@types/node@25',
+  '@types/node@24',
+  '@types/node@22',
+  '@types/node@16',
+] : [
+  '@types/node@25',
+];
+
+const LIBS = [
+  'dom',
 ];
 
 const CORE_JS_MODES = [
   'global',
   'pure',
-];
-
-const LIBS = [
-  'dom',
-  null,
 ];
 
 const TARGET_RULES = {
@@ -79,7 +91,7 @@ async function runTasksInParallel() {
   }));
 }
 
-async function runTask({ cwd, ts, config, args = [] }) {
+async function runTask({ cwd, ts = DEFAULT_TYPE_SCRIPT_VERSION, config, args = [] }) {
   const task = $({ cwd, verbose: false })`npx --package typescript@${ ts } tsc --project ${ config } ${ args }`;
   // eslint-disable-next-line no-underscore-dangle -- third-party code
   const { cmd } = task._snapshot;
@@ -98,8 +110,8 @@ function * buildTasks() {
   for (const mode of CORE_JS_MODES) {
     for (const target of ES_TARGETS) {
       for (const ts of TYPE_SCRIPT_VERSIONS) {
-        for (const env of ENVIRONMENTS) {
-          for (const lib of LIBS) {
+        for (const env of [null, ...ENVIRONMENTS]) {
+          for (const lib of [null, ...LIBS]) {
             const tsConfigPostfix = `${ TARGET_RULES[target] ? `.${ target }` : '' }${ LIB_RULES[lib] ? `.${ lib }` : '' }`;
             const config = env ? `./tsconfig.${ mode }${ tsConfigPostfix }.json` : `${ mode }/tsconfig${ tsConfigPostfix }.json`;
             const libWithTarget = lib ? `${ target },${ lib }` : target;
@@ -156,18 +168,18 @@ async function prepareEnvironments() {
 }
 
 const tasks = [
-  { ts: '5.9', config: 'tools/tsconfig.json' },
-  { ts: '5.9', config: 'templates/tsconfig.json' },
-  { ts: '5.9', config: 'templates/tsconfig.require.json' },
-  { ts: '5.9', config: 'entries/full/tsconfig.json' },
-  { ts: '5.9', config: 'entries/actual/tsconfig.json' },
-  { ts: '5.9', config: 'entries/stable/tsconfig.json' },
-  { ts: '5.9', config: 'entries/es/tsconfig.json' },
-  { ts: '5.9', config: 'entries/proposals/tsconfig.json' },
-  { ts: '5.9', config: 'entries/global-imports/tsconfig.json' },
-  { ts: '5.9', config: 'entries/pure-imports/tsconfig.json' },
-  { ts: '5.9', config: 'entries/configurator/tsconfig.json' },
-  { ts: '5.9', config: 'entries/pure-pollutions/tsconfig.json' },
+  { config: 'tools/tsconfig.json' },
+  { config: 'templates/tsconfig.json' },
+  { config: 'templates/tsconfig.require.json' },
+  { config: 'entries/full/tsconfig.json' },
+  { config: 'entries/actual/tsconfig.json' },
+  { config: 'entries/stable/tsconfig.json' },
+  { config: 'entries/es/tsconfig.json' },
+  { config: 'entries/proposals/tsconfig.json' },
+  { config: 'entries/global-imports/tsconfig.json' },
+  { config: 'entries/pure-imports/tsconfig.json' },
+  { config: 'entries/configurator/tsconfig.json' },
+  { config: 'entries/pure-pollutions/tsconfig.json' },
   ...buildTasks(),
 ];
 
