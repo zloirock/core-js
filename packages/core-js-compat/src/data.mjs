@@ -1021,6 +1021,7 @@ export const data = {
   },
   'es.math.sum-precise': {
     bun: '1.2.18',
+    chrome: '147',
     firefox: '137',
     safari: '26.2',
   },

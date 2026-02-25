@@ -83,6 +83,7 @@
 - Just in case, added an extra input string validation to the  polyfill of obsolete `Number.fromString` proposals
 - Many minor stylistic fixes and optimizations
 - Compat data improvements:
+  - [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum) marked as [shipped in V8 ~ Chrome 147](https://issues.chromium.org/issues/374310075#comment16)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Safari 26.4
   - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
