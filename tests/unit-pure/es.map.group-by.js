@@ -20,8 +20,8 @@ QUnit.test('Map.groupBy', assert => {
 
   const element = {};
   groupBy([element], function (it, i) {
-    assert.same(arguments.length, 2);
-    assert.same(it, element);
-    assert.same(i, 0);
+    assert.same(arguments.length, 2, 'correct number of callback arguments');
+    assert.same(it, element, 'correct value in callback');
+    assert.same(i, 0, 'correct index in callback');
   });
 });

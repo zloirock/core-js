@@ -12,10 +12,11 @@ QUnit.test('Array#flatMap', assert => {
   const array = [1];
   const context = {};
   flatMap(array, function (value, index, that) {
-    assert.same(value, 1);
-    assert.same(index, 0);
-    assert.same(that, array);
-    assert.same(this, context);
+    assert.same(arguments.length, 3, 'correct number of callback arguments');
+    assert.same(value, 1, 'correct value in callback');
+    assert.same(index, 0, 'correct index in callback');
+    assert.same(that, array, 'correct link to array in callback');
+    assert.same(this, context, 'correct callback context');
     return value;
   }, context);
   if (STRICT) {
