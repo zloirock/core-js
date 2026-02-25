@@ -23,6 +23,6 @@ QUnit.test('Reflect.construct', assert => {
   assert.notThrows(() => getPrototypeOf(construct(B, [])) === Object.prototype);
   assert.notThrows(() => typeof construct(Date, []).getTime() == 'number', 'works with native constructors with 2 arguments');
   // eslint-disable-next-line prefer-arrow-callback -- testing
-  assert.throws(() => construct(function () { /* empty */ }), 'throws when the second argument is not an object');
+  assert.throws(() => construct(function () { /* empty */ }), TypeError, 'throws when the second argument is not an object');
 });
 

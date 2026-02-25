@@ -113,8 +113,8 @@ QUnit.test('Array#toSorted', assert => {
   assert.same(result, 'DGBEFHACIJK', 'stable #2');
 
   assert.notThrows(() => toSorted([1, 2, 3], undefined).length === 3, 'works with undefined');
-  assert.throws(() => toSorted([1, 2, 3], null), 'throws on null');
-  assert.throws(() => toSorted([1, 2, 3], {}), 'throws on {}');
+  assert.throws(() => toSorted([1, 2, 3], null), TypeError, 'throws on null');
+  assert.throws(() => toSorted([1, 2, 3], {}), TypeError, 'throws on {}');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => toSorted([Symbol(1), Symbol(2)]), 'w/o cmp throws on symbols');
