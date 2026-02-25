@@ -10,9 +10,9 @@
 declare namespace CoreJS {
   export interface CoreJSMapConstructor extends MapConstructor {
     /**
-     * Creates a new `Map` instance from an iterable or array-like object of [key, value] pairs.
+     * Creates a new `Map` instance from an iterable object of [key, value] pairs.
      * Optionally, applies a mapping function to each pair.
-     * @param source - Iterable or array-like object of [key, value] pairs.
+     * @param source - Iterable object of [key, value] pairs.
      * @param mapFn - Function to call on every [key, value] pair before adding to the `Map`.
      * @param thisArg - Value to use as this when executing mapFn.
      * @returns A new `Map` instance.
@@ -53,9 +53,9 @@ declare namespace CoreJS {
 
   export interface CoreJSWeakMapConstructor extends WeakMapConstructor {
     /**
-     * Creates a new `WeakMap` instance from an iterable or array-like object of [key, value] pairs.
+     * Creates a new `WeakMap` instance from an iterable object of [key, value] pairs.
      * Optionally, applies a mapping function to each pair.
-     * @param source - Iterable or array-like object of [key, value] pairs.
+     * @param source - Iterable object of [key, value] pairs.
      * @param mapFn - Function to call on every [key, value] pair before adding to the `WeakMap`.
      * @param thisArg - Value to use as this when executing mapFn.
      * @returns A new `WeakMap` instance.
