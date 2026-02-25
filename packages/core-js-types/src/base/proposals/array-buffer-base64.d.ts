@@ -36,9 +36,10 @@ interface Uint8ArrayConstructor {
 
   /**
    * Creates a new `Uint8Array` from a base16-encoded string.
+   * @param string - The base16-encoded string.
    * @returns A new `Uint8Array` instance.
    */
-  fromHex(str: string): Uint8Array;
+  fromHex(string: string): Uint8Array;
 }
 
 interface Uint8Array {
