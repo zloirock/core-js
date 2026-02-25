@@ -439,7 +439,7 @@ QUnit.module('structuredClone', () => {
       assert,
       transfer.files,
       (orig, clone) => {
-        assert.same(1, clone.length);
+        assert.same(clone.length, 1);
         assert.same(orig[0].size, clone[0].size);
         assert.same(orig[0].type, clone[0].type);
         assert.same(orig[0].name, clone[0].name);
