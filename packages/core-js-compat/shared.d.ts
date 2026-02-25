@@ -26,6 +26,8 @@ export type Target =
   | 'oculus'
   /** `react-native` alias */
   | 'react'
+  /** `react-native` alias */
+  | 'reactnative'
   /** @deprecated use `opera-android` instead */
   | 'opera_mobile';
 

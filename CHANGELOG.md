@@ -77,6 +77,7 @@
 - Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposal polyfill
 - Fixed handling of ending zeroes in the fraction part in `Number.fromString` polyfill
 - Fixed `esmodules: intersect` option of `core-js-compat`
+- Fixed a lack of `reactnative` alias in `core-js-compat` types
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
 - In case of bugs in `String.prototype.{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
