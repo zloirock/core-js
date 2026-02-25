@@ -94,7 +94,7 @@ interface Uint32Array { // @type-options: no-export
    * @param callbackFn - A function that accepts up to three arguments. The filterReject method calls the
    * callbackFn function one time for each element in the array.
    * @param thisArg - If provided, it will be used as this value for each invocation of
-   * predicate. If it is not provided, undefined is used instead.
+   * callbackFn function. If it is not provided, undefined is used instead.
    */
   filterReject(callbackFn: (value: number, index: number, target: Uint32Array) => unknown, thisArg?: any): Uint32Array;
 }
