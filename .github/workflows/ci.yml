@@ -30,7 +30,7 @@ jobs:
           node-version: 25
           cache: npm
       - run: npm run prepare-monorepo
-      - run: npx run-s build-types test-type-definitions-all
+      - run: npx run-s build-types test-type-definitions-ci
 
   karma:
     runs-on: windows-2022
