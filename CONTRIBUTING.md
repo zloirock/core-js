@@ -94,7 +94,11 @@ The `URL` polyfill validates domains against tables generated from the [Unicode 
   ```
 - To test the types, run the command:
   ```sh
-  npm run test-type-definitions
+  npm run test-type-definitions-all
+  ```
+- To run the fast subset of the types test, run the command:
+  ```sh
+  npm run test-type-definitions-smoke
   ```
 
 ## Style and standards
