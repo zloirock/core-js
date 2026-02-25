@@ -11,7 +11,7 @@
 declare namespace CoreJS {
   export type IteratorFlatMap<T, U> = (callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined>) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
 
-  export type IteratorMap<T, U> = (callback: (value: T, index: number) => U) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
+  export type IteratorMap<T, U> = (callbackfn: (value: T, index: number) => U) => CoreJS.CoreJSIteratorObject<U, undefined, unknown>;
 
-  export type IteratorReduce<T, U = T> = (callback: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue?: U) => U;
+  export type IteratorReduce<T, U = T> = (callbackfn: (previousValue: U, currentValue: T, currentIndex: number) => U, initialValue?: U) => U;
 }
