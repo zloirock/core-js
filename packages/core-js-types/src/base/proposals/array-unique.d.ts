@@ -25,7 +25,7 @@ interface Int8Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Int8Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Int8Array;
 }
@@ -35,7 +35,7 @@ interface Uint8Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Uint8Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Uint8Array;
 }
@@ -45,7 +45,7 @@ interface Uint8ClampedArray { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Uint8ClampedArray` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Uint8ClampedArray;
 }
@@ -55,7 +55,7 @@ interface Int16Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Int16Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Int16Array;
 }
@@ -65,7 +65,7 @@ interface Uint16Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Uint16Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Uint16Array;
 }
@@ -75,7 +75,7 @@ interface Int32Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Int32Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Int32Array;
 }
@@ -85,7 +85,7 @@ interface Uint32Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Uint32Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Uint32Array;
 }
@@ -95,7 +95,7 @@ interface Float32Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Float32Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Float32Array;
 }
@@ -105,7 +105,7 @@ interface Float64Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `Float64Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: number) => unknown)): Float64Array;
 }
@@ -115,7 +115,7 @@ interface BigInt64Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `BigInt64Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: bigint) => unknown)): BigInt64Array;
 }
@@ -125,7 +125,7 @@ interface BigUint64Array { // @type-options: no-export
    * Returns a new array with unique items, determined by the resolver function or property key
    * @param resolver - A function that resolves the value to check uniqueness against,
    * or a property key to compare the value from each item
-   * @returns A new `Array` with unique items
+   * @returns A new `BigUint64Array` with unique items
    */
   uniqueBy(resolver?: PropertyKey | ((value: bigint) => unknown)): BigUint64Array;
 }
