@@ -14,8 +14,8 @@ declare namespace CoreJS {
     /**
      * Creates a new `ArrayBuffer` with the same byte content as this buffer, then detaches this buffer.
      * @param newByteLength - If provided, specifies the `byteLength` of the new `ArrayBuffer`
-     * @throws `RangeError` If this `ArrayBuffer` is resizable and newByteLength is greater than the `maxByteLength` of this `ArrayBuffer`
-     * @throws `TypeError` If this `ArrayBuffer` is already detached, or if it can only be detached by designated operations
+     * @throws RangeError If this `ArrayBuffer` is resizable and newByteLength is greater than the `maxByteLength` of this `ArrayBuffer`
+     * @throws TypeError If this `ArrayBuffer` is already detached, or if it can only be detached by designated operations
      * @returns A new `ArrayBuffer` object
      */
     transfer(newByteLength?: number): CoreJSArrayBuffer;
@@ -23,7 +23,7 @@ declare namespace CoreJS {
     /**
      * Creates a new non-resizable `ArrayBuffer` with the same byte content as this buffer, then detaches this buffer.
      * @param newByteLength - If provided, specifies the `byteLength` of the new `ArrayBuffer`
-     * @throws `TypeError` If this `ArrayBuffer` is already detached, or if it can only be detached by designated operations
+     * @throws TypeError If this `ArrayBuffer` is already detached, or if it can only be detached by designated operations
      * @returns A new `ArrayBuffer` object
      */
     transferToFixedLength(newByteLength?: number): CoreJSArrayBuffer;
