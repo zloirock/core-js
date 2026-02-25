@@ -15,7 +15,7 @@ interface PromiseConstructor {
    * Takes an object whose values are promises and returns a single `Promise` that resolves
    * to an object with the same keys, after all of the input promises have settled.
    * @param promises - An object of promises
-   * @returns A new Promise that resolves to an object with the same keys as the input object,
+   * @returns A new `Promise` that resolves to an object with the same keys as the input object,
    * where each key maps to the settlement result (`{ status, value }` or `{ status, reason }`) of the corresponding promise.
    */
   allSettledKeyed<D extends Record<PropertyKey, unknown>>(promises: D): Promise<{ [k in keyof D]: CoreJS.CoreJSPromiseSettledResult<Awaited<D[k]>> }>;
