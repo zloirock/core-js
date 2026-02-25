@@ -56,13 +56,13 @@ declare namespace CoreJS {
 
     /**
      * Determines whether the given value is a registered symbol.
-     * @param value - The value to be checked.
+     * @param value - The value to check.
      */
     isRegisteredSymbol(value: unknown): value is symbol;
 
     /**
      * Determines whether the given value is a well-known symbol.
-     * @param value - The value to be checked.
+     * @param value - The value to check.
      */
     isWellKnownSymbol(value: unknown): value is symbol;
 
