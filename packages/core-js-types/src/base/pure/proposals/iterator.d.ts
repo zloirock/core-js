@@ -155,6 +155,10 @@ declare namespace CoreJS {
     find<S extends T>(predicate: (value: T, index: number) => value is S): S | undefined;
     find(predicate: (value: T, index: number) => unknown): T | undefined;
 
+    /**
+     * Creates a string by concatenating all elements provided by the iterator, separated by the specified separator.
+     * @param separator - A string to separate each element. If omitted, the elements are separated by commas.
+     */
     join(separator?: unknown): string;
   }
 
@@ -172,14 +176,14 @@ declare namespace CoreJS {
      * @param iterables - An Iterable of iterables.
      * @param options - Optional object:
      *  - mode: 'shortest' (default) to stop at the shortest iterable | 'longest' to stop at the longest iterable | 'strict' to throw if iterables are not the same length;
-     *  - padding: an object specifying padding values for each key when mode is 'longest'.
-     * @returns An iterator yielding objects with keys from the input iterables and values from the corresponding iterables.
+     *  - padding: an iterable specifying padding values for each position when mode is 'longest'.
+     * @returns An iterator yielding arrays of values, collected one from each iterable.
      */
     zip<T extends readonly Iterable<unknown>[]>(iterables: T, options?: ZipOptions): CoreJSIteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never }, undefined, unknown>;
     zip<T>(iterables: Iterable<Iterable<T, unknown, undefined>>, options?: ZipOptions): CoreJSIteratorObject<T[], undefined, unknown>;
 
     /**
-     * takes an object whose values are iterables and produces an iterable of objects where keys.
+     * Takes an object whose values are iterables and produces an iterable of objects where keys
      * correspond to keys in the passed object.
      * @param record - An object of iterables.
      * @param options - Optional object:
