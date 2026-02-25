@@ -42,7 +42,7 @@
     "lint": "run-s prepare lint-raw",
     "lint-raw": "run-s build-types test-eslint bundle-package test-publint",
     "test": "run-s prepare test-raw",
-    "test-raw": "run-s lint-raw types-coverage bundle-tests test-unit test-promises test-entries test-compat-data test-compat-tools test-builder test-babel-plugin check",
+    "test-raw": "run-s lint-raw test-type-definitions types-coverage bundle-tests test-unit test-promises test-entries test-compat-data test-compat-tools test-builder test-babel-plugin check",
     "test-eslint": "npm run zxi time tests/eslint/runner.mjs",
     "test-publint": "npm run zxi time tests/publint/runner.mjs",
     "test-unit": "run-s test-unit-karma test-unit-node test-unit-bun",
