@@ -32,7 +32,7 @@ declare namespace CoreJS {
     fromAsync<T, U>(iterableOrArrayLike: CoreJSAsyncIterable<T> | Iterable<T> | ArrayLike<T>, mapFn: (value: Awaited<T>, index: number) => U, thisArg?: any): CoreJSPromise<Awaited<U>[]>;
 
     /**
-     * Determines whether an `value` is a `TemplateStringsArray`
+     * Determines whether a `value` is a `TemplateStringsArray`
      * @param value - The value to be checked
      * @returns `true` if `value` is a `TemplateStringsArray`, otherwise `false`
      */
