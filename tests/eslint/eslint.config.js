@@ -573,12 +573,6 @@ const base = {
   'promise/prefer-await-to-then': [ERROR, { strict: true }],
   // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
   'promise/prefer-catch': ERROR,
-  // disallow use of non-standard `Promise` static methods
-  'promise/spec-only': [OFF, { allowedMethods: [
-    'prototype', // `eslint-plugin-promise` bug, https://github.com/eslint-community/eslint-plugin-promise/issues/533
-    'try',
-    'undefined', // `eslint-plugin-promise` bug, https://github.com/eslint-community/eslint-plugin-promise/issues/534
-  ] }],
   // ensures the proper number of arguments are passed to `Promise` functions
   'promise/valid-params': ERROR,
 
