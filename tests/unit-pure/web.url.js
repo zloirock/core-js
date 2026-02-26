@@ -51,6 +51,12 @@ QUnit.test('URL constructor', assert => {
   // assert.same(String(new URL('file://nnsc.nsf.net/bar/baz')), 'file://nnsc.nsf.net/bar/baz', 'file scheme'); // 'file:///bar/baz' in FF
   // assert.same(String(new URL('file://localhost/bar/baz')), 'file:///bar/baz', 'file scheme'); // 'file://localhost/bar/baz' in Chrome
 
+  // FILE_SLASH state: host should be inherited from file: base
+  // some browsers have a non-spec-compliant native URL implementation for this case
+  if (new URL('file:/path', 'file://somehost/dir/file').host === 'somehost') {
+    assert.same(new URL('file:/path', 'file://somehost/dir/file').href, 'file://somehost/path', 'file slash: href with inherited host');
+  }
+
   assert.throws(() => new URL(), 'TypeError: Failed to construct URL: 1 argument required, but only 0 present.');
   assert.throws(() => new URL(''), 'TypeError: Failed to construct URL: Invalid URL');
   // Node 19.7
