@@ -79,7 +79,7 @@ if (PATCH) {
       var prevChar = re.lastIndex > 0 && charAt(str, re.lastIndex - 1);
       if (re.lastIndex > 0 &&
         (!re.multiline || re.multiline && prevChar !== '\n' && prevChar !== '\r' && prevChar !== '\u2028' && prevChar !== '\u2029')) {
-        source = '(?: ' + source + ')';
+        source = '(?: (?:' + source + '))';
         strCopy = ' ' + strCopy;
         charsAdded++;
       }

@@ -31,6 +31,7 @@
 - Fixed named backreferences in `RegExp` NCG polyfill
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed some cases of `RegExp` NCG polyfill in combination with `dotAll`
+- Fixed `RegExp` `sticky` polyfill with alternation
 - Fixed handling of some line terminators in case of `multiline` + `sticky` mode in `RegExp` polyfill
 - Fixed `.input` slicing on result object with `RegExp` `sticky` mode polyfill
 - Fixed handling of empty groups with `global` and `unicode` modes in polyfills
