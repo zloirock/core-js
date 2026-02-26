@@ -1,4 +1,3 @@
-import { fixupPluginRules } from '@eslint/compat';
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
 import * as parserJSONC from 'jsonc-eslint-parser';
@@ -24,11 +23,9 @@ import pluginRegExp from 'eslint-plugin-regexp';
 import pluginSonarJS from 'eslint-plugin-sonarjs';
 import pluginStylistic from '@stylistic/eslint-plugin';
 import pluginTypeScript from '@typescript-eslint/eslint-plugin';
-import $pluginTSDoc from 'eslint-plugin-tsdoc';
+import pluginTSDoc from 'eslint-plugin-tsdoc';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
-
-const pluginTSDoc = fixupPluginRules($pluginTSDoc);
 
 const PACKAGES_NODE_VERSIONS = '^20.19';
 const DEV_NODE_VERSIONS = '^20.19';
@@ -1930,8 +1927,6 @@ const ts = {
   '@typescript-eslint/prefer-function-type': ERROR,
   // require using namespace keyword over module keyword to declare custom TypeScript modules
   '@typescript-eslint/prefer-namespace-keyword': ERROR,
-  // disallow two overloads that could be unified into one with a union or an optional / rest parameter
-  '@typescript-eslint/unified-signatures': OFF,
 };
 
 const typeDefinitionsTests = {
