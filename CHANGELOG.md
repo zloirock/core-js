@@ -18,6 +18,7 @@
 - Fixed order of arguments validation in `Array.prototype.flat` polyfill
 - Fixed handling strings as iterables in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
+- Fixed validation of iterators `.next()` results an objects in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed a lack of early error in `Iterator.concat` polyfill on primitive as an iterator
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
