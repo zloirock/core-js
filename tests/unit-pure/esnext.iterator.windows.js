@@ -50,4 +50,14 @@ QUnit.test('Iterator#windows', assert => {
 
   assert.throws(() => windows.call(createIterator([1]), 2, null), TypeError, 'incorrect `undersized` argument #1');
   assert.throws(() => windows.call(createIterator([1]), 2, 'allowpartial'), TypeError, 'incorrect `undersized` argument #2');
+
+  // windows should return independent copies (not the same buffer)
+  {
+    const iter = windows.call(createIterator([1, 2, 3, 4, 5]), 3);
+    const w1 = iter.next().value;
+    assert.deepEqual(w1, [1, 2, 3], 'window 1');
+    w1[1] = 99;
+    const w2 = iter.next().value;
+    assert.deepEqual(w2, [2, 3, 4], 'window 2 not affected by mutation of window 1');
+  }
 });
