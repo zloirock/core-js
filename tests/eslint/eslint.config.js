@@ -1948,8 +1948,6 @@ const ts = {
   '@typescript-eslint/prefer-function-type': ERROR,
   // require using namespace keyword over module keyword to declare custom TypeScript modules
   '@typescript-eslint/prefer-namespace-keyword': ERROR,
-  // disallow two overloads that could be unified into one with a union or an optional / rest parameter
-  '@typescript-eslint/unified-signatures': OFF,
 };
 
 const typeDefinitionsTests = {
