@@ -4,7 +4,7 @@ var exportTypedArrayMethod = require('../internals/export-typed-array-method');
 var aTypedArray = require('../internals/a-typed-array');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toOffset = require('../internals/to-offset');
-var toIndexedObject = require('../internals/to-object');
+var toObject = require('../internals/to-object');
 var fails = require('../internals/fails');
 
 var $RangeError = RangeError;
@@ -30,7 +30,7 @@ var TO_OBJECT_BUG = WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS && fails(func
 exportTypedArrayMethod('set', function set(arrayLike /* , offset */) {
   aTypedArray(this);
   var offset = toOffset(arguments.length > 1 ? arguments[1] : undefined, 1);
-  var src = toIndexedObject(arrayLike);
+  var src = toObject(arrayLike);
   if (WORKS_WITH_OBJECTS_AND_GENERIC_ON_TYPED_ARRAYS) return call($set, this, src, offset);
   var length = this.length;
   var len = lengthOfArrayLike(src);
