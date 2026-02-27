@@ -9,6 +9,9 @@ var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var setToStringTag = require('../internals/set-to-string-tag');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+
+var ITERATOR = wellKnownSymbol('iterator');
 var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
@@ -22,7 +25,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   var Constructor;
 
   var REPLACE = FORCED || !isCallable(NativeConstructor)
-    || !(IS_WEAK || (NativePrototype.forEach && common.ensureIterators(Constructor, CONSTRUCTOR_NAME, IS_MAP)));
+    || !(IS_WEAK || (NativePrototype.forEach && common.ensureIterators(NativeConstructor, CONSTRUCTOR_NAME, IS_MAP)));
 
   if (REPLACE) {
     // create collection constructor
@@ -55,12 +58,16 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
       }
     });
 
-    IS_WEAK || Object.defineProperty(Prototype, 'size', {
-      configurable: true,
-      get: function () {
-        return getInternalState(this).collection.size;
-      },
-    });
+    if (!IS_WEAK) {
+      Object.defineProperty(Prototype, 'size', {
+        configurable: true,
+        get: function () {
+          return getInternalState(this).collection.size;
+        },
+      });
+
+      createNonEnumerableProperty(Prototype, ITERATOR, Prototype[IS_MAP ? 'entries' : 'values']);
+    }
   }
 
   setToStringTag(Constructor, CONSTRUCTOR_NAME, false, true);
