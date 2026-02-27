@@ -1,5 +1,5 @@
 # Iterator join
-[Specification](https://tc39.es/proposal-iterator-join/)\
+[Specification](https://tc39.es/proposal-iterator-join)\
 [Proposal repo](https://github.com/tc39/proposal-iterator-join)
 
 ## Modules
