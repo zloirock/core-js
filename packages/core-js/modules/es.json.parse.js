@@ -152,7 +152,7 @@ Context.prototype = {
         break;
       }
     }
-    if (!closed) throw new SyntaxError('Unterminated object at: ' + i);
+    if (!closed) throw new $SyntaxError('Unterminated object at: ' + i);
     return this.node(OBJECT, object, this.index, i, nodes);
   },
   array: function () {
@@ -182,7 +182,7 @@ Context.prototype = {
         break;
       }
     }
-    if (!closed) throw new SyntaxError('Unterminated array at: ' + i);
+    if (!closed) throw new $SyntaxError('Unterminated array at: ' + i);
     return this.node(OBJECT, array, this.index, i, nodes);
   },
   string: function () {
@@ -201,7 +201,7 @@ Context.prototype = {
     if (source[i] === '.') {
       var fractionStartIndex = i + 1;
       i = this.skip(IS_DIGIT, fractionStartIndex);
-      if (fractionStartIndex === i) throw new SyntaxError("Failed to parse number's fraction at: " + i);
+      if (fractionStartIndex === i) throw new $SyntaxError("Failed to parse number's fraction at: " + i);
     }
     if (source[i] === 'e' || source[i] === 'E') {
       i++;
