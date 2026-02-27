@@ -1,6 +1,6 @@
 # Iterator join
-[Specification](https://bakkot.github.io/proposal-iterator-join/)\
-[Proposal repo](https://github.com/bakkot/proposal-iterator-join)
+[Specification](https://tc39.es/proposal-iterator-join)\
+[Proposal repo](https://github.com/tc39/proposal-iterator-join)
 
 ## Modules
 [`esnext.iterator.join`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.iterator.join.js)
