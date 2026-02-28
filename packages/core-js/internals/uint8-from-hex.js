@@ -12,7 +12,6 @@ module.exports = function (string, into) {
   if (stringLength % 2 !== 0) throw new SyntaxError('String should be an even number of characters');
   var maxLength = into ? min(into.length, stringLength / 2) : stringLength / 2;
   var bytes = into || new Uint8Array(maxLength);
-  // This splitting is faster than using substrings each time.
   var segments = stringMatch(string, /.{2}/g);
   var written = 0;
   for (; written < maxLength; written++) {
