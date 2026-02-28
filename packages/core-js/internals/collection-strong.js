@@ -13,6 +13,7 @@ var MapNativeModule = require('../internals/map-native');
 var setInternalState = require('../internals/internal-state').set;
 var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var wellKnownSymbol = require('../internals/well-known-symbol');
+var IS_PURE = require('../internals/is-pure');
 
 var ITERATOR = wellKnownSymbol('iterator');
 
@@ -221,7 +222,7 @@ module.exports = {
 
       var defaultIterator = IS_MAP ? entries : values;
 
-      if (Constructor.prototype[ITERATOR] !== defaultIterator) {
+      if (!IS_PURE && Constructor.prototype[ITERATOR] !== defaultIterator) {
         defineBuiltIn(Constructor.prototype, ITERATOR, defaultIterator, { name: IS_MAP ? 'entries' : 'values' });
       }
 
