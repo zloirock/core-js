@@ -194,31 +194,35 @@ export const $static = p => ({
   `,
 });
 
-export const $staticWithContext = p => ({
-  entry: dedent`
-    ${ importModules(p) }
+export const $staticWithContext = p => {
+  const arity = globalThis?.[p.namespace]?.[p.name]?.length ?? p.arity;
+  const args = Array(arity).fill().map((_, i) => `arg${ i }`).join(', ');
+  return {
+    entry: dedent`
+      ${ importModules(p) }
+      
+      var getBuiltIn = ${ importInternal('get-built-in', p.level) }
+      var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
+      var isCallable = ${ importInternal('is-callable', p.level) }
+      var call = ${ importInternal('function-call', p.level) }
     
-    var getBuiltIn = ${ importInternal('get-built-in', p.level) }
-    var getBuiltInStaticMethod = ${ importInternal('get-built-in-static-method', p.level) }
-    var isCallable = ${ importInternal('is-callable', p.level) }
-    var apply = ${ importInternal('function-apply', p.level) }
-  
-    var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
-  
-    module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }() {
-      return apply(method, isCallable(this) ? this : getBuiltIn('${ p.namespace }'), arguments);
-    };
-  `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
-      export = method;
-    }
-  `,
-});
+      var method = getBuiltInStaticMethod('${ p.namespace }', '${ p.name }');
+    
+      module.exports = function ${ isAllowedFunctionName(p.name) ? p.name : '' }(${ args }) {
+        return call(method, isCallable(this) ? this : getBuiltIn('${ p.namespace }')${ arity ? `, ${ args }` : '' });
+      };
+    `,
+    types: dedent`
+      declare module '${ buildModulePath(p) }' {
+        const method: typeof ${ p.prefix ?? '' }${ p.namespace }.${ p.name };
+        export = method;
+      }
+    `,
+  };
+};
 
 export const $patchableStatic = p => {
-  const arity = globalThis?.[p.namespace]?.[p.name].length ?? p.arity;
+  const arity = globalThis?.[p.namespace]?.[p.name]?.length ?? p.arity;
   const args = Array(arity).fill().map((_, i) => `arg${ i }`).join(', ');
   return {
     entry: dedent`
