@@ -81,6 +81,7 @@ module.exports = defineProvider(({
   }
 
   function getModulesForCoreJSEntry(entry) {
+    if (entry && !hasOwn(entries, entry)) return [];
     return compat({ modules: entries[entry], targets, version }).list;
   }
 
