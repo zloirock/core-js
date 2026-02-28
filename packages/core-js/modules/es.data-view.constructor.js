@@ -29,7 +29,8 @@ var WRAP = !PROPER_UNDEFINED_HANDLING || !NEW_REQUIRED;
 var $DataView = function DataView(buffer) {
   anInstance(this, DataViewPrototype);
   var length = arguments.length;
-  var view = length > 2 && arguments[2] !== undefined ? new NativeDataView(buffer, arguments[1], arguments[2])
+  var view = length > 2 && arguments[2] !== undefined
+    ? new NativeDataView(buffer, arguments[1] === undefined ? 0 : arguments[1], arguments[2])
     : length > 1 && arguments[1] !== undefined ? new NativeDataView(buffer, arguments[1])
     : new NativeDataView(buffer);
   return inheritIfRequired(view, this, DataViewPrototype);
