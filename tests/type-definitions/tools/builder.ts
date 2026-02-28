@@ -1,7 +1,7 @@
 import builder from '@core-js/builder';
 
-const a: Promise<string> = builder({ targets: { node: 17 } });
-const b: string = await builder({ targets: { node: 17 } });
+const a: Promise<{ script: string }> = builder({ targets: { node: 17 } });
+const b: { script: string } = await builder({ targets: { node: 17 } });
 
 await builder();
 await builder({});
