@@ -1969,6 +1969,7 @@ export const features = {
     template: $staticWithContext,
     namespace: 'Promise',
     name: 'allKeyed',
+    arity: 1,
   },
   'promise/all-settled': {
     modules: ['es.promise.all-settled'],
@@ -1981,6 +1982,7 @@ export const features = {
     template: $staticWithContext,
     namespace: 'Promise',
     name: 'allSettledKeyed',
+    arity: 1,
   },
   'promise/any': {
     modules: ['es.promise.any'],
@@ -2035,12 +2037,14 @@ export const features = {
     template: $staticWithContext,
     namespace: 'Promise',
     name: 'try',
+    arity: 1,
   },
   'promise/with-resolvers': {
     modules: ['es.promise.with-resolvers'],
     template: $staticWithContext,
     namespace: 'Promise',
     name: 'withResolvers',
+    arity: 0,
   },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],
