@@ -185,7 +185,8 @@ async function buildBlogMenu() {
       continue;
     }
     let htmlContent = await marked.parse(content);
-    htmlContent = htmlContent.replace(/<h1>[^<]*<\/h1>/i, '');
+    // eslint-disable-next-line redos/no-vulnerable -- safe
+    htmlContent = htmlContent.replace(/<h1[^>]*>.*?<\/h1>/i, '');
     const hrIndex = htmlContent.search(/<hr>/i);
     const preview = hrIndex !== -1 ? htmlContent.slice(0, hrIndex) : htmlContent;
 
@@ -323,7 +324,7 @@ async function build() {
 
     let resultHtml = template.replace('{content}', htmlContent.replaceAll('$', '&#36;'));
 
-    resultHtml = resultHtml.replace('{title}', title);
+    resultHtml = resultHtml.replace('{title}', title.replaceAll('$', '&#36;'));
     resultHtml = resultHtml.replace('{base}', BASE);
     resultHtml = resultHtml.replace('{core-js-bundle}', bundleScript);
     resultHtml = resultHtml.replace('{core-js-bundle-esmodules}', bundleESModulesScript);
