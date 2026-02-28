@@ -28,6 +28,6 @@ type Options = Pick<CompatOptions, "exclude" | "modules" | "targets"> & {
   summary?: Summary,
 };
 
-declare function builder(options?: Options): Promise<string>;
+declare function builder(options?: Options): Promise<{ script: string }>;
 
 export default builder;
