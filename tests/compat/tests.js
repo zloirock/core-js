@@ -138,7 +138,7 @@ var DATA_VIEW_INT8_CONVERSION_BUG = function () {
   testView.setInt8(1, 2147483649);
 
   // iOS Safari 7.x bug
-  return !testView.getInt8(0) || !!testView.getInt8(1);
+  return !testView.getInt8(0) && !!testView.getInt8(1);
 };
 
 var TYPED_ARRAY_CONSTRUCTORS_NOT_REQUIRE_WRAPPERS = function () {
