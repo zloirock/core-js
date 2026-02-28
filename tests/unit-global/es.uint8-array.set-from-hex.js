@@ -41,7 +41,7 @@ if (DESCRIPTORS) QUnit.test('Uint8Array.prototype.setFromHex', assert => {
   // we aren't using the result of segments = stringMatch(string, /.{2}/g) unsafely
   // in cases where no matches are found, since it returns null instead of []
   const arrayEmpty = new Uint8Array(4);
-  const resultEmpty = array1.setFromHex('');
+  const resultEmpty = arrayEmpty.setFromHex('');
 
   assert.deepEqual(arrayEmpty, new Uint8Array([0, 0, 0, 0]), 'array empty string test');
   assert.deepEqual(resultEmpty, { read: 0, written: 0 }, 'result empty string test');
