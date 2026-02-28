@@ -13,9 +13,14 @@ QUnit.test('String#padEnd', assert => {
   assert.same(padEnd('foo', 1), 'foo');
   assert.same(padEnd('foo', 5, ''), 'foo');
 
+  const thrower = { toString() { throw new Error('oops'); } };
+  assert.throws(() => padEnd('a', 10, thrower), 'throws on thrower argument conversion');
+  assert.same(padEnd('abc', 2, thrower), 'abc', 'does not throw on thrower argument when no padding needed');
+
   const symbol = Symbol('padEnd test');
   assert.throws(() => padEnd(symbol, 10, 'a'), 'throws on symbol context');
   assert.throws(() => padEnd('a', 10, symbol), 'throws on symbol argument');
+  assert.same(padEnd('abc', 2, symbol), 'abc', 'does not throw on symbol fillString when no padding needed');
 
   if (STRICT) {
     assert.throws(() => padEnd(null, 0), TypeError);

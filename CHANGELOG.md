@@ -25,6 +25,7 @@
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
+- Fixed order of arguments validation in `String.prototype.{ padStart, padEnd }` polyfills
 - Fixed order of arguments validation in `String.prototype.{ startsWith, endsWith }` polyfills
 - Fixed some cases of `Infinity` handling in `String.prototype.substr` polyfill
 - Fixed `String.prototype.repeat` polyfill with a counter exceeding 2 ** 32
