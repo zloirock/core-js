@@ -1,8 +1,12 @@
 'use strict';
-var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
+var definePropertyModule = require('../internals/object-define-property');
 
 module.exports = function (target, key, value, options) {
-  if (options && options.enumerable) target[key] = value;
-  else createNonEnumerableProperty(target, key, value);
-  return target;
+  if (!options) options = {};
+  return definePropertyModule.f(target, key, {
+    value: value,
+    enumerable: options.enumerable,
+    configurable: !options.nonConfigurable,
+    writable: !options.nonWritable,
+  });
 };
