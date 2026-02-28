@@ -10,6 +10,7 @@ const { hasOwn } = Object;
 for (const scope of [data, external]) {
   for (const [key, module] of Object.entries(scope)) {
     const { chrome, ie } = module;
+    const nonModulesExternal = scope === external && key !== 'modules';
 
     function map(mappingKey) {
       const [engine, targetKey] = mappingKey.split('To')
@@ -28,7 +29,7 @@ for (const scope of [data, external]) {
       }
     }
 
-    if (/^(?:es|esnext)\./.test(key)) {
+    if (nonModulesExternal || /^(?:es|esnext)\./.test(key)) {
       map('ChromeToDeno');
       map('ChromeToNode');
     }
@@ -41,7 +42,7 @@ for (const scope of [data, external]) {
         module.edge = String(Math.max(chrome, 79));
       }
     }
-    if (/^(?:es|esnext|web)\./.test(key)) {
+    if (nonModulesExternal || /^(?:es|esnext|web)\./.test(key)) {
       map('ChromeToElectron');
     }
     if (chrome && module.opera < 15 && mappings.ChromeToOpera(chrome) > 15) {
@@ -64,7 +65,7 @@ for (const scope of [data, external]) {
       module.quest = String(Math.ceil(module['chrome-android'] / 2) * 2);
     }
     map('ChromeAndroidToSamsung');
-    if (/^(?:es|esnext)\./.test(key)) {
+    if (nonModulesExternal || /^(?:es|esnext)\./.test(key)) {
       map('SafariToBun');
     }
     map('FirefoxToFirefoxAndroid');
