@@ -1,6 +1,6 @@
 # Changelog
 ### Unreleased
-- Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
+- Improved performance of `atob`, `btoa`, `Uint8Array.fromHex`, `Uint8Array.prototype.setFromHex`, and `Uint8Array.prototype.toHex`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464), [#1510](https://github.com/zloirock/core-js/issues/1510)
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
   - Allow `null` as `optionOrStep`
