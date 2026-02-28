@@ -32,7 +32,7 @@
 - Fixed named backreferences in `RegExp` NCG polyfill
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed some cases of `RegExp` NCG polyfill in combination with `dotAll`
-- Fixed `String.prototype.replace` with `sticky` polyfill, [#810](https://github.com/zloirock/core-js/issues/810), [#1514](https://zloirock/core-js/issues/1514)
+- Fixed `String.prototype.replace` with `sticky` polyfill, [#810](https://github.com/zloirock/core-js/issues/810), [#1514](https://github.com/zloirock/core-js/issues/1514)
 - Fixed `RegExp` `sticky` polyfill with alternation
 - Fixed handling of some line terminators in case of `multiline` + `sticky` mode in `RegExp` polyfill
 - Fixed `.input` slicing on result object with `RegExp` `sticky` mode polyfill
