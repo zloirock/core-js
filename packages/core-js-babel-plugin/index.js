@@ -80,9 +80,14 @@ module.exports = defineProvider(({
     return null;
   }
 
+  const modulesForEntryCache = new Map();
+
   function getModulesForEntry(entry) {
-    if (entry && !hasOwn(entries, entry)) return [];
-    return compat({ modules: entries[entry], targets, version }).list;
+    if (entry === '') entry = 'index';
+    if (modulesForEntryCache.has(entry)) return modulesForEntryCache.get(entry);
+    const result = hasOwn(entries, entry) ? compat({ modules: entries[entry], targets, version }).list : [];
+    modulesForEntryCache.set(entry, result);
+    return result;
   }
 
   function injectModulesForEntry(entry, utils) {
@@ -117,8 +122,8 @@ module.exports = defineProvider(({
     switch (name) {
       case 'min-args': {
         if (!isCallee(node, parent)) return false;
-        const [index] = args;
-        if (parent.arguments.length >= index) return false;
+        const [length] = args;
+        if (parent.arguments.length >= length) return false;
         return parent.arguments.every(arg => !t.isSpreadElement(arg));
       }
       case 'arg-is-string': {
@@ -254,9 +259,8 @@ module.exports = defineProvider(({
         case 'global': {
           const id = injectPureImport(dep, resolved.name, utils);
           if (id) path.replaceWith(id);
+        } break;
 
-          break;
-        }
         case 'static': {
           const id = injectPureImport(dep, resolved.name, utils);
           if (id) {
@@ -271,9 +275,8 @@ module.exports = defineProvider(({
               } while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && !parentPath.node.optional);
             }
           }
+        } break;
 
-          break;
-        }
         case 'instance': {
           const id = injectPureImport(dep, `${ resolved.name }InstanceProperty`, utils);
           if (!id) return;
@@ -285,9 +288,7 @@ module.exports = defineProvider(({
           } else {
             path.replaceWith(t.callExpression(id, [node.object]));
           }
-
-          break;
-        }
+        } break;
       }
 
       return true;
