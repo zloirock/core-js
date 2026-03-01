@@ -29,6 +29,7 @@ const DEV_NODE_VERSIONS = '^20.19';
 
 const ERROR = 'error';
 const OFF = 'off';
+const WARN = 'warn';
 const ALWAYS = 'always';
 const NEVER = 'never';
 const READONLY = 'readonly';
@@ -1096,10 +1097,6 @@ const base = {
   'eslint-comments/no-duplicate-disable': ERROR,
   // disallow `eslint-disable` comments without rule names
   'eslint-comments/no-unlimited-disable': ERROR,
-  // disallow unused `eslint-disable` comments
-  //   it's clearly disabled since result of some rules (like `redos/no-vulnerable`) is non-deterministic
-  //   and anyway it's reported because of `reportUnusedDisableDirectives` option
-  'eslint-comments/no-unused-disable': OFF,
   // disallow unused `eslint-enable` comments
   'eslint-comments/no-unused-enable': ERROR,
   // require include descriptions in eslint directive-comments
@@ -2349,7 +2346,7 @@ export default [
       },
     },
     linterOptions: {
-      reportUnusedDisableDirectives: true,
+      reportUnusedDisableDirectives: WARN,
     },
     plugins: {
       '@stylistic': pluginStylistic,
