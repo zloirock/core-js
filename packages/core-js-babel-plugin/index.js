@@ -80,13 +80,13 @@ module.exports = defineProvider(({
     return null;
   }
 
-  function getModulesForCoreJSEntry(entry) {
+  function getModulesForEntry(entry) {
     if (entry && !hasOwn(entries, entry)) return [];
     return compat({ modules: entries[entry], targets, version }).list;
   }
 
-  function injectCoreJSModulesForEntry(entry, utils) {
-    for (const moduleName of getModulesForCoreJSEntry(entry)) {
+  function injectModulesForEntry(entry, utils) {
+    for (const moduleName of getModulesForEntry(entry)) {
       const moduleEntry = `modules/${ moduleName }`;
       utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
       injectedModules.add(moduleEntry);
@@ -138,13 +138,37 @@ module.exports = defineProvider(({
     }
   }
 
+  function injectPureImport(dep, hint, utils) {
+    if (!getModulesForEntry(`${ mode }/${ dep }`).length) return null;
+    return utils.injectDefaultImport(`${ pkg }/${ mode }/${ dep }`, hint);
+  }
+
+  function maybeMemoizeContext(node, scope) {
+    const { object } = node;
+    let context1, context2;
+    if (t.isIdentifier(object)) {
+      context2 = object;
+      context1 = t.cloneNode(object);
+    } else {
+      context2 = scope.generateDeclaredUidIdentifier('context');
+      context1 = t.assignmentExpression('=', t.cloneNode(context2), object);
+    }
+    return [context1, context2];
+  }
+
+  function callMethod(path, id) {
+    const [context1, context2] = maybeMemoizeContext(path.node, path.scope);
+    path.replaceWith(t.memberExpression(t.callExpression(id, [context1]), t.identifier('call')));
+    path.parentPath.unshiftContainer('arguments', context2);
+  }
+
   return {
     name: 'core-js@4',
     polyfills: modulesListForTargetVersion,
     entryGlobal({ source }, utils, path) {
       const entry = getCoreJSEntry(source);
       if (entry === null || injectedModules.has(entry)) return;
-      injectCoreJSModulesForEntry(entry, utils);
+      injectModulesForEntry(entry, utils);
       path.remove();
     },
     usageGlobal(meta, utils, path) {
@@ -158,11 +182,115 @@ module.exports = defineProvider(({
       const { dependencies, filters } = desc;
       if (filters?.some(([name, ...args]) => filter(name, args, path))) return true;
       for (const entry of dependencies) {
-        injectCoreJSModulesForEntry(`${ mode }/${ entry }`, utils);
+        injectModulesForEntry(`${ mode }/${ entry }`, utils);
       }
       return true;
     },
-    usagePure() { /* empty */ },
+    /* eslint-disable max-statements -- ok */
+    usagePure(meta, utils, path) {
+      if (meta.kind === 'in') {
+        if (meta.key === 'Symbol.iterator') {
+          const id = injectPureImport('is-iterable', 'isIterable', utils);
+          if (id) path.replaceWith(t.callExpression(id, [path.node.right]));
+        }
+        return;
+      }
+
+      // can't polyfill delete expressions
+      if (path.parentPath.isUnaryExpression({ operator: 'delete' })) return;
+
+      if (meta.kind === 'property') {
+        if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
+        if (!path.isReferenced()) return;
+        if (path.parentPath.isUpdateExpression()) return;
+        if (t.isSuper(path.node.object)) return;
+
+        if (meta.key === 'Symbol.iterator') {
+          const { parent, node } = path;
+
+          if (t.isCallExpression(parent, { callee: node })) {
+            if (parent.arguments.length === 0) {
+              const id = injectPureImport('get-iterator', 'getIterator', utils);
+              if (!id) return;
+              path.parentPath.replaceWith(t.callExpression(id, [node.object]));
+              path.skip();
+            } else {
+              const id = injectPureImport('get-iterator-method', 'getIteratorMethod', utils);
+              if (!id) return;
+              callMethod(path, id);
+            }
+          } else {
+            const id = injectPureImport('get-iterator-method', 'getIteratorMethod', utils);
+            if (!id) return;
+            path.replaceWith(t.callExpression(id, [node.object]));
+          }
+
+          return;
+        }
+      }
+
+      const resolved = resolve(meta);
+      if (!resolved) return;
+
+      let { kind, desc: { pure: desc } } = resolved;
+      if (!desc) return;
+
+      if (kind === 'instance') {
+        desc = resolveHint(desc, meta);
+        if (desc === null) return true;
+      }
+
+      const { dependencies } = desc;
+      if (!dependencies?.length) return;
+
+      const [dep] = dependencies;
+
+      switch (kind) {
+        case 'global': {
+          const id = injectPureImport(dep, resolved.name, utils);
+          if (id) path.replaceWith(id);
+
+          break;
+        }
+        case 'static': {
+          const id = injectPureImport(dep, resolved.name, utils);
+          if (id) {
+            path.replaceWith(id);
+            // remove optional chaining since we now import a known-non-null value
+            let { parentPath } = path;
+            if (parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) {
+              do {
+                parentPath.node.type = parentPath.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
+                delete parentPath.node.optional;
+                ({ parentPath } = parentPath);
+              } while (
+                (parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) &&
+              !parentPath.node.optional
+              );
+            }
+          }
+
+          break;
+        }
+        case 'instance': {
+          const id = injectPureImport(dep, `${ resolved.name }InstanceProperty`, utils);
+          if (!id) return;
+
+          const { node, parent } = path;
+
+          if (t.isCallExpression(parent) && parent.callee === node) {
+            callMethod(path, id);
+          } else {
+            path.replaceWith(t.callExpression(id, [node.object]));
+          }
+
+          break;
+        }
+      }
+
+      return true;
+    },
+    /* eslint-enable max-statements -- ok */
     visitor: method === 'usage-global' && {
       // import('foo')
       CallExpression(path) {
@@ -170,38 +298,38 @@ module.exports = defineProvider(({
           const utils = getUtils(path);
           if (isWebpack) {
             // Webpack uses `Promise.all` to handle dynamic import.
-            injectCoreJSModulesForEntry(`${ mode }/promise/all`, utils);
+            injectModulesForEntry(`${ mode }/promise/all`, utils);
           } else {
-            injectCoreJSModulesForEntry(`${ mode }/promise/constructor`, utils);
+            injectModulesForEntry(`${ mode }/promise/constructor`, utils);
           }
         }
       },
       // (async function () { }).finally(...)
       Function(path) {
         if (path.node.async) {
-          injectCoreJSModulesForEntry(`${ mode }/promise/constructor`, getUtils(path));
+          injectModulesForEntry(`${ mode }/promise/constructor`, getUtils(path));
         }
       },
       // for-of, [a, b] = c
       'ForOfStatement|ArrayPattern'(path) {
-        injectCoreJSModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+        injectModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
       },
       // [...spread]
       SpreadElement(path) {
         if (!path.parentPath.isObjectExpression()) {
-          injectCoreJSModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+          injectModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
         }
       },
       // yield *
       YieldExpression(path) {
         if (path.node.delegate) {
-          injectCoreJSModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+          injectModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
         }
       },
       // decorators metadata
       Class(path) {
         if (path.node.decorators?.length || path.node.body.body.some(el => el.decorators?.length)) {
-          injectCoreJSModulesForEntry(`${ mode }/symbol/metadata`, getUtils(path));
+          injectModulesForEntry(`${ mode }/symbol/metadata`, getUtils(path));
         }
       },
     },
