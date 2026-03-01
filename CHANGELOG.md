@@ -42,6 +42,7 @@
 - Fixed possible removal of unnecessary entries in `URLSearchParam.prototype.delete` polyfill with second argument
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode cases / character sets in the `URL` polyfill
+- Fixed parsing of non-IPv4 hosts ends in a number in the `URL` polyfill
 - Fixed some cases of `''` and `null` host handling in the `URL` polyfill
 - Fixed host parsing with `hostname = host:port` in the `URL` polyfill
 - Fixed host inheritance in some cases of file scheme in the `URL` polyfill
