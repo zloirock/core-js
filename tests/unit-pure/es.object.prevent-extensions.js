@@ -7,6 +7,7 @@ import preventExtensions from 'core-js-pure/es/object/prevent-extensions';
 QUnit.test('Object.preventExtensions', assert => {
   assert.isFunction(preventExtensions);
   assert.arity(preventExtensions, 1);
+  assert.name(preventExtensions, 'preventExtensions');
   const data = [42, 'foo', false, null, undefined, {}];
   for (const value of data) {
     assert.notThrows(() => preventExtensions(value) || true, `accept ${ {}.toString.call(value).slice(8, -1) }`);

@@ -16,7 +16,7 @@ QUnit.test('String#codePointAt', assert => {
   assert.same(codePointAt('abc\uD834\uDF06def', 5), 0x64);
   assert.same(codePointAt('abc\uD834\uDF06def', 42), undefined);
   assert.same(codePointAt('abc\uD834\uDF06def', Infinity), undefined);
-  assert.same(codePointAt('abc\uD834\uDF06def', Infinity), undefined);
+  assert.same(codePointAt('abc\uD834\uDF06def', -Infinity), undefined);
   assert.same(codePointAt('abc\uD834\uDF06def', NaN), 0x61);
   assert.same(codePointAt('abc\uD834\uDF06def', false), 0x61);
   assert.same(codePointAt('abc\uD834\uDF06def', null), 0x61);

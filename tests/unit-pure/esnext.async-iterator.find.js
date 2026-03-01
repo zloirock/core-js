@@ -8,6 +8,7 @@ QUnit.test('AsyncIterator#find', assert => {
 
   assert.isFunction(find);
   assert.arity(find, 1);
+  assert.name(find, 'find');
   assert.nonEnumerable(AsyncIterator.prototype, 'find');
 
   if (STRICT) {

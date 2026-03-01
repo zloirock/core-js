@@ -5,6 +5,7 @@ import parseFloat from 'core-js-pure/es/number/parse-float';
 QUnit.test('Number.parseFloat', assert => {
   assert.isFunction(parseFloat);
   assert.arity(parseFloat, 1);
+  assert.name(parseFloat, 'parseFloat');
   assert.same(parseFloat('0'), 0);
   assert.same(parseFloat(' 0'), 0);
   assert.same(parseFloat('+0'), 0);

@@ -128,6 +128,10 @@ QUnit.test('String#matchAll', assert => {
 
   assert.throws(() => matchAll(Symbol('matchAll test'), /./), 'throws on symbol context');
 
+  if (!Symbol.sham) {
+    assert.throws(() => matchAll('a', Symbol('matchAll test')), 'throws on symbol argument');
+  }
+
   if (STRICT) {
     assert.throws(() => matchAll(null, /./g), TypeError, 'Throws on null as `this`');
     assert.throws(() => matchAll(undefined, /./g), TypeError, 'Throws on undefined as `this`');

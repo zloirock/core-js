@@ -65,7 +65,7 @@ QUnit.test('Set', assert => {
   new Set().add(object);
   if (DESCRIPTORS) {
     const results = [];
-    for (const key in results) keys.push(key);
+    for (const key in object) results.push(key);
     assert.arrayEqual(results, []);
     assert.arrayEqual(keys(object), []);
   }
@@ -419,7 +419,7 @@ QUnit.test('Set#@@iterator', assert => {
   assert.arity(Set.prototype[Symbol.iterator], 0);
   assert.looksNative(Set.prototype[Symbol.iterator]);
   assert.same(Set.prototype[Symbol.iterator], Set.prototype.values);
-  assert.nonEnumerable(Set.prototype, 'values');
+  assert.nonEnumerable(Set.prototype, Symbol.iterator);
   const set = new Set();
   set.add('q');
   set.add('w');

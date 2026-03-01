@@ -3,6 +3,8 @@ import isNaN from 'core-js-pure/es/number/is-nan';
 
 QUnit.test('Number.isNaN', assert => {
   assert.isFunction(isNaN);
+  assert.name(isNaN, 'isNaN');
+  assert.arity(isNaN, 1);
   assert.true(isNaN(NaN), 'Number.isNaN NaN');
   const notNaNs = [
     1,

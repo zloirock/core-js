@@ -42,8 +42,19 @@ QUnit.test('URL constructor', assert => {
   assert.same(String(new URL('http://0300.168.0xG0')), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
 
   assert.same(String(new URL('file:///var/log/system.log')), 'file:///var/log/system.log', 'file scheme');
+
+  // Chromium ~ 145 on Windows works differently
+  // assert.same(String(new URL('file:foo')), 'file:///foo', 'file scheme without slashes');
+  // assert.same(new URL('file:foo').host, '', 'file scheme without slashes: host');
+
   // assert.same(String(new URL('file://nnsc.nsf.net/bar/baz')), 'file://nnsc.nsf.net/bar/baz', 'file scheme'); // 'file:///bar/baz' in FF
   // assert.same(String(new URL('file://localhost/bar/baz')), 'file:///bar/baz', 'file scheme'); // 'file://localhost/bar/baz' in Chrome
+
+  // FILE_SLASH state: host should be inherited from file: base
+  // some browsers have a non-spec-compliant native URL implementation for this case
+  if (new URL('file:/path', 'file://somehost/dir/file').host === 'somehost') {
+    assert.same(new URL('file:/path', 'file://somehost/dir/file').href, 'file://somehost/path', 'file slash: href with inherited host');
+  }
 
   assert.throws(() => new URL(), 'TypeError: Failed to construct URL: 1 argument required, but only 0 present.');
   assert.throws(() => new URL(''), 'TypeError: Failed to construct URL: Invalid URL');
@@ -139,6 +150,13 @@ QUnit.test('URL#href', assert => {
     // assert.throws(() => new URL('http://zloirock.ru/').href = 'http://a%b', 'forbidden host code point'); // no error in Chrome and FF
     // assert.throws(() => new URL('http://zloirock.ru/').href = '1http://zloirock.ru', 'incorrect scheme'); // no error in Chrome
   }
+
+  // URL serializing step 3 - /. prefix for non-special URLs with null host and path starting with empty segment
+  // Chromium ~ 145 on Windows works differently
+  // assert.same(new URL('x:/a/..//b').href, 'x:/.//b', '/. prefix prevents ambiguous serialization');
+  // assert.same(new URL('x:/a/..//b').pathname, '//b', 'pathname is not affected by /. prefix');
+  // assert.same(new URL('x:/.//b').href, 'x:/.//b', '/. prefix is idempotent');
+  // assert.same(new URL(new URL('x:/a/..//b').href).pathname, '//b', '/. prefix round-trips correctly');
 });
 
 QUnit.test('URL#origin', assert => {
@@ -155,6 +173,9 @@ QUnit.test('URL#origin', assert => {
   assert.same(url.origin, 'http://es6.zloirock.ru');
 
   assert.same(new URL('https://測試/tests').origin, 'https://xn--g6w251d');
+
+  // blob URL origin should resolve to the inner URL's origin
+  assert.same(new URL('blob:https://example.com/some-uuid').origin, 'https://example.com');
 });
 
 QUnit.test('URL#protocol', assert => {
@@ -189,6 +210,11 @@ QUnit.test('URL#protocol', assert => {
     assert.same(url.protocol, 'http:');
     assert.same(url.href, 'http://zloirock.ru/', 'incorrect scheme');
     assert.same(String(url), 'http://zloirock.ru/', 'incorrect scheme');
+
+    // Chromium ~ 145 on Windows works differently
+    // url = new URL('file:foo');
+    // url.protocol = 'http:';
+    // assert.same(url.protocol, 'file:', 'file with empty host: protocol change blocked');
   }
 });
 
@@ -214,6 +240,12 @@ QUnit.test('URL#username', assert => {
     url.username = 'username';
     assert.same(url.username, 'username');
     assert.same(String(url), 'http://username@zloirock.ru/');
+
+    // IPv4 address 0.0.0.0 (stored as number 0) should allow username
+    url = new URL('http://0.0.0.0/');
+    url.username = 'user';
+    assert.same(url.username, 'user', 'username settable on 0.0.0.0');
+    assert.same(String(url), 'http://user@0.0.0.0/', 'href correct after setting username on 0.0.0.0');
   }
 });
 
@@ -436,6 +468,12 @@ QUnit.test('URL#port', assert => {
     // url.port = 1e10;
     // assert.same(url.port, '1234'); // '0' in Chrome
     // assert.same(String(url), 'http://zloirock.ru:1234/'); // 'http://zloirock.ru:0/' in Chrome
+
+    // IPv4 address 0.0.0.0 (stored as number 0) should allow port
+    url = new URL('http://0.0.0.0/');
+    url.port = '8080';
+    assert.same(url.port, '8080', 'port settable on 0.0.0.0');
+    assert.same(String(url), 'http://0.0.0.0:8080/', 'href correct after setting port on 0.0.0.0');
   }
 });
 

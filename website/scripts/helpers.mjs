@@ -1,6 +1,7 @@
 /* eslint-disable no-console -- needed for logging */
 import childProcess from 'node:child_process';
 import { constants } from 'node:fs';
+// eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
 import { cp, access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';

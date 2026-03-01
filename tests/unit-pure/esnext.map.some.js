@@ -12,7 +12,7 @@ QUnit.test('Map#some', assert => {
   map.some(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 1, 'correct value in callback');
-    assert.same(key, 9, 'correct index in callback');
+    assert.same(key, 9, 'correct key in callback');
     assert.same(that, map, 'correct link to map in callback');
     assert.same(this, context, 'correct callback context');
   }, context);

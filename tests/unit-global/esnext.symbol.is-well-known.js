@@ -6,13 +6,13 @@ QUnit.test('Symbol.isWellKnown', assert => {
   assert.name(isWellKnown, 'isWellKnownSymbol', 'Symbol.isWellKnown.name is "isWellKnownSymbol"');
   assert.looksNative(isWellKnown, 'isWellKnown looks like native');
 
-  assert.true(isWellKnown(Symbol.iterator), 'registered-1');
-  assert.true(isWellKnown(Object(Symbol.iterator)), 'registered-2, boxed');
-  assert.true(isWellKnown(Symbol.patternMatch), 'registered-3');
-  assert.true(isWellKnown(Object(Symbol.patternMatch)), 'registered-4, boxed');
+  assert.true(isWellKnown(Symbol.iterator), 'well-known-1');
+  assert.true(isWellKnown(Object(Symbol.iterator)), 'well-known-2, boxed');
+  assert.true(isWellKnown(Symbol.patternMatch), 'well-known-3');
+  assert.true(isWellKnown(Object(Symbol.patternMatch)), 'well-known-4, boxed');
   const symbol = Symbol('Symbol.isWellKnown test');
-  assert.false(isWellKnown(symbol), 'non-registered');
-  assert.false(isWellKnown(Object(symbol)), 'non-registered, boxed');
+  assert.false(isWellKnown(symbol), 'non-well-known');
+  assert.false(isWellKnown(Object(symbol)), 'non-well-known, boxed');
   assert.false(isWellKnown(1), '1');
   assert.false(isWellKnown(true), 'true');
   assert.false(isWellKnown('1'), 'string');

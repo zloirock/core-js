@@ -14,11 +14,11 @@ QUnit.test('Array#map', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.deepEqual([2, 3, 4], map([1, 2, 3], it => it + 1));
-  assert.deepEqual([1, 3, 5], map([1, 2, 3], (value, key) => value + key));
-  assert.deepEqual([2, 2, 2], map([1, 2, 3], function () {
+  assert.deepEqual(map([1, 2, 3], it => it + 1), [2, 3, 4]);
+  assert.deepEqual(map([1, 2, 3], (value, key) => value + key), [1, 3, 5]);
+  assert.deepEqual(map([1, 2, 3], function () {
     return +this;
-  }, 2));
+  }, 2), [2, 2, 2]);
   if (STRICT) {
     assert.throws(() => map(null, () => { /* empty */ }), TypeError);
     assert.throws(() => map(undefined, () => { /* empty */ }), TypeError);

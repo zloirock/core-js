@@ -89,6 +89,11 @@ var handleNCG = function (string) {
     chr = charAt(string, index);
     if (chr === '\\') {
       chr += charAt(string, ++index);
+      // use `\x5c` for escaped backslash to avoid corruption by `\k<name>` to `\N` replacement below
+      if (!ncg && charAt(chr, 1) === '\\') {
+        result += '\\x5c';
+        continue;
+      }
     } else if (chr === ']') {
       brackets = false;
     } else if (!brackets) switch (true) {

@@ -13,7 +13,10 @@ $({ target: 'Date', proto: true }, {
   setYear: function setYear(year) {
     // validate
     thisTimeValue(this);
-    var yi = toIntegerOrInfinity(year);
+    var y = +year;
+    // eslint-disable-next-line no-self-compare -- NaN check
+    if (y !== y) return setFullYear(this, y);
+    var yi = toIntegerOrInfinity(y);
     var yyyy = yi >= 0 && yi <= 99 ? yi + 1900 : yi;
     return setFullYear(this, yyyy);
   }

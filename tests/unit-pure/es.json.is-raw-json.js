@@ -3,7 +3,7 @@ import rawJSON from 'core-js-pure/es/json/raw-json';
 import freeze from 'core-js-pure/es/object/freeze';
 import Symbol from 'core-js-pure/es/symbol';
 
-QUnit.test('JSON.rawJSON', assert => {
+QUnit.test('JSON.isRawJSON', assert => {
   assert.isFunction(isRawJSON);
   assert.arity(isRawJSON, 1);
   assert.name(isRawJSON, 'isRawJSON');

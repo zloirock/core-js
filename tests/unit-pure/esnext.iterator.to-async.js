@@ -11,6 +11,7 @@ QUnit.test('Iterator#toAsync', assert => {
 
   assert.isFunction(toAsync);
   assert.arity(toAsync, 0);
+  assert.name(toAsync, 'toAsync');
 
   if (STRICT) {
     assert.throws(() => toAsync.call(undefined), TypeError);
@@ -39,7 +40,7 @@ QUnit.test('Iterator#toAsync', assert => {
   }).then(() => {
     assert.avoid();
   }, error => {
-    assert.same(error, 42, 'rejection on a callback error');
-    assert.true(closableIterator.closed, 'doesn\'t close sync iterator on promise rejection');
+    assert.same(error, 42, 'rejection on a `.next()` promise rejection');
+    assert.true(closableIterator.closed, 'closes sync iterator on promise rejection');
   });
 });

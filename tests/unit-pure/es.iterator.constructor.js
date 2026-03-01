@@ -6,6 +6,7 @@ import Iterator from 'core-js-pure/es/iterator';
 QUnit.test('Iterator', assert => {
   assert.isFunction(Iterator);
   assert.arity(Iterator, 0);
+  assert.name(Iterator, 'Iterator');
 
   assert.true(Iterator.from(createIterator([1, 2, 3])) instanceof Iterator, 'From Proxy');
 

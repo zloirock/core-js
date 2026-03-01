@@ -21,7 +21,7 @@ var IteratorProxy = createIteratorProxy(function () {
       }
       var entry = iterables[iterableIndex];
       this.iterables[iterableIndex] = null;
-      iterator = this.iterator = call(entry.method, entry.iterable);
+      iterator = this.iterator = anObject(call(entry.method, entry.iterable));
       this.next = iterator.next;
     }
     var result = anObject(call(this.next, iterator));
@@ -35,7 +35,7 @@ var IteratorProxy = createIteratorProxy(function () {
 });
 
 // `Iterator.concat` method
-// https://github.com/tc39/proposal-iterator-sequencing
+// https://tc39.es/ecma262/#sec-iterator.concat
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   concat: function concat() {
     var length = arguments.length;

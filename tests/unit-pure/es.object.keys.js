@@ -5,6 +5,7 @@ import keys from 'core-js-pure/es/object/keys';
 QUnit.test('Object.keys', assert => {
   assert.isFunction(keys);
   assert.arity(keys, 1);
+  assert.name(keys, 'keys');
   function F1() {
     this.w = 1;
   }

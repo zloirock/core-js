@@ -107,26 +107,6 @@ QUnit.test('URLSearchParams', assert => {
   params = new URLSearchParams('b=%%2a');
   assert.same(params.get('b'), '%*', 'parse encoded b=%%2a');
 
-  params = new URLSearchParams('a=b\u2384');
-  assert.same(params.get('a'), 'b\u2384', 'parse \u2384');
-  params = new URLSearchParams('a\u2384b=c');
-  assert.same(params.get('a\u2384b'), 'c', 'parse \u2384');
-
-  params = new URLSearchParams('a=b%e2%8e%84');
-  assert.same(params.get('a'), 'b\u2384', 'parse b%e2%8e%84');
-  params = new URLSearchParams('a%e2%8e%84b=c');
-  assert.same(params.get('a\u2384b'), 'c', 'parse b%e2%8e%84');
-
-  params = new URLSearchParams('a=b\uD83D\uDCA9c');
-  assert.same(params.get('a'), 'b\uD83D\uDCA9c', 'parse \uD83D\uDCA9');
-  params = new URLSearchParams('a\uD83D\uDCA9b=c');
-  assert.same(params.get('a\uD83D\uDCA9b'), 'c', 'parse \uD83D\uDCA9');
-
-  params = new URLSearchParams('a=b%f0%9f%92%a9c');
-  assert.same(params.get('a'), 'b\uD83D\uDCA9c', 'parse %f0%9f%92%a9');
-  params = new URLSearchParams('a%f0%9f%92%a9b=c');
-  assert.same(params.get('a\uD83D\uDCA9b'), 'c', 'parse %f0%9f%92%a9');
-
   assert.same(String(new URLSearchParams('%C2')), '%EF%BF%BD=');
   assert.same(String(new URLSearchParams('%F0%9F%D0%90')), '%EF%BF%BD%D0%90=');
   assert.same(String(new URLSearchParams('%25')), '%25=');
@@ -142,6 +122,12 @@ QUnit.test('URLSearchParams', assert => {
   // surrogate codepoints encoded in UTF-8
   assert.same(String(new URLSearchParams('%ED%A0%80')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+D800');
   assert.same(String(new URLSearchParams('%ED%BF%BF')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'UTF-8 encoded U+DFFF');
+
+  // incomplete sequences with out-of-range continuation bytes per WHATWG encoding spec
+  assert.same(String(new URLSearchParams('%ED%A0')), '%EF%BF%BD%EF%BF%BD=', 'incomplete surrogate: ED A0');
+  assert.same(String(new URLSearchParams('%E0%80')), '%EF%BF%BD%EF%BF%BD=', 'incomplete overlong 3-byte: E0 80');
+  assert.same(String(new URLSearchParams('%F0%80%80')), '%EF%BF%BD%EF%BF%BD%EF%BF%BD=', 'incomplete overlong 4-byte: F0 80 80');
+  assert.same(String(new URLSearchParams('%F4%90')), '%EF%BF%BD%EF%BF%BD=', 'incomplete out-of-range 4-byte: F4 90');
 
   const testData = [
     { input: '?a=%', output: [['a', '%']], name: 'handling %' },
@@ -288,6 +274,19 @@ QUnit.test('URLSearchParams#delete', assert => {
   params = new URLSearchParams('a=1&a=2&a=null&a=3&b=4');
   params.delete('a', undefined);
   assert.same(String(params), 'b=4');
+
+  // delete with value should not drop entries with the same key before the target
+  params = new URLSearchParams('b=1&a=2&b=3');
+  params.delete('a', '2');
+  assert.same(String(params), 'b=1&b=3', 'entries before target with same key preserved');
+
+  params = new URLSearchParams('a=1&a=2&b=3');
+  params.delete('a', '1');
+  assert.same(String(params), 'a=2&b=3', 'only matching name+value pairs removed, rest preserved');
+
+  params = new URLSearchParams('a=1&b=2');
+  params.delete('a', '999');
+  assert.same(String(params), 'a=1&b=2', 'no match leaves all entries intact');
 
   if (DESCRIPTORS) {
     let url = new URL('http://example.com/?param1&param2');
@@ -822,7 +821,7 @@ QUnit.test('URLSearchParams#values', assert => {
   // fails in Chrome 66-
   if (DESCRIPTORS) {
     const url = new URL('http://a.b/c?a=a&b=b&c=c&d=d');
-    iterator = url.searchParams.keys();
+    iterator = url.searchParams.values();
     result = '';
     while (!(entry = iterator.next()).done) {
       const { value } = entry;

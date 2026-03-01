@@ -2,7 +2,7 @@ import { MAX_SAFE_INTEGER } from '../helpers/constants.js';
 import from from 'core-js-pure/es/array/from';
 import range from 'core-js-pure/full/number/range';
 
-QUnit.test('range', assert => {
+QUnit.test('Number.range', assert => {
   assert.isFunction(range);
   assert.name(range, 'range');
   assert.arity(range, 3);

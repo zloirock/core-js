@@ -396,7 +396,7 @@ URLState.prototype = {
             if (stateOverride && (
               (url.isSpecial() !== hasOwn(specialSchemes, buffer)) ||
               (buffer === 'file' && (url.includesCredentials() || url.port !== null)) ||
-              (url.scheme === 'file' && !url.host)
+              (url.scheme === 'file' && url.host === '')
             )) return;
             url.scheme = buffer;
             if (stateOverride) {
@@ -602,6 +602,7 @@ URLState.prototype = {
 
         case FILE:
           url.scheme = 'file';
+          url.host = '';
           if (chr === '/' || chr === '\\') state = FILE_SLASH;
           else if (base && base.scheme === 'file') {
             switch (chr) {
@@ -624,8 +625,8 @@ URLState.prototype = {
                 state = FRAGMENT;
                 break;
               default:
+                url.host = base.host;
                 if (!startsWithWindowsDriveLetter(join(arraySlice(codePoints, pointer), ''))) {
-                  url.host = base.host;
                   url.path = arraySlice(base.path);
                   url.shortenPath();
                 }
@@ -642,9 +643,10 @@ URLState.prototype = {
             state = FILE_HOST;
             break;
           }
-          if (base && base.scheme === 'file' && !startsWithWindowsDriveLetter(join(arraySlice(codePoints, pointer), ''))) {
-            if (isWindowsDriveLetter(base.path[0], true)) push(url.path, base.path[0]);
-            else url.host = base.host;
+          if (base && base.scheme === 'file') {
+            url.host = base.host;
+            if (!startsWithWindowsDriveLetter(join(arraySlice(codePoints, pointer), ''))
+              && isWindowsDriveLetter(base.path[0], true)) push(url.path, base.path[0]);
           }
           state = PATH;
           continue;
@@ -700,7 +702,7 @@ URLState.prototype = {
               }
             } else {
               if (url.scheme === 'file' && !url.path.length && isWindowsDriveLetter(buffer)) {
-                if (url.host) url.host = '';
+                if (url.host !== null && url.host !== '') url.host = '';
                 buffer = charAt(buffer, 0) + ':'; // normalize windows drive letter
               }
               push(url.path, buffer);
@@ -776,7 +778,7 @@ URLState.prototype = {
   },
   // https://url.spec.whatwg.org/#cannot-have-a-username-password-port
   cannotHaveUsernamePasswordPort: function () {
-    return !this.host || this.cannotBeABaseURL || this.scheme === 'file';
+    return this.host === null || this.host === '' || this.cannotBeABaseURL || this.scheme === 'file';
   },
   // https://url.spec.whatwg.org/#include-credentials
   includesCredentials: function () {
@@ -814,6 +816,7 @@ URLState.prototype = {
       output += serializeHost(host);
       if (port !== null) output += ':' + port;
     } else if (scheme === 'file') output += '//';
+    if (host === null && !url.cannotBeABaseURL && path.length > 1 && path[0] === '') output += '/.';
     output += url.cannotBeABaseURL ? path[0] : path.length ? '/' + join(path, '/') : '';
     if (query !== null) output += '?' + query;
     if (fragment !== null) output += '#' + fragment;

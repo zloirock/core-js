@@ -5,10 +5,12 @@ QUnit.test('Function#bind', assert => {
   assert.name(bind, 'bind');
   assert.looksNative(bind);
   assert.nonEnumerable(Function.prototype, 'bind');
+  const object = { a: 42 };
   assert.same(function () {
     return this.a;
-  }.bind({ a: 42 })(), 42);
-  assert.same(new function () { /* empty */ }().a, undefined);
+  }.bind(object)(), 42);
+  // eslint-disable-next-line no-extra-bind -- testing
+  assert.same(new (function () { /* empty */ }.bind(object))().a, undefined);
   function A(a, b) {
     this.a = a;
     this.b = b;

@@ -10,7 +10,7 @@ QUnit.test('Array#sort', assert => {
 
   assert.deepEqual([1, 3, 2].sort(), [1, 2, 3], '#1');
   assert.deepEqual([1, 3, 2, 11].sort(), [1, 11, 2, 3], '#2');
-  assert.deepEqual([1, -1, 3, NaN, 2, 0, 11, -0].sort(), [-1, 0, -0, 1, 11, 2, 3, NaN], '#1');
+  assert.deepEqual([1, -1, 3, NaN, 2, 0, 11, -0].sort(), [-1, 0, -0, 1, 11, 2, 3, NaN], '#3');
 
   let array = Array(5);
   array[0] = 1;
@@ -120,8 +120,8 @@ QUnit.test('Array#sort', assert => {
   assert.same([obj1, obj2].sort()[0], obj1, 'stable sort for equal string representations');
 
   assert.notThrows(() => [1, 2, 3].sort(undefined).length === 3, 'works with undefined');
-  assert.throws(() => [1, 2, 3].sort(null), 'throws on null');
-  assert.throws(() => [1, 2, 3].sort({}), 'throws on {}');
+  assert.throws(() => [1, 2, 3].sort(null), TypeError, 'throws on null');
+  assert.throws(() => [1, 2, 3].sort({}), TypeError, 'throws on {}');
 
   if (typeof Symbol == 'function' && !Symbol.sham) {
     assert.throws(() => [Symbol(1), Symbol(2)].sort(), 'w/o cmp throws on symbols');

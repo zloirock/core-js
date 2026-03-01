@@ -24,7 +24,7 @@ if (DESCRIPTORS) {
     object[Symbol.match] = true;
     object.constructor = RegExp;
     assert.same(object, RegExp(object), 'RegExp(O) is O, changed Symbol.match');
-    assert.same(String(regexp), '/a/g', 'b is /a/g');
+    assert.same(String(regexp), '/a/g', 'regexp is /a/g');
     assert.same(String(new RegExp(/a/g, 'mi')), '/a/im', 'Allows a regex with flags');
     assert.true(new RegExp(/a/g, 'im') instanceof RegExp, 'Works with instanceof');
     assert.same(new RegExp(/a/g, 'im').constructor, RegExp, 'Has the right constructor');
@@ -125,5 +125,10 @@ if (DESCRIPTORS) {
     assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2024')?.[0], '2024-2024', 'NCG \\k backreference #1');
     assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2025'), null, 'NCG \\k backreference #2');
     assert.same(RegExp('(?<a>.)(?<b>.)\\k<b>\\k<a>').exec('abba')?.[0], 'abba', 'NCG \\k multiple backreferences');
+
+    // escaped backslash before `k<name>` should not be treated as backreference
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
+    assert.same(RegExp('(?<a>x)\\\\k<a>').exec('x\\k<a>')?.[0], 'x\\k<a>', 'NCG \\\\k not confused with \\k backreference');
+    assert.same(RegExp('(?<a>x)\\\\\\k<a>').exec('x\\x')?.[0], 'x\\x', 'NCG escaped backslash before backreference');
   });
 }

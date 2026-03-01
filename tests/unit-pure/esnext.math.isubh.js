@@ -3,6 +3,7 @@ import isubh from 'core-js-pure/full/math/isubh';
 QUnit.test('Math.isubh', assert => {
   assert.isFunction(isubh);
   assert.arity(isubh, 4);
+  assert.name(isubh, 'isubh');
   assert.same(isubh(0, 2, 1, 0), 1);
   assert.same(isubh(0, 4, 1, 1), 2);
   assert.same(isubh(2, 4, 1, 1), 3);

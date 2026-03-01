@@ -8,9 +8,9 @@ type SummaryEntry = boolean | {
 };
 
 type Summary = {
-  /** in the console, you could specify required parts or set `true` for enable all of them */
-  comment?: SummaryEntry,
   /** in the comment, you could specify required parts or set `true` for enable all of them */
+  comment?: SummaryEntry,
+  /** in the console, you could specify required parts or set `true` for enable all of them */
   console?: SummaryEntry,
 };
 

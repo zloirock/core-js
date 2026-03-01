@@ -6,6 +6,7 @@ import parseInt from 'core-js-pure/es/number/parse-int';
 QUnit.test('Number.parseInt', assert => {
   assert.isFunction(parseInt);
   assert.arity(parseInt, 2);
+  assert.name(parseInt, 'parseInt');
   for (let radix = 2; radix <= 36; ++radix) {
     assert.same(parseInt('10', radix), radix, `radix ${ radix }`);
   }

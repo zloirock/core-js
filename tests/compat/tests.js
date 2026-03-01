@@ -841,7 +841,10 @@ GLOBAL.tests = {
     return true;
   }],
   'es.iterator.some': checkIteratorClosingOnEarlyError('some', TypeError),
-  'es.iterator.take': checkIteratorClosingOnEarlyError('take', RangeError),
+  'es.iterator.take': [
+    iteratorHelperThrowsErrorOnInvalidIterator('take', 1),
+    checkIteratorClosingOnEarlyError('take', RangeError)
+  ],
   'es.iterator.to-array': function () {
     return Iterator.prototype.toArray;
   },

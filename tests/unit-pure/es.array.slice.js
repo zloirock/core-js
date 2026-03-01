@@ -1,4 +1,4 @@
-import { GLOBAL } from '../helpers/constants.js';
+import { GLOBAL, STRICT } from '../helpers/constants.js';
 
 import Symbol from 'core-js-pure/es/symbol';
 import isArray from 'core-js-pure/es/array/is-array';
@@ -23,6 +23,10 @@ QUnit.test('Array#slice', assert => {
   const list = GLOBAL.document && document.body && document.body.childNodes;
   if (list) {
     assert.notThrows(() => isArray(slice(list)), 'works with NodeList');
+  }
+  if (STRICT) {
+    assert.throws(() => slice(null), TypeError);
+    assert.throws(() => slice(undefined), TypeError);
   }
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor

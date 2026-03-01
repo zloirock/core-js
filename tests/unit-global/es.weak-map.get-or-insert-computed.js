@@ -34,6 +34,13 @@ QUnit.test('WeakMap#getOrInsertComputed', assert => {
     map.getOrInsertComputed(1, () => assert.avoid());
   }, TypeError, 'key validation before call of callback');
 
+  map = new WeakMap([[a, 2]]);
+  assert.same(map.getOrInsertComputed(b, key => {
+    map.set(key, 4);
+    return 3;
+  }), 3, 'callback inserts same key');
+  assert.same(map.get(b), 3, 'map after callback inserts same key');
+
   assert.throws(() => new WeakMap().getOrInsertComputed(1, () => 3), TypeError, 'invalid key#1');
   assert.throws(() => new WeakMap().getOrInsertComputed(null, () => 3), TypeError, 'invalid key#2');
   assert.throws(() => new WeakMap().getOrInsertComputed(undefined, () => 3), TypeError, 'invalid key#3');

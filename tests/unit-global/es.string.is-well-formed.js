@@ -12,7 +12,7 @@ QUnit.test('String#isWellFormed', assert => {
   assert.true(isWellFormed.call('abc'), 'abc');
   assert.true(isWellFormed.call('💩'), '💩');
   assert.true(isWellFormed.call('💩b'), '💩b');
-  assert.true(isWellFormed.call('a💩'), '💩');
+  assert.true(isWellFormed.call('a💩'), 'a💩');
   assert.true(isWellFormed.call('a💩b'), 'a💩b');
   assert.true(isWellFormed.call('💩a💩'), '💩a💩');
   assert.true(!isWellFormed.call('\uD83D'), '\uD83D');

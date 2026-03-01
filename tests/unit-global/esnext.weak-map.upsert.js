@@ -1,6 +1,7 @@
 QUnit.test('WeakMap#upsert', assert => {
   const { upsert } = WeakMap.prototype;
   assert.isFunction(upsert);
+  assert.name(upsert, 'upsert');
   assert.arity(upsert, 2);
   assert.looksNative(upsert);
   assert.nonEnumerable(WeakMap.prototype, 'upsert');

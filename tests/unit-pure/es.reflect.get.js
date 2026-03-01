@@ -7,6 +7,7 @@ import get from 'core-js-pure/es/reflect/get';
 
 QUnit.test('Reflect.get', assert => {
   assert.isFunction(get);
+  assert.arity(get, 2);
   if ('name' in get) {
     assert.name(get, 'get');
   }

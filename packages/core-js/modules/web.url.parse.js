@@ -8,7 +8,7 @@ var USE_NATIVE_URL = require('../internals/url-constructor-detection');
 var URL = getBuiltIn('URL');
 
 // `URL.parse` method
-// https://url.spec.whatwg.org/#dom-url-canparse
+// https://url.spec.whatwg.org/#dom-url-parse
 $({ target: 'URL', stat: true, forced: !USE_NATIVE_URL }, {
   parse: function parse(url) {
     var length = validateArgumentsLength(arguments.length, 1);

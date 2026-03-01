@@ -6,13 +6,13 @@ QUnit.test('Symbol.isWellKnownSymbol', assert => {
   assert.arity(isWellKnownSymbol, 1, 'Symbol.isWellKnownSymbol arity is 1');
   assert.name(isWellKnownSymbol, 'isWellKnownSymbol', 'Symbol.isWellKnownSymbol.name is "isWellKnownSymbol"');
 
-  assert.true(isWellKnownSymbol(Symbol.iterator), 'registered-1');
-  assert.true(isWellKnownSymbol(Object(Symbol.iterator)), 'registered-2, boxed');
-  assert.true(isWellKnownSymbol(Symbol.patternMatch), 'registered-3');
-  assert.true(isWellKnownSymbol(Object(Symbol.patternMatch)), 'registered-4, boxed');
+  assert.true(isWellKnownSymbol(Symbol.iterator), 'well-known-1');
+  assert.true(isWellKnownSymbol(Object(Symbol.iterator)), 'well-known-2, boxed');
+  assert.true(isWellKnownSymbol(Symbol.patternMatch), 'well-known-3');
+  assert.true(isWellKnownSymbol(Object(Symbol.patternMatch)), 'well-known-4, boxed');
   const symbol = Symbol('Symbol.isWellKnownSymbol test');
-  assert.false(isWellKnownSymbol(symbol), 'non-registered');
-  assert.false(isWellKnownSymbol(Object(symbol)), 'non-registered, boxed');
+  assert.false(isWellKnownSymbol(symbol), 'non-well-known');
+  assert.false(isWellKnownSymbol(Object(symbol)), 'non-well-known, boxed');
   assert.false(isWellKnownSymbol(1), '1');
   assert.false(isWellKnownSymbol(true), 'true');
   assert.false(isWellKnownSymbol('1'), 'string');

@@ -5,7 +5,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.slice', assert => {
   for (const { name, TypedArray } of TYPED_ARRAYS) {
     const { slice } = TypedArray.prototype;
     assert.isFunction(slice, `${ name }::slice is function`);
-    assert.arity(slice, 2, `${ name }::slice arity is 0`);
+    assert.arity(slice, 2, `${ name }::slice arity is 2`);
     assert.name(slice, 'slice', `${ name }::slice name is 'slice'`);
     assert.looksNative(slice, `${ name }::slice looks native`);
     const array = new TypedArray([1, 2, 3, 4, 5]);

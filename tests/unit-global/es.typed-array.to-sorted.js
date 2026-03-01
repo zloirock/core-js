@@ -61,8 +61,8 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.toSorted', assert => {
     }
 
     assert.notThrows(() => new TypedArray([1, 2, 3]).toSorted(undefined).length === 3, 'works with undefined');
-    assert.throws(() => new TypedArray([1, 2, 3]).toSorted(null), 'throws on null');
-    assert.throws(() => new TypedArray([1, 2, 3]).toSorted({}), 'throws on {}');
+    assert.throws(() => new TypedArray([1, 2, 3]).toSorted(null), TypeError, 'throws on null');
+    assert.throws(() => new TypedArray([1, 2, 3]).toSorted({}), TypeError, 'throws on {}');
 
     assert.throws(() => toSorted.call(null), TypeError, "isn't generic #1");
     assert.throws(() => toSorted.call(undefined), TypeError, "isn't generic #2");

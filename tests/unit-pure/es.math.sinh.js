@@ -4,6 +4,8 @@ import sinh from 'core-js-pure/es/math/sinh';
 
 QUnit.test('Math.sinh', assert => {
   assert.isFunction(sinh);
+  assert.name(sinh, 'sinh');
+  assert.arity(sinh, 1);
   assert.same(sinh(NaN), NaN);
   assert.same(sinh(0), 0);
   assert.same(sinh(-0), -0);

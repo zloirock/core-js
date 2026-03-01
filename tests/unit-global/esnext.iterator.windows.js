@@ -27,7 +27,7 @@ QUnit.test('Iterator#windows', assert => {
   assert.true(result instanceof Iterator, 'returns iterator');
   assert.deepEqual(result.next(), { done: false, value: [1, 2, 3] }, '.next with active inner iterator result');
   assert.deepEqual(result.return(), { done: true, value: undefined }, '.return with active inner iterator result');
-  assert.deepEqual(result.next(), { done: true, value: undefined }, '.return with active inner iterator result on closed iterator');
+  assert.deepEqual(result.next(), { done: true, value: undefined }, '.next on closed iterator');
 
   if (STRICT) {
     assert.throws(() => windows.call('', 1), TypeError, 'iterable non-object this');
@@ -51,4 +51,14 @@ QUnit.test('Iterator#windows', assert => {
 
   assert.throws(() => windows.call(createIterator([1]), 2, null), TypeError, 'incorrect `undersized` argument #1');
   assert.throws(() => windows.call(createIterator([1]), 2, 'allowpartial'), TypeError, 'incorrect `undersized` argument #2');
+
+  // windows should return independent copies (not the same buffer)
+  {
+    const iter = windows.call(createIterator([1, 2, 3, 4, 5]), 3);
+    const w1 = iter.next().value;
+    assert.deepEqual(w1, [1, 2, 3], 'window 1');
+    w1[1] = 99;
+    const w2 = iter.next().value;
+    assert.deepEqual(w2, [2, 3, 4], 'window 2 not affected by mutation of window 1');
+  }
 });

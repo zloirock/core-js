@@ -6,6 +6,7 @@ import Set from 'core-js-pure/full/set';
 QUnit.test('Set.from', assert => {
   const { from } = Set;
   assert.isFunction(from);
+  assert.name(from, 'from');
   assert.arity(from, 1);
   assert.true(from([]) instanceof Set);
   assert.deepEqual(toArray(from([])), []);

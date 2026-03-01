@@ -8,6 +8,7 @@ QUnit.test('Iterator#drop', assert => {
 
   assert.isFunction(drop);
   assert.arity(drop, 1);
+  assert.name(drop, 'drop');
   assert.nonEnumerable(Iterator.prototype, 'drop');
 
   assert.arrayEqual(drop.call(createIterator([1, 2, 3]), 1).toArray(), [2, 3], 'basic functionality');

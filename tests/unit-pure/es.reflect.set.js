@@ -1,14 +1,18 @@
-import { DESCRIPTORS } from '../helpers/constants.js';
+import { DESCRIPTORS, FREEZING } from '../helpers/constants.js';
 import { createConversionChecker } from '../helpers/helpers.js';
 
 import create from 'core-js-pure/es/object/create';
 import defineProperty from 'core-js-pure/es/object/define-property';
 import getOwnPropertyDescriptor from 'core-js-pure/es/object/get-own-property-descriptor';
 import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
+import freeze from 'core-js-pure/es/object/freeze';
+import preventExtensions from 'core-js-pure/es/object/prevent-extensions';
+import seal from 'core-js-pure/es/object/seal';
 import set from 'core-js-pure/es/reflect/set';
 
 QUnit.test('Reflect.set', assert => {
   assert.isFunction(set);
+  assert.arity(set, 3);
   if ('name' in set) {
     assert.name(set, 'set');
   }
@@ -84,7 +88,6 @@ QUnit.test('Reflect.set', assert => {
       set(v) { /* empty */ },
     });
     assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
-    assert.notThrows(() => !set(getPrototypeOf(o), 'test', 1, o));
 
     // accessor descriptor with get: undefined, set: undefined on receiver should return false
     const accessorReceiver = {};
@@ -101,8 +104,27 @@ QUnit.test('Reflect.set', assert => {
 
   assert.throws(() => set(42, 'q', 42), TypeError, 'throws on primitive');
 
+  // Reflect.set should pass only { value: V } to [[DefineOwnProperty]] when updating existing data property
+  if (DESCRIPTORS) {
+    const obj = defineProperty({}, 'x', { value: 1, writable: true, enumerable: true, configurable: true });
+    assert.true(set(obj, 'x', 42), 'set existing writable property');
+    const desc = getOwnPropertyDescriptor(obj, 'x');
+    assert.same(desc.value, 42, 'value updated');
+    assert.true(desc.writable, 'writable preserved');
+    assert.true(desc.enumerable, 'enumerable preserved');
+    assert.true(desc.configurable, 'configurable preserved');
+  }
+
   // argument order: target should be validated before ToPropertyKey
   const orderChecker = createConversionChecker(1, 'qux');
   assert.throws(() => set(42, orderChecker, 1), TypeError, 'throws on primitive before ToPropertyKey');
+
+  // non-extensible receiver should return false, not throw
+  if (FREEZING) {
+    assert.false(set({}, 'x', 42, freeze({})), 'frozen empty receiver returns false');
+    assert.false(set({}, 'x', 42, preventExtensions({})), 'non-extensible receiver returns false');
+    assert.false(set({}, 'x', 42, seal({})), 'sealed empty receiver returns false');
+  }
+
   assert.same(orderChecker.$toString, 0, 'ToPropertyKey not called before target validation in Reflect.set');
 });

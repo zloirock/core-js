@@ -8,6 +8,7 @@ QUnit.test('Iterator#some', assert => {
 
   assert.isFunction(some);
   assert.arity(some, 1);
+  assert.name(some, 'some');
   assert.nonEnumerable(Iterator.prototype, 'some');
 
   assert.true(some.call(createIterator([1, 2, 3]), it => it % 2), 'basic functionality #1');
@@ -27,7 +28,6 @@ QUnit.test('Iterator#some', assert => {
   assert.throws(() => some.call({}, () => { /* empty */ }), TypeError);
   assert.throws(() => some.call([], () => { /* empty */ }), TypeError);
   assert.throws(() => some.call(createIterator([1]), undefined), TypeError);
-  assert.throws(() => some.call(createIterator([1]), null), TypeError);
   assert.throws(() => some.call(createIterator([1]), null), TypeError);
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => some.call(it, {}), TypeError);

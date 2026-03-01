@@ -8,6 +8,7 @@ QUnit.test('Iterator#reduce', assert => {
 
   assert.isFunction(reduce);
   assert.arity(reduce, 1);
+  assert.name(reduce, 'reduce');
   assert.nonEnumerable(Iterator.prototype, 'reduce');
 
   assert.same(reduce.call(createIterator([1, 2, 3]), (a, b) => a + b, 1), 7, 'basic functionality');
@@ -32,6 +33,6 @@ QUnit.test('Iterator#reduce', assert => {
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => reduce.call(it, {}, 1), TypeError);
   assert.true(it.closed, 'reduce closes iterator on validation error');
-  assert.notThrows(() => reduce.call(createIterator([]), () => false, undefined), 'fails on undefined initial parameter');
-  assert.same(reduce.call(createIterator([]), () => false, undefined), undefined, 'incorrect result on undefined initial parameter');
+  assert.notThrows(() => reduce.call(createIterator([]), () => false, undefined), 'does not fail on undefined initial parameter');
+  assert.same(reduce.call(createIterator([]), () => false, undefined), undefined, 'correct result on undefined initial parameter');
 });

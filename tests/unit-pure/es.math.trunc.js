@@ -4,6 +4,8 @@ import trunc from 'core-js-pure/es/math/trunc';
 
 QUnit.test('Math.trunc', assert => {
   assert.isFunction(trunc);
+  assert.name(trunc, 'trunc');
+  assert.arity(trunc, 1);
   assert.same(trunc(NaN), NaN, 'NaN -> NaN');
   assert.same(trunc(-0), -0, '-0 -> -0');
   assert.same(trunc(0), 0, '0 -> 0');
@@ -12,8 +14,8 @@ QUnit.test('Math.trunc', assert => {
   assert.same(trunc(null), 0, 'null -> 0');
   assert.same(trunc({}), NaN, '{} -> NaN');
   assert.same(trunc([]), 0, '[] -> 0');
-  assert.same(trunc(1.01), 1, '1.01 -> 0');
-  assert.same(trunc(1.99), 1, '1.99 -> 0');
+  assert.same(trunc(1.01), 1, '1.01 -> 1');
+  assert.same(trunc(1.99), 1, '1.99 -> 1');
   assert.same(trunc(-1), -1, '-1 -> -1');
   assert.same(trunc(-1.99), -1, '-1.99 -> -1');
   assert.same(trunc(-555.555), -555, '-555.555 -> -555');

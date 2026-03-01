@@ -1,5 +1,4 @@
 import { STRICT } from '../helpers/constants.js';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
 
 QUnit.test('Iterator#toAsync', assert => {
   const { toAsync } = Iterator.prototype;
@@ -17,7 +16,7 @@ QUnit.test('Iterator#toAsync', assert => {
 
   const closableIterator = {
     closed: false,
-    [ITERATOR]() { return this; },
+    [Symbol.iterator]() { return this; },
     next() {
       return { value: Promise.reject(42), done: false };
     },
@@ -37,7 +36,7 @@ QUnit.test('Iterator#toAsync', assert => {
   }).then(() => {
     assert.avoid();
   }, error => {
-    assert.same(error, 42, 'rejection on a callback error');
-    assert.true(closableIterator.closed, 'doesn\'t close sync iterator on promise rejection');
+    assert.same(error, 42, 'rejection on a `.next()` promise rejection');
+    assert.true(closableIterator.closed, 'closes sync iterator on promise rejection');
   });
 });

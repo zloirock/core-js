@@ -3,6 +3,7 @@ import WeakMap from 'core-js-pure/full/weak-map';
 QUnit.test('WeakMap.of', assert => {
   const { of } = WeakMap;
   assert.isFunction(of);
+  assert.name(of, 'of');
   assert.arity(of, 0);
   const array = [];
   assert.true(of() instanceof WeakMap);

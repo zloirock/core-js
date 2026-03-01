@@ -14,6 +14,7 @@ QUnit.test('Object.create', assert => {
   }
   assert.isFunction(create);
   assert.arity(create, 2);
+  assert.name(create, 'create');
   let object = { q: 1 };
   assert.true({}.isPrototypeOf.call(object, create(object)));
   assert.same(create(object).q, 1);

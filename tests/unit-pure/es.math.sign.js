@@ -4,6 +4,8 @@ import sign from 'core-js-pure/es/math/sign';
 
 QUnit.test('Math.sign', assert => {
   assert.isFunction(sign);
+  assert.name(sign, 'sign');
+  assert.arity(sign, 1);
   assert.same(sign(NaN), NaN);
   assert.same(sign(), NaN);
   assert.same(sign(-0), -0);

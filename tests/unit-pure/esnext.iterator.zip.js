@@ -154,4 +154,18 @@ QUnit.test('Iterator.zip', assert => {
     }
     assert.same(caught, expectedError, 'propagates the original error from inner return()');
   }
+
+  assert.throws(() => zip(['hello', [1, 2, 3]]), TypeError, 'rejects string iterables');
+  assert.throws(() => zip([42, [1, 2, 3]]), TypeError, 'rejects number iterables');
+  {
+    // iterator-zip: .next() result must be validated as an object
+    const primitiveNextIter = {
+      [Symbol.iterator]() {
+        return { next() { return 42; } };
+      },
+    };
+    const normalIter = [1, 2, 3];
+    const zipped = zip([primitiveNextIter, normalIter]);
+    assert.throws(() => zipped.next(), TypeError, 'throws on non-object .next() result');
+  }
 });

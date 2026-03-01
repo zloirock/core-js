@@ -23,12 +23,12 @@ var IteratorProxy = createIteratorProxy(function () {
   while (true) {
     result = anObject(call(next, iterator));
     done = this.done = !!result.done;
-    if (allowPartial && done && buffer.length && buffer.length < windowSize) return createIterResultObject(buffer, false);
+    if (allowPartial && done && buffer.length && buffer.length < windowSize) return createIterResultObject(slice(buffer, 0), false);
     if (done) return createIterResultObject(undefined, true);
 
     if (buffer.length === windowSize) this.buffer = buffer = slice(buffer, 1);
     push(buffer, result.value);
-    if (buffer.length === windowSize) return createIterResultObject(buffer, false);
+    if (buffer.length === windowSize) return createIterResultObject(slice(buffer, 0), false);
   }
 }, false, true);
 

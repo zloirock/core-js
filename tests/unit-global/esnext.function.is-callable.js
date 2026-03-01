@@ -32,7 +32,7 @@ QUnit.test('Function.isCallable', assert => {
   if (gen) assert.true(isCallable(gen), 'gen');
   const asyncFunc = fromSource('async function () {}');
   if (asyncFunc) assert.true(isCallable(asyncFunc), 'asyncFunc');
-  const asyncGen = fromSource('async * function () {}');
+  const asyncGen = fromSource('async function* () {}');
   if (asyncGen) assert.true(isCallable(asyncGen), 'asyncGen');
   const method = fromSource('({f(){}}).f');
   // Safari 9 bug

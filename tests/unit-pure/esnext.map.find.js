@@ -4,16 +4,17 @@ QUnit.test('Map#find', assert => {
   const { find } = Map.prototype;
 
   assert.isFunction(find);
+  assert.name(find, 'find');
   assert.arity(find, 1);
   assert.nonEnumerable(Map.prototype, 'find');
 
-  const set = new Map([[1, 2]]);
+  const map = new Map([[1, 2]]);
   const context = {};
-  set.find(function (value, key, that) {
+  map.find(function (value, key, that) {
     assert.same(arguments.length, 3, 'correct number of callback arguments');
     assert.same(value, 2, 'correct value in callback');
     assert.same(key, 1, 'correct key in callback');
-    assert.same(that, set, 'correct link to set in callback');
+    assert.same(that, map, 'correct link to map in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
 

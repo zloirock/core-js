@@ -5,7 +5,7 @@ QUnit.test('Number.fromString', assert => {
   assert.name(fromString, 'fromString');
   assert.arity(fromString, 2);
   assert.throws(() => fromString(undefined), TypeError, 'The first argument should be a string #1');
-  assert.throws(() => fromString(Object('10')), TypeError, 'The first argument should be a string #1');
+  assert.throws(() => fromString(Object('10')), TypeError, 'The first argument should be a string #2');
   assert.throws(() => fromString(''), SyntaxError, 'Empty string');
   assert.same(fromString('-10', 2), -2, 'Works with negative numbers');
   assert.throws(() => fromString('-'), SyntaxError, '-');
@@ -34,7 +34,6 @@ QUnit.test('Number.fromString', assert => {
   assert.throws(() => fromString('C0FFEE', 16), SyntaxError);
   assert.same(fromString('c0ffee', 16), 12648430);
   assert.same(fromString('755', 8), 493);
-  assert.throws(() => fromString(''), SyntaxError);
   assert.throws(() => fromString(' '), SyntaxError);
   assert.throws(() => fromString(' 1'), SyntaxError);
   assert.throws(() => fromString(' \n '), SyntaxError);
@@ -44,6 +43,12 @@ QUnit.test('Number.fromString', assert => {
   assert.throws(() => fromString('1234', 37), RangeError);
   assert.throws(() => fromString('010'), SyntaxError);
   assert.throws(() => fromString('1_000_000_000'), SyntaxError);
+
+  assert.same(fromString('1.0'), 1, 'trailing fractional zero');
+  assert.same(fromString('1.00'), 1, 'trailing fractional zeros');
+  assert.same(fromString('1.10'), 1.1, 'trailing fractional zero after non-zero');
+  assert.same(fromString('0.0'), 0, 'zero with trailing fractional zero');
+  assert.same(fromString('-1.0'), -1, 'negative with trailing fractional zero');
 
   assert.throws(() => fromString('19', 8), SyntaxError, 'Invalid digit for radix #1');
   assert.throws(() => fromString('1g', 16), SyntaxError, 'Invalid digit for radix #2');

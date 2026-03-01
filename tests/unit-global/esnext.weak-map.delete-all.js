@@ -13,37 +13,37 @@ QUnit.test('WeakMap#deleteAll', assert => {
   const d = [];
   const e = [];
 
-  let set = new WeakMap([[a, 1], [b, 2], [c, 3]]);
-  assert.true(set.deleteAll(a, b));
-  assert.false(set.has(a));
-  assert.false(set.has(b));
-  assert.true(set.has(c));
-  assert.false(set.has(d));
-  assert.false(set.has(e));
+  let map = new WeakMap([[a, 1], [b, 2], [c, 3]]);
+  assert.true(map.deleteAll(a, b));
+  assert.false(map.has(a));
+  assert.false(map.has(b));
+  assert.true(map.has(c));
+  assert.false(map.has(d));
+  assert.false(map.has(e));
 
-  set = new WeakMap([[a, 1], [b, 2], [c, 3]]);
-  assert.false(set.deleteAll(c, d));
-  assert.true(set.has(a));
-  assert.true(set.has(b));
-  assert.false(set.has(c));
-  assert.false(set.has(d));
-  assert.false(set.has(e));
+  map = new WeakMap([[a, 1], [b, 2], [c, 3]]);
+  assert.false(map.deleteAll(c, d));
+  assert.true(map.has(a));
+  assert.true(map.has(b));
+  assert.false(map.has(c));
+  assert.false(map.has(d));
+  assert.false(map.has(e));
 
-  set = new WeakMap([[a, 1], [b, 2], [c, 3]]);
-  assert.false(set.deleteAll(d, e));
-  assert.true(set.has(a));
-  assert.true(set.has(b));
-  assert.true(set.has(c));
-  assert.false(set.has(d));
-  assert.false(set.has(e));
+  map = new WeakMap([[a, 1], [b, 2], [c, 3]]);
+  assert.false(map.deleteAll(d, e));
+  assert.true(map.has(a));
+  assert.true(map.has(b));
+  assert.true(map.has(c));
+  assert.false(map.has(d));
+  assert.false(map.has(e));
 
-  set = new WeakMap([[a, 1], [b, 2], [c, 3]]);
-  assert.true(set.deleteAll());
-  assert.true(set.has(a));
-  assert.true(set.has(b));
-  assert.true(set.has(c));
-  assert.false(set.has(d));
-  assert.false(set.has(e));
+  map = new WeakMap([[a, 1], [b, 2], [c, 3]]);
+  assert.true(map.deleteAll());
+  assert.true(map.has(a));
+  assert.true(map.has(b));
+  assert.true(map.has(c));
+  assert.false(map.has(d));
+  assert.false(map.has(e));
 
   assert.throws(() => deleteAll.call({ delete() { /* empty */ } }, a, b, c));
   assert.throws(() => deleteAll.call({}, a, b, c), TypeError);

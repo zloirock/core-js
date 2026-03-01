@@ -9,7 +9,7 @@ QUnit.test('Object.groupBy', assert => {
   assert.looksNative(groupBy);
   assert.nonEnumerable(Object, 'groupBy');
 
-  assert.same(getPrototypeOf(groupBy([], it => it)), null);
+  assert.same(getPrototypeOf(groupBy([], it => it)), null, 'null proto');
 
   assert.deepEqual(entries(groupBy([], it => it)), []);
   assert.deepEqual(entries(groupBy([1, 2], it => it ** 2)), [['1', [1]], ['4', [2]]]);
@@ -19,9 +19,9 @@ QUnit.test('Object.groupBy', assert => {
 
   const element = {};
   groupBy([element], function (it, i) {
-    assert.same(arguments.length, 2);
-    assert.same(it, element);
-    assert.same(i, 0);
+    assert.same(arguments.length, 2, 'correct number of callback arguments');
+    assert.same(it, element, 'correct value in callback');
+    assert.same(i, 0, 'correct index in callback');
   });
 
   const even = Symbol('even');

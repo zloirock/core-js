@@ -42,4 +42,11 @@ QUnit.test('String#endsWith', assert => {
   assert.notThrows(() => '[object Object]'.endsWith(object));
   object[Symbol.match] = true;
   assert.throws(() => '[object Object]'.endsWith(object), TypeError);
+  // side-effect ordering: ToString(searchString) should happen before ToIntegerOrInfinity(endPosition)
+  const order = [];
+  'abc'.endsWith(
+    { toString() { order.push('search'); return 'c'; } },
+    { valueOf() { order.push('pos'); return 3; } },
+  );
+  assert.deepEqual(order, ['search', 'pos'], 'ToString(searchString) before ToIntegerOrInfinity(endPosition)');
 });

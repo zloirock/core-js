@@ -131,6 +131,8 @@ const run = assert => {
   assert.same('a'.replace(/(.)/, '$0'), '$0');
 
   assert.throws(() => ''.replace.call(Symbol('replace test'), /./, ''), 'throws on symbol context');
+
+  assert.same('.a'.replace(new RegExp('a', 'y'), '.'), '.a', 'Replacement for y');
 };
 
 QUnit.test('String#replace regression', run);
@@ -148,7 +150,7 @@ QUnit.test('RegExp#@@replace basic behavior', assert => {
   assert.same(/([a-z]+)(\d+)/[Symbol.replace]('abc12 def34', (a, b, c) => c + b), '12abc def34');
 });
 
-QUnit.test('String.replace delegates to @@replace', assert => {
+QUnit.test('String#replace delegates to @@replace', assert => {
   const string = STRICT ? 'string' : Object('string');
   const number = STRICT ? 42 : Object(42);
   const object = {};

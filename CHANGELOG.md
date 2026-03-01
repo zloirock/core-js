@@ -1,34 +1,64 @@
 # Changelog
 ### Unreleased
 - Added polyfill for ``requestIdleCallback`` and ``cancelIdleCallback``
-- Improved performance of `atob` and `btoa`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464)
+- Improved performance of `atob`, `btoa`, `Uint8Array.fromHex`, `Uint8Array.prototype.setFromHex`, and `Uint8Array.prototype.toHex`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464), [#1510](https://github.com/zloirock/core-js/issues/1510)
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
   - Allow `null` as `optionOrStep`
-- `Math.atanh` has become slightly more correct with small values
+- Improved accuracy of `Math.{ asinh, atanh }` polyfills with big and small values
+- Improved accuracy of `Number.prototype.toExponential` polyfills with big and small values
+- Minor performance optimization polyfills of methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert)
+- Polyfills of methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) from the pure version made generic to make it work with polyfilled and native collections
+- Wrap `Symbol.for` in `Symbol.prototype.description` polyfill for correct handling of empty string descriptions
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
-- Fixed double `.return` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
+- Fixed proxying `.return()` on exhausted iterator from some methods of iterator helpers polyfill to the underlying iterator
+- Fixed double `.return()` calling in case of throwing error in this method in the internal `iterate` helper that affected some polyfills
+- Fixed closing iterator on `IteratorValue` errors in the internal `iterate` helper that affected some polyfills
+- Fixed iterator closing in `Array.from` polyfill on failure to create array property
+- Fixed order of arguments validation in `Array.fromAsync` polyfill
+- Fixed order of arguments validation in `Array.prototype.flat` polyfill
+- Fixed handling strings as iterables in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
+- Fixed validation of iterators `.next()` results an objects in `Iterator.{ zip, zipKeyed }` polyfills
+- Fixed a lack of early error in `Iterator.concat` polyfill on primitive as an iterator
+- Fixed buffer mutation exposure in `Iterator.prototype.windows` polyfill
 - Fixed iterator closing in `Set.prototype.{ isDisjointFrom, isSupersetOf }` polyfill
 - Fixed (updated following the final spec) one more case `Set.prototype.difference` polyfill with updating `this`
 - Fixed `DataView.prototype.setFloat16` polyfill in (0, 1) range
+- Fixed order of arguments validation in `String.prototype.{ padStart, padEnd }` polyfills
+- Fixed order of arguments validation in `String.prototype.{ startsWith, endsWith }` polyfills
+- Fixed some cases of `Infinity` handling in `String.prototype.substr` polyfill
+- Fixed `String.prototype.repeat` polyfill with a counter exceeding 2 ** 32
+- Fixed some cases of chars case in `escape` polyfill
 - Fixed named backreferences in `RegExp` NCG polyfill
 - Fixed some cases of `RegExp` NCG polyfill in combination with other types of groups
 - Fixed some cases of `RegExp` NCG polyfill in combination with `dotAll`
+- Fixed `String.prototype.replace` with `sticky` polyfill, [#810](https://github.com/zloirock/core-js/issues/810), [#1514](https://github.com/zloirock/core-js/issues/1514)
+- Fixed `RegExp` `sticky` polyfill with alternation
 - Fixed handling of some line terminators in case of `multiline` + `sticky` mode in `RegExp` polyfill
-- Fixed handling of empty groups with `global` and `unicode` flags in polyfills
+- Fixed `.input` slicing on result object with `RegExp` `sticky` mode polyfill
+- Fixed handling of empty groups with `global` and `unicode` modes in polyfills
 - Fixed `URLSearchParam.prototype.delete` polyfill with duplicate key-value pairs
+- Fixed possible removal of unnecessary entries in `URLSearchParam.prototype.delete` polyfill with second argument
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode cases / character sets in the `URL` polyfill
+- Fixed some cases of `''` and `null` host handling in the `URL` polyfill
 - Fixed host parsing with `hostname = host:port` in the `URL` polyfill
+- Fixed host inheritance in some cases of file scheme in the `URL` polyfill
+- Fixed block of protocol change for file with empty host in the `URL` polyfill
 - Fixed invalid code points handling in UTF-8 decode in the `URLSearchParams` polyfill
+- Fixed some cases of serialization in `URL` polyfill (`/.` prefix for non-special URLs with `null` host and path starting with empty segment)
 - Fixed `URL` polyfill `.origin` getter with `blob` scheme
 - Fixed a lack of error in `URLSearchParams.prototype.set` polyfill on calling only with 1 argument
 - Fixed handling invalid UTF-8 continuation bytes in `URLSearchParams` polyfill
+- Fixed incomplete sequences with out-of-range continuation bytes handling in `URLSearchParams` polyfill
 - Fixed allowing unexpected symbols in scheme in the `URL` polyfill
 - Fixed repeated `ToPropertyKey` calling in `Reflect.{ get, set, deleteProperty }` polyfills
-- Fixed `Reflect.set` polyfills with some cases of malformed descriptors
+- Fixed `Reflect.set` polyfill with some descriptors cases
+- Fixed `Reflect.set` polyfill with some non-extensible receiver cases
+- Fixed the order of `Reflect.construct` polyfill arguments validation (observable only in the error message)
+- Fixed a lack of error in `Reflect.defineProperty` polyfill with malformed descriptor
 - Fixed a lack of error in `JSON.parse` polyfill on unterminated object and array literals
 - Fixed a lack of error in `JSON.parse` polyfill on numbers with `.`, but without a fraction part
 - Fixed a lack of error on `\u{}` in `String.dedent` polyfill
@@ -37,27 +67,37 @@
 - Fixed counter in some cases of some `AsyncIterator` methods
 - Fixed order of async iterators closing
 - Fixed iterator closing in `AsyncIterator.prototype.flatMap` polyfill
+- Fixed iterator closing in `AsyncIterator.prototype.map` polyfill on error in underlying iterator `.next()`
 - Fixed iterator closing in `AsyncIterator.prototype.take` polyfill with `return: null`
+- Fixed validation `.return()` result as object in `AsyncIterator.prototype.take` polyfill
 - Fixed a lack of error in `structuredClone` polyfill on attempt to transfer multiple objects, some of which are non-transferable
 - Fixed resizable `ArrayBuffer` transferring where `newByteLength` exceeds the original `maxByteLength`
 - Fixed possible loss of symbol enumerability in `Object.defineProperty` in `Symbol` polyfill
 - Fixed return value of `Object.defineProperty` in `Symbol` polyfill in Android ~ 2
 - Fixed order of `%TypedArray%.from` arguments validation
-- Fixed a lack of error on passing an `ArrayBuffer` and a negative length to the `%TypedArray%` constructor polyfill
+- Fixed a lack of error on passing an `ArrayBuffer` and a negative length to the `%TypedArray%` and `DataView` constructors polyfills
 - Fixed some cases of `@@toStringTag` on `%TypedArray%` polyfill
 - Fixed some cases of `ToUint8Clamp` conversion
+- Fixed `NaN` handling in `Date.prototype.setYear` polyfill
 - Fixed false positive on a `WeakMap` validation in the pure version
 - Fixed some minor `{ Map, Set }.prototype.forEach` moments in the pure version
+- Fixed possible error in `Array.isTemplateObject` polyfill on frozen array
 - Fixed semantics of `Observable.from` with multiple subscriptions of the obsolete ECMAScript `Observable` proposal polyfill
+- Fixed handling of ending zeroes in the fraction part in `Number.fromString` polyfill
 - Fixed `esmodules: intersect` option of `core-js-compat`
+- Fixed a lack of `reactnative` alias in `core-js-compat` types
 - Fixed a minor logical bug in the debugging output of `core-js-builder`
 - Fixed ignorance of the obsolete `blacklist` option of `core-js-builder` - it should be removed only in the next major release
 - In case of bugs in `String.prototype.{ match, matchAll, replace, split }` in modern engines, add `s`, `d` and `v` flag support to polyfills of those methods
 - Just in case, added an extra input string validation to the  polyfill of obsolete `Number.fromString` proposals
+- Simplified `iOS` detection
 - Many minor stylistic fixes and optimizations
 - Compat data improvements:
+  - [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum) marked as [shipped in V8 ~ Chrome 147](https://issues.chromium.org/issues/374310075#comment16)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
-  - Added [Deno 2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
+  - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Safari 26.4
+  - Added [Deno 2.6.7 / 2.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
+  - Added Electron 42 compat data mapping
   - Added [Opera Android 95](https://forums.opera.com/topic/87912/opera-for-android-95) compat data mapping
   - Added Oculus Quest Browser 42 compat data mapping
 

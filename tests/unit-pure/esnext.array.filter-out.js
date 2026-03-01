@@ -15,11 +15,14 @@ QUnit.test('Array#filterOut', assert => {
     assert.same(that, array, 'correct link to array in callback');
     assert.same(this, context, 'correct callback context');
   }, context);
-  assert.deepEqual([1, 2, 3, 4, 5], filterOut([1, 2, 3, 'q', {}, 4, true, 5], it => typeof it != 'number'));
+  assert.deepEqual(filterOut([1, 2, 3, 'q', {}, 4, true, 5], it => typeof it != 'number'), [1, 2, 3, 4, 5]);
   if (STRICT) {
     assert.throws(() => filterOut(null, () => { /* empty */ }), TypeError);
     assert.throws(() => filterOut(undefined, () => { /* empty */ }), TypeError);
   }
+  assert.notThrows(() => filterOut({ length: -1, 0: 1 }, () => {
+    throw new Error();
+  }), 'uses ToLength');
   array = [];
   // eslint-disable-next-line object-shorthand -- constructor
   array.constructor = { [Symbol.species]: function () {

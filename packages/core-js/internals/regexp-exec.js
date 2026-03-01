@@ -79,7 +79,7 @@ if (PATCH) {
       var prevChar = re.lastIndex > 0 && charAt(str, re.lastIndex - 1);
       if (re.lastIndex > 0 &&
         (!re.multiline || re.multiline && prevChar !== '\n' && prevChar !== '\r' && prevChar !== '\u2028' && prevChar !== '\u2029')) {
-        source = '(?: ' + source + ')';
+        source = '(?: (?:' + source + '))';
         strCopy = ' ' + strCopy;
         charsAdded++;
       }
@@ -97,7 +97,7 @@ if (PATCH) {
 
     if (sticky) {
       if (match) {
-        match.input = stringSlice(match.input, charsAdded);
+        match.input = str;
         match[0] = stringSlice(match[0], charsAdded);
         match.index = re.lastIndex;
         re.lastIndex += match[0].length;

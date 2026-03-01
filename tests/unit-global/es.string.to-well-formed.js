@@ -12,13 +12,13 @@ QUnit.test('String#toWellFormed', assert => {
   assert.same(toWellFormed.call('abc'), 'abc', 'abc');
   assert.same(toWellFormed.call('💩'), '💩', '💩');
   assert.same(toWellFormed.call('💩b'), '💩b', '💩b');
-  assert.same(toWellFormed.call('a💩'), 'a💩', '💩');
+  assert.same(toWellFormed.call('a💩'), 'a💩', 'a💩');
   assert.same(toWellFormed.call('a💩b'), 'a💩b', 'a💩b');
   assert.same(toWellFormed.call('💩a💩'), '💩a💩');
   assert.same(toWellFormed.call('\uD83D'), '\uFFFD', '\uD83D');
   assert.same(toWellFormed.call('\uDCA9'), '\uFFFD', '\uDCA9');
   assert.same(toWellFormed.call('\uDCA9\uD83D'), '\uFFFD\uFFFD', '\uDCA9\uD83D');
-  assert.same(toWellFormed.call('a\uD83D'), 'a\uFFFD', 'a\uFFFD');
+  assert.same(toWellFormed.call('a\uD83D'), 'a\uFFFD', 'a\uD83D');
   assert.same(toWellFormed.call('\uDCA9a'), '\uFFFDa', '\uDCA9a');
   assert.same(toWellFormed.call('a\uD83Da'), 'a\uFFFDa', 'a\uD83Da');
   assert.same(toWellFormed.call('a\uDCA9a'), 'a\uFFFDa', 'a\uDCA9a');

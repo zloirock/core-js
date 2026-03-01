@@ -8,6 +8,7 @@ QUnit.test('AsyncIterator#reduce', assert => {
 
   assert.isFunction(reduce);
   assert.arity(reduce, 1);
+  assert.name(reduce, 'reduce');
   assert.nonEnumerable(AsyncIterator.prototype, 'reduce');
 
   if (STRICT) {
@@ -43,7 +44,7 @@ QUnit.test('AsyncIterator#reduce', assert => {
   }).then(() => {
     return reduce.call(createIterator([]), (a, b) => a + b);
   }).catch(() => {
-    assert.true(true, 'reduce an empty iterable with no initial');
+    assert.required('reduce an empty iterable with no initial');
     return reduce.call(createIterator([1]), () => { throw 42; }, 1);
   }).then(() => {
     assert.avoid();

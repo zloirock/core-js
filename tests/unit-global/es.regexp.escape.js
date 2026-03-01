@@ -21,6 +21,11 @@ QUnit.test('RegExp.escape', assert => {
     'whitespaces and control',
   );
 
+  assert.same(escape('💩'), '💩', '💩');
+  assert.same(escape('\uD83D'), '\\ud83d', '\\ud83d');
+  assert.same(escape('\uDCA9'), '\\udca9', '\\udca9');
+  assert.same(escape('\uDCA9\uD83D'), '\\udca9\\ud83d', '\\udca9\\ud83d');
+
   assert.throws(() => escape(42), TypeError, 'throws on non-string #1');
   assert.throws(() => escape({}), TypeError, 'throws on non-string #2');
 

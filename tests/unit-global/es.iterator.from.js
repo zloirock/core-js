@@ -26,6 +26,6 @@ QUnit.test('Iterator.from', assert => {
   // https://bugs.webkit.org/show_bug.cgi?id=288714
   const iterator = createIterator([], { return: null });
   const result = from(iterator).return('ignored');
-  assert.true(result.done, 'iterator with null next #1');
-  assert.strictEqual(result.value, undefined, 'iterator with null next #2');
+  assert.true(result.done, 'iterator with null return #1');
+  assert.strictEqual(result.value, undefined, 'iterator with null return #2');
 });

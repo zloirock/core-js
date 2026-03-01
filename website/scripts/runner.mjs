@@ -11,6 +11,7 @@ import {
   expandVersionsConfig,
 } from './helpers.mjs';
 import childProcess from 'node:child_process';
+// eslint-disable-next-line node/no-unsupported-features/node-builtins -- ok
 import { cp, readdir, readlink } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import { resolve, join } from 'node:path';

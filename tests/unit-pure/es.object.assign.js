@@ -7,6 +7,8 @@ import assign from 'core-js-pure/es/object/assign';
 
 QUnit.test('Object.assign', assert => {
   assert.isFunction(assign);
+  assert.arity(assign, 2);
+  assert.name(assign, 'assign');
   let object = { q: 1 };
   assert.same(object, assign(object, { bar: 2 }), 'assign return target');
   assert.same(object.bar, 2, 'assign define properties');
@@ -49,7 +51,7 @@ QUnit.test('Object.assign', assert => {
       assert.same(Function('assign', `
         return assign({ b: 1 }, { get a() {
           Object.defineProperty(this, "b", {
-            value: 4,
+            value: 3,
             enumerable: false
           });
         }, b: 2 });

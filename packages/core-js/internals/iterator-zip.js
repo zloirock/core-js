@@ -1,6 +1,7 @@
 'use strict';
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
+var anObject = require('../internals/an-object');
 var createIteratorProxy = require('../internals/iterator-create-proxy');
 var iteratorCloseAll = require('../internals/iterator-close-all');
 
@@ -31,7 +32,7 @@ var IteratorProxy = createIteratorProxy(function () {
       result = padding[i];
     } else {
       try {
-        result = call(iter.next, iter.iterator);
+        result = anObject(call(iter.next, iter.iterator));
         done = result.done;
         result = result.value;
       } catch (error) {
@@ -54,7 +55,7 @@ var IteratorProxy = createIteratorProxy(function () {
           for (var k = 1; k < iterCount; k++) {
             // eslint-disable-next-line max-depth -- specification case
             try {
-              open = call(iters[k].next, iters[k].iterator);
+              open = anObject(call(iters[k].next, iters[k].iterator));
               openDone = open.done;
               open = open.value;
             } catch (error) {

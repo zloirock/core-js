@@ -4,6 +4,8 @@ import cosh from 'core-js-pure/es/math/cosh';
 
 QUnit.test('Math.cosh', assert => {
   assert.isFunction(cosh);
+  assert.name(cosh, 'cosh');
+  assert.arity(cosh, 1);
   assert.same(cosh(NaN), NaN);
   assert.same(cosh(0), 1);
   assert.same(cosh(-0), 1);

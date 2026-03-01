@@ -6,6 +6,7 @@ import of from 'core-js-pure/es/array/of';
 QUnit.test('Array.of', assert => {
   assert.isFunction(of);
   assert.arity(of, 0);
+  assert.name(of, 'of');
   assert.deepEqual(of(1), [1]);
   assert.deepEqual(of(1, 2, 3), [1, 2, 3]);
   class C { /* empty */ }

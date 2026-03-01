@@ -19,12 +19,10 @@ $({ target: 'String', proto: true, forced: FORCED }, {
     var that = toString(requireObjectCoercible(this));
     var size = that.length;
     var intStart = toIntegerOrInfinity(start);
-    var intLength, intEnd;
-    if (intStart === Infinity) intStart = 0;
-    if (intStart < 0) intStart = max(size + intStart, 0);
-    intLength = length === undefined ? size : toIntegerOrInfinity(length);
-    if (intLength <= 0 || intLength === Infinity) return '';
-    intEnd = min(intStart + intLength, size);
-    return intStart >= intEnd ? '' : stringSlice(that, intStart, intEnd);
+    var finalStart = intStart < 0 ? max(size + intStart, 0) : min(intStart, size);
+    var intLength = length === undefined ? size : toIntegerOrInfinity(length);
+    if (intLength <= 0) return '';
+    var intEnd = min(finalStart + intLength, size);
+    return finalStart >= intEnd ? '' : stringSlice(that, finalStart, intEnd);
   }
 });

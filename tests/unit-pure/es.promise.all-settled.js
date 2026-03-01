@@ -8,6 +8,7 @@ import Symbol from 'core-js-pure/es/symbol';
 
 QUnit.test('Promise.allSettled', assert => {
   assert.isFunction(Promise.allSettled);
+  assert.name(Promise.allSettled, 'allSettled');
   assert.arity(Promise.allSettled, 1);
   assert.true(Promise.allSettled([1, 2, 3]) instanceof Promise, 'returns a promise');
 });

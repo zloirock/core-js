@@ -7,7 +7,7 @@ if (DESCRIPTORS) QUnit.test('%TypedArrayPrototype%.with', assert => {
     const { with: withAt } = TypedArray.prototype;
 
     assert.isFunction(withAt, `${ name }::with is function`);
-    assert.arity(withAt, 2, `${ name }::with arity is 0`);
+    assert.arity(withAt, 2, `${ name }::with arity is 2`);
     // assert.name(withAt, 'with', `${ name }::with name is 'with'`);
     assert.looksNative(withAt, `${ name }::with looks native`);
 

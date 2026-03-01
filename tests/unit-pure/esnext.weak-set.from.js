@@ -5,6 +5,7 @@ import WeakSet from 'core-js-pure/full/weak-set';
 QUnit.test('WeakSet.from', assert => {
   const { from } = WeakSet;
   assert.isFunction(from);
+  assert.name(from, 'from');
   assert.arity(from, 1);
   assert.true(from([]) instanceof WeakSet);
   const array = [];

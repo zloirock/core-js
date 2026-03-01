@@ -3,6 +3,8 @@ import isFinite from 'core-js-pure/es/number/is-finite';
 
 QUnit.test('Number.isFinite', assert => {
   assert.isFunction(isFinite);
+  assert.name(isFinite, 'isFinite');
+  assert.arity(isFinite, 1);
   const finite = [
     1,
     0.1,

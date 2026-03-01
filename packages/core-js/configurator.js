@@ -14,7 +14,7 @@ var setAggressivenessLevel = function (object, constant) {
 };
 
 module.exports = function (options) {
-  if (typeof options == 'object') {
+  if (options && typeof options == 'object') {
     setAggressivenessLevel(options.useNative, isForced.NATIVE);
     setAggressivenessLevel(options.usePolyfill, isForced.POLYFILL);
     setAggressivenessLevel(options.useFeatureDetection, null);

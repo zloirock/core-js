@@ -5,10 +5,13 @@ var $ = require('../internals/export');
 var $asinh = Math.asinh;
 var log = Math.log;
 var sqrt = Math.sqrt;
+var LN2 = Math.LN2;
+// sqrt(2 ** 53) - prevent n * n overflow
+var SQRT_2_POW_53 = 94906265.62425156;
 
 function asinh(x) {
   var n = +x;
-  return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : log(n + sqrt(n * n + 1));
+  return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : n > SQRT_2_POW_53 ? log(n) + LN2 : log(n + sqrt(n * n + 1));
 }
 
 var FORCED = !($asinh && 1 / $asinh(0) > 0);

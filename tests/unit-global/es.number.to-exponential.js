@@ -126,6 +126,15 @@ QUnit.test('Number#toExponential', assert => {
   assert.same(toExponential.call(-0, 7), '0.0000000e+0', '-0 and 7');
   assert.same(toExponential.call(-0, 20), '0.00000000000000000000e+0', '-0 and 20');
 
+  // overflow / underflow edge cases
+  assert.same(toExponential.call(9e307, 0), '9e+307', '9e307, 0');
+  assert.same(toExponential.call(-9e307, 0), '-9e+307', '-9e307, 0');
+  assert.same(toExponential.call(Number.MAX_VALUE, 0), '2e+308', 'MAX_VALUE, 0');
+  assert.same(toExponential.call(Number.MAX_VALUE, 5), '1.79769e+308', 'MAX_VALUE, 5');
+  assert.same(toExponential.call(Number.MIN_VALUE, 0), '5e-324', 'MIN_VALUE, 0');
+  assert.same(toExponential.call(Number.MIN_VALUE, 1), '4.9e-324', 'MIN_VALUE, 1');
+  assert.same(toExponential.call(1e-323, 0), '1e-323', '1e-323, 0');
+
   assert.same(toExponential.call(NaN, 1000), 'NaN', 'NaN check before fractionDigits check');
   assert.same(toExponential.call(Infinity, 1000), 'Infinity', 'Infinity check before fractionDigits check');
   assert.notThrows(() => toExponential.call(new Number(1e21), -0.1) === '1e+21');

@@ -81,7 +81,7 @@ if (DESCRIPTORS) {
     defineProperty(prototype, 'h', {
       value: 'h',
     });
-    defineProperty(prototype, 'j', {
+    defineProperty(prototype, j, {
       value: 'j',
     });
     const object = create(prototype);

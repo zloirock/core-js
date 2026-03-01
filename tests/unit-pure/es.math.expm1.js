@@ -4,6 +4,8 @@ import expm1 from 'core-js-pure/es/math/expm1';
 
 QUnit.test('Math.expm1', assert => {
   assert.isFunction(expm1);
+  assert.name(expm1, 'expm1');
+  assert.arity(expm1, 1);
   assert.same(expm1(NaN), NaN);
   assert.same(expm1(0), 0);
   assert.same(expm1(-0), -0);

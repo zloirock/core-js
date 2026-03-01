@@ -4,6 +4,8 @@ import setPrototypeOf from 'core-js-pure/es/object/set-prototype-of';
 
 if (PROTO) QUnit.test('Object.setPrototypeOf', assert => {
   assert.isFunction(setPrototypeOf);
+  assert.arity(setPrototypeOf, 2);
+  assert.name(setPrototypeOf, 'setPrototypeOf');
   assert.true('apply' in setPrototypeOf({}, Function.prototype), 'Parent properties in target');
   assert.same(setPrototypeOf({ a: 2 }, {
     b() {

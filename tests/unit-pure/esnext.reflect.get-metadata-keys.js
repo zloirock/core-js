@@ -5,6 +5,7 @@ import getMetadataKeys from 'core-js-pure/full/reflect/get-metadata-keys';
 QUnit.test('Reflect.getMetadataKeys', assert => {
   assert.isFunction(getMetadataKeys);
   assert.arity(getMetadataKeys, 1);
+  assert.name(getMetadataKeys, 'getMetadataKeys');
   assert.throws(() => getMetadataKeys(undefined, undefined), TypeError);
   assert.deepEqual(getMetadataKeys({}, undefined), []);
   let object = {};

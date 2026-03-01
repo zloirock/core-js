@@ -12,8 +12,8 @@ QUnit.test('Iterator#chunks', assert => {
   assert.looksNative(chunks);
   assert.nonEnumerable(Iterator.prototype, 'chunks');
 
-  assert.arrayEqual(from(chunks.call(createIterator([1, 2, 3]), 2)), [[1, 2], [3]], 'basic functionality');
-  assert.arrayEqual(from(chunks.call(createIterator([1, 2, 3, 4]), 2)), [[1, 2], [3, 4]], 'basic functionality');
+  assert.arrayEqual(from(chunks.call(createIterator([1, 2, 3]), 2)), [[1, 2], [3]], 'basic functionality #1');
+  assert.arrayEqual(from(chunks.call(createIterator([1, 2, 3, 4]), 2)), [[1, 2], [3, 4]], 'basic functionality #2');
   assert.arrayEqual(from(chunks.call(createIterator([]), 2)), [], 'basic functionality on empty iterable');
 
   const it = createIterator([1, 2, 3]);
@@ -23,7 +23,7 @@ QUnit.test('Iterator#chunks', assert => {
   assert.true(result instanceof Iterator, 'returns iterator');
   assert.deepEqual(result.next(), { done: false, value: [1, 2, 3] }, '.next with active inner iterator result');
   assert.deepEqual(result.return(), { done: true, value: undefined }, '.return with active inner iterator result');
-  assert.deepEqual(result.next(), { done: true, value: undefined }, '.return with active inner iterator result on closed iterator');
+  assert.deepEqual(result.next(), { done: true, value: undefined }, '.next on closed iterator');
 
   if (STRICT) {
     assert.throws(() => chunks.call('', 1), TypeError, 'iterable non-object this');

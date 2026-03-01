@@ -79,7 +79,8 @@ QUnit.test('WeakSet#add', assert => {
 
 QUnit.test('WeakSet#delete', assert => {
   assert.isFunction(WeakSet.prototype.delete);
-  if (NATIVE) assert.arity(WeakSet.prototype.delete, 1);
+  assert.arity(WeakSet.prototype.delete, 1);
+  if (NATIVE) assert.name(WeakSet.prototype.delete, 'delete');
   assert.looksNative(WeakSet.prototype.delete);
   assert.nonEnumerable(WeakSet.prototype, 'delete');
   const a = {};
@@ -89,7 +90,7 @@ QUnit.test('WeakSet#delete', assert => {
   assert.true(weakset.has(b), 'WeakSet has values before .delete() #2');
   weakset.delete(a);
   assert.false(weakset.has(a), 'WeakSet has not value after .delete() #1');
-  assert.true(weakset.has(b), 'WeakSet has not value after .delete() #2');
+  assert.true(weakset.has(b), 'WeakSet still has value after .delete() #2');
   assert.notThrows(() => !weakset.delete(1), 'return false on primitive');
 });
 
@@ -109,7 +110,7 @@ QUnit.test('WeakSet#has', assert => {
   assert.notThrows(() => !weakset.has(1), 'return false on primitive');
 });
 
-QUnit.test('WeakSet::@@toStringTag', assert => {
-  assert.same(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet::@@toStringTag is `WeakSet`');
+QUnit.test('WeakSet#@@toStringTag', assert => {
+  assert.same(WeakSet.prototype[Symbol.toStringTag], 'WeakSet', 'WeakSet#@@toStringTag is `WeakSet`');
   assert.same(String(new WeakSet()), '[object WeakSet]', 'correct stringification');
 });

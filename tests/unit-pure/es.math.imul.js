@@ -4,6 +4,8 @@ import imul from 'core-js-pure/es/math/imul';
 
 QUnit.test('Math.imul', assert => {
   assert.isFunction(imul);
+  assert.name(imul, 'imul');
+  assert.arity(imul, 2);
   assert.same(imul(0, 0), 0);
   assert.same(imul(123, 456), 56088);
   assert.same(imul(-123, 456), -56088);

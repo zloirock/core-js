@@ -699,6 +699,7 @@ export const data = {
     bun: '1.3.7',
     chrome: '146',
     firefox: '147',
+    safari: '26.4',
   },
   'es.iterator.dispose': {
     bun: '1.3.0',
@@ -1020,6 +1021,7 @@ export const data = {
   },
   'es.math.sum-precise': {
     bun: '1.2.18',
+    chrome: '147',
     firefox: '137',
     safari: '26.2',
   },

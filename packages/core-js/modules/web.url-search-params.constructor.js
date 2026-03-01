@@ -108,6 +108,7 @@ var utf8Decode = function (octets) {
   return codePoint;
 };
 
+/* eslint-disable max-statements, max-depth -- ok */
 var decode = function (input) {
   input = replace(input, plus, ' ');
   var length = input.length;
@@ -157,6 +158,14 @@ var decode = function (input) {
           // eslint-disable-next-line no-self-compare -- NaN check
           if (nextByte !== nextByte || nextByte > 191 || nextByte < 128) break;
 
+          // https://encoding.spec.whatwg.org/#utf-8-decoder - position-specific byte ranges
+          if (sequenceIndex === 1) {
+            if (octet === 0xE0 && nextByte < 0xA0) break;
+            if (octet === 0xED && nextByte > 0x9F) break;
+            if (octet === 0xF0 && nextByte < 0x90) break;
+            if (octet === 0xF4 && nextByte > 0x8F) break;
+          }
+
           push(octets, nextByte);
           i += 2;
           sequenceIndex++;
@@ -184,6 +193,7 @@ var decode = function (input) {
 
   return result;
 };
+/* eslint-enable max-statements, max-depth -- ok */
 
 var find = /[!'()~]|%20/g;
 

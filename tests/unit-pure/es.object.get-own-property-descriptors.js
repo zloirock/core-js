@@ -6,6 +6,8 @@ import getOwnPropertyDescriptors from 'core-js-pure/es/object/get-own-property-d
 
 QUnit.test('Object.getOwnPropertyDescriptors', assert => {
   assert.isFunction(getOwnPropertyDescriptors);
+  assert.name(getOwnPropertyDescriptors, 'getOwnPropertyDescriptors');
+  assert.arity(getOwnPropertyDescriptors, 1);
   const object = create({ q: 1 }, { e: { value: 3 } });
   object.w = 2;
   const symbol = Symbol('4');

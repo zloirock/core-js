@@ -26,5 +26,5 @@ QUnit.test('Error#toString', assert => {
   }
 
   // assert.throws(() => toString.call({ name: Symbol() }), 'throws on symbol #1');
-  // assert.throws(() => toString.call({ name: Symbol() }), 'throws on symbol #2');
+  // assert.throws(() => toString.call({ message: Symbol() }), 'throws on symbol #2');
 });

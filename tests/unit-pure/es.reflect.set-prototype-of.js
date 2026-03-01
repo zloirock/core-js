@@ -4,6 +4,7 @@ import setPrototypeOf from 'core-js-pure/es/reflect/set-prototype-of';
 
 if (PROTO) QUnit.test('Reflect.setPrototypeOf', assert => {
   assert.isFunction(setPrototypeOf);
+  assert.arity(setPrototypeOf, 2);
   if ('name' in setPrototypeOf) {
     assert.name(setPrototypeOf, 'setPrototypeOf');
   }

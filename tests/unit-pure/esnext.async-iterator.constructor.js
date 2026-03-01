@@ -7,6 +7,7 @@ import AsyncIterator from 'core-js-pure/actual/async-iterator';
 QUnit.test('AsyncIterator', assert => {
   assert.isFunction(AsyncIterator);
   assert.arity(AsyncIterator, 0);
+  assert.name(AsyncIterator, 'AsyncIterator');
 
   assert.true(AsyncIterator.from([1, 2, 3]) instanceof AsyncIterator, 'Async From Proxy');
   assert.true(AsyncIterator.from([1, 2, 3]).drop(1) instanceof AsyncIterator, 'Async Drop Proxy');

@@ -38,7 +38,7 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       }
       if (!done) {
         try {
-          iter = getIteratorFlattenable(next.value, true);
+          iter = getIteratorFlattenable(next.value, false);
         } catch (error) {
           return iteratorCloseAll(concat([inputIter], iters), THROW, error);
         }

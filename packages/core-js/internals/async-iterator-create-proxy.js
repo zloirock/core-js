@@ -55,6 +55,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       if (stateCompletion.exit) return state;
       state.done = true;
       var iterator = state.iterator;
+      var inner = state.inner;
       var returnMethod, result;
       var closeOuterIterator = function () {
         var completion = perform(function () {
@@ -82,13 +83,15 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
         });
       };
 
-      if (state.inner) {
+      if (inner) {
+        var innerIterator = inner.iterator;
+        var innerReturn;
         var completion = perform(function () {
-          var innerReturn = getMethod(state.inner.iterator, 'return');
-          if (innerReturn) return call(innerReturn, state.inner.iterator);
+          innerReturn = getMethod(innerIterator, 'return');
+          if (innerReturn) return call(innerReturn, innerIterator);
         });
         if (completion.error) return closeAndReject(completion.value);
-        if (completion.value) {
+        if (innerReturn) {
           return Promise.resolve(completion.value).then(function (innerResult) {
             try {
               anObject(innerResult);

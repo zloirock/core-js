@@ -62,7 +62,7 @@ const run = assert => {
   assert.arrayEqual('tesst'.split(/(s)*?/), ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't'], "'tesst'.split(/(s)*?/) results in ['t', undefined, 'e', undefined, 's', undefined, 's', undefined, 't']");
   assert.arrayEqual('tesst'.split(/(s*)/), ['t', '', 'e', 'ss', 't'], "'tesst'.split(/(s*)/) results in ['t', '', 'e', 'ss', 't']");
   assert.arrayEqual('tesst'.split(/(s*?)/), ['t', '', 'e', '', 's', '', 's', '', 't'], "'tesst'.split(/(s*?)/) results in ['t', '', 'e', '', 's', '', 's', '', 't']");
-  assert.arrayEqual('tesst'.split(/s*/), ['t', 'e', 't'], "'tesst'.split(/(?:s)*/) results in ['t', 'e', 't']");
+  assert.arrayEqual('tesst'.split(/s*/), ['t', 'e', 't'], "'tesst'.split(/s*/) results in ['t', 'e', 't']");
   assert.arrayEqual('tesst'.split(/(?=s+)/), ['te', 's', 'st'], "'tesst'.split(/(?=s+)/) results in ['te', 's', 'st']");
   assert.arrayEqual('test'.split('t'), ['', 'es', ''], "'test'.split('t') results in ['', 'es', '']");
   assert.arrayEqual('test'.split('es'), ['t', 't'], "'test'.split('es') results in ['t', 't']");
@@ -358,14 +358,14 @@ const run = assert => {
   assert.same(split.length, 1, 'S15.5.4.14_A2_T16 #2');
   assert.same(split[0], '', 'S15.5.4.14_A2_T16 #3');
   split = Object(' ').split('');
-  assert.same(split.constructor, Array, 'S15.5.4.14_A2_T18 #1');
-  assert.same(split.length, 1, 'S15.5.4.14_A2_T18 #2');
-  assert.same(split[0], ' ', 'S15.5.4.14_A2_T18 #3');
+  assert.same(split.constructor, Array, 'S15.5.4.14_A2_T17 #1');
+  assert.same(split.length, 1, 'S15.5.4.14_A2_T17 #2');
+  assert.same(split[0], ' ', 'S15.5.4.14_A2_T17 #3');
   split = Object(' ').split(' ');
-  assert.same(split.constructor, Array, 'S15.5.4.14_A2_T19 #1');
-  assert.same(split.length, 2, 'S15.5.4.14_A2_T19 #2');
-  assert.same(split[0], '', 'S15.5.4.14_A2_T19 #3');
-  assert.same(split[1], '', 'S15.5.4.14_A2_T19 #4');
+  assert.same(split.constructor, Array, 'S15.5.4.14_A2_T18 #1');
+  assert.same(split.length, 2, 'S15.5.4.14_A2_T18 #2');
+  assert.same(split[0], '', 'S15.5.4.14_A2_T18 #3');
+  assert.same(split[1], '', 'S15.5.4.14_A2_T18 #4');
   split = ''.split('x');
   assert.same(split.constructor, Array, 'S15.5.4.14_A2_T19 #1');
   assert.same(split.length, 1, 'S15.5.4.14_A2_T19 #2');
@@ -689,7 +689,7 @@ const run = assert => {
     }
   }
 
-  assert.throws(() => ''.split.call(Symbol('aplit test'), /./), 'throws on symbol context');
+  assert.throws(() => ''.split.call(Symbol('split test'), /./), 'throws on symbol context');
 };
 
 QUnit.test('String#split regression', run);

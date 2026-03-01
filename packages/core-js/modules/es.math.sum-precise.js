@@ -32,7 +32,7 @@ var twosum = function (x, y) {
 };
 
 // `Math.sumPrecise` method
-// https://github.com/tc39/proposal-math-sum
+// https://tc39.es/ecma262/#sec-math.sumprecise
 $({ target: 'Math', stat: true }, {
   // eslint-disable-next-line max-statements -- ok
   sumPrecise: function sumPrecise(items) {

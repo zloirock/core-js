@@ -26,9 +26,4 @@ QUnit.test('WeakMap#getOrInsert', assert => {
   assert.throws(() => getOrInsert.call([], a, 1), TypeError, 'non-generic#2');
   assert.throws(() => getOrInsert.call(undefined, a, 1), TypeError, 'non-generic#3');
   assert.throws(() => getOrInsert.call(null, a, 1), TypeError, 'non-generic#4');
-  assert.throws(() => getOrInsert.call({
-    has() { return false; },
-    get() { /* empty */ },
-    set() { /* empty */ },
-  }, a, 1), TypeError, 'non-generic, missing delete');
 });

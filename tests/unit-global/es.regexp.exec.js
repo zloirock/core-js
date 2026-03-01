@@ -51,6 +51,7 @@ if (DESCRIPTORS) {
     const result = re.exec(str);
     assert.deepEqual(result, ['a'], '#6');
     assert.same(result.index, 2, '#7');
+    assert.same(result.input, str, 'match.input is the original string');
     assert.same(re.lastIndex, 3, '#8');
 
     assert.same(re.exec(str), null, '#9');
@@ -92,5 +93,13 @@ if (DESCRIPTORS) {
     const regex5 = new RegExp('^bar', 'my');
     regex5.lastIndex = 2;
     assert.deepEqual(regex5.exec('.\u2029bar'), ['bar'], 'multiline sticky after \\u2029');
+  });
+
+  QUnit.test('RegExp#exec sticky with alternation', assert => {
+    const re = new RegExp('a|b', 'y');
+    re.lastIndex = 1;
+    const result = re.exec('cb');
+    assert.deepEqual(result, ['b'], 'alternation matches non-first alternative at lastIndex');
+    assert.same(re.lastIndex, 2, 'lastIndex updated correctly');
   });
 }

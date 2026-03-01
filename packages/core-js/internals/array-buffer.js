@@ -10,7 +10,6 @@ var defineBuiltIns = require('../internals/define-built-ins');
 var fails = require('../internals/fails');
 var anInstance = require('../internals/an-instance');
 var toIntegerOrInfinity = require('../internals/to-integer-or-infinity');
-var toLength = require('../internals/to-length');
 var toIndex = require('../internals/to-index');
 var fround = require('../internals/math-fround');
 var IEEE754 = require('../internals/ieee754');
@@ -126,7 +125,7 @@ if (!NATIVE_ARRAY_BUFFER) {
     var bufferLength = bufferState.byteLength;
     var offset = toIntegerOrInfinity(byteOffset);
     if (offset < 0 || offset > bufferLength) throw new RangeError('Wrong offset');
-    byteLength = byteLength === undefined ? bufferLength - offset : toLength(byteLength);
+    byteLength = byteLength === undefined ? bufferLength - offset : toIndex(byteLength);
     if (offset + byteLength > bufferLength) throw new RangeError(WRONG_LENGTH);
     setInternalState(this, {
       type: DATA_VIEW,

@@ -33,6 +33,15 @@ QUnit.test('Reflect.defineProperty', assert => {
   assert.throws(() => defineProperty(42, 1, {}));
   assert.throws(() => defineProperty({}, create(null), {}));
   assert.throws(() => defineProperty({}, 1, 1));
+  // ToPropertyDescriptor errors should throw, not return false
+  assert.throws(() => defineProperty({}, 'a', { get: 42 }), TypeError, 'throws on non-callable getter');
+  assert.throws(() => defineProperty({}, 'a', { set: 'str' }), TypeError, 'throws on non-callable setter');
+  assert.throws(() => defineProperty({}, 'a', { get: null }), TypeError, 'throws on null getter');
+  assert.throws(() => defineProperty({}, 'a', { get: false }), TypeError, 'throws on false getter');
+  if (DESCRIPTORS) {
+    assert.throws(() => defineProperty({}, 'a', { get() { /* empty */ }, value: 1 }), TypeError, 'throws on mixed accessor/data descriptor');
+    assert.true(defineProperty({}, 'a', { get: undefined }), 'undefined getter is valid');
+  }
 });
 
 QUnit.test('Reflect.defineProperty.sham flag', assert => {

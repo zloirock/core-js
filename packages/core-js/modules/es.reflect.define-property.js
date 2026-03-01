@@ -4,7 +4,10 @@ var DESCRIPTORS = require('../internals/descriptors');
 var anObject = require('../internals/an-object');
 var toPropertyKey = require('../internals/to-property-key');
 var definePropertyModule = require('../internals/object-define-property');
+var isCallable = require('../internals/is-callable');
 var fails = require('../internals/fails');
+
+var $TypeError = TypeError;
 
 // MS Edge has broken Reflect.defineProperty - throwing instead of returning false
 var ERROR_INSTEAD_OF_FALSE = fails(function () {
@@ -18,7 +21,14 @@ $({ target: 'Reflect', stat: true, forced: ERROR_INSTEAD_OF_FALSE, sham: !DESCRI
   defineProperty: function defineProperty(target, propertyKey, attributes) {
     anObject(target);
     var key = toPropertyKey(propertyKey);
+    var get, set;
     anObject(attributes);
+    // propagate `ToPropertyDescriptor` errors instead of catching them
+    if (('get' in attributes || 'set' in attributes) && (
+      ('get' in attributes && !isCallable(get = attributes.get) && get !== undefined) ||
+      ('set' in attributes && !isCallable(set = attributes.set) && set !== undefined) ||
+      ('value' in attributes || 'writable' in attributes)
+    )) throw new $TypeError('Invalid property descriptor');
     try {
       definePropertyModule.f(target, key, attributes);
       return true;

@@ -127,10 +127,6 @@ QUnit.module('structuredClone', () => {
       /abc/g,
       /abc/i,
       /abc/gi,
-      /abc/,
-      /abc/g,
-      /abc/i,
-      /abc/gi,
     ];
 
     const giuy = fromSource('/abc/giuy');
@@ -175,16 +171,18 @@ QUnit.module('structuredClone', () => {
         });
       });
 
-      if (typeof DataView != 'undefined') QUnit.test('DataView', assert => {
-        const array = new Int8Array([1, 2, 3, 4]);
-        const view = new DataView(array.buffer);
+      if (fromSource('({}).toString.call(new DataView(new ArrayBuffer([1, 2]))) === "[object DataView]"')) {
+        QUnit.test('DataView', assert => {
+          const array = new Int8Array([1, 2, 3, 4]);
+          const view = new DataView(array.buffer);
 
-        cloneObjectTest(assert, array, (orig, clone) => {
-          assert.same(orig.byteLength, clone.byteLength);
-          assert.same(orig.byteOffset, clone.byteOffset);
-          assert.arrayEqual(new Int8Array(view.buffer), array);
+          cloneObjectTest(assert, view, (orig, clone) => {
+            assert.same(orig.byteLength, clone.byteLength);
+            assert.same(orig.byteOffset, clone.byteOffset);
+            assert.arrayEqual(new Int8Array(orig.buffer), new Int8Array(clone.buffer));
+          });
         });
-      });
+      }
     }
 
     if ('resizable' in ArrayBuffer.prototype) {
@@ -453,7 +451,7 @@ QUnit.module('structuredClone', () => {
       assert,
       transfer.files,
       (orig, clone) => {
-        assert.same(1, clone.length);
+        assert.same(clone.length, 1);
         assert.same(orig[0].size, clone[0].size);
         assert.same(orig[0].type, clone[0].type);
         assert.same(orig[0].name, clone[0].name);

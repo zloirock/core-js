@@ -2,7 +2,7 @@ import Promise from 'core-js-pure/es/promise';
 import assign from 'core-js-pure/es/object/assign';
 import create from 'core-js-pure/es/object/create';
 import values from 'core-js-pure/es/array/values';
-import ITERATOR from 'core-js-pure/es/symbol/iterator';
+import Symbol from 'core-js-pure/es/symbol';
 import AsyncIterator from 'core-js-pure/actual/async-iterator';
 import Iterator from 'core-js-pure/actual/iterator';
 
@@ -11,6 +11,7 @@ QUnit.test('AsyncIterator.from', assert => {
 
   assert.isFunction(from);
   assert.arity(from, 1);
+  assert.name(from, 'from');
 
   assert.true(AsyncIterator.from(values([])) instanceof AsyncIterator, 'proxy, iterator');
 
@@ -27,7 +28,7 @@ QUnit.test('AsyncIterator.from', assert => {
 
   const closableIterator = {
     closed: false,
-    [ITERATOR]() { return this; },
+    [Symbol.iterator]() { return this; },
     next() {
       return { value: Promise.reject(42), done: false };
     },
@@ -44,8 +45,8 @@ QUnit.test('AsyncIterator.from', assert => {
   }).then(() => {
     assert.avoid();
   }, error => {
-    assert.same(error, 42, 'rejection on a callback error');
-    assert.true(closableIterator.closed, 'doesn\'t close sync iterator on promise rejection');
+    assert.same(error, 42, 'rejection on a `.next()` promise rejection');
+    assert.true(closableIterator.closed, 'closes sync iterator on promise rejection');
   });
 });
 
@@ -112,7 +113,7 @@ QUnit.test('AsyncIterator.from, throw closes iterator without throw method', ass
   const iter = AsyncIterator.from({
     next() { return { value: 1, done: false }; },
     return() { closeCalled = true; return { value: undefined, done: true }; },
-    [ITERATOR]() { return this; },
+    [Symbol.iterator]() { return this; },
   });
 
   iter.next().then(() => {
@@ -121,7 +122,7 @@ QUnit.test('AsyncIterator.from, throw closes iterator without throw method', ass
     assert.avoid();
     async();
   }, error => {
-    assert.same(error, 'error', 'rejects with thrown value');
+    assert.true(error instanceof TypeError, 'rejects with new TypeError');
     assert.true(closeCalled, 'closes iterator when no throw method');
     async();
   });
@@ -133,7 +134,7 @@ QUnit.test('AsyncIterator.from, return(value) without iterator return method', a
 
   const iter = AsyncIterator.from({
     next() { return { value: 1, done: false }; },
-    [ITERATOR]() { return this; },
+    [Symbol.iterator]() { return this; },
   });
 
   iter.return(42).then(result => {

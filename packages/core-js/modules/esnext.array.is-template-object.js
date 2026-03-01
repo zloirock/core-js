@@ -24,6 +24,6 @@ $({ target: 'Array', stat: true, sham: true, forced: true }, {
   isTemplateObject: function isTemplateObject(value) {
     if (!isFrozenStringArray(value, true)) return false;
     var raw = value.raw;
-    return raw.length === value.length && isFrozenStringArray(raw, false);
+    return isFrozenStringArray(raw, false) && raw.length === value.length;
   }
 });

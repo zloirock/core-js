@@ -1,6 +1,6 @@
 import globals from 'globals';
 import confusingBrowserGlobals from 'confusing-browser-globals';
-import parserJSONC from 'jsonc-eslint-parser';
+import * as parserJSONC from 'jsonc-eslint-parser';
 import pluginArrayFunc from 'eslint-plugin-array-func';
 import pluginASCII from 'eslint-plugin-ascii';
 import pluginDepend from 'eslint-plugin-depend';
@@ -573,12 +573,6 @@ const base = {
   'promise/prefer-await-to-then': [ERROR, { strict: true }],
   // prefer catch to `then(a, b)` / `then(null, b)` for handling errors
   'promise/prefer-catch': ERROR,
-  // disallow use of non-standard `Promise` static methods
-  'promise/spec-only': [OFF, { allowedMethods: [
-    'prototype', // `eslint-plugin-promise` bug, https://github.com/eslint-community/eslint-plugin-promise/issues/533
-    'try',
-    'undefined', // `eslint-plugin-promise` bug, https://github.com/eslint-community/eslint-plugin-promise/issues/534
-  ] }],
   // ensures the proper number of arguments are passed to `Promise` functions
   'promise/valid-params': ERROR,
 
@@ -864,8 +858,6 @@ const base = {
   'sonarjs/stateful-regex': ERROR,
   // comparison operators should not be used with strings
   'sonarjs/strings-comparison': ERROR,
-  // `super()` should be invoked appropriately
-  'sonarjs/super-invocation': ERROR,
   // results of operations on strings should not be ignored
   'sonarjs/useless-string-operation': ERROR,
   // values not convertible to numbers should not be used in numeric comparisons
@@ -1302,8 +1294,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'keyBy',
   ] }],
   'es/no-nonstandard-map-prototype-properties': [ERROR, { allow: [
-    'getOrInsert',
-    'getOrInsertComputed',
     // TODO: drop from `core-js@4`
     'deleteAll',
     'emplace',
@@ -1421,8 +1411,6 @@ const forbidCompletelyNonExistentBuiltIns = {
     'of',
   ] }],
   'es/no-nonstandard-weakmap-prototype-properties': [ERROR, { allow: [
-    'getOrInsert',
-    'getOrInsertComputed',
     // TODO: drop from `core-js@4`
     'deleteAll',
     'emplace',
@@ -1548,7 +1536,7 @@ const forbidES2015BuiltIns = {
   'math/prefer-math-hypot': OFF,
   // enforce the use of `Math.log10` instead of other ways
   'math/prefer-math-log10': OFF,
-  // enforce the use of `Math.log10` instead of other ways
+  // enforce the use of `Math.log2` instead of other ways
   'math/prefer-math-log2': OFF,
   // enforce the use of `Math.trunc()` instead of other truncations
   'math/prefer-math-trunc': OFF,
@@ -1794,6 +1782,7 @@ const forbidModernBuiltIns = {
   ...forbidES2022IntlBuiltIns,
   ...forbidES2023IntlBuiltIns,
   ...forbidES2025IntlBuiltIns,
+  ...forbidES2026IntlBuiltIns,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': OFF,
 };
@@ -2047,6 +2036,8 @@ const qunit = {
 const playwright = {
   // enforce Playwright APIs to be awaited
   'playwright/missing-playwright-await': ERROR,
+  // disallow multiple `test.slow()` calls in the same test
+  'playwright/no-duplicate-slow': ERROR,
   // disallow usage of `page.$eval()` and `page.$$eval()`
   'playwright/no-eval': ERROR,
   // disallow using `page.pause()`
@@ -2055,6 +2046,8 @@ const playwright = {
   'playwright/no-unsafe-references': ERROR,
   // disallow unnecessary awaits for Playwright methods
   'playwright/no-useless-await': ERROR,
+  // require a timeout option for `toPass()`
+  'playwright/require-to-pass-timeout': ERROR,
 };
 
 const yaml = {
@@ -2403,7 +2396,7 @@ export default [
   {
     files: [
       'packages/core-js?(-pure)/**',
-      'tests/@(compat|worker)/*.js',
+      'tests/compat/*.js',
     ],
     languageOptions: {
       ecmaVersion: 3,
@@ -2413,7 +2406,7 @@ export default [
   {
     files: [
       'packages/core-js?(-pure)/**',
-      'tests/@(helpers|unit-pure|worker)/**',
+      'tests/@(helpers|unit-pure)/**',
       'tests/compat/@(browsers|hermes|node|rhino)-runner.js',
     ],
     rules: forbidModernBuiltIns,
@@ -2487,9 +2480,9 @@ export default [
       'packages/core-js-compat/src/**',
       'scripts/**',
       'tests/compat/*.mjs',
-      'tests/@(compat-@(data|tools)|eslint|entries|observables|promises-aplus|unit-@(karma|node))/**',
-      'website/runner.mjs',
-      'website/helpers.mjs',
+      'tests/@(compat-@(data|tools)|eslint|entries|observables|promises|unit-@(karma|node))/**',
+      'website/scripts/runner.mjs',
+      'website/scripts/helpers.mjs',
     ],
     rules: nodeDev,
   },

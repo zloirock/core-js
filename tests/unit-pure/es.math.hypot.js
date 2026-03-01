@@ -5,6 +5,8 @@ import hypot from 'core-js-pure/es/math/hypot';
 QUnit.test('Math.hypot', assert => {
   const { sqrt } = Math;
   assert.isFunction(hypot);
+  assert.name(hypot, 'hypot');
+  assert.arity(hypot, 2);
   assert.same(hypot(), 0);
   assert.same(hypot(1), 1);
   assert.same(hypot('', 0), 0);

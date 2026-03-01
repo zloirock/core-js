@@ -4,6 +4,8 @@ import cbrt from 'core-js-pure/es/math/cbrt';
 
 QUnit.test('Math.cbrt', assert => {
   assert.isFunction(cbrt);
+  assert.name(cbrt, 'cbrt');
+  assert.arity(cbrt, 1);
   assert.same(cbrt(NaN), NaN);
   assert.same(cbrt(0), 0);
   assert.same(cbrt(-0), -0);

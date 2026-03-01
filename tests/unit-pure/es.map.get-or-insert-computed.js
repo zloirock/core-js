@@ -29,6 +29,13 @@ QUnit.test('Map#getOrInsertComputed', assert => {
   map = new Map([['a', 2]]);
   map.getOrInsertComputed(-0, key => assert.same(key, 0, 'CanonicalizeKeyedCollectionKey'));
 
+  map = new Map([['a', 2]]);
+  assert.same(map.getOrInsertComputed('b', key => {
+    map.set(key, 4);
+    return 3;
+  }), 3, 'callback inserts same key');
+  assert.deepEqual(from(map), [['a', 2], ['b', 3]], 'map after callback inserts same key');
+
   assert.throws(() => new Map().getOrInsertComputed('a', {}), TypeError, 'non-callable#1');
   assert.throws(() => new Map().getOrInsertComputed('a', 1), TypeError, 'non-callable#2');
   assert.throws(() => new Map().getOrInsertComputed('a', null), TypeError, 'non-callable#3');

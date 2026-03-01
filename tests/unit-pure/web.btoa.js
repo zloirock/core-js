@@ -20,7 +20,6 @@ QUnit.test('btoa', assert => {
   assert.same(btoa('YZ[\\]^_`abc'), 'WVpbXF1eX2BhYmM=');
   assert.same(btoa('defghijklmnop'), 'ZGVmZ2hpamtsbW5vcA==');
   assert.same(btoa('qrstuvwxyz{|}~'), 'cXJzdHV2d3h5ent8fX4=');
-  assert.same(btoa('qrstuvwxyz{|}~'), 'cXJzdHV2d3h5ent8fX4=');
 
   assert.same(btoa(42), btoa('42'));
   assert.same(btoa(null), btoa('null'));

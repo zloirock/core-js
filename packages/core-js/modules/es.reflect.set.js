@@ -25,11 +25,13 @@ var $set = function (target, propertyKey, V, receiver) {
   if (isDataDescriptor(ownDescriptor)) {
     if (ownDescriptor.writable === false || !isObject(receiver)) return false;
     if (existingDescriptor = getOwnPropertyDescriptorModule.f(receiver, propertyKey)) {
-      if (existingDescriptor.get || existingDescriptor.set ||
-        !isDataDescriptor(existingDescriptor) || existingDescriptor.writable === false) return false;
-      existingDescriptor.value = V;
-      definePropertyModule.f(receiver, propertyKey, existingDescriptor);
-    } else definePropertyModule.f(receiver, propertyKey, createPropertyDescriptor(0, V));
+      if (!isDataDescriptor(existingDescriptor) || existingDescriptor.writable === false) return false;
+      definePropertyModule.f(receiver, propertyKey, { value: V });
+    } else try {
+      definePropertyModule.f(receiver, propertyKey, createPropertyDescriptor(0, V));
+    } catch (error) {
+      return false;
+    }
   } else {
     setter = ownDescriptor.set;
     if (setter === undefined) return false;

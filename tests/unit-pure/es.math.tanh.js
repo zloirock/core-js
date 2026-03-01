@@ -4,6 +4,8 @@ import tanh from 'core-js-pure/es/math/tanh';
 
 QUnit.test('Math.tanh', assert => {
   assert.isFunction(tanh);
+  assert.name(tanh, 'tanh');
+  assert.arity(tanh, 1);
   assert.same(tanh(NaN), NaN);
   assert.same(tanh(0), 0);
   assert.same(tanh(-0), -0);
