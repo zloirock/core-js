@@ -94,45 +94,46 @@ module.exports = defineProvider(({
     }
   }
 
-  function isCallOrNew(node, callee) {
-    return t.isCallExpression(node, { callee }) || t.isNewExpression(node, { callee });
+  function isCallee(callee, parent) {
+    return t.isCallExpression(parent, { callee }) || t.isNewExpression(parent, { callee });
   }
 
-  function isStringLiteral(arg) {
-    return t.isStringLiteral(arg) || t.isTemplateLiteral(arg);
+  function isString(node) {
+    return t.isStringLiteral(node) || t.isTemplateLiteral(node);
   }
 
-  function isNonPrimitiveLiteral(arg) {
-    return t.isObjectExpression(arg) ||
-      t.isArrayExpression(arg) ||
-      t.isFunctionExpression(arg) ||
-      t.isArrowFunctionExpression(arg) ||
-      t.isClassExpression(arg) ||
-      t.isRegExpLiteral(arg);
+  function isNonPrimitive(node) {
+    return t.isObjectExpression(node) ||
+      t.isArrayExpression(node) ||
+      t.isFunctionExpression(node) ||
+      t.isArrowFunctionExpression(node) ||
+      t.isClassExpression(node) ||
+      t.isRegExpLiteral(node) ||
+      t.isNewExpression(node);
   }
 
   function filter(name, args, path) {
     const { node, parent } = path;
     switch (name) {
       case 'min-args': {
-        if (!isCallOrNew(parent, node)) return false;
+        if (!isCallee(node, parent)) return false;
         const [index] = args;
         if (parent.arguments.length >= index) return false;
         return parent.arguments.every(arg => !t.isSpreadElement(arg));
       }
       case 'arg-is-string': {
-        if (!isCallOrNew(parent, node)) return false;
+        if (!isCallee(node, parent)) return false;
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
-        if (parent.arguments.slice(0, index + 1).some(arg => t.isSpreadElement(arg))) return false;
-        return isStringLiteral(parent.arguments[index]);
+        if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
+        return isString(parent.arguments[index]);
       }
       case 'arg-is-object': {
-        if (!isCallOrNew(parent, node)) return false;
+        if (!isCallee(node, parent)) return false;
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
-        if (parent.arguments.slice(0, index + 1).some(arg => t.isSpreadElement(arg))) return false;
-        return isNonPrimitiveLiteral(parent.arguments[index]);
+        if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
+        return isNonPrimitive(parent.arguments[index]);
       }
     }
   }
@@ -148,7 +149,7 @@ module.exports = defineProvider(({
     },
     usageGlobal(meta, utils, path) {
       const resolved = resolve(meta);
-      if (!resolved) return;
+      if (!resolved || !hasOwn(resolved.desc, 'global')) return;
       let { kind, desc: { global: desc } } = resolved;
       if (kind === 'instance') {
         desc = resolveHint(desc, meta);
