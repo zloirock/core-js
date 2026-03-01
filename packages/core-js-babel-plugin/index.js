@@ -138,6 +138,10 @@ module.exports = defineProvider(({
     }
   }
 
+  function applyFilters(filters, path) {
+    return !!filters?.some(([name, ...args]) => filter(name, args, path));
+  }
+
   function injectPureImport(dep, hint, utils) {
     if (!getModulesForEntry(`${ mode }/${ dep }`).length) return null;
     return utils.injectDefaultImport(`${ pkg }/${ mode }/${ dep }`, hint);
@@ -180,7 +184,7 @@ module.exports = defineProvider(({
         if (desc === null) return true;
       }
       const { dependencies, filters } = desc;
-      if (filters?.some(([name, ...args]) => filter(name, args, path))) return true;
+      if (applyFilters(filters, path)) return true;
       for (const entry of dependencies) {
         injectModulesForEntry(`${ mode }/${ entry }`, utils);
       }
@@ -240,7 +244,8 @@ module.exports = defineProvider(({
         if (desc === null) return true;
       }
 
-      const { dependencies } = desc;
+      const { dependencies, filters } = desc;
+      if (applyFilters(filters, path)) return true;
       if (!dependencies?.length) return;
 
       const [dep] = dependencies;
@@ -263,10 +268,7 @@ module.exports = defineProvider(({
                 parentPath.node.type = parentPath.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
                 delete parentPath.node.optional;
                 ({ parentPath } = parentPath);
-              } while (
-                (parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) &&
-              !parentPath.node.optional
-              );
+              } while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && !parentPath.node.optional);
             }
           }
 
