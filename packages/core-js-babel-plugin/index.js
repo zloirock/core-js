@@ -283,7 +283,7 @@ module.exports = defineProvider(({
 
           const { node, parent } = path;
 
-          if (t.isCallExpression(parent) && parent.callee === node) {
+          if ((t.isCallExpression(parent) || t.isOptionalCallExpression(parent)) && parent.callee === node) {
             callMethod(path, id);
           } else {
             path.replaceWith(t.callExpression(id, [node.object]));
