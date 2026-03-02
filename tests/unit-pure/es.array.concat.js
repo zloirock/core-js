@@ -1,5 +1,5 @@
-import Symbol from 'core-js-pure/es/symbol';
-import concat from 'core-js-pure/es/array/concat';
+import Symbol from '@core-js/pure/es/symbol';
+import concat from '@core-js/pure/es/array/concat';
 
 /* eslint-disable no-sparse-arrays -- required for testing */
 QUnit.test('Array#concat', assert => {

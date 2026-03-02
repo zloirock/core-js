@@ -20,5 +20,5 @@ var FORCED = !($asinh && 1 / $asinh(0) > 0);
 // https://tc39.es/ecma262/#sec-math.asinh
 // Tor Browser bug: Math.asinh(0) -> -0
 $({ target: 'Math', stat: true, forced: FORCED }, {
-  asinh: asinh
+  asinh: asinh,
 });

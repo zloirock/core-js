@@ -1,4 +1,4 @@
-import { DESCRIPTORS, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
+import { MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
 QUnit.test('DataView.prototype.{ getUint8Clamped, setUint8Clamped }', assert => {
   const { getUint8Clamped, setUint8Clamped } = DataView.prototype;
@@ -78,12 +78,12 @@ QUnit.test('DataView.prototype.{ getUint8Clamped, setUint8Clamped }', assert => 
 
   const buffer = new ArrayBuffer(1);
   const view = new DataView(buffer);
-  const array = DESCRIPTORS ? new Uint8Array(buffer) : null;
+  const array = new Uint8Array(buffer);
 
   for (const [value, conversion, little] of data) {
     view.setUint8Clamped(0, value);
     assert.same(view.getUint8Clamped(0), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8Clamped, ${ toString(value) } -> ${ toString(conversion) }`);
     assert.same(view.getUint8(0), conversion, `DataView.prototype.setUint8Clamped + DataView.prototype.getUint8, ${ toString(value) } -> ${ toString(conversion) }`);
-    if (DESCRIPTORS) assert.arrayEqual(array, little, `DataView.prototype.setUint8Clamped + Uint8Array ${ toString(value) } -> [${ little }]`);
+    assert.arrayEqual(array, little, `DataView.prototype.setUint8Clamped + Uint8Array ${ toString(value) } -> [${ little }]`);
   }
 });

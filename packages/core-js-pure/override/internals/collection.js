@@ -1,9 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
-var InternalMetadataModule = require('../internals/internal-metadata');
 var call = require('../internals/function-call');
-var fails = require('../internals/fails');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var iterate = require('../internals/iterate');
 var anInstance = require('../internals/an-instance');
@@ -11,15 +9,13 @@ var isCallable = require('../internals/is-callable');
 var isObject = require('../internals/is-object');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var setToStringTag = require('../internals/set-to-string-tag');
-var defineProperty = require('../internals/object-define-property').f;
-var forEach = require('../internals/array-iteration').forEach;
-var DESCRIPTORS = require('../internals/descriptors');
-var InternalStateModule = require('../internals/internal-state');
+var wellKnownSymbol = require('../internals/well-known-symbol');
 
-var setInternalState = InternalStateModule.set;
-var internalStateGetterFor = InternalStateModule.getterFor;
+var ITERATOR = wellKnownSymbol('iterator');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 
-module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
+module.exports = function (CONSTRUCTOR_NAME, wrapper, common, FORCED) {
   var IS_MAP = CONSTRUCTOR_NAME.indexOf('Map') !== -1;
   var IS_WEAK = CONSTRUCTOR_NAME.indexOf('Weak') !== -1;
   var ADDER = IS_MAP ? 'set' : 'add';
@@ -28,17 +24,17 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
   var exported = {};
   var Constructor;
 
-  if (!DESCRIPTORS || !isCallable(NativeConstructor)
-    || !(IS_WEAK || NativePrototype.forEach && !fails(function () { new NativeConstructor().entries().next(); }))
-  ) {
+  var REPLACE = FORCED || !isCallable(NativeConstructor)
+    || !(IS_WEAK || (NativePrototype.forEach && common.ensureIterators(NativeConstructor, CONSTRUCTOR_NAME, IS_MAP)));
+
+  if (REPLACE) {
     // create collection constructor
     Constructor = common.getConstructor(wrapper, CONSTRUCTOR_NAME, IS_MAP, ADDER);
-    InternalMetadataModule.enable();
   } else {
     Constructor = wrapper(function (target, iterable) {
       setInternalState(anInstance(target, Prototype), {
         type: CONSTRUCTOR_NAME,
-        collection: new NativeConstructor()
+        collection: new NativeConstructor(),
       });
       if (!isNullOrUndefined(iterable)) iterate(iterable, target[ADDER], { that: target, AS_ENTRIES: IS_MAP });
     });
@@ -47,7 +43,7 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
 
     var getInternalState = internalStateGetterFor(CONSTRUCTOR_NAME);
 
-    forEach(['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'], function (KEY) {
+    ['add', 'clear', 'delete', 'forEach', 'get', 'has', 'set', 'keys', 'values', 'entries'].forEach(function (KEY) {
       var IS_ADDER = KEY === 'add' || KEY === 'set';
       if (KEY in NativePrototype && !(IS_WEAK && KEY === 'clear')) {
         createNonEnumerableProperty(Prototype, KEY, function (a, b) {
@@ -62,20 +58,22 @@ module.exports = function (CONSTRUCTOR_NAME, wrapper, common) {
       }
     });
 
-    IS_WEAK || defineProperty(Prototype, 'size', {
-      configurable: true,
-      get: function () {
-        return getInternalState(this).collection.size;
-      }
-    });
+    if (!IS_WEAK) {
+      Object.defineProperty(Prototype, 'size', {
+        configurable: true,
+        get: function () {
+          return getInternalState(this).collection.size;
+        },
+      });
+
+      createNonEnumerableProperty(Prototype, ITERATOR, Prototype[IS_MAP ? 'entries' : 'values']);
+    }
   }
 
   setToStringTag(Constructor, CONSTRUCTOR_NAME, false, true);
 
   exported[CONSTRUCTOR_NAME] = Constructor;
   $({ global: true, forced: true }, exported);
-
-  if (!IS_WEAK) common.setStrong(Constructor, CONSTRUCTOR_NAME, IS_MAP);
 
   return Constructor;
 };

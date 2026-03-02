@@ -1,6 +1,9 @@
 {
-  "name": "core-js-bundle",
-  "version": "3.48.0",
+  "name": "@core-js/bundle",
+  "version": "4.0.0-alpha.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "commonjs",
   "description": "Standard library",
   "keywords": [
@@ -68,15 +71,12 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "author": {
     "name": "Denis Pushkarev",
     "email": "zloirock@zloirock.ru",
     "url": "http://zloirock.ru"
   },
   "sideEffects": true,
-  "main": "index.js",
-  "scripts": {
-    "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
-  }
+  "main": "index.js"
 }

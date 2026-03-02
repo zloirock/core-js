@@ -1,3 +1,4 @@
+// @types: proposals/array-buffer-transfer
 'use strict';
 var $ = require('../internals/export');
 var $transfer = require('../internals/array-buffer-transfer');
@@ -7,5 +8,5 @@ var $transfer = require('../internals/array-buffer-transfer');
 if ($transfer) $({ target: 'ArrayBuffer', proto: true }, {
   transferToFixedLength: function transferToFixedLength() {
     return $transfer(this, arguments.length ? arguments[0] : undefined, false);
-  }
+  },
 });

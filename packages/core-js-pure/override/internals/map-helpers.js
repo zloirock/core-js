@@ -2,6 +2,7 @@
 var getBuiltIn = require('../internals/get-built-in');
 var caller = require('../internals/caller');
 
+// dependency: es.map.constructor
 var Map = getBuiltIn('Map');
 
 module.exports = {
@@ -10,5 +11,5 @@ module.exports = {
   get: caller('get', 1),
   has: caller('has', 1),
   remove: caller('delete', 1),
-  proto: Map.prototype
+  proto: Map.prototype,
 };

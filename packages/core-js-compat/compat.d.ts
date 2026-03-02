@@ -20,16 +20,12 @@ type CompatOptions = {
   modules?: Modules,
   /** a blacklist, entry / module / namespace / an array of them, by default - empty list */
   exclude?: Modules,
-  /** optional browserslist or core-js-compat format query */
+  /** optional browserslist or `@core-js/compat` format query */
   targets?: Targets | BrowserslistQuery,
   /** used `core-js` version, by default the latest */
   version?: string,
   /** inverse of the result, shows modules that are NOT required for the target environment */
   inverse?: boolean,
-  /**
-   * @deprecated use `modules` instead
-   */
-  filter?: Modules
 };
 
 type CompatOutput = {

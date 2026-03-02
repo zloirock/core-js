@@ -1,3 +1,4 @@
+// @types: proposals/async-iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -75,13 +76,14 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
 // `AsyncIterator.prototype.flatMap` method
 // https://github.com/tc39/proposal-async-iterator-helpers
+// @dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', proto: true, real: true, forced: true }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
     aCallable(mapper);
     return new AsyncIteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
-      inner: null
+      inner: null,
     });
-  }
+  },
 });

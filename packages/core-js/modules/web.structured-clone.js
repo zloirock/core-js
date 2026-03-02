@@ -1,8 +1,10 @@
+// @types: web/structured-clone
 'use strict';
 var IS_PURE = require('../internals/is-pure');
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var getBuiltIn = require('../internals/get-built-in');
+var getBuiltInStaticMethod = require('../internals/get-built-in-static-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
 var uid = require('../internals/uid');
@@ -27,12 +29,20 @@ var detachTransferable = require('../internals/detach-transferable');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
 
-var Object = globalThis.Object;
-var Array = globalThis.Array;
-var Date = globalThis.Date;
-var Error = globalThis.Error;
-var TypeError = globalThis.TypeError;
+var $Object = Object;
+var $Array = Array;
+var $Date = Date;
+var $Error = Error;
+var $TypeError = TypeError;
+var $ArrayBuffer = ArrayBuffer;
+var $DataView = DataView;
+var DataViewPrototype = $DataView.prototype;
+var getUint8 = uncurryThis(DataViewPrototype.getUint8);
+var setUint8 = uncurryThis(DataViewPrototype.setUint8);
 var PerformanceMark = globalThis.PerformanceMark;
+// @dependency: web.dom-exception.constructor
+// @dependency: web.dom-exception.stack
+// @dependency: web.dom-exception.to-string-tag
 var DOMException = getBuiltIn('DOMException');
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
@@ -41,12 +51,12 @@ var mapSet = MapHelpers.set;
 var Set = SetHelpers.Set;
 var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
-var objectKeys = getBuiltIn('Object', 'keys');
+var objectKeys = $Object.keys;
 var push = uncurryThis([].push);
 var thisBooleanValue = uncurryThis(true.valueOf);
 var thisNumberValue = uncurryThis(1.1.valueOf);
 var thisStringValue = uncurryThis(''.valueOf);
-var thisTimeValue = uncurryThis(Date.prototype.getTime);
+var thisTimeValue = uncurryThis($Date.prototype.getTime);
 var PERFORMANCE_MARK = uid('structuredClone');
 var DATA_CLONE_ERROR = 'DataCloneError';
 var TRANSFERRING = 'Transferring';
@@ -55,23 +65,24 @@ var checkBasicSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
     var set1 = new globalThis.Set([7]);
     var set2 = structuredCloneImplementation(set1);
-    var number = structuredCloneImplementation(Object(7));
+    var number = structuredCloneImplementation($Object(7));
     return set2 === set1 || !set2.has(7) || !isObject(number) || +number !== 7;
   }) && structuredCloneImplementation;
 };
 
-var checkErrorsCloning = function (structuredCloneImplementation, $Error) {
+var checkErrorsCloning = function (structuredCloneImplementation, $$Error) {
   return !fails(function () {
-    var error = new $Error();
+    var error = new $$Error();
     var test = structuredCloneImplementation({ a: error, b: error });
-    return !(test && test.a === test.b && test.a instanceof $Error && test.a.stack === error.stack);
+    return !(test && test.a === test.b && test.a instanceof $$Error && test.a.stack === error.stack);
   });
 };
 
 // https://github.com/whatwg/html/pull/5749
 var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
   return !fails(function () {
-    var test = structuredCloneImplementation(new globalThis.AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
+    // eslint-disable-next-line es/no-error-cause, es/no-promise-any -- testing
+    var test = structuredCloneImplementation(new AggregateError([1], PERFORMANCE_MARK, { cause: 3 }));
     return test.name !== 'AggregateError' || test.errors[0] !== 1 || test.message !== PERFORMANCE_MARK || test.cause !== 3;
   });
 };
@@ -91,7 +102,7 @@ var checkNewErrorsCloningSemantic = function (structuredCloneImplementation) {
 var nativeStructuredClone = globalThis.structuredClone;
 
 var FORCED_REPLACEMENT = IS_PURE
-  || !checkErrorsCloning(nativeStructuredClone, Error)
+  || !checkErrorsCloning(nativeStructuredClone, $Error)
   || !checkErrorsCloning(nativeStructuredClone, DOMException)
   || !checkNewErrorsCloningSemantic(nativeStructuredClone);
 
@@ -148,11 +159,6 @@ var cloneBuffer = function (value, map, $type) {
     // SharedArrayBuffer should use shared memory, we can't polyfill it, so return the original
     else clone = value;
   } else {
-    var DataView = globalThis.DataView;
-
-    // `ArrayBuffer#slice` is not available in IE10
-    // `ArrayBuffer#slice` and `DataView` are not available in old FF
-    if (!DataView && !isCallable(value.slice)) throwUnpolyfillable('ArrayBuffer');
     // detached buffers throws in `DataView` and `.slice`
     try {
       if (isCallable(value.slice) && !value.resizable) {
@@ -161,11 +167,11 @@ var cloneBuffer = function (value, map, $type) {
         length = value.byteLength;
         options = 'maxByteLength' in value ? { maxByteLength: value.maxByteLength } : undefined;
         // eslint-disable-next-line es/no-resizable-and-growable-arraybuffers -- safe
-        clone = new ArrayBuffer(length, options);
-        source = new DataView(value);
-        target = new DataView(clone);
+        clone = new $ArrayBuffer(length, options);
+        source = new $DataView(value);
+        target = new $DataView(clone);
         for (i = 0; i < length; i++) {
-          target.setUint8(i, source.getUint8(i));
+          setUint8(target, i, getUint8(source, i));
         }
       }
     } catch (error) {
@@ -199,7 +205,7 @@ var structuredCloneInternal = function (value, map) {
 
   switch (type) {
     case 'Array':
-      cloned = Array(lengthOfArrayLike(value));
+      cloned = $Array(lengthOfArrayLike(value));
       break;
     case 'Object':
       cloned = {};
@@ -233,10 +239,10 @@ var structuredCloneInternal = function (value, map) {
         case 'CompileError':
         case 'LinkError':
         case 'RuntimeError':
-          cloned = new (getBuiltIn('WebAssembly', name))();
+          cloned = new (getBuiltInStaticMethod('WebAssembly', name))();
           break;
         default:
-          cloned = new Error();
+          cloned = new $Error();
       }
       break;
     case 'DOMException':
@@ -312,19 +318,19 @@ var structuredCloneInternal = function (value, map) {
       } else switch (type) {
         case 'BigInt':
           // can be a 3rd party polyfill
-          cloned = Object(value.valueOf());
+          cloned = $Object(value.valueOf());
           break;
         case 'Boolean':
-          cloned = Object(thisBooleanValue(value));
+          cloned = $Object(thisBooleanValue(value));
           break;
         case 'Number':
-          cloned = Object(thisNumberValue(value));
+          cloned = $Object(thisNumberValue(value));
           break;
         case 'String':
-          cloned = Object(thisStringValue(value));
+          cloned = $Object(thisStringValue(value));
           break;
         case 'Date':
-          cloned = new Date(thisTimeValue(value));
+          cloned = new $Date(thisTimeValue(value));
           break;
         case 'Blob':
           try {
@@ -428,10 +434,11 @@ var structuredCloneInternal = function (value, map) {
 };
 
 var tryToTransfer = function (rawTransfer, map) {
-  if (!isObject(rawTransfer)) throw new TypeError('Transfer option cannot be converted to a sequence');
+  if (!isObject(rawTransfer)) throw new $TypeError('Transfer option cannot be converted to a sequence');
 
   var transfer = [];
 
+  // @dependency: es.array.iterator
   iterate(rawTransfer, function (value) {
     push(transfer, anObject(value));
   });
@@ -531,5 +538,5 @@ $({ global: true, enumerable: true, sham: !PROPER_STRUCTURED_CLONE_TRANSFER, for
     if (buffers) detachBuffers(buffers);
 
     return clone;
-  }
+  },
 });

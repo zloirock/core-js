@@ -1,0 +1,95 @@
+/// <reference types="../core-js-types/map" />
+/// <reference types="../core-js-types/set" />
+/// <reference types="../core-js-types/weak-map" />
+/// <reference types="../core-js-types/weak-set" />
+
+// Motivation: import our own Map/Set/WeakMap/WeakSet types & redefine return types
+
+// https://github.com/tc39/proposal-setmap-offrom
+
+declare namespace CoreJS {
+  export interface CoreJSMapConstructor extends MapConstructor {
+    /**
+     * Creates a new `Map` instance from an iterable object of [key, value] pairs.
+     * Optionally, applies a mapping function to each pair.
+     * @param source - Iterable object of [key, value] pairs.
+     * @param mapFn - Function to call on every [key, value] pair before adding to the `Map`.
+     * @param thisArg - Value to use as this when executing mapFn.
+     * @returns A new `Map` instance.
+     */
+    from<K, V, KOut = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): CoreJS.CoreJSMap<KOut, VOut>;
+
+    /**
+     * Creates a new `Map` instance from a variable number of arguments,
+     * where each pair of arguments is interpreted as a key and a value.
+     * @param items - An even number of arguments representing key-value pairs.
+     * @returns A new `Map` instance.
+     */
+    of<K, V>(...items: [K, V][]): CoreJS.CoreJSMap<K, V>;
+  }
+
+  var CoreJSMap: CoreJSMapConstructor;
+
+  export interface CoreJSSetConstructor extends SetConstructor {
+    /**
+     * Creates a new `Set` instance from an iterable, optionally transforming elements with a mapping function.
+     * @param source - Iterable whose elements will be added to the new Set.
+     * @param mapFn - Optional mapping function. Transforms each element before adding to Set.
+     * @param thisArg - Value to use as `this` when executing `mapFn`.
+     * @returns A new `Set` instance
+     */
+    from<T, U = T>(source: Iterable<T>, mapFn?: (value: T, index: number) => U, thisArg?: any): CoreJS.CoreJSSet<U>;
+
+    /**
+     * Creates a new `Set` instance from a variable number of arguments.
+     * Each argument becomes an element of the Set.
+     * @param items - Zero or more arguments to add as Set elements.
+     * @returns A new `Set` instance
+     */
+    of<T>(...items: T[]): CoreJS.CoreJSSet<T>;
+  }
+
+  var CoreJSSet: CoreJSSetConstructor;
+
+  export interface CoreJSWeakMapConstructor extends WeakMapConstructor {
+    /**
+     * Creates a new `WeakMap` instance from an iterable object of [key, value] pairs.
+     * Optionally, applies a mapping function to each pair.
+     * @param source - Iterable object of [key, value] pairs.
+     * @param mapFn - Function to call on every [key, value] pair before adding to the `WeakMap`.
+     * @param thisArg - Value to use as this when executing mapFn.
+     * @returns A new `WeakMap` instance.
+     */
+    from<K extends WeakKey, V, KOut extends WeakKey = K, VOut = V>(source: Iterable<[K, V]>, mapFn?: (entry: [K, V], index: number) => [KOut, VOut], thisArg?: any): CoreJS.CoreJSWeakMap<KOut, VOut>;
+
+    /**
+     * Creates a new `WeakMap` instance from a variable number of arguments,
+     * where each pair of arguments is interpreted as a key and a value.
+     * @param items - An even number of arguments representing key-value pairs.
+     * @returns A new `WeakMap` instance.
+     */
+    of<K extends WeakKey, V>(...items: [K, V][]): CoreJS.CoreJSWeakMap<K, V>;
+  }
+
+  var CoreJSWeakMap: CoreJSWeakMapConstructor;
+
+  export interface CoreJSWeakSetConstructor extends WeakSetConstructor {
+    /**
+     * Creates a new `WeakSet` instance from an iterable of objects, optionally transforming with mapFn.
+     * @param source - Iterable of objects to add to WeakSet.
+     * @param mapFn - Optional mapping function transforming each object.
+     * @param thisArg - Value to use as `this` in `mapFn`.
+     * @returns New `WeakSet` instance.
+     */
+    from<T extends WeakKey, U extends WeakKey = T>(source: Iterable<T>, mapFn?: (value: T, index: number) => U, thisArg?: any): CoreJS.CoreJSWeakSet<U>;
+
+    /**
+     * Creates a new `WeakSet` instance from object arguments.
+     * @param items - Zero or more objects to add as WeakSet elements.
+     * @returns New `WeakSet` instance.
+     */
+    of<T extends WeakKey>(...items: T[]): CoreJS.CoreJSWeakSet<T>;
+  }
+
+  var CoreJSWeakSet: CoreJSWeakSetConstructor;
+}

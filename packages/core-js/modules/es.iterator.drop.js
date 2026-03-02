@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -34,6 +35,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.drop` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.drop
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   drop: function drop(limit) {
     anObject(this);
@@ -47,7 +49,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
     if (dropWithoutClosingOnEarlyError) return call(dropWithoutClosingOnEarlyError, this, remaining);
 
     return new IteratorProxy(getIteratorDirect(this), {
-      remaining: remaining
+      remaining: remaining,
     });
-  }
+  },
 });

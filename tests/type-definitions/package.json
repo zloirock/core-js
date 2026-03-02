@@ -1,6 +1,7 @@
 {
   "name": "tests/type-definitions",
+  "type": "module",
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@types/node": "^25.3.3"
   }
 }

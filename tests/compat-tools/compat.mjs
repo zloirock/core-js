@@ -1,9 +1,9 @@
 import { deepEqual, ok } from 'node:assert/strict';
-import compat from 'core-js-compat/compat.js';
+import compat from '@core-js/compat/compat.js';
 
 deepEqual(compat({
   modules: [
-    'core-js/es/math',
+    'es/math',
     'es.array.at',
     /^es\.reflect/,
   ],
@@ -13,13 +13,7 @@ deepEqual(compat({
   targets: 'firefox 27',
 }), {
   list: [
-    'es.array.at',
-    'es.array.iterator',
-    'es.math.clz32',
-    'es.math.expm1',
-    'es.math.f16round',
-    'es.math.sum-precise',
-    'es.math.to-string-tag',
+    'es.object.to-string',
     'es.reflect.apply',
     'es.reflect.construct',
     'es.reflect.define-property',
@@ -33,15 +27,17 @@ deepEqual(compat({
     'es.reflect.set',
     'es.reflect.set-prototype-of',
     'es.reflect.to-string-tag',
+    'es.array.iterator',
+    'es.array.at',
+    'es.math.clz32',
+    'es.math.expm1',
+    'es.math.f16round',
+    'es.math.sum-precise',
+    'es.math.to-string-tag',
+    'es.string.iterator',
   ],
   targets: {
-    'es.array.at': { firefox: '27' },
-    'es.array.iterator': { firefox: '27' },
-    'es.math.clz32': { firefox: '27' },
-    'es.math.expm1': { firefox: '27' },
-    'es.math.f16round': { firefox: '27' },
-    'es.math.sum-precise': { firefox: '27' },
-    'es.math.to-string-tag': { firefox: '27' },
+    'es.object.to-string': { firefox: '27' },
     'es.reflect.apply': { firefox: '27' },
     'es.reflect.construct': { firefox: '27' },
     'es.reflect.define-property': { firefox: '27' },
@@ -55,6 +51,14 @@ deepEqual(compat({
     'es.reflect.set': { firefox: '27' },
     'es.reflect.set-prototype-of': { firefox: '27' },
     'es.reflect.to-string-tag': { firefox: '27' },
+    'es.array.iterator': { firefox: '27' },
+    'es.array.at': { firefox: '27' },
+    'es.math.clz32': { firefox: '27' },
+    'es.math.expm1': { firefox: '27' },
+    'es.math.f16round': { firefox: '27' },
+    'es.math.sum-precise': { firefox: '27' },
+    'es.math.to-string-tag': { firefox: '27' },
+    'es.string.iterator': { firefox: '27' },
   },
 }, 'basic');
 
@@ -98,18 +102,19 @@ deepEqual(compat({
 
 deepEqual(
   compat({ targets: { chrome: 93 } }),
-  compat({ modules: 'core-js', targets: { chrome: 93 } }),
+  compat({ modules: 'actual', targets: { chrome: 93 } }),
   'no modules',
 );
 
 deepEqual(compat({
-  modules: 'core-js/es/math',
+  modules: 'es/math',
   targets: {
     chrome: 40,
     firefox: 27,
   },
 }), {
   list: [
+    'es.object.to-string',
     'es.array.iterator',
     'es.math.acosh',
     'es.math.clz32',
@@ -118,8 +123,10 @@ deepEqual(compat({
     'es.math.hypot',
     'es.math.sum-precise',
     'es.math.to-string-tag',
+    'es.string.iterator',
   ],
   targets: {
+    'es.object.to-string': { chrome: '40', firefox: '27' },
     'es.array.iterator': { chrome: '40', firefox: '27' },
     'es.math.acosh': { chrome: '40' },
     'es.math.clz32': { firefox: '27' },
@@ -128,18 +135,20 @@ deepEqual(compat({
     'es.math.hypot': { chrome: '40' },
     'es.math.sum-precise': { chrome: '40', firefox: '27' },
     'es.math.to-string-tag': { chrome: '40', firefox: '27' },
+    'es.string.iterator': { chrome: '40', firefox: '27' },
   },
 }, 'some targets');
 
 const { list: inverted1 } = compat({ targets: { esmodules: true }, inverse: true });
 
 ok(inverted1.includes('es.symbol.iterator'), 'inverse #1');
-ok(!inverted1.includes('esnext.iterator.from'), 'inverse #2');
-ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
+ok(!inverted1.includes('esnext.iterator.range'), 'inverse #2');
+// TODO: enable after adding new stabilized aliases in `core-js@4`
+// ok(!inverted1.includes('esnext.array.at'), 'inverse #3');
 
-const { list: inverted2 } = compat({ modules: 'core-js/es/math', targets: { esmodules: true }, inverse: true });
+const { list: inverted2 } = compat({ modules: 'es/math', targets: { esmodules: true }, inverse: true });
 
 ok(inverted2.includes('es.math.acosh'), 'inverse #4');
-ok(!inverted2.includes('es.map'), 'inverse #5');
+ok(!inverted2.includes('es.map.constructor'), 'inverse #5');
 
 echo(chalk.green('compat tool tested'));

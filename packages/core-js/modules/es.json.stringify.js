@@ -5,7 +5,6 @@ var apply = require('../internals/function-apply');
 var call = require('../internals/function-call');
 var uncurryThis = require('../internals/function-uncurry-this');
 var fails = require('../internals/fails');
-var isArray = require('../internals/is-array');
 var isCallable = require('../internals/is-callable');
 var isRawJSON = require('../internals/is-raw-json');
 var isSymbol = require('../internals/is-symbol');
@@ -18,9 +17,9 @@ var NATIVE_SYMBOL = require('../internals/symbol-constructor-detection');
 var NATIVE_RAW_JSON = require('../internals/native-raw-json');
 
 var $String = String;
-var $stringify = getBuiltIn('JSON', 'stringify');
+var isArray = Array.isArray;
+var $stringify = JSON.stringify;
 var exec = uncurryThis(/./.exec);
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
 var replace = uncurryThis(''.replace);
 var slice = uncurryThis(''.slice);
@@ -53,7 +52,7 @@ var ILL_FORMED_UNICODE = fails(function () {
 var stringifyWithProperSymbolsConversion = WRONG_SYMBOLS_CONVERSION ? function (it, replacer) {
   var args = arraySlice(arguments);
   var $replacer = getReplacerFunction(replacer);
-  if (!isCallable($replacer) && (it === undefined || isSymbol(it))) return; // IE8 returns string on undefined
+  if (!isCallable($replacer) && isSymbol(it)) return;
   args[1] = function (key, value) {
     // some old implementations (like WebKit) could pass numbers as keys
     if (isCallable($replacer)) value = call($replacer, this, $String(key), value);
@@ -63,8 +62,8 @@ var stringifyWithProperSymbolsConversion = WRONG_SYMBOLS_CONVERSION ? function (
 } : $stringify;
 
 var fixIllFormedJSON = function (match, offset, string) {
-  var prev = charAt(string, offset - 1);
-  var next = charAt(string, offset + 1);
+  var prev = string[offset - 1];
+  var next = string[offset + 1];
   if (
     (exec(leadingSurrogates, match) && !exec(trailingSurrogates, next)) ||
     (exec(trailingSurrogates, match) && !exec(leadingSurrogates, prev))
@@ -98,7 +97,8 @@ var getReplacerFunction = function (replacer) {
 // `JSON.stringify` method
 // https://tc39.es/ecma262/#sec-json.stringify
 // https://github.com/tc39/proposal-json-parse-with-source
-if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE || !NATIVE_RAW_JSON }, {
+// @dependency: es.date.to-json
+$({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_CONVERSION || ILL_FORMED_UNICODE || !NATIVE_RAW_JSON }, {
   stringify: function stringify(text, replacer, space) {
     var replacerFunction = getReplacerFunction(replacer);
     var rawStrings = [];
@@ -119,17 +119,17 @@ if ($stringify) $({ target: 'JSON', stat: true, arity: 3, forced: WRONG_SYMBOLS_
     var length = json.length;
 
     for (var i = 0; i < length; i++) {
-      var chr = charAt(json, i);
-      if (chr === '"') {
+      var char = json[i];
+      if (char === '"') {
         var end = parseJSONString(json, ++i).end - 1;
         var string = slice(json, i, end);
         result += slice(string, 0, MARK_LENGTH) === MARK
           ? rawStrings[slice(string, MARK_LENGTH)]
           : '"' + string + '"';
         i = end;
-      } else result += chr;
+      } else result += char;
     }
 
     return result;
-  }
+  },
 });

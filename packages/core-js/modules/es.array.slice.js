@@ -1,11 +1,10 @@
 'use strict';
 var $ = require('../internals/export');
-var isArray = require('../internals/is-array');
 var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var toIndexedObject = require('../internals/to-indexed-object');
+var toObject = require('../internals/to-object');
 var createProperty = require('../internals/create-property');
 var setArrayLength = require('../internals/array-set-length');
 var wellKnownSymbol = require('../internals/well-known-symbol');
@@ -16,6 +15,7 @@ var HAS_SPECIES_SUPPORT = arrayMethodHasSpeciesSupport('slice');
 
 var SPECIES = wellKnownSymbol('species');
 var $Array = Array;
+var isArray = $Array.isArray;
 var max = Math.max;
 
 // `Array.prototype.slice` method
@@ -23,7 +23,7 @@ var max = Math.max;
 // fallback for not array-like ES3 strings and DOM objects
 $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
   slice: function slice(start, end) {
-    var O = toIndexedObject(this);
+    var O = toObject(this);
     var length = lengthOfArrayLike(O);
     var k = toAbsoluteIndex(start, length);
     var fin = toAbsoluteIndex(end === undefined ? length : end, length);
@@ -46,5 +46,5 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
     for (n = 0; k < fin; k++, n++) if (k in O) createProperty(result, n, O[k]);
     setArrayLength(result, n);
     return result;
-  }
+  },
 });

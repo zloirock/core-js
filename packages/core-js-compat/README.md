@@ -2,17 +2,17 @@
 
 <div align="center">
 
-[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/core-js-compat.svg)](https://www.npmjs.com/package/core-js-compat) [![core-js-compat downloads](https://img.shields.io/npm/dm/core-js-compat.svg?label=npm%20i%20core-js-compat)](https://npm-stat.com/charts.html?package=core-js&package=core-js-pure&package=core-js-compat&from=2014-11-18)
+[![fundraising](https://opencollective.com/core-js/all/badge.svg?label=fundraising)](https://opencollective.com/core-js) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md) [![version](https://img.shields.io/npm/v/@core-js/compat.svg)](https://www.npmjs.com/package/@core-js/compat) [![@core-js/compat downloads](https://img.shields.io/npm/dm/@core-js/compat.svg?label=npm%20i%20@core-js/compat)](https://npm-stat.com/charts.html?package=core-js&package=@core-js/pure&package=@core-js/compat&from=2014-11-18)
 
 </div>
 
 **I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
 ---
 
-[`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.
+[`@core-js/compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.
 
 ```js
-import compat from 'core-js-compat';
+import compat from '@core-js/compat';
 
 const {
   list,                       // array of required modules
@@ -20,14 +20,14 @@ const {
 } = compat({
   targets: '> 1%',            // browserslist query or object of minimum environment versions to support, see below
   modules: [                  // optional list / filter of modules - regex, string or an array of them:
-    'core-js/actual',         // - an entry point
-    'esnext.array.unique-by', // - a module name (or just a start of a module name)
+    'actual',                 // - an entry point
+    'esnext.array.unique-by', // - a module name
     /^web\./,                 // - regex that a module name must satisfy
   ],
   exclude: [                  // optional list / filter of modules to exclude, the signature is similar to `modules` option
     'web.atob',
   ],
-  version: '3.48',            // used `core-js` version, by default - the latest
+  version: '4.0',             // used `core-js` version, by default - the latest
   inverse: false,             // inverse of the result - shows modules that are NOT required for the target environment
 });
 
@@ -109,29 +109,32 @@ console.log(targets);
 
 ```js
 // equals of of the method from the example above
-require('core-js-compat/compat')({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+require('@core-js/compat/compat')({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 // or
-require('core-js-compat').compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+require('@core-js/compat').compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 
 // full compat data:
-require('core-js-compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
+require('@core-js/compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
 // or
-require('core-js-compat').data; // => { [ModuleName]: { [EngineName]: EngineVersion } }
+require('@core-js/compat').data; // => { [ModuleName]: { [EngineName]: EngineVersion } }
 
 // map of modules by `core-js` entry points:
-require('core-js-compat/entries'); // => { [EntryPoint]: Array<ModuleName> }
+require('@core-js/compat/entries'); // => { [EntryPoint]: Array<ModuleName> }
 // or
-require('core-js-compat').entries; // => { [EntryPoint]: Array<ModuleName> }
+require('@core-js/compat').entries; // => { [EntryPoint]: Array<ModuleName> }
 
 // full list of modules:
-require('core-js-compat/modules'); // => Array<ModuleName>
+require('@core-js/compat/modules'); // => Array<ModuleName>
 // or
-require('core-js-compat').modules; // => Array<ModuleName>
+require('@core-js/compat').modules; // => Array<ModuleName>
+
+// the subset of entries which available in the passed `core-js` version:
+require('@core-js/compat/get-entries-list-for-target-version')('4.0'); // => Array<EntryName>
 
 // the subset of modules which available in the passed `core-js` version:
-require('core-js-compat/get-modules-list-for-target-version')('3.48'); // => Array<ModuleName>
+require('@core-js/compat/get-modules-list-for-target-version')('4.0'); // => Array<ModuleName>
 // or
-require('core-js-compat').getModulesListForTargetVersion('3.48'); // => Array<ModuleName>
+require('@core-js/compat').getModulesListForTargetVersion('4.0'); // => Array<ModuleName>
 ```
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:

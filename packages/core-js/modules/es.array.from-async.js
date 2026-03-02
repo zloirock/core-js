@@ -1,7 +1,36 @@
+// @types: proposals/array-from-async
 'use strict';
 var $ = require('../internals/export');
-var fromAsync = require('../internals/array-from-async');
+var bind = require('../internals/function-bind-context');
+var uncurryThis = require('../internals/function-uncurry-this');
+var isConstructor = require('../internals/is-constructor');
+var getAsyncIterator = require('../internals/get-async-iterator');
+var getIterator = require('../internals/get-iterator');
+var getIteratorDirect = require('../internals/get-iterator-direct');
+var getIteratorMethod = require('../internals/get-iterator-method');
+var getMethod = require('../internals/get-method');
+var getBuiltIn = require('../internals/get-built-in');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+var AsyncFromSyncIterator = require('../internals/async-from-sync-iterator');
+var toArray = require('../internals/async-iterator-iteration').toArray;
 var fails = require('../internals/fails');
+
+var ASYNC_ITERATOR = wellKnownSymbol('asyncIterator');
+// @dependency: es.array.iterator
+var arrayIterator = uncurryThis(getIteratorMethod([]));
+var arrayIteratorNext = uncurryThis(arrayIterator([]).next);
+
+var safeArrayIterator = function () {
+  return new SafeArrayIterator(this);
+};
+
+var SafeArrayIterator = function (O) {
+  this.iterator = arrayIterator(O);
+};
+
+SafeArrayIterator.prototype.next = function () {
+  return arrayIteratorNext(this.iterator);
+};
 
 // eslint-disable-next-line es/no-array-fromasync -- safe
 var nativeFromAsync = Array.fromAsync;
@@ -18,5 +47,24 @@ var INCORRECT_CONSTRUCTURING = !nativeFromAsync || fails(function () {
 // `Array.fromAsync` method
 // https://tc39.es/ecma262/#sec-array.fromasync
 $({ target: 'Array', stat: true, forced: INCORRECT_CONSTRUCTURING }, {
-  fromAsync: fromAsync
+  fromAsync: function fromAsync(items /* , mapfn = undefined, thisArg = undefined */) {
+    var C = this;
+    var argumentsLength = arguments.length;
+    var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
+    var thisArg = argumentsLength > 2 ? arguments[2] : undefined;
+    // @dependency: es.promise.constructor
+    // @dependency: es.promise.catch
+    // @dependency: es.promise.finally
+    return new (getBuiltIn('Promise'))(function (resolve) {
+      if (mapfn !== undefined) mapfn = bind(mapfn, thisArg);
+      var usingAsyncIterator = getMethod(items, ASYNC_ITERATOR);
+      // @dependency: es.string.iterator
+      var usingSyncIterator = usingAsyncIterator ? undefined : getIteratorMethod(items) || safeArrayIterator;
+      var A = isConstructor(C) ? new C() : [];
+      var iterator = usingAsyncIterator
+        ? getAsyncIterator(items, usingAsyncIterator)
+        : new AsyncFromSyncIterator(getIteratorDirect(getIterator(items, usingSyncIterator)));
+      resolve(toArray(iterator, mapfn, A));
+    });
+  },
 });

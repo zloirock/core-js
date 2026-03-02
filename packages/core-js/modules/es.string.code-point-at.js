@@ -7,5 +7,5 @@ var codeAt = require('../internals/string-multibyte').codeAt;
 $({ target: 'String', proto: true }, {
   codePointAt: function codePointAt(pos) {
     return codeAt(this, pos);
-  }
+  },
 });

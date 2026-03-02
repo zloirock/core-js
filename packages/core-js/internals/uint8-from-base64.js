@@ -1,9 +1,6 @@
 'use strict';
-var globalThis = require('../internals/global-this');
-var uncurryThis = require('../internals/function-uncurry-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
 var aString = require('../internals/a-string');
-var hasOwn = require('../internals/has-own-property');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
 var notDetached = require('../internals/array-buffer-not-detached');
@@ -11,15 +8,14 @@ var notDetached = require('../internals/array-buffer-not-detached');
 var base64Alphabet = base64Map.c2i;
 var base64UrlAlphabet = base64Map.c2iUrl;
 
-var SyntaxError = globalThis.SyntaxError;
-var TypeError = globalThis.TypeError;
-var at = uncurryThis(''.charAt);
+var $SyntaxError = SyntaxError;
+var $TypeError = TypeError;
 
 var skipAsciiWhitespace = function (string, index) {
   var length = string.length;
   for (;index < length; index++) {
-    var chr = at(string, index);
-    if (chr !== ' ' && chr !== '\t' && chr !== '\n' && chr !== '\f' && chr !== '\r') break;
+    var char = string[index];
+    if (char !== ' ' && char !== '\t' && char !== '\n' && char !== '\f' && char !== '\r') break;
   } return index;
 };
 
@@ -30,27 +26,27 @@ var decodeBase64Chunk = function (chunk, alphabet, throwOnExtraBits) {
     chunk += chunkLength === 2 ? 'AA' : 'A';
   }
 
-  var triplet = (alphabet[at(chunk, 0)] << 18)
-    + (alphabet[at(chunk, 1)] << 12)
-    + (alphabet[at(chunk, 2)] << 6)
-    + alphabet[at(chunk, 3)];
+  var triplet = (alphabet[chunk[0]] << 18)
+    + (alphabet[chunk[1]] << 12)
+    + (alphabet[chunk[2]] << 6)
+    + alphabet[chunk[3]];
 
   var chunkBytes = [
     (triplet >> 16) & 255,
     (triplet >> 8) & 255,
-    triplet & 255
+    triplet & 255,
   ];
 
   if (chunkLength === 2) {
     if (throwOnExtraBits && chunkBytes[1] !== 0) {
-      throw new SyntaxError('Extra bits');
+      throw new $SyntaxError('Extra bits');
     }
     return [chunkBytes[0]];
   }
 
   if (chunkLength === 3) {
     if (throwOnExtraBits && chunkBytes[2] !== 0) {
-      throw new SyntaxError('Extra bits');
+      throw new $SyntaxError('Extra bits');
     }
     return [chunkBytes[0], chunkBytes[1]];
   }
@@ -76,7 +72,7 @@ module.exports = function (string, options, into, maxLength) {
   if (lastChunkHandling === undefined) lastChunkHandling = 'loose';
 
   if (lastChunkHandling !== 'loose' && lastChunkHandling !== 'strict' && lastChunkHandling !== 'stop-before-partial') {
-    throw new TypeError('Incorrect `lastChunkHandling` option');
+    throw new $TypeError('Incorrect `lastChunkHandling` option');
   }
 
   if (into) notDetached(into.buffer);
@@ -97,21 +93,21 @@ module.exports = function (string, options, into, maxLength) {
         }
         if (lastChunkHandling === 'loose') {
           if (chunk.length === 1) {
-            throw new SyntaxError('Malformed padding: exactly one additional character');
+            throw new $SyntaxError('Malformed padding: exactly one additional character');
           }
           written = writeBytes(bytes, decodeBase64Chunk(chunk, alphabet, false), written);
         } else {
-          throw new SyntaxError('Missing padding');
+          throw new $SyntaxError('Missing padding');
         }
       }
       read = stringLength;
       break;
     }
-    var chr = at(string, index);
+    var char = string[index];
     ++index;
-    if (chr === '=') {
+    if (char === '=') {
       if (chunk.length < 2) {
-        throw new SyntaxError('Padding is too early');
+        throw new $SyntaxError('Padding is too early');
       }
       index = skipAsciiWhitespace(string, index);
       if (chunk.length === 2) {
@@ -119,22 +115,22 @@ module.exports = function (string, options, into, maxLength) {
           if (lastChunkHandling === 'stop-before-partial') {
             break;
           }
-          throw new SyntaxError('Malformed padding: only one =');
+          throw new $SyntaxError('Malformed padding: only one =');
         }
-        if (at(string, index) === '=') {
+        if (string[index] === '=') {
           ++index;
           index = skipAsciiWhitespace(string, index);
         }
       }
       if (index < stringLength) {
-        throw new SyntaxError('Unexpected character after padding');
+        throw new $SyntaxError('Unexpected character after padding');
       }
       written = writeBytes(bytes, decodeBase64Chunk(chunk, alphabet, lastChunkHandling === 'strict'), written);
       read = stringLength;
       break;
     }
-    if (!hasOwn(alphabet, chr)) {
-      throw new SyntaxError('Unexpected character');
+    if (!(char in alphabet)) {
+      throw new $SyntaxError('Unexpected character');
     }
     var remainingBytes = maxLength - written;
     if (remainingBytes === 1 && chunk.length === 2 || remainingBytes === 2 && chunk.length === 3) {
@@ -142,7 +138,7 @@ module.exports = function (string, options, into, maxLength) {
       break;
     }
 
-    chunk += chr;
+    chunk += char;
     if (chunk.length === 4) {
       written = writeBytes(bytes, decodeBase64Chunk(chunk, alphabet, false), written);
       chunk = '';

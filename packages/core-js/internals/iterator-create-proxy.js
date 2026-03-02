@@ -1,12 +1,12 @@
 'use strict';
 var call = require('../internals/function-call');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIns = require('../internals/define-built-ins');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var getMethod = require('../internals/get-method');
-var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype;
+var IteratorPrototype = require('../internals/iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorCloseAll = require('../internals/iterator-close-all');
@@ -16,12 +16,11 @@ var ITERATOR_HELPER = 'IteratorHelper';
 var WRAP_FOR_VALID_ITERATOR = 'WrapForValidIterator';
 var NORMAL = 'normal';
 var THROW = 'throw';
-var setInternalState = InternalStateModule.set;
 
 var createIteratorProxyPrototype = function (IS_ITERATOR) {
-  var getInternalState = InternalStateModule.getterFor(IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER);
+  var getInternalState = internalStateGetterFor(IS_ITERATOR ? WRAP_FOR_VALID_ITERATOR : ITERATOR_HELPER);
 
-  return defineBuiltIns(create(IteratorPrototype), {
+  return defineBuiltIns(Object.create(IteratorPrototype), {
     next: function next() {
       var state = getInternalState(this);
       // for simplification:
@@ -37,7 +36,7 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
         throw error;
       }
     },
-    'return': function () {
+    return: function () {
       var state = getInternalState(this);
       var iterator = state.iterator;
       var done = state.done;
@@ -60,13 +59,14 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       }
       if (iterator) iteratorClose(iterator, NORMAL);
       return createIterResultObject(undefined, true);
-    }
+    },
   });
 };
 
 var WrapForValidIteratorPrototype = createIteratorProxyPrototype(true);
 var IteratorHelperPrototype = createIteratorProxyPrototype(false);
 
+// @dependency: es.object.to-string
 createNonEnumerableProperty(IteratorHelperPrototype, TO_STRING_TAG, 'Iterator Helper');
 
 module.exports = function (nextHandler, IS_ITERATOR, RETURN_HANDLER_RESULT) {

@@ -1,6 +1,6 @@
 import { createConversionChecker } from '../helpers/helpers.js';
 
-import cosh from 'core-js-pure/es/math/cosh';
+import cosh from '@core-js/pure/es/math/cosh';
 
 QUnit.test('Math.cosh', assert => {
   assert.isFunction(cosh);

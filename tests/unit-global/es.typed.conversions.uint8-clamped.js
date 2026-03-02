@@ -1,6 +1,6 @@
-import { DESCRIPTORS, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
+import { MAX_SAFE_INTEGER, MIN_SAFE_INTEGER } from '../helpers/constants.js';
 
-if (DESCRIPTORS) QUnit.test('Uint8Clamped conversions', assert => {
+QUnit.test('Uint8Clamped conversions', assert => {
   const uint8clamped = new Uint8ClampedArray(1);
   const uint8array = new Uint8Array(uint8clamped.buffer);
 

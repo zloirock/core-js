@@ -1,7 +1,10 @@
 {
-  "name": "core-js-builder",
-  "version": "3.48.0",
-  "type": "commonjs",
+  "name": "@core-js/builder",
+  "version": "4.0.0-alpha.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
   "description": "core-js builder",
   "repository": {
     "type": "git",
@@ -16,22 +19,33 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE.md",
   "author": {
     "name": "Denis Pushkarev",
     "email": "zloirock@zloirock.ru",
     "url": "http://zloirock.ru"
   },
   "sideEffects": false,
-  "main": "index.js",
+  "main": "index.mjs",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.mjs"
+    },
+    "./index.mjs": {
+      "types": "./index.d.ts",
+      "default": "./index.mjs"
+    },
+    "./config.mjs": "./config.mjs"
+  },
   "types": "index.d.ts",
   "dependencies": {
-    "core-js": "3.48.0",
-    "core-js-compat": "3.48.0",
-    "mkdirp": ">=0.5.6 <1",
-    "webpack": ">=4.47.0 <5"
+    "@core-js/compat": "4.0.0-alpha.0",
+    "@swc/core": "^1.15.18",
+    "core-js": "4.0.0-alpha.0",
+    "rolldown": "^1.0.0-rc.6"
   },
   "engines": {
-    "node": ">=8.9.0"
+    "node": "^20.19.0 || >=22.12.0"
   }
 }

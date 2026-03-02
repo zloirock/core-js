@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -15,10 +16,10 @@ var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-he
 // https://bugs.webkit.org/show_bug.cgi?id=297532
 function throwsOnIteratorWithoutReturn() {
   try {
-    // eslint-disable-next-line es/no-map, es/no-iterator, es/no-iterator-prototype-flatmap -- required for testing
+    // eslint-disable-next-line es/no-iterator, es/no-iterator-prototype-flatmap -- required for testing
     var it = Iterator.prototype.flatMap.call(new Map([[4, 5]]).entries(), function (v) { return v; });
     it.next();
-    it['return']();
+    it.return();
   } catch (error) {
     return true;
   }
@@ -56,6 +57,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.flatMap` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.flatmap
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
   flatMap: function flatMap(mapper) {
     anObject(this);
@@ -69,7 +71,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FORCED }, {
 
     return new IteratorProxy(getIteratorDirect(this), {
       mapper: mapper,
-      inner: null
+      inner: null,
     });
-  }
+  },
 });

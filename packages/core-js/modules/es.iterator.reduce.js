@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
@@ -21,6 +22,7 @@ var reduceWithoutClosingOnEarlyError = !FAILS_ON_INITIAL_UNDEFINED && iteratorHe
 
 // `Iterator.prototype.reduce` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.reduce
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: FAILS_ON_INITIAL_UNDEFINED || reduceWithoutClosingOnEarlyError }, {
   reduce: function reduce(reducer /* , initialValue */) {
     anObject(this);
@@ -48,5 +50,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: FAILS_ON_INITIAL_UNDEFI
     }, { IS_RECORD: true });
     if (noInitial) throw new $TypeError('Reduce of empty iterator with no initial value');
     return accumulator;
-  }
+  },
 });

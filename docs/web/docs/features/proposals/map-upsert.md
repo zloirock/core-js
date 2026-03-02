@@ -2,8 +2,8 @@
 [Specification](https://tc39.es/proposal-upsert/)\
 [Proposal repo](https://github.com/thumbsupep/proposal-upsert)
 
-## Modules 
-[`es.map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert.js), [`es.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.map.get-or-insert-computed.js), [`es.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert.js) and [`es.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/es.weak-map.get-or-insert-computed.js).
+## Modules
+[`es.map.get-or-insert`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.map.get-or-insert.js), [`es.map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.map.get-or-insert-computed.js), [`es.weak-map.get-or-insert`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.weak-map.get-or-insert.js) and [`es.weak-map.get-or-insert-computed`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/es.weak-map.get-or-insert-computed.js)
 
 ## Built-ins signatures
 ```ts
@@ -26,6 +26,9 @@ core-js(-pure)/es|stable|actual|full/map/get-or-insert-computed
 core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert
 core-js(-pure)/es|stable|actual|full/weak-map/get-or-insert-computed
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/map-upsert`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/map-upsert.d.ts)
 
 ## Examples
 ```js

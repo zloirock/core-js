@@ -1,5 +1,5 @@
 import konan from 'konan';
-import { modules, ignored } from 'core-js-compat/src/data.mjs';
+import { modules, ignored } from '../packages/core-js-compat/src/data.mjs';
 
 async function jsModulesFrom(path) {
   const directory = await fs.readdir(path);
@@ -17,8 +17,6 @@ const globalModules = await jsModulesFrom('packages/core-js/modules');
 const definedModules = new Set([
   ...modules,
   ...ignored,
-  // TODO: Drop from core-js@4
-  'esnext.string.at-alternative',
 ]);
 
 globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));

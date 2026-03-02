@@ -1,12 +1,12 @@
 /* eslint-disable prefer-rest-params -- required for testing */
-import { DESCRIPTORS } from '../helpers/constants.js';
 import { createIterable } from '../helpers/helpers.js';
 
-import Symbol from 'core-js-pure/es/symbol';
-import defineProperty from 'core-js-pure/es/object/define-property';
-import freeze from 'core-js-pure/es/object/freeze';
-import getIteratorMethod from 'core-js-pure/es/get-iterator-method';
-import from from 'core-js-pure/es/array/from';
+import Symbol from '@core-js/pure/es/symbol';
+import freeze from '@core-js/pure/es/object/freeze';
+import getIteratorMethod from '@core-js/pure/es/get-iterator-method';
+import from from '@core-js/pure/es/array/from';
+
+const { defineProperty } = Object;
 
 QUnit.test('Array.from', assert => {
   assert.isFunction(from);
@@ -92,8 +92,6 @@ QUnit.test('Array.from', assert => {
   assert.arrayEqual(instance, [1, 2], 'generic, array-like case, elements');
   let array = [1, 2, 3];
   done = false;
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- legacy FF case
-  array['@@iterator'] = undefined;
   array[Symbol.iterator] = function () {
     done = true;
     return getIteratorMethod([]).call(this);
@@ -115,31 +113,28 @@ QUnit.test('Array.from', assert => {
   assert.throws(() => from([], ''), TypeError, 'Throws with "" as second argument');
   assert.throws(() => from([], false), TypeError, 'Throws with false as second argument');
   assert.throws(() => from([], {}), TypeError, 'Throws with {} as second argument');
-  if (DESCRIPTORS) {
-    let called = false;
-    defineProperty(C.prototype, 0, {
-      set() {
-        called = true;
-      },
-    });
-    from.call(C, [1, 2, 3]);
-    assert.false(called, 'Should not call prototype accessors');
-  }
+
+  let called = false;
+  defineProperty(C.prototype, 0, {
+    set() {
+      called = true;
+    },
+  });
+  from.call(C, [1, 2, 3]);
+  assert.false(called, 'Should not call prototype accessors');
   // iterator should be closed when createProperty fails
-  if (DESCRIPTORS) {
-    let returnCalled = false;
-    const iterable = {
-      [Symbol.iterator]() {
-        return {
-          next() { return { value: 1, done: false }; },
-          return() { returnCalled = true; return { done: true }; },
-        };
-      },
-    };
-    const Frozen = function () { return freeze([]); };
-    assert.throws(() => from.call(Frozen, iterable), TypeError, 'throws when createProperty fails');
-    assert.true(returnCalled, 'iterator is closed when createProperty throws');
-  }
+  let returnCalled = false;
+  const iterable = {
+    [Symbol.iterator]() {
+      return {
+        next() { return { value: 1, done: false }; },
+        return() { returnCalled = true; return { done: true }; },
+      };
+    },
+  };
+  const Frozen = function () { return freeze([]); };
+  assert.throws(() => from.call(Frozen, iterable), TypeError, 'throws when createProperty fails');
+  assert.true(returnCalled, 'iterator is closed when createProperty throws');
   // mapfn callable check should happen before ToObject(items)
   assert.throws(() => from(null, 42), TypeError, 'non-callable mapfn with null items throws for mapfn');
 });
