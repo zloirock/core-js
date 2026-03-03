@@ -239,7 +239,8 @@ module.exports = defineProvider(({
     polyfills: modulesListForTargetVersion,
     entryGlobal({ source }, utils, path) {
       const entry = getCoreJSEntry(source);
-      if (entry === null || injectedModules.has(entry)) return;
+      if (entry === null) return;
+      if (!path.node.loc && injectedModules.has(entry)) return;
       injectModulesForEntry(entry, utils);
       path.remove();
     },
