@@ -97,11 +97,15 @@ module.exports = defineProvider(({
 
   function injectModulesForEntry(entry, utils) {
     for (const moduleName of getModulesForEntry(entry)) {
-      const moduleEntry = `modules/${ moduleName }`;
-      utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
-      injectedModules.add(moduleEntry);
-      debug(moduleName);
+      injectModule(moduleName, utils);
     }
+  }
+
+  function injectModule(moduleName, utils) {
+    const moduleEntry = `modules/${ moduleName }`;
+    utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
+    injectedModules.add(moduleEntry);
+    debug(moduleName);
   }
 
   function isCallee(callee, parent) {
@@ -347,6 +351,11 @@ module.exports = defineProvider(({
       Function(path) {
         if (path.node.async) {
           injectModulesForModeEntry('promise/constructor', getUtils(path));
+          if (path.node.generator) {
+            injectModule('es.symbol.async-iterator', getUtils(path));
+          }
+        } else if (path.node.generator) {
+          injectModule('es.symbol.iterator', getUtils(path));
         }
       },
       // for-of, [a, b] = c
