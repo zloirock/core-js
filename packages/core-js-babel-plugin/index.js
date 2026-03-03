@@ -59,6 +59,7 @@ module.exports = defineProvider(({
 
   const modulesListForTargetVersion = getModulesListForTargetVersion(version);
   const injectedModules = new Set();
+  const skippedNodes = new WeakSet();
 
   if (!Object.keys(targets).length) targets = null;
 
@@ -88,6 +89,10 @@ module.exports = defineProvider(({
     const result = hasOwn(entries, entry) ? compat({ modules: entries[entry], targets, version }).list : [];
     modulesForEntryCache.set(entry, result);
     return result;
+  }
+
+  function injectModulesForModeEntry(entry, utils) {
+    return injectModulesForEntry(`${ mode }/${ entry }`, utils);
   }
 
   function injectModulesForEntry(entry, utils) {
@@ -152,23 +157,77 @@ module.exports = defineProvider(({
     return utils.injectDefaultImport(`${ pkg }/${ mode }/${ dep }`, hint);
   }
 
-  function maybeMemoizeContext(node, scope) {
-    const { object } = node;
-    let context1, context2;
-    if (t.isIdentifier(object)) {
-      context2 = object;
-      context1 = t.cloneNode(object);
-    } else {
-      context2 = scope.generateDeclaredUidIdentifier('context');
-      context1 = t.assignmentExpression('=', t.cloneNode(context2), object);
-    }
-    return [context1, context2];
+  function memoize(node, scope) {
+    if (t.isIdentifier(node)) return [t.cloneNode(node), node];
+    const ref = scope.generateDeclaredUidIdentifier('ref');
+    return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
   }
 
-  function callMethod(path, id) {
-    const [context1, context2] = maybeMemoizeContext(path.node, path.scope);
-    path.replaceWith(t.memberExpression(t.callExpression(id, [context1]), t.identifier('call')));
-    path.parentPath.unshiftContainer('arguments', context2);
+  function wrapConditional(check, result) {
+    return t.conditionalExpression(
+      t.binaryExpression('==', check, t.nullLiteral()),
+      t.unaryExpression('void', t.numericLiteral(0)),
+      result,
+    );
+  }
+
+  function buildMethodCall(id, object, scope, args, optionalCall) {
+    const [assign, ref] = memoize(object, scope);
+    const callMember = optionalCall
+      ? t.optionalMemberExpression(t.callExpression(id, [assign]), t.identifier('call'), false, true)
+      : t.memberExpression(t.callExpression(id, [assign]), t.identifier('call'));
+    return optionalCall
+      ? t.optionalCallExpression(callMember, [t.cloneNode(ref), ...args], false)
+      : t.callExpression(callMember, [t.cloneNode(ref), ...args]);
+  }
+
+  function normalizeOptionalChain(path) {
+    let { parentPath } = path;
+    if (parentPath.isOptionalMemberExpression()) {
+      if (path.key !== 'object') return;
+    } else if (parentPath.isOptionalCallExpression()) {
+      if (path.key !== 'callee') return;
+    } else return;
+    do {
+      parentPath.node.type = parentPath.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
+      delete parentPath.node.optional;
+      ({ parentPath } = parentPath);
+    } while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && !parentPath.node.optional);
+  }
+
+  function replaceInstanceLike(path, id) {
+    const { node, parent } = path;
+    const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent)) && parent.callee === node;
+
+    if (node.optional) {
+      const [check, ref] = memoize(node.object, path.scope);
+      const result = isCall
+        ? buildMethodCall(id, ref, path.scope, parent.arguments, parent.optional)
+        : t.callExpression(id, [t.cloneNode(ref)]);
+      const replacePath = isCall ? path.parentPath : path;
+      replacePath.replaceWith(wrapConditional(check, result));
+      normalizeOptionalChain(replacePath);
+    } else if (isCall) {
+      path.parentPath.replaceWith(buildMethodCall(id, node.object, path.scope, parent.arguments, false));
+      normalizeOptionalChain(path.parentPath);
+    } else {
+      path.replaceWith(t.callExpression(id, [node.object]));
+      normalizeOptionalChain(path);
+    }
+  }
+
+  function replaceCallWithSimple(path, id) {
+    const { node } = path;
+    if (node.optional) {
+      const [check, ref] = memoize(node.object, path.scope);
+      const replacePath = path.parentPath;
+      replacePath.replaceWith(wrapConditional(check, t.callExpression(id, [t.cloneNode(ref)])));
+      normalizeOptionalChain(replacePath);
+    } else {
+      path.parentPath.replaceWith(t.callExpression(id, [node.object]));
+      normalizeOptionalChain(path.parentPath);
+    }
+    path.skip();
   }
 
   return {
@@ -191,12 +250,14 @@ module.exports = defineProvider(({
       const { dependencies, filters } = desc;
       if (applyFilters(filters, path)) return true;
       for (const entry of dependencies) {
-        injectModulesForEntry(`${ mode }/${ entry }`, utils);
+        injectModulesForModeEntry(entry, utils);
       }
       return true;
     },
-    /* eslint-disable max-statements -- ok */
+
     usagePure(meta, utils, path) {
+      if (skippedNodes.has(path.node)) return;
+
       if (meta.kind === 'in') {
         if (meta.key === 'Symbol.iterator') {
           const id = injectPureImport('is-iterable', 'isIterable', utils);
@@ -216,22 +277,15 @@ module.exports = defineProvider(({
 
         if (meta.key === 'Symbol.iterator') {
           const { parent, node } = path;
+          if (node.computed) skippedNodes.add(node.property);
+          const isCall = t.isCallExpression(parent, { callee: node }) || t.isOptionalCallExpression(parent, { callee: node });
 
-          if (t.isCallExpression(parent, { callee: node })) {
-            if (parent.arguments.length === 0) {
-              const id = injectPureImport('get-iterator', 'getIterator', utils);
-              if (!id) return;
-              path.parentPath.replaceWith(t.callExpression(id, [node.object]));
-              path.skip();
-            } else {
-              const id = injectPureImport('get-iterator-method', 'getIteratorMethod', utils);
-              if (!id) return;
-              callMethod(path, id);
-            }
+          if (isCall && parent.arguments.length === 0) {
+            const id = injectPureImport('get-iterator', 'getIterator', utils);
+            if (id) replaceCallWithSimple(path, id);
           } else {
             const id = injectPureImport('get-iterator-method', 'getIteratorMethod', utils);
-            if (!id) return;
-            path.replaceWith(t.callExpression(id, [node.object]));
+            if (id) replaceInstanceLike(path, id);
           }
 
           return;
@@ -246,11 +300,11 @@ module.exports = defineProvider(({
 
       if (kind === 'instance') {
         desc = resolveHint(desc, meta);
-        if (desc === null) return true;
+        if (desc === null) return;
       }
 
       const { dependencies, filters } = desc;
-      if (applyFilters(filters, path)) return true;
+      if (applyFilters(filters, path)) return;
       if (!dependencies?.length) return;
 
       const [dep] = dependencies;
@@ -265,35 +319,17 @@ module.exports = defineProvider(({
           const id = injectPureImport(dep, resolved.name, utils);
           if (id) {
             path.replaceWith(id);
-            // remove optional chaining since we now import a known-non-null value
-            let { parentPath } = path;
-            if (parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) {
-              do {
-                parentPath.node.type = parentPath.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
-                delete parentPath.node.optional;
-                ({ parentPath } = parentPath);
-              } while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && !parentPath.node.optional);
-            }
+            normalizeOptionalChain(path);
           }
         } break;
 
         case 'instance': {
           const id = injectPureImport(dep, `${ resolved.name }InstanceProperty`, utils);
-          if (!id) return;
-
-          const { node, parent } = path;
-
-          if ((t.isCallExpression(parent) || t.isOptionalCallExpression(parent)) && parent.callee === node) {
-            callMethod(path, id);
-          } else {
-            path.replaceWith(t.callExpression(id, [node.object]));
-          }
+          if (id) replaceInstanceLike(path, id);
         } break;
       }
-
-      return true;
     },
-    /* eslint-enable max-statements -- ok */
+
     visitor: method === 'usage-global' && {
       // import('foo')
       CallExpression(path) {
@@ -301,38 +337,38 @@ module.exports = defineProvider(({
           const utils = getUtils(path);
           if (isWebpack) {
             // Webpack uses `Promise.all` to handle dynamic import.
-            injectModulesForEntry(`${ mode }/promise/all`, utils);
+            injectModulesForModeEntry('promise/all', utils);
           } else {
-            injectModulesForEntry(`${ mode }/promise/constructor`, utils);
+            injectModulesForModeEntry('promise/constructor', utils);
           }
         }
       },
       // (async function () { }).finally(...)
       Function(path) {
         if (path.node.async) {
-          injectModulesForEntry(`${ mode }/promise/constructor`, getUtils(path));
+          injectModulesForModeEntry('promise/constructor', getUtils(path));
         }
       },
       // for-of, [a, b] = c
       'ForOfStatement|ArrayPattern'(path) {
-        injectModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+        injectModulesForModeEntry('symbol/iterator', getUtils(path));
       },
       // [...spread]
       SpreadElement(path) {
         if (!path.parentPath.isObjectExpression()) {
-          injectModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+          injectModulesForModeEntry('symbol/iterator', getUtils(path));
         }
       },
       // yield *
       YieldExpression(path) {
         if (path.node.delegate) {
-          injectModulesForEntry(`${ mode }/get-iterator`, getUtils(path));
+          injectModulesForModeEntry('symbol/iterator', getUtils(path));
         }
       },
       // decorators metadata
       Class(path) {
         if (path.node.decorators?.length || path.node.body.body.some(el => el.decorators?.length)) {
-          injectModulesForEntry(`${ mode }/symbol/metadata`, getUtils(path));
+          injectModulesForModeEntry('symbol/metadata', getUtils(path));
         }
       },
     },
