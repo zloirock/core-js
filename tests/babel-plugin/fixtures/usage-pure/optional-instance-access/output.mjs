@@ -1,2 +1,2 @@
 import _flatInstanceProperty from "@core-js/pure/actual/instance/flat";
-_flatInstanceProperty(foo);
+foo == null ? void 0 : _flatInstanceProperty(foo);
