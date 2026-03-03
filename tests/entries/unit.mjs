@@ -589,6 +589,18 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof instanceStartsWith('') == 'function');
     ok(instanceStartsWith('').call('qwe', 'qw'));
 
+    const instanceToExponential = load(NS, 'instance/to-exponential');
+    ok(typeof instanceToExponential == 'function');
+    ok(instanceToExponential({}) === undefined);
+    ok(typeof instanceToExponential(1) == 'function');
+    ok(instanceToExponential(1).call(1, 1) === '1.0e+0');
+
+    const instanceToFixed = load(NS, 'instance/to-fixed');
+    ok(typeof instanceToFixed == 'function');
+    ok(instanceToFixed({}) === undefined);
+    ok(typeof instanceToFixed(1) == 'function');
+    ok(instanceToFixed(1).call(1, 1) === '1.0');
+
     const instanceToReversed = load(NS, 'instance/to-reversed');
     ok(typeof instanceToReversed == 'function');
     ok(instanceToReversed({}) === undefined);
