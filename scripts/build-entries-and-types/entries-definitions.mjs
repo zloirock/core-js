@@ -1127,6 +1127,16 @@ export const features = {
     template: $instanceString,
     name: 'startsWith',
   },
+  'instance/to-exponential': {
+    modules: ['es.number.to-exponential'],
+    template: $instanceNumber,
+    name: 'toExponential',
+  },
+  'instance/to-fixed': {
+    modules: ['es.number.to-fixed'],
+    template: $instanceNumber,
+    name: 'toFixed',
+  },
   'instance/to-reversed': {
     modules: ['es.array.to-reversed'],
     template: $instanceArray,
