@@ -6,6 +6,16 @@ import {
 
 const entries = new Set(Object.keys(await fs.readJson('packages/core-js-compat/entries.json')));
 
+const TYPE_HINTS = new Set([
+  'common',
+  'array',
+  'function',
+  'number',
+  'object',
+  'regexp',
+  'string',
+]);
+
 function dict() {
   return Object.create(null);
 }
@@ -30,25 +40,41 @@ function unfoldHint(data) {
   return result;
 }
 
-function unfoldMode(data, kind) {
+function unfoldMode(data, kind, modeName, entryName) {
   if (!data) return;
   if (kind !== 'instance') return unfoldHint(data);
   const result = dict();
-  if (Object.hasOwn(data, 'common')) for (const [key, value] of Object.entries(data)) {
-    if (value) result[key] = unfoldHint(value);
+  if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data).some(key => TYPE_HINTS.has(key))) {
+    if (!Object.hasOwn(data, 'common')) {
+      const nonCommonHintKeys = Object.keys(data).filter(key => TYPE_HINTS.has(key));
+      if (nonCommonHintKeys.length > 1) {
+        if (modeName === 'pure' || modeName === 'shared') {
+          throw new Error(`${ entryName }: pure instance properties with multiple type hints require 'common'`);
+        }
+        for (const key of nonCommonHintKeys) {
+          const value = data[key];
+          if (value && typeof value === 'object' && !Array.isArray(value) && value.filters) {
+            throw new Error(`${ entryName }: instance properties with type hints with filters require 'common'`);
+          }
+        }
+      }
+    }
+    for (const [key, value] of Object.entries(data)) {
+      if (value) result[key] = unfoldHint(value);
+    }
   } else result.common = unfoldHint(data);
   return result;
 }
 
-function unfoldEntry(data, kind) {
+function unfoldEntry(data, kind, entryName) {
   if (!data) return;
   const result = dict();
   const { global, pure } = data;
   if (global || pure) {
-    result.global = unfoldMode(global, kind);
-    result.pure = unfoldMode(pure, kind);
+    result.global = unfoldMode(global, kind, 'global', entryName);
+    result.pure = unfoldMode(pure, kind, 'pure', entryName);
   } else {
-    result.global = result.pure = unfoldMode(data, kind);
+    result.global = result.pure = unfoldMode(data, kind, 'shared', entryName);
   }
   return result;
 }
@@ -56,7 +82,7 @@ function unfoldEntry(data, kind) {
 function unfoldKind(data, kind) {
   const result = dict();
   for (const [key, value] of Object.entries(data)) {
-    if (value) result[key] = unfoldEntry(value, kind);
+    if (value) result[key] = unfoldEntry(value, kind, key);
   }
   return result;
 }
