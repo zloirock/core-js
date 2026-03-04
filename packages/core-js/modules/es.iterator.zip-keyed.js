@@ -1,4 +1,4 @@
-// @types: proposals/iterator-joint
+// @types: proposals/joint-iteration
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
