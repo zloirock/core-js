@@ -2,6 +2,7 @@
 const { default: defineProvider } = require('@babel/helper-define-polyfill-provider');
 const entries = require('@core-js/compat/entries.json');
 const compat = require('@core-js/compat/compat');
+const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
 
@@ -57,6 +58,7 @@ module.exports = defineProvider(({
 
   const packages = pkgs ? [...defaultCoreJSPackages, ...pkgs] : [...defaultCoreJSPackages];
 
+  const entriesSetForTargetVersion = method === 'usage-pure' && new Set(getEntriesListForTargetVersion(version));
   const modulesListForTargetVersion = getModulesListForTargetVersion(version);
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
@@ -156,9 +158,10 @@ module.exports = defineProvider(({
     return !!filters?.some(([name, ...args]) => filter(name, args, path));
   }
 
-  function injectPureImport(dep, hint, utils) {
-    if (!getModulesForEntry(`${ mode }/${ dep }`).length) return null;
-    return utils.injectDefaultImport(`${ pkg }/${ mode }/${ dep }`, hint);
+  function injectPureImport(entry, hint, utils) {
+    const modeEntry = `${ mode }/${ entry }`;
+    if (!entriesSetForTargetVersion.has(modeEntry) || !getModulesForEntry(modeEntry).length) return null;
+    return utils.injectDefaultImport(`${ pkg }/${ modeEntry }`, hint);
   }
 
   function memoize(node, scope) {
