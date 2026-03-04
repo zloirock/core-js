@@ -16,6 +16,7 @@
 - Fixed closing iterator on `IteratorValue` errors in the internal `iterate` helper that affected some polyfills
 - Fixed iterator closing in `Array.from` polyfill on failure to create array property
 - Fixed order of arguments validation in `Array.fromAsync` polyfill
+- Fixed a lack of counter validation on `MAX_SAFE_INTEGER` in `Array.fromAsync` polyfill
 - Fixed order of arguments validation in `Array.prototype.flat` polyfill
 - Fixed handling strings as iterables in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills

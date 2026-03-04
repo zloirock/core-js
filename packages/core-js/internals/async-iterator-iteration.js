@@ -34,7 +34,7 @@ var createMethod = function (TYPE) {
 
       var loop = function () {
         try {
-          if (MAPPING) try {
+          try {
             doesNotExceedSafeInteger(counter);
           } catch (error5) {
             return ifAbruptCloseAsyncIterator(error5);
