@@ -11,12 +11,12 @@ const TypedArrayStatic = {
 };
 
 export const Globals = {
-  AsyncDisposableStack: 'async-disposable-stack/constructor',
-  AsyncIterator: 'async-iterator/constructor',
   AggregateError: 'aggregate-error/constructor',
   ArrayBuffer: { global: 'array-buffer/constructor' },
-  DataView: { global: 'data-view/constructor' },
+  AsyncDisposableStack: 'async-disposable-stack/constructor',
+  AsyncIterator: 'async-iterator/constructor',
   DOMException: { global: 'dom-exception/constructor' },
+  DataView: { global: 'data-view/constructor' },
   DisposableStack: 'disposable-stack/constructor',
   Error: ErrorConstructor,
   EvalError: ErrorConstructor,
@@ -26,10 +26,6 @@ export const Globals = {
   Int16Array: 'typed-array/int16-array',
   Int32Array: 'typed-array/int32-array',
   Iterator: 'iterator/constructor',
-  Uint8Array: 'typed-array/uint8-array',
-  Uint8ClampedArray: 'typed-array/uint8-clamped-array',
-  Uint16Array: 'typed-array/uint16-array',
-  Uint32Array: 'typed-array/uint32-array',
   Map: 'map/constructor',
   Math: { global: 'math' },
   Number: { global: 'number/constructor' },
@@ -44,6 +40,10 @@ export const Globals = {
   Symbol: 'symbol/constructor',
   SyntaxError: ErrorConstructor,
   TypeError: ErrorConstructor,
+  Uint8Array: 'typed-array/uint8-array',
+  Uint8ClampedArray: 'typed-array/uint8-clamped-array',
+  Uint16Array: 'typed-array/uint16-array',
+  Uint32Array: 'typed-array/uint32-array',
   URIError: ErrorConstructor,
   URL: 'url/constructor',
   URLSearchParams: 'url-search-params/constructor',
@@ -63,9 +63,7 @@ export const Globals = {
 };
 
 export const StaticProperties = {
-  AsyncIterator: {
-    from: 'async-iterator/from',
-  },
+  AggregateError: ErrorStatic,
   Array: {
     from: 'array/from',
     fromAsync: 'array/from-async',
@@ -75,8 +73,16 @@ export const StaticProperties = {
   ArrayBuffer: {
     isView: { global: 'array-buffer/is-view' },
   },
+  AsyncIterator: {
+    from: 'async-iterator/from',
+  },
   Error: ErrorStatic,
   EvalError: ErrorStatic,
+  Float32Array: TypedArrayStatic,
+  Float64Array: TypedArrayStatic,
+  Int8Array: TypedArrayStatic,
+  Int16Array: TypedArrayStatic,
+  Int32Array: TypedArrayStatic,
   Iterator: {
     concat: 'iterator/concat',
     from: 'iterator/from',
@@ -160,6 +166,8 @@ export const StaticProperties = {
     allSettledKeyed: 'promise/all-settled-keyed',
     any: 'promise/any',
     race: 'promise/race',
+    reject: 'promise/reject',
+    resolve: 'promise/resolve',
     try: 'promise/try',
     withResolvers: 'promise/with-resolvers',
   },
@@ -193,6 +201,7 @@ export const StaticProperties = {
     fromCodePoint: 'string/from-code-point',
     raw: 'string/raw',
   },
+  SuppressedError: ErrorStatic,
   Symbol: {
     asyncDispose: 'symbol/async-dispose',
     asyncIterator: 'symbol/async-iterator',
@@ -218,6 +227,14 @@ export const StaticProperties = {
   },
   SyntaxError: ErrorStatic,
   TypeError: ErrorStatic,
+  Uint8Array: {
+    ...TypedArrayStatic,
+    fromBase64: 'typed-array/from-base64',
+    fromHex: 'typed-array/from-hex',
+  },
+  Uint8ClampedArray: TypedArrayStatic,
+  Uint16Array: TypedArrayStatic,
+  Uint32Array: TypedArrayStatic,
   URIError: ErrorStatic,
   URL: {
     canParse: 'url/can-parse',
@@ -231,19 +248,6 @@ export const StaticProperties = {
     from: 'weak-set/from',
     of: 'weak-set/of',
   },
-  Float32Array: TypedArrayStatic,
-  Float64Array: TypedArrayStatic,
-  Int8Array: TypedArrayStatic,
-  Int16Array: TypedArrayStatic,
-  Int32Array: TypedArrayStatic,
-  Uint8Array: {
-    ...TypedArrayStatic,
-    fromBase64: 'typed-array/from-base64',
-    fromHex: 'typed-array/from-hex',
-  },
-  Uint8ClampedArray: TypedArrayStatic,
-  Uint16Array: TypedArrayStatic,
-  Uint32Array: TypedArrayStatic,
   WebAssembly: {
     CompileError: ErrorConstructor,
     LinkError: ErrorConstructor,
@@ -252,8 +256,8 @@ export const StaticProperties = {
 };
 
 export const InstanceProperties = {
-  at: 'instance/at',
   anchor: { global: 'string/anchor' },
+  at: { common: 'instance/at', array: 'array/at', string: 'string/at' },
   big: { global: 'string/big' },
   blink: { global: 'string/blink' },
   bold: { global: 'string/bold' },
@@ -280,13 +284,13 @@ export const InstanceProperties = {
   findLastIndex: 'instance/find-last-index',
   fixed: { global: 'string/fixed' },
   flags: 'instance/flags',
-  flatMap: { pure: 'instance/flat-map', global: ['array/flat-map', 'iterator/flat-map'] },
   flat: 'instance/flat',
-  getFloat16: { global: 'data-view/get-float16' },
-  getUint8Clamped: { global: 'data-view/get-uint8-clamped' },
+  flatMap: { pure: 'instance/flat-map', global: ['array/flat-map', 'iterator/flat-map'] },
   fontcolor: { global: 'string/fontcolor' },
   fontsize: { global: 'string/fontsize' },
   forEach: { pure: 'instance/for-each', global: ['instance/for-each', 'iterator/for-each'] },
+  getFloat16: { global: 'data-view/get-float16' },
+  getUint8Clamped: { global: 'data-view/get-uint8-clamped' },
   includes: { common: 'instance/includes', array: 'array/includes', string: 'string/includes' },
   indexOf: 'instance/index-of',
   isWellFormed: 'instance/is-well-formed',
@@ -344,7 +348,7 @@ export const InstanceProperties = {
   toReversed: 'instance/to-reversed',
   toSorted: 'instance/to-sorted',
   toSpliced: 'instance/to-spliced',
-  toString: undefined,
+  toString: { global: ['object/to-string', 'regexp/to-string'] },
   toWellFormed: 'instance/to-well-formed',
   trim: 'instance/trim',
   trimEnd: 'instance/trim-end',
