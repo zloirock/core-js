@@ -3,7 +3,7 @@
 interface ZipOptions {
   mode?: 'shortest' | 'longest' | 'strict';
 
-  padding?: Iterable<unknown>;
+  padding?: Iterable<unknown, unknown, undefined>;
 }
 
 interface ZipKeyedOptions {
@@ -23,7 +23,7 @@ interface IteratorConstructor { // @type-options: no-extends
    * @returns An iterator yielding arrays of values, collected one from each iterable.
    */
   zip<T extends readonly Iterable<unknown>[]>(iterables: T, options?: ZipOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never }, undefined, unknown>; // @type-options: prefix-return-type
-  zip<T>(iterables: Iterable<Iterable<T>>, options?: ZipOptions): IteratorObject<T[], undefined, unknown>; // @type-options: prefix-return-type
+  zip<T>(iterables: Iterable<Iterable<T, unknown, undefined>>, options?: ZipOptions): IteratorObject<T[], undefined, unknown>; // @type-options: prefix-return-type
 
   /**
    * Takes an object whose values are iterables and produces an iterable of objects where keys
@@ -34,7 +34,7 @@ interface IteratorConstructor { // @type-options: no-extends
    *  - padding: an object specifying padding values for each key when mode is 'longest'.
    * @returns An iterator yielding objects with keys from the input record and values from the corresponding iterables.
    */
-  zipKeyed<T extends { [K in PropertyKey]: Iterable<unknown> }>(record: T, options?: ZipKeyedOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;  // @type-options: prefix-return-type
+  zipKeyed<T extends { [K in PropertyKey]: Iterable<unknown, unknown, undefined> }>(record: T, options?: ZipKeyedOptions): IteratorObject<{ [K in keyof T]: T[K] extends Iterable<infer V> ? V : never; }, undefined, unknown>;  // @type-options: prefix-return-type
 }
 
 declare var Iterator: IteratorConstructor;
