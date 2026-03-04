@@ -1393,7 +1393,7 @@ export const data = {
   },
   'es.parse-float': {
     chrome: '35',
-    edge: '74',
+    edge: '79',
     firefox: '8',
     hermes: '0.1',
     ie: '8',
@@ -1402,7 +1402,7 @@ export const data = {
   },
   'es.parse-int': {
     chrome: '35',
-    edge: '74',
+    edge: '79',
     firefox: '21',
     hermes: '0.1',
     ie: '9',

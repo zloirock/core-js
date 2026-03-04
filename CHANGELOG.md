@@ -96,6 +96,7 @@
   - [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum) marked as [shipped in V8 ~ Chrome 147](https://issues.chromium.org/issues/374310075#comment16)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Safari 26.4
+  - Fixed compat data for `parseInt` and `parseFloat`
   - Added Deno [2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7), [2.7.0](https://github.com/denoland/deno/releases/tag/v2.7.0) and [2.7.2](https://github.com/denoland/deno/releases/tag/v2.7.2) compat data mapping
   - Added Electron 42 compat data mapping
   - Added [Opera Android 95](https://forums.opera.com/topic/87912/opera-for-android-95) compat data mapping
