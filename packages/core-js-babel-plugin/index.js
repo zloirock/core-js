@@ -17,24 +17,48 @@ function normalizeImportPath(path) {
     .toLowerCase();
 }
 
-const hints = new Set([
+const TYPE_HINTS = new Set([
   'array',
-  'string',
-  'regexp',
-  'object',
   'function',
+  'number',
+  'object',
+  'regexp',
+  'string',
 ]);
 
 function resolveHint(desc, meta) {
   const { placement, object } = meta;
   const hint = String(object).toLowerCase();
-  if (placement !== 'prototype' || !hints.has(hint)) return desc.common;
-  let required = true;
-  for (const $hint of hints) if (hasOwn(desc, $hint)) {
-    if (hint === $hint) return desc[hint];
-    required = false;
+
+  if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
+    let hasOtherHints = false;
+    for (const $hint of TYPE_HINTS) if (hasOwn(desc, $hint)) {
+      if (hint === $hint) return desc[hint];
+      hasOtherHints = true;
+    }
+    return hasOtherHints ? null : hasOwn(desc, 'common') ? desc.common : null;
   }
-  return required ? desc.common : null;
+
+  if (hasOwn(desc, 'common')) return desc.common;
+
+  // no common — merge all type hint dependencies
+  const hintDescs = [];
+  for (const $hint of TYPE_HINTS) {
+    if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
+  }
+
+  if (hintDescs.length === 1) return hintDescs[0];
+
+  if (hintDescs.length > 1) {
+    const dependencies = [...hintDescs.reduce((set, hintDesc) => {
+      hintDesc?.dependencies.forEach(it => set.add(it));
+      return set;
+    }, new Set())];
+
+    return dependencies.length ? { dependencies } : null;
+  }
+
+  return null;
 }
 
 module.exports = defineProvider(({
