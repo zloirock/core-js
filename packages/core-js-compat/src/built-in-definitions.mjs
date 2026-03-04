@@ -15,7 +15,7 @@ export const Globals = {
   ArrayBuffer: { global: 'array-buffer/constructor' },
   AsyncDisposableStack: 'async-disposable-stack/constructor',
   AsyncIterator: 'async-iterator/constructor',
-  DOMException: { global: 'dom-exception/constructor' },
+  DOMException: 'dom-exception/constructor',
   DataView: { global: 'data-view/constructor' },
   DisposableStack: 'disposable-stack/constructor',
   Error: ErrorConstructor,
