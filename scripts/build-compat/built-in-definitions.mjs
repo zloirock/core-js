@@ -9,6 +9,7 @@ const entries = new Set(Object.keys(await fs.readJson('packages/core-js-compat/e
 const TYPE_HINTS = new Set([
   'common',
   'array',
+  'boolean',
   'function',
   'number',
   'object',
