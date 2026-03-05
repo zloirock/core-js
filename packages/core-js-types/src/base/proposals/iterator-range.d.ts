@@ -27,7 +27,7 @@ interface IteratorConstructor { // @type-options: no-extends
    *   - inclusive: If true, the end value is included in the range (default is false).
    * @returns An iterator of bigints.
    */
-  range(start: bigint, end: bigint, options?: bigint | IteratorRangeOptions<bigint>): IteratorObject<bigint, undefined, unknown>; // @type-options: prefix-return-type
+  range(start: bigint, end: bigint | typeof Infinity | typeof Number.NEGATIVE_INFINITY, options?: bigint | IteratorRangeOptions<bigint>): IteratorObject<bigint, undefined, unknown>; // @type-options: prefix-return-type
 }
 
 declare var Iterator: IteratorConstructor;

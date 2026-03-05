@@ -14,7 +14,7 @@ declare namespace CoreJS {
      * @param iterable - An `AsyncIterable`, `Iterable`, or `AsyncIterator` to convert to an `AsyncIterator`
      * @returns A new `AsyncIterator` instance
      */
-    from<T>(iterable: CoreJSAsyncIterable<T> | Iterable<T> | CoreJSAsyncIteratorObject<T>): CoreJSAsyncIteratorObject<T, undefined, unknown>;
+    from<T>(iterable: CoreJSAsyncIterable<T> | Iterable<T> | CoreJSAsyncIterator<T>): CoreJSAsyncIteratorObject<T, undefined, unknown>;
   }
 
   export interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
@@ -31,7 +31,7 @@ declare namespace CoreJS {
      * @param predicate - A function that tests each element of the iterator
      * @returns A promise that resolves to `true` if all elements pass the test, otherwise `false`
      */
-    every(predicate: (value: T, index: number) => boolean): CoreJSPromise<boolean>;
+    every(predicate: (value: T, index: number) => unknown): CoreJSPromise<boolean>;
 
     /**
      * Creates a new `AsyncIterator` that contains only the elements that pass the `predicate` function.
@@ -54,21 +54,21 @@ declare namespace CoreJS {
      * @param mapper - A function that transforms each element of the iterator
      * @returns A new `AsyncIterator`
      */
-    flatMap<U>(mapper: (value: T, index: number) => Iterable<U> | CoreJSAsyncIterator<U> | CoreJSAsyncIterable<U>): CoreJSAsyncIteratorObject<U, undefined, unknown>;
+    flatMap<U>(callback: (value: T, index: number) => Iterator<U, unknown, undefined> | Iterable<U, unknown, undefined> | CoreJSAsyncIterator<U> | CoreJSAsyncIterable<U>): CoreJSAsyncIteratorObject<U, undefined, unknown>;
 
     /**
      * Executes a provided function once for each element in the iterator.
      * @param callbackFn - A function that is called for each element of the iterator
      * @returns A `Promise` that resolves when all elements have been processed
      */
-    forEach(callbackFn: (value: T, index: number) => void): CoreJSPromise<void>;
+    forEach(callbackfn: (value: T, index: number) => void | PromiseLike<void>): CoreJSPromise<void>;
 
     /**
      * Creates a new `AsyncIterator` by applying the `mapper` function to each element of the original iterator.
      * @param mapper - A function that transforms each element of the iterator
      * @returns A new `AsyncIterator`
      */
-    map<U>(mapper: (value: T, index: number) => U): CoreJSAsyncIteratorObject<U, undefined, unknown>;
+    map<U>(callbackfn: (value: T, index: number) => U): CoreJSAsyncIteratorObject<Awaited<U>, undefined, unknown>;
 
     /**
      * Reduces the elements of the iterator to a single value using the `reducer` function.
@@ -76,31 +76,30 @@ declare namespace CoreJS {
      * @param initialValue - The initial value to start the accumulation. Required when the accumulator type differs from the element type.
      * @returns A `Promise` that resolves to the reduced value
      */
-    reduce<U>(reducer: (accumulator: U, value: T, index: number) => U, initialValue: U): CoreJSPromise<U>;
+    reduce(callbackfn: (accumulator: T, value: T, index: number) => T): CoreJSPromise<T>;
 
     /**
-     * Reduces the elements of the iterator to a single value using the `reducer` function.
-     * @param reducer - A function that combines two elements of the iterator
-     * @param initialValue - An optional initial value to start the reduction
+     * Reduces the elements of the iterator to a single value using the `callbackfn` function.
+     * @param callbackfn - A function that combines two elements of the iterator
+     * @param initialValue - The initial value to start the reduction
      * @returns A `Promise` that resolves to the reduced value
      */
-    reduce(reducer: (accumulator: T, value: T, index: number) => T, initialValue?: T): CoreJSPromise<T>;
+    reduce(callbackfn: (accumulator: T, value: T, index: number) => T, initialValue: T): CoreJSPromise<T>;
 
     /**
-     * Reduces the elements of the iterator to a single value using the `reducer` function.
-     * For maximum flexibility with any types.
-     * @param reducer - A function that combines two elements of the iterator
-     * @param initialValue - An optional initial value to start the reduction
+     * Reduces the elements of the iterator to a single value using the `callbackfn` function.
+     * @param callbackfn - A function that combines two elements of the iterator
+     * @param initialValue - The initial value to start the accumulation. Required when the accumulator type differs from the element type.
      * @returns A `Promise` that resolves to the reduced value
      */
-    reduce(reducer: (accumulator: any, value: T, index: number) => any, initialValue?: any): CoreJSPromise<any>;
+    reduce<U>(callbackfn: (accumulator: U, value: T, index: number) => U, initialValue: U): CoreJSPromise<U>;
 
     /**
      * Checks if any value in the iterator matches a given `predicate`
      * @param predicate - A function that tests each element of the iterator
      * @returns A `Promise` that resolves to `true` if any element passes the `predicate`, otherwise `false`
      */
-    some(predicate: (value: T, index: number) => boolean): CoreJSPromise<boolean>;
+    some(predicate: (value: T, index: number) => unknown): CoreJSPromise<boolean>;
 
     /**
      * Creates a new `AsyncIterator` that yields only the first `limit` elements from the original iterator.
