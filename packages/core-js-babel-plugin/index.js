@@ -259,7 +259,6 @@ module.exports = defineProvider(({
       path.parentPath.replaceWith(t.callExpression(id, [node.object]));
       normalizeOptionalChain(path.parentPath);
     }
-    path.skip();
   }
 
   return {
