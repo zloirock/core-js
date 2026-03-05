@@ -19,6 +19,7 @@ function normalizeImportPath(path) {
 
 const TYPE_HINTS = new Set([
   'array',
+  'boolean',
   'function',
   'number',
   'object',
