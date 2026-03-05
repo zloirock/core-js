@@ -71,6 +71,8 @@
       "types": "./get-modules-list-for-target-version.d.ts",
       "default": "./get-modules-list-for-target-version.js"
     },
+    "./helpers": "./helpers.js",
+    "./helpers.js": "./helpers.js",
     "./modules": "./modules.json",
     "./modules.json": "./modules.json",
     "./modules-by-versions": "./modules-by-versions.json",
