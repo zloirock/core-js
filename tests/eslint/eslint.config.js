@@ -2245,7 +2245,7 @@ const packagesPackageJSON = {
 
 const nodeDependencies = {
   // enforce the versions of the engines of the dependencies to be compatible
-  'node-dependencies/compat-engines': ERROR,
+  'node-dependencies/compat-engines': [ERROR, { devDependencies: true }],
   // disallow having dependencies on deprecate packages
   'node-dependencies/no-deprecated': ERROR,
   // enforce versions that is valid as a semantic version

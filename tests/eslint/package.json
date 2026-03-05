@@ -16,7 +16,7 @@
     "eslint-plugin-math": "^0.13.1",
     "eslint-plugin-n": "^17.24.0",
     "eslint-plugin-name": "^0.0.1",
-    "eslint-plugin-node-dependencies": "^2.1.0",
+    "eslint-plugin-node-dependencies": "^2.2.0",
     "eslint-plugin-package-json": "^1.0.0-beta.1",
     "eslint-plugin-playwright": "^2.9.0",
     "eslint-plugin-promise": "^7.2.1",
