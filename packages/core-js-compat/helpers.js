@@ -35,7 +35,9 @@ function compare($a, operator, $b) {
 }
 
 function normalizeCoreJSVersion(raw) {
-  if (!['string', 'object'].includes(typeof raw)) {
+  if (raw instanceof SemVer) return raw;
+
+  if (typeof raw != 'string') {
     throw new TypeError('`core-js` version should be specified as a SemVer string with minor component');
   }
 
