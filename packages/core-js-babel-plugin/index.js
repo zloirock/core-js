@@ -2,6 +2,7 @@
 const { default: defineProvider } = require('@babel/helper-define-polyfill-provider');
 const entries = require('@core-js/compat/entries.json');
 const compat = require('@core-js/compat/compat');
+const { normalizeCoreJSVersion } = require('@core-js/compat/helpers');
 const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
@@ -80,6 +81,8 @@ module.exports = defineProvider(({
 
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
+
+  version = normalizeCoreJSVersion(version);
 
   const t = babel.types;
   const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
