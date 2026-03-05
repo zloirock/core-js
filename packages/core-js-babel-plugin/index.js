@@ -75,6 +75,9 @@ module.exports = defineProvider(({
   mode = 'actual',
   version = '4.0',
 }) => {
+  if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
+  if (!['es', 'stable', 'actual', 'full'].includes(mode)) throw new TypeError('Incorrect plugin mode');
+
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
 
