@@ -281,13 +281,19 @@ export const InstanceProperties = {
   fill: { array: 'instance/fill' },
   filter: {
     pure: 'instance/filter',
-    global: ['array/filter', 'iterator/filter'],
+    global: {
+      common: ['array/filter', 'iterator/filter'],
+      array: 'array/filter',
+    },
   },
   filterReject: { array: 'instance/filter-reject' },
   finally: { global: 'promise/finally' },
   find: {
     pure: 'instance/find',
-    global: ['array/find', 'iterator/find'],
+    global: {
+      common: ['array/find', 'iterator/find'],
+      array: 'array/find',
+    },
   },
   findIndex: { array: 'instance/find-index' },
   findLast: { array: 'instance/find-last' },
@@ -297,7 +303,10 @@ export const InstanceProperties = {
   flat: { array: 'instance/flat' },
   flatMap: {
     pure: 'instance/flat-map',
-    global: ['array/flat-map', 'iterator/flat-map'],
+    global: {
+      common: ['array/flat-map', 'iterator/flat-map'],
+      array: 'array/flat-map',
+    },
   },
   fontcolor: { global: { string: 'string/fontcolor' } },
   fontsize: { global: { string: 'string/fontsize' } },
@@ -317,14 +326,20 @@ export const InstanceProperties = {
   italics: { global: { string: 'string/italics' } },
   join: {
     pure: 'instance/join',
-    global: ['array/join', 'iterator/join'],
+    global: {
+      common: ['array/join', 'iterator/join'],
+      array: 'array/join',
+    },
   },
   keys: 'instance/keys',
   lastIndexOf: { array: 'instance/last-index-of' },
   link: { global: { string: 'string/link' } },
   map: {
     pure: 'instance/map',
-    global: ['array/map', 'iterator/map'],
+    global: {
+      common: ['array/map', 'iterator/map'],
+      array: 'array/map',
+    },
   },
   match: { global: {
     string: { dependencies: 'string/match', filters: [['arg-is-string', 0]] },
@@ -336,7 +351,10 @@ export const InstanceProperties = {
   push: { array: 'instance/push' },
   reduce: {
     pure: 'instance/reduce',
-    global: ['array/reduce', 'iterator/reduce'],
+    global: {
+      common: ['array/reduce', 'iterator/reduce'],
+      array: 'array/reduce',
+    },
   },
   reduceRight: { array: 'instance/reduce-right' },
   repeat: { string: 'instance/repeat' },
