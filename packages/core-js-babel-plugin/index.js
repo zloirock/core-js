@@ -20,6 +20,7 @@ function normalizeImportPath(path) {
 
 const TYPE_HINTS = new Set([
   'array',
+  'bigint',
   'boolean',
   'function',
   'iterator',
@@ -27,42 +28,8 @@ const TYPE_HINTS = new Set([
   'object',
   'regexp',
   'string',
+  'symbol',
 ]);
-
-function resolveHint(desc, meta) {
-  const { placement, object } = meta;
-  const hint = String(object).toLowerCase();
-
-  if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
-    let hasOtherHints = false;
-    for (const $hint of TYPE_HINTS) if (hasOwn(desc, $hint)) {
-      if (hint === $hint) return desc[hint];
-      hasOtherHints = true;
-    }
-    return hasOtherHints ? null : hasOwn(desc, 'common') ? desc.common : null;
-  }
-
-  if (hasOwn(desc, 'common')) return desc.common;
-
-  // no common — merge all type hint dependencies
-  const hintDescs = [];
-  for (const $hint of TYPE_HINTS) {
-    if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
-  }
-
-  if (hintDescs.length === 1) return hintDescs[0];
-
-  if (hintDescs.length > 1) {
-    const dependencies = [...hintDescs.reduce((set, hintDesc) => {
-      hintDesc?.dependencies.forEach(it => set.add(it));
-      return set;
-    }, new Set())];
-
-    return dependencies.length ? { dependencies } : null;
-  }
-
-  return null;
-}
 
 module.exports = defineProvider(({
   babel,
@@ -146,36 +113,193 @@ module.exports = defineProvider(({
     return t.isCallExpression(parent, { callee }) || t.isNewExpression(parent, { callee });
   }
 
-  function resolveIdentifier(node, scope) {
-    if (!scope || !t.isIdentifier(node)) return node;
-    const binding = scope.getBinding(node.name);
-    if (!binding || !binding.constant) return node;
+  function resolvePath(path) {
+    if (!path.isIdentifier()) return path;
+    const binding = path.scope.getBinding(path.node.name);
+    if (!binding || !binding.constant) return path;
     const { path: bindingPath } = binding;
     if (bindingPath.isVariableDeclarator()) {
-      const { init } = bindingPath.node;
-      if (init) return init;
+      const init = bindingPath.get('init');
+      if (init.node) return init;
     }
-    if (bindingPath.isFunctionDeclaration()) return bindingPath.node;
-    if (bindingPath.isClassDeclaration()) return bindingPath.node;
-    return node;
+    if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return bindingPath;
+    return path;
   }
 
-  function isString(node, scope) {
-    node = resolveIdentifier(node, scope);
-    return t.isStringLiteral(node) || t.isTemplateLiteral(node);
+  function resolveNumericType(path) {
+    const resolved = resolveNodeType(path);
+    if (resolved === null) return null;
+    return { type: resolved.type === 'bigint' ? 'bigint' : 'number' };
   }
 
-  function isNonPrimitive(node, scope) {
-    node = resolveIdentifier(node, scope);
-    return t.isObjectExpression(node) ||
-      t.isArrayExpression(node) ||
-      t.isFunctionExpression(node) ||
-      t.isArrowFunctionExpression(node) ||
-      t.isClassExpression(node) ||
-      t.isFunctionDeclaration(node) ||
-      t.isClassDeclaration(node) ||
-      t.isRegExpLiteral(node) ||
-      t.isNewExpression(node);
+  function resolveNodeType(path) {
+    path = resolvePath(path);
+
+    if (path.isNullLiteral()) return { type: 'null' };
+    if (path.isStringLiteral() || path.isTemplateLiteral()) return { type: 'string' };
+    if (path.isNumericLiteral()) return { type: 'number' };
+    if (path.isBigIntLiteral()) return { type: 'bigint' };
+    if (path.isBooleanLiteral()) return { type: 'boolean' };
+    if (path.isRegExpLiteral()) return { type: 'object', constructor: 'RegExp' };
+    if (path.isObjectExpression()) return { type: 'object', constructor: 'Object' };
+    if (path.isArrayExpression()) return { type: 'object', constructor: 'Array' };
+    if (
+      path.isFunctionExpression() ||
+      path.isArrowFunctionExpression() ||
+      path.isFunctionDeclaration() ||
+      path.isClassExpression() ||
+      path.isClassDeclaration()
+    ) return { type: 'object', constructor: 'Function' };
+
+    if (path.isNewExpression()) {
+      const callee = path.get('callee');
+      return { type: 'object', constructor: callee.isIdentifier() ? callee.node.name : null };
+    }
+
+    if (path.isUnaryExpression()) {
+      switch (path.node.operator) {
+        case 'void':
+          return { type: 'undefined' };
+        case 'typeof':
+          return { type: 'string' };
+        case '!':
+        case 'delete':
+          return { type: 'boolean' };
+        // unary + throws on BigInt, result is always Number
+        case '+':
+          return { type: 'number' };
+        // unary - and ~ work on both Number and BigInt, preserving the type
+        case '-':
+        case '~':
+          return resolveNumericType(path.get('argument'));
+      } return null;
+    }
+
+    if (path.isUpdateExpression()) {
+      // ++ and -- work on both Number and BigInt, preserving the type
+      return resolveNumericType(path.get('argument'));
+    }
+
+    if (path.isBinaryExpression()) {
+      switch (path.node.operator) {
+        case '==':
+        case '!=':
+        case '===':
+        case '!==':
+        case '<':
+        case '>':
+        case '<=':
+        case '>=':
+        case 'instanceof':
+        case 'in':
+          return { type: 'boolean' };
+        case '+': {
+          const left = resolveNodeType(path.get('left'));
+          const right = resolveNodeType(path.get('right'));
+          if (left?.type === 'string' || right?.type === 'string') return { type: 'string' };
+          if (left?.type === 'number' && right?.type === 'number') return { type: 'number' };
+          if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
+          return null;
+        }
+        // >>> (unsigned right shift) throws on BigInt, result is always Number
+        case '>>>':
+          return { type: 'number' };
+        // arithmetic and bitwise operators work on both Number and BigInt
+        case '-':
+        case '*':
+        case '/':
+        case '%':
+        case '**':
+        case '|':
+        case '&':
+        case '^':
+        case '<<':
+        case '>>': {
+          const left = resolveNodeType(path.get('left'));
+          const right = resolveNodeType(path.get('right'));
+          if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
+          if (left !== null && right !== null) return { type: 'number' };
+          return null;
+        }
+      } return null;
+    }
+
+    if (path.isSequenceExpression()) {
+      const expressions = path.get('expressions');
+      if (expressions.length) return resolveNodeType(expressions[expressions.length - 1]);
+    }
+
+    if (path.isAssignmentExpression() && path.node.operator === '=') {
+      return resolveNodeType(path.get('right'));
+    }
+
+    if (path.isConditionalExpression()) {
+      const consequent = resolveNodeType(path.get('consequent'));
+      const alternate = resolveNodeType(path.get('alternate'));
+      if (consequent && alternate &&
+        consequent.type === alternate.type &&
+        consequent.constructor === alternate.constructor) return consequent;
+      return null;
+    }
+
+    if (path.isParenthesizedExpression()) {
+      return resolveNodeType(path.get('expression'));
+    }
+
+    if (
+      path.isTSAsExpression() ||
+      path.isTSSatisfiesExpression() ||
+      path.isTSNonNullExpression() ||
+      path.isTSInstantiationExpression() ||
+      path.isTSTypeAssertion() ||
+      path.isTypeCastExpression()
+    ) return resolveNodeType(path.get('expression'));
+
+    return null;
+  }
+
+  function resolveHint(desc, meta) {
+    const { placement, object } = meta;
+    const hint = String(object).toLowerCase();
+
+    if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
+      let hasOtherHints = false;
+      for (const $hint of TYPE_HINTS) if (hasOwn(desc, $hint)) {
+        if (hint === $hint) return desc[hint];
+        hasOtherHints = true;
+      }
+      return hasOtherHints ? null : hasOwn(desc, 'common') ? desc.common : null;
+    }
+
+    if (hasOwn(desc, 'common')) return desc.common;
+
+    // no common — merge all type hint dependencies
+    const hintDescs = [];
+    for (const $hint of TYPE_HINTS) {
+      if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
+    }
+
+    if (hintDescs.length === 1) return hintDescs[0];
+
+    if (hintDescs.length > 1) {
+      const dependencies = [...hintDescs.reduce((set, hintDesc) => {
+        hintDesc?.dependencies.forEach(it => set.add(it));
+        return set;
+      }, new Set())];
+
+      return dependencies.length ? { dependencies } : null;
+    }
+
+    return null;
+  }
+
+  function isString(path) {
+    const it = resolveNodeType(path);
+    return it?.type === 'string' || it?.constructor === 'String';
+  }
+
+  function isObject(path) {
+    return resolveNodeType(path)?.type === 'object';
   }
 
   function filter(name, args, path) {
@@ -192,14 +316,14 @@ module.exports = defineProvider(({
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
         if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
-        return isString(parent.arguments[index], path.scope);
+        return isString(path.parentPath.get('arguments')[index]);
       }
       case 'arg-is-object': {
         if (!isCallee(node, parent)) return false;
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
         if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
-        return isNonPrimitive(parent.arguments[index], path.scope);
+        return isObject(path.parentPath.get('arguments')[index]);
       }
     }
   }
