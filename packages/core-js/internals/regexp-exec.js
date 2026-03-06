@@ -49,6 +49,7 @@ var setGroups = function (re, groups) {
 // This implementation provides best-effort indices calculation
 // It works correctly for most common cases but may have limitations
 // with complex patterns like overlapping groups or backreferences
+// eslint-disable-next-line no-unused-vars -- kept for API consistency
 var getCapturePositions = function (match, str) {
   var positions = [];
   var matchStart = match.index;
