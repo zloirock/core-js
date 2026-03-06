@@ -76,21 +76,91 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 
 ## Babel
 
-`core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features:
+`core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features. The recommended way is [`@core-js/babel-plugin`](#corejs-babel-plugin).
 
-## `@babel/polyfill`
+## `@core-js/babel-plugin`
 
-[`@babel/polyfill`](https://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so loading `@babel/polyfill` means loading the global version of `core-js` without ES proposals.
+[`@core-js/babel-plugin`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-babel-plugin) is `core-js` babel plugin for automatic injection of polyfills. It analyzes your code and adds only the polyfills that are actually needed for your target environments. Works with both global (`core-js`) and pure (`@core-js/pure`) variants.
 
-Now it's deprecated in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for backward compatibility, `@babel/polyfill` is still based on `core-js@2`.
+The plugin supports three injection methods: `entry-global`, `usage-global`, and `usage-pure`.
 
-As a full equal of `@babel/polyfill`, you can use the following:
+> [!IMPORTANT]
+> You should specify the used minor `core-js` version, like `version: '4.1'`, instead of `version: '4'`.
+
+---
+
+- `method: 'entry-global'` replaces imports of `core-js` to import only required for a target environment modules. So, for example,
 ```ts
-import 'core-js/stable';
-import 'regenerator-runtime/runtime';
+import 'core-js/actual';
+```
+with `chrome 135` target will be replaced to:
+```ts
+import 'core-js/modules/es.suppressed-error.constructor';
+import 'core-js/modules/es.async-disposable-stack.constructor';
+import 'core-js/modules/es.disposable-stack.constructor';
+import 'core-js/modules/es.iterator.concat';
+import 'core-js/modules/es.regexp.escape';
+// ...only the modules not yet supported by Chrome 135
+```
+It works for all entry points of global version of `core-js` and their combinations.
+
+- `method: 'usage-global'` automatically adds to the top of each file import of polyfills for features used in this file and not supported by target environments — no manual imports required. So, for example,
+```ts
+const p = Promise.allSettled([f1, f2]);
+'test'.at(-1);
+```
+if the target contains an old environment like `IE 11` we will have something like:
+```ts
+import 'core-js/modules/es.promise.all-settled';
+import 'core-js/modules/es.string.at';
+
+const p = Promise.allSettled([f1, f2]);
+'test'.at(-1);
 ```
 
+> [!IMPORTANT]
+> In the case of `usage-global`, you should not add `core-js` imports by yourself, they will be added automatically.
+
+- `method: 'usage-pure'` is like `usage-global`, but without global namespace pollution. It automatically replaces usage of modern features from the JS standard library to imports from `@core-js/pure`, so instead of:
+```ts
+import from from '@core-js/pure/actual/array/from';
+import at from '@core-js/pure/actual/instance/at';
+
+from(items);
+at([1, 2, 3]).call([1, 2, 3], -1);
+```
+you can write just:
+```ts
+Array.from(items);
+[1, 2, 3].at(-1);
+```
+
+Configuration example:
+```json
+{
+  "plugins": [["@core-js", {
+    "method": "usage-global",
+    "version": "4.0",
+    "targets": { "ie": 11 }
+  }]]
+}
+```
+
+### `@core-js/babel-plugin` options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
+| `version` | `string` | `'4.0'` | Used `core-js` version, it's recommended to specify the used minor version like `'4.1'` |
+| `targets` | `string` \| `object` | all browsers | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
+| `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
+| `pkg` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
+| `pkgs` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
+
 ## `@babel/preset-env`
+
+> [!TIP]
+> [`@core-js/babel-plugin`](#corejs-babel-plugin) is recommended over `@babel/preset-env` for `core-js` polyfill injection.
 
 [`@babel/preset-env`](https://github.com/babel/babel/tree/master/packages/babel-preset-env) has `useBuiltIns` option, which optimizes the use of the global version of `core-js`. With `useBuiltIns` option, you should also set `corejs` option to the used version of `core-js`, like `corejs: '4.1'`.
 
@@ -163,6 +233,9 @@ By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfill
 
 ## `@babel/runtime`
 
+> [!TIP]
+> [`@core-js/babel-plugin`](#corejs-babel-plugin) with `method: 'usage-pure'` is recommended over `@babel/runtime` for `core-js` polyfill injection.
+
 [`@babel/runtime`](https://babeljs.io/docs/plugins/transform-runtime/) with `corejs: 4` option simplifies work with the `@core-js/pure`. It automatically replaces the usage of modern features from the JS standard library to imports from the version of `core-js` without global namespace pollution, so instead of:
 ```ts
 import from from '@core-js/pure/stable/array/from';
@@ -175,7 +248,7 @@ flat([1, [2, 3], [4, [5]]], 2);
 Promise.resolve(32).then(x => console.log(x));
 ```
 you can write just:
-```js
+```ts
 Array.from(new Set([1, 2, 3, 2, 1]));
 [1, [2, 3], [4, [5]]].flat(2);
 Promise.resolve(32).then(x => console.log(x));
@@ -185,6 +258,18 @@ By default, `@babel/runtime` only polyfills stable features, but like in `@babel
 
 > [!WARNING]
 > If you use `@babel/preset-env` and `@babel/runtime` together, use `corejs` option only in one place since it's duplicate functionality and will cause conflicts.
+
+## `@babel/polyfill`
+
+[`@babel/polyfill`](https://babeljs.io/docs/usage/polyfill) [**IS** just the import of stable `core-js@2` features and `regenerator-runtime`](https://github.com/babel/babel/blob/c8bb4500326700e7dc68ce8c4b90b6482c48d82f/packages/babel-polyfill/src/index.js) for generators and async functions, so loading `@babel/polyfill` means loading the global version of `core-js` without ES proposals.
+
+Now it's deprecated in favor of separate inclusion of required parts of `core-js` and `regenerator-runtime` and, for backward compatibility, `@babel/polyfill` is still based on `core-js@2`.
+
+As a full equal of `@babel/polyfill`, you can use the following:
+```ts
+import 'core-js/stable';
+import 'regenerator-runtime/runtime';
+```
 
 ## swc
 
