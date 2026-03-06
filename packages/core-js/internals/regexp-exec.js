@@ -60,8 +60,12 @@ var getCapturePositions = function (match, str) {
   positions[0] = [matchStart, matchEnd];
 
   // For capturing groups, we need to calculate positions
-  // We use a greedy left-to-right matching approach
-  var searchStart = 0;
+  // The challenge: nested groups like ((a)(b)) have overlapping matches
+  // match[1] = "ab", match[2] = "a", match[3] = "b"
+  // We need to track which parts of the string are "consumed" by which group
+
+  // Strategy: use a greedy matching approach, but account for nested groups
+  // by allowing overlaps when the captured string is a substring of an earlier capture
 
   for (var i = 1; i < match.length; i++) {
     var captured = match[i];
@@ -70,20 +74,20 @@ var getCapturePositions = function (match, str) {
       // Non-participating capturing group
       positions[i] = undefined;
     } else if (captured === '') {
-      // Empty capture - position is where the empty match occurs
-      // We need to find where this empty capture is positioned
-      // For empty captures, use the current search position
-      positions[i] = [matchStart + searchStart, matchStart + searchStart];
+      // Empty capture - find position based on surrounding context
+      // For now, use the earliest valid position
+      var pos = 0;
+      positions[i] = [matchStart + pos, matchStart + pos];
     } else {
-      // Find the captured string in the match, starting from searchStart
-      var foundIndex = stringIndexOf(matchString, captured, searchStart);
+      // Find the captured string in the match
+      // For nested groups, we need to find the right position
+      // The captured string should be within the match
+      var foundIndex = stringIndexOf(matchString, captured, 0);
 
       if (foundIndex !== -1 && foundIndex + captured.length <= matchString.length) {
         positions[i] = [matchStart + foundIndex, matchStart + foundIndex + captured.length];
-        searchStart = foundIndex + captured.length;
       } else {
-        // This shouldn't normally happen if the regex engine is correct
-        // Fall back to undefined (matches spec for non-participating groups)
+        // Fallback: should not normally happen
         positions[i] = undefined;
       }
     }
