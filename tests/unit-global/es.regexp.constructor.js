@@ -204,8 +204,8 @@ if (DESCRIPTORS) {
     assert.same(match8.indices[1], undefined, 'optional group indices should be undefined');
 
     // Test from regex literal (if supported)
-    // eslint-disable-next-line no-eval -- required for testing regex literal
     try {
+      // eslint-disable-next-line no-eval -- required for testing regex literal
       const re13 = eval('/a/d');
       assert.true(re13.hasIndices, 'hasIndices from literal');
       const match9 = re13.exec('abc');
