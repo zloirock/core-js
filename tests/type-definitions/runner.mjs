@@ -23,7 +23,7 @@ const ES_TARGETS = [
 const DEFAULT_TYPE_SCRIPT_VERSION = '5.9';
 
 const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
-  '6.0.0-beta',
+  '6.0.1-rc',
   '5.8',
   '5.7',
   '5.6',
