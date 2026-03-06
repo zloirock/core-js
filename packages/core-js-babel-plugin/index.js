@@ -146,16 +146,34 @@ module.exports = defineProvider(({
     return t.isCallExpression(parent, { callee }) || t.isNewExpression(parent, { callee });
   }
 
-  function isString(node) {
+  function resolveIdentifier(node, scope) {
+    if (!scope || !t.isIdentifier(node)) return node;
+    const binding = scope.getBinding(node.name);
+    if (!binding || !binding.constant) return node;
+    const { path: bindingPath } = binding;
+    if (bindingPath.isVariableDeclarator()) {
+      const { init } = bindingPath.node;
+      if (init) return init;
+    }
+    if (bindingPath.isFunctionDeclaration()) return bindingPath.node;
+    if (bindingPath.isClassDeclaration()) return bindingPath.node;
+    return node;
+  }
+
+  function isString(node, scope) {
+    node = resolveIdentifier(node, scope);
     return t.isStringLiteral(node) || t.isTemplateLiteral(node);
   }
 
-  function isNonPrimitive(node) {
+  function isNonPrimitive(node, scope) {
+    node = resolveIdentifier(node, scope);
     return t.isObjectExpression(node) ||
       t.isArrayExpression(node) ||
       t.isFunctionExpression(node) ||
       t.isArrowFunctionExpression(node) ||
       t.isClassExpression(node) ||
+      t.isFunctionDeclaration(node) ||
+      t.isClassDeclaration(node) ||
       t.isRegExpLiteral(node) ||
       t.isNewExpression(node);
   }
@@ -174,14 +192,14 @@ module.exports = defineProvider(({
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
         if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
-        return isString(parent.arguments[index]);
+        return isString(parent.arguments[index], path.scope);
       }
       case 'arg-is-object': {
         if (!isCallee(node, parent)) return false;
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
         if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
-        return isNonPrimitive(parent.arguments[index]);
+        return isNonPrimitive(parent.arguments[index], path.scope);
       }
     }
   }
