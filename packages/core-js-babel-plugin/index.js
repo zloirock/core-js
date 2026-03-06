@@ -137,126 +137,124 @@ module.exports = defineProvider(({
   function resolveNodeType(path) {
     path = resolvePath(path);
 
-    if (path.isNullLiteral()) return { type: 'null' };
-    if (path.isStringLiteral() || path.isTemplateLiteral()) return { type: 'string' };
-    if (path.isNumericLiteral()) return { type: 'number' };
-    if (path.isBigIntLiteral()) return { type: 'bigint' };
-    if (path.isBooleanLiteral()) return { type: 'boolean' };
-    if (path.isRegExpLiteral()) return { type: 'object', constructor: 'RegExp' };
-    if (path.isObjectExpression()) return { type: 'object', constructor: 'Object' };
-    if (path.isArrayExpression()) return { type: 'object', constructor: 'Array' };
-    if (
-      path.isFunctionExpression() ||
-      path.isArrowFunctionExpression() ||
-      path.isFunctionDeclaration() ||
-      path.isClassExpression() ||
-      path.isClassDeclaration()
-    ) return { type: 'object', constructor: 'Function' };
-
-    if (path.isNewExpression()) {
-      const callee = path.get('callee');
-      return { type: 'object', constructor: callee.isIdentifier() ? callee.node.name : null };
-    }
-
-    if (path.isUnaryExpression()) {
-      switch (path.node.operator) {
-        case 'void':
-          return { type: 'undefined' };
-        case 'typeof':
-          return { type: 'string' };
-        case '!':
-        case 'delete':
-          return { type: 'boolean' };
-        // unary + throws on BigInt, result is always Number
-        case '+':
-          return { type: 'number' };
-        // unary - and ~ work on both Number and BigInt, preserving the type
-        case '-':
-        case '~':
-          return resolveNumericType(path.get('argument'));
-      } return null;
-    }
-
-    if (path.isUpdateExpression()) {
-      // ++ and -- work on both Number and BigInt, preserving the type
-      return resolveNumericType(path.get('argument'));
-    }
-
-    if (path.isBinaryExpression()) {
-      switch (path.node.operator) {
-        case '==':
-        case '!=':
-        case '===':
-        case '!==':
-        case '<':
-        case '>':
-        case '<=':
-        case '>=':
-        case 'instanceof':
-        case 'in':
-          return { type: 'boolean' };
-        case '+': {
-          const left = resolveNodeType(path.get('left'));
-          const right = resolveNodeType(path.get('right'));
-          if (left?.type === 'string' || right?.type === 'string') return { type: 'string' };
-          if (left?.type === 'number' && right?.type === 'number') return { type: 'number' };
-          if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
-          return null;
+    switch (path.node.type) {
+      case 'NullLiteral':
+        return { type: 'null' };
+      case 'StringLiteral':
+      case 'TemplateLiteral':
+        return { type: 'string' };
+      case 'NumericLiteral':
+        return { type: 'number' };
+      case 'BigIntLiteral':
+        return { type: 'bigint' };
+      case 'BooleanLiteral':
+        return { type: 'boolean' };
+      case 'RegExpLiteral':
+        return { type: 'object', constructor: 'RegExp' };
+      case 'ObjectExpression':
+        return { type: 'object', constructor: 'Object' };
+      case 'ArrayExpression':
+        return { type: 'object', constructor: 'Array' };
+      case 'FunctionExpression':
+      case 'ArrowFunctionExpression':
+      case 'FunctionDeclaration':
+      case 'ClassExpression':
+      case 'ClassDeclaration':
+        return { type: 'object', constructor: 'Function' };
+      case 'NewExpression': {
+        const callee = path.get('callee');
+        return { type: 'object', constructor: callee.isIdentifier() ? callee.node.name : null };
+      }
+      case 'UnaryExpression':
+        switch (path.node.operator) {
+          case 'void':
+            return { type: 'undefined' };
+          case 'typeof':
+            return { type: 'string' };
+          case '!':
+          case 'delete':
+            return { type: 'boolean' };
+          // unary + throws on BigInt, result is always Number
+          case '+':
+            return { type: 'number' };
+          // unary - and ~ work on both Number and BigInt, preserving the type
+          case '-':
+          case '~':
+            return resolveNumericType(path.get('argument'));
         }
-        // >>> (unsigned right shift) throws on BigInt, result is always Number
-        case '>>>':
-          return { type: 'number' };
-        // arithmetic and bitwise operators work on both Number and BigInt
-        case '-':
-        case '*':
-        case '/':
-        case '%':
-        case '**':
-        case '|':
-        case '&':
-        case '^':
-        case '<<':
-        case '>>': {
-          const left = resolveNodeType(path.get('left'));
-          const right = resolveNodeType(path.get('right'));
-          if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
-          if (left !== null && right !== null) return { type: 'number' };
-          return null;
+        return null;
+      case 'UpdateExpression':
+        // ++ and -- work on both Number and BigInt, preserving the type
+        return resolveNumericType(path.get('argument'));
+      case 'BinaryExpression':
+        switch (path.node.operator) {
+          case '==':
+          case '!=':
+          case '===':
+          case '!==':
+          case '<':
+          case '>':
+          case '<=':
+          case '>=':
+          case 'instanceof':
+          case 'in':
+            return { type: 'boolean' };
+          case '+': {
+            const left = resolveNodeType(path.get('left'));
+            const right = resolveNodeType(path.get('right'));
+            if (left?.type === 'string' || right?.type === 'string') return { type: 'string' };
+            if (left?.type === 'number' && right?.type === 'number') return { type: 'number' };
+            if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
+            return null;
+          }
+          // >>> (unsigned right shift) throws on BigInt, result is always Number
+          case '>>>':
+            return { type: 'number' };
+          // arithmetic and bitwise operators work on both Number and BigInt
+          case '-':
+          case '*':
+          case '/':
+          case '%':
+          case '**':
+          case '|':
+          case '&':
+          case '^':
+          case '<<':
+          case '>>': {
+            const left = resolveNodeType(path.get('left'));
+            const right = resolveNodeType(path.get('right'));
+            if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
+            if (left !== null && right !== null) return { type: 'number' };
+            return null;
+          }
         }
-      } return null;
+        return null;
+      case 'SequenceExpression': {
+        const expressions = path.get('expressions');
+        if (expressions.length) return resolveNodeType(expressions[expressions.length - 1]);
+        return null;
+      }
+      case 'AssignmentExpression':
+        if (path.node.operator === '=') return resolveNodeType(path.get('right'));
+        return null;
+      case 'ConditionalExpression': {
+        const consequent = resolveNodeType(path.get('consequent'));
+        const alternate = resolveNodeType(path.get('alternate'));
+        if (consequent && alternate &&
+          consequent.type === alternate.type &&
+          consequent.constructor === alternate.constructor) return consequent;
+        return null;
+      }
+      case 'ParenthesizedExpression':
+        return resolveNodeType(path.get('expression'));
+      case 'TSAsExpression':
+      case 'TSSatisfiesExpression':
+      case 'TSNonNullExpression':
+      case 'TSInstantiationExpression':
+      case 'TSTypeAssertion':
+      case 'TypeCastExpression':
+        return resolveNodeType(path.get('expression'));
     }
-
-    if (path.isSequenceExpression()) {
-      const expressions = path.get('expressions');
-      if (expressions.length) return resolveNodeType(expressions[expressions.length - 1]);
-    }
-
-    if (path.isAssignmentExpression() && path.node.operator === '=') {
-      return resolveNodeType(path.get('right'));
-    }
-
-    if (path.isConditionalExpression()) {
-      const consequent = resolveNodeType(path.get('consequent'));
-      const alternate = resolveNodeType(path.get('alternate'));
-      if (consequent && alternate &&
-        consequent.type === alternate.type &&
-        consequent.constructor === alternate.constructor) return consequent;
-      return null;
-    }
-
-    if (path.isParenthesizedExpression()) {
-      return resolveNodeType(path.get('expression'));
-    }
-
-    if (
-      path.isTSAsExpression() ||
-      path.isTSSatisfiesExpression() ||
-      path.isTSNonNullExpression() ||
-      path.isTSInstantiationExpression() ||
-      path.isTSTypeAssertion() ||
-      path.isTypeCastExpression()
-    ) return resolveNodeType(path.get('expression'));
-
     return null;
   }
 
