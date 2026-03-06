@@ -22,6 +22,7 @@ const TYPE_HINTS = new Set([
   'array',
   'boolean',
   'function',
+  'iterator',
   'number',
   'object',
   'regexp',
