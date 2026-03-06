@@ -265,7 +265,7 @@ export const InstanceProperties = {
   big: { global: { string: 'string/big' } },
   blink: { global: { string: 'string/blink' } },
   bold: { global: { string: 'string/bold' } },
-  chunks: { global: 'iterator/chunks' },
+  chunks: { global: { iterator: 'iterator/chunks' } },
   clamp: { number: 'instance/clamp' },
   codePointAt: { string: 'instance/code-point-at' },
   concat: { array: 'instance/concat' },
@@ -273,17 +273,17 @@ export const InstanceProperties = {
   demethodize: { function: 'instance/demethodize' },
   description: { global: 'symbol/description' },
   dotAll: { global: { regexp: 'regexp/dot-all' } },
-  drop: { global: 'iterator/drop' },
+  drop: { global: { iterator: 'iterator/drop' } },
   endsWith: { string: 'instance/ends-with' },
   entries: 'instance/entries',
-  every: { global: 'iterator/every' },
+  every: { global: { iterator: 'iterator/every' } },
   exec: { global: { regexp: 'regexp/exec' } },
   fill: { array: 'instance/fill' },
   filter: {
     pure: 'instance/filter',
     global: {
-      common: ['array/filter', 'iterator/filter'],
       array: 'array/filter',
+      iterator: 'iterator/filter',
     },
   },
   filterReject: { array: 'instance/filter-reject' },
@@ -291,8 +291,8 @@ export const InstanceProperties = {
   find: {
     pure: 'instance/find',
     global: {
-      common: ['array/find', 'iterator/find'],
       array: 'array/find',
+      iterator: 'iterator/find',
     },
   },
   findIndex: { array: 'instance/find-index' },
@@ -304,15 +304,18 @@ export const InstanceProperties = {
   flatMap: {
     pure: 'instance/flat-map',
     global: {
-      common: ['array/flat-map', 'iterator/flat-map'],
       array: 'array/flat-map',
+      iterator: 'iterator/flat-map',
     },
   },
   fontcolor: { global: { string: 'string/fontcolor' } },
   fontsize: { global: { string: 'string/fontsize' } },
   forEach: {
     pure: 'instance/for-each',
-    global: ['instance/for-each', 'iterator/for-each'],
+    global: {
+      common: ['instance/for-each', 'iterator/for-each'],
+      iterator: 'iterator/for-each',
+    },
   },
   getFloat16: { global: 'data-view/get-float16' },
   getUint8Clamped: { global: 'data-view/get-uint8-clamped' },
@@ -327,8 +330,8 @@ export const InstanceProperties = {
   join: {
     pure: 'instance/join',
     global: {
-      common: ['array/join', 'iterator/join'],
       array: 'array/join',
+      iterator: 'iterator/join',
     },
   },
   keys: 'instance/keys',
@@ -337,8 +340,8 @@ export const InstanceProperties = {
   map: {
     pure: 'instance/map',
     global: {
-      common: ['array/map', 'iterator/map'],
       array: 'array/map',
+      iterator: 'iterator/map',
     },
   },
   match: { global: {
@@ -352,8 +355,8 @@ export const InstanceProperties = {
   reduce: {
     pure: 'instance/reduce',
     global: {
-      common: ['array/reduce', 'iterator/reduce'],
       array: 'array/reduce',
+      iterator: 'iterator/reduce',
     },
   },
   reduceRight: { array: 'instance/reduce-right' },
@@ -368,7 +371,7 @@ export const InstanceProperties = {
   setUint8Clamped: { global: 'data-view/set-uint8-clamped' },
   slice: { array: 'instance/slice' },
   small: { global: { string: 'string/small' } },
-  some: { global: 'iterator/some' },
+  some: { global: { iterator: 'iterator/some' } },
   sort: { array: 'instance/sort' },
   splice: { array: 'instance/splice' },
   split: { global: {
@@ -379,10 +382,10 @@ export const InstanceProperties = {
   strike: { global: { string: 'string/strike' } },
   sub: { global: { string: 'string/sub' } },
   sup: { global: { string: 'string/sup' } },
-  take: { global: 'iterator/take' },
+  take: { global: { iterator: 'iterator/take' } },
   test: { global: { regexp: 'regexp/test' } },
-  toArray: { global: 'iterator/to-array' },
-  toAsync: { global: 'iterator/to-async' },
+  toArray: { global: { iterator: 'iterator/to-array' } },
+  toAsync: { global: { iterator: 'iterator/to-async' } },
   toExponential: {
     number: { dependencies: 'instance/to-exponential', filters: [['min-args', 1]] },
   },
@@ -403,7 +406,7 @@ export const InstanceProperties = {
   uniqueBy: { array: 'instance/unique-by' },
   unshift: { array: 'instance/unshift' },
   values: 'instance/values',
-  windows: { global: 'iterator/windows' },
+  windows: { global: { iterator: 'iterator/windows' } },
   with: { array: 'instance/with' },
   __defineGetter__: { global: 'object/define-getter' },
   __defineSetter__: { global: 'object/define-setter' },
