@@ -9,6 +9,7 @@ const entries = new Set(Object.keys(await fs.readJson('packages/core-js-compat/e
 const TYPE_HINTS = new Set([
   'common',
   'array',
+  'bigint',
   'boolean',
   'function',
   'iterator',
@@ -16,6 +17,7 @@ const TYPE_HINTS = new Set([
   'object',
   'regexp',
   'string',
+  'symbol',
 ]);
 
 function dict() {
