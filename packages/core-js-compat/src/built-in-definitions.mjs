@@ -271,11 +271,14 @@ export const InstanceProperties = {
   concat: { array: 'instance/concat' },
   copyWithin: { array: 'instance/copy-within' },
   demethodize: { function: 'instance/demethodize' },
-  description: { global: 'symbol/description' },
+  description: { global: { symbol: 'symbol/description' } },
   dotAll: { global: { regexp: 'regexp/dot-all' } },
   drop: { global: { iterator: 'iterator/drop' } },
   endsWith: { string: 'instance/ends-with' },
-  entries: 'instance/entries',
+  entries: {
+    common: 'instance/entries',
+    array: 'array/entries',
+  },
   every: { global: { iterator: 'iterator/every' } },
   exec: { global: { regexp: 'regexp/exec' } },
   fill: { array: 'instance/fill' },
@@ -287,7 +290,7 @@ export const InstanceProperties = {
     },
   },
   filterReject: { array: 'instance/filter-reject' },
-  finally: { global: 'promise/finally' },
+  finally: { global: { promise: 'promise/finally' } },
   find: {
     pure: 'instance/find',
     global: {
@@ -317,8 +320,6 @@ export const InstanceProperties = {
       iterator: 'iterator/for-each',
     },
   },
-  getFloat16: { global: 'data-view/get-float16' },
-  getUint8Clamped: { global: 'data-view/get-uint8-clamped' },
   includes: {
     common: 'instance/includes',
     array: 'array/includes',
@@ -334,7 +335,10 @@ export const InstanceProperties = {
       iterator: 'iterator/join',
     },
   },
-  keys: 'instance/keys',
+  keys: {
+    common: 'instance/keys',
+    array: 'array/keys',
+  },
   lastIndexOf: { array: 'instance/last-index-of' },
   link: { global: { string: 'string/link' } },
   map: {
@@ -367,8 +371,6 @@ export const InstanceProperties = {
   search: { global: {
     string: { dependencies: 'string/search', filters: [['arg-is-string', 0]] },
   } },
-  setFloat16: { global: 'data-view/set-float16' },
-  setUint8Clamped: { global: 'data-view/set-uint8-clamped' },
   slice: { array: 'instance/slice' },
   small: { global: { string: 'string/small' } },
   some: { global: { iterator: 'iterator/some' } },
@@ -392,7 +394,7 @@ export const InstanceProperties = {
   toFixed: {
     number: { dependencies: 'instance/to-fixed', filters: [['min-args', 1]] },
   },
-  toJSON: { global: 'date/to-json' },
+  toJSON: { global: { date: 'date/to-json' } },
   toReversed: { array: 'instance/to-reversed' },
   toSorted: { array: 'instance/to-sorted' },
   toSpliced: { array: 'instance/to-spliced' },
@@ -405,7 +407,10 @@ export const InstanceProperties = {
   trimStart: { string: 'instance/trim-start' },
   uniqueBy: { array: 'instance/unique-by' },
   unshift: { array: 'instance/unshift' },
-  values: 'instance/values',
+  values: {
+    common: 'instance/values',
+    array: 'array/values',
+  },
   windows: { global: { iterator: 'iterator/windows' } },
   with: { array: 'instance/with' },
   __defineGetter__: { global: 'object/define-getter' },
