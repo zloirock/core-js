@@ -1,4 +1,4 @@
 'use strict';
-var parent = require('../../es/regexp/has-indices');
+var parent = require('../../stable/regexp/has-indices');
 
 module.exports = parent;
