@@ -6,7 +6,7 @@
 
 </div>
 
-**Welcome to our new website, [core-js.io](https://core-js.io/), where our documentation is moving!**
+**Welcome to our new website, [core-js.io](https://core-js.io), where our documentation is moving!**
 ---
 
 **I highly recommend reading this: [So, what's next?](https://core-js.io/blog/2023-02-14-so-whats-next)**
