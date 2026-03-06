@@ -170,7 +170,7 @@ if (isForced('RegExp', BASE_FORCED)) {
       if (sticky && UNSUPPORTED_Y) flags = replace(flags, /y/g, '');
     }
 
-    if (UNSUPPORTED_HAS_INDICES && 'hasIndices' in re1) {
+    if (UNSUPPORTED_HAS_INDICES) {
       hasIndices = !!flags && stringIndexOf(flags, 'd') > -1;
       if (hasIndices) flags = replace(flags, /d/g, '');
     }
