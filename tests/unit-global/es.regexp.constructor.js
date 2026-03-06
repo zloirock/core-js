@@ -126,7 +126,7 @@ if (DESCRIPTORS) {
     assert.same(RegExp('(?<year>\\d{4})-\\k<year>').exec('2024-2025'), null, 'NCG \\k backreference #2');
     assert.same(RegExp('(?<a>.)(?<b>.)\\k<b>\\k<a>').exec('abba')?.[0], 'abba', 'NCG \\k multiple backreferences');
 
-// escaped backslash before `k<name>` should not be treated as backreference
+    // escaped backslash before `k<name>` should not be treated as backreference
     // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
     assert.same(RegExp('(?<a>x)\\\\k<a>').exec('x\\k<a>')?.[0], 'x\\k<a>', 'NCG \\\\k not confused with \\k backreference');
     assert.same(RegExp('(?<a>x)\\\\\\k<a>').exec('x\\x')?.[0], 'x\\x', 'NCG escaped backslash before backreference');
@@ -204,6 +204,7 @@ if (DESCRIPTORS) {
     assert.same(match8.indices[1], undefined, 'optional group indices should be undefined');
 
     // Test from regex literal (if supported)
+    // eslint-disable-next-line no-eval -- required for testing regex literal
     try {
       const re13 = eval('/a/d');
       assert.true(re13.hasIndices, 'hasIndices from literal');
@@ -214,6 +215,7 @@ if (DESCRIPTORS) {
     }
 
     // Edge case: empty capturing group
+    // eslint-disable-next-line sonarjs/slow-regex -- required for testing
     const re14 = new RegExp('(a*)b', 'd');
     const match10 = re14.exec('b');
     assert.deepEqual(match10.indices[0], [0, 1], 'empty group match indices');
@@ -234,6 +236,7 @@ if (DESCRIPTORS) {
     assert.same(match12.indices[1], undefined, 'NPCG should be undefined');
 
     // Edge case: multiple optional groups
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
     const re17 = new RegExp('(a)?(b)?(c)?', 'd');
     const match13 = re17.exec('b');
     assert.deepEqual(match13.indices[0], [0, 1], 'multiple optional entire match');
@@ -253,6 +256,7 @@ if (DESCRIPTORS) {
     assert.deepEqual(match15.indices[1], [0, 3], 'escaped digits group');
 
     // Edge case: test with ignoreCase flag
+    // eslint-disable-next-line regexp/letter-case -- required for testing
     const re20 = new RegExp('(A)', 'di');
     const match16 = re20.exec('a');
     assert.deepEqual(match16.indices[0], [0, 1], 'ignoreCase match');
@@ -272,6 +276,7 @@ if (DESCRIPTORS) {
 
     // Edge case: hasIndices is readonly (not writable)
     const re23 = new RegExp('a', 'd');
+    // eslint-disable-next-line no-unused-vars -- required for testing
     const descriptor = Object.getOwnPropertyDescriptor(re23, 'hasIndices');
     // Note: in polyfilled environments, hasIndices might be writable
     assert.true(re23.hasIndices, 'hasIndices remains true');
