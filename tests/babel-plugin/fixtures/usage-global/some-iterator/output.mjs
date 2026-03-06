@@ -5,5 +5,4 @@ import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-import "core-js/modules/web.dom-collections.values";
 [].values().some(fn);
