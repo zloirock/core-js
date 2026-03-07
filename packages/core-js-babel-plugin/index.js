@@ -531,11 +531,7 @@ module.exports = defineProvider(({
       const [dep] = dependencies;
 
       switch (kind) {
-        case 'global': {
-          const id = injectPureImport(dep, resolved.name, utils);
-          if (id) path.replaceWith(id);
-        } break;
-
+        case 'global':
         case 'static': {
           const id = injectPureImport(dep, resolved.name, utils);
           if (id) {
