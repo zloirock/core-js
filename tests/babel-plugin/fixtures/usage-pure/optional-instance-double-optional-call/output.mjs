@@ -1,3 +1,3 @@
 var _ref;
 import _flatInstanceProperty from "@core-js/pure/actual/instance/flat";
-foo == null ? void 0 : _flatInstanceProperty(_ref = foo.bar).call(_ref);
+(_ref = foo?.bar) == null ? void 0 : _flatInstanceProperty(_ref).call(_ref);
