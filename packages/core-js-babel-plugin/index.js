@@ -641,6 +641,8 @@ module.exports = defineProvider(({
         const destructParent = objectPattern.parentPath;
         if (!destructParent.isVariableDeclarator() && !destructParent.isAssignmentExpression()) return;
         if (destructParent.isAssignmentExpression() && !destructParent.parentPath.isExpressionStatement()) return;
+        // for-in/for-of: value comes from iteration, not from init — can't polyfill
+        if (destructParent.isVariableDeclarator() && !destructParent.node.init) return;
         // insertBefore in for-loop init wraps in IIFE, breaking variable scope
         if (destructParent.isVariableDeclarator() && objectPattern.node.properties.length > 1
           && destructParent.parentPath.parentPath.isForStatement()) return;
