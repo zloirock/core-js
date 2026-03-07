@@ -119,15 +119,21 @@ module.exports = defineProvider(({
   }
 
   function resolvePath(path) {
-    if (!path.isIdentifier()) return path;
-    const binding = path.scope.getBinding(path.node.name);
-    if (!binding || !binding.constant) return path;
-    const { path: bindingPath } = binding;
-    if (bindingPath.isVariableDeclarator()) {
-      const init = bindingPath.get('init');
-      if (init.node) return init;
+    let depth = 5;
+    while (depth-- && path.isIdentifier()) {
+      const binding = path.scope.getBinding(path.node.name);
+      if (!binding || !binding.constant) break;
+      const { path: bindingPath } = binding;
+      if (bindingPath.isVariableDeclarator()) {
+        const init = bindingPath.get('init');
+        if (init.node) {
+          path = init;
+          continue;
+        }
+      }
+      if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return bindingPath;
+      break;
     }
-    if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return bindingPath;
     return path;
   }
 
