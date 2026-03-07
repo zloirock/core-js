@@ -2,6 +2,7 @@ import { cpus } from 'node:os';
 import { fs } from 'zx';
 
 const { mkdir, rm, writeJson } = fs;
+const { cyan, green, grey, red } = chalk;
 
 const { TYPE_DEFINITIONS_TESTS } = process.env;
 
@@ -95,14 +96,14 @@ async function runTask({ cwd, ts = DEFAULT_TYPE_SCRIPT_VERSION, config, args = [
   const task = $({ cwd, verbose: false })`npx --package typescript@${ ts } tsc --project ${ config } ${ args }`;
   // eslint-disable-next-line no-underscore-dangle -- third-party code
   const { cmd } = task._snapshot;
-  echo`run ${ chalk.cyan(cmd) }`;
+  echo`run ${ cyan(cmd) }`;
   tested++;
   try {
     await task;
-    echo(chalk.green(`success ${ chalk.cyan(cmd) }`));
+    echo(green(`success ${ cyan(cmd) }`));
   } catch (error) {
     failed++;
-    echo(chalk.red(`fail ${ chalk.cyan(cmd) }:\n${ chalk.grey(error) }`));
+    echo(red(`fail ${ cyan(cmd) }:\n${ grey(error) }`));
   }
 }
 
@@ -187,6 +188,6 @@ await prepareEnvironments();
 await runTasksInParallel();
 await clearTmpDir();
 
-echo(`Tested: ${ chalk.green(tested) }, Failed: ${ chalk.red(failed) }`);
+echo(`Tested: ${ green(tested) }, Failed: ${ failed ? red(failed) : green(failed) }`);
 
 if (failed) throw new Error('Some tests have failed');
