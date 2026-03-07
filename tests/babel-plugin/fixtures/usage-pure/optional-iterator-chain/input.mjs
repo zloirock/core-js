@@ -1,0 +1,1 @@
+x?.[Symbol.iterator]().next();
