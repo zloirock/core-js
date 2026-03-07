@@ -137,10 +137,20 @@ module.exports = defineProvider(({
     return path;
   }
 
+  function $Primitive(type) {
+    this.type = type;
+    this.constructor = null;
+  }
+
+  function $Object(constructor) {
+    this.type = 'object';
+    this.constructor = constructor;
+  }
+
   function resolveNumericType(path) {
     const resolved = resolveNodeType(path);
     if (resolved === null) return null;
-    return { type: resolved.type === 'bigint' ? 'bigint' : 'number' };
+    return new $Primitive(resolved.type === 'bigint' ? 'bigint' : 'number');
   }
 
   function resolveUnionType(leftPath, rightPath) {
@@ -155,14 +165,14 @@ module.exports = defineProvider(({
       case '+': {
         const left = resolveNodeType(leftPath);
         const right = resolveNodeType(rightPath);
-        if (left?.type === 'string' || right?.type === 'string') return { type: 'string' };
-        if (left?.type === 'number' && right?.type === 'number') return { type: 'number' };
-        if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
+        if (left?.type === 'string' || right?.type === 'string') return new $Primitive('string');
+        if (left?.type === 'number' && right?.type === 'number') return new $Primitive('number');
+        if (left?.type === 'bigint' && right?.type === 'bigint') return new $Primitive('bigint');
         return null;
       }
       // >>> (unsigned right shift) throws on BigInt, result is always Number
       case '>>>':
-        return { type: 'number' };
+        return new $Primitive('number');
       // arithmetic and bitwise operators work on both Number and BigInt
       // mixing them throws, so knowing one operand's type determines the result
       case '-':
@@ -177,8 +187,8 @@ module.exports = defineProvider(({
       case '>>': {
         const left = resolveNodeType(leftPath);
         const right = resolveNodeType(rightPath);
-        if (left?.type === 'bigint' || right?.type === 'bigint') return { type: 'bigint' };
-        if (left !== null || right !== null) return { type: 'number' };
+        if (left?.type === 'bigint' || right?.type === 'bigint') return new $Primitive('bigint');
+        if (left !== null || right !== null) return new $Primitive('number');
         return null;
       }
     }
@@ -190,46 +200,50 @@ module.exports = defineProvider(({
 
     switch (path.node.type) {
       case 'NullLiteral':
-        return { type: 'null' };
+        return new $Primitive('null');
       case 'StringLiteral':
       case 'TemplateLiteral':
-        return { type: 'string' };
+        return new $Primitive('string');
       case 'NumericLiteral':
-        return { type: 'number' };
+        return new $Primitive('number');
       case 'BigIntLiteral':
-        return { type: 'bigint' };
+        return new $Primitive('bigint');
       case 'BooleanLiteral':
-        return { type: 'boolean' };
+        return new $Primitive('boolean');
       case 'RegExpLiteral':
-        return { type: 'object', constructor: 'RegExp' };
+        return new $Object('RegExp');
       case 'ObjectExpression':
-        return { type: 'object', constructor: 'Object' };
+        return new $Object('Object');
       case 'ArrayExpression':
-        return { type: 'object', constructor: 'Array' };
+        return new $Object('Array');
       case 'FunctionExpression':
       case 'ArrowFunctionExpression':
       case 'FunctionDeclaration':
       case 'ClassExpression':
       case 'ClassDeclaration':
-        return { type: 'object', constructor: 'Function' };
+        return new $Object('Function');
       case 'NewExpression': {
         const callee = path.get('callee');
-        return { type: 'object', constructor: callee.isIdentifier() ? callee.node.name : null };
+        return new $Object(callee.isIdentifier() ? callee.node.name : null);
       }
       case 'CallExpression':
       case 'OptionalCallExpression': {
         const callee = path.get('callee');
-        if (callee.isIdentifier() && !callee.scope.getBinding(callee.node.name)) {
+        const { name } = callee.node;
+        if (callee.isIdentifier() && !callee.scope.getBinding(name)) {
           // just some popular cases
-          switch (callee.node.name) {
-            case 'String': return { type: 'string' };
-            case 'Number': return { type: 'number' };
-            case 'Boolean': return { type: 'boolean' };
-            case 'BigInt': return { type: 'bigint' };
-            case 'Symbol': return { type: 'symbol' };
-            case 'Array': return { type: 'object', constructor: 'Array' };
-            case 'Object': return { type: 'object', constructor: 'Object' };
-            case 'RegExp': return { type: 'object', constructor: 'RegExp' };
+          switch (name) {
+            case 'String':
+            case 'Number':
+            case 'Boolean':
+            case 'BigInt':
+            case 'Symbol':
+              return new $Primitive(name.toLowerCase());
+            case 'Array':
+            case 'Object':
+            case 'RegExp':
+            case 'Function':
+              return new $Object(name);
           }
         }
         return null;
@@ -237,15 +251,15 @@ module.exports = defineProvider(({
       case 'UnaryExpression':
         switch (path.node.operator) {
           case 'void':
-            return { type: 'undefined' };
+            return new $Primitive('undefined');
           case 'typeof':
-            return { type: 'string' };
+            return new $Primitive('string');
           case '!':
           case 'delete':
-            return { type: 'boolean' };
+            return new $Primitive('boolean');
           // unary + throws on BigInt, result is always Number
           case '+':
-            return { type: 'number' };
+            return new $Primitive('number');
           // unary - and ~ work on both Number and BigInt, preserving the type
           case '-':
           case '~':
@@ -267,7 +281,7 @@ module.exports = defineProvider(({
           case '>=':
           case 'instanceof':
           case 'in':
-            return { type: 'boolean' };
+            return new $Primitive('boolean');
           default:
             return resolveBinaryOperatorType(path.node.operator, path.get('left'), path.get('right'));
         }
@@ -575,6 +589,7 @@ module.exports = defineProvider(({
         if (desc === null) return true;
       }
       const { dependencies, filters } = desc;
+      if (!dependencies?.length) return true;
       if (applyFilters(filters, path)) return true;
       for (const entry of dependencies) {
         injectModulesForModeEntry(entry, utils);
