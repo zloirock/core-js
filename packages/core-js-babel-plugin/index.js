@@ -388,6 +388,22 @@ module.exports = defineProvider(({
     return utils.injectDefaultImport(`${ pkg }/${ mode }/${ entry }`, hint);
   }
 
+  function resolvePureEntry(kind, desc, meta, path) {
+    if (kind === 'instance') {
+      const hinted = resolveHint(desc, meta);
+      if (hinted === null) return null;
+      if (applyFilters(hinted.filters, path)) return null;
+      if (!hinted.dependencies?.length) return null;
+      const [entry] = hinted.dependencies;
+      // import from common wrapper to get correct (non-decurried) export
+      return { entry, importEntry: hasOwn(desc, 'common') ? desc.common.dependencies[0] : entry };
+    }
+    if (applyFilters(desc.filters, path)) return null;
+    if (!desc.dependencies?.length) return null;
+    const [entry] = desc.dependencies;
+    return { entry, importEntry: entry };
+  }
+
   function memoize(node, scope) {
     if (t.isIdentifier(node)) return [t.cloneNode(node), node];
     const ref = scope.generateDeclaredUidIdentifier('ref');
@@ -481,6 +497,38 @@ module.exports = defineProvider(({
     replaceAndWrap(path.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
   }
 
+  function handleDestructuredProperty(prop, id) {
+    const localBinding = t.cloneNode(prop.node.value);
+    const objectPattern = prop.parentPath;
+    const parent = objectPattern.parentPath;
+
+    let newStatement, insertTarget;
+
+    if (parent.isVariableDeclarator()) {
+      const declaration = parent.parentPath;
+      newStatement = t.variableDeclaration(declaration.node.kind, [
+        t.variableDeclarator(localBinding, id),
+      ]);
+      insertTarget = declaration;
+    } else if (parent.isAssignmentExpression()) {
+      const exprParent = parent.parentPath;
+      if (!exprParent.isExpressionStatement()) return;
+      newStatement = t.expressionStatement(
+        t.assignmentExpression('=', localBinding, id),
+      );
+      insertTarget = exprParent;
+    }
+
+    if (!newStatement) return;
+
+    prop.remove();
+    if (objectPattern.node.properties.length === 0) {
+      insertTarget.replaceWith(newStatement);
+    } else {
+      insertTarget.insertBefore(newStatement);
+    }
+  }
+
   return {
     name: 'core-js@4',
     polyfills: modulesListForTargetVersion,
@@ -522,25 +570,32 @@ module.exports = defineProvider(({
       if (path.parentPath.isUnaryExpression({ operator: 'delete' })) return;
 
       if (meta.kind === 'property') {
-        if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
-        if (!path.isReferenced()) return;
-        if (path.parentPath.isUpdateExpression()) return;
-        if (t.isSuper(path.node.object)) return;
+        if (path.isObjectProperty()) {
+          // destructuring: const { from } = Array
+          if (!t.isIdentifier(path.node.value)) return;
+          // can't extract property when rest element is present — would change rest semantics
+          if (path.parentPath.node.properties.some(p => t.isRestElement(p))) return;
+        } else {
+          if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
+          if (!path.isReferenced()) return;
+          if (path.parentPath.isUpdateExpression()) return;
+          if (t.isSuper(path.node.object)) return;
 
-        if (meta.key === 'Symbol.iterator') {
-          const { parent, node } = path;
-          if (node.computed) skippedNodes.add(node.property);
-          const isCall = t.isCallExpression(parent, { callee: node }) || t.isOptionalCallExpression(parent, { callee: node });
+          if (meta.key === 'Symbol.iterator') {
+            const { parent, node } = path;
+            if (node.computed) skippedNodes.add(node.property);
+            const isCall = t.isCallExpression(parent, { callee: node }) || t.isOptionalCallExpression(parent, { callee: node });
 
-          if (isCall && parent.arguments.length === 0) {
-            const id = injectPureImport('get-iterator', 'getIterator', utils);
-            if (id) replaceCallWithSimple(path, id);
-          } else {
-            const id = injectPureImport('get-iterator-method', 'getIteratorMethod', utils);
-            if (id) replaceInstanceLike(path, id);
+            if (isCall && parent.arguments.length === 0) {
+              const id = injectPureImport('get-iterator', 'getIterator', utils);
+              if (id) replaceCallWithSimple(path, id);
+            } else {
+              const id = injectPureImport('get-iterator-method', 'getIteratorMethod', utils);
+              if (id) replaceInstanceLike(path, id);
+            }
+
+            return;
           }
-
-          return;
         }
       }
 
@@ -548,29 +603,29 @@ module.exports = defineProvider(({
       if (!resolved || !hasOwn(resolved.desc, 'pure')) return;
 
       const { kind, desc: { pure: desc } } = resolved;
+      const pureEntry = resolvePureEntry(kind, desc, meta, path);
+      if (!pureEntry) return;
 
-      if (kind === 'instance') {
-        const hinted = resolveHint(desc, meta);
-        if (hinted === null) return;
-        // filter and check target support by type-specific hint
-        if (applyFilters(hinted.filters, path)) return;
-        if (!hinted.dependencies?.length) return;
-        const [hintedDep] = hinted.dependencies;
-        if (!isEntryNeeded(hintedDep)) return;
-        // import from common wrapper to get correct (non-decurried) export
-        const importDep = hasOwn(desc, 'common') ? desc.common.dependencies[0] : hintedDep;
-        const id = injectPureImport(importDep, `${ resolved.name }InstanceProperty`, utils);
-        if (id) replaceInstanceLike(path, id);
-        return;
-      }
+      const { entry, importEntry } = pureEntry;
 
-      const { dependencies, filters } = desc;
-      if (applyFilters(filters, path)) return;
-      if (!dependencies?.length) return;
+      if (!isEntryNeeded(entry)) return;
 
-      const [dep] = dependencies;
-      const id = injectPureImport(dep, resolved.name, utils);
-      if (id) {
+      const hintName = kind === 'instance' ? `${ resolved.name }InstanceProperty` : resolved.name;
+      const id = injectPureImport(importEntry, hintName, utils);
+      if (!id) return;
+
+      if (path.isObjectProperty()) {
+        if (kind === 'instance') {
+          const parent = path.parentPath.parentPath;
+          const objectNode = parent.isVariableDeclarator() ? parent.node.init
+            : parent.isAssignmentExpression() ? parent.node.right : null;
+          if (objectNode) handleDestructuredProperty(path, t.callExpression(id, [t.cloneNode(objectNode)]));
+        } else {
+          handleDestructuredProperty(path, id);
+        }
+      } else if (kind === 'instance') {
+        replaceInstanceLike(path, id);
+      } else {
         path.replaceWith(id);
         normalizeOptionalChain(path, true);
       }
