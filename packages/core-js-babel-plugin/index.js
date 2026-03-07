@@ -357,21 +357,17 @@ module.exports = defineProvider(({
         if (parent.arguments.length >= length) return false;
         return parent.arguments.every(arg => !t.isSpreadElement(arg));
       }
-      case 'arg-is-string': {
-        if (!isCallee(node, parent)) return false;
-        const [index] = args;
-        if (parent.arguments.length < index + 1) return false;
-        if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
-        return isString(path.parentPath.get('arguments')[index]);
-      }
+      case 'arg-is-string':
       case 'arg-is-object': {
         if (!isCallee(node, parent)) return false;
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
         if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
-        return isObject(path.parentPath.get('arguments')[index]);
+        const arg = path.parentPath.get('arguments')[index];
+        return name === 'arg-is-string' ? isString(arg) : isObject(arg);
       }
     }
+    return false;
   }
 
   function applyFilters(filters, path) {
@@ -384,7 +380,6 @@ module.exports = defineProvider(({
   }
 
   function injectPureImport(entry, hint, utils) {
-    if (!isEntryNeeded(entry)) return null;
     return utils.injectDefaultImport(`${ pkg }/${ mode }/${ entry }`, hint);
   }
 
@@ -395,13 +390,15 @@ module.exports = defineProvider(({
       if (applyFilters(hinted.filters, path)) return null;
       if (!hinted.dependencies?.length) return null;
       const [entry] = hinted.dependencies;
+      if (!isEntryNeeded(entry)) return null;
       // import from common wrapper to get correct (non-decurried) export
-      return { entry, importEntry: hasOwn(desc, 'common') ? desc.common.dependencies[0] : entry };
+      return hasOwn(desc, 'common') ? desc.common.dependencies[0] : entry;
     }
     if (applyFilters(desc.filters, path)) return null;
     if (!desc.dependencies?.length) return null;
     const [entry] = desc.dependencies;
-    return { entry, importEntry: entry };
+    if (!isEntryNeeded(entry)) return null;
+    return entry;
   }
 
   function memoize(node, scope) {
@@ -497,35 +494,67 @@ module.exports = defineProvider(({
     replaceAndWrap(path.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
   }
 
+  function handleSymbolIterator(path, utils) {
+    const { parent, node } = path;
+    if (node.computed) skippedNodes.add(node.property);
+    const isCall = t.isCallExpression(parent, { callee: node })
+      || t.isOptionalCallExpression(parent, { callee: node });
+    if (isCall && parent.arguments.length === 0) {
+      if (!isEntryNeeded('get-iterator')) return;
+      replaceCallWithSimple(path, injectPureImport('get-iterator', 'getIterator', utils));
+    } else {
+      if (!isEntryNeeded('get-iterator-method')) return;
+      replaceInstanceLike(path, injectPureImport('get-iterator-method', 'getIteratorMethod', utils));
+    }
+  }
+
+  function resolveDestructuringObject(path) {
+    const parent = path.parentPath.parentPath;
+    const initKey = parent.isVariableDeclarator() ? 'init'
+      : parent.isAssignmentExpression() ? 'right' : null;
+    if (!initKey) return null;
+    const objectNode = parent.node[initKey];
+    if (!objectNode) return null;
+    // memoize non-identifier init when other properties remain to avoid double evaluation
+    if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
+      if (parent.isAssignmentExpression() && !parent.parentPath.isExpressionStatement()) return null;
+      const ref = path.scope.generateUidIdentifier('ref');
+      parent.parentPath.insertBefore(t.variableDeclaration('const', [
+        t.variableDeclarator(ref, objectNode),
+      ]));
+      parent.node[initKey] = t.cloneNode(ref);
+      return ref;
+    }
+    return objectNode;
+  }
+
   function handleDestructuredProperty(prop, id) {
     const localBinding = t.cloneNode(prop.node.value);
     const objectPattern = prop.parentPath;
     const parent = objectPattern.parentPath;
 
-    let newStatement, insertTarget;
+    if (!parent.isVariableDeclarator() && !parent.isAssignmentExpression()) return;
+    if (parent.isAssignmentExpression() && !parent.parentPath.isExpressionStatement()) return;
+
+    prop.remove();
+    const isEmpty = objectPattern.node.properties.length === 0;
 
     if (parent.isVariableDeclarator()) {
       const declaration = parent.parentPath;
-      newStatement = t.variableDeclaration(declaration.node.kind, [
-        t.variableDeclarator(localBinding, id),
-      ]);
-      insertTarget = declaration;
-    } else if (parent.isAssignmentExpression()) {
-      const exprParent = parent.parentPath;
-      if (!exprParent.isExpressionStatement()) return;
-      newStatement = t.expressionStatement(
-        t.assignmentExpression('=', localBinding, id),
-      );
-      insertTarget = exprParent;
-    }
-
-    if (!newStatement) return;
-
-    prop.remove();
-    if (objectPattern.node.properties.length === 0) {
-      insertTarget.replaceWith(newStatement);
+      // multi-declarator: modify in-place to avoid Babel traversal crash
+      if (isEmpty && declaration.node.declarations.length > 1) {
+        parent.node.id = localBinding;
+        parent.node.init = id;
+      } else {
+        const newDecl = t.variableDeclaration(declaration.node.kind, [
+          t.variableDeclarator(localBinding, id),
+        ]);
+        isEmpty ? declaration.replaceWith(newDecl) : declaration.insertBefore(newDecl);
+      }
     } else {
-      insertTarget.insertBefore(newStatement);
+      const stmt = t.expressionStatement(t.assignmentExpression('=', localBinding, id));
+      const target = parent.parentPath;
+      isEmpty ? target.replaceWith(stmt) : target.insertBefore(stmt);
     }
   }
 
@@ -559,9 +588,8 @@ module.exports = defineProvider(({
       if (skippedNodes.has(path.node)) return;
 
       if (meta.kind === 'in') {
-        if (meta.key === 'Symbol.iterator') {
-          const id = injectPureImport('is-iterable', 'isIterable', utils);
-          if (id) path.replaceWith(t.callExpression(id, [path.node.right]));
+        if (meta.key === 'Symbol.iterator' && isEntryNeeded('is-iterable')) {
+          path.replaceWith(t.callExpression(injectPureImport('is-iterable', 'isIterable', utils), [path.node.right]));
         }
         return;
       }
@@ -581,21 +609,7 @@ module.exports = defineProvider(({
           if (path.parentPath.isUpdateExpression()) return;
           if (t.isSuper(path.node.object)) return;
 
-          if (meta.key === 'Symbol.iterator') {
-            const { parent, node } = path;
-            if (node.computed) skippedNodes.add(node.property);
-            const isCall = t.isCallExpression(parent, { callee: node }) || t.isOptionalCallExpression(parent, { callee: node });
-
-            if (isCall && parent.arguments.length === 0) {
-              const id = injectPureImport('get-iterator', 'getIterator', utils);
-              if (id) replaceCallWithSimple(path, id);
-            } else {
-              const id = injectPureImport('get-iterator-method', 'getIteratorMethod', utils);
-              if (id) replaceInstanceLike(path, id);
-            }
-
-            return;
-          }
+          if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, utils);
         }
       }
 
@@ -603,26 +617,20 @@ module.exports = defineProvider(({
       if (!resolved || !hasOwn(resolved.desc, 'pure')) return;
 
       const { kind, desc: { pure: desc } } = resolved;
-      const pureEntry = resolvePureEntry(kind, desc, meta, path);
-      if (!pureEntry) return;
-
-      const { entry, importEntry } = pureEntry;
-
-      if (!isEntryNeeded(entry)) return;
+      const importEntry = resolvePureEntry(kind, desc, meta, path);
+      if (!importEntry) return;
 
       const hintName = kind === 'instance' ? `${ resolved.name }InstanceProperty` : resolved.name;
       const id = injectPureImport(importEntry, hintName, utils);
-      if (!id) return;
 
       if (path.isObjectProperty()) {
+        let value = id;
         if (kind === 'instance') {
-          const parent = path.parentPath.parentPath;
-          const objectNode = parent.isVariableDeclarator() ? parent.node.init
-            : parent.isAssignmentExpression() ? parent.node.right : null;
-          if (objectNode) handleDestructuredProperty(path, t.callExpression(id, [t.cloneNode(objectNode)]));
-        } else {
-          handleDestructuredProperty(path, id);
+          const objectNode = resolveDestructuringObject(path);
+          if (!objectNode) return;
+          value = t.callExpression(id, [t.cloneNode(objectNode)]);
         }
+        handleDestructuredProperty(path, value);
       } else if (kind === 'instance') {
         replaceInstanceLike(path, id);
       } else {
