@@ -208,7 +208,8 @@ module.exports = defineProvider(({
         const callee = path.get('callee');
         return { type: 'object', constructor: callee.isIdentifier() ? callee.node.name : null };
       }
-      case 'CallExpression': {
+      case 'CallExpression':
+      case 'OptionalCallExpression': {
         const callee = path.get('callee');
         if (callee.isIdentifier() && !callee.scope.getBinding(callee.node.name)) {
           // just some popular cases
