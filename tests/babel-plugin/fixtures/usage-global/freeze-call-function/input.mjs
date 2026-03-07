@@ -1,1 +1,1 @@
-Object.freeze(() => { /* empty */ });
+Object.freeze(function () {});
