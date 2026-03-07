@@ -1,0 +1,4 @@
+const {
+  from,
+  ...rest
+} = Array;
