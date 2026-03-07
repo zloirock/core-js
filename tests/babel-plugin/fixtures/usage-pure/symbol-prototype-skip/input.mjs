@@ -1,0 +1,2 @@
+Symbol.prototype;
+Array.prototype;
