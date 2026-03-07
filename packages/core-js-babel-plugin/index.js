@@ -134,6 +134,40 @@ module.exports = defineProvider(({
     return { type: resolved.type === 'bigint' ? 'bigint' : 'number' };
   }
 
+  function resolveBinaryOperatorType(operator, leftPath, rightPath) {
+    switch (operator) {
+      case '+': {
+        const left = resolveNodeType(leftPath);
+        const right = resolveNodeType(rightPath);
+        if (left?.type === 'string' || right?.type === 'string') return { type: 'string' };
+        if (left?.type === 'number' && right?.type === 'number') return { type: 'number' };
+        if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
+        return null;
+      }
+      // >>> (unsigned right shift) throws on BigInt, result is always Number
+      case '>>>':
+        return { type: 'number' };
+      // arithmetic and bitwise operators work on both Number and BigInt
+      case '-':
+      case '*':
+      case '/':
+      case '%':
+      case '**':
+      case '|':
+      case '&':
+      case '^':
+      case '<<':
+      case '>>': {
+        const left = resolveNodeType(leftPath);
+        const right = resolveNodeType(rightPath);
+        if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
+        if (left !== null && right !== null) return { type: 'number' };
+        return null;
+      }
+    }
+    return null;
+  }
+
   function resolveNodeType(path) {
     path = resolvePath(path);
 
@@ -199,36 +233,9 @@ module.exports = defineProvider(({
           case 'instanceof':
           case 'in':
             return { type: 'boolean' };
-          case '+': {
-            const left = resolveNodeType(path.get('left'));
-            const right = resolveNodeType(path.get('right'));
-            if (left?.type === 'string' || right?.type === 'string') return { type: 'string' };
-            if (left?.type === 'number' && right?.type === 'number') return { type: 'number' };
-            if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
-            return null;
-          }
-          // >>> (unsigned right shift) throws on BigInt, result is always Number
-          case '>>>':
-            return { type: 'number' };
-          // arithmetic and bitwise operators work on both Number and BigInt
-          case '-':
-          case '*':
-          case '/':
-          case '%':
-          case '**':
-          case '|':
-          case '&':
-          case '^':
-          case '<<':
-          case '>>': {
-            const left = resolveNodeType(path.get('left'));
-            const right = resolveNodeType(path.get('right'));
-            if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
-            if (left !== null && right !== null) return { type: 'number' };
-            return null;
-          }
+          default:
+            return resolveBinaryOperatorType(path.node.operator, path.get('left'), path.get('right'));
         }
-        return null;
       case 'SequenceExpression': {
         const expressions = path.get('expressions');
         if (expressions.length) return resolveNodeType(expressions[expressions.length - 1]);
@@ -236,7 +243,7 @@ module.exports = defineProvider(({
       }
       case 'AssignmentExpression':
         if (path.node.operator === '=') return resolveNodeType(path.get('right'));
-        return null;
+        return resolveBinaryOperatorType(path.node.operator.slice(0, -1), path.get('left'), path.get('right'));
       case 'ConditionalExpression': {
         const consequent = resolveNodeType(path.get('consequent'));
         const alternate = resolveNodeType(path.get('alternate'));
