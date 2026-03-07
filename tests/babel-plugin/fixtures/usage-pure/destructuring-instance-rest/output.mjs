@@ -1,0 +1,4 @@
+const {
+  at,
+  ...rest
+} = obj;
