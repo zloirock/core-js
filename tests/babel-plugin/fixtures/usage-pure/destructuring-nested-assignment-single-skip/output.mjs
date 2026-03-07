@@ -1,0 +1,3 @@
+const x = {
+  from
+} = Array;
