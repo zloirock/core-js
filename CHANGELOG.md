@@ -101,7 +101,7 @@
   - Added Deno [2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7), [2.7.0](https://github.com/denoland/deno/releases/tag/v2.7.0) and [2.7.2](https://github.com/denoland/deno/releases/tag/v2.7.2) compat data mapping
   - Added Electron 42 compat data mapping
   - Added [Opera Android 95](https://forums.opera.com/topic/87912/opera-for-android-95) compat data mapping
-  - Added Oculus Quest Browser 42 compat data mapping
+  - Added [Oculus Quest Browser 42](https://developers.meta.com/horizon/downloads/package/browser/42.0/) compat data mapping
 
 ### [3.48.0 - 2026.01.21](https://github.com/zloirock/core-js/releases/tag/v3.48.0)
 - Changes [v3.47.0...v3.48.0](https://github.com/zloirock/core-js/compare/v3.47.0...v3.48.0) (126 commits)
