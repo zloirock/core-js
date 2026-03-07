@@ -112,7 +112,9 @@ module.exports = defineProvider(({
   }
 
   function isCallee(callee, parent) {
-    return t.isCallExpression(parent, { callee }) || t.isOptionalCallExpression(parent, { callee }) || t.isNewExpression(parent, { callee });
+    return t.isCallExpression(parent, { callee })
+      || t.isOptionalCallExpression(parent, { callee })
+      || t.isNewExpression(parent, { callee });
   }
 
   function resolvePath(path) {
@@ -205,6 +207,23 @@ module.exports = defineProvider(({
       case 'NewExpression': {
         const callee = path.get('callee');
         return { type: 'object', constructor: callee.isIdentifier() ? callee.node.name : null };
+      }
+      case 'CallExpression': {
+        const callee = path.get('callee');
+        if (callee.isIdentifier() && !callee.scope.getBinding(callee.node.name)) {
+          // just some popular cases
+          switch (callee.node.name) {
+            case 'String': return { type: 'string' };
+            case 'Number': return { type: 'number' };
+            case 'Boolean': return { type: 'boolean' };
+            case 'BigInt': return { type: 'bigint' };
+            case 'Symbol': return { type: 'symbol' };
+            case 'Array': return { type: 'object', constructor: 'Array' };
+            case 'Object': return { type: 'object', constructor: 'Object' };
+            case 'RegExp': return { type: 'object', constructor: 'RegExp' };
+          }
+        }
+        return null;
       }
       case 'UnaryExpression':
         switch (path.node.operator) {
