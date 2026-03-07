@@ -74,6 +74,7 @@ module.exports = defineProvider(({
 
   function getCoreJSEntry(source) {
     source = normalizeImportPath(source);
+    if (source === null) return null;
     for (const $pkg of packages) {
       if (source === $pkg) return '';
       if (source.startsWith(`${ $pkg }/`)) {
