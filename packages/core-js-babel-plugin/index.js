@@ -408,52 +408,72 @@ module.exports = defineProvider(({
       : t.callExpression(callMember, [t.cloneNode(ref), ...args]);
   }
 
-  function normalizeOptionalChain(path) {
+  function deoptionalizeNode(path) {
+    const type = path.isOptionalMemberExpression() ? 'MemberExpression' : 'CallExpression';
+    path.node.type = type;
+    path.type = type;
+    delete path.node.optional;
+  }
+
+  function normalizeOptionalChain(path, all) {
     let { parentPath } = path;
     if (parentPath.isOptionalMemberExpression()) {
-      if (path.key !== 'object') return;
+      if (path.key !== 'object') return null;
     } else if (parentPath.isOptionalCallExpression()) {
-      if (path.key !== 'callee') return;
-    } else return;
-    do {
-      parentPath.type = parentPath.node.type = parentPath.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
-      delete parentPath.node.optional;
+      if (path.key !== 'callee') return null;
+    } else return null;
+    let topPath = null;
+    // eslint-disable-next-line no-unmodified-loop-condition -- safe
+    while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && (all || !parentPath.node.optional)) {
+      topPath = parentPath;
+      deoptionalizeNode(parentPath);
       ({ parentPath } = parentPath);
-    } while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && !parentPath.node.optional);
+    }
+    return topPath;
+  }
+
+  function extractCheck(path) {
+    const { node } = path;
+    if (node.optional) return memoize(node.object, path.scope);
+    let chainStart = null;
+    let current = path.get('object');
+    while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
+      if (current.node.optional) {
+        chainStart = current;
+        break;
+      }
+      current = current.isOptionalMemberExpression() ? current.get('object') : current.get('callee');
+    }
+    if (!chainStart) return [null, node.object];
+    const key = chainStart.isOptionalMemberExpression() ? 'object' : 'callee';
+    const [check, ref] = memoize(chainStart.node[key], path.scope);
+    chainStart.node[key] = t.cloneNode(ref);
+    deoptionalizeNode(chainStart);
+    for (let p = chainStart.parentPath; p !== path; p = p.parentPath) {
+      if (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) deoptionalizeNode(p);
+    }
+    return [check, node.object];
+  }
+
+  function replaceAndWrap(replacePath, result, check) {
+    replacePath.replaceWith(result);
+    const wrapPath = normalizeOptionalChain(replacePath) || replacePath;
+    if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
   }
 
   function replaceInstanceLike(path, id) {
     const { node, parent } = path;
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent)) && parent.callee === node;
-
-    if (node.optional) {
-      const [check, ref] = memoize(node.object, path.scope);
-      const result = isCall
-        ? buildMethodCall(id, ref, path.scope, parent.arguments, parent.optional)
-        : t.callExpression(id, [t.cloneNode(ref)]);
-      const replacePath = isCall ? path.parentPath : path;
-      replacePath.replaceWith(wrapConditional(check, result));
-      normalizeOptionalChain(replacePath);
-    } else if (isCall) {
-      path.parentPath.replaceWith(buildMethodCall(id, node.object, path.scope, parent.arguments, false));
-      normalizeOptionalChain(path.parentPath);
-    } else {
-      path.replaceWith(t.callExpression(id, [node.object]));
-      normalizeOptionalChain(path);
-    }
+    const [check, object] = extractCheck(path);
+    const result = isCall
+      ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
+      : t.callExpression(id, [t.cloneNode(object)]);
+    replaceAndWrap(isCall ? path.parentPath : path, result, check);
   }
 
   function replaceCallWithSimple(path, id) {
-    const { node } = path;
-    if (node.optional) {
-      const [check, ref] = memoize(node.object, path.scope);
-      const replacePath = path.parentPath;
-      replacePath.replaceWith(wrapConditional(check, t.callExpression(id, [t.cloneNode(ref)])));
-      normalizeOptionalChain(replacePath);
-    } else {
-      path.parentPath.replaceWith(t.callExpression(id, [node.object]));
-      normalizeOptionalChain(path.parentPath);
-    }
+    const [check, object] = extractCheck(path);
+    replaceAndWrap(path.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
   }
 
   return {
@@ -542,7 +562,7 @@ module.exports = defineProvider(({
           const id = injectPureImport(dep, resolved.name, utils);
           if (id) {
             path.replaceWith(id);
-            normalizeOptionalChain(path);
+            normalizeOptionalChain(path, true);
           }
         } break;
 
