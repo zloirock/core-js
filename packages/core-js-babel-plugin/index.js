@@ -12,7 +12,7 @@ const defaultCoreJSPackages = ['core-js'];
 const { hasOwn } = Object;
 
 function normalizeImportPath(path) {
-  if (typeof path == 'string') return path
+  return typeof path != 'string' ? null : path
     .replaceAll('\\', '/')
     .replace(/(?:\/(?:index)?)?(?:\.js)?$/i, '')
     .toLowerCase();
@@ -134,6 +134,13 @@ module.exports = defineProvider(({
     return { type: resolved.type === 'bigint' ? 'bigint' : 'number' };
   }
 
+  function resolveUnionType(leftPath, rightPath) {
+    const left = resolveNodeType(leftPath);
+    const right = resolveNodeType(rightPath);
+    if (left && right && left.type === right.type && left.constructor === right.constructor) return left;
+    return null;
+  }
+
   function resolveBinaryOperatorType(operator, leftPath, rightPath) {
     switch (operator) {
       case '+': {
@@ -242,16 +249,20 @@ module.exports = defineProvider(({
         return null;
       }
       case 'AssignmentExpression':
-        if (path.node.operator === '=') return resolveNodeType(path.get('right'));
-        return resolveBinaryOperatorType(path.node.operator.slice(0, -1), path.get('left'), path.get('right'));
-      case 'ConditionalExpression': {
-        const consequent = resolveNodeType(path.get('consequent'));
-        const alternate = resolveNodeType(path.get('alternate'));
-        if (consequent && alternate &&
-          consequent.type === alternate.type &&
-          consequent.constructor === alternate.constructor) return consequent;
-        return null;
-      }
+        switch (path.node.operator) {
+          case '=':
+            return resolveNodeType(path.get('right'));
+          case '||=':
+          case '&&=':
+          case '??=':
+            return resolveUnionType(path.get('left'), path.get('right'));
+          default:
+            return resolveBinaryOperatorType(path.node.operator.slice(0, -1), path.get('left'), path.get('right'));
+        }
+      case 'ConditionalExpression':
+        return resolveUnionType(path.get('consequent'), path.get('alternate'));
+      case 'LogicalExpression':
+        return resolveUnionType(path.get('left'), path.get('right'));
       case 'ParenthesizedExpression':
         return resolveNodeType(path.get('expression'));
       case 'TSAsExpression':
