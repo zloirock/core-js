@@ -9,6 +9,9 @@ const { cyan, green, red, yellow } = chalk;
 const { OVERWRITE } = process.env;
 const UTF8 = { encoding: 'utf8' };
 
+let passed = 0;
+let failed = 0;
+
 async function handleDirectory(directory) {
   const subdirectories = await readdir(directory);
   if (!subdirectories.includes('input.mjs')) {
@@ -31,8 +34,19 @@ async function handleDirectory(directory) {
     return echo`${ cyan(expected) } ${ yellow('created') }`;
   }
 
-  strictEqual(String(await readFile(expected, UTF8)), result, red(directory));
-  echo`${ cyan(directory) } ${ green('passed') }`;
+  try {
+    strictEqual(String(await readFile(expected, UTF8)), result);
+    passed++;
+    echo`${ cyan(directory) } ${ green('passed') }`;
+  } catch (error) {
+    failed++;
+    echo(red(`${ cyan(directory) } failed:`));
+    echo(error.message);
+  }
 }
 
 await handleDirectory(args.length ? `./fixtures/${ args[0] }` : './fixtures');
+
+echo(`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`);
+
+if (failed) throw new Error('Some tests have failed');
