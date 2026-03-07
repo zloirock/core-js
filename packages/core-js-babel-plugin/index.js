@@ -57,7 +57,7 @@ module.exports = defineProvider(({
   const t = babel.types;
   const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
 
-  const packages = pkgs ? [...defaultCoreJSPackages, ...pkgs] : [...defaultCoreJSPackages];
+  const packages = pkgs ? [...defaultCoreJSPackages, ...pkgs] : defaultCoreJSPackages;
 
   const entriesSetForTargetVersion = method === 'usage-pure' && new Set(getEntriesListForTargetVersion(version));
   const modulesListForTargetVersion = getModulesListForTargetVersion(version);
@@ -328,11 +328,7 @@ module.exports = defineProvider(({
     if (hintDescs.length === 1) return hintDescs[0];
 
     if (hintDescs.length > 1) {
-      const dependencies = [...hintDescs.reduce((set, hintDesc) => {
-        hintDesc?.dependencies.forEach(it => set.add(it));
-        return set;
-      }, new Set())];
-
+      const dependencies = [...new Set(hintDescs.flatMap(d => d?.dependencies ?? []))];
       return dependencies.length ? { dependencies } : null;
     }
 
@@ -384,21 +380,17 @@ module.exports = defineProvider(({
   }
 
   function resolvePureEntry(kind, desc, meta, path) {
+    let target = desc;
     if (kind === 'instance') {
-      const hinted = resolveHint(desc, meta);
-      if (hinted === null) return null;
-      if (applyFilters(hinted.filters, path)) return null;
-      if (!hinted.dependencies?.length) return null;
-      const [entry] = hinted.dependencies;
-      if (!isEntryNeeded(entry)) return null;
-      // import from common wrapper to get correct (non-decurried) export
-      return hasOwn(desc, 'common') ? desc.common.dependencies[0] : entry;
+      target = resolveHint(desc, meta);
+      if (target === null) return null;
     }
-    if (applyFilters(desc.filters, path)) return null;
-    if (!desc.dependencies?.length) return null;
-    const [entry] = desc.dependencies;
+    if (applyFilters(target.filters, path)) return null;
+    if (!target.dependencies?.length) return null;
+    const [entry] = target.dependencies;
     if (!isEntryNeeded(entry)) return null;
-    return entry;
+    // import from common wrapper to get correct (non-decurried) export
+    return kind === 'instance' && hasOwn(desc, 'common') ? desc.common.dependencies[0] : entry;
   }
 
   function memoize(node, scope) {
@@ -517,7 +509,6 @@ module.exports = defineProvider(({
     if (!objectNode) return null;
     // memoize non-identifier init when other properties remain to avoid double evaluation
     if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
-      if (parent.isAssignmentExpression() && !parent.parentPath.isExpressionStatement()) return null;
       const ref = path.scope.generateUidIdentifier('ref');
       parent.parentPath.insertBefore(t.variableDeclaration('const', [
         t.variableDeclarator(ref, objectNode),
@@ -528,13 +519,10 @@ module.exports = defineProvider(({
     return objectNode;
   }
 
-  function handleDestructuredProperty(prop, id) {
+  function handleDestructuredProperty(prop, value) {
     const localBinding = t.cloneNode(prop.node.value);
     const objectPattern = prop.parentPath;
     const parent = objectPattern.parentPath;
-
-    if (!parent.isVariableDeclarator() && !parent.isAssignmentExpression()) return;
-    if (parent.isAssignmentExpression() && !parent.parentPath.isExpressionStatement()) return;
 
     prop.remove();
     const isEmpty = objectPattern.node.properties.length === 0;
@@ -544,17 +532,27 @@ module.exports = defineProvider(({
       // multi-declarator: modify in-place to avoid Babel traversal crash
       if (isEmpty && declaration.node.declarations.length > 1) {
         parent.node.id = localBinding;
-        parent.node.init = id;
+        parent.node.init = value;
       } else {
         const newDecl = t.variableDeclaration(declaration.node.kind, [
-          t.variableDeclarator(localBinding, id),
+          t.variableDeclarator(localBinding, value),
         ]);
-        isEmpty ? declaration.replaceWith(newDecl) : declaration.insertBefore(newDecl);
+        if (isEmpty) {
+          declaration.replaceWith(newDecl);
+        } else if (declaration.parentPath.isExportNamedDeclaration()) {
+          declaration.parentPath.insertBefore(t.exportNamedDeclaration(newDecl));
+        } else {
+          declaration.insertBefore(newDecl);
+        }
       }
     } else {
-      const stmt = t.expressionStatement(t.assignmentExpression('=', localBinding, id));
+      const stmt = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
       const target = parent.parentPath;
-      isEmpty ? target.replaceWith(stmt) : target.insertBefore(stmt);
+      if (isEmpty) {
+        target.replaceWith(stmt);
+      } else {
+        target.insertBefore(stmt);
+      }
     }
   }
 
@@ -621,21 +619,34 @@ module.exports = defineProvider(({
       if (!importEntry) return;
 
       const hintName = kind === 'instance' ? `${ resolved.name }InstanceProperty` : resolved.name;
-      const id = injectPureImport(importEntry, hintName, utils);
 
       if (path.isObjectProperty()) {
-        let value = id;
+        // verify destructuring context is transformable before injecting import
+        const objectPattern = path.parentPath;
+        const destructParent = objectPattern.parentPath;
+        if (!destructParent.isVariableDeclarator() && !destructParent.isAssignmentExpression()) return;
+        if (destructParent.isAssignmentExpression() && !destructParent.parentPath.isExpressionStatement()) return;
+        // insertBefore in for-loop init wraps in IIFE, breaking variable scope
+        if (destructParent.isVariableDeclarator() && objectPattern.node.properties.length > 1
+          && destructParent.parentPath.parentPath.isForStatement()) return;
+
+        let value;
         if (kind === 'instance') {
           const objectNode = resolveDestructuringObject(path);
           if (!objectNode) return;
-          value = t.callExpression(id, [t.cloneNode(objectNode)]);
+          value = t.callExpression(injectPureImport(importEntry, hintName, utils), [t.cloneNode(objectNode)]);
+        } else {
+          value = injectPureImport(importEntry, hintName, utils);
         }
         handleDestructuredProperty(path, value);
-      } else if (kind === 'instance') {
-        replaceInstanceLike(path, id);
       } else {
-        path.replaceWith(id);
-        normalizeOptionalChain(path, true);
+        const id = injectPureImport(importEntry, hintName, utils);
+        if (kind === 'instance') {
+          replaceInstanceLike(path, id);
+        } else {
+          path.replaceWith(id);
+          normalizeOptionalChain(path, true);
+        }
       }
     },
 
