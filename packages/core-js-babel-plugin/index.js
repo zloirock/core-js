@@ -112,7 +112,7 @@ module.exports = defineProvider(({
   }
 
   function isCallee(callee, parent) {
-    return t.isCallExpression(parent, { callee }) || t.isNewExpression(parent, { callee });
+    return t.isCallExpression(parent, { callee }) || t.isOptionalCallExpression(parent, { callee }) || t.isNewExpression(parent, { callee });
   }
 
   function resolvePath(path) {
@@ -546,9 +546,11 @@ module.exports = defineProvider(({
       Function(path) {
         if (path.node.async) {
           injectModulesForModeEntry('promise/constructor', getUtils(path));
+          // async function * () { }
           if (path.node.generator) {
             injectModule('es.symbol.async-iterator', getUtils(path));
           }
+        // function * () { }
         } else if (path.node.generator) {
           injectModule('es.symbol.iterator', getUtils(path));
         }
@@ -556,6 +558,10 @@ module.exports = defineProvider(({
       // for-of, [a, b] = c
       'ForOfStatement|ArrayPattern'(path) {
         injectModulesForModeEntry('symbol/iterator', getUtils(path));
+        // for-await-of
+        if (path.isForOfStatement() && path.node.await) {
+          injectModulesForModeEntry('symbol/async-iterator', getUtils(path));
+        }
       },
       // [...spread]
       SpreadElement(path) {
