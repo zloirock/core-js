@@ -435,6 +435,7 @@ module.exports = defineProvider(({
   function extractCheck(path) {
     const { node } = path;
     if (node.optional) return memoize(node.object, path.scope);
+    if (!path.isOptionalMemberExpression()) return [null, node.object];
     let chainStart = null;
     let current = path.get('object');
     while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
@@ -540,10 +541,9 @@ module.exports = defineProvider(({
       }
 
       const resolved = resolve(meta);
-      if (!resolved) return;
+      if (!resolved || !hasOwn(resolved.desc, 'pure')) return;
 
       let { kind, desc: { pure: desc } } = resolved;
-      if (!desc) return;
 
       if (kind === 'instance') {
         desc = resolveHint(desc, meta);
