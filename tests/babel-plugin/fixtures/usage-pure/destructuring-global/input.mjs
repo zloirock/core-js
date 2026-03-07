@@ -1,0 +1,1 @@
+const { Promise, foo } = globalThis;
