@@ -1,0 +1,4 @@
+for (const {
+  at,
+  flat
+} = getObj();;) {}
