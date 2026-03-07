@@ -265,6 +265,7 @@ export const InstanceProperties = {
   big: { global: { string: 'string/big' } },
   blink: { global: { string: 'string/blink' } },
   bold: { global: { string: 'string/bold' } },
+  catch: { global: { promise: 'promise/catch' } },
   chunks: { global: { iterator: 'iterator/chunks' } },
   clamp: { number: 'instance/clamp' },
   codePointAt: { string: 'instance/code-point-at' },
