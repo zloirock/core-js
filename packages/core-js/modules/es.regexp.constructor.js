@@ -21,6 +21,7 @@ var setSpecies = require('../internals/set-species');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
+var UNSUPPORTED_HAS_INDICES = require('../internals/regexp-unsupported-has-indices');
 
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = globalThis.RegExp;
@@ -43,7 +44,7 @@ var MISSED_STICKY = stickyHelpers.MISSED_STICKY;
 var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 
 var BASE_FORCED = DESCRIPTORS &&
-  (!CORRECT_NEW || MISSED_STICKY || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || fails(function () {
+  (!CORRECT_NEW || MISSED_STICKY || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || UNSUPPORTED_HAS_INDICES || fails(function () {
     re2[MATCH] = false;
     // RegExp constructor can alter flags and IsRegExp works correct with @@match
     // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
@@ -142,7 +143,7 @@ if (isForced('RegExp', BASE_FORCED)) {
     var flagsAreUndefined = flags === undefined;
     var groups = [];
     var rawPattern = pattern;
-    var rawFlags, dotAll, sticky, handled, result, state;
+    var rawFlags, dotAll, sticky, hasIndices, handled, result, state;
 
     if (!thisIsRegExp && patternIsRegExp && flagsAreUndefined && pattern.constructor === RegExpWrapper) {
       return pattern;
@@ -169,6 +170,11 @@ if (isForced('RegExp', BASE_FORCED)) {
       if (sticky && UNSUPPORTED_Y) flags = replace(flags, /y/g, '');
     }
 
+    if (UNSUPPORTED_HAS_INDICES) {
+      hasIndices = !!flags && stringIndexOf(flags, 'd') > -1;
+      if (hasIndices) flags = replace(flags, /d/g, '');
+    }
+
     if (UNSUPPORTED_NCG) {
       handled = handleNCG(pattern);
       pattern = handled[0];
@@ -177,13 +183,14 @@ if (isForced('RegExp', BASE_FORCED)) {
 
     result = inheritIfRequired(NativeRegExp(pattern, flags), thisIsRegExp ? this : RegExpPrototype, RegExpWrapper);
 
-    if (dotAll || sticky || groups.length) {
+    if (dotAll || sticky || hasIndices || groups.length) {
       state = enforceInternalState(result);
       if (dotAll) {
         state.dotAll = true;
         state.raw = RegExpWrapper(handleDotAll(pattern), rawFlags);
       }
       if (sticky) state.sticky = true;
+      if (hasIndices) state.hasIndices = true;
       if (groups.length) state.groups = groups;
     }
 

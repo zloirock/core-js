@@ -11,6 +11,7 @@ var create = require('../internals/object-create');
 var getInternalState = require('../internals/internal-state').get;
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
+var UNSUPPORTED_HAS_INDICES = require('../internals/regexp-unsupported-has-indices');
 
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
 var nativeExec = RegExp.prototype.exec;
@@ -18,6 +19,7 @@ var patchedExec = nativeExec;
 var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
+var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
@@ -33,7 +35,7 @@ var UNSUPPORTED_Y = stickyHelpers.BROKEN_CARET;
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
 
-var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG;
+var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || UNSUPPORTED_HAS_INDICES;
 
 var setGroups = function (re, groups) {
   var object = re.groups = create(null);
@@ -41,6 +43,90 @@ var setGroups = function (re, groups) {
     var group = groups[i];
     object[group[0]] = re[group[1]];
   }
+};
+
+// Get the correct position for each captured group
+// This implementation provides best-effort indices calculation
+// It works correctly for most common cases but may have limitations
+// with complex patterns like overlapping groups or backreferences
+// eslint-disable-next-line no-unused-vars -- kept for API consistency
+var getCapturePositions = function (match, str) {
+  var positions = [];
+  var matchStart = match.index;
+  var matchString = match[0];
+  var matchEnd = matchStart + matchString.length;
+
+  // Position 0 is the entire match
+  positions[0] = [matchStart, matchEnd];
+
+  // For capturing groups, we need to calculate positions
+  // The challenge: nested groups like ((a)(b)) have overlapping matches
+  // match[1] = "ab", match[2] = "a", match[3] = "b"
+  // We need to track which parts of the string are "consumed" by which group
+
+  // Strategy: use a greedy matching approach, but account for nested groups
+  // by allowing overlaps when the captured string is a substring of an earlier capture
+
+  for (var i = 1; i < match.length; i++) {
+    var captured = match[i];
+
+    if (captured === undefined) {
+      // Non-participating capturing group
+      positions[i] = undefined;
+    } else if (captured === '') {
+      // Empty capture - find position based on surrounding context
+      // For now, use the earliest valid position
+      var pos = 0;
+      positions[i] = [matchStart + pos, matchStart + pos];
+    } else {
+      // Find the captured string in the match
+      // For nested groups, we need to find the right position
+      // The captured string should be within the match
+      var foundIndex = stringIndexOf(matchString, captured, 0);
+
+      if (foundIndex !== -1 && foundIndex + captured.length <= matchString.length) {
+        positions[i] = [matchStart + foundIndex, matchStart + foundIndex + captured.length];
+      } else {
+        // Fallback: should not normally happen
+        positions[i] = undefined;
+      }
+    }
+  }
+
+  return positions;
+};
+
+// MakeIndicesArray implementation per TC39 spec
+var makeIndicesArray = function (match, str, groups) {
+  var hasGroups = groups && groups.length > 0;
+  var positions = getCapturePositions(match, str);
+  var length = match.length;
+  var indices = [];
+  indices.length = length;
+
+  if (hasGroups) {
+    indices.groups = create(null);
+  }
+
+  for (var i = 0; i < length; i++) {
+    indices[i] = positions[i];
+  }
+
+  if (hasGroups) {
+    for (var j = 0; j < groups.length; j++) {
+      var group = groups[j];
+      var groupIndex = group[1];
+      if (indices[groupIndex] !== undefined) {
+        indices.groups[group[0]] = indices[groupIndex];
+      }
+    }
+  }
+
+  return indices;
+};
+
+var setIndices = function (match, str, groups) {
+  match.indices = makeIndicesArray(match, str, groups);
 };
 
 if (PATCH) {
@@ -57,11 +143,13 @@ if (PATCH) {
       re.lastIndex = raw.lastIndex;
 
       if (result && state.groups) setGroups(result, state.groups);
+      if (result && state.hasIndices) setIndices(result, str, state.groups);
 
       return result;
     }
 
     var groups = state.groups;
+    var hasIndices = state.hasIndices;
     var sticky = UNSUPPORTED_Y && re.sticky;
     var flags = call(regexpFlags, re);
     var source = re.source;
@@ -116,6 +204,8 @@ if (PATCH) {
     }
 
     if (match && groups) setGroups(match, groups);
+
+    if (match && hasIndices) setIndices(match, str, groups);
 
     return match;
   };

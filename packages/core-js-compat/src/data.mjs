@@ -1672,6 +1672,11 @@ export const data = {
     hermes: '0.4',
     safari: '11.1',
   },
+  'es.regexp.has-indices': {
+    chrome: '90',
+    firefox: '88',
+    safari: '15',
+  },
   'es.regexp.sticky': {
     chrome: '49',
     edge: '13',
