@@ -567,11 +567,11 @@ module.exports = defineProvider(({
           injectModulesForModeEntry('promise/constructor', getUtils(path));
           // async function * () { }
           if (path.node.generator) {
-            injectModule('es.symbol.async-iterator', getUtils(path));
+            injectModulesForEntry('modules/es.symbol.async-iterator', getUtils(path));
           }
         // function * () { }
         } else if (path.node.generator) {
-          injectModule('es.symbol.iterator', getUtils(path));
+          injectModulesForEntry('modules/es.symbol.iterator', getUtils(path));
         }
       },
       // for-of, [a, b] = c
