@@ -27,7 +27,7 @@ module.exports = {
     ['@babel/transform-parameters'],
     ['@babel/transform-private-methods'],
     ['@babel/transform-private-property-in-object'],
-    ['@babel/transform-regenerator', { generators: true }],
+    ['@babel/transform-regenerator', { generators: true, async: true, asyncGenerators: true }],
     ['@babel/transform-regexp-modifiers'],
     ['@babel/transform-shorthand-properties'],
     ['@babel/transform-spread'],
