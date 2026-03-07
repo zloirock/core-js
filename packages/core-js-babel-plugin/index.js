@@ -157,6 +157,7 @@ module.exports = defineProvider(({
       case '>>>':
         return { type: 'number' };
       // arithmetic and bitwise operators work on both Number and BigInt
+      // mixing them throws, so knowing one operand's type determines the result
       case '-':
       case '*':
       case '/':
@@ -169,8 +170,8 @@ module.exports = defineProvider(({
       case '>>': {
         const left = resolveNodeType(leftPath);
         const right = resolveNodeType(rightPath);
-        if (left?.type === 'bigint' && right?.type === 'bigint') return { type: 'bigint' };
-        if (left !== null && right !== null) return { type: 'number' };
+        if (left?.type === 'bigint' || right?.type === 'bigint') return { type: 'bigint' };
+        if (left !== null || right !== null) return { type: 'number' };
         return null;
       }
     }
