@@ -408,7 +408,7 @@ module.exports = defineProvider(({
       if (path.key !== 'callee') return;
     } else return;
     do {
-      parentPath.node.type = parentPath.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
+      parentPath.type = parentPath.node.type = parentPath.type === 'OptionalMemberExpression' ? 'MemberExpression' : 'CallExpression';
       delete parentPath.node.optional;
       ({ parentPath } = parentPath);
     } while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && !parentPath.node.optional);
