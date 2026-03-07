@@ -2272,5 +2272,11 @@ GLOBAL.tests = {
   }],
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;
-  }]
+  }],
+  'web.request-idle-callback': function () {
+    return (requestIdleCallback !== undefined) && (cancelIdleCallback !== undefined);
+  },
+  'web.cancel-idle-callback': function () {
+    return (requestIdleCallback !== undefined) && (cancelIdleCallback !== undefined);
+  }
 };
