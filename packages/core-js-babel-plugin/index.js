@@ -378,10 +378,14 @@ module.exports = defineProvider(({
     return !!filters?.some(([name, ...args]) => filter(name, args, path));
   }
 
-  function injectPureImport(entry, hint, utils) {
+  function isEntryNeeded(entry) {
     const modeEntry = `${ mode }/${ entry }`;
-    if (!entriesSetForTargetVersion.has(modeEntry) || !getModulesForEntry(modeEntry).length) return null;
-    return utils.injectDefaultImport(`${ pkg }/${ modeEntry }`, hint);
+    return entriesSetForTargetVersion.has(modeEntry) && !!getModulesForEntry(modeEntry).length;
+  }
+
+  function injectPureImport(entry, hint, utils) {
+    if (!isEntryNeeded(entry)) return null;
+    return utils.injectDefaultImport(`${ pkg }/${ mode }/${ entry }`, hint);
   }
 
   function memoize(node, scope) {
@@ -543,11 +547,21 @@ module.exports = defineProvider(({
       const resolved = resolve(meta);
       if (!resolved || !hasOwn(resolved.desc, 'pure')) return;
 
-      let { kind, desc: { pure: desc } } = resolved;
+      const { kind, desc: { pure: desc } } = resolved;
 
       if (kind === 'instance') {
-        desc = resolveHint(desc, meta);
-        if (desc === null) return;
+        const hinted = resolveHint(desc, meta);
+        if (hinted === null) return;
+        // filter and check target support by type-specific hint
+        if (applyFilters(hinted.filters, path)) return;
+        if (!hinted.dependencies?.length) return;
+        const [hintedDep] = hinted.dependencies;
+        if (!isEntryNeeded(hintedDep)) return;
+        // import from common wrapper to get correct (non-decurried) export
+        const importDep = hasOwn(desc, 'common') ? desc.common.dependencies[0] : hintedDep;
+        const id = injectPureImport(importDep, `${ resolved.name }InstanceProperty`, utils);
+        if (id) replaceInstanceLike(path, id);
+        return;
       }
 
       const { dependencies, filters } = desc;
@@ -555,21 +569,10 @@ module.exports = defineProvider(({
       if (!dependencies?.length) return;
 
       const [dep] = dependencies;
-
-      switch (kind) {
-        case 'global':
-        case 'static': {
-          const id = injectPureImport(dep, resolved.name, utils);
-          if (id) {
-            path.replaceWith(id);
-            normalizeOptionalChain(path, true);
-          }
-        } break;
-
-        case 'instance': {
-          const id = injectPureImport(dep, `${ resolved.name }InstanceProperty`, utils);
-          if (id) replaceInstanceLike(path, id);
-        } break;
+      const id = injectPureImport(dep, resolved.name, utils);
+      if (id) {
+        path.replaceWith(id);
+        normalizeOptionalChain(path, true);
       }
     },
 
