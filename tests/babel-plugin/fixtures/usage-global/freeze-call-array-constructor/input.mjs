@@ -1,1 +1,1 @@
-Object.freeze(Array(x));
+Object.freeze(Array());
