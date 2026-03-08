@@ -1,0 +1,1 @@
+String.raw`foo\nbar`;
