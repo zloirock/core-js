@@ -224,7 +224,9 @@ module.exports = defineProvider(({
         return new $Object('Function');
       case 'NewExpression': {
         const callee = path.get('callee');
-        return new $Object(callee.isIdentifier() ? callee.node.name : null);
+        const { name } = callee.node;
+        if (callee.isIdentifier() && !callee.scope.getBinding(name)) return new $Object(name);
+        return new $Object(null);
       }
       case 'CallExpression':
       case 'OptionalCallExpression': {
