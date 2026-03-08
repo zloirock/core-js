@@ -89,12 +89,13 @@ function resolveTypeAnnotation(node) {
         case 'TemplateLiteral':
           return new $Primitive('string');
         case 'NumericLiteral':
-        case 'UnaryExpression':
           return new $Primitive('number');
         case 'BooleanLiteral':
           return new $Primitive('boolean');
         case 'BigIntLiteral':
           return new $Primitive('bigint');
+        case 'UnaryExpression':
+          return new $Primitive(node.literal.argument?.type === 'BigIntLiteral' ? 'bigint' : 'number');
       }
       return null;
   }
@@ -209,8 +210,9 @@ function resolveNodeType(path) {
       return new $Object('Function');
     case 'NewExpression': {
       const callee = path.get('callee');
-      const { name } = callee.node;
-      if (callee.isIdentifier() && !callee.scope.getBinding(name)) return new $Object(name);
+      if (callee.isIdentifier() && !callee.scope.getBinding(callee.node.name)) {
+        return new $Object(callee.node.name);
+      }
       return new $Object(null);
     }
     case 'CallExpression':
