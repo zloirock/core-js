@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -12,6 +13,7 @@ var everyWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('
 
 // `Iterator.prototype.every` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.every
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: everyWithoutClosingOnEarlyError }, {
   every: function every(predicate) {
     anObject(this);
@@ -28,5 +30,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: everyWithoutClosingOnEa
     return !iterate(record, function (value, stop) {
       if (!predicate(value, counter++)) return stop();
     }, { IS_RECORD: true, INTERRUPTED: true }).stopped;
-  }
+  },
 });

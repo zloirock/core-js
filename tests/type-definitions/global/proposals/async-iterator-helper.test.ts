@@ -1,0 +1,106 @@
+import 'core-js/full';
+import from from 'core-js/full/async-iterator/from';
+import drop from 'core-js/full/async-iterator/drop';
+import every from 'core-js/full/async-iterator/every';
+import filter from 'core-js/full/async-iterator/filter';
+import find from 'core-js/full/async-iterator/find';
+import flatMap from 'core-js/full/async-iterator/flat-map';
+import forEach from 'core-js/full/async-iterator/for-each';
+import map from 'core-js/full/async-iterator/map';
+import reduce from 'core-js/full/async-iterator/reduce';
+import some from 'core-js/full/async-iterator/some';
+import take from 'core-js/full/async-iterator/take';
+import toArray from 'core-js/full/async-iterator/to-array';
+
+const ait: AsyncIterator<number> = from([1, 2]);
+drop(ait, 1);
+every(ait, (v: number, i: number) => v > 0);
+filter(ait, (v: number, i: number) => v > 0);
+find(ait, (v: number, i: number) => v > 0);
+flatMap(ait, (v: number, i: number) => [v, v * 2]);
+forEach(ait, (v: number, i: number) => { });
+map(ait, (v: number, i: number) => v * 2);
+reduce(ait, (acc: number, v: number, i: number) => acc + v, 0);
+some(ait, (v: number, i: number) => v > 0);
+take(ait, 1);
+toArray(ait);
+
+const res: AsyncIterator<number> = AsyncIterator.from([1, 2, 3]);
+const res2: AsyncIterator<number> = AsyncIterator.from(new Set([1, 2, 3]));
+AsyncIterator.from((async function * () {
+  yield 1;
+  yield 2;
+})());
+AsyncIterator.from((function * () { yield 3; })());
+const res3: AsyncIterator<string> = AsyncIterator.from('abc');
+
+declare const ain: AsyncIteratorObject<number>;
+declare const aio: AsyncIteratorObject<{ x: number }>;
+declare const ais: AsyncIteratorObject<string>;
+declare const ilb: Iterable<boolean>;
+declare const is: Iterator<string>;
+declare const itn: Iterator<number>;
+declare const ailb: AsyncIterable<boolean>;
+
+AsyncIterator.from(ain);
+AsyncIterator.from((async function * () {
+  yield 1;
+  yield 2;
+})());
+AsyncIterator.from(ilb);
+AsyncIterator.from(ailb);
+AsyncIterator.from(aio);
+AsyncIterator.from(ait);
+
+// @ts-expect-error
+AsyncIterator.from(123);
+// @ts-expect-error
+AsyncIterator.from({});
+// @ts-expect-error
+AsyncIterator.from();
+// @ts-expect-error
+AsyncIterator.from({ next: () => 1 });
+
+const raits: AsyncIterator<string> = is.toAsync();
+const raitn: AsyncIterator<number> = itn.toAsync();
+
+const r1: AsyncIterator<number> = ain.drop(3);
+const r2: Promise<boolean> = ain.every((v: number, i: number) => v > 0);
+const r3: AsyncIterator<number> = ain.filter((v: number, i: number) => v > 0);
+const r4: Promise<number | undefined> = ain.find((v: number, i: number) => v > 0);
+const r5: AsyncIterator<number> = ain.flatMap((v: number, i: number) => [v, v * 2]);
+const r6: Promise<void> = ain.forEach((v: number, i: number) => { });
+const r7: AsyncIterator<string> = ain.map((v: number, i: number) => v.toString());
+const r8: Promise<number> = ain.reduce((acc: number, v: number, i: number) => acc + v, 0);
+const r9: Promise<boolean> = ain.some((v: number, i: number) => v > 0);
+const r10: AsyncIterator<number> = ain.take(10);
+const r11: Promise<number[]> = ain.toArray();
+
+// @ts-expect-error
+ain.drop();
+// @ts-expect-error
+ain.every();
+// @ts-expect-error
+ain.filter();
+// @ts-expect-error
+ain.find();
+// @ts-expect-error
+ain.flatMap();
+// @ts-expect-error
+ain.forEach();
+// @ts-expect-error
+ain.map();
+// @ts-expect-error
+ain.reduce();
+// @ts-expect-error
+ain.some();
+// @ts-expect-error
+ain.take();
+// @ts-expect-error
+ain.toArray(1);
+
+const s0: Promise<string[]> = ais.toArray();
+const f0: Promise<string | undefined> = ais.find((v: string, i: number) => v.length === 1);
+
+// @ts-expect-error
+ais.map((v: string, i: number) => v.length === 1, 'extra');

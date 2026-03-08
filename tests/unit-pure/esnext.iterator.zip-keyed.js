@@ -1,13 +1,12 @@
 import { createIterator } from '../helpers/helpers.js';
-import { DESCRIPTORS } from '../helpers/constants.js';
 
-import defineProperty from 'core-js-pure/actual/object/define-property';
-import from from 'core-js-pure/es/array/from';
-import assign from 'core-js-pure/es/object/assign';
-import create from 'core-js-pure/es/object/create';
-import Symbol from 'core-js-pure/es/symbol';
-import Iterator from 'core-js-pure/es/iterator';
-import zipKeyed from 'core-js-pure/actual/iterator/zip-keyed';
+import defineProperty from '@core-js/pure/actual/object/define-property';
+import from from '@core-js/pure/es/array/from';
+import assign from '@core-js/pure/es/object/assign';
+import create from '@core-js/pure/es/object/create';
+import Symbol from '@core-js/pure/es/symbol';
+import Iterator from '@core-js/pure/es/iterator';
+import zipKeyed from '@core-js/pure/actual/iterator/zip-keyed';
 
 function nullProto(obj) {
   return assign(create(null), obj);
@@ -28,7 +27,7 @@ QUnit.test('Iterator.zipKeyed', assert => {
   result = zipKeyed({ a: [0, 1, 2], b: [3, 4, 5, 6], c: [7, 8, 9] }, { mode: 'strict' });
   assert.throws(() => from(result), TypeError);
 
-  if (DESCRIPTORS) {
+  {
     let obj = {};
     defineProperty(obj, 'a', { get: () => [0, 1, 2], enumerable: true });
     defineProperty(obj, 'b', { get: () => [3, 4, 5], enumerable: true });

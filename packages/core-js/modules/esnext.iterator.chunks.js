@@ -1,3 +1,4 @@
+// @types: proposals/iterator-chunking
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
@@ -31,6 +32,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.prototype.chunks` method
 // https://github.com/tc39/proposal-iterator-chunking
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: true }, {
   chunks: function chunks(chunkSize) {
     var O = anObject(this);
@@ -38,7 +40,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
       return iteratorClose(O, 'throw', new $RangeError('chunkSize must be integer in [1, 2^32-1]'));
     }
     return new IteratorProxy(getIteratorDirect(O), {
-      chunkSize: chunkSize
+      chunkSize: chunkSize,
     });
-  }
+  },
 });

@@ -1,3 +1,4 @@
+// @types: proposals/async-iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var toObject = require('../internals/to-object');
@@ -8,11 +9,12 @@ var WrapAsyncIterator = require('../internals/async-iterator-wrap');
 
 // `AsyncIterator.from` method
 // https://github.com/tc39/proposal-async-iterator-helpers
+// @dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', stat: true, forced: true }, {
   from: function from(O) {
     var iteratorRecord = getAsyncIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);
     return isPrototypeOf(AsyncIteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
       : new WrapAsyncIterator(iteratorRecord);
-  }
+  },
 });

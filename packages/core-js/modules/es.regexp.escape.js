@@ -1,15 +1,17 @@
+// @types: proposals/regexp-escaping
 'use strict';
 var $ = require('../internals/export');
+var getBuiltInPrototypeMethod = require('../internals/get-built-in-prototype-method');
 var uncurryThis = require('../internals/function-uncurry-this');
 var aString = require('../internals/a-string');
 var hasOwn = require('../internals/has-own-property');
-var padStart = require('../internals/string-pad').start;
 var WHITESPACES = require('../internals/whitespaces');
 
 var $Array = Array;
 var $escape = RegExp.escape;
-var charAt = uncurryThis(''.charAt);
 var charCodeAt = uncurryThis(''.charCodeAt);
+// @dependency: es.string.pad-start
+var padStart = uncurryThis(getBuiltInPrototypeMethod('String', 'padStart'));
 var numberToString = uncurryThis(1.1.toString);
 var join = uncurryThis([].join);
 var FIRST_DIGIT_OR_ASCII = /^[0-9a-z]/i;
@@ -22,11 +24,11 @@ var ControlEscape = {
   '\u000A': 'n',
   '\u000B': 'v',
   '\u000C': 'f',
-  '\u000D': 'r'
+  '\u000D': 'r',
 };
 
-var escapeChar = function (chr) {
-  var hex = numberToString(charCodeAt(chr, 0), 16);
+var escapeChar = function (char) {
+  var hex = numberToString(charCodeAt(char, 0), 16);
   return hex.length < 3 ? '\\x' + padStart(hex, 2, '0') : '\\u' + padStart(hex, 4, '0');
 };
 
@@ -42,29 +44,29 @@ $({ target: 'RegExp', stat: true, forced: FORCED }, {
     var result = $Array(length);
 
     for (var i = 0; i < length; i++) {
-      var chr = charAt(S, i);
-      if (i === 0 && exec(FIRST_DIGIT_OR_ASCII, chr)) {
-        result[i] = escapeChar(chr);
-      } else if (hasOwn(ControlEscape, chr)) {
-        result[i] = '\\' + ControlEscape[chr];
-      } else if (exec(SYNTAX_SOLIDUS, chr)) {
-        result[i] = '\\' + chr;
-      } else if (exec(OTHER_PUNCTUATORS_AND_WHITESPACES, chr)) {
-        result[i] = escapeChar(chr);
+      var char = S[i];
+      if (i === 0 && exec(FIRST_DIGIT_OR_ASCII, char)) {
+        result[i] = escapeChar(char);
+      } else if (hasOwn(ControlEscape, char)) {
+        result[i] = '\\' + ControlEscape[char];
+      } else if (exec(SYNTAX_SOLIDUS, char)) {
+        result[i] = '\\' + char;
+      } else if (exec(OTHER_PUNCTUATORS_AND_WHITESPACES, char)) {
+        result[i] = escapeChar(char);
       } else {
-        var charCode = charCodeAt(chr, 0);
+        var charCode = charCodeAt(char, 0);
         // single UTF-16 code unit
-        if ((charCode & 0xF800) !== 0xD800) result[i] = chr;
+        if ((charCode & 0xF800) !== 0xD800) result[i] = char;
         // unpaired surrogate
-        else if (charCode >= 0xDC00 || i + 1 >= length || (charCodeAt(S, i + 1) & 0xFC00) !== 0xDC00) result[i] = escapeChar(chr);
+        else if (charCode >= 0xDC00 || i + 1 >= length || (charCodeAt(S, i + 1) & 0xFC00) !== 0xDC00) result[i] = escapeChar(char);
         // surrogate pair
         else {
-          result[i] = chr;
-          result[++i] = charAt(S, i);
+          result[i] = char;
+          result[++i] = S[i];
         }
       }
     }
 
     return join(result, '');
-  }
+  },
 });

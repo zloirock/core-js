@@ -3,7 +3,7 @@
 [Proposal repo](https://github.com/tc39/proposal-array-is-template-object)
 
 ## Module
-[`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/esnext.array.is-template-object.js)
+[`esnext.array.is-template-object`](https://github.com/zloirock/core-js/blob/v4/packages/core-js/modules/esnext.array.is-template-object.js)
 
 ## Built-ins signatures
 ```ts
@@ -17,6 +17,9 @@ class Array {
 core-js/proposals/array-is-template-object
 core-js(-pure)/full/array/is-template-object
 ```
+
+## [TypeScript type definitions]({docs-version}/docs/typescript-type-definitions)
+[`@core-js/types/proposals/array-is-template-object`](https://github.com/zloirock/core-js/blob/v4-types/packages/core-js-types/src/base/proposals/array-is-template-object.d.ts)
 
 ## Example
 ```js

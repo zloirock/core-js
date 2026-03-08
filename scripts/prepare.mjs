@@ -1,3 +1,4 @@
-await import('./build-indexes.mjs');
-await import('./clean-and-copy.mjs');
+await import('./clean.mjs');
+await $`npm run build-entries`;
+await import('./copy.mjs');
 await $`npm run build-compat`;

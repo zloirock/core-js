@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var anObject = require('../internals/an-object');
@@ -7,6 +8,7 @@ var getIteratorDirect = require('../internals/get-iterator-direct');
 
 // `Iterator.prototype.toArray` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.toarray
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true }, {
   toArray: function toArray() {
     var result = [];
@@ -15,5 +17,5 @@ $({ target: 'Iterator', proto: true, real: true }, {
       createProperty(result, index++, element);
     }, { IS_RECORD: true });
     return result;
-  }
+  },
 });

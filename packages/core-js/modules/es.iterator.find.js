@@ -1,3 +1,4 @@
+// @types: proposals/iterator-helpers
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -12,6 +13,7 @@ var findWithoutClosingOnEarlyError = iteratorHelperWithoutClosingOnEarlyError('f
 
 // `Iterator.prototype.find` method
 // https://tc39.es/ecma262/#sec-iterator.prototype.find
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', proto: true, real: true, forced: findWithoutClosingOnEarlyError }, {
   find: function find(predicate) {
     anObject(this);
@@ -28,5 +30,5 @@ $({ target: 'Iterator', proto: true, real: true, forced: findWithoutClosingOnEar
     return iterate(record, function (value, stop) {
       if (predicate(value, counter++)) return stop(value);
     }, { IS_RECORD: true, INTERRUPTED: true }).result;
-  }
+  },
 });

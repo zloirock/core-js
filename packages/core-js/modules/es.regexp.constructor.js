@@ -1,12 +1,11 @@
+// @types: proposals/regexp-dotall-flag
+// @types: proposals/regexp-named-groups
 'use strict';
-var DESCRIPTORS = require('../internals/descriptors');
+// @dependency: es.regexp.exec
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
-var isForced = require('../internals/is-forced');
 var inheritIfRequired = require('../internals/inherit-if-required');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
-var create = require('../internals/object-create');
-var getOwnPropertyNames = require('../internals/object-get-own-property-names').f;
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var isRegExp = require('../internals/is-regexp');
 var toString = require('../internals/to-string');
@@ -25,7 +24,9 @@ var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 var MATCH = wellKnownSymbol('match');
 var NativeRegExp = globalThis.RegExp;
 var RegExpPrototype = NativeRegExp.prototype;
-var SyntaxError = globalThis.SyntaxError;
+var $SyntaxError = SyntaxError;
+var create = Object.create;
+var getOwnPropertyNames = Object.getOwnPropertyNames;
 var exec = uncurryThis(RegExpPrototype.exec);
 var charAt = uncurryThis(''.charAt);
 var replace = uncurryThis(''.replace);
@@ -42,34 +43,34 @@ var CORRECT_NEW = new NativeRegExp(re1) !== re1;
 var MISSED_STICKY = stickyHelpers.MISSED_STICKY;
 var UNSUPPORTED_Y = stickyHelpers.UNSUPPORTED_Y;
 
-var BASE_FORCED = DESCRIPTORS &&
-  (!CORRECT_NEW || MISSED_STICKY || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || fails(function () {
-    re2[MATCH] = false;
-    // RegExp constructor can alter flags and IsRegExp works correct with @@match
-    // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
-    return NativeRegExp(re1) !== re1 || NativeRegExp(re2) === re2 || String(NativeRegExp(re1, 'i')) !== '/a/i';
-  }));
+var FORCED = !CORRECT_NEW || MISSED_STICKY || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG || fails(function () {
+  re2[MATCH] = false;
+  // RegExp constructor can alter flags and IsRegExp works correct with @@match
+  // eslint-disable-next-line sonarjs/inconsistent-function-call -- required for testing
+  return NativeRegExp(re1) !== re1 || NativeRegExp(re2) === re2 || String(NativeRegExp(re1, 'i')) !== '/a/i';
+});
 
 var handleDotAll = function (string) {
   var length = string.length;
   var index = 0;
   var result = '';
   var brackets = false;
-  var chr;
+  var char;
   for (; index < length; index++) {
-    chr = charAt(string, index);
-    if (chr === '\\') {
-      result += chr + charAt(string, ++index);
+    char = string[index];
+    if (char === '\\') {
+      result += char;
+      if (++index < length) result += string[index];
       continue;
     }
-    if (!brackets && chr === '.') {
+    if (!brackets && char === '.') {
       result += '[\\s\\S]';
     } else {
-      if (chr === '[') {
+      if (char === '[') {
         brackets = true;
-      } else if (chr === ']') {
+      } else if (char === ']') {
         brackets = false;
-      } result += chr;
+      } result += char;
     }
   } return result;
 };
@@ -84,24 +85,24 @@ var handleNCG = function (string) {
   var ncg = false;
   var groupid = 0;
   var groupname = '';
-  var chr;
+  var char;
   for (; index < length; index++) {
-    chr = charAt(string, index);
-    if (chr === '\\') {
-      chr += charAt(string, ++index);
+    char = string[index];
+    if (char === '\\') {
+      char += charAt(string, ++index);
       // use `\x5c` for escaped backslash to avoid corruption by `\k<name>` to `\N` replacement below
-      if (!ncg && charAt(chr, 1) === '\\') {
+      if (!ncg && charAt(char, 1) === '\\') {
         result += '\\x5c';
         continue;
       }
-    } else if (chr === ']') {
+    } else if (char === ']') {
       brackets = false;
     } else if (!brackets) switch (true) {
-      case chr === '[':
+      case char === '[':
         brackets = true;
         break;
-      case chr === '(':
-        result += chr;
+      case char === '(':
+        result += char;
         if (exec(IS_NCG, stringSlice(string, index + 1))) {
           index += 2;
           ncg = true;
@@ -110,9 +111,9 @@ var handleNCG = function (string) {
           groupid++;
         }
         continue;
-      case chr === '>' && ncg:
+      case char === '>' && ncg:
         if (groupname === '' || hasOwn(names, groupname)) {
-          throw new SyntaxError('Invalid capture group name');
+          throw new $SyntaxError('Invalid capture group name');
         }
         names[groupname] = true;
         named[named.length] = [groupname, groupid];
@@ -120,8 +121,8 @@ var handleNCG = function (string) {
         groupname = '';
         continue;
     }
-    if (ncg) groupname += chr;
-    else result += chr;
+    if (ncg) groupname += char;
+    else result += char;
   }
   // convert `\k<name>` backreferences to numbered backreferences
   for (var ni = 0; ni < named.length; ni++) {
@@ -135,7 +136,7 @@ var handleNCG = function (string) {
 
 // `RegExp` constructor
 // https://tc39.es/ecma262/#sec-regexp-constructor
-if (isForced('RegExp', BASE_FORCED)) {
+if (FORCED) {
   var RegExpWrapper = function RegExp(pattern, flags) {
     var thisIsRegExp = isPrototypeOf(RegExpPrototype, this);
     var patternIsRegExp = isRegExp(pattern);
@@ -175,7 +176,9 @@ if (isForced('RegExp', BASE_FORCED)) {
       groups = handled[1];
     }
 
-    result = inheritIfRequired(NativeRegExp(pattern, flags), thisIsRegExp ? this : RegExpPrototype, RegExpWrapper);
+    result = NativeRegExp(pattern, flags);
+
+    if (thisIsRegExp) inheritIfRequired(result, this, RegExpPrototype);
 
     if (dotAll || sticky || groups.length) {
       state = enforceInternalState(result);
