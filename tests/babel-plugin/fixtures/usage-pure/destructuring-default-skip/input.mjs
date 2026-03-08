@@ -1,1 +1,1 @@
-const { from = fallback } = Array;
+const { from = null } = Array;
