@@ -307,6 +307,13 @@ function resolveNodeType(path) {
   return null;
 }
 
+function toHint(type) {
+  if (!type) return null;
+  if (type.primitive) return type.type;
+  if (type.constructor === 'Object') return null;
+  return type.constructor?.toLowerCase() ?? null;
+}
+
 function isString(path) {
   const it = resolveNodeType(path);
   return it?.type === 'string' || it?.constructor === 'String';
@@ -316,4 +323,4 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = { resolveNodeType, isString, isObject };
+module.exports = { resolveNodeType, toHint, isString, isObject };
