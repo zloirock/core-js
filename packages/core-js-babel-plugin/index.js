@@ -138,19 +138,20 @@ module.exports = defineProvider(({
   }
 
   function $Primitive(type) {
+    this.primitive = true;
     this.type = type;
     this.constructor = null;
   }
 
   function $Object(constructor) {
+    this.primitive = false;
     this.type = 'object';
     this.constructor = constructor;
   }
 
   function resolveNumericType(path) {
     const resolved = resolveNodeType(path);
-    if (resolved === null) return null;
-    return new $Primitive(resolved.type === 'bigint' ? 'bigint' : 'number');
+    return new $Primitive(resolved === null ? null : resolved.type === 'bigint' ? 'bigint' : 'number');
   }
 
   function resolveUnionType(leftPath, rightPath) {
@@ -168,7 +169,7 @@ module.exports = defineProvider(({
         if (left?.type === 'string' || right?.type === 'string') return new $Primitive('string');
         if (left?.type === 'number' && right?.type === 'number') return new $Primitive('number');
         if (left?.type === 'bigint' && right?.type === 'bigint') return new $Primitive('bigint');
-        return null;
+        return new $Primitive(null);
       }
       // >>> (unsigned right shift) throws on BigInt, result is always Number
       case '>>>':
@@ -189,7 +190,7 @@ module.exports = defineProvider(({
         const right = resolveNodeType(rightPath);
         if (left?.type === 'bigint' || right?.type === 'bigint') return new $Primitive('bigint');
         if (left !== null || right !== null) return new $Primitive('number');
-        return null;
+        return new $Primitive(null);
       }
     }
     return null;
@@ -357,7 +358,7 @@ module.exports = defineProvider(({
   }
 
   function isObject(path) {
-    return resolveNodeType(path)?.type === 'object';
+    return resolveNodeType(path)?.primitive === false;
   }
 
   function filter(name, args, path) {
