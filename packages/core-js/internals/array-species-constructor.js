@@ -4,6 +4,7 @@ var isObject = require('../internals/is-object');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
+// dependency: es.array.species
 var SPECIES = wellKnownSymbol('species');
 var $Array = Array;
 var isArray = $Array.isArray;
