@@ -200,6 +200,19 @@ module.exports = defineProvider(({
     path = resolvePath(path);
 
     switch (path.node.type) {
+      case 'Identifier': {
+        const { name } = path.node;
+        if (!path.scope.getBinding(name)) switch (name) {
+          case 'undefined':
+            return new $Primitive('undefined');
+          case 'Infinity':
+          case 'NaN':
+            return new $Primitive('number');
+          case 'arguments':
+            return new $Object('Arguments');
+        }
+        return null;
+      }
       case 'NullLiteral':
         return new $Primitive('null');
       case 'StringLiteral':
