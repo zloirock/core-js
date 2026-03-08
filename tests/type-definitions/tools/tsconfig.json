@@ -1,6 +1,7 @@
 {
   "extends": "../tsconfig.json",
   "include": [
+    "./babel-plugin.ts",
     "./builder.ts",
     "./compat.ts"
   ]
