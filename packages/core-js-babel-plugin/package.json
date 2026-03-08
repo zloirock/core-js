@@ -27,6 +27,17 @@
   },
   "sideEffects": false,
   "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./index.js": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
   "dependencies": {
     "@babel/helper-define-polyfill-provider": "^0.6.7",
     "@core-js/compat": "4.0.0-alpha.0"
