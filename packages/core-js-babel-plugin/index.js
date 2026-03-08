@@ -76,6 +76,18 @@ function enhanceMeta(meta, path, desc) {
   return descHasTypeHints(desc) ? null : meta;
 }
 
+function resolvePatterns(patterns, moduleNames) {
+  if (!patterns?.length) return null;
+  const set = new Set();
+  for (const pattern of patterns) {
+    const regex = pattern instanceof RegExp ? pattern : new RegExp(`^${ pattern }$`);
+    for (const name of moduleNames) {
+      if (regex.test(name)) set.add(name);
+    }
+  }
+  return set.size ? set : null;
+}
+
 function canTransformDestructuring(path) {
   const objectPattern = path.parentPath;
   const destructParent = objectPattern.parentPath;
@@ -104,6 +116,8 @@ module.exports = defineProvider(({
   pkgs,
   mode = 'actual',
   version = '4.0',
+  include: includePatterns,
+  exclude: excludePatterns,
 }) => {
   if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
   if (!['es', 'stable', 'actual', 'full'].includes(mode)) throw new TypeError('Incorrect plugin mode');
@@ -129,6 +143,8 @@ module.exports = defineProvider(({
 
   const entriesSetForTargetVersion = method === 'usage-pure' && new Set(getEntriesListForTargetVersion(version));
   const modulesListForTargetVersion = getModulesListForTargetVersion(version);
+  const includeSet = resolvePatterns(includePatterns, modulesListForTargetVersion);
+  const excludeSet = resolvePatterns(excludePatterns, modulesListForTargetVersion);
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
 
@@ -158,7 +174,18 @@ module.exports = defineProvider(({
   function getModulesForEntry(entry) {
     if (entry === '') entry = 'index';
     if (modulesForEntryCache.has(entry)) return modulesForEntryCache.get(entry);
-    const result = hasOwn(entries, entry) ? compat({ modules: entries[entry], targets, version }).list : [];
+    const allModules = hasOwn(entries, entry) ? entries[entry] : [];
+    let result = compat({ modules: allModules, targets, version }).list;
+    if (excludeSet) {
+      result = result.filter(mod => !excludeSet.has(mod));
+    }
+    if (includeSet) {
+      for (const mod of allModules) {
+        if (includeSet.has(mod) && !result.includes(mod)) {
+          result.push(mod);
+        }
+      }
+    }
     modulesForEntryCache.set(entry, result);
     return result;
   }
@@ -174,6 +201,7 @@ module.exports = defineProvider(({
   }
 
   function injectModule(moduleName, utils) {
+    if (excludeSet?.has(moduleName)) return;
     const moduleEntry = `modules/${ moduleName }`;
     utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
     injectedModules.add(moduleEntry);
