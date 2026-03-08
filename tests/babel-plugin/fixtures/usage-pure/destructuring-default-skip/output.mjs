@@ -1,3 +1,3 @@
 const {
-  from = fallback
+  from = null
 } = Array;
