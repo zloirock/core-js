@@ -6,7 +6,7 @@ const { normalizeCoreJSVersion } = require('@core-js/compat/helpers');
 const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
-const { isString, isObject } = require('./resolve-node-type');
+const { resolveNodeType, toHint, isString, isObject } = require('./resolve-node-type');
 
 const defaultCoreJSPackages = ['core-js'];
 
@@ -119,17 +119,18 @@ module.exports = defineProvider(({
       || t.isNewExpression(parent, { callee });
   }
 
+  function descHasTypeHints(desc) {
+    for (const hint of TYPE_HINTS) if (hasOwn(desc, hint)) return true;
+    return false;
+  }
+
   function resolveHint(desc, meta) {
     const { placement, object } = meta;
     const hint = String(object).toLowerCase();
 
     if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
-      let hasOtherHints = false;
-      for (const $hint of TYPE_HINTS) if (hasOwn(desc, $hint)) {
-        if (hint === $hint) return desc[hint];
-        hasOtherHints = true;
-      }
-      return hasOtherHints ? null : hasOwn(desc, 'common') ? desc.common : null;
+      if (hasOwn(desc, hint)) return desc[hint];
+      return descHasTypeHints(desc) ? null : hasOwn(desc, 'common') ? desc.common : null;
     }
 
     if (hasOwn(desc, 'common')) return desc.common;
@@ -148,6 +149,15 @@ module.exports = defineProvider(({
     }
 
     return null;
+  }
+
+  function enhanceMeta(meta, path, desc) {
+    if (!meta || meta.placement === 'prototype') return meta;
+    if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return meta;
+    const hint = toHint(resolveNodeType(path.get('object')));
+    if (!hint) return meta;
+    if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
+    return descHasTypeHints(desc) ? null : meta;
   }
 
   function filter(name, args, path) {
@@ -377,7 +387,9 @@ module.exports = defineProvider(({
       if (!resolved || !hasOwn(resolved.desc, 'global')) return;
       let { kind, desc: { global: desc } } = resolved;
       if (kind === 'instance') {
-        desc = resolveHint(desc, meta);
+        const enhanced = enhanceMeta(meta, path, desc);
+        if (enhanced === null) return true;
+        desc = resolveHint(desc, enhanced);
         if (desc === null) return true;
       }
       const { dependencies, filters } = desc;
@@ -422,7 +434,12 @@ module.exports = defineProvider(({
       if (!resolved || !hasOwn(resolved.desc, 'pure')) return;
 
       const { kind, desc: { pure: desc } } = resolved;
-      const importEntry = resolvePureEntry(kind, desc, meta, path);
+      let effectiveMeta = meta;
+      if (kind === 'instance') {
+        effectiveMeta = enhanceMeta(meta, path, desc);
+        if (effectiveMeta === null) return;
+      }
+      const importEntry = resolvePureEntry(kind, desc, effectiveMeta, path);
       if (!importEntry) return;
 
       const hintName = kind === 'instance' ? `${ resolved.name }InstanceProperty` : resolved.name;
