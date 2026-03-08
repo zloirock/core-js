@@ -33,6 +33,108 @@ const TYPE_HINTS = new Set([
   'symbol',
 ]);
 
+function $Primitive(type) {
+  this.type = type;
+  this.constructor = null;
+}
+
+$Primitive.prototype.primitive = true;
+
+function $Object(constructor) {
+  this.type = 'object';
+  this.constructor = constructor;
+}
+
+$Object.prototype.primitive = false;
+
+function resolveTypeAnnotation(node) {
+  if (!node) return null;
+  // Flow / TS wrappers
+  if (node.type === 'TypeAnnotation' || node.type === 'TSTypeAnnotation') {
+    return resolveTypeAnnotation(node.typeAnnotation);
+  }
+  switch (node.type) {
+    // TS primitive keywords
+    case 'TSStringKeyword':
+    case 'StringTypeAnnotation':
+      return new $Primitive('string');
+    case 'TSNumberKeyword':
+    case 'NumberTypeAnnotation':
+      return new $Primitive('number');
+    case 'TSBooleanKeyword':
+    case 'BooleanTypeAnnotation':
+      return new $Primitive('boolean');
+    case 'TSBigIntKeyword':
+    case 'BigIntTypeAnnotation':
+      return new $Primitive('bigint');
+    case 'TSSymbolKeyword':
+    case 'SymbolTypeAnnotation':
+      return new $Primitive('symbol');
+    case 'TSVoidKeyword':
+    case 'TSUndefinedKeyword':
+    case 'VoidTypeAnnotation':
+      return new $Primitive('undefined');
+    case 'TSNullKeyword':
+    case 'NullLiteralTypeAnnotation':
+      return new $Primitive('null');
+    // TS / Flow object types
+    case 'TSObjectKeyword':
+    case 'TSTypeLiteral':
+    case 'ObjectTypeAnnotation':
+      return new $Object('Object');
+    case 'TSArrayType':
+    case 'TSTupleType':
+    case 'ArrayTypeAnnotation':
+    case 'TupleTypeAnnotation':
+      return new $Object('Array');
+    case 'TSFunctionType':
+    case 'TSConstructorType':
+    case 'FunctionTypeAnnotation':
+      return new $Object('Function');
+    // TS / Flow named types — only well-known built-ins
+    case 'TSTypeReference':
+    case 'GenericTypeAnnotation': {
+      const typeName = node.type === 'TSTypeReference' ? node.typeName : node.id;
+      if (typeName?.type === 'Identifier') switch (typeName.name) {
+        case 'Array':
+        case 'Date':
+        case 'Error':
+        case 'Function':
+        case 'Map':
+        case 'Object':
+        case 'Promise':
+        case 'RegExp':
+        case 'Set':
+        case 'WeakMap':
+        case 'WeakSet':
+        case 'String':
+        case 'Number':
+        case 'Boolean':
+        case 'BigInt':
+        case 'Symbol':
+          return new $Object(typeName.name);
+      }
+      return null;
+    }
+    // TS literal types: 'hello', 42, true, etc.
+    case 'TSLiteralType':
+      if (node.literal) switch (node.literal.type) {
+        case 'StringLiteral':
+        case 'TemplateLiteral':
+          return new $Primitive('string');
+        case 'NumericLiteral':
+        case 'UnaryExpression':
+          return new $Primitive('number');
+        case 'BooleanLiteral':
+          return new $Primitive('boolean');
+        case 'BigIntLiteral':
+          return new $Primitive('bigint');
+      }
+      return null;
+  }
+  return null;
+}
+
 module.exports = defineProvider(({
   babel,
   createMetaResolver,
@@ -135,18 +237,6 @@ module.exports = defineProvider(({
       break;
     }
     return path;
-  }
-
-  function $Primitive(type) {
-    this.primitive = true;
-    this.type = type;
-    this.constructor = null;
-  }
-
-  function $Object(constructor) {
-    this.primitive = false;
-    this.type = 'object';
-    this.constructor = constructor;
   }
 
   function resolveNumericType(path) {
@@ -324,11 +414,13 @@ module.exports = defineProvider(({
       case 'ParenthesizedExpression':
         return resolveNodeType(path.get('expression'));
       case 'TSAsExpression':
-      case 'TSSatisfiesExpression':
-      case 'TSNonNullExpression':
-      case 'TSInstantiationExpression':
       case 'TSTypeAssertion':
       case 'TypeCastExpression':
+        return resolveTypeAnnotation(path.node.typeAnnotation) || resolveNodeType(path.get('expression'));
+      case 'TSSatisfiesExpression':
+        return resolveNodeType(path.get('expression')) || resolveTypeAnnotation(path.node.typeAnnotation);
+      case 'TSNonNullExpression':
+      case 'TSInstantiationExpression':
         return resolveNodeType(path.get('expression'));
     }
     return null;
