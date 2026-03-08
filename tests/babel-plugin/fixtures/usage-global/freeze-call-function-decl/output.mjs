@@ -1,2 +1,2 @@
-function f() {}
-Object.freeze(f);
+function foo() {}
+Object.freeze(foo);
