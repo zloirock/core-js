@@ -113,6 +113,11 @@ module.exports = defineProvider(({
     debug(moduleName);
   }
 
+  function isInTypeAnnotation(path) {
+    return !!path.findParent(p => t.isTSType(p.node) || t.isFlowType(p.node)
+      || p.node.type === 'TSTypeAnnotation' || p.node.type === 'TypeAnnotation');
+  }
+
   function isCallee(callee, parent) {
     return t.isCallExpression(parent, { callee })
       || t.isOptionalCallExpression(parent, { callee })
@@ -403,6 +408,7 @@ module.exports = defineProvider(({
 
     usagePure(meta, utils, path) {
       if (skippedNodes.has(path.node)) return;
+      if (isInTypeAnnotation(path)) return;
 
       if (meta.kind === 'in') {
         if (meta.key === 'Symbol.iterator' && isEntryNeeded('is-iterable')) {
