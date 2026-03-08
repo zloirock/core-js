@@ -82,6 +82,7 @@ function resolvePatterns(patterns, moduleNames) {
   for (const pattern of patterns) {
     const regex = pattern instanceof RegExp ? pattern : new RegExp(`^${ pattern }$`);
     for (const name of moduleNames) {
+      regex.lastIndex = 0;
       if (regex.test(name)) set.add(name);
     }
   }
@@ -180,8 +181,9 @@ module.exports = defineProvider(({
       result = result.filter(mod => !excludeSet.has(mod));
     }
     if (includeSet) {
+      const resultSet = new Set(result);
       for (const mod of allModules) {
-        if (includeSet.has(mod) && !result.includes(mod)) {
+        if (includeSet.has(mod) && !resultSet.has(mod)) {
           result.push(mod);
         }
       }
