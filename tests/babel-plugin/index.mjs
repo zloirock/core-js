@@ -8,6 +8,11 @@ const { cyan, green, red, yellow } = chalk;
 
 const { OVERWRITE } = process.env;
 const UTF8 = { encoding: 'utf8' };
+const ROOT = path.resolve('../..').replaceAll('\\', '/');
+
+function normalizeOutput(code) {
+  return code.replaceAll(ROOT, '<CWD>');
+}
 
 let passed = 0;
 let failed = 0;
@@ -25,7 +30,7 @@ async function handleDirectory(directory) {
 
   const source = await readFile(join(directory, 'input.mjs'), UTF8);
   const options = await readJson(join(directory, 'options.json'), UTF8);
-  const result = (await transformAsync(source, options)).code;
+  const result = normalizeOutput((await transformAsync(source, options)).code);
   const expected = join(directory, 'output.mjs');
 
   // eslint-disable-next-line promise/prefer-await-to-then -- ok
