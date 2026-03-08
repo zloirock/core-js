@@ -1,0 +1,1 @@
+(x as Map<any, any>).filter(fn);
