@@ -1,0 +1,7 @@
+core-js@4: `DEBUG` option
+
+Using targets: {}
+
+Using polyfills with `entry-global` method:
+The core-js@4 polyfill entry has been replaced with the following polyfills:
+  es.array.at {}
