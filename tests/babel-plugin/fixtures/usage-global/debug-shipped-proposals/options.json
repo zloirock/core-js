@@ -1,0 +1,17 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-global",
+        "version": "4.0",
+        "mode": "stable",
+        "shippedProposals": true,
+        "targets": {
+          "ie": 11
+        },
+        "debug": true
+      }
+    ]
+  ]
+}
