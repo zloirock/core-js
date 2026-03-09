@@ -1,0 +1,4 @@
+[BABEL] unknown file: Error while validating the "core-js@4" provider options:
+  - The following polyfills were matched both by "include" and "exclude" patterns:
+    es.string.at
+ (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")

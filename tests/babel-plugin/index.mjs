@@ -1,5 +1,6 @@
 const { transformAsync } = require('@babel/core');
 const { strictEqual } = require('node:assert');
+const { pathToFileURL } = require('node:url');
 
 const { _: args } = argv;
 const { access, readdir, readFile, readJson, rm, stat, writeFile } = fs;
@@ -27,7 +28,10 @@ function pass(directory) {
 
 async function runFixture(directory) {
   const source = await readFile(join(directory, 'input.mjs'), UTF8);
-  const options = await readJson(join(directory, 'options.json'), UTF8);
+  const optionsMjs = join(directory, 'options.mjs');
+  const options = await exists(optionsMjs)
+    ? (await import(pathToFileURL(path.resolve(optionsMjs)).href)).default
+    : await readJson(join(directory, 'options.json'), UTF8);
   const errorFile = join(directory, 'error.txt');
   const outputFile = join(directory, 'output.mjs');
   const debugFile = join(directory, 'debug.txt');
