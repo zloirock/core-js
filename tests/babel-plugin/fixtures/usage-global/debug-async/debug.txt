@@ -1,0 +1,12 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "ie": "11"
+}
+
+Using polyfills with `usage-global` method:
+The core-js@4 polyfill added the following polyfills:
+  es.object.to-string { "ie":"11" }
+  es.promise.constructor { "ie":"11" }
+  es.promise.catch { "ie":"11" }
+  es.promise.finally { "ie":"11" }
