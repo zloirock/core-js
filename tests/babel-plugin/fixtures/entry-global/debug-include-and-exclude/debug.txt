@@ -1,0 +1,9 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "chrome": "135"
+}
+
+Using polyfills with `entry-global` method:
+The core-js@4 polyfill entry has been replaced with the following polyfills:
+  es.object.has-own {}

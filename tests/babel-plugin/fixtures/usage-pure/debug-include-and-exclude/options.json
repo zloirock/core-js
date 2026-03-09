@@ -1,0 +1,22 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "chrome": 135
+        },
+        "include": [
+          "es.string.at"
+        ],
+        "exclude": [
+          "es.array.includes",
+          "es.string.includes"
+        ],
+        "debug": true
+      }
+    ]
+  ]
+}
