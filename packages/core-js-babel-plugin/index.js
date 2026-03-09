@@ -226,7 +226,7 @@ module.exports = defineProvider(({
     if (applyFilters(target.filters, path)) return null;
     if (!target.dependencies?.length) return null;
     const [entry] = target.dependencies;
-    if (!isEntryNeeded(entry)) return null;
+    if (!isEntryNeeded(entry) && !(target.guard && isEntryNeeded(target.guard))) return null;
     // import from common wrapper to get correct (non-decurried) export
     return kind === 'instance' && hasOwn(desc, 'common') ? desc.common.dependencies[0] : entry;
   }
