@@ -399,7 +399,10 @@ export const InstanceProperties = {
   toReversed: { array: 'instance/to-reversed' },
   toSorted: { array: 'instance/to-sorted' },
   toSpliced: { array: 'instance/to-spliced' },
-  toString: { global: ['object/to-string', 'regexp/to-string'] },
+  toString: { global: {
+    regexp: 'regexp/to-string',
+    rest: 'object/to-string',
+  } },
   toWellFormed: { string: 'instance/to-well-formed' },
   trim: { string: 'instance/trim' },
   trimEnd: { string: 'instance/trim-end' },
