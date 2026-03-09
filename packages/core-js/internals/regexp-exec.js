@@ -19,7 +19,6 @@ var patchedExec = nativeExec;
 var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
-var stringIndexOf = uncurryThis(''.indexOf);
 var stringSlice = uncurryThis(''.slice);
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
@@ -49,7 +48,6 @@ var setGroups = function (re, groups) {
 // This implementation provides best-effort indices calculation
 // It works correctly for most common cases but may have limitations
 // with complex patterns like overlapping groups or backreferences
-// eslint-disable-next-line no-unused-vars -- kept for API consistency
 var getCapturePositions = function (match, str) {
   var positions = [];
   var matchStart = match.index;
@@ -59,14 +57,6 @@ var getCapturePositions = function (match, str) {
   // Position 0 is the entire match
   positions[0] = [matchStart, matchEnd];
 
-  // For capturing groups, we need to calculate positions
-  // The challenge: nested groups like ((a)(b)) have overlapping matches
-  // match[1] = "ab", match[2] = "a", match[3] = "b"
-  // We need to track which parts of the string are "consumed" by which group
-
-  // Strategy: use a greedy matching approach, but account for nested groups
-  // by allowing overlaps when the captured string is a substring of an earlier capture
-
   for (var i = 1; i < match.length; i++) {
     var captured = match[i];
 
@@ -74,21 +64,25 @@ var getCapturePositions = function (match, str) {
       // Non-participating capturing group
       positions[i] = undefined;
     } else if (captured === '') {
-      // Empty capture - find position based on surrounding context
-      // For now, use the earliest valid position
-      var pos = 0;
-      positions[i] = [matchStart + pos, matchStart + pos];
+      // Empty capture - position is at the match start by default
+      positions[i] = [matchStart, matchStart];
     } else {
-      // Find the captured string in the match
-      // For nested groups, we need to find the right position
-      // The captured string should be within the match
-      var foundIndex = stringIndexOf(matchString, captured, 0);
+      // First try to find the captured string within the match string
+      var foundIndex = indexOf(matchString, captured, 0);
 
       if (foundIndex !== -1 && foundIndex + captured.length <= matchString.length) {
         positions[i] = [matchStart + foundIndex, matchStart + foundIndex + captured.length];
       } else {
-        // Fallback: should not normally happen
-        positions[i] = undefined;
+        // Captured string not found in match[0] — this happens with lookahead/lookbehind
+        // capturing groups whose content is outside the consumed match.
+        // Search in the full input string starting from the match position.
+        var strIndex = indexOf(str, captured, matchStart);
+        if (strIndex !== -1) {
+          positions[i] = [strIndex, strIndex + captured.length];
+        } else {
+          // Fallback: should not normally happen
+          positions[i] = undefined;
+        }
       }
     }
   }
