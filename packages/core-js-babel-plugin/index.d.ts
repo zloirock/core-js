@@ -31,6 +31,8 @@ type Options = Pick<CompatOptions, "targets"> & {
   configPath?: string,
   /** ignore browserslist config files */
   ignoreBrowserslistConfig?: boolean,
+  /** treat proposals that have been shipped in browsers as stable features */
+  shippedProposals?: boolean,
 };
 
 declare function plugin(api: object, options: Options, dirname: string): { name: string, visitor: object };
