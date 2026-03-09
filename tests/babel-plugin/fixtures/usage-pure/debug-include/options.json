@@ -1,0 +1,18 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "chrome": 135
+        },
+        "include": [
+          "es.array.at"
+        ],
+        "debug": true
+      }
+    ]
+  ]
+}
