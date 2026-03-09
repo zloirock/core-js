@@ -1,0 +1,8 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "chrome": "100"
+}
+
+Using polyfills with `entry-global` method:
+Based on your targets, the core-js@4 polyfill did not add any polyfill.
