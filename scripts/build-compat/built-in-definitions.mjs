@@ -39,10 +39,14 @@ function unfoldDependencies(data) {
 function unfoldHint(data) {
   if (!data) return;
   const result = dict();
-  const { dependencies, filters } = data;
-  if (dependencies || filters) {
+  const { dependencies, filters, guard } = data;
+  if (dependencies || filters || guard) {
     if (dependencies) result.dependencies = unfoldDependencies(dependencies);
     if (filters) result.filters = filters;
+    if (guard) {
+      if (!entries.has(`full/${ guard }`)) throw new Error(`incorrect guard: ${ guard }`);
+      result.guard = guard;
+    }
   } else result.dependencies = unfoldDependencies(data);
   return result;
 }
