@@ -1,7 +1,6 @@
 'use strict';
 const { default: defineProvider } = require('@babel/helper-define-polyfill-provider');
 const entries = require('@core-js/compat/entries.json');
-const compat = require('@core-js/compat/compat');
 const { normalizeCoreJSVersion } = require('@core-js/compat/helpers');
 const compatData = require('@core-js/compat/data.json');
 const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
@@ -77,57 +76,6 @@ function enhanceMeta(meta, path, desc) {
   return descHasTypeHints(desc) ? null : meta;
 }
 
-function resolvePatterns(patterns, moduleNames) {
-  const set = new Set();
-  const unused = [];
-
-  for (const pattern of patterns) {
-    let regexp;
-    if (pattern instanceof RegExp) regexp = pattern;
-    else try {
-      regexp = new RegExp(`^${ pattern }$`);
-    } catch {
-      unused.push(pattern);
-      continue;
-    }
-
-    let matched = false;
-    for (const name of moduleNames) {
-      if (regexp.test(name)) {
-        matched = true;
-        set.add(name);
-      }
-    }
-    if (!matched) unused.push(pattern);
-  }
-
-  return { set, unused };
-}
-
-function formatList(items) {
-  return items.map(item => `    ${ String(item) }\n`).join('');
-}
-
-function validateIncludeExclude(includePatterns, excludePatterns, moduleNames) {
-  const { set: include, unused: unusedInclude } = resolvePatterns(includePatterns || [], moduleNames);
-  const { set: exclude, unused: unusedExclude } = resolvePatterns(excludePatterns || [], moduleNames);
-
-  const duplicates = [...include].filter(name => exclude.has(name));
-
-  if (unusedInclude.length || unusedExclude.length || duplicates.length) {
-    let message = 'Error while validating the `@core-js/babel-plugin` options:\n';
-    if (unusedInclude.length) message += `  - The following "include" patterns didn't match any polyfill:\n${ formatList(unusedInclude) }`;
-    if (unusedExclude.length) message += `  - The following "exclude" patterns didn't match any polyfill:\n${ formatList(unusedExclude) }`;
-    if (duplicates.length) message += `  - The following polyfills were matched both by "include" and "exclude" patterns:\n${ formatList(duplicates) }`;
-    throw new Error(message);
-  }
-
-  return {
-    include: include.size ? include : null,
-    exclude: exclude.size ? [...exclude] : undefined,
-  };
-}
-
 function canTransformDestructuring(path) {
   const objectPattern = path.parentPath;
   const destructParent = objectPattern.parentPath;
@@ -150,14 +98,12 @@ module.exports = defineProvider(({
   debug,
   getUtils,
   method,
-  targets,
+  shouldInjectPolyfill,
 }, {
   pkg,
   pkgs,
   mode = 'actual',
   version = '4.0',
-  include: includePatterns,
-  exclude: excludePatterns,
   shippedProposals = false,
 }) => {
   if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
@@ -184,12 +130,9 @@ module.exports = defineProvider(({
   const packages = pkgs ? [...defaultCoreJSPackages, ...pkgs] : defaultCoreJSPackages;
 
   const entriesSetForTargetVersion = method === 'usage-pure' && new Set(getEntriesListForTargetVersion(version));
-  const modulesListForTargetVersion = getModulesListForTargetVersion(version);
-  const { include, exclude } = validateIncludeExclude(includePatterns, excludePatterns, modulesListForTargetVersion);
+  const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
-
-  if (!Object.keys(targets).length) targets = null;
 
   const resolve = createMetaResolver({
     global: Globals,
@@ -215,16 +158,8 @@ module.exports = defineProvider(({
   function getModulesForEntry(entry) {
     if (entry === '') entry = 'index';
     if (modulesForEntryCache.has(entry)) return modulesForEntryCache.get(entry);
-    const allModules = hasOwn(entries, entry) ? entries[entry] : [];
-    const result = compat({ modules: allModules, exclude, targets, version }).list;
-    if (include) {
-      const resultSet = new Set(result);
-      for (const mod of allModules) {
-        if (include.has(mod) && !resultSet.has(mod)) {
-          result.push(mod);
-        }
-      }
-    }
+    const allEntryModules = hasOwn(entries, entry) ? entries[entry] : [];
+    const result = allEntryModules.filter(mod => modulesSetForTargetVersion.has(mod) && shouldInjectPolyfill(mod));
     modulesForEntryCache.set(entry, result);
     return result;
   }
