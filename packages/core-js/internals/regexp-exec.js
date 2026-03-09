@@ -57,6 +57,9 @@ var getCapturePositions = function (match, str) {
   // Position 0 is the entire match
   positions[0] = [matchStart, matchEnd];
 
+  // Track the last found position to handle duplicate captured strings
+  var lastFoundPos = 0;
+
   for (var i = 1; i < match.length; i++) {
     var captured = match[i];
 
@@ -64,14 +67,18 @@ var getCapturePositions = function (match, str) {
       // Non-participating capturing group
       positions[i] = undefined;
     } else if (captured === '') {
-      // Empty capture - position is at the match start by default
-      positions[i] = [matchStart, matchStart];
+      // Empty capture - position follows the previous captured group's end
+      // or is at matchStart if this is the first capture
+      positions[i] = [matchStart + lastFoundPos, matchStart + lastFoundPos];
     } else {
       // First try to find the captured string within the match string
-      var foundIndex = indexOf(matchString, captured, 0);
+      // Start searching from the last found position to handle duplicate strings
+      var foundIndex = indexOf(matchString, captured, lastFoundPos);
 
       if (foundIndex !== -1 && foundIndex + captured.length <= matchString.length) {
         positions[i] = [matchStart + foundIndex, matchStart + foundIndex + captured.length];
+        // Update last found position to after this capture for next iteration
+        lastFoundPos = foundIndex + captured.length;
       } else {
         // Captured string not found in match[0] — this happens with lookahead/lookbehind
         // capturing groups whose content is outside the consumed match.
@@ -79,6 +86,8 @@ var getCapturePositions = function (match, str) {
         var strIndex = indexOf(str, captured, matchStart);
         if (strIndex !== -1) {
           positions[i] = [strIndex, strIndex + captured.length];
+          // Update last found position even for lookahead/lookbehind captures
+          lastFoundPos = strIndex + captured.length - matchStart;
         } else {
           // Fallback: should not normally happen
           positions[i] = undefined;
