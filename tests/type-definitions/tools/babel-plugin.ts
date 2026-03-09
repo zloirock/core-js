@@ -42,6 +42,8 @@ plugin({}, { method: 'usage-global', absoluteImports: '/absolute/path' }, '/path
 plugin({}, { method: 'usage-global', configPath: '.' }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: true }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: false }, '/path');
+plugin({}, { method: 'usage-global', shippedProposals: true }, '/path');
+plugin({}, { method: 'usage-global', shippedProposals: false }, '/path');
 
 // all options combined
 plugin({}, {
@@ -61,6 +63,7 @@ plugin({}, {
   absoluteImports: false,
   configPath: '.',
   ignoreBrowserslistConfig: false,
+  shippedProposals: true,
 }, '/path');
 
 // all targets
@@ -120,3 +123,5 @@ plugin({}, { method: 'usage-global', absoluteImports: 123 }, '/path');
 plugin({}, { method: 'usage-global', configPath: true }, '/path');
 // @ts-expect-error — ignoreBrowserslistConfig must be a boolean
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: 'yes' }, '/path');
+// @ts-expect-error — shippedProposals must be a boolean
+plugin({}, { method: 'usage-global', shippedProposals: 'yes' }, '/path');
