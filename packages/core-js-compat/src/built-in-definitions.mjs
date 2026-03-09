@@ -135,15 +135,30 @@ export const StaticProperties = {
   },
   Object: {
     assign: 'object/assign',
-    create: 'object/create',
-    defineProperties: 'object/define-properties', // symbol case !!!
-    defineProperty: 'object/define-property', // symbol case !!!
+    create: {
+      global: 'object/create',
+      pure: { dependencies: 'object/create', guard: 'symbol/constructor' },
+    },
+    defineProperties: {
+      global: 'object/define-properties',
+      pure: { dependencies: 'object/define-properties', guard: 'symbol/constructor' },
+    },
+    defineProperty: {
+      global: 'object/define-property',
+      pure: { dependencies: 'object/define-property', guard: 'symbol/constructor' },
+    },
     entries: 'object/entries',
     freeze: { dependencies: 'object/freeze', filters: [['arg-is-object', 0]] },
     fromEntries: 'object/from-entries',
-    getOwnPropertyDescriptor: { dependencies: 'object/get-own-property-descriptor', filters: [['arg-is-object', 0]] }, // symbol case !!!
+    getOwnPropertyDescriptor: {
+      global: { dependencies: 'object/get-own-property-descriptor' },
+      pure: { dependencies: 'object/get-own-property-descriptor', guard: 'symbol/constructor' },
+    },
     getOwnPropertyDescriptors: 'object/get-own-property-descriptors',
-    getOwnPropertyNames: { dependencies: 'object/get-own-property-names', filters: [['arg-is-object', 0]] }, // symbol case !!!
+    getOwnPropertyNames: {
+      global: { dependencies: 'object/get-own-property-names' },
+      pure: { dependencies: 'object/get-own-property-names', guard: 'symbol/constructor' },
+    },
     getOwnPropertySymbols: 'object/get-own-property-symbols',
     getPrototypeOf: { dependencies: 'object/get-prototype-of', filters: [['arg-is-object', 0]] },
     groupBy: 'object/group-by',
