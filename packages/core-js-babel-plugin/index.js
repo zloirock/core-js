@@ -46,6 +46,7 @@ function resolveHint(desc, meta) {
 
   if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
     if (hasOwn(desc, hint)) return desc[hint];
+    if (hasOwn(desc, 'rest')) return desc.rest;
     return descHasTypeHints(desc) ? null : hasOwn(desc, 'common') ? desc.common : null;
   }
 
@@ -56,6 +57,7 @@ function resolveHint(desc, meta) {
   for (const $hint of TYPE_HINTS) {
     if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
   }
+  if (hasOwn(desc, 'rest')) hintDescs.push(desc.rest);
 
   if (hintDescs.length === 1) return hintDescs[0];
 
