@@ -14,7 +14,7 @@ const ROOT = path.resolve('../..').replaceAll('\\', '/');
 const exists = file => access(file).then(() => true, () => false);
 
 function normalizeOutput(code) {
-  return code.replaceAll(ROOT, '<CWD>');
+  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }
 
 let passed = 0;
