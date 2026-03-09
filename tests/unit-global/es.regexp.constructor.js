@@ -221,6 +221,36 @@ if (DESCRIPTORS) {
     assert.deepEqual(match10.indices[0], [0, 1], 'empty group match indices');
     assert.deepEqual(match10.indices[1], [0, 0], 'empty group should have [0, 0]');
 
+    // Edge case: duplicate captured strings - each should get correct position
+    const re14a = new RegExp('(b)(a)(b)', 'd');
+    const match10a = re14a.exec('bab');
+    assert.deepEqual(match10a.indices[0], [0, 3], 'duplicate strings entire match');
+    assert.deepEqual(match10a.indices[1], [0, 1], 'first b should be [0, 1]');
+    assert.deepEqual(match10a.indices[2], [1, 2], 'a should be [1, 2]');
+    assert.deepEqual(match10a.indices[3], [2, 3], 'second b should be [2, 3]');
+
+    // Edge case: empty capturing group after non-empty capture
+    const re14b = new RegExp('(x)(a*)b', 'd');
+    const match10b = re14b.exec('xb');
+    assert.deepEqual(match10b.indices[0], [0, 2], 'empty after non-empty entire match');
+    assert.deepEqual(match10b.indices[1], [0, 1], 'x should be [0, 1]');
+    assert.deepEqual(match10b.indices[2], [1, 1], 'empty a* should be [1, 1] after x');
+
+    // Edge case: overlapping capturing groups
+    const re14c = new RegExp('(ab)(b)', 'd');
+    const match10c = re14c.exec('abb');
+    assert.deepEqual(match10c.indices[0], [0, 3], 'overlapping entire match');
+    assert.deepEqual(match10c.indices[1], [0, 2], 'ab should be [0, 2]');
+    assert.deepEqual(match10c.indices[2], [2, 3], 'second b should be [2, 3]');
+
+    // Edge case: nested groups with repeated substrings
+    const re14d = new RegExp('(a)(aa)(a)', 'd');
+    const match10d = re14d.exec('aaaa');
+    assert.deepEqual(match10d.indices[0], [0, 4], 'repeated substrings entire match');
+    assert.deepEqual(match10d.indices[1], [0, 1], 'first a should be [0, 1]');
+    assert.deepEqual(match10d.indices[2], [1, 3], 'aa should be [1, 3]');
+    assert.deepEqual(match10d.indices[3], [3, 4], 'last a should be [3, 4]');
+
     // Edge case: nested capturing groups
     const re15 = new RegExp('((a)(b))', 'd');
     const match11 = re15.exec('ab');
