@@ -30,43 +30,74 @@ async function runFixture(directory) {
   const options = await readJson(join(directory, 'options.json'), UTF8);
   const errorFile = join(directory, 'error.txt');
   const outputFile = join(directory, 'output.mjs');
+  const debugFile = join(directory, 'debug.txt');
+
+  const logs = [];
+  const consoleLog = console.log;
+  console.log = (...a) => logs.push(a.map(String).join(' '));
 
   let result, error;
   try {
     result = normalizeOutput((await transformAsync(source, options)).code);
   } catch (transformError) {
     error = transformError;
+  } finally {
+    console.log = consoleLog;
   }
 
   const actualFile = error ? errorFile : outputFile;
   const staleFile = error ? outputFile : errorFile;
   const actual = error ? normalizeOutput(error.message) : result;
+  const debugOutput = logs.length ? normalizeOutput(logs.join('\n')) : null;
+
+  const expected = [
+    [actualFile, actual],
+    [debugFile, debugOutput],
+  ];
 
   if (OVERWRITE) {
     await rm(staleFile, { force: true });
-    await writeFile(actualFile, actual, UTF8);
-    return echo`${ cyan(actualFile) } ${ yellow('created') }`;
+    for (const [file, content] of expected) {
+      if (content !== null) await writeFile(file, content, UTF8);
+      else await rm(file, { force: true });
+    }
+    return echo`${ cyan(directory) } ${ yellow('created') }`;
   }
 
   if (await exists(staleFile)) {
     failed++;
-    echo(red(`${ cyan(directory) } failed: ${ error ? 'unexpected error' : 'expected an error but transform succeeded' }`));
-    return;
+    return echo(red(`${ cyan(directory) } failed: ${ error ? 'unexpected error' : 'expected an error but transform succeeded' }`));
   }
 
   if (!await exists(actualFile)) {
-    await writeFile(actualFile, actual, UTF8);
+    for (const [file, content] of expected) {
+      if (content !== null) await writeFile(file, content, UTF8);
+    }
     return echo`${ cyan(actualFile) } ${ yellow('created') }`;
   }
 
-  try {
-    strictEqual(String(await readFile(actualFile, UTF8)), actual);
-    pass(directory);
-  } catch (equalError) {
-    failed++;
-    echo(red(`${ cyan(directory) } failed:`));
-    echo(equalError.message);
+  for (const [file, content] of expected) {
+    if (content === null) {
+      if (await exists(file)) {
+        failed++;
+        return echo(red(`${ cyan(directory) } failed: unexpected ${ cyan(file) }`));
+      }
+      continue;
+    }
+    if (!await exists(file)) {
+      failed++;
+      return echo(red(`${ cyan(directory) } failed: ${ cyan(file) } is missing`));
+    }
+    try {
+      strictEqual(content, String(await readFile(file, UTF8)));
+    } catch (equalError) {
+      failed++;
+      echo(red(`${ cyan(directory) } failed:`));
+      return echo(equalError.message);
+    }
   }
+
+  pass(directory);
 }
 
 async function walkFixtures(directory) {
