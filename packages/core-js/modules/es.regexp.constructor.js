@@ -163,6 +163,8 @@ if (isForced('RegExp', BASE_FORCED)) {
       if (dotAll) flags = replace(flags, /s/g, '');
     }
 
+    // rawFlags should not contain 's' (handled by handleDotAll) or 'd' (handled by polyfill),
+    // but should contain 'y' for sticky behavior
     rawFlags = flags;
 
     if (MISSED_STICKY && 'sticky' in re1) {
@@ -174,6 +176,9 @@ if (isForced('RegExp', BASE_FORCED)) {
       hasIndices = !!flags && stringIndexOf(flags, 'd') > -1;
       if (hasIndices) flags = replace(flags, /d/g, '');
     }
+
+    // Update rawFlags to remove 'd' flag as well
+    if (hasIndices) rawFlags = flags;
 
     if (UNSUPPORTED_NCG) {
       handled = handleNCG(pattern);

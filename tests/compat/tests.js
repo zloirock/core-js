@@ -1285,6 +1285,10 @@ GLOBAL.tests = {
   'es.regexp.dot-all': function () {
     return RegExp('.', 's').dotAll;
   },
+  'es.regexp.has-indices': function () {
+    var re = RegExp('.', 'd');
+    return re.hasIndices && re.exec('abc').indices;
+  },
   'es.regexp.exec': [NCG_SUPPORT, function () {
     var re1 = /a/;
     var re2 = /b*/g;
