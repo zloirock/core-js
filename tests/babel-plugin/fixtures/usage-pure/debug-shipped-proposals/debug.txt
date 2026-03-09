@@ -1,0 +1,9 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "ie": "11"
+}
+
+Using polyfills with `usage-pure` method:
+The core-js@4 polyfill added the following polyfills:
+  iterator/zip
