@@ -8,6 +8,7 @@ const entries = new Set(Object.keys(await fs.readJson('packages/core-js-compat/e
 
 const TYPE_HINTS = new Set([
   'common',
+  'rest',
   'array',
   'bigint',
   'boolean',
@@ -51,7 +52,7 @@ function unfoldMode(data, kind, modeName, entryName) {
   if (kind !== 'instance') return unfoldHint(data);
   const result = dict();
   if (typeof data === 'object' && !Array.isArray(data) && Object.keys(data).some(key => TYPE_HINTS.has(key))) {
-    if (!Object.hasOwn(data, 'common')) {
+    if (!Object.hasOwn(data, 'common') && !Object.hasOwn(data, 'rest')) {
       const nonCommonHintKeys = Object.keys(data).filter(key => TYPE_HINTS.has(key));
       if (nonCommonHintKeys.length > 1) {
         if (modeName === 'pure' || modeName === 'shared') {
