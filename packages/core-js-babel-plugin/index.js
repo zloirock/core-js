@@ -77,16 +77,54 @@ function enhanceMeta(meta, path, desc) {
 }
 
 function resolvePatterns(patterns, moduleNames) {
-  if (!patterns?.length) return null;
   const set = new Set();
+  const unused = [];
+
   for (const pattern of patterns) {
-    const regex = pattern instanceof RegExp ? pattern : new RegExp(`^${ pattern }$`);
-    for (const name of moduleNames) {
-      regex.lastIndex = 0;
-      if (regex.test(name)) set.add(name);
+    let regexp;
+    if (pattern instanceof RegExp) regexp = pattern;
+    else try {
+      regexp = new RegExp(`^${ pattern }$`);
+    } catch {
+      unused.push(pattern);
+      continue;
     }
+
+    let matched = false;
+    for (const name of moduleNames) {
+      if (regexp.test(name)) {
+        matched = true;
+        set.add(name);
+      }
+    }
+    if (!matched) unused.push(pattern);
   }
-  return set.size ? set : null;
+
+  return { set, unused };
+}
+
+function formatList(items) {
+  return items.map(item => `    ${ String(item) }\n`).join('');
+}
+
+function validateIncludeExclude(includePatterns, excludePatterns, moduleNames) {
+  const { set: include, unused: unusedInclude } = resolvePatterns(includePatterns || [], moduleNames);
+  const { set: exclude, unused: unusedExclude } = resolvePatterns(excludePatterns || [], moduleNames);
+
+  const duplicates = [...include].filter(name => exclude.has(name));
+
+  if (unusedInclude.length || unusedExclude.length || duplicates.length) {
+    let message = 'Error while validating the `@core-js/babel-plugin` options:\n';
+    if (unusedInclude.length) message += `  - The following "include" patterns didn't match any polyfill:\n${ formatList(unusedInclude) }`;
+    if (unusedExclude.length) message += `  - The following "exclude" patterns didn't match any polyfill:\n${ formatList(unusedExclude) }`;
+    if (duplicates.length) message += `  - The following polyfills were matched both by "include" and "exclude" patterns:\n${ formatList(duplicates) }`;
+    throw new Error(message);
+  }
+
+  return {
+    include: include.size ? include : null,
+    exclude: exclude.size ? [...exclude] : undefined,
+  };
 }
 
 function canTransformDestructuring(path) {
@@ -146,8 +184,7 @@ module.exports = defineProvider(({
 
   const entriesSetForTargetVersion = method === 'usage-pure' && new Set(getEntriesListForTargetVersion(version));
   const modulesListForTargetVersion = getModulesListForTargetVersion(version);
-  const includeSet = resolvePatterns(includePatterns, modulesListForTargetVersion);
-  const excludeSet = resolvePatterns(excludePatterns, modulesListForTargetVersion);
+  const { include, exclude } = validateIncludeExclude(includePatterns, excludePatterns, modulesListForTargetVersion);
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
 
@@ -178,14 +215,11 @@ module.exports = defineProvider(({
     if (entry === '') entry = 'index';
     if (modulesForEntryCache.has(entry)) return modulesForEntryCache.get(entry);
     const allModules = hasOwn(entries, entry) ? entries[entry] : [];
-    let result = compat({ modules: allModules, targets, version }).list;
-    if (excludeSet) {
-      result = result.filter(mod => !excludeSet.has(mod));
-    }
-    if (includeSet) {
+    const result = compat({ modules: allModules, exclude, targets, version }).list;
+    if (include) {
       const resultSet = new Set(result);
       for (const mod of allModules) {
-        if (includeSet.has(mod) && !resultSet.has(mod)) {
+        if (include.has(mod) && !resultSet.has(mod)) {
           result.push(mod);
         }
       }
@@ -205,7 +239,6 @@ module.exports = defineProvider(({
   }
 
   function injectModule(moduleName, utils) {
-    if (excludeSet?.has(moduleName)) return;
     const moduleEntry = `modules/${ moduleName }`;
     utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
     injectedModules.add(moduleEntry);
