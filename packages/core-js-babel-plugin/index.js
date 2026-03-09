@@ -3,6 +3,7 @@ const { default: defineProvider } = require('@babel/helper-define-polyfill-provi
 const entries = require('@core-js/compat/entries.json');
 const compat = require('@core-js/compat/compat');
 const { normalizeCoreJSVersion } = require('@core-js/compat/helpers');
+const compatData = require('@core-js/compat/data.json');
 const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
@@ -301,19 +302,22 @@ module.exports = defineProvider(({
     if (isCall && parent.arguments.length === 0) {
       if (!isEntryNeeded('get-iterator')) return;
       replaceCallWithSimple(path, injectPureImport('get-iterator', 'getIterator', utils));
+      debug('get-iterator');
     } else {
       if (!isEntryNeeded('get-iterator-method')) return;
       replaceInstanceLike(path, injectPureImport('get-iterator-method', 'getIteratorMethod', utils));
+      debug('get-iterator-method');
     }
   }
 
   return {
     name: 'core-js@4',
-    polyfills: modulesListForTargetVersion,
+    polyfills: compatData,
     entryGlobal({ source }, utils, path) {
       const entry = getCoreJSEntry(source);
       if (entry === null) return;
       if (!path.node.loc && injectedModules.has(entry)) return;
+      debug();
       injectModulesForEntry(entry, utils);
       path.remove();
     },
@@ -343,6 +347,7 @@ module.exports = defineProvider(({
       if (meta.kind === 'in') {
         if (meta.key === 'Symbol.iterator' && isEntryNeeded('is-iterable')) {
           path.replaceWith(t.callExpression(injectPureImport('is-iterable', 'isIterable', utils), [path.node.right]));
+          debug('is-iterable');
         }
         return;
       }
@@ -377,6 +382,7 @@ module.exports = defineProvider(({
       }
       const importEntry = resolvePureEntry(kind, desc, effectiveMeta, path);
       if (!importEntry) return;
+      debug(importEntry);
 
       const hintName = kind === 'instance' ? `${ resolved.name }InstanceProperty` : resolved.name;
 
