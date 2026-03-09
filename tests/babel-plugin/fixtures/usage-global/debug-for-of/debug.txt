@@ -1,0 +1,13 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "ie": "11"
+}
+
+Using polyfills with `usage-global` method:
+The core-js@4 polyfill added the following polyfills:
+  es.symbol.iterator { "ie":"11" }
+  es.object.to-string { "ie":"11" }
+  es.array.iterator { "ie":"11" }
+  es.string.iterator { "ie":"11" }
+  web.dom-collections.iterator { "ie":"11" }
