@@ -1,0 +1,9 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "chrome": "135"
+}
+
+Using polyfills with `usage-global` method:
+The core-js@4 polyfill added the following polyfills:
+  es.string.at {}
