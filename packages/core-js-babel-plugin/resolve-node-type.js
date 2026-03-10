@@ -25,13 +25,30 @@ function typeRefName(node) {
   return id?.type === 'Identifier' ? id.name : null;
 }
 
-function resolveTypeQuery(node, scope) {
+function constantBindingPath(name, scope) {
   if (!scope) return null;
+  const binding = scope.getBinding(name);
+  return binding?.constant ? binding.path : null;
+}
+
+function resolveTypeQuery(node, scope) {
   const { exprName } = node;
+  // typeof obj.prop — qualified name (one level deep)
+  if (exprName?.type === 'TSQualifiedName') {
+    const { left, right } = exprName;
+    if (left.type !== 'Identifier' || right.type !== 'Identifier') return null;
+    const bindingPath = constantBindingPath(left.name, scope);
+    if (!bindingPath) return null;
+    if (bindingPath.isVariableDeclarator()) {
+      const init = resolvePath(bindingPath.get('init'));
+      if (init.isObjectExpression()) return resolveObjectMember(init, right.name);
+    }
+    if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, right.name, true);
+    return null;
+  }
   if (exprName?.type !== 'Identifier') return null;
-  const binding = scope.getBinding(exprName.name);
-  if (!binding?.constant) return null;
-  const bindingPath = binding.path;
+  const bindingPath = constantBindingPath(exprName.name, scope);
+  if (!bindingPath) return null;
   if (bindingPath.isVariableDeclarator()) {
     const annotation = bindingPath.node.id?.typeAnnotation;
     if (annotation) return resolveTypeAnnotation(annotation, scope);
@@ -59,12 +76,11 @@ function resolveTypeAlias(name, scope, depth) {
 }
 
 function resolveReturnTypeFromTypeQuery(param, scope) {
-  if (!scope || param.type !== 'TSTypeQuery') return null;
+  if (param.type !== 'TSTypeQuery') return null;
   const { exprName } = param;
   if (exprName?.type !== 'Identifier') return null;
-  const binding = scope.getBinding(exprName.name);
-  if (!binding?.constant) return null;
-  const bindingPath = binding.path;
+  const bindingPath = constantBindingPath(exprName.name, scope);
+  if (!bindingPath) return null;
   let fnPath;
   if (bindingPath.isFunctionDeclaration()) {
     fnPath = bindingPath;
