@@ -144,10 +144,14 @@ function resolveNumericType(path) {
   return new $Primitive(resolved?.type === 'bigint' ? 'bigint' : 'number');
 }
 
+function typesEqual(a, b) {
+  return a.type === b.type && a.constructor === b.constructor;
+}
+
 function resolveUnionType(leftPath, rightPath) {
   const left = resolveNodeType(leftPath);
   const right = resolveNodeType(rightPath);
-  if (left && right && left.type === right.type && left.constructor === right.constructor) return left;
+  if (left && right && typesEqual(left, right)) return left;
   return null;
 }
 
@@ -335,18 +339,26 @@ function resolveBodyReturnType(fnPath) {
   const body = fnPath.get('body');
   // arrow with expression body: () => [1, 2, 3]
   if (!body.isBlockStatement()) return resolveNodeType(body);
-  // block body: check direct return statements
+  // block body: traverse all return statements, skip nested functions
   let result = null;
-  for (const statement of body.get('body')) {
-    if (!statement.isReturnStatement()) continue;
-    const arg = statement.get('argument');
-    if (!arg.node) return null;
-    const type = resolveNodeType(arg);
-    if (!type) return null;
-    if (result && (result.type !== type.type || result.constructor !== type.constructor)) return null;
-    result = type;
-  }
-  return result;
+  let resolved = true;
+  body.traverse({
+    ReturnStatement(returnPath) {
+      if (!resolved) return;
+      const arg = returnPath.get('argument');
+      const type = arg.node ? resolveNodeType(arg) : null;
+      if (!type || (result && !typesEqual(result, type))) {
+        resolved = false;
+        returnPath.stop();
+        return;
+      }
+      result = type;
+    },
+    Function(innerPath) {
+      innerPath.skip();
+    },
+  });
+  return resolved ? result : null;
 }
 
 // resolve return type of a function, optionally inferring generic type parameters from call-site arguments
@@ -377,8 +389,8 @@ function resolveReturnType(fnPath, callPath) {
 function resolveClass(resolved) {
   if (resolved.isClass()) return resolved;
   if (resolved.isNewExpression()) {
-    const klass = resolvePath(resolved.get('callee'));
-    if (klass.isClass()) return klass;
+    const cls = resolvePath(resolved.get('callee'));
+    if (cls.isClass()) return cls;
   }
   return null;
 }
