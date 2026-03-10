@@ -123,7 +123,8 @@ function resolvePath(path) {
 
 function resolveNumericType(path) {
   const resolved = resolveNodeType(path);
-  return new $Primitive(resolved === null ? null : resolved.type === 'bigint' ? 'bigint' : 'number');
+  // `number` if resolving is not possible - acceptable assumption within `core-js`
+  return new $Primitive(resolved?.type === 'bigint' ? 'bigint' : 'number');
 }
 
 function resolveUnionType(leftPath, rightPath) {
@@ -161,8 +162,8 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
       const left = resolveNodeType(leftPath);
       const right = resolveNodeType(rightPath);
       if (left?.type === 'bigint' || right?.type === 'bigint') return new $Primitive('bigint');
-      if (left !== null || right !== null) return new $Primitive('number');
-      return new $Primitive(null);
+      // `number` if resolving is not possible - acceptable assumption within `core-js`
+      return new $Primitive('number');
     }
   }
   return null;
