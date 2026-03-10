@@ -53,6 +53,7 @@ function resolveTypeAnnotation(node) {
     case 'NullLiteralTypeAnnotation':
       return new $Primitive('null');
     case 'TSNeverKeyword':
+    case 'EmptyTypeAnnotation':
       return new $Primitive('never');
     // TS / Flow object types
     case 'TSObjectKeyword':
