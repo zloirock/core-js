@@ -57,6 +57,7 @@ function resolveTypeAnnotation(node) {
     // TS / Flow object types
     case 'TSObjectKeyword':
     case 'TSTypeLiteral':
+    case 'TSMappedType':
     case 'ObjectTypeAnnotation':
       return new $Object('Object');
     case 'TSArrayType':
