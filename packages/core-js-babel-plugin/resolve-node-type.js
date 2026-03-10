@@ -395,26 +395,26 @@ function resolveClass(resolved) {
   return null;
 }
 
-function findClassMember(classPath, name) {
+function findClassMember(classPath, name, isStatic) {
   for (const member of classPath.get('body').get('body')) {
     const { key } = member.node;
     if (key?.type !== 'Identifier' || key.name !== name) continue;
-    if (member.node.static) continue;
+    if (!!member.node.static !== isStatic) continue;
     return member;
   }
   return null;
 }
 
-function resolveClassMemberType(classPath, name) {
-  const member = findClassMember(classPath, name);
+function resolveClassMemberType(classPath, name, isStatic) {
+  const member = findClassMember(classPath, name, isStatic);
   if (!member || (!member.isClassProperty() && !member.isClassAccessorProperty())) return null;
   if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation);
   const value = member.get('value');
   return value.node ? resolveNodeType(value) : null;
 }
 
-function resolveClassMethodReturnType(classPath, name) {
-  const member = findClassMember(classPath, name);
+function resolveClassMethodReturnType(classPath, name, isStatic) {
+  const member = findClassMember(classPath, name, isStatic);
   return member?.isClassMethod() ? resolveReturnType(member) : null;
 }
 
@@ -448,8 +448,9 @@ function resolveFromMemberExpression(path, objectResolver, classResolver) {
   if (property.type !== 'Identifier') return null;
   const objectPath = resolvePath(path.get('object'));
   if (objectPath.isObjectExpression()) return objectResolver(objectPath, property.name);
+  const isStatic = objectPath.isClass();
   const classPath = resolveClass(objectPath);
-  return classPath ? classResolver(classPath, property.name) : null;
+  return classPath ? classResolver(classPath, property.name, isStatic) : null;
 }
 
 function resolveCallReturnType(callee) {
