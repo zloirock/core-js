@@ -99,6 +99,9 @@ function resolveTypeAnnotation(node) {
     case 'TSTypeOperator':
       if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation);
       return null;
+    // TS template literal type: `prefix_${string}`
+    case 'TSTemplateLiteralType':
+      return new $Primitive('string');
     // TS literal types: 'hello', 42, true, etc.
     case 'TSLiteralType':
       if (node.literal) switch (node.literal.type) {
