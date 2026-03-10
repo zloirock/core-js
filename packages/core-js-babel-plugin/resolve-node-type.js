@@ -79,9 +79,17 @@ function resolveTypeAnnotation(node) {
         case 'BigInt':
         case 'Symbol':
           return new $Object(typeName.name);
+        case 'ReadonlyArray':
+        case 'ReadonlyMap':
+        case 'ReadonlySet':
+          return new $Object(typeName.name.replace(/^Readonly/, ''));
       }
       return null;
     }
+    // TS type operator: `readonly T[]`, `unique symbol` — but NOT `keyof T`
+    case 'TSTypeOperator':
+      if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation);
+      return null;
     // TS literal types: 'hello', 42, true, etc.
     case 'TSLiteralType':
       if (node.literal) switch (node.literal.type) {
