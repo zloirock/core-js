@@ -335,10 +335,41 @@ function resolveNodeTypeExpression(path) {
   return null;
 }
 
-function resolveBodyReturnType(fnPath) {
+// resolve parameter type from call-site argument, default value, or rest-element shape
+function resolveParamType(binding, fnPath, callPath) {
+  const { params } = fnPath.node;
+  const args = callPath.get('arguments');
+  for (let i = 0; i < params.length; i++) {
+    if (params[i].type === 'RestElement') {
+      if (params[i] === binding.path.node) return new $Object('Array');
+      continue;
+    }
+    if (params[i] !== binding.path.node) continue;
+    // argument provided at call site — resolve its type
+    if (i < args.length) return resolveNodeType(args[i]);
+    // no argument — resolve from the default value
+    if (params[i].type === 'AssignmentPattern') return resolveNodeType(fnPath.get('params')[i].get('right'));
+    return null;
+  }
+  return null;
+}
+
+// resolve expression type within a function body, with fallback to call-site parameter inference
+function resolveBodyExpr(path, fnPath, callPath) {
+  const type = resolveNodeType(path);
+  if (type) return type;
+  if (!callPath) return null;
+  const resolved = resolvePath(path);
+  if (!resolved.isIdentifier()) return null;
+  const binding = resolved.scope.getBinding(resolved.node.name);
+  if (!binding || !binding.constant) return null;
+  return resolveParamType(binding, fnPath, callPath);
+}
+
+function resolveBodyReturnType(fnPath, callPath) {
   const body = fnPath.get('body');
   // arrow with expression body: () => [1, 2, 3]
-  if (!body.isBlockStatement()) return resolveNodeType(body);
+  if (!body.isBlockStatement()) return resolveBodyExpr(body, fnPath, callPath);
   // block body: traverse all return statements, skip nested functions
   let result = null;
   let resolved = true;
@@ -346,7 +377,7 @@ function resolveBodyReturnType(fnPath) {
     ReturnStatement(returnPath) {
       if (!resolved) return;
       const arg = returnPath.get('argument');
-      const type = arg.node ? resolveNodeType(arg) : null;
+      const type = arg.node ? resolveBodyExpr(arg, fnPath, callPath) : new $Primitive('undefined');
       if (!type || (result && !typesEqual(result, type))) {
         resolved = false;
         returnPath.stop();
@@ -358,7 +389,7 @@ function resolveBodyReturnType(fnPath) {
       innerPath.skip();
     },
   });
-  return resolved ? result : null;
+  return resolved ? (result ?? new $Primitive('undefined')) : null;
 }
 
 // resolve return type of a function, optionally inferring generic type parameters from call-site arguments
@@ -383,7 +414,7 @@ function resolveReturnType(fnPath, callPath) {
     if (resolved) return resolved;
   }
   // fallback: analyze return statements in the function body
-  return resolveBodyReturnType(fnPath);
+  return resolveBodyReturnType(fnPath, callPath);
 }
 
 function resolveClass(resolved) {
@@ -454,21 +485,13 @@ function resolveFromMemberExpression(path, objectResolver, classResolver) {
 }
 
 function resolveCallReturnType(callee) {
-  // direct call: foo()
-  if (callee.isIdentifier()) {
-    const resolved = resolvePath(callee);
-    if (!resolved.isFunction()) return null;
-    return resolveReturnType(resolved, callee.parentPath);
-  }
   // method call: obj.method() or obj?.method()
   if (callee.isMemberExpression() || callee.isOptionalMemberExpression()) {
     return resolveFromMemberExpression(callee, resolveObjectMethodReturnType, resolveClassMethodReturnType);
   }
-  // IIFE: (function() { ... })() or (() => expr)()
-  if (callee.isFunction()) {
-    return resolveReturnType(callee, callee.parentPath);
-  }
-  return null;
+  // direct call: foo() — or IIFE: (() => expr)()
+  const resolved = resolvePath(callee);
+  return resolved.isFunction() ? resolveReturnType(resolved, callee.parentPath) : null;
 }
 
 function resolveDestructuredType(objectPattern, name) {
