@@ -7,5 +7,5 @@ var $RegExp = globalThis.RegExp;
 
 module.exports = fails(function () {
   var re = $RegExp('.', 'd');
-  return !(re.hasIndices && re.exec('abc').indices);
+  return !(re.hasIndices && re.flags === 'd' && re.exec('abc').indices);
 });

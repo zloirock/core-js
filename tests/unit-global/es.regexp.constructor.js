@@ -259,6 +259,52 @@ if (DESCRIPTORS) {
     assert.deepEqual(match11.indices[2], [0, 1], 'first inner group');
     assert.deepEqual(match11.indices[3], [1, 2], 'second inner group');
 
+    // Edge case: deeply nested capturing groups (from maintainer review)
+    const re15a = new RegExp('x((a+)(b+))', 'd');
+    const match11a = re15a.exec('xaabb');
+    if (match11a) {
+      assert.deepEqual(match11a.indices[0], [0, 5], 'deeply nested entire match');
+      assert.deepEqual(match11a.indices[1], [1, 5], 'outer nested group (aabb)');
+      assert.deepEqual(match11a.indices[2], [1, 3], 'inner a+ group (aa)');
+      assert.deepEqual(match11a.indices[3], [3, 5], 'inner b+ group (bb)');
+    }
+
+    const re15b = new RegExp('((a)(a))', 'd');
+    const match11b = re15b.exec('aa');
+    if (match11b) {
+      assert.deepEqual(match11b.indices[0], [0, 2], 'nested same char entire match');
+      assert.deepEqual(match11b.indices[1], [0, 2], 'outer group (aa)');
+      assert.deepEqual(match11b.indices[2], [0, 1], 'first a group');
+      assert.deepEqual(match11b.indices[3], [1, 2], 'second a group');
+    }
+
+    const re15c = new RegExp('(((ab)c)d)', 'd');
+    const match11c = re15c.exec('abcd');
+    if (match11c) {
+      assert.deepEqual(match11c.indices[0], [0, 4], 'deeply nested chain entire match');
+      assert.deepEqual(match11c.indices[1], [0, 4], 'outer (abcd)');
+      assert.deepEqual(match11c.indices[2], [0, 3], 'middle (abc)');
+      assert.deepEqual(match11c.indices[3], [0, 2], 'inner (ab)');
+    }
+
+    const re15d = new RegExp('ab((ab)(c))', 'd');
+    const match11d = re15d.exec('ababc');
+    if (match11d) {
+      assert.deepEqual(match11d.indices[0], [0, 5], 'prefix with nested entire match');
+      assert.deepEqual(match11d.indices[1], [2, 5], 'nested group (abc)');
+      assert.deepEqual(match11d.indices[2], [2, 4], 'inner ab group');
+      assert.deepEqual(match11d.indices[3], [4, 5], 'inner c group');
+    }
+
+    const re15e = new RegExp('(a(b+))(c+)', 'd');
+    const match11e = re15e.exec('abbcc');
+    if (match11e) {
+      assert.deepEqual(match11e.indices[0], [0, 5], 'non-overlapping groups entire match');
+      assert.deepEqual(match11e.indices[1], [0, 3], 'outer group (abb)');
+      assert.deepEqual(match11e.indices[2], [1, 3], 'inner b+ group (bb)');
+      assert.deepEqual(match11e.indices[3], [3, 5], 'trailing c+ group (cc)');
+    }
+
     // Edge case: non-participating capturing group (NPCG)
     const re16 = new RegExp('a|(b)', 'd');
     const match12 = re16.exec('a');
@@ -330,10 +376,28 @@ if (DESCRIPTORS) {
     const re24 = new RegExp(/a/, 'd');
     assert.true(re24.hasIndices, 'hasIndices from RegExp pattern with d flag');
 
-    // Edge case: indices.groups should have null prototype
+    // Edge case: indices.groups should be undefined when no named groups (TC39 spec step 7a)
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing indices.groups
+    const re24a = new RegExp('(a)', 'd');
+    const match18a = re24a.exec('a');
+    assert.same(match18a.indices.groups, undefined, 'indices.groups should be undefined without named groups');
+
+    // Edge case: indices.groups should be undefined even with multiple unnamed groups
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing indices.groups
+    const re24b = new RegExp('(a)(b)(c)', 'd');
+    const match18b = re24b.exec('abc');
+    assert.same(match18b.indices.groups, undefined, 'indices.groups should be undefined with multiple unnamed groups');
+
+    // Edge case: indices.groups should have null prototype with named groups
     const re25 = new RegExp('(?<x>a)', 'd');
     const match19 = re25.exec('a');
     assert.same(Object.getPrototypeOf(match19.indices.groups), null, 'indices.groups has null prototype');
+
+    // Edge case: indices.groups should have null prototype even with mixed named and unnamed groups
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing indices.groups
+    const re25a = new RegExp('(a)(?<x>b)', 'd');
+    const match19a = re25a.exec('ab');
+    assert.same(Object.getPrototypeOf(match19a.indices.groups), null, 'indices.groups has null prototype with mixed groups');
 
     // Edge case: duplicate content in match string
     const re26 = new RegExp('(var)', 'gd');
