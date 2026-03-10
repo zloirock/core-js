@@ -66,7 +66,7 @@ function resolveTypeAnnotation(node) {
     case 'TSConstructorType':
     case 'FunctionTypeAnnotation':
       return new $Object('Function');
-    // TS / Flow named types — only well-known built-ins
+    // TS / Flow named types — only well-known built-ins and utility types
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
@@ -92,6 +92,24 @@ function resolveTypeAnnotation(node) {
         case 'ReadonlyMap':
         case 'ReadonlySet':
           return new $Object(name.replace(/^Readonly/, ''));
+        // well-known utility types -> Object
+        case 'Record':
+        case 'Partial':
+        case 'Required':
+        case 'Pick':
+        case 'Omit':
+        case 'Readonly':
+          return new $Object('Object');
+        // well-known utility types -> Array
+        case 'Parameters':
+        case 'ConstructorParameters':
+          return new $Object('Array');
+        // well-known utility types -> string
+        case 'Uppercase':
+        case 'Lowercase':
+        case 'Capitalize':
+        case 'Uncapitalize':
+          return new $Primitive('string');
       }
       return null;
     }
