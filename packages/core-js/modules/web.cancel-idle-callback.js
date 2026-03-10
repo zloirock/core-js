@@ -12,7 +12,7 @@ $({ global: true, forced: !BASIC }, {
 });
 
 if (!IS_PURE) {
-  $({ global: true, arity: 1, forced: !BASIC }, {
+  $({ global: true, forced: !BASIC }, {
     requestIdleCallback: requestIdleCallback
   });
 }
