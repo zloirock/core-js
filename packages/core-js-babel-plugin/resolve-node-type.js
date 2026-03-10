@@ -130,6 +130,23 @@ function findTupleElement(objectType, index, scope) {
   return element.type === 'TSNamedTupleMember' ? element.elementType : element;
 }
 
+function resolveExtractExclude(first, second, scope, depth, keep) {
+  const target = resolveTypeAnnotation(second, scope, depth + 1);
+  if (!target) return null;
+  const unwrapped = unwrapTypeAnnotation(first);
+  if (!unwrapped) return null;
+  const types = unwrapped.type === 'TSUnionType' || unwrapped.type === 'UnionTypeAnnotation' ? unwrapped.types : [unwrapped];
+  let result = null;
+  for (const member of types) {
+    const resolved = resolveTypeAnnotation(member, scope, depth + 1);
+    if (!resolved) return null;
+    if (typesEqual(resolved, target) !== keep) continue;
+    if (result && !typesEqual(result, resolved)) return null;
+    result = resolved;
+  }
+  return result;
+}
+
 function resolveReturnTypeFromTypeQuery(param, scope) {
   if (param.type !== 'TSTypeQuery') return null;
   const { exprName } = param;
@@ -265,6 +282,11 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
             if (init.isClassExpression()) return new $Object(null);
           }
           return null;
+        }
+        case 'Extract':
+        case 'Exclude': {
+          const params = node.typeParameters?.params;
+          return params?.length >= 2 ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract') : null;
         }
       }
       // resolve user-defined type aliases and interfaces via scope chain
