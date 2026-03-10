@@ -177,7 +177,7 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
   return null;
 }
 
-function resolveNodeType(path) {
+function resolveNodeTypeExpression(path) {
   path = resolvePath(path);
 
   switch (path.node.type) {
@@ -245,7 +245,7 @@ function resolveNodeType(path) {
             return new $Object(null);
         }
       }
-      return null;
+      return resolveCallReturnType(callee);
     }
     case 'UnaryExpression':
       switch (path.node.operator) {
@@ -317,6 +317,29 @@ function resolveNodeType(path) {
       return resolveNodeType(path.get('expression'));
   }
   return null;
+}
+
+function resolveCallReturnType(callee) {
+  if (!callee.isIdentifier()) return null;
+  const resolved = resolvePath(callee);
+  if (!resolved.isFunction()) return null;
+  const { returnType } = resolved.node;
+  return returnType ? resolveTypeAnnotation(returnType) : null;
+}
+
+function resolveBindingType(path) {
+  if (!path.isIdentifier()) return null;
+  const binding = path.scope.getBinding(path.node.name);
+  if (!binding) return null;
+  const { path: bindingPath } = binding;
+  const typeAnnotation = bindingPath.node.typeAnnotation
+    || (bindingPath.isVariableDeclarator() && bindingPath.node.id?.typeAnnotation)
+    || (bindingPath.isAssignmentPattern() && bindingPath.node.left?.typeAnnotation);
+  return typeAnnotation ? resolveTypeAnnotation(typeAnnotation) : null;
+}
+
+function resolveNodeType(path) {
+  return resolveNodeTypeExpression(path) || resolveBindingType(path);
 }
 
 function toHint(type) {
