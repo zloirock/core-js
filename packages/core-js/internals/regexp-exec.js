@@ -20,6 +20,7 @@ var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
+var max = Math.max;
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
   var re1 = /a/;
@@ -44,92 +45,206 @@ var setGroups = function (re, groups) {
   }
 };
 
-// Get the correct position for each captured group
-// This implementation provides best-effort indices calculation
-// It works correctly for most common cases but may have limitations
-// with complex patterns like overlapping groups or backreferences
-var getCapturePositions = function (match, str) {
-  var positions = [];
-  var matchStart = match.index;
-  var matchString = match[0];
-  var matchEnd = matchStart + matchString.length;
-
-  // Position 0 is the entire match
-  positions[0] = [matchStart, matchEnd];
-
-  // Track the last found position to handle duplicate captured strings
-  var lastFoundPos = 0;
-
-  for (var i = 1; i < match.length; i++) {
-    var captured = match[i];
-
-    if (captured === undefined) {
-      // Non-participating capturing group
-      positions[i] = undefined;
-    } else if (captured === '') {
-      // Empty capture - position follows the previous captured group's end
-      // or is at matchStart if this is the first capture
-      positions[i] = [matchStart + lastFoundPos, matchStart + lastFoundPos];
-    } else {
-      // First try to find the captured string within the match string
-      // Start searching from the last found position to handle duplicate strings
-      var foundIndex = indexOf(matchString, captured, lastFoundPos);
-
-      if (foundIndex !== -1 && foundIndex + captured.length <= matchString.length) {
-        positions[i] = [matchStart + foundIndex, matchStart + foundIndex + captured.length];
-        // Update last found position to after this capture for next iteration
-        lastFoundPos = foundIndex + captured.length;
-      } else {
-        // Captured string not found in match[0] — this happens with lookahead/lookbehind
-        // capturing groups whose content is outside the consumed match.
-        // Search in the full input string starting from the match position.
-        var strIndex = indexOf(str, captured, matchStart);
-        if (strIndex !== -1) {
-          positions[i] = [strIndex, strIndex + captured.length];
-          // Update last found position even for lookahead/lookbehind captures
-          lastFoundPos = strIndex + captured.length - matchStart;
-        } else {
-          // Fallback: should not normally happen
-          positions[i] = undefined;
-        }
-      }
-    }
-  }
-
-  return positions;
+// Check if `(` at position i in source is a non-capturing open paren
+var isNonCapturingParen = function (source, i) {
+  var n1 = charAt(source, i + 1);
+  var n2 = charAt(source, i + 2);
+  var n3 = charAt(source, i + 3);
+  return n1 === '?' && (
+    n2 === ':' || n2 === '=' || n2 === '!' ||
+    (n2 === '<' && (n3 === '=' || n3 === '!'))
+  );
 };
 
-// MakeIndicesArray implementation per TC39 spec
-var makeIndicesArray = function (match, str, groups) {
-  var hasGroups = groups && groups.length > 0;
-  var positions = getCapturePositions(match, str);
-  var length = match.length;
-  var indices = [];
-  indices.length = length;
-
-  if (hasGroups) {
-    indices.groups = create(null);
-  }
-
-  for (var i = 0; i < length; i++) {
-    indices[i] = positions[i];
-  }
-
-  if (hasGroups) {
-    for (var j = 0; j < groups.length; j++) {
-      var group = groups[j];
-      var groupIndex = group[1];
-      if (indices[groupIndex] !== undefined) {
-        indices.groups[group[0]] = indices[groupIndex];
+// Parse source to build parent group index array (1-based).
+// result[k] = direct parent capturing group index of group k, 0 = top-level.
+var getGroupParents = function (source) {
+  var parents = [0];
+  var stack = [0];
+  var groupIndex = 0;
+  var inClass = false;
+  for (var i = 0; i < source.length; i++) {
+    var ch = charAt(source, i);
+    if (ch === '\\') {
+      i++;
+      continue;
+    }
+    if (ch === '[') {
+      inClass = true;
+      continue;
+    }
+    if (ch === ']') {
+      inClass = false;
+      continue;
+    }
+    if (inClass) continue;
+    if (ch === '(') {
+      if (isNonCapturingParen(source, i)) {
+        stack.push(-1);
+      } else {
+        groupIndex++;
+        var top = stack[stack.length - 1];
+        parents.push(max(top, 0));
+        stack.push(groupIndex);
       }
+    } else if (ch === ')') {
+      stack.pop();
+    }
+  }
+  return parents;
+};
+
+// Inject empty capture `()` before each capturing open paren
+var buildInstrumentedSource = function (source) {
+  var result = '';
+  var inClass = false;
+  for (var i = 0; i < source.length; i++) {
+    var ch = charAt(source, i);
+    if (ch === '\\') {
+      result += ch + charAt(source, i + 1);
+      i++;
+      continue;
+    }
+    if (ch === '[') {
+      inClass = true;
+      result += ch;
+      continue;
+    }
+    if (ch === ']') {
+      inClass = false;
+      result += ch;
+      continue;
+    }
+    if (inClass) {
+      result += ch;
+      continue;
+    }
+    if (ch === '(' && !isNonCapturingParen(source, i)) {
+      result += '()';
+    }
+    result += ch;
+  }
+  return result;
+};
+
+// Find captured string within matchStr starting at searchFrom
+var findCapturedPosition = function (matchStr, captured, searchFrom) {
+  var capturedLen = captured.length;
+  while (searchFrom <= matchStr.length - capturedLen) {
+    if (stringSlice(matchStr, searchFrom, searchFrom + capturedLen) === captured) {
+      return searchFrom;
+    }
+    searchFrom++;
+  }
+  return -1;
+};
+
+// Run instrumented regex and compute group positions with parent-aware scanning
+var computeIndicesInstrumented = function (originalRe, match, str, matchStart, matchStr, indices) {
+  var n = match.length;
+  var instrFlags = call(regexpFlags, originalRe);
+  instrFlags = replace(instrFlags, 'g', '');
+  instrFlags = replace(instrFlags, 'y', '');
+  instrFlags = replace(instrFlags, 'd', '');
+  var instrSource = buildInstrumentedSource(originalRe.source);
+  var instrRe = new RegExp(instrSource, instrFlags);
+  var instrMatch = call(nativeExec, instrRe, stringSlice(str, matchStart));
+
+  if (!instrMatch || instrMatch.index !== 0) return false;
+
+  var parents = getGroupParents(originalRe.source);
+  var scanPos = [];
+  var i;
+  for (i = 0; i < n; i++) scanPos[i] = 0;
+
+  for (i = 1; i < n; i++) {
+    var captured = instrMatch[2 * i] !== undefined ? instrMatch[2 * i] : match[i];
+    if (captured === undefined) {
+      indices[i] = undefined;
+      continue;
+    }
+    var capturedLen = captured.length;
+    var parentIdx = parents[i] !== undefined ? parents[i] : 0;
+    var startFrom = scanPos[parentIdx];
+
+    if (capturedLen === 0) {
+      indices[i] = [matchStart + startFrom, matchStart + startFrom];
+      scanPos[i] = startFrom;
+      continue;
+    }
+
+    var found = findCapturedPosition(matchStr, captured, startFrom);
+    if (found !== -1) {
+      indices[i] = [matchStart + found, matchStart + found + capturedLen];
+      scanPos[i] = found;
+      scanPos[parentIdx] = found + capturedLen;
+    } else {
+      var absFound = indexOf(str, captured, 0);
+      indices[i] = absFound !== -1 ? [absFound, absFound + capturedLen] : undefined;
+      scanPos[i] = startFrom;
+    }
+  }
+  return true;
+};
+
+// Fallback: simple consume-from-left without nesting info
+var computeIndicesFallback = function (match, str, matchStart, matchStr, indices) {
+  var fbPos = 0;
+  for (var i = 1; i < match.length; i++) {
+    var captured = match[i];
+    if (captured === undefined) {
+      indices[i] = undefined;
+      continue;
+    }
+    var capturedLen = captured.length;
+    if (capturedLen === 0) {
+      indices[i] = [matchStart + fbPos, matchStart + fbPos];
+      continue;
+    }
+    var found = findCapturedPosition(matchStr, captured, fbPos);
+    if (found !== -1) {
+      indices[i] = [matchStart + found, matchStart + found + capturedLen];
+      fbPos = found + capturedLen;
+    } else {
+      var absIdx = indexOf(str, captured, 0);
+      indices[i] = absIdx !== -1 ? [absIdx, absIdx + capturedLen] : undefined;
+    }
+  }
+};
+
+// https://tc39.es/ecma262/#sec-makematchindicesindexpairarray
+var makeIndicesArray = function (originalRe, match, str, namedGroups) {
+  var matchStart = match.index;
+  var matchStr = match[0];
+  var matchEnd = matchStart + matchStr.length;
+  var n = match.length;
+  var indices = [];
+  var hasNamedGroups = namedGroups && namedGroups.length;
+  var i, success;
+  indices.length = n;
+  indices[0] = [matchStart, matchEnd];
+  indices.groups = hasNamedGroups ? create(null) : undefined;
+
+  if (n > 1) {
+    success = false;
+    try {
+      success = computeIndicesInstrumented(originalRe, match, str, matchStart, matchStr, indices);
+    } catch (_) { /* fallback below */ }
+    if (!success) computeIndicesFallback(match, str, matchStart, matchStr, indices);
+  }
+
+  if (hasNamedGroups) {
+    for (i = 0; i < namedGroups.length; i++) {
+      var grp = namedGroups[i];
+      indices.groups[grp[0]] = indices[grp[1]];
     }
   }
 
   return indices;
 };
 
-var setIndices = function (match, str, groups) {
-  match.indices = makeIndicesArray(match, str, groups);
+var setIndices = function (re, match, str, groups) {
+  match.indices = makeIndicesArray(re, match, str, groups);
 };
 
 if (PATCH) {
@@ -144,10 +259,8 @@ if (PATCH) {
       raw.lastIndex = re.lastIndex;
       result = call(patchedExec, raw, str);
       re.lastIndex = raw.lastIndex;
-
       if (result && state.groups) setGroups(result, state.groups);
-      if (result && state.hasIndices) setIndices(result, str, state.groups);
-
+      if (result && state.hasIndices) setIndices(raw, result, str, state.groups);
       return result;
     }
 
@@ -161,12 +274,8 @@ if (PATCH) {
 
     if (sticky) {
       flags = replace(flags, 'y', '');
-      if (indexOf(flags, 'g') === -1) {
-        flags += 'g';
-      }
-
+      if (indexOf(flags, 'g') === -1) flags += 'g';
       strCopy = stringSlice(str, re.lastIndex);
-      // Support anchored sticky behavior.
       var prevChar = re.lastIndex > 0 && charAt(str, re.lastIndex - 1);
       if (re.lastIndex > 0 &&
         (!re.multiline || re.multiline && prevChar !== '\n' && prevChar !== '\r' && prevChar !== '\u2028' && prevChar !== '\u2029')) {
@@ -207,8 +316,7 @@ if (PATCH) {
     }
 
     if (match && groups) setGroups(match, groups);
-
-    if (match && hasIndices) setIndices(match, str, groups);
+    if (match && hasIndices) setIndices(re, match, str, groups);
 
     return match;
   };
