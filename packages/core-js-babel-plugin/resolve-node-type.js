@@ -224,6 +224,14 @@ function resolveNodeTypeExpression(path) {
       }
       return new $Object(null);
     }
+    case 'MemberExpression':
+    case 'OptionalMemberExpression': {
+      if (path.node.computed) return null;
+      const { property } = path.node;
+      if (property.type !== 'Identifier') return null;
+      const classPath = resolveClass(path.get('object'));
+      return classPath ? resolveClassMemberType(classPath, property.name) : null;
+    }
     case 'CallExpression':
     case 'OptionalCallExpression': {
       const callee = path.get('callee');
@@ -327,11 +335,70 @@ function resolveCallReturnType(callee) {
   return returnType ? resolveTypeAnnotation(returnType) : null;
 }
 
+function resolveClass(path) {
+  const resolved = resolvePath(path);
+  if (resolved.isClass()) return resolved;
+  if (resolved.isNewExpression()) {
+    const callee = resolved.get('callee');
+    const cls = resolvePath(callee);
+    if (cls.isClass()) return cls;
+  }
+  return null;
+}
+
+function resolveClassMemberType(classPath, name) {
+  for (const member of classPath.get('body').get('body')) {
+    if (!member.isClassProperty() && !member.isClassAccessorProperty()) continue;
+    const { key } = member.node;
+    if (key.type !== 'Identifier' || key.name !== name) continue;
+    if (member.node.static) continue;
+    if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation);
+    const value = member.get('value');
+    if (value.node) return resolveNodeType(value);
+  }
+  return null;
+}
+
+function resolveDestructuredType(objectPattern, name) {
+  let type = objectPattern.typeAnnotation;
+  // unwrap TS/Flow wrapper
+  if (type?.type === 'TSTypeAnnotation' || type?.type === 'TypeAnnotation') type = type.typeAnnotation;
+  if (!type) return null;
+  // TS: TSTypeLiteral.members, Flow: ObjectTypeAnnotation.properties
+  const members = type.type === 'TSTypeLiteral' ? type.members
+    : type.type === 'ObjectTypeAnnotation' ? type.properties
+    : null;
+  if (!members) return null;
+  // find the property key matching the destructured variable
+  let keyName;
+  for (const prop of objectPattern.properties) {
+    if (prop.type !== 'ObjectProperty') continue;
+    const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+    if (value?.type === 'Identifier' && value.name === name) {
+      keyName = prop.key?.type === 'Identifier' ? prop.key.name : null;
+      break;
+    }
+  }
+  if (!keyName) return null;
+  for (const member of members) {
+    if (member.key?.type !== 'Identifier' || member.key.name !== keyName) continue;
+    // TS: member.typeAnnotation, Flow: member.value
+    return resolveTypeAnnotation(member.typeAnnotation || member.value);
+  }
+  return null;
+}
+
 function resolveBindingType(path) {
   if (!path.isIdentifier()) return null;
   const binding = path.scope.getBinding(path.node.name);
   if (!binding) return null;
   const { path: bindingPath } = binding;
+  // destructured: function foo({ x }: { x: T }) or const { x }: { x: T } = ...
+  const objectPattern = bindingPath.isObjectPattern() ? bindingPath.node
+    : (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === 'ObjectPattern') ? bindingPath.node.id
+    : null;
+  if (objectPattern?.typeAnnotation) return resolveDestructuredType(objectPattern, path.node.name);
+  // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
   const typeAnnotation = bindingPath.node.typeAnnotation
     || (bindingPath.isVariableDeclarator() && bindingPath.node.id?.typeAnnotation)
     || (bindingPath.isAssignmentPattern() && bindingPath.node.left?.typeAnnotation);
