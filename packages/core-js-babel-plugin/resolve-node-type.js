@@ -131,6 +131,19 @@ function resolveTypeAnnotation(node, scope) {
         case 'Capitalize':
         case 'Uncapitalize':
           return new $Primitive('string');
+        // well-known utility types — resolve type parameter
+        case 'NonNullable':
+          return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope) : null;
+        case 'Awaited': {
+          const param = node.typeParameters?.params[0];
+          if (!param) return null;
+          // unwrap Promise<T> -> resolve T
+          if (typeRefName(param) === 'Promise') {
+            const innerParam = param.typeParameters?.params[0];
+            if (innerParam) return resolveTypeAnnotation(innerParam, scope);
+          }
+          return resolveTypeAnnotation(param, scope);
+        }
       }
       return null;
     }
@@ -170,7 +183,7 @@ function resolveTypeAnnotation(node, scope) {
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member, scope);
         if (!resolved) return null;
-        // skip nullable / never types in unions: T | null | undefined | never → T
+        // skip nullable / never types in unions: T | null | undefined | never -> T
         if (isUnion && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
         if (result && !typesEqual(result, resolved)) return null;
         result = resolved;
@@ -471,7 +484,7 @@ function resolveBodyReturnType(fnPath, callPath) {
 }
 
 // resolve return type of a function, optionally inferring generic type parameters from call-site arguments
-// e.g. `identity<T>(x: T): T` called as `identity([1, 2, 3])` → infer T = Array
+// e.g. `identity<T>(x: T): T` called as `identity([1, 2, 3])` -> infer T = Array
 function resolveReturnType(fnPath, callPath) {
   const { returnType, typeParameters } = fnPath.node;
   // try to infer generic type parameter from call-site argument
