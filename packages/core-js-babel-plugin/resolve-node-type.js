@@ -119,6 +119,9 @@ function resolveTypeAnnotation(node) {
     case 'TSTypeOperator':
       if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation);
       return null;
+    // TS parenthesized type: (T) → T
+    case 'TSParenthesizedType':
+      return resolveTypeAnnotation(node.typeAnnotation);
     // Flow nullable: ?T → T
     case 'NullableTypeAnnotation':
       return resolveTypeAnnotation(node.typeAnnotation);
