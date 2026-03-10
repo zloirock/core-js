@@ -111,7 +111,7 @@ function resolveTypeAnnotation(node) {
 }
 
 function resolvePath(path) {
-  let depth = 5;
+  let depth = 15;
   while (depth-- && path.isIdentifier()) {
     const binding = path.scope.getBinding(path.node.name);
     if (!binding || !binding.constant) break;
