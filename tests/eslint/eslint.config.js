@@ -2154,6 +2154,8 @@ const packageJSON = {
   'package-json/valid-bundleDependencies': ERROR,
   // enforce that the `bin` property is valid
   'package-json/valid-bin': ERROR,
+  // enforce that the `bugs` property is valid
+  'package-json/valid-bugs': ERROR,
   // enforce that the `config` property is valid
   'package-json/valid-config': ERROR,
   // enforce that the `contributors` property is valid
@@ -2172,6 +2174,8 @@ const packageJSON = {
   'package-json/valid-exports': ERROR,
   // enforce that the `files` property is valid
   'package-json/valid-files': ERROR,
+  // enforce that the `funding` property is valid
+  'package-json/valid-funding': ERROR,
   // enforce that the `homepage` property is valid
   'package-json/valid-homepage': ERROR,
   // enforce that the `keywords` property is valid
