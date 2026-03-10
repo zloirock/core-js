@@ -3210,15 +3210,11 @@ export const data = {
   },
   'web.request-idle-callback': {
     chrome: '47',
-    edge: '79',
     firefox: '55',
-    opera: '34',
   },
   'web.cancel-idle-callback': {
     chrome: '47',
-    edge: '79',
     firefox: '55',
-    opera: '34',
   },
 };
 
