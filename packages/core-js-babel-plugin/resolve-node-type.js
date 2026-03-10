@@ -102,6 +102,22 @@ function resolveTypeAnnotation(node) {
     // TS template literal type: `prefix_${string}`
     case 'TSTemplateLiteralType':
       return new $Primitive('string');
+    // TS / Flow union and intersection — resolve if all members have the same type
+    case 'TSUnionType':
+    case 'UnionTypeAnnotation':
+    case 'TSIntersectionType':
+    case 'IntersectionTypeAnnotation': {
+      const { types } = node;
+      if (!types || !types.length) return null;
+      let result = null;
+      for (const member of types) {
+        const resolved = resolveTypeAnnotation(member);
+        if (!resolved) return null;
+        if (result && !typesEqual(result, resolved)) return null;
+        result = resolved;
+      }
+      return result;
+    }
     // TS literal types: 'hello', 42, true, etc.
     case 'TSLiteralType':
       if (node.literal) switch (node.literal.type) {
