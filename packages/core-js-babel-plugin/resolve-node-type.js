@@ -73,12 +73,26 @@ function findTypeDeclaration(name, scope) {
   return null;
 }
 
+function resolveTypeParameter(name, scope, depth) {
+  if (!scope) return null;
+  let currentScope = scope;
+  while (currentScope) {
+    const params = currentScope.block.typeParameters?.params;
+    if (params) for (const param of params) {
+      if (param.name === name) return param.constraint ? resolveTypeAnnotation(param.constraint, scope, depth + 1) : null;
+    }
+    currentScope = currentScope.parent;
+  }
+  return null;
+}
+
 function resolveUserDefinedType(name, scope, depth) {
   const decl = findTypeDeclaration(name, scope);
-  if (!decl) return null;
-  if (decl.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(decl.typeAnnotation, scope, depth + 1);
-  if (decl.type === 'TSInterfaceDeclaration') return new $Object('Object');
-  return null;
+  if (decl) {
+    if (decl.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(decl.typeAnnotation, scope, depth + 1);
+    if (decl.type === 'TSInterfaceDeclaration') return new $Object('Object');
+  }
+  return resolveTypeParameter(name, scope, depth);
 }
 
 function findTypeMember(objectType, key, scope) {
