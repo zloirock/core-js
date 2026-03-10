@@ -211,7 +211,7 @@ function resolveNodeType(path) {
       return new $Object('Function');
     case 'NewExpression': {
       const callee = path.get('callee');
-      if (callee.isIdentifier() && !callee.scope.getBinding(callee.node.name)) {
+      if (callee.isIdentifier() && !callee.scope.getBinding(callee.node.name) && callee.node.name !== 'Object') {
         return new $Object(callee.node.name);
       }
       return new $Object(null);
@@ -230,10 +230,11 @@ function resolveNodeType(path) {
           case 'Symbol':
             return new $Primitive(name.toLowerCase());
           case 'Array':
-          case 'Object':
           case 'RegExp':
           case 'Function':
             return new $Object(name);
+          case 'Object':
+            return new $Object(null);
         }
       }
       return null;
