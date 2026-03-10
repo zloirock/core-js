@@ -59,18 +59,44 @@ function resolveTypeQuery(node, scope) {
   return null;
 }
 
-function resolveUserDefinedType(name, scope, depth) {
+function findTypeDeclaration(name, scope) {
   if (!scope) return null;
   let currentScope = scope;
   while (currentScope) {
     const { block } = currentScope;
     const body = block.type === 'Program' ? block.body : block.body?.body;
     if (Array.isArray(body)) for (const stmt of body) {
-      if (stmt.id?.name !== name) continue;
-      if (stmt.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(stmt.typeAnnotation, scope, depth + 1);
-      if (stmt.type === 'TSInterfaceDeclaration') return new $Object('Object');
+      if (stmt.id?.name === name && (stmt.type === 'TSTypeAliasDeclaration' || stmt.type === 'TSInterfaceDeclaration')) return stmt;
     }
     currentScope = currentScope.parent;
+  }
+  return null;
+}
+
+function resolveUserDefinedType(name, scope, depth) {
+  const decl = findTypeDeclaration(name, scope);
+  if (!decl) return null;
+  if (decl.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(decl.typeAnnotation, scope, depth + 1);
+  if (decl.type === 'TSInterfaceDeclaration') return new $Object('Object');
+  return null;
+}
+
+function findTypeMember(objectType, key, scope) {
+  let members;
+  if (objectType.type === 'TSTypeLiteral') {
+    members = objectType.members;
+  } else {
+    const name = typeRefName(objectType);
+    const decl = name ? findTypeDeclaration(name, scope) : null;
+    if (decl?.type === 'TSInterfaceDeclaration') members = decl.body?.body;
+    else if (decl?.type === 'TSTypeAliasDeclaration' && decl.typeAnnotation?.type === 'TSTypeLiteral') {
+      members = decl.typeAnnotation.members;
+    }
+  }
+  if (!members) return null;
+  for (const member of members) {
+    if (member.type !== 'TSPropertySignature') continue;
+    if (member.key?.type === 'Identifier' && member.key.name === key) return member.typeAnnotation;
   }
   return null;
 }
@@ -261,6 +287,12 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
           return new $Primitive(node.literal.argument?.type === 'BigIntLiteral' ? 'bigint' : 'number');
       }
       return null;
+    // TS indexed access type: Config["items"]
+    case 'TSIndexedAccessType': {
+      if (node.indexType?.type !== 'TSLiteralType' || node.indexType.literal?.type !== 'StringLiteral') return null;
+      const annotation = findTypeMember(node.objectType, node.indexType.literal.value, scope);
+      return annotation ? resolveTypeAnnotation(annotation, scope, depth + 1) : null;
+    }
   }
   return null;
 }
