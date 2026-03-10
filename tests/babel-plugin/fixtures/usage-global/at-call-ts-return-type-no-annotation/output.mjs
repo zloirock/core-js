@@ -1,4 +1,5 @@
 import "core-js/modules/es.array.at";
-(function getArr(): number[] {
+function getData() {
   return [];
-})().at(-1);
+}
+getData().at(-1);
