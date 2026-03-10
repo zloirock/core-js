@@ -115,6 +115,21 @@ function findTypeMember(objectType, key, scope) {
   return null;
 }
 
+function findTupleElement(objectType, index, scope) {
+  let tuple = objectType;
+  if (tuple.type !== 'TSTupleType') {
+    const name = typeRefName(tuple);
+    const decl = name ? findTypeDeclaration(name, scope) : null;
+    if (decl?.type === 'TSTypeAliasDeclaration') tuple = decl.typeAnnotation;
+  }
+  if (tuple?.type !== 'TSTupleType') return null;
+  const elements = tuple.elementTypes;
+  if (!elements || index < 0 || index >= elements.length) return null;
+  const element = elements[index];
+  // named tuple member: [name: string, items: number[]]
+  return element.type === 'TSNamedTupleMember' ? element.elementType : element;
+}
+
 function resolveReturnTypeFromTypeQuery(param, scope) {
   if (param.type !== 'TSTypeQuery') return null;
   const { exprName } = param;
@@ -318,11 +333,14 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
           return new $Primitive(node.literal.argument?.type === 'BigIntLiteral' ? 'bigint' : 'number');
       }
       return null;
-    // TS indexed access type: Config["items"]
+    // TS indexed access type: Config["items"] or [string, number[]][1]
     case 'TSIndexedAccessType': {
-      if (node.indexType?.type !== 'TSLiteralType' || node.indexType.literal?.type !== 'StringLiteral') return null;
-      const annotation = findTypeMember(node.objectType, node.indexType.literal.value, scope);
-      return annotation ? resolveTypeAnnotation(annotation, scope, depth + 1) : null;
+      if (node.indexType?.type !== 'TSLiteralType') return null;
+      const { literal } = node.indexType;
+      let member;
+      if (literal?.type === 'StringLiteral') member = findTypeMember(node.objectType, literal.value, scope);
+      else if (literal?.type === 'NumericLiteral') member = findTupleElement(node.objectType, literal.value, scope);
+      return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
     }
   }
   return null;
