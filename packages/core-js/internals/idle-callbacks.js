@@ -15,16 +15,12 @@ var now = ($performance && function () { return $performance.now(); }) || functi
   return getTime(new $Date());
 };
 var rAF = globalThis.requestAnimationFrame || function (callback) {
-  var currTime = now();
   $setTimeout(function () {
-    callback(currTime + 16);
+    callback();
   }, 16);
 };
 var $push = globalThis.Array.prototype.push;
 var apply = uncurryThis(Function.prototype.apply);
-var $pushApply = function (array1, array2) {
-  return apply($push, array1, array2);
-};
 var shift = uncurryThis([].shift);
 var splice = uncurryThis([].splice);
 var indexOf = function (arr, value) {
@@ -70,7 +66,7 @@ function scheduleNextIdle() {
 function startIdlePeriod() {
   // Move pending to runnable
   if (sharedStore.__idleRequestCallbacks.length) {
-    $pushApply(sharedStore.__runnableIdleCallbacks, sharedStore.__idleRequestCallbacks);
+    apply($push, sharedStore.__runnableIdleCallbacks, sharedStore.__idleRequestCallbacks);
     sharedStore.__idleRequestCallbacks.length = 0;
   }
   sharedStore.__idleRafScheduled = false;
