@@ -59,16 +59,16 @@ function resolveTypeQuery(node, scope) {
   return null;
 }
 
-function resolveTypeAlias(name, scope, depth) {
+function resolveUserDefinedType(name, scope, depth) {
   if (!scope) return null;
   let currentScope = scope;
   while (currentScope) {
     const { block } = currentScope;
     const body = block.type === 'Program' ? block.body : block.body?.body;
     if (Array.isArray(body)) for (const stmt of body) {
-      if (stmt.type === 'TSTypeAliasDeclaration' && stmt.id?.name === name) {
-        return resolveTypeAnnotation(stmt.typeAnnotation, scope, depth + 1);
-      }
+      if (stmt.id?.name !== name) continue;
+      if (stmt.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(stmt.typeAnnotation, scope, depth + 1);
+      if (stmt.type === 'TSInterfaceDeclaration') return new $Object('Object');
     }
     currentScope = currentScope.parent;
   }
@@ -198,8 +198,8 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
         case 'ReturnType':
           return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
       }
-      // resolve user-defined type aliases via scope chain
-      if (name) return resolveTypeAlias(name, scope, depth);
+      // resolve user-defined type aliases and interfaces via scope chain
+      if (name) return resolveUserDefinedType(name, scope, depth);
       return null;
     }
     // transparent wrappers — unwrap and resolve the inner type
