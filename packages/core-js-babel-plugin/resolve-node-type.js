@@ -25,7 +25,24 @@ function typeRefName(node) {
   return id?.type === 'Identifier' ? id.name : null;
 }
 
-function resolveTypeAnnotation(node) {
+function resolveTypeQuery(node, scope) {
+  if (!scope) return null;
+  const { exprName } = node;
+  if (exprName?.type !== 'Identifier') return null;
+  const binding = scope.getBinding(exprName.name);
+  if (!binding?.constant) return null;
+  const bindingPath = binding.path;
+  if (bindingPath.isVariableDeclarator()) {
+    const annotation = bindingPath.node.id?.typeAnnotation;
+    if (annotation) return resolveTypeAnnotation(annotation, scope);
+    const init = bindingPath.get('init');
+    if (init.node) return resolveNodeType(init);
+  }
+  if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return new $Object('Function');
+  return null;
+}
+
+function resolveTypeAnnotation(node, scope) {
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
   switch (node.type) {
@@ -117,23 +134,24 @@ function resolveTypeAnnotation(node) {
       }
       return null;
     }
+    // transparent wrappers — unwrap and resolve the inner type
+    case 'TSParenthesizedType':
+    case 'NullableTypeAnnotation':
+      return resolveTypeAnnotation(node.typeAnnotation, scope);
     // TS type operator: `readonly T[]`, `unique symbol` — but NOT `keyof T`
     case 'TSTypeOperator':
-      if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation);
+      if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation, scope);
       return null;
-    // TS parenthesized type: (T) → T
-    case 'TSParenthesizedType':
-      return resolveTypeAnnotation(node.typeAnnotation);
-    // Flow nullable: ?T → T
-    case 'NullableTypeAnnotation':
-      return resolveTypeAnnotation(node.typeAnnotation);
+    // TS typeof in type position: `typeof variable`
+    case 'TSTypeQuery':
+      return resolveTypeQuery(node, scope);
     // TS template literal type: `prefix_${string}`
     case 'TSTemplateLiteralType':
       return new $Primitive('string');
     // TS conditional type: T extends U ? X : Y — resolve if both branches have the same type, or one is `never`
     case 'TSConditionalType': {
-      const trueResolved = resolveTypeAnnotation(node.trueType);
-      const falseResolved = resolveTypeAnnotation(node.falseType);
+      const trueResolved = resolveTypeAnnotation(node.trueType, scope);
+      const falseResolved = resolveTypeAnnotation(node.falseType, scope);
       if (trueResolved && falseResolved && typesEqual(trueResolved, falseResolved)) return trueResolved;
       // if one branch is `never`, the useful type is in the other branch
       if (trueResolved?.type === 'never') return falseResolved;
@@ -150,7 +168,7 @@ function resolveTypeAnnotation(node) {
       const isUnion = node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation';
       let result = null;
       for (const member of types) {
-        const resolved = resolveTypeAnnotation(member);
+        const resolved = resolveTypeAnnotation(member, scope);
         if (!resolved) return null;
         // skip nullable / never types in unions: T | null | undefined | never → T
         if (isUnion && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
@@ -385,9 +403,9 @@ function resolveNodeTypeExpression(path) {
     case 'TSAsExpression':
     case 'TSTypeAssertion':
     case 'TypeCastExpression':
-      return resolveTypeAnnotation(path.node.typeAnnotation) || resolveNodeType(path.get('expression'));
+      return resolveTypeAnnotation(path.node.typeAnnotation, path.scope) || resolveNodeType(path.get('expression'));
     case 'TSSatisfiesExpression':
-      return resolveNodeType(path.get('expression')) || resolveTypeAnnotation(path.node.typeAnnotation);
+      return resolveNodeType(path.get('expression')) || resolveTypeAnnotation(path.node.typeAnnotation, path.scope);
     case 'TSNonNullExpression':
     case 'TSInstantiationExpression':
       return resolveNodeType(path.get('expression'));
@@ -470,7 +488,7 @@ function resolveReturnType(fnPath, callPath) {
   }
   // try return type annotation
   if (returnType) {
-    const resolved = resolveTypeAnnotation(returnType);
+    const resolved = resolveTypeAnnotation(returnType, fnPath.scope);
     if (resolved) return resolved;
   }
   // fallback: analyze return statements in the function body
@@ -523,7 +541,7 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
   if (callPath) return member.isClassMethod() ? resolveReturnType(member, callPath) : null;
   // property access: foo.bar
   if (member.isClassProperty() || member.isClassAccessorProperty()) {
-    if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation);
+    if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation, member.scope);
     const value = member.get('value');
     return value.node ? resolveNodeType(value) : null;
   }
@@ -580,7 +598,7 @@ function resolveCallReturnType(callee) {
   return resolved.isFunction() ? resolveReturnType(resolved, callee.parentPath) : null;
 }
 
-function resolveDestructuredType(objectPattern, name) {
+function resolveDestructuredType(objectPattern, name, scope) {
   const type = unwrapTypeAnnotation(objectPattern.typeAnnotation);
   if (!type) return null;
   // TS: TSTypeLiteral.members, Flow: ObjectTypeAnnotation.properties
@@ -602,7 +620,7 @@ function resolveDestructuredType(objectPattern, name) {
   for (const member of members) {
     if (member.key?.type !== 'Identifier' || member.key.name !== keyName) continue;
     // TS: member.typeAnnotation, Flow: member.value
-    return resolveTypeAnnotation(member.typeAnnotation || member.value);
+    return resolveTypeAnnotation(member.typeAnnotation || member.value, scope);
   }
   return null;
 }
@@ -616,12 +634,12 @@ function resolveBindingType(path) {
   const objectPattern = bindingPath.isObjectPattern() ? bindingPath.node
     : (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === 'ObjectPattern') ? bindingPath.node.id
     : null;
-  if (objectPattern?.typeAnnotation) return resolveDestructuredType(objectPattern, path.node.name);
+  if (objectPattern?.typeAnnotation) return resolveDestructuredType(objectPattern, path.node.name, bindingPath.scope);
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
   const typeAnnotation = bindingPath.node.typeAnnotation
     || (bindingPath.isVariableDeclarator() && bindingPath.node.id?.typeAnnotation)
     || (bindingPath.isAssignmentPattern() && bindingPath.node.left?.typeAnnotation);
-  return typeAnnotation ? resolveTypeAnnotation(typeAnnotation) : null;
+  return typeAnnotation ? resolveTypeAnnotation(typeAnnotation, bindingPath.scope) : null;
 }
 
 function resolveNodeType(path) {
