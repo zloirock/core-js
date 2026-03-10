@@ -526,6 +526,25 @@ function resolveNodeTypeExpression(path) {
     case 'TSNonNullExpression':
     case 'TSInstantiationExpression':
       return resolveNodeType(path.get('expression'));
+    case 'AwaitExpression': {
+      const argument = path.get('argument');
+      const type = resolveNodeType(argument);
+      // await on non-Promise value returns the value type unchanged
+      if (type && type.constructor !== 'Promise') return type;
+      // try to unwrap Promise<T> from the binding's raw type annotation
+      const resolved = resolvePath(argument);
+      if (resolved.isIdentifier()) {
+        const binding = resolved.scope.getBinding(resolved.node.name);
+        if (binding) {
+          const annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
+          if (annotation && typeRefName(annotation) === 'Promise') {
+            const inner = annotation.typeParameters?.params[0];
+            if (inner) return resolveTypeAnnotation(inner, binding.path.scope);
+          }
+        }
+      }
+      return null;
+    }
   }
   return null;
 }
@@ -742,6 +761,12 @@ function resolveDestructuredType(objectPattern, name, scope) {
   return null;
 }
 
+function findBindingAnnotation(bindingPath) {
+  return bindingPath.node.typeAnnotation
+    || (bindingPath.isVariableDeclarator() && bindingPath.node.id?.typeAnnotation)
+    || (bindingPath.isAssignmentPattern() && bindingPath.node.left?.typeAnnotation);
+}
+
 function resolveBindingType(path) {
   if (!path.isIdentifier()) return null;
   const binding = path.scope.getBinding(path.node.name);
@@ -753,9 +778,7 @@ function resolveBindingType(path) {
     : null;
   if (objectPattern?.typeAnnotation) return resolveDestructuredType(objectPattern, path.node.name, bindingPath.scope);
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
-  const typeAnnotation = bindingPath.node.typeAnnotation
-    || (bindingPath.isVariableDeclarator() && bindingPath.node.id?.typeAnnotation)
-    || (bindingPath.isAssignmentPattern() && bindingPath.node.left?.typeAnnotation);
+  const typeAnnotation = findBindingAnnotation(bindingPath);
   return typeAnnotation ? resolveTypeAnnotation(typeAnnotation, bindingPath.scope) : null;
 }
 
