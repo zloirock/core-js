@@ -13,12 +13,21 @@ function $Object(constructor) {
 
 $Object.prototype.primitive = false;
 
-function resolveTypeAnnotation(node) {
+function unwrapTypeAnnotation(node) {
   if (!node) return null;
-  // Flow / TS wrappers
-  if (node.type === 'TypeAnnotation' || node.type === 'TSTypeAnnotation') {
-    return resolveTypeAnnotation(node.typeAnnotation);
-  }
+  if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') return unwrapTypeAnnotation(node.typeAnnotation);
+  return node;
+}
+
+function typeRefName(node) {
+  if (!node) return null;
+  const id = node.type === 'TSTypeReference' ? node.typeName : node.type === 'GenericTypeAnnotation' ? node.id : null;
+  return id?.type === 'Identifier' ? id.name : null;
+}
+
+function resolveTypeAnnotation(node) {
+  node = unwrapTypeAnnotation(node);
+  if (!node) return null;
   switch (node.type) {
     // TS primitive keywords
     case 'TSStringKeyword':
@@ -60,8 +69,8 @@ function resolveTypeAnnotation(node) {
     // TS / Flow named types — only well-known built-ins
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
-      const typeName = node.type === 'TSTypeReference' ? node.typeName : node.id;
-      if (typeName?.type === 'Identifier') switch (typeName.name) {
+      const name = typeRefName(node);
+      if (name) switch (name) {
         case 'Array':
         case 'Date':
         case 'Error':
@@ -78,11 +87,11 @@ function resolveTypeAnnotation(node) {
         case 'Boolean':
         case 'BigInt':
         case 'Symbol':
-          return new $Object(typeName.name);
+          return new $Object(name);
         case 'ReadonlyArray':
         case 'ReadonlyMap':
         case 'ReadonlySet':
-          return new $Object(typeName.name.replace(/^Readonly/, ''));
+          return new $Object(name.replace(/^Readonly/, ''));
       }
       return null;
     }
@@ -322,18 +331,31 @@ function resolveNodeTypeExpression(path) {
   return null;
 }
 
-function resolveReturnType(fnPath) {
-  const { returnType } = fnPath.node;
-  return returnType ? resolveTypeAnnotation(returnType) : null;
+// resolve return type of a function, optionally inferring generic type parameters from call-site arguments
+// e.g. `identity<T>(x: T): T` called as `identity([1, 2, 3])` → infer T = Array
+function resolveReturnType(fnPath, callPath) {
+  const { returnType, typeParameters } = fnPath.node;
+  if (!returnType) return null;
+  // try to infer generic type parameter from call-site argument
+  if (callPath && typeParameters) {
+    const returnName = typeRefName(unwrapTypeAnnotation(returnType));
+    if (returnName && (typeParameters.params || []).some(p => p.name === returnName)) {
+      const args = callPath.get('arguments');
+      for (let i = 0; i < fnPath.node.params.length && i < args.length; i++) {
+        if (typeRefName(unwrapTypeAnnotation(fnPath.node.params[i].typeAnnotation)) === returnName) {
+          return resolveNodeType(args[i]);
+        }
+      }
+    }
+  }
+  return resolveTypeAnnotation(returnType);
 }
 
-function resolveClass(path) {
-  const resolved = resolvePath(path);
+function resolveClass(resolved) {
   if (resolved.isClass()) return resolved;
   if (resolved.isNewExpression()) {
-    const callee = resolved.get('callee');
-    const cls = resolvePath(callee);
-    if (cls.isClass()) return cls;
+    const klass = resolvePath(resolved.get('callee'));
+    if (klass.isClass()) return klass;
   }
   return null;
 }
@@ -391,7 +413,7 @@ function resolveFromMemberExpression(path, objectResolver, classResolver) {
   if (property.type !== 'Identifier') return null;
   const objectPath = resolvePath(path.get('object'));
   if (objectPath.isObjectExpression()) return objectResolver(objectPath, property.name);
-  const classPath = resolveClass(path.get('object'));
+  const classPath = resolveClass(objectPath);
   return classPath ? classResolver(classPath, property.name) : null;
 }
 
@@ -399,7 +421,8 @@ function resolveCallReturnType(callee) {
   // direct call: foo()
   if (callee.isIdentifier()) {
     const resolved = resolvePath(callee);
-    return resolved.isFunction() ? resolveReturnType(resolved) : null;
+    if (!resolved.isFunction()) return null;
+    return resolveReturnType(resolved, callee.parentPath);
   }
   // method call: obj.method() or obj?.method()
   if (callee.isMemberExpression() || callee.isOptionalMemberExpression()) {
@@ -409,9 +432,7 @@ function resolveCallReturnType(callee) {
 }
 
 function resolveDestructuredType(objectPattern, name) {
-  let type = objectPattern.typeAnnotation;
-  // unwrap TS/Flow wrapper
-  if (type?.type === 'TSTypeAnnotation' || type?.type === 'TypeAnnotation') type = type.typeAnnotation;
+  const type = unwrapTypeAnnotation(objectPattern.typeAnnotation);
   if (!type) return null;
   // TS: TSTypeLiteral.members, Flow: ObjectTypeAnnotation.properties
   const members = type.type === 'TSTypeLiteral' ? type.members
