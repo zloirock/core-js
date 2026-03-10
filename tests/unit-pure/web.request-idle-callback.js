@@ -23,7 +23,7 @@ QUnit.test('requestIdleCallback', assert => {
 
   const handle = requestIdleCallback(() => {
     // Shouldn't ever be called.
-    assert.true(false, 'canceled callbcak called');
+    assert.true(false, 'canceled callback called');
   });
   cancelIdleCallback(handle);
 
