@@ -1,7 +1,8 @@
 import "core-js/modules/es.array.at";
 class Foo {
-  static identity<T>(x: T): T {
+  identity(x) {
     return x;
   }
 }
-Foo.identity([1, 2, 3]).at(-1);
+const f = new Foo();
+f.identity([1, 2, 3]).at(-1);
