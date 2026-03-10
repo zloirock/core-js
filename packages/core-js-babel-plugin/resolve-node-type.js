@@ -52,6 +52,8 @@ function resolveTypeAnnotation(node) {
     case 'TSNullKeyword':
     case 'NullLiteralTypeAnnotation':
       return new $Primitive('null');
+    case 'TSNeverKeyword':
+      return new $Primitive('never');
     // TS / Flow object types
     case 'TSObjectKeyword':
     case 'TSTypeLiteral':
@@ -135,8 +137,8 @@ function resolveTypeAnnotation(node) {
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member);
         if (!resolved) return null;
-        // skip nullable types in unions: T | null | undefined → T
-        if (isUnion && (resolved.type === 'null' || resolved.type === 'undefined')) continue;
+        // skip nullable / never types in unions: T | null | undefined | never → T
+        if (isUnion && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
         if (result && !typesEqual(result, resolved)) return null;
         result = resolved;
       }
