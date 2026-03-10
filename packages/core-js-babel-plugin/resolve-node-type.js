@@ -125,6 +125,13 @@ function resolveTypeAnnotation(node) {
     // TS template literal type: `prefix_${string}`
     case 'TSTemplateLiteralType':
       return new $Primitive('string');
+    // TS conditional type: T extends U ? X : Y — resolve if both branches have the same type
+    case 'TSConditionalType': {
+      const trueResolved = resolveTypeAnnotation(node.trueType);
+      const falseResolved = resolveTypeAnnotation(node.falseType);
+      if (trueResolved && falseResolved && typesEqual(trueResolved, falseResolved)) return trueResolved;
+      return null;
+    }
     // TS / Flow union and intersection — resolve if all (non-nullable for unions) members have the same type
     case 'TSUnionType':
     case 'UnionTypeAnnotation':
