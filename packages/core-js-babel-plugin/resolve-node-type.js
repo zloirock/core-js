@@ -237,6 +237,20 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
         // well-known utility types — resolve via function return type
         case 'ReturnType':
           return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
+        case 'InstanceType': {
+          const param = node.typeParameters?.params[0];
+          if (!param || param.type !== 'TSTypeQuery') return null;
+          const { exprName } = param;
+          if (exprName?.type !== 'Identifier') return null;
+          const bindingPath = constantBindingPath(exprName.name, scope);
+          if (!bindingPath) return null;
+          if (bindingPath.isClassDeclaration()) return new $Object(null);
+          if (bindingPath.isVariableDeclarator()) {
+            const init = bindingPath.get('init');
+            if (init.isClassExpression()) return new $Object(null);
+          }
+          return null;
+        }
       }
       // resolve user-defined type aliases and interfaces via scope chain
       if (name) return resolveUserDefinedType(name, scope, depth);
