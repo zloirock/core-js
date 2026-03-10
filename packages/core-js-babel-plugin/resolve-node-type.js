@@ -256,6 +256,9 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     // TS template literal type: `prefix_${string}`
     case 'TSTemplateLiteralType':
       return new $Primitive('string');
+    // TS type predicate: `x is string` → boolean
+    case 'TSTypePredicate':
+      return new $Primitive('boolean');
     // TS conditional type: T extends U ? X : Y — resolve if both branches have the same type, or one is `never`
     case 'TSConditionalType': {
       const trueResolved = resolveTypeAnnotation(node.trueType, scope, depth + 1);
