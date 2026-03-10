@@ -177,8 +177,10 @@ if (isForced('RegExp', BASE_FORCED)) {
       if (hasIndices) flags = replace(flags, /d/g, '');
     }
 
-    // Update rawFlags to remove 'd' flag as well
-    if (hasIndices) rawFlags = flags;
+    // Update rawFlags to remove 'd' flag, but preserve 'y' flag if it was originally present
+    if (hasIndices) {
+      rawFlags = replace(rawFlags, /d/g, '');
+    }
 
     if (UNSUPPORTED_NCG) {
       handled = handleNCG(pattern);
