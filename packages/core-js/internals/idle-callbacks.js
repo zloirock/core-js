@@ -3,6 +3,7 @@
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
 var sharedStore = require('./shared-store');
+var indexOf = require('../internals/array-includes').indexOf;
 
 var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;
@@ -21,12 +22,6 @@ var $push = globalThis.Array.prototype.push;
 var apply = uncurryThis(Function.prototype.apply);
 var shift = uncurryThis([].shift);
 var splice = uncurryThis([].splice);
-var indexOf = function (arr, value) {
-  for (var i = 0, len = arr.length; i < len; i++) {
-    if (arr[i] === value) return i;
-  }
-  return -1;
-};
 
 if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.idleCallbackPolyfilled = true;
