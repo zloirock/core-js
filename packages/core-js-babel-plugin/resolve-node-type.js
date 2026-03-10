@@ -225,13 +225,8 @@ function resolveNodeTypeExpression(path) {
       return new $Object(null);
     }
     case 'MemberExpression':
-    case 'OptionalMemberExpression': {
-      if (path.node.computed) return null;
-      const { property } = path.node;
-      if (property.type !== 'Identifier') return null;
-      const classPath = resolveClass(path.get('object'));
-      return classPath ? resolveClassMemberType(classPath, property.name) : null;
-    }
+    case 'OptionalMemberExpression':
+      return resolveFromMemberExpression(path, resolveObjectMemberType, resolveClassMemberType);
     case 'CallExpression':
     case 'OptionalCallExpression': {
       const callee = path.get('callee');
@@ -327,11 +322,8 @@ function resolveNodeTypeExpression(path) {
   return null;
 }
 
-function resolveCallReturnType(callee) {
-  if (!callee.isIdentifier()) return null;
-  const resolved = resolvePath(callee);
-  if (!resolved.isFunction()) return null;
-  const { returnType } = resolved.node;
+function resolveReturnType(fnPath) {
+  const { returnType } = fnPath.node;
   return returnType ? resolveTypeAnnotation(returnType) : null;
 }
 
@@ -346,15 +338,72 @@ function resolveClass(path) {
   return null;
 }
 
-function resolveClassMemberType(classPath, name) {
+function findClassMember(classPath, name) {
   for (const member of classPath.get('body').get('body')) {
-    if (!member.isClassProperty() && !member.isClassAccessorProperty()) continue;
     const { key } = member.node;
-    if (key.type !== 'Identifier' || key.name !== name) continue;
+    if (key?.type !== 'Identifier' || key.name !== name) continue;
     if (member.node.static) continue;
-    if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation);
-    const value = member.get('value');
-    if (value.node) return resolveNodeType(value);
+    return member;
+  }
+  return null;
+}
+
+function resolveClassMemberType(classPath, name) {
+  const member = findClassMember(classPath, name);
+  if (!member || (!member.isClassProperty() && !member.isClassAccessorProperty())) return null;
+  if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation);
+  const value = member.get('value');
+  return value.node ? resolveNodeType(value) : null;
+}
+
+function resolveClassMethodReturnType(classPath, name) {
+  const member = findClassMember(classPath, name);
+  return member?.isClassMethod() ? resolveReturnType(member) : null;
+}
+
+function findObjectMember(objectPath, name) {
+  for (const prop of objectPath.get('properties')) {
+    if (prop.node.key?.type !== 'Identifier' || prop.node.key.name !== name) continue;
+    return prop;
+  }
+  return null;
+}
+
+function resolveObjectMemberType(objectPath, name) {
+  const prop = findObjectMember(objectPath, name);
+  return prop?.isObjectProperty() ? resolveNodeType(prop.get('value')) : null;
+}
+
+function resolveObjectMethodReturnType(objectPath, name) {
+  const prop = findObjectMember(objectPath, name);
+  if (!prop) return null;
+  if (prop.isObjectMethod()) return resolveReturnType(prop);
+  if (prop.isObjectProperty()) {
+    const value = prop.get('value');
+    if (value.isFunction()) return resolveReturnType(value);
+  }
+  return null;
+}
+
+function resolveFromMemberExpression(path, objectResolver, classResolver) {
+  if (path.node.computed) return null;
+  const { property } = path.node;
+  if (property.type !== 'Identifier') return null;
+  const objectPath = resolvePath(path.get('object'));
+  if (objectPath.isObjectExpression()) return objectResolver(objectPath, property.name);
+  const classPath = resolveClass(path.get('object'));
+  return classPath ? classResolver(classPath, property.name) : null;
+}
+
+function resolveCallReturnType(callee) {
+  // direct call: foo()
+  if (callee.isIdentifier()) {
+    const resolved = resolvePath(callee);
+    return resolved.isFunction() ? resolveReturnType(resolved) : null;
+  }
+  // method call: obj.method() or obj?.method()
+  if (callee.isMemberExpression() || callee.isOptionalMemberExpression()) {
+    return resolveFromMemberExpression(callee, resolveObjectMethodReturnType, resolveClassMethodReturnType);
   }
   return null;
 }
