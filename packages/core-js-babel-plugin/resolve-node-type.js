@@ -42,7 +42,41 @@ function resolveTypeQuery(node, scope) {
   return null;
 }
 
-function resolveTypeAnnotation(node, scope) {
+function resolveTypeAlias(name, scope, depth) {
+  if (!scope) return null;
+  let currentScope = scope;
+  while (currentScope) {
+    const { block } = currentScope;
+    const body = block.type === 'Program' ? block.body : block.body?.body;
+    if (Array.isArray(body)) for (const stmt of body) {
+      if (stmt.type === 'TSTypeAliasDeclaration' && stmt.id?.name === name) {
+        return resolveTypeAnnotation(stmt.typeAnnotation, scope, depth + 1);
+      }
+    }
+    currentScope = currentScope.parent;
+  }
+  return null;
+}
+
+function resolveReturnTypeFromTypeQuery(param, scope) {
+  if (!scope || param.type !== 'TSTypeQuery') return null;
+  const { exprName } = param;
+  if (exprName?.type !== 'Identifier') return null;
+  const binding = scope.getBinding(exprName.name);
+  if (!binding?.constant) return null;
+  const bindingPath = binding.path;
+  let fnPath;
+  if (bindingPath.isFunctionDeclaration()) {
+    fnPath = bindingPath;
+  } else if (bindingPath.isVariableDeclarator()) {
+    const init = bindingPath.get('init');
+    if (init.isFunctionExpression() || init.isArrowFunctionExpression()) fnPath = init;
+  }
+  return fnPath ? resolveReturnType(fnPath) : null;
+}
+
+function resolveTypeAnnotation(node, scope, depth = 0) {
+  if (depth > 10) return null;
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
   switch (node.type) {
@@ -133,27 +167,32 @@ function resolveTypeAnnotation(node, scope) {
           return new $Primitive('string');
         // well-known utility types — resolve type parameter
         case 'NonNullable':
-          return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope) : null;
+          return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
         case 'Awaited': {
           const param = node.typeParameters?.params[0];
           if (!param) return null;
           // unwrap Promise<T> -> resolve T
           if (typeRefName(param) === 'Promise') {
             const innerParam = param.typeParameters?.params[0];
-            if (innerParam) return resolveTypeAnnotation(innerParam, scope);
+            if (innerParam) return resolveTypeAnnotation(innerParam, scope, depth + 1);
           }
-          return resolveTypeAnnotation(param, scope);
+          return resolveTypeAnnotation(param, scope, depth + 1);
         }
+        // well-known utility types — resolve via function return type
+        case 'ReturnType':
+          return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
       }
+      // resolve user-defined type aliases via scope chain
+      if (name) return resolveTypeAlias(name, scope, depth);
       return null;
     }
     // transparent wrappers — unwrap and resolve the inner type
     case 'TSParenthesizedType':
     case 'NullableTypeAnnotation':
-      return resolveTypeAnnotation(node.typeAnnotation, scope);
+      return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
     // TS type operator: `readonly T[]`, `unique symbol` — but NOT `keyof T`
     case 'TSTypeOperator':
-      if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation, scope);
+      if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
       return null;
     // TS typeof in type position: `typeof variable`
     case 'TSTypeQuery':
@@ -163,8 +202,8 @@ function resolveTypeAnnotation(node, scope) {
       return new $Primitive('string');
     // TS conditional type: T extends U ? X : Y — resolve if both branches have the same type, or one is `never`
     case 'TSConditionalType': {
-      const trueResolved = resolveTypeAnnotation(node.trueType, scope);
-      const falseResolved = resolveTypeAnnotation(node.falseType, scope);
+      const trueResolved = resolveTypeAnnotation(node.trueType, scope, depth + 1);
+      const falseResolved = resolveTypeAnnotation(node.falseType, scope, depth + 1);
       if (trueResolved && falseResolved && typesEqual(trueResolved, falseResolved)) return trueResolved;
       // if one branch is `never`, the useful type is in the other branch
       if (trueResolved?.type === 'never') return falseResolved;
@@ -181,7 +220,7 @@ function resolveTypeAnnotation(node, scope) {
       const isUnion = node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation';
       let result = null;
       for (const member of types) {
-        const resolved = resolveTypeAnnotation(member, scope);
+        const resolved = resolveTypeAnnotation(member, scope, depth + 1);
         if (!resolved) return null;
         // skip nullable / never types in unions: T | null | undefined | never -> T
         if (isUnion && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
