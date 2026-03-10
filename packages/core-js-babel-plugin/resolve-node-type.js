@@ -242,7 +242,7 @@ function resolveNodeTypeExpression(path) {
     }
     case 'MemberExpression':
     case 'OptionalMemberExpression':
-      return resolveFromMemberExpression(path, resolveObjectMemberType, resolveClassMemberType);
+      return resolveFromMemberExpression(path);
     case 'CallExpression':
     case 'OptionalCallExpression': {
       const callee = path.get('callee');
@@ -447,9 +447,9 @@ function resolveClassMemberType(classPath, name, isStatic) {
   return value.node ? resolveNodeType(value) : null;
 }
 
-function resolveClassMethodReturnType(classPath, name, isStatic) {
+function resolveClassMethodReturnType(classPath, name, isStatic, callPath) {
   const member = findClassMember(classPath, name, isStatic);
-  return member?.isClassMethod() ? resolveReturnType(member) : null;
+  return member?.isClassMethod() ? resolveReturnType(member, callPath) : null;
 }
 
 function findObjectMember(objectPath, name) {
@@ -465,32 +465,39 @@ function resolveObjectMemberType(objectPath, name) {
   return prop?.isObjectProperty() ? resolveNodeType(prop.get('value')) : null;
 }
 
-function resolveObjectMethodReturnType(objectPath, name) {
+function resolveObjectMethodReturnType(objectPath, name, callPath) {
   const prop = findObjectMember(objectPath, name);
   if (!prop) return null;
-  if (prop.isObjectMethod()) return resolveReturnType(prop);
+  if (prop.isObjectMethod()) return resolveReturnType(prop, callPath);
   if (prop.isObjectProperty()) {
     const value = prop.get('value');
-    if (value.isFunction()) return resolveReturnType(value);
+    if (value.isFunction()) return resolveReturnType(value, callPath);
   }
   return null;
 }
 
-function resolveFromMemberExpression(path, objectResolver, classResolver) {
+function resolveFromMemberExpression(path, callPath) {
   if (path.node.computed) return null;
   const { property } = path.node;
   if (property.type !== 'Identifier') return null;
   const objectPath = resolvePath(path.get('object'));
-  if (objectPath.isObjectExpression()) return objectResolver(objectPath, property.name);
+  if (objectPath.isObjectExpression()) {
+    return callPath
+      ? resolveObjectMethodReturnType(objectPath, property.name, callPath)
+      : resolveObjectMemberType(objectPath, property.name);
+  }
   const isStatic = objectPath.isClass();
   const classPath = resolveClass(objectPath);
-  return classPath ? classResolver(classPath, property.name, isStatic) : null;
+  if (!classPath) return null;
+  return callPath
+    ? resolveClassMethodReturnType(classPath, property.name, isStatic, callPath)
+    : resolveClassMemberType(classPath, property.name, isStatic);
 }
 
 function resolveCallReturnType(callee) {
   // method call: obj.method() or obj?.method()
   if (callee.isMemberExpression() || callee.isOptionalMemberExpression()) {
-    return resolveFromMemberExpression(callee, resolveObjectMethodReturnType, resolveClassMethodReturnType);
+    return resolveFromMemberExpression(callee, callee.parentPath);
   }
   // direct call: foo() — or IIFE: (() => expr)()
   const resolved = resolvePath(callee);
