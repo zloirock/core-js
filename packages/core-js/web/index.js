@@ -1,11 +1,4 @@
 'use strict';
-// ES dependencies
-require('../modules/es.error.to-string');
-require('../modules/es.array.iterator');
-require('../modules/es.object.to-string');
-require('../modules/es.map');
-require('../modules/es.set');
-// Web modules
 require('../modules/web.atob');
 require('../modules/web.btoa');
 require('../modules/web.dom-collections.for-each');
