@@ -99,20 +99,26 @@ function resolveTypeAnnotation(node) {
     case 'TSTypeOperator':
       if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation);
       return null;
+    // Flow nullable: ?T → T
+    case 'NullableTypeAnnotation':
+      return resolveTypeAnnotation(node.typeAnnotation);
     // TS template literal type: `prefix_${string}`
     case 'TSTemplateLiteralType':
       return new $Primitive('string');
-    // TS / Flow union and intersection — resolve if all members have the same type
+    // TS / Flow union and intersection — resolve if all (non-nullable for unions) members have the same type
     case 'TSUnionType':
     case 'UnionTypeAnnotation':
     case 'TSIntersectionType':
     case 'IntersectionTypeAnnotation': {
       const { types } = node;
       if (!types || !types.length) return null;
+      const isUnion = node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation';
       let result = null;
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member);
         if (!resolved) return null;
+        // skip nullable types in unions: T | null | undefined → T
+        if (isUnion && (resolved.type === 'null' || resolved.type === 'undefined')) continue;
         if (result && !typesEqual(result, resolved)) return null;
         result = resolved;
       }
