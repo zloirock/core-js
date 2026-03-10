@@ -7,12 +7,12 @@ var BASIC = !!globalThis.requestIdleCallback && !!globalThis.cancelIdleCallback;
 var requestIdleCallback = require('../internals/idle-callbacks').request;
 var cancelIdleCallback = require('../internals/idle-callbacks').cancel;
 
-$({ global: true, arity: 1, forced: !BASIC }, {
+$({ global: true, forced: !BASIC }, {
   requestIdleCallback: requestIdleCallback
 });
 
 if (!IS_PURE) {
-  $({ global: true, arity: 1, forced: !BASIC }, {
+  $({ global: true, forced: !BASIC }, {
     cancelIdleCallback: cancelIdleCallback
   });
 }
