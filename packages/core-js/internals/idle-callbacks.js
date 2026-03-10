@@ -2,11 +2,9 @@
 'use strict';
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
-var MapHelpers = require('./map-helpers');
 var sharedStore = require('./shared-store');
 
 var $Date = globalThis.Date;
-var $Map = MapHelpers.Map;
 var $setTimeout = globalThis.setTimeout;
 var getTime = uncurryThis($Date.prototype.getTime);
 var $performance = globalThis.performance;
@@ -29,15 +27,13 @@ var indexOf = function (arr, value) {
   }
   return -1;
 };
-var get = MapHelpers.get;
-var mpDelete = MapHelpers.remove;
 
 if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.idleCallbackPolyfilled = true;
   sharedStore.__idleRequestCallbacks = [];
   sharedStore.__runnableIdleCallbacks = [];
   sharedStore.__idleCallbackId = 0;
-  sharedStore.__idleCallbackMap = new $Map();
+  sharedStore.__idleCallbackMap = {};
   sharedStore.__idleRafScheduled = false;
 }
 
@@ -78,10 +74,10 @@ function startIdlePeriod() {
   var deadlineTime = now() + 8;
   while (sharedStore.__runnableIdleCallbacks.length) {
     var handle = shift(sharedStore.__runnableIdleCallbacks);
-    var cb = get(sharedStore.__idleCallbackMap, handle);
+    var cb = sharedStore.__idleCallbackMap[handle];
     if (!cb) continue; // cancelled
     // Cancel this, so we no longer call it on timeout
-    mpDelete(sharedStore.__idleCallbackMap, handle);
+    delete sharedStore.__idleCallbackMap[handle];
 
     var deadline = new IdleDeadline(deadlineTime, false);
     try {
@@ -102,15 +98,15 @@ function startIdlePeriod() {
 exports.request = function requestIdleCallback(callback) {
   var options = arguments[1] || null;
   var handle = ++sharedStore.__idleCallbackId;
-  sharedStore.__idleCallbackMap.set(handle, callback);
+  sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__idleRequestCallbacks.push(handle);
   if (options && options.timeout && options.timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // options.timeout, however maintainng such a queue would be very tedious
     $setTimeout(function timeoutCallback() {
-      var cb = get(sharedStore.__idleCallbackMap, handle);
+      var cb = sharedStore.__idleCallbackMap[handle];
       if (!cb) return;
-      mpDelete(sharedStore.__idleCallbackMap, handle);
+      delete sharedStore.__idleCallbackMap[handle];
       var i = indexOf(sharedStore.__idleRequestCallbacks, handle);
       if (i > -1) splice(sharedStore.__idleRequestCallbacks, i, 1);
       i = indexOf(sharedStore.__runnableIdleCallbacks, handle);
@@ -130,7 +126,7 @@ exports.request = function requestIdleCallback(callback) {
   return handle;
 };
 exports.cancel = function cancelIdleCallback(handle) {
-  mpDelete(sharedStore.__idleCallbackMap, handle);
+  delete sharedStore.__idleCallbackMap[handle];
   var i = indexOf(sharedStore.__idleRequestCallbacks, handle);
   if (i > -1) splice(sharedStore.__idleRequestCallbacks, i, 1);
   i = indexOf(sharedStore.__runnableIdleCallbacks, handle);
