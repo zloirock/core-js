@@ -331,13 +331,30 @@ function resolveNodeTypeExpression(path) {
   return null;
 }
 
+function resolveBodyReturnType(fnPath) {
+  const body = fnPath.get('body');
+  // arrow with expression body: () => [1, 2, 3]
+  if (!body.isBlockStatement()) return resolveNodeType(body);
+  // block body: check direct return statements
+  let result = null;
+  for (const statement of body.get('body')) {
+    if (!statement.isReturnStatement()) continue;
+    const arg = statement.get('argument');
+    if (!arg.node) return null;
+    const type = resolveNodeType(arg);
+    if (!type) return null;
+    if (result && (result.type !== type.type || result.constructor !== type.constructor)) return null;
+    result = type;
+  }
+  return result;
+}
+
 // resolve return type of a function, optionally inferring generic type parameters from call-site arguments
 // e.g. `identity<T>(x: T): T` called as `identity([1, 2, 3])` → infer T = Array
 function resolveReturnType(fnPath, callPath) {
   const { returnType, typeParameters } = fnPath.node;
-  if (!returnType) return null;
   // try to infer generic type parameter from call-site argument
-  if (callPath && typeParameters) {
+  if (returnType && callPath && typeParameters) {
     const returnName = typeRefName(unwrapTypeAnnotation(returnType));
     if (returnName && (typeParameters.params || []).some(p => p.name === returnName)) {
       const args = callPath.get('arguments');
@@ -348,7 +365,13 @@ function resolveReturnType(fnPath, callPath) {
       }
     }
   }
-  return resolveTypeAnnotation(returnType);
+  // try return type annotation
+  if (returnType) {
+    const resolved = resolveTypeAnnotation(returnType);
+    if (resolved) return resolved;
+  }
+  // fallback: analyze return statements in the function body
+  return resolveBodyReturnType(fnPath);
 }
 
 function resolveClass(resolved) {
@@ -427,6 +450,10 @@ function resolveCallReturnType(callee) {
   // method call: obj.method() or obj?.method()
   if (callee.isMemberExpression() || callee.isOptionalMemberExpression()) {
     return resolveFromMemberExpression(callee, resolveObjectMethodReturnType, resolveClassMethodReturnType);
+  }
+  // IIFE: (function() { ... })() or (() => expr)()
+  if (callee.isFunction()) {
+    return resolveReturnType(callee, callee.parentPath);
   }
   return null;
 }
