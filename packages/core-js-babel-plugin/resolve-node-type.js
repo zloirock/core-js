@@ -742,19 +742,143 @@ function resolveBodyReturnType(fnPath, callPath) {
   return resolved ? (result ?? new $Primitive('undefined')) : null;
 }
 
+// check whether a type annotation AST node references any type parameter from the given set
+function hasTypeParamReference(node, typeParamNames, depth) {
+  if (depth > 10) return false;
+  node = unwrapTypeAnnotation(node);
+  if (!node) return false;
+  switch (node.type) {
+    case 'TSTypeReference':
+    case 'GenericTypeAnnotation': {
+      const name = typeRefName(node);
+      if (name && typeParamNames.has(name)) return true;
+      const params = node.typeParameters?.params;
+      if (params) for (const param of params) {
+        if (hasTypeParamReference(param, typeParamNames, depth + 1)) return true;
+      }
+      return false;
+    }
+    case 'TSArrayType':
+    case 'ArrayTypeAnnotation':
+      return hasTypeParamReference(node.elementType, typeParamNames, depth + 1);
+    case 'TSUnionType':
+    case 'UnionTypeAnnotation':
+    case 'TSIntersectionType':
+    case 'IntersectionTypeAnnotation':
+      for (const member of node.types) {
+        if (hasTypeParamReference(member, typeParamNames, depth + 1)) return true;
+      }
+      return false;
+    case 'TSTupleType':
+    case 'TupleTypeAnnotation':
+      for (const elem of node.elementTypes || []) {
+        const actual = elem.type === 'TSNamedTupleMember' ? elem.elementType : elem;
+        if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
+      }
+      return false;
+    case 'TSTypeOperator':
+    case 'TSParenthesizedType':
+    case 'NullableTypeAnnotation':
+      return hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
+  }
+  return false;
+}
+
+// build a Map<string, Type> of type parameter bindings from call-site arguments
+function buildTypeParamMap(typeParamNames, fnPath, callPath) {
+  const typeParamMap = new Map();
+  const args = callPath.get('arguments');
+  const { params } = fnPath.node;
+  // phase 1: direct matching — param annotation is exactly T
+  for (let i = 0; i < params.length && i < args.length; i++) {
+    if (params[i].type === 'RestElement') continue;
+    const paramAnnotation = unwrapTypeAnnotation(params[i].typeAnnotation);
+    if (!paramAnnotation) continue;
+    const name = typeRefName(paramAnnotation);
+    if (name && typeParamNames.has(name) && !typeParamMap.has(name)) {
+      const resolved = resolveNodeType(args[i]);
+      if (resolved) typeParamMap.set(name, resolved);
+    }
+  }
+  // phase 2: constraint fallback for unresolved type params
+  for (const tp of fnPath.node.typeParameters.params) {
+    if (typeParamMap.has(tp.name)) continue;
+    if (tp.constraint) {
+      const resolved = resolveTypeAnnotation(tp.constraint, fnPath.scope);
+      if (resolved) typeParamMap.set(tp.name, resolved);
+    }
+  }
+  return typeParamMap;
+}
+
+// resolve a type annotation substituting type parameters from the map
+function substituteTypeParams(node, typeParamMap, scope, depth) {
+  if (depth > 10) return null;
+  node = unwrapTypeAnnotation(node);
+  if (!node) return null;
+  // direct type parameter reference
+  if (node.type === 'TSTypeReference' || node.type === 'GenericTypeAnnotation') {
+    const name = typeRefName(node);
+    if (name && typeParamMap.has(name)) return typeParamMap.get(name);
+    // not a type param — resolve normally (handles Array<T> -> Array, Promise<T> -> Promise, etc.)
+    if (name) return resolveNamedType(name, node, scope, depth);
+    return null;
+  }
+  // union: T | null, T | undefined — strip nullable, substitute T
+  if (node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation') {
+    let result = null;
+    for (const member of node.types) {
+      const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
+      if (!resolved) return null;
+      if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
+      if (result && !typesEqual(result, resolved)) return null;
+      result = resolved;
+    }
+    return result;
+  }
+  // intersection: T & { extra: boolean } — skip plain $Object('Object') from type literals, rest must agree
+  if (node.type === 'TSIntersectionType' || node.type === 'IntersectionTypeAnnotation') {
+    let result = null;
+    for (const member of node.types) {
+      const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
+      if (!resolved) continue;
+      // skip structural additions like { key: value } that resolve to plain Object
+      if (!resolved.primitive && resolved.constructor === 'Object') continue;
+      if (result && !typesEqual(result, resolved)) return null;
+      result = resolved;
+    }
+    return result;
+  }
+  // transparent wrappers
+  if (node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation') {
+    return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1);
+  }
+  // readonly T[], unique symbol, etc.
+  if (node.type === 'TSTypeOperator' && node.operator !== 'keyof') {
+    return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1);
+  }
+  // T[] or [T, U] — resolve to Array regardless of element type
+  if (node.type === 'TSArrayType' || node.type === 'TSTupleType'
+    || node.type === 'ArrayTypeAnnotation' || node.type === 'TupleTypeAnnotation') return new $Object('Array');
+  // fallback to regular annotation resolution
+  return resolveTypeAnnotation(node, scope, depth);
+}
+
 // resolve return type of a function, optionally inferring generic type parameters from call-site arguments
 // e.g. `identity<T>(x: T): T` called as `identity([1, 2, 3])` -> infer T = Array
+// extended: handles T | null, T | undefined, T & Extra, constraint fallback, etc.
 function resolveReturnType(fnPath, callPath) {
   const { returnType, typeParameters } = fnPath.node;
-  // try to infer generic type parameter from call-site argument
-  if (returnType && callPath && typeParameters) {
-    const returnName = typeRefName(unwrapTypeAnnotation(returnType));
-    if (returnName && (typeParameters.params || []).some(p => p.name === returnName)) {
-      const args = callPath.get('arguments');
-      for (let i = 0; i < fnPath.node.params.length && i < args.length; i++) {
-        if (typeRefName(unwrapTypeAnnotation(fnPath.node.params[i].typeAnnotation)) === returnName) {
-          return resolveNodeType(args[i]);
-        }
+  // try to infer generic type parameters from call-site arguments and substitute into the return type
+  if (returnType && callPath && typeParameters?.params?.length) {
+    const returnAnnotation = unwrapTypeAnnotation(returnType);
+    const typeParamNames = new Set();
+    for (const p of typeParameters.params) typeParamNames.add(p.name);
+    if (hasTypeParamReference(returnAnnotation, typeParamNames, 0)) {
+      const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
+      if (typeParamMap.size > 0) {
+        const substituted = substituteTypeParams(returnAnnotation, typeParamMap, fnPath.scope, 0);
+        if (substituted) return substituted;
       }
     }
   }
