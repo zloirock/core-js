@@ -1033,9 +1033,9 @@ function typeFromHint(hint) {
 
 function resolveKnownStaticReturnType(callee) {
   if (!callee.isMemberExpression() || callee.node.computed) return null;
-  const object = callee.get('object');
-  if (!object.isIdentifier() || object.scope.getBinding(object.node.name)) return null;
-  const methods = KNOWN_STATIC_RETURN_TYPES[object.node.name];
+  const name = resolveGlobalName(callee.get('object'));
+  if (!name) return null;
+  const methods = KNOWN_STATIC_RETURN_TYPES[name];
   if (!methods) return null;
   const property = callee.get('property');
   if (!property.isIdentifier()) return null;
@@ -1243,4 +1243,4 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = { possibleGlobalProxies, resolveNodeType, toHint, isString, isObject };
+module.exports = { possibleGlobalProxies, resolveGlobalName, resolveNodeType, toHint, isString, isObject };
