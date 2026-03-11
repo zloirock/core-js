@@ -95,18 +95,17 @@ function resolveUserDefinedType(name, scope, depth) {
   return resolveTypeParameter(name, scope, depth);
 }
 
+function getTypeMembers(objectType, scope) {
+  if (objectType.type === 'TSTypeLiteral') return objectType.members;
+  const name = typeRefName(objectType);
+  const decl = name ? findTypeDeclaration(name, scope) : null;
+  if (decl?.type === 'TSInterfaceDeclaration') return decl.body?.body;
+  if (decl?.type === 'TSTypeAliasDeclaration' && decl.typeAnnotation?.type === 'TSTypeLiteral') return decl.typeAnnotation.members;
+  return null;
+}
+
 function findTypeMember(objectType, key, scope) {
-  let members;
-  if (objectType.type === 'TSTypeLiteral') {
-    members = objectType.members;
-  } else {
-    const name = typeRefName(objectType);
-    const decl = name ? findTypeDeclaration(name, scope) : null;
-    if (decl?.type === 'TSInterfaceDeclaration') members = decl.body?.body;
-    else if (decl?.type === 'TSTypeAliasDeclaration' && decl.typeAnnotation?.type === 'TSTypeLiteral') {
-      members = decl.typeAnnotation.members;
-    }
-  }
+  const members = getTypeMembers(objectType, scope);
   if (!members) return null;
   for (const member of members) {
     if (member.type !== 'TSPropertySignature') continue;
@@ -767,6 +766,31 @@ function resolveObjectMember(objectPath, name, callPath) {
   return null;
 }
 
+function resolveTypedMember(objectPath, name, callPath) {
+  if (!objectPath.isIdentifier()) return null;
+  const binding = objectPath.scope.getBinding(objectPath.node.name);
+  if (!binding) return null;
+  const { path: bindingPath } = binding;
+  const annotation = unwrapTypeAnnotation(findBindingAnnotation(bindingPath));
+  if (!annotation) return null;
+  const { scope } = bindingPath;
+  if (!callPath) {
+    const memberType = findTypeMember(annotation, name, scope);
+    return memberType ? resolveTypeAnnotation(memberType, scope) : null;
+  }
+  const members = getTypeMembers(annotation, scope);
+  if (!members) return null;
+  for (const member of members) {
+    if (member.key?.type !== 'Identifier' || member.key.name !== name) continue;
+    if (member.type === 'TSMethodSignature') return resolveTypeAnnotation(member.typeAnnotation, scope);
+    if (member.type === 'TSPropertySignature') {
+      const fnType = unwrapTypeAnnotation(member.typeAnnotation);
+      if (fnType?.type === 'TSFunctionType') return resolveTypeAnnotation(fnType.typeAnnotation, scope);
+    }
+  }
+  return null;
+}
+
 function resolveFromMemberExpression(path, callPath) {
   if (path.node.computed) return null;
   const { property } = path.node;
@@ -774,8 +798,8 @@ function resolveFromMemberExpression(path, callPath) {
   const objectPath = resolvePath(path.get('object'));
   if (objectPath.isObjectExpression()) return resolveObjectMember(objectPath, property.name, callPath);
   const ctx = resolveClassContext(objectPath);
-  if (!ctx) return null;
-  return resolveClassMember(ctx.classPath, property.name, ctx.isStatic, callPath);
+  if (ctx) return resolveClassMember(ctx.classPath, property.name, ctx.isStatic, callPath);
+  return resolveTypedMember(objectPath, property.name, callPath);
 }
 
 function resolveCallReturnType(callee) {
