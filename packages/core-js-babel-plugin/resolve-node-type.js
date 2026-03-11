@@ -1,4 +1,11 @@
 'use strict';
+const possibleGlobalProxies = new Set([
+  'global',
+  'globalThis',
+  'self',
+  'window',
+]);
+
 function $Primitive(type) {
   this.type = type;
   this.constructor = null;
@@ -483,16 +490,27 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
   return null;
 }
 
+function resolveGlobalName(path) {
+  if (path.isIdentifier() && !path.scope.getBinding(path.node.name)) return path.node.name;
+  if (!path.isMemberExpression() || path.node.computed) return null;
+  const object = path.get('object');
+  if (!object.isIdentifier()) return null;
+  const { name } = object.node;
+  if (!possibleGlobalProxies.has(name)) return null;
+  if (object.scope.getBinding(name)) return null;
+  const property = path.get('property');
+  return property.isIdentifier() ? property.node.name : null;
+}
+
 function resolveClassInheritance(classPath) {
   let current = classPath;
   let depth = 10;
   while (depth--) {
     if (!current.node.superClass) return null;
     const superPath = current.get('superClass');
+    const name = resolveGlobalName(superPath);
+    if (name) return resolveKnownConstructor(name);
     if (!superPath.isIdentifier()) return null;
-    if (!superPath.scope.getBinding(superPath.node.name)) {
-      return resolveKnownConstructor(superPath.node.name);
-    }
     current = resolvePath(superPath);
     if (!current.isClass()) return null;
   }
@@ -541,11 +559,12 @@ function resolveNodeTypeExpression(path) {
       return new $Object('Function');
     case 'NewExpression': {
       const callee = path.get('callee');
+      const name = resolveGlobalName(callee);
+      if (name) {
+        if (name === 'Object') return new $Object(null);
+        return resolveKnownConstructor(name) || new $Object(name);
+      }
       if (callee.isIdentifier()) {
-        if (!callee.scope.getBinding(callee.node.name)) {
-          if (callee.node.name === 'Object') return new $Object(null);
-          return resolveKnownConstructor(callee.node.name) || new $Object(callee.node.name);
-        }
         const resolved = resolvePath(callee);
         if (resolved.isClass()) return resolveClassInheritance(resolved) || new $Object('Object');
       }
@@ -557,8 +576,8 @@ function resolveNodeTypeExpression(path) {
     case 'CallExpression':
     case 'OptionalCallExpression': {
       const callee = path.get('callee');
-      const { name } = callee.node;
-      if (callee.isIdentifier() && !callee.scope.getBinding(name)) {
+      const name = resolveGlobalName(callee);
+      if (name) {
         switch (name) {
           case 'String':
           case 'Number':
@@ -569,7 +588,7 @@ function resolveNodeTypeExpression(path) {
           case 'Object':
             return new $Object(null);
         }
-        // some constructors like Array, RegExp, Error, Function, etc. work without `new`
+        // constructors like Array, RegExp, Error, Function, etc. work without `new`
         const known = resolveKnownConstructor(name);
         if (known) return known;
       }
