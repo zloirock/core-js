@@ -792,14 +792,20 @@ function resolveTypedMember(objectPath, name, callPath) {
 }
 
 function resolveFromMemberExpression(path, callPath) {
-  if (path.node.computed) return null;
-  const { property } = path.node;
-  if (property.type !== 'Identifier') return null;
+  const { property, computed } = path.node;
+  let name;
+  if (computed) {
+    if (property.type !== 'StringLiteral') return null;
+    name = property.value;
+  } else {
+    if (property.type !== 'Identifier') return null;
+    name = property.name;
+  }
   const objectPath = resolvePath(path.get('object'));
-  if (objectPath.isObjectExpression()) return resolveObjectMember(objectPath, property.name, callPath);
+  if (objectPath.isObjectExpression()) return resolveObjectMember(objectPath, name, callPath);
   const ctx = resolveClassContext(objectPath);
-  if (ctx) return resolveClassMember(ctx.classPath, property.name, ctx.isStatic, callPath);
-  return resolveTypedMember(objectPath, property.name, callPath);
+  if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
+  return resolveTypedMember(objectPath, name, callPath);
 }
 
 function resolveCallReturnType(callee) {
