@@ -1195,4 +1195,4 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = { resolveNodeType, toHint, isString, isObject };
+module.exports = { possibleGlobalProxies, resolveNodeType, toHint, isString, isObject };
