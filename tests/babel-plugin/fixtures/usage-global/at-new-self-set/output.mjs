@@ -11,4 +11,5 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+import "core-js/modules/web.self";
 new self.Set().at(-1);
