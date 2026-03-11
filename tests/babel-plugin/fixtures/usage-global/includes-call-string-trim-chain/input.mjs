@@ -1,0 +1,1 @@
+' hello '.trim().includes('h');
