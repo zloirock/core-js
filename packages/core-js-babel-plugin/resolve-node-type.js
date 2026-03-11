@@ -926,8 +926,115 @@ function resolveBindingType(path) {
   return typeAnnotation ? resolveTypeAnnotation(typeAnnotation, bindingPath.scope) : null;
 }
 
+function matchesGuard(resolved, guard) {
+  if (guard.kind === 'typeof') {
+    const { value } = guard;
+    if (value === 'object') return !resolved.primitive || resolved.type === 'null';
+    if (value === 'function') return resolved.constructor === 'Function';
+    return resolved.primitive && resolved.type === value;
+  }
+  return !resolved.primitive && resolved.constructor === guard.constructorName;
+}
+
+function parseTypeGuard(testNode, varName) {
+  let negated = false;
+  let test = testNode;
+  if (test.type === 'UnaryExpression' && test.operator === '!') {
+    negated = true;
+    test = test.argument;
+  }
+  if (test.type === 'BinaryExpression') {
+    const { operator, left, right } = test;
+    if (operator === '===' || operator === '!==') {
+      if (operator === '!==') negated = !negated;
+      // normalize: typeof may be on either side
+      const [typeofSide, literalSide] = left.type === 'UnaryExpression' ? [left, right] : [right, left];
+      if (typeofSide.type === 'UnaryExpression' && typeofSide.operator === 'typeof'
+        && typeofSide.argument?.type === 'Identifier' && typeofSide.argument.name === varName
+        && literalSide.type === 'StringLiteral') {
+        return { kind: 'typeof', value: literalSide.value, negated };
+      }
+    }
+    if (operator === 'instanceof'
+      && left.type === 'Identifier' && left.name === varName
+      && right.type === 'Identifier') {
+      return { kind: 'instanceof', constructorName: right.name, negated };
+    }
+  }
+  if (test.type === 'CallExpression' && test.arguments?.length === 1
+    && test.arguments[0].type === 'Identifier' && test.arguments[0].name === varName) {
+    const { callee } = test;
+    if (callee.type === 'MemberExpression' && !callee.computed
+      && callee.object.type === 'Identifier' && callee.property.type === 'Identifier') {
+      const { name: className } = callee.object;
+      const { name: methodName } = callee.property;
+      if ((className === 'Array' && methodName === 'isArray')
+        || (className === 'Error' && methodName === 'isError')) {
+        return { kind: 'instanceof', constructorName: className, negated };
+      }
+    }
+  }
+  return null;
+}
+
+function findEnclosingTypeGuard(path, varName) {
+  let current = path.parentPath;
+  while (current) {
+    if (current.isFunction()) return null;
+    if (current.parentPath?.isIfStatement()) {
+      const { key } = current;
+      if (key === 'consequent' || key === 'alternate') {
+        const guard = parseTypeGuard(current.parentPath.node.test, varName);
+        if (guard) {
+          guard.positive = (key === 'consequent') !== guard.negated;
+          return guard;
+        }
+      }
+    }
+    current = current.parentPath;
+  }
+  return null;
+}
+
+function narrowUnionByGuard(annotation, guard, scope) {
+  let union = unwrapTypeAnnotation(annotation);
+  if (!union) return null;
+  if (union.type === 'TSTypeReference' || union.type === 'GenericTypeAnnotation') {
+    const refName = typeRefName(union);
+    if (refName) {
+      const decl = findTypeDeclaration(refName, scope);
+      if (decl?.type === 'TSTypeAliasDeclaration') union = unwrapTypeAnnotation(decl.typeAnnotation);
+    }
+  }
+  if (!union || (union.type !== 'TSUnionType' && union.type !== 'UnionTypeAnnotation')) return null;
+  const { types } = union;
+  if (!types?.length) return null;
+  let result = null;
+  for (const member of types) {
+    const resolved = resolveTypeAnnotation(member, scope);
+    if (!resolved) continue;
+    if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
+    if (matchesGuard(resolved, guard) !== guard.positive) continue;
+    if (result && !typesEqual(result, resolved)) return null;
+    result = resolved;
+  }
+  return result;
+}
+
+function resolveTypeGuardNarrowing(path) {
+  if (!path.isIdentifier()) return null;
+  const { name } = path.node;
+  const binding = path.scope.getBinding(name);
+  if (!binding) return null;
+  const annotation = findBindingAnnotation(binding.path);
+  if (!annotation) return null;
+  const guard = findEnclosingTypeGuard(path, name);
+  if (!guard) return null;
+  return narrowUnionByGuard(annotation, guard, binding.path.scope);
+}
+
 function resolveNodeType(path) {
-  return resolveNodeTypeExpression(path) || resolveBindingType(path);
+  return resolveNodeTypeExpression(path) || resolveBindingType(path) || resolveTypeGuardNarrowing(path);
 }
 
 function toHint(type) {
