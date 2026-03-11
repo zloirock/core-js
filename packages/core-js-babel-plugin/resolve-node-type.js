@@ -1,4 +1,6 @@
 'use strict';
+const MAX_DEPTH = 15;
+
 const possibleGlobalProxies = new Set([
   'global',
   'globalThis',
@@ -292,7 +294,7 @@ function resolveNamedType(name, node, scope, depth) {
 }
 
 function resolveTypeAnnotation(node, scope, depth = 0) {
-  if (depth > 10) return null;
+  if (depth > MAX_DEPTH) return null;
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
   switch (node.type) {
@@ -420,7 +422,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
 }
 
 function resolvePath(path) {
-  let depth = 15;
+  let depth = MAX_DEPTH;
   while (depth-- && path.isIdentifier()) {
     const binding = path.scope.getBinding(path.node.name);
     if (!binding || !binding.constant) break;
@@ -504,7 +506,7 @@ function resolveGlobalName(path) {
 
 function resolveClassInheritance(classPath) {
   let current = classPath;
-  let depth = 10;
+  let depth = MAX_DEPTH;
   while (depth--) {
     if (!current.node.superClass) return null;
     const superPath = current.get('superClass');
@@ -744,7 +746,7 @@ function resolveBodyReturnType(fnPath, callPath) {
 
 // check whether a type annotation AST node references any type parameter from the given set
 function hasTypeParamReference(node, typeParamNames, depth) {
-  if (depth > 10) return false;
+  if (depth > MAX_DEPTH) return false;
   node = unwrapTypeAnnotation(node);
   if (!node) return false;
   switch (node.type) {
@@ -813,14 +815,13 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
 
 // resolve a type annotation substituting type parameters from the map
 function substituteTypeParams(node, typeParamMap, scope, depth) {
-  if (depth > 10) return null;
+  if (depth > MAX_DEPTH) return null;
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
   // direct type parameter reference
   if (node.type === 'TSTypeReference' || node.type === 'GenericTypeAnnotation') {
     const name = typeRefName(node);
     if (name && typeParamMap.has(name)) return typeParamMap.get(name);
-    // not a type param — resolve normally (handles Array<T> -> Array, Promise<T> -> Promise, etc.)
     if (name) return resolveNamedType(name, node, scope, depth);
     return null;
   }
@@ -849,12 +850,9 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     }
     return result;
   }
-  // transparent wrappers
-  if (node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation') {
-    return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1);
-  }
-  // readonly T[], unique symbol, etc.
-  if (node.type === 'TSTypeOperator' && node.operator !== 'keyof') {
+  // transparent wrappers: (T), T?, readonly T[], etc.
+  if (node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation'
+    || (node.type === 'TSTypeOperator' && node.operator !== 'keyof')) {
     return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1);
   }
   // T[] or [T, U] — resolve to Array regardless of element type
@@ -864,12 +862,10 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   return resolveTypeAnnotation(node, scope, depth);
 }
 
-// resolve return type of a function, optionally inferring generic type parameters from call-site arguments
-// e.g. `identity<T>(x: T): T` called as `identity([1, 2, 3])` -> infer T = Array
-// extended: handles T | null, T | undefined, T & Extra, constraint fallback, etc.
+// resolve return type of a function, inferring generic type parameters from call-site arguments
 function resolveReturnType(fnPath, callPath) {
   const { returnType, typeParameters } = fnPath.node;
-  // try to infer generic type parameters from call-site arguments and substitute into the return type
+  // infer generic type parameters and substitute into return type
   if (returnType && callPath && typeParameters?.params?.length) {
     const returnAnnotation = unwrapTypeAnnotation(returnType);
     const typeParamNames = new Set();
