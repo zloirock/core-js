@@ -70,7 +70,8 @@ function resolveHint(desc, meta) {
 }
 
 function enhanceMeta(meta, path, desc) {
-  if (!meta || meta.placement === 'prototype') return meta;
+  if (!meta) return meta;
+  if (meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
   if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return meta;
   const hint = toHint(resolveNodeType(path.get('object')));
   if (!hint) return meta;
