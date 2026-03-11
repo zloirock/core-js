@@ -135,6 +135,11 @@ require('@core-js/compat/get-entries-list-for-target-version')('4.0'); // => Arr
 require('@core-js/compat/get-modules-list-for-target-version')('4.0'); // => Array<ModuleName>
 // or
 require('@core-js/compat').getModulesListForTargetVersion('4.0'); // => Array<ModuleName>
+
+// known return types for built-in static and instance methods (used by `@core-js/babel-plugin` for type inference):
+require('@core-js/compat/known-built-in-return-types'); // => { static: { [ClassName]: { [Method]: ReturnTypeHint } }, instance: ... }
+// or
+require('@core-js/compat').knownBuiltInReturnTypes;
 ```
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:
