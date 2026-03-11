@@ -9,6 +9,11 @@ type CompatData = {
   }
 };
 
+type KnownBuiltInReturnTypes = {
+  static: {[className: string]: {[method: string]: string}},
+  instance: {[className: string]: {[method: string]: string}},
+};
+
 declare const ExportedCompatObject: typeof compat & {
   compat: typeof compat,
 
@@ -23,6 +28,9 @@ declare const ExportedCompatObject: typeof compat & {
 
   /** The subset of modules which available in the passed `core-js` version */
   getModulesListForTargetVersion: typeof getModulesListForTargetVersion,
+
+  /** Known return types for built-in static and instance methods */
+  knownBuiltInReturnTypes: KnownBuiltInReturnTypes,
 
   /** Full list of modules */
   modules: readonly ModuleName[]
