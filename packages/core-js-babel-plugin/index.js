@@ -6,7 +6,7 @@ const compatData = require('@core-js/compat/data.json');
 const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
-const { possibleGlobalProxies, resolveNodeType, toHint, isString, isObject } = require('./resolve-node-type');
+const { possibleGlobalProxies, resolveGlobalName, resolveNodeType, toHint, isString, isObject } = require('./resolve-node-type');
 const createASTHelpers = require('./ast-helpers');
 
 const defaultCoreJSPackages = ['core-js'];
@@ -260,7 +260,20 @@ module.exports = defineProvider(({
       path.remove();
     },
     usageGlobal(meta, utils, path) {
-      const resolved = resolve(meta);
+      let resolved = resolve(meta);
+      // detect static method access via global proxy (e.g. globalThis.Object.keys, globalThis.Array.from)
+      // the framework misclassifies these as instance accesses
+      // TODO: fix it on @babel/helper-define-polyfill-provider side
+      // https://github.com/babel/babel-polyfills/pull/252
+      if (!meta.object && (path.isMemberExpression() || path.isOptionalMemberExpression())) {
+        const objectName = resolveGlobalName(path.get('object'));
+        if (objectName && hasOwn(StaticProperties, objectName)) {
+          const staticResolved = resolve({ kind: 'property', object: objectName, key: meta.key, placement: 'static' });
+          if (staticResolved && staticResolved.kind === 'static' && hasOwn(staticResolved.desc, 'global')) {
+            resolved = staticResolved;
+          } else return; // known object, key is not a polyfilled static — skip
+        }
+      }
       if (!resolved || !hasOwn(resolved.desc, 'global')) return;
       // when a property is accessed through a global proxy (e.g. globalThis.Error),
       // the framework skips processing the proxy identifier — inject its polyfill here
@@ -282,6 +295,7 @@ module.exports = defineProvider(({
         desc = resolveHint(desc, enhanced);
         if (desc === null) return true;
       }
+      if (typeof desc === 'string') desc = { dependencies: desc };
       const { dependencies, filters } = desc;
       if (!dependencies?.length) return true;
       if (applyFilters(filters, path)) return true;
