@@ -27,13 +27,10 @@ export const Globals = {
   Int32Array: 'typed-array/int32-array',
   Iterator: 'iterator/constructor',
   Map: 'map/constructor',
-  Math: { global: 'math' },
   Number: { global: 'number/constructor' },
   Promise: 'promise/constructor',
   RangeError: ErrorConstructor,
   ReferenceError: ErrorConstructor,
-  // avoid for pure for cases like `Reflect.defineMetadata`
-  Reflect: { global: 'reflect' },
   RegExp: { global: 'regexp/constructor' },
   Set: 'set/constructor',
   SuppressedError: 'suppressed-error/constructor',
