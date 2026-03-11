@@ -315,6 +315,7 @@ export const staticMethods = {
     of: 'TypedArray',
   },
   Iterator: {
+    concat: 'Iterator',
     from: 'Iterator',
   },
   JSON: {
