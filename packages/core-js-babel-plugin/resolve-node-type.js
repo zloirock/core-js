@@ -86,11 +86,66 @@ function resolveTypeParameter(name, scope, depth) {
   return null;
 }
 
+function resolveKnownConstructor(name) {
+  switch (name) {
+    case 'AggregateError':
+    case 'Array':
+    case 'AsyncDisposableStack':
+    case 'BigInt':
+    case 'BigInt64Array':
+    case 'BigUint64Array':
+    case 'Boolean':
+    case 'Date':
+    case 'DisposableStack':
+    case 'Error':
+    case 'EvalError':
+    case 'Float16Array':
+    case 'Float32Array':
+    case 'Float64Array':
+    case 'Function':
+    case 'Int8Array':
+    case 'Int16Array':
+    case 'Int32Array':
+    case 'Map':
+    case 'Number':
+    case 'Object':
+    case 'Promise':
+    case 'RangeError':
+    case 'ReferenceError':
+    case 'RegExp':
+    case 'Set':
+    case 'String':
+    case 'SuppressedError':
+    case 'Symbol':
+    case 'SyntaxError':
+    case 'TypeError':
+    case 'URIError':
+    case 'Uint8Array':
+    case 'Uint8ClampedArray':
+    case 'Uint16Array':
+    case 'Uint32Array':
+    case 'WeakMap':
+    case 'WeakSet':
+      return new $Object(name);
+    case 'ReadonlyArray':
+    case 'ReadonlyMap':
+    case 'ReadonlySet':
+      return new $Object(name.replace(/^Readonly/, ''));
+  }
+  return null;
+}
+
 function resolveUserDefinedType(name, scope, depth) {
   const decl = findTypeDeclaration(name, scope);
   if (decl) {
     if (decl.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(decl.typeAnnotation, scope, depth + 1);
-    if (decl.type === 'TSInterfaceDeclaration') return new $Object('Object');
+    if (decl.type === 'TSInterfaceDeclaration') {
+      const base = decl.extends?.[0]?.expression;
+      if (base?.type === 'Identifier') {
+        return resolveKnownConstructor(base.name) || resolveUserDefinedType(base.name, scope, depth + 1) || new $Object('Object');
+      }
+      return new $Object('Object');
+    }
   }
   return resolveTypeParameter(name, scope, depth);
 }
@@ -162,6 +217,68 @@ function resolveReturnTypeFromTypeQuery(param, scope) {
   return fnPath ? resolveReturnType(fnPath) : null;
 }
 
+function resolveNamedType(name, node, scope, depth) {
+  const known = resolveKnownConstructor(name);
+  if (known) return known;
+  switch (name) {
+    // well-known utility types -> Object
+    case 'Record':
+    case 'Partial':
+    case 'Required':
+    case 'Pick':
+    case 'Omit':
+    case 'Readonly':
+      return new $Object('Object');
+    // well-known utility types -> Array
+    case 'Parameters':
+    case 'ConstructorParameters':
+      return new $Object('Array');
+    // well-known utility types -> string
+    case 'Uppercase':
+    case 'Lowercase':
+    case 'Capitalize':
+    case 'Uncapitalize':
+      return new $Primitive('string');
+    // well-known utility types — resolve type parameter
+    case 'NonNullable':
+      return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
+    case 'Awaited': {
+      const param = node.typeParameters?.params[0];
+      if (!param) return null;
+      // unwrap Promise<T> -> resolve T
+      if (typeRefName(param) === 'Promise') {
+        const innerParam = param.typeParameters?.params[0];
+        if (innerParam) return resolveTypeAnnotation(innerParam, scope, depth + 1);
+      }
+      return resolveTypeAnnotation(param, scope, depth + 1);
+    }
+    // well-known utility types — resolve via function return type
+    case 'ReturnType':
+      return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
+    case 'InstanceType': {
+      const param = node.typeParameters?.params[0];
+      if (!param || param.type !== 'TSTypeQuery') return null;
+      const { exprName } = param;
+      if (exprName?.type !== 'Identifier') return null;
+      const bindingPath = constantBindingPath(exprName.name, scope);
+      if (!bindingPath) return null;
+      if (bindingPath.isClassDeclaration()) return new $Object(null);
+      if (bindingPath.isVariableDeclarator()) {
+        const init = bindingPath.get('init');
+        if (init.isClassExpression()) return new $Object(null);
+      }
+      return null;
+    }
+    case 'Extract':
+    case 'Exclude': {
+      const params = node.typeParameters?.params;
+      return params?.length >= 2 ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract') : null;
+    }
+  }
+  // resolve user-defined type aliases and interfaces via scope chain
+  return resolveUserDefinedType(name, scope, depth);
+}
+
 function resolveTypeAnnotation(node, scope, depth = 0) {
   if (depth > 10) return null;
   node = unwrapTypeAnnotation(node);
@@ -212,84 +329,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
-      if (name) switch (name) {
-        case 'Array':
-        case 'Date':
-        case 'Error':
-        case 'Function':
-        case 'Map':
-        case 'Object':
-        case 'Promise':
-        case 'RegExp':
-        case 'Set':
-        case 'WeakMap':
-        case 'WeakSet':
-        case 'String':
-        case 'Number':
-        case 'Boolean':
-        case 'BigInt':
-        case 'Symbol':
-          return new $Object(name);
-        case 'ReadonlyArray':
-        case 'ReadonlyMap':
-        case 'ReadonlySet':
-          return new $Object(name.replace(/^Readonly/, ''));
-        // well-known utility types -> Object
-        case 'Record':
-        case 'Partial':
-        case 'Required':
-        case 'Pick':
-        case 'Omit':
-        case 'Readonly':
-          return new $Object('Object');
-        // well-known utility types -> Array
-        case 'Parameters':
-        case 'ConstructorParameters':
-          return new $Object('Array');
-        // well-known utility types -> string
-        case 'Uppercase':
-        case 'Lowercase':
-        case 'Capitalize':
-        case 'Uncapitalize':
-          return new $Primitive('string');
-        // well-known utility types — resolve type parameter
-        case 'NonNullable':
-          return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
-        case 'Awaited': {
-          const param = node.typeParameters?.params[0];
-          if (!param) return null;
-          // unwrap Promise<T> -> resolve T
-          if (typeRefName(param) === 'Promise') {
-            const innerParam = param.typeParameters?.params[0];
-            if (innerParam) return resolveTypeAnnotation(innerParam, scope, depth + 1);
-          }
-          return resolveTypeAnnotation(param, scope, depth + 1);
-        }
-        // well-known utility types — resolve via function return type
-        case 'ReturnType':
-          return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
-        case 'InstanceType': {
-          const param = node.typeParameters?.params[0];
-          if (!param || param.type !== 'TSTypeQuery') return null;
-          const { exprName } = param;
-          if (exprName?.type !== 'Identifier') return null;
-          const bindingPath = constantBindingPath(exprName.name, scope);
-          if (!bindingPath) return null;
-          if (bindingPath.isClassDeclaration()) return new $Object(null);
-          if (bindingPath.isVariableDeclarator()) {
-            const init = bindingPath.get('init');
-            if (init.isClassExpression()) return new $Object(null);
-          }
-          return null;
-        }
-        case 'Extract':
-        case 'Exclude': {
-          const params = node.typeParameters?.params;
-          return params?.length >= 2 ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract') : null;
-        }
-      }
-      // resolve user-defined type aliases and interfaces via scope chain
-      if (name) return resolveUserDefinedType(name, scope, depth);
+      if (name) return resolveNamedType(name, node, scope, depth);
       return null;
     }
     // transparent wrappers — unwrap and resolve the inner type
@@ -438,6 +478,22 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
   return null;
 }
 
+function resolveClassInheritance(classPath) {
+  let current = classPath;
+  let depth = 10;
+  while (depth--) {
+    if (!current.node.superClass) return null;
+    const superPath = current.get('superClass');
+    if (!superPath.isIdentifier()) return null;
+    if (!superPath.scope.getBinding(superPath.node.name)) {
+      return resolveKnownConstructor(superPath.node.name);
+    }
+    current = resolvePath(superPath);
+    if (!current.isClass()) return null;
+  }
+  return null;
+}
+
 function resolveNodeTypeExpression(path) {
   path = resolvePath(path);
 
@@ -480,8 +536,12 @@ function resolveNodeTypeExpression(path) {
       return new $Object('Function');
     case 'NewExpression': {
       const callee = path.get('callee');
-      if (callee.isIdentifier() && !callee.scope.getBinding(callee.node.name) && callee.node.name !== 'Object') {
-        return new $Object(callee.node.name);
+      if (callee.isIdentifier()) {
+        if (!callee.scope.getBinding(callee.node.name)) {
+          return callee.node.name !== 'Object' ? new $Object(callee.node.name) : new $Object(null);
+        }
+        const resolved = resolvePath(callee);
+        if (resolved.isClass()) return resolveClassInheritance(resolved) || new $Object(null);
       }
       return new $Object(null);
     }
