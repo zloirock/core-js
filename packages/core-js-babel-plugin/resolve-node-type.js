@@ -8,6 +8,21 @@ const possibleGlobalProxies = new Set([
   'window',
 ]);
 
+const primitives = new Set([
+  'bigint',
+  'boolean',
+  'null',
+  'number',
+  'string',
+  'symbol',
+  'undefined',
+]);
+
+const {
+  static: KNOWN_STATIC_RETURN_TYPES,
+  instance: KNOWN_METHOD_RETURN_TYPES,
+} = require('@core-js/compat/known-built-in-return-types');
+
 function $Primitive(type) {
   this.type = type;
   this.constructor = null;
@@ -1011,10 +1026,43 @@ function resolveFromMemberExpression(path, callPath) {
   return resolveTypedMember(objectPath, name, callPath);
 }
 
+function typeFromHint(hint) {
+  if (primitives.has(hint)) return new $Primitive(hint);
+  return new $Object(hint);
+}
+
+function resolveKnownStaticReturnType(callee) {
+  if (!callee.isMemberExpression() || callee.node.computed) return null;
+  const object = callee.get('object');
+  if (!object.isIdentifier() || object.scope.getBinding(object.node.name)) return null;
+  const methods = KNOWN_STATIC_RETURN_TYPES[object.node.name];
+  if (!methods) return null;
+  const property = callee.get('property');
+  if (!property.isIdentifier()) return null;
+  const returnType = methods[property.node.name];
+  return returnType ? typeFromHint(returnType) : null;
+}
+
+function resolveKnownMethodReturnType(callee) {
+  if (callee.node.computed) return null;
+  const property = callee.get('property');
+  if (!property.isIdentifier()) return null;
+  const objectType = resolveNodeType(callee.get('object'));
+  if (!objectType) return null;
+  const wrapper = { string: 'String', number: 'Number', boolean: 'Boolean' };
+  const key = objectType.primitive ? (wrapper[objectType.type] || null) : objectType.constructor;
+  const methods = key && KNOWN_METHOD_RETURN_TYPES[key];
+  if (!methods) return null;
+  const returnType = methods[property.node.name];
+  return returnType ? typeFromHint(returnType) : null;
+}
+
 function resolveCallReturnType(callee) {
   // method call: obj.method() or obj?.method()
   if (callee.isMemberExpression() || callee.isOptionalMemberExpression()) {
-    return resolveFromMemberExpression(callee, callee.parentPath);
+    return resolveFromMemberExpression(callee, callee.parentPath)
+      || resolveKnownStaticReturnType(callee)
+      || resolveKnownMethodReturnType(callee);
   }
   // direct call: foo() — or IIFE: (() => expr)()
   const resolved = resolvePath(callee);
