@@ -1,0 +1,1 @@
+' hello '.trim().indexOf('h');
