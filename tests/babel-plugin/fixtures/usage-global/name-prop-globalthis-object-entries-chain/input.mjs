@@ -1,0 +1,1 @@
+globalThis.Object.entries.name;
