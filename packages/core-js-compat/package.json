@@ -55,6 +55,8 @@
     "./entries-by-versions.json": "./entries-by-versions.json",
     "./external": "./external.json",
     "./external.json": "./external.json",
+    "./known-built-in-return-types": "./known-built-in-return-types.json",
+    "./known-built-in-return-types.json": "./known-built-in-return-types.json",
     "./get-entries-list-for-target-version": {
       "types": "./get-entries-list-for-target-version.d.ts",
       "default": "./get-entries-list-for-target-version.js"
