@@ -88,45 +88,50 @@ function resolveTypeParameter(name, scope, depth) {
 
 function resolveKnownConstructor(name) {
   switch (name) {
-    case 'AggregateError':
     case 'Array':
     case 'AsyncDisposableStack':
     case 'BigInt':
-    case 'BigInt64Array':
-    case 'BigUint64Array':
     case 'Boolean':
     case 'Date':
     case 'DisposableStack':
-    case 'Error':
-    case 'EvalError':
-    case 'Float16Array':
-    case 'Float32Array':
-    case 'Float64Array':
+    case 'DOMException':
     case 'Function':
-    case 'Int8Array':
-    case 'Int16Array':
-    case 'Int32Array':
     case 'Map':
     case 'Number':
     case 'Object':
     case 'Promise':
-    case 'RangeError':
-    case 'ReferenceError':
     case 'RegExp':
     case 'Set':
     case 'String':
-    case 'SuppressedError':
     case 'Symbol':
+    case 'URL':
+    case 'URLSearchParams':
+    case 'WeakMap':
+    case 'WeakSet':
+      return new $Object(name);
+    case 'AggregateError':
+    case 'Error':
+    case 'EvalError':
+    case 'RangeError':
+    case 'ReferenceError':
+    case 'SuppressedError':
     case 'SyntaxError':
     case 'TypeError':
     case 'URIError':
+      return new $Object('Error');
+    case 'BigInt64Array':
+    case 'BigUint64Array':
+    case 'Float16Array':
+    case 'Float32Array':
+    case 'Float64Array':
+    case 'Int8Array':
+    case 'Int16Array':
+    case 'Int32Array':
     case 'Uint8Array':
     case 'Uint8ClampedArray':
     case 'Uint16Array':
     case 'Uint32Array':
-    case 'WeakMap':
-    case 'WeakSet':
-      return new $Object(name);
+      return new $Object('TypedArray');
     case 'ReadonlyArray':
     case 'ReadonlyMap':
     case 'ReadonlySet':
@@ -538,10 +543,11 @@ function resolveNodeTypeExpression(path) {
       const callee = path.get('callee');
       if (callee.isIdentifier()) {
         if (!callee.scope.getBinding(callee.node.name)) {
-          return callee.node.name !== 'Object' ? new $Object(callee.node.name) : new $Object(null);
+          if (callee.node.name === 'Object') return new $Object(null);
+          return resolveKnownConstructor(callee.node.name) || new $Object(callee.node.name);
         }
         const resolved = resolvePath(callee);
-        if (resolved.isClass()) return resolveClassInheritance(resolved) || new $Object(null);
+        if (resolved.isClass()) return resolveClassInheritance(resolved) || new $Object('Object');
       }
       return new $Object(null);
     }
@@ -553,7 +559,6 @@ function resolveNodeTypeExpression(path) {
       const callee = path.get('callee');
       const { name } = callee.node;
       if (callee.isIdentifier() && !callee.scope.getBinding(name)) {
-        // just some popular cases
         switch (name) {
           case 'String':
           case 'Number':
@@ -561,13 +566,12 @@ function resolveNodeTypeExpression(path) {
           case 'BigInt':
           case 'Symbol':
             return new $Primitive(name.toLowerCase());
-          case 'Array':
-          case 'RegExp':
-          case 'Function':
-            return new $Object(name);
           case 'Object':
             return new $Object(null);
         }
+        // some constructors like Array, RegExp, Error, Function, etc. work without `new`
+        const known = resolveKnownConstructor(name);
+        if (known) return known;
       }
       return resolveCallReturnType(callee);
     }
@@ -1040,7 +1044,6 @@ function resolveNodeType(path) {
 function toHint(type) {
   if (!type) return null;
   if (type.primitive) return type.type;
-  if (type.constructor === 'Object') return null;
   return type.constructor?.toLowerCase() ?? null;
 }
 
