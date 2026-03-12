@@ -1240,26 +1240,45 @@ function blockAlwaysExits(block) {
   return false;
 }
 
-// if / ternary / && / || — unified: parse guard from condition, determine polarity
-function findConditionalGuard(current, varName) {
+// flatten a && b && c when condition is true, or a || b || c when condition is false
+// only flattens the matching operator; mixed operators stay as opaque nodes
+function flattenCondition(node, operator) {
+  if (node.type === 'LogicalExpression' && node.operator === operator) {
+    return [...flattenCondition(node.left, operator), ...flattenCondition(node.right, operator)];
+  }
+  return [node];
+}
+
+// extract guards for varName from a condition, applying && / || flattening
+function parseGuardsFromCondition(testNode, conditionTrue, varName) {
+  const parts = flattenCondition(testNode, conditionTrue ? '&&' : '||');
+  const guards = [];
+  for (const part of parts) {
+    const guard = parseTypeGuard(part, varName);
+    if (!guard) continue;
+    guard.positive = conditionTrue !== guard.negated;
+    guards.push(guard);
+  }
+  return guards;
+}
+
+// if / ternary / && / || — unified: parse guards from condition, determine polarity
+function findConditionalGuards(current, varName) {
   const parent = current.parentPath;
-  if (!parent) return null;
+  if (!parent) return [];
   let conditionTrue, testNode;
   if (parent.isIfStatement() || parent.isConditionalExpression()) {
     const { key } = current;
-    if (key !== 'consequent' && key !== 'alternate') return null;
+    if (key !== 'consequent' && key !== 'alternate') return [];
     conditionTrue = key === 'consequent';
     testNode = parent.node.test;
   } else if (parent.isLogicalExpression() && current.key === 'right') {
     const { operator } = parent.node;
-    if (operator !== '&&' && operator !== '||') return null;
+    if (operator !== '&&' && operator !== '||') return [];
     conditionTrue = operator === '&&';
     testNode = parent.node.left;
-  } else return null;
-  const guard = parseTypeGuard(testNode, varName);
-  if (!guard) return null;
-  guard.positive = conditionTrue !== guard.negated;
-  return guard;
+  } else return [];
+  return parseGuardsFromCondition(testNode, conditionTrue, varName);
 }
 
 // switch (typeof x) { case 'string': ... }
@@ -1274,21 +1293,19 @@ function findSwitchCaseGuard(current, varName) {
 }
 
 // if (typeof x === 'string') return; → x is narrowed after the if
-// collects ALL preceding exit guards, not just the first one
+// collects ALL preceding exit guards, including && / || flattening
 function findPrecedingExitGuards(siblings, index, varName) {
   const guards = [];
   for (let i = index - 1; i >= 0; i--) {
     const sibling = siblings[i];
     if (!sibling.isIfStatement()) continue;
-    const guard = parseTypeGuard(sibling.node.test, varName);
-    if (!guard) continue;
+    let conditionTrue;
     if (blockAlwaysExits(sibling.get('consequent'))) {
-      guard.positive = guard.negated;
-      guards.push(guard);
+      conditionTrue = false;
     } else if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) {
-      guard.positive = !guard.negated;
-      guards.push(guard);
-    }
+      conditionTrue = true;
+    } else continue;
+    guards.push(...parseGuardsFromCondition(sibling.node.test, conditionTrue, varName));
   }
   return guards;
 }
@@ -1307,9 +1324,9 @@ function findEnclosingTypeGuards(path, varName) {
   let current = path.parentPath;
   while (current) {
     if (current.isFunction()) break;
-    const guard = findConditionalGuard(current, varName)
-      || findSwitchCaseGuard(current, varName);
-    if (guard) guards.push(guard);
+    guards.push(...findConditionalGuards(current, varName));
+    const switchGuard = findSwitchCaseGuard(current, varName);
+    if (switchGuard) guards.push(switchGuard);
     const exitGuards = findEarlyExitGuards(current, varName);
     if (exitGuards) guards.push(...exitGuards);
     current = current.parentPath;
