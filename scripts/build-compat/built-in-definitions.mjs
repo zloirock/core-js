@@ -10,6 +10,7 @@ const TYPE_HINTS = new Set([
   'common',
   'rest',
   'array',
+  'asynciterator',
   'bigint',
   'boolean',
   'date',
