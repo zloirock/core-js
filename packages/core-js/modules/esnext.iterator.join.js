@@ -3,7 +3,6 @@
 var $ = require('../internals/export');
 var $toString = require('../internals/to-string');
 var anObject = require('../internals/an-object');
-var getIteratorDirect = require('../internals/get-iterator-direct');
 var isNullOrUndefined = require('../internals/is-null-or-undefined');
 var iterate = require('../internals/iterate');
 var iteratorClose = require('../internals/iterator-close');
@@ -25,10 +24,9 @@ $({ target: 'Iterator', proto: true, real: true, forced: true }, {
       iteratorClose(O, 'throw', error);
     }
     var result = [];
-    var iterated = getIteratorDirect(O);
-    iterate(iterated, function (value) {
+    iterate(this, function (value) {
       push(result, isNullOrUndefined(value) ? '' : $toString(value));
-    }, { IS_RECORD: true });
+    }, { IS_ITERATOR: true });
     return $join(result, sep);
   },
 });
