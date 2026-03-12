@@ -1274,7 +1274,9 @@ function findSwitchCaseGuard(current, varName) {
 }
 
 // if (typeof x === 'string') return; → x is narrowed after the if
-function findPrecedingExitGuard(siblings, index, varName) {
+// collects ALL preceding exit guards, not just the first one
+function findPrecedingExitGuards(siblings, index, varName) {
+  const guards = [];
   for (let i = index - 1; i >= 0; i--) {
     const sibling = siblings[i];
     if (!sibling.isIfStatement()) continue;
@@ -1282,37 +1284,40 @@ function findPrecedingExitGuard(siblings, index, varName) {
     if (!guard) continue;
     if (blockAlwaysExits(sibling.get('consequent'))) {
       guard.positive = guard.negated;
-      return guard;
-    }
-    if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) {
+      guards.push(guard);
+    } else if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) {
       guard.positive = !guard.negated;
-      return guard;
+      guards.push(guard);
     }
   }
-  return null;
+  return guards;
 }
 
-function findEarlyExitGuard(current, varName) {
+function findEarlyExitGuards(current, varName) {
   const parent = current.parentPath;
   if (typeof current.key !== 'number' || current.listKey !== 'body') return null;
   if (!parent.isBlockStatement() && !parent.isProgram()) return null;
-  return findPrecedingExitGuard(parent.get('body'), current.key, varName);
+  const guards = findPrecedingExitGuards(parent.get('body'), current.key, varName);
+  return guards.length ? guards : null;
 }
 
-function findEnclosingTypeGuard(path, varName) {
+// collect ALL type guards along the AST path for cumulative narrowing
+function findEnclosingTypeGuards(path, varName) {
+  const guards = [];
   let current = path.parentPath;
   while (current) {
-    if (current.isFunction()) return null;
+    if (current.isFunction()) break;
     const guard = findConditionalGuard(current, varName)
-      || findSwitchCaseGuard(current, varName)
-      || findEarlyExitGuard(current, varName);
-    if (guard) return guard;
+      || findSwitchCaseGuard(current, varName);
+    if (guard) guards.push(guard);
+    const exitGuards = findEarlyExitGuards(current, varName);
+    if (exitGuards) guards.push(...exitGuards);
     current = current.parentPath;
   }
-  return null;
+  return guards.length ? guards : null;
 }
 
-function narrowUnionByGuard(annotation, guard, scope) {
+function narrowUnionByGuards(annotation, guards, scope) {
   let union = unwrapTypeAnnotation(annotation);
   if (!union) return null;
   if (union.type === 'TSTypeReference' || union.type === 'GenericTypeAnnotation') {
@@ -1330,7 +1335,7 @@ function narrowUnionByGuard(annotation, guard, scope) {
     const resolved = resolveTypeAnnotation(member, scope);
     if (!resolved) continue;
     if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
-    if (matchesGuard(resolved, guard) !== guard.positive) continue;
+    if (!guards.every(guard => matchesGuard(resolved, guard) === guard.positive)) continue;
     if (result && !typesEqual(result, resolved)) return null;
     result = resolved;
   }
@@ -1344,9 +1349,9 @@ function resolveTypeGuardNarrowing(path) {
   if (!binding) return null;
   const annotation = findBindingAnnotation(binding.path);
   if (!annotation) return null;
-  const guard = findEnclosingTypeGuard(path, name);
-  if (!guard) return null;
-  return narrowUnionByGuard(annotation, guard, binding.path.scope);
+  const guards = findEnclosingTypeGuards(path, name);
+  if (!guards) return null;
+  return narrowUnionByGuards(annotation, guards, binding.path.scope);
 }
 
 function resolveNodeType(path) {
