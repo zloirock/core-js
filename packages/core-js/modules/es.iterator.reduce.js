@@ -4,7 +4,6 @@ var $ = require('../internals/export');
 var iterate = require('../internals/iterate');
 var aCallable = require('../internals/a-callable');
 var anObject = require('../internals/an-object');
-var getIteratorDirect = require('../internals/get-iterator-direct');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorHelperWithoutClosingOnEarlyError = require('../internals/iterator-helper-without-closing-on-early-error');
 var apply = require('../internals/function-apply');
@@ -37,9 +36,8 @@ $({ target: 'Iterator', proto: true, real: true, forced: FAILS_ON_INITIAL_UNDEFI
     if (reduceWithoutClosingOnEarlyError) {
       return apply(reduceWithoutClosingOnEarlyError, this, noInitial ? [reducer] : [reducer, accumulator]);
     }
-    var record = getIteratorDirect(this);
     var counter = 0;
-    iterate(record, function (value) {
+    iterate(this, function (value) {
       if (noInitial) {
         noInitial = false;
         accumulator = value;
@@ -47,7 +45,7 @@ $({ target: 'Iterator', proto: true, real: true, forced: FAILS_ON_INITIAL_UNDEFI
         accumulator = reducer(accumulator, value, counter);
       }
       counter++;
-    }, { IS_RECORD: true });
+    }, { IS_ITERATOR: true });
     if (noInitial) throw new $TypeError('Reduce of empty iterator with no initial value');
     return accumulator;
   },
