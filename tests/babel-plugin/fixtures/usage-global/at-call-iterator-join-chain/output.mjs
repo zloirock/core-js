@@ -16,5 +16,6 @@ import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/web.dom-collections.iterator";
 Iterator.from(x).join(',').at(-1);
