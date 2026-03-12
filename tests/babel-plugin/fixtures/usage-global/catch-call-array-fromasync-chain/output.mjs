@@ -6,5 +6,4 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.from-async";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";
 Array.fromAsync(x).catch(fn);
