@@ -4,8 +4,6 @@ import "core-js/modules/es.array.at";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.string.from-code-point";
-import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url-search-params.constructor";
 import "core-js/modules/web.url-search-params.delete";
 import "core-js/modules/web.url-search-params.has";

@@ -351,6 +351,7 @@ export const InstanceProperties = {
     common: 'instance/includes',
     array: 'array/includes',
     string: 'string/includes',
+    iterator: 'iterator/includes',
   },
   indexOf: { array: 'instance/index-of' },
   isWellFormed: { string: 'instance/is-well-formed' },

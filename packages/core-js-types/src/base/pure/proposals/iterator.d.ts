@@ -9,6 +9,8 @@
 
 // https://github.com/tc39/proposal-iterator-helpers
 
+// https://github.com/tc39/proposal-iterator-includes
+
 // https://github.com/bakkot/proposal-iterator-join
 
 // https://github.com/tc39/proposal-joint-iteration
@@ -154,6 +156,13 @@ declare namespace CoreJS {
      */
     find<S extends T>(predicate: (value: T, index: number) => value is S): S | undefined;
     find(predicate: (value: T, index: number) => unknown): T | undefined;
+
+    /**
+     * Determines whether the iterator contains a specific element, using SameValueZero comparison.
+     * @param searchElement - The element to search for.
+     * @param skippedElements - Number of elements to skip before beginning the search. Defaults to 0.
+     */
+    includes(searchElement: T, skippedElements?: number): boolean;
 
     /**
      * Creates a string by concatenating all elements provided by the iterator, separated by the specified separator.
