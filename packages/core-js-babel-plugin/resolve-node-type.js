@@ -619,6 +619,9 @@ function resolveNodeTypeExpression(path) {
       }
       return resolveCallReturnType(callee);
     }
+    // tagged templates are semantically calls: String.raw`foo` ≡ String.raw(…)
+    case 'TaggedTemplateExpression':
+      return resolveCallReturnType(path.get('tag'));
     case 'UnaryExpression':
       switch (path.node.operator) {
         case 'void':
