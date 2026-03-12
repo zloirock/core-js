@@ -5,6 +5,7 @@ import {
   instanceProperties,
   staticMethods,
   staticProperties,
+  staticTypeGuards,
 } from '../../packages/core-js-compat/src/known-built-in-return-types.mjs';
 
 await fs.writeJson('packages/core-js-compat/known-built-in-return-types.json', {
@@ -14,6 +15,7 @@ await fs.writeJson('packages/core-js-compat/known-built-in-return-types.json', {
   staticProperties,
   instanceMethods,
   instanceProperties,
+  staticTypeGuards,
 }, { spaces: '  ' });
 
 echo(chalk.green('known-built-in-return-types rebuilt'));
