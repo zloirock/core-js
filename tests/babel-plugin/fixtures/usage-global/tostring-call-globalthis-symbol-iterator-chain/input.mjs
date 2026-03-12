@@ -1,0 +1,1 @@
+globalThis.Symbol.iterator.toString();
