@@ -30,6 +30,7 @@ if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.__idleCallbackId = 0;
   sharedStore.__idleCallbackMap = {};
   sharedStore.__idleRafScheduled = false;
+  sharedStore.__timeoutHandles = {};
 }
 
 function IdleDeadline(deadlineTime, didTimeout) {
@@ -70,9 +71,13 @@ function startIdlePeriod() {
   while (sharedStore.__runnableIdleCallbacks.length) {
     var handle = shift(sharedStore.__runnableIdleCallbacks);
     var cb = sharedStore.__idleCallbackMap[handle];
-    if (!cb) continue; // cancelled
-    // Cancel this, so we no longer call it on timeout
+    if (!cb) continue; // cancelled or timed out
     delete sharedStore.__idleCallbackMap[handle];
+    // Cancel the timeout timer.
+    if (sharedStore.__timeoutHandles[handle] !== undefined) {
+      clearTimeout(sharedStore.__timeoutHandles[handle]);
+      delete sharedStore.__timeoutHandles[handle];
+    }
 
     var deadline = new IdleDeadline(deadlineTime, false);
     try {
@@ -96,9 +101,9 @@ exports.request = function requestIdleCallback(callback) {
   sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__idleRequestCallbacks.push(handle);
   if (options && options.timeout && options.timeout > 0) {
-    // FIXME: Spec says that the timeout calling must sort by currentTime +
-    // options.timeout, however maintainng such a queue would be very tedious
-    $setTimeout(function timeoutCallback() {
+    // TODO:  If there's an efficient queue structure in core-js, ensure that timeout
+    // callbacks are FIFO
+    sharedStore.__timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
       var cb = sharedStore.__idleCallbackMap[handle];
       if (!cb) return;
       delete sharedStore.__idleCallbackMap[handle];
@@ -122,6 +127,10 @@ exports.request = function requestIdleCallback(callback) {
 };
 exports.cancel = function cancelIdleCallback(handle) {
   delete sharedStore.__idleCallbackMap[handle];
+  if (sharedStore.__timeoutHandles[handle] !== undefined) {
+    clearTimeout(sharedStore.__timeoutHandles[handle]);
+    delete sharedStore.__timeoutHandles[handle];
+  }
   var i = indexOf(sharedStore.__idleRequestCallbacks, handle);
   if (i > -1) splice(sharedStore.__idleRequestCallbacks, i, 1);
   i = indexOf(sharedStore.__runnableIdleCallbacks, handle);
