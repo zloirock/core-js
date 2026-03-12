@@ -726,3 +726,19 @@ export const staticMethods = {
     of: 'WeakSet',
   },
 };
+
+// known static type guard methods
+export const staticTypeGuards = {
+  Array: {
+    isArray: 'Array',
+  },
+  Error: {
+    isError: 'Error',
+  },
+  Number: {
+    isFinite: 'number',
+    isInteger: 'number',
+    isNaN: 'number',
+    isSafeInteger: 'number',
+  },
+};
