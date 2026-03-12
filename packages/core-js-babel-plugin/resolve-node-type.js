@@ -21,9 +21,11 @@ const PRIMITIVES = new Set([
 ]);
 
 const PRIMITIVE_WRAPPERS = Object.assign(Object.create(null), {
-  string: 'String',
-  number: 'Number',
+  bigint: 'BigInt',
   boolean: 'Boolean',
+  number: 'Number',
+  string: 'String',
+  symbol: 'Symbol',
 });
 
 const {
