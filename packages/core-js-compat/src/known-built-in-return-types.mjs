@@ -1,3 +1,140 @@
+// known return types for global functions
+export const globalMethods = {
+  atob: 'string',
+  btoa: 'string',
+  decodeURI: 'string',
+  decodeURIComponent: 'string',
+  encodeURI: 'string',
+  encodeURIComponent: 'string',
+  escape: 'string',
+  unescape: 'string',
+  isFinite: 'boolean',
+  isNaN: 'boolean',
+  parseFloat: 'number',
+  parseInt: 'number',
+};
+
+// known types for global properties and well-known identifiers
+export const globalProperties = {
+  arguments: 'Arguments',
+  Infinity: 'number',
+  NaN: 'number',
+  undefined: 'undefined',
+};
+
+// known return types for built-in static property access
+export const staticProperties = {
+  Math: {
+    E: 'number',
+    LN2: 'number',
+    LN10: 'number',
+    LOG2E: 'number',
+    LOG10E: 'number',
+    PI: 'number',
+    SQRT1_2: 'number',
+    SQRT2: 'number',
+  },
+  Number: {
+    EPSILON: 'number',
+    MAX_SAFE_INTEGER: 'number',
+    MAX_VALUE: 'number',
+    MIN_SAFE_INTEGER: 'number',
+    MIN_VALUE: 'number',
+    NaN: 'number',
+    NEGATIVE_INFINITY: 'number',
+    POSITIVE_INFINITY: 'number',
+  },
+  Symbol: {
+    asyncDispose: 'symbol',
+    asyncIterator: 'symbol',
+    customMatcher: 'symbol',
+    dispose: 'symbol',
+    hasInstance: 'symbol',
+    isConcatSpreadable: 'symbol',
+    iterator: 'symbol',
+    match: 'symbol',
+    matchAll: 'symbol',
+    metadata: 'symbol',
+    replace: 'symbol',
+    search: 'symbol',
+    species: 'symbol',
+    split: 'symbol',
+    toPrimitive: 'symbol',
+    toStringTag: 'symbol',
+    unscopables: 'symbol',
+  },
+};
+
+// known return types for built-in instance property access
+export const instanceProperties = {
+  Array: {
+    length: 'number',
+  },
+  ArrayBuffer: {
+    byteLength: 'number',
+    detached: 'boolean',
+    maxByteLength: 'number',
+    resizable: 'boolean',
+  },
+  DataView: {
+    byteLength: 'number',
+    byteOffset: 'number',
+  },
+  Error: {
+    message: 'string',
+    name: 'string',
+  },
+  Function: {
+    length: 'number',
+    name: 'string',
+  },
+  Map: {
+    size: 'number',
+  },
+  RegExp: {
+    dotAll: 'boolean',
+    flags: 'string',
+    global: 'boolean',
+    hasIndices: 'boolean',
+    ignoreCase: 'boolean',
+    lastIndex: 'number',
+    multiline: 'boolean',
+    source: 'string',
+    sticky: 'boolean',
+    unicode: 'boolean',
+    unicodeSets: 'boolean',
+  },
+  Set: {
+    size: 'number',
+  },
+  SharedArrayBuffer: {
+    byteLength: 'number',
+    growable: 'boolean',
+    maxByteLength: 'number',
+  },
+  String: {
+    length: 'number',
+  },
+  TypedArray: {
+    byteLength: 'number',
+    byteOffset: 'number',
+    length: 'number',
+  },
+  URL: {
+    hash: 'string',
+    host: 'string',
+    hostname: 'string',
+    href: 'string',
+    origin: 'string',
+    password: 'string',
+    pathname: 'string',
+    port: 'string',
+    protocol: 'string',
+    search: 'string',
+    username: 'string',
+  },
+};
+
 // known return types for built-in instance methods
 export const instanceMethods = {
   Array: {
@@ -444,118 +581,5 @@ export const staticMethods = {
   Uint32Array: {
     from: 'TypedArray',
     of: 'TypedArray',
-  },
-};
-
-// known return types for built-in static property access
-export const staticProperties = {
-  Math: {
-    E: 'number',
-    LN2: 'number',
-    LN10: 'number',
-    LOG2E: 'number',
-    LOG10E: 'number',
-    PI: 'number',
-    SQRT1_2: 'number',
-    SQRT2: 'number',
-  },
-  Number: {
-    EPSILON: 'number',
-    MAX_SAFE_INTEGER: 'number',
-    MAX_VALUE: 'number',
-    MIN_SAFE_INTEGER: 'number',
-    MIN_VALUE: 'number',
-    NaN: 'number',
-    NEGATIVE_INFINITY: 'number',
-    POSITIVE_INFINITY: 'number',
-  },
-  Symbol: {
-    asyncDispose: 'symbol',
-    asyncIterator: 'symbol',
-    customMatcher: 'symbol',
-    dispose: 'symbol',
-    hasInstance: 'symbol',
-    isConcatSpreadable: 'symbol',
-    iterator: 'symbol',
-    match: 'symbol',
-    matchAll: 'symbol',
-    metadata: 'symbol',
-    replace: 'symbol',
-    search: 'symbol',
-    species: 'symbol',
-    split: 'symbol',
-    toPrimitive: 'symbol',
-    toStringTag: 'symbol',
-    unscopables: 'symbol',
-  },
-};
-
-// known return types for built-in instance property access
-export const instanceProperties = {
-  Array: {
-    length: 'number',
-  },
-  ArrayBuffer: {
-    byteLength: 'number',
-    detached: 'boolean',
-    maxByteLength: 'number',
-    resizable: 'boolean',
-  },
-  DataView: {
-    byteLength: 'number',
-    byteOffset: 'number',
-  },
-  Error: {
-    message: 'string',
-    name: 'string',
-  },
-  Function: {
-    length: 'number',
-    name: 'string',
-  },
-  Map: {
-    size: 'number',
-  },
-  RegExp: {
-    dotAll: 'boolean',
-    flags: 'string',
-    global: 'boolean',
-    hasIndices: 'boolean',
-    ignoreCase: 'boolean',
-    lastIndex: 'number',
-    multiline: 'boolean',
-    source: 'string',
-    sticky: 'boolean',
-    unicode: 'boolean',
-    unicodeSets: 'boolean',
-  },
-  Set: {
-    size: 'number',
-  },
-  SharedArrayBuffer: {
-    byteLength: 'number',
-    growable: 'boolean',
-    maxByteLength: 'number',
-  },
-  String: {
-    length: 'number',
-  },
-  TypedArray: {
-    byteLength: 'number',
-    byteOffset: 'number',
-    length: 'number',
-  },
-  URL: {
-    hash: 'string',
-    host: 'string',
-    hostname: 'string',
-    href: 'string',
-    origin: 'string',
-    password: 'string',
-    pathname: 'string',
-    port: 'string',
-    protocol: 'string',
-    search: 'string',
-    username: 'string',
   },
 };
