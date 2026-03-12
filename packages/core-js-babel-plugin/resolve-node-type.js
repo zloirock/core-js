@@ -27,6 +27,8 @@ const PRIMITIVE_WRAPPERS = Object.assign(Object.create(null), {
 });
 
 const {
+  globalMethods: KNOWN_GLOBAL_METHOD_RETURN_TYPES,
+  globalProperties: KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
   staticMethods: KNOWN_STATIC_METHOD_RETURN_TYPES,
   staticProperties: KNOWN_STATIC_PROPERTY_RETURN_TYPES,
   instanceMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES,
@@ -548,19 +550,8 @@ function resolveNodeTypeExpression(path) {
   path = resolvePath(path);
 
   switch (path.node.type) {
-    case 'Identifier': {
-      const { name } = path.node;
-      if (!path.scope.getBinding(name)) switch (name) {
-        case 'undefined':
-          return new $Primitive('undefined');
-        case 'Infinity':
-        case 'NaN':
-          return new $Primitive('number');
-        case 'arguments':
-          return new $Object('Arguments');
-      }
-      return null;
-    }
+    case 'Identifier':
+      return resolveKnownGlobalReference(path);
     case 'NullLiteral':
       return new $Primitive('null');
     case 'StringLiteral':
@@ -601,7 +592,8 @@ function resolveNodeTypeExpression(path) {
     case 'OptionalMemberExpression':
       return resolveFromMemberExpression(path)
         || resolveKnownPropertyReturnType(path)
-        || resolveGlobalStaticReference(path);
+        || resolveGlobalStaticReference(path)
+        || resolveKnownGlobalReference(path);
     case 'CallExpression':
     case 'OptionalCallExpression': {
       const callee = path.get('callee');
@@ -620,6 +612,8 @@ function resolveNodeTypeExpression(path) {
         // constructors like Array, RegExp, Error, Function, etc. work without `new`
         const known = resolveKnownConstructor(name);
         if (known) return known;
+        // known global function: parseInt(), parseFloat(), etc.
+        if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
       }
       return resolveCallReturnType(callee);
     }
@@ -1095,6 +1089,16 @@ function resolveGlobalStaticReference(path) {
   const methods = hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, objectName)
     ? KNOWN_STATIC_METHOD_RETURN_TYPES[objectName] : null;
   return methods && hasOwn(methods, memberName) ? new $Object('Function') : null;
+}
+
+// resolve type of a global property or method accessed through a global proxy
+// e.g. globalThis.NaN → number, window.parseInt → Function
+function resolveKnownGlobalReference(path) {
+  const name = resolveGlobalName(path);
+  if (!name) return null;
+  if (hasOwn(KNOWN_GLOBAL_PROPERTY_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_PROPERTY_RETURN_TYPES[name]);
+  if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return new $Object('Function');
+  return null;
 }
 
 function resolveCallReturnType(callee) {
