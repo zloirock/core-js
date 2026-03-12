@@ -19,6 +19,9 @@ Queue.prototype = {
       if (next === null) this.tail = null;
       return entry.item;
     }
+  },
+  empty: function () {
+    return !this.head;
   }
 };
 
