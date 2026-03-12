@@ -10,8 +10,10 @@ type CompatData = {
 };
 
 type KnownBuiltInReturnTypes = {
-  static: {[className: string]: {[method: string]: string}},
-  instance: {[className: string]: {[method: string]: string}},
+  staticMethods: {[className: string]: {[method: string]: string}},
+  staticProperties: {[className: string]: {[method: string]: string}},
+  instanceMethods: {[className: string]: {[method: string]: string}},
+  instanceProperties: {[className: string]: {[method: string]: string}},
 };
 
 declare const ExportedCompatObject: typeof compat & {

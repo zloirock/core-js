@@ -6,7 +6,7 @@ const compatData = require('@core-js/compat/data.json');
 const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
-const { possibleGlobalProxies, resolveGlobalName, resolveNodeType, toHint, isString, isObject } = require('./resolve-node-type');
+const { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, toHint, isString, isObject } = require('./resolve-node-type');
 const createASTHelpers = require('./ast-helpers');
 
 const defaultCoreJSPackages = ['core-js'];
@@ -279,7 +279,7 @@ module.exports = defineProvider(({
       // the framework skips processing the proxy identifier — inject its polyfill here
       // TODO: fix it on @babel/helper-define-polyfill-provider side
       // https://github.com/babel/babel-polyfills/pull/252
-      if (meta.kind === 'property' && possibleGlobalProxies.has(meta.object)) {
+      if (meta.kind === 'property' && POSSIBLE_GLOBAL_PROXIES.has(meta.object)) {
         const proxyResolved = resolve({ kind: 'global', name: meta.object });
         if (proxyResolved && hasOwn(proxyResolved.desc, 'global')) {
           const { dependencies: proxyDeps } = proxyResolved.desc.global;

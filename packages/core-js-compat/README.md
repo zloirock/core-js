@@ -136,8 +136,8 @@ require('@core-js/compat/get-modules-list-for-target-version')('4.0'); // => Arr
 // or
 require('@core-js/compat').getModulesListForTargetVersion('4.0'); // => Array<ModuleName>
 
-// known return types for built-in static and instance methods (used by `@core-js/babel-plugin` for type inference):
-require('@core-js/compat/known-built-in-return-types'); // => { static: { [ClassName]: { [Method]: ReturnTypeHint } }, instance: ... }
+// known return types for built-in members (used by `@core-js/babel-plugin` for type inference):
+require('@core-js/compat/known-built-in-return-types'); // => { staticMethods, staticProperties, instanceMethods, instanceProperties }
 // or
 require('@core-js/compat').knownBuiltInReturnTypes;
 ```
