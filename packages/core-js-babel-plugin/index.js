@@ -22,6 +22,7 @@ function normalizeImportPath(path) {
 
 const TYPE_HINTS = new Set([
   'array',
+  'asynciterator',
   'bigint',
   'boolean',
   'date',

@@ -286,19 +286,30 @@ export const InstanceProperties = {
   demethodize: { function: 'instance/demethodize' },
   description: { global: { symbol: 'symbol/description' } },
   dotAll: { global: { regexp: 'regexp/dot-all' } },
-  drop: { global: { iterator: 'iterator/drop' } },
+  drop: {
+    global: {
+      asynciterator: 'async-iterator/drop',
+      iterator: 'iterator/drop',
+    },
+  },
   endsWith: { string: 'instance/ends-with' },
   entries: {
     common: 'instance/entries',
     array: 'array/entries',
   },
-  every: { global: { iterator: 'iterator/every' } },
+  every: {
+    global: {
+      asynciterator: 'async-iterator/every',
+      iterator: 'iterator/every',
+    },
+  },
   exec: { global: { regexp: 'regexp/exec' } },
   fill: { array: 'instance/fill' },
   filter: {
     pure: 'instance/filter',
     global: {
       array: 'array/filter',
+      asynciterator: 'async-iterator/filter',
       iterator: 'iterator/filter',
     },
   },
@@ -308,6 +319,7 @@ export const InstanceProperties = {
     pure: 'instance/find',
     global: {
       array: 'array/find',
+      asynciterator: 'async-iterator/find',
       iterator: 'iterator/find',
     },
   },
@@ -321,6 +333,7 @@ export const InstanceProperties = {
     pure: 'instance/flat-map',
     global: {
       array: 'array/flat-map',
+      asynciterator: 'async-iterator/flat-map',
       iterator: 'iterator/flat-map',
     },
   },
@@ -330,6 +343,7 @@ export const InstanceProperties = {
     pure: 'instance/for-each',
     global: {
       common: ['instance/for-each', 'iterator/for-each'],
+      asynciterator: 'async-iterator/for-each',
       iterator: 'iterator/for-each',
     },
   },
@@ -358,6 +372,7 @@ export const InstanceProperties = {
     pure: 'instance/map',
     global: {
       array: 'array/map',
+      asynciterator: 'async-iterator/map',
       iterator: 'iterator/map',
     },
   },
@@ -373,6 +388,7 @@ export const InstanceProperties = {
     pure: 'instance/reduce',
     global: {
       array: 'array/reduce',
+      asynciterator: 'async-iterator/reduce',
       iterator: 'iterator/reduce',
     },
   },
@@ -386,7 +402,12 @@ export const InstanceProperties = {
   } },
   slice: { array: 'instance/slice' },
   small: { global: { string: 'string/small' } },
-  some: { global: { iterator: 'iterator/some' } },
+  some: {
+    global: {
+      asynciterator: 'async-iterator/some',
+      iterator: 'iterator/some',
+    },
+  },
   sort: { array: 'instance/sort' },
   splice: { array: 'instance/splice' },
   split: { global: {
@@ -397,9 +418,19 @@ export const InstanceProperties = {
   strike: { global: { string: 'string/strike' } },
   sub: { global: { string: 'string/sub' } },
   sup: { global: { string: 'string/sup' } },
-  take: { global: { iterator: 'iterator/take' } },
+  take: {
+    global: {
+      asynciterator: 'async-iterator/take',
+      iterator: 'iterator/take',
+    },
+  },
   test: { global: { regexp: 'regexp/test' } },
-  toArray: { global: { iterator: 'iterator/to-array' } },
+  toArray: {
+    global: {
+      asynciterator: 'async-iterator/to-array',
+      iterator: 'iterator/to-array',
+    },
+  },
   toAsync: { global: { iterator: 'iterator/to-async' } },
   toExponential: {
     number: { dependencies: 'instance/to-exponential', filters: [['min-args', 1]] },
