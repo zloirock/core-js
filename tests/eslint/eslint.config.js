@@ -7,6 +7,7 @@ import pluginDepend from 'eslint-plugin-depend';
 import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
 import pluginImport from 'eslint-plugin-import-x';
+import { createNodeResolver } from 'eslint-plugin-import-x/node-resolver';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
 import pluginMath from 'eslint-plugin-math';
@@ -2385,6 +2386,7 @@ export default [
     },
     settings: {
       'es-x': { allowTestedProperty: true },
+      'import-x/resolver-next': [createNodeResolver()],
     },
   },
   {
