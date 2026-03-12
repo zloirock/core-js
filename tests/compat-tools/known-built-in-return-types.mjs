@@ -2,18 +2,47 @@ import { deepEqual, ok } from 'node:assert/strict';
 
 const knownBuiltInReturnTypes = await fs.readJson('packages/core-js-compat/known-built-in-return-types.json');
 const VALID_HINTS = new Set([
-  'string', 'number', 'boolean', 'bigint', 'symbol',
-  'Array', 'ArrayBuffer', 'AsyncDisposableStack', 'DisposableStack', 'Function',
-  'Iterator', 'Map', 'Object', 'Promise', 'Set', 'SharedArrayBuffer', 'TypedArray', 'WeakMap', 'WeakSet',
+  'string',
+  'number',
+  'boolean',
+  'bigint',
+  'symbol',
+  'undefined',
+  'Arguments',
+  'Array',
+  'ArrayBuffer',
+  'AsyncDisposableStack',
+  'DisposableStack',
+  'Function',
+  'Iterator',
+  'Map',
+  'Object',
+  'Promise',
+  'Set',
+  'SharedArrayBuffer',
+  'TypedArray',
+  'WeakMap',
+  'WeakSet',
 ]);
 
+ok(knownBuiltInReturnTypes.globalMethods, 'has globalMethods');
+ok(knownBuiltInReturnTypes.globalProperties, 'has globalProperties');
 ok(knownBuiltInReturnTypes.staticMethods, 'has staticMethods');
 ok(knownBuiltInReturnTypes.staticProperties, 'has staticProperties');
 ok(knownBuiltInReturnTypes.instanceMethods, 'has instanceMethods');
 ok(knownBuiltInReturnTypes.instanceProperties, 'has instanceProperties');
 
-for (const [kind, classes] of Object.entries(knownBuiltInReturnTypes)) {
-  for (const [className, members] of Object.entries(classes)) {
+// validate flat maps (globalMethods, globalProperties)
+for (const kind of ['globalMethods', 'globalProperties']) {
+  for (const [name, hint] of Object.entries(knownBuiltInReturnTypes[kind])) {
+    ok(typeof name === 'string' && name, `${ kind }.${ name }: name is non-empty string`);
+    ok(VALID_HINTS.has(hint), `${ kind }.${ name }: hint '${ hint }' is valid`);
+  }
+}
+
+// validate nested maps (staticMethods, staticProperties, instanceMethods, instanceProperties)
+for (const kind of ['staticMethods', 'staticProperties', 'instanceMethods', 'instanceProperties']) {
+  for (const [className, members] of Object.entries(knownBuiltInReturnTypes[kind])) {
     ok(typeof className === 'string' && className, `${ kind }: class name is non-empty string`);
     for (const [member, hint] of Object.entries(members)) {
       ok(typeof member === 'string' && member, `${ kind }.${ className }.${ member }: name is non-empty string`);
@@ -21,6 +50,22 @@ for (const [kind, classes] of Object.entries(knownBuiltInReturnTypes)) {
     }
   }
 }
+
+// spot-check global methods and properties
+deepEqual(knownBuiltInReturnTypes.globalMethods.parseInt, 'number');
+deepEqual(knownBuiltInReturnTypes.globalMethods.parseFloat, 'number');
+deepEqual(knownBuiltInReturnTypes.globalMethods.isNaN, 'boolean');
+deepEqual(knownBuiltInReturnTypes.globalMethods.isFinite, 'boolean');
+deepEqual(knownBuiltInReturnTypes.globalMethods.encodeURI, 'string');
+deepEqual(knownBuiltInReturnTypes.globalMethods.decodeURIComponent, 'string');
+deepEqual(knownBuiltInReturnTypes.globalMethods.btoa, 'string');
+deepEqual(knownBuiltInReturnTypes.globalMethods.atob, 'string');
+deepEqual(knownBuiltInReturnTypes.globalMethods.escape, 'string');
+deepEqual(knownBuiltInReturnTypes.globalMethods.unescape, 'string');
+deepEqual(knownBuiltInReturnTypes.globalProperties.NaN, 'number');
+deepEqual(knownBuiltInReturnTypes.globalProperties.Infinity, 'number');
+deepEqual(knownBuiltInReturnTypes.globalProperties.undefined, 'undefined');
+deepEqual(knownBuiltInReturnTypes.globalProperties.arguments, 'Arguments');
 
 // spot-check some known entries
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.keys, 'Array');
