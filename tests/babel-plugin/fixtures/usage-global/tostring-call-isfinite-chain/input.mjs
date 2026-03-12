@@ -1,1 +1,0 @@
-isFinite(x).toString();
