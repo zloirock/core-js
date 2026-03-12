@@ -1,0 +1,1 @@
+'hello'.endsWith('o').toString();
