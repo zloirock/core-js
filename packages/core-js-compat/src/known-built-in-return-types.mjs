@@ -2,15 +2,21 @@
 export const globalMethods = {
   atob: 'string',
   btoa: 'string',
+  cancelAnimationFrame: 'undefined',
+  clearInterval: 'undefined',
+  clearTimeout: 'undefined',
   decodeURI: 'string',
   decodeURIComponent: 'string',
   encodeURI: 'string',
   encodeURIComponent: 'string',
   escape: 'string',
+  fetch: 'Promise',
   isFinite: 'boolean',
   isNaN: 'boolean',
   parseFloat: 'number',
   parseInt: 'number',
+  queueMicrotask: 'undefined',
+  requestAnimationFrame: 'number',
   unescape: 'string',
 };
 
@@ -145,6 +151,7 @@ export const instanceProperties = {
     port: 'string',
     protocol: 'string',
     search: 'string',
+    searchParams: 'URLSearchParams',
     username: 'string',
   },
   URLSearchParams: {
@@ -379,6 +386,7 @@ export const instanceMethods = {
     lastIndexOf: 'number',
     localeCompare: 'number',
     match: 'Array',
+    matchAll: 'Iterator',
     normalize: 'string',
     padEnd: 'string',
     padStart: 'string',
