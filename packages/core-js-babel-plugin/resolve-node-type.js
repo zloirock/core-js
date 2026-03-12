@@ -1182,6 +1182,11 @@ function matchesGuard(resolved, guard) {
   return !resolved.primitive && resolved.constructor === guard.constructorName;
 }
 
+function isTypeofVar(node, varName) {
+  return node?.type === 'UnaryExpression' && node.operator === 'typeof'
+    && node.argument?.type === 'Identifier' && node.argument.name === varName;
+}
+
 function parseTypeGuard(testNode, varName) {
   let negated = false;
   let test = testNode;
@@ -1195,9 +1200,7 @@ function parseTypeGuard(testNode, varName) {
       if (operator === '!==') negated = !negated;
       // normalize: typeof may be on either side
       const [typeofSide, literalSide] = left.type === 'UnaryExpression' ? [left, right] : [right, left];
-      if (typeofSide.type === 'UnaryExpression' && typeofSide.operator === 'typeof'
-        && typeofSide.argument?.type === 'Identifier' && typeofSide.argument.name === varName
-        && literalSide.type === 'StringLiteral') {
+      if (isTypeofVar(typeofSide, varName) && literalSide.type === 'StringLiteral') {
         return { kind: 'typeof', value: literalSide.value, negated };
       }
     }
@@ -1223,6 +1226,36 @@ function parseTypeGuard(testNode, varName) {
   return null;
 }
 
+function blockAlwaysExits(block) {
+  if (block.isReturnStatement() || block.isThrowStatement()) return true;
+  if (block.isBlockStatement()) {
+    const body = block.get('body');
+    if (!body.length) return false;
+    const last = body[body.length - 1];
+    return last.isReturnStatement() || last.isThrowStatement();
+  }
+  return false;
+}
+
+// if (typeof x === 'string') return; → x is narrowed after the if
+function findEarlyExitGuard(siblings, index, varName) {
+  for (let i = index - 1; i >= 0; i--) {
+    const sibling = siblings[i];
+    if (!sibling.isIfStatement()) continue;
+    const guard = parseTypeGuard(sibling.node.test, varName);
+    if (!guard) continue;
+    if (blockAlwaysExits(sibling.get('consequent'))) {
+      guard.positive = guard.negated;
+      return guard;
+    }
+    if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) {
+      guard.positive = !guard.negated;
+      return guard;
+    }
+  }
+  return null;
+}
+
 function findEnclosingTypeGuard(path, varName) {
   let current = path.parentPath;
   while (current) {
@@ -1242,14 +1275,18 @@ function findEnclosingTypeGuard(path, varName) {
       const switchCase = current.parentPath;
       const switchStmt = switchCase.parentPath;
       if (switchStmt?.isSwitchStatement()) {
-        const { discriminant } = switchStmt.node;
         const caseTest = switchCase.node.test;
-        if (caseTest?.type === 'StringLiteral'
-          && discriminant?.type === 'UnaryExpression' && discriminant.operator === 'typeof'
-          && discriminant.argument?.type === 'Identifier' && discriminant.argument.name === varName) {
+        if (caseTest?.type === 'StringLiteral' && isTypeofVar(switchStmt.node.discriminant, varName)) {
           return { kind: 'typeof', value: caseTest.value, positive: true, negated: false };
         }
       }
+    }
+    // early return / throw pattern
+    const parent = current.parentPath;
+    if (typeof current.key === 'number' && current.listKey === 'body'
+      && (parent.isBlockStatement() || parent.isProgram())) {
+      const guard = findEarlyExitGuard(parent.get('body'), current.key, varName);
+      if (guard) return guard;
     }
     current = current.parentPath;
   }
