@@ -1,1 +1,0 @@
-Infinity.toFixed(2);
