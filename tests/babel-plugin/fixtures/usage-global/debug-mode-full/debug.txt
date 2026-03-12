@@ -29,4 +29,4 @@ The core-js@4 polyfill added the following polyfills:
   es.string.iterator { "ie":"11" }
   esnext.iterator.to-async { "ie":"11" }
   web.dom-collections.iterator { "ie":"11" }
-  esnext.iterator.zip { "ie":"11" }
+  es.iterator.zip { "ie":"11" }
