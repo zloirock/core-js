@@ -326,6 +326,10 @@ function TIMERS() {
   })());
 }
 
+function IDLE_CALLBACKS() {
+  return requestIdleCallback && cancelIdleCallback;
+}
+
 // https://github.com/tc39/ecma262/pull/3467
 function checkIteratorClosingOnEarlyError(METHOD_NAME, ExpectedError) {
   return function () {
@@ -2273,10 +2277,6 @@ GLOBAL.tests = {
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;
   }],
-  'web.request-idle-callback': function () {
-    return (requestIdleCallback !== undefined) && (cancelIdleCallback !== undefined);
-  },
-  'web.cancel-idle-callback': function () {
-    return (requestIdleCallback !== undefined) && (cancelIdleCallback !== undefined);
-  }
+  'web.request-idle-callback': IDLE_CALLBACKS,
+  'web.cancel-idle-callback': IDLE_CALLBACKS
 };
