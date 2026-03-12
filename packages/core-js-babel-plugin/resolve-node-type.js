@@ -1237,6 +1237,20 @@ function findEnclosingTypeGuard(path, varName) {
         }
       }
     }
+    // switch (typeof x) { case 'string': ... }
+    if (current.parentPath?.isSwitchCase()) {
+      const switchCase = current.parentPath;
+      const switchStmt = switchCase.parentPath;
+      if (switchStmt?.isSwitchStatement()) {
+        const { discriminant } = switchStmt.node;
+        const caseTest = switchCase.node.test;
+        if (caseTest?.type === 'StringLiteral'
+          && discriminant?.type === 'UnaryExpression' && discriminant.operator === 'typeof'
+          && discriminant.argument?.type === 'Identifier' && discriminant.argument.name === varName) {
+          return { kind: 'typeof', value: caseTest.value, positive: true, negated: false };
+        }
+      }
+    }
     current = current.parentPath;
   }
   return null;
