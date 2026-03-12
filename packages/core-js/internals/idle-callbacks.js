@@ -101,8 +101,8 @@ exports.request = function requestIdleCallback(callback) {
   sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__idleRequestCallbacks.push(handle);
   if (options && options.timeout && options.timeout > 0) {
-    // TODO:  If there's an efficient queue structure in core-js, ensure that timeout
-    // callbacks are FIFO
+    // FIXME: Spec says that the timeout calling must sort by currentTime +
+    // options.timeout, however maintaining such a queue would be very tedious
     sharedStore.__timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
       var cb = sharedStore.__idleCallbackMap[handle];
       if (!cb) return;
