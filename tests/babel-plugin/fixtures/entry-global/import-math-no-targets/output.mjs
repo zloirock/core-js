@@ -20,5 +20,3 @@ import "core-js/modules/es.math.sum-precise";
 import "core-js/modules/es.math.tanh";
 import "core-js/modules/es.math.to-string-tag";
 import "core-js/modules/es.math.trunc";
-import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";

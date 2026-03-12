@@ -317,6 +317,7 @@ export const instanceMethods = {
     filter: 'Iterator',
     flatMap: 'Iterator',
     forEach: 'undefined',
+    includes: 'boolean',
     join: 'string',
     map: 'Iterator',
     some: 'boolean',

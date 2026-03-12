@@ -3,8 +3,6 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.number.to-fixed";
 import "core-js/modules/es.string.from-code-point";
-import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url-search-params.constructor";
 import "core-js/modules/web.url-search-params.delete";
 import "core-js/modules/web.url-search-params.has";
