@@ -1,0 +1,15 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.reject";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.values";
+import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.async-iterator.constructor";
+import "core-js/modules/esnext.async-iterator.filter";
+import "core-js/modules/esnext.iterator.to-async";
+import "core-js/modules/web.dom-collections.iterator";
+[1, 2, 3].values().toAsync().filter(fn);
