@@ -1237,8 +1237,41 @@ function blockAlwaysExits(block) {
   return false;
 }
 
+// if / ternary / && / || — unified: parse guard from condition, determine polarity
+function findConditionalGuard(current, varName) {
+  const parent = current.parentPath;
+  if (!parent) return null;
+  let conditionTrue, testNode;
+  if (parent.isIfStatement() || parent.isConditionalExpression()) {
+    const { key } = current;
+    if (key !== 'consequent' && key !== 'alternate') return null;
+    conditionTrue = key === 'consequent';
+    testNode = parent.node.test;
+  } else if (parent.isLogicalExpression() && current.key === 'right') {
+    const { operator } = parent.node;
+    if (operator !== '&&' && operator !== '||') return null;
+    conditionTrue = operator === '&&';
+    testNode = parent.node.left;
+  } else return null;
+  const guard = parseTypeGuard(testNode, varName);
+  if (!guard) return null;
+  guard.positive = conditionTrue !== guard.negated;
+  return guard;
+}
+
+// switch (typeof x) { case 'string': ... }
+function findSwitchCaseGuard(current, varName) {
+  if (!current.parentPath?.isSwitchCase()) return null;
+  const switchCase = current.parentPath;
+  const switchStmt = switchCase.parentPath;
+  if (!switchStmt?.isSwitchStatement()) return null;
+  const caseTest = switchCase.node.test;
+  if (caseTest?.type !== 'StringLiteral' || !isTypeofVar(switchStmt.node.discriminant, varName)) return null;
+  return { kind: 'typeof', value: caseTest.value, positive: true, negated: false };
+}
+
 // if (typeof x === 'string') return; → x is narrowed after the if
-function findEarlyExitGuard(siblings, index, varName) {
+function findPrecedingExitGuard(siblings, index, varName) {
   for (let i = index - 1; i >= 0; i--) {
     const sibling = siblings[i];
     if (!sibling.isIfStatement()) continue;
@@ -1256,38 +1289,21 @@ function findEarlyExitGuard(siblings, index, varName) {
   return null;
 }
 
+function findEarlyExitGuard(current, varName) {
+  const parent = current.parentPath;
+  if (typeof current.key !== 'number' || current.listKey !== 'body') return null;
+  if (!parent.isBlockStatement() && !parent.isProgram()) return null;
+  return findPrecedingExitGuard(parent.get('body'), current.key, varName);
+}
+
 function findEnclosingTypeGuard(path, varName) {
   let current = path.parentPath;
   while (current) {
     if (current.isFunction()) return null;
-    if (current.parentPath?.isIfStatement()) {
-      const { key } = current;
-      if (key === 'consequent' || key === 'alternate') {
-        const guard = parseTypeGuard(current.parentPath.node.test, varName);
-        if (guard) {
-          guard.positive = (key === 'consequent') !== guard.negated;
-          return guard;
-        }
-      }
-    }
-    // switch (typeof x) { case 'string': ... }
-    if (current.parentPath?.isSwitchCase()) {
-      const switchCase = current.parentPath;
-      const switchStmt = switchCase.parentPath;
-      if (switchStmt?.isSwitchStatement()) {
-        const caseTest = switchCase.node.test;
-        if (caseTest?.type === 'StringLiteral' && isTypeofVar(switchStmt.node.discriminant, varName)) {
-          return { kind: 'typeof', value: caseTest.value, positive: true, negated: false };
-        }
-      }
-    }
-    // early return / throw pattern
-    const parent = current.parentPath;
-    if (typeof current.key === 'number' && current.listKey === 'body'
-      && (parent.isBlockStatement() || parent.isProgram())) {
-      const guard = findEarlyExitGuard(parent.get('body'), current.key, varName);
-      if (guard) return guard;
-    }
+    const guard = findConditionalGuard(current, varName)
+      || findSwitchCaseGuard(current, varName)
+      || findEarlyExitGuard(current, varName);
+    if (guard) return guard;
     current = current.parentPath;
   }
   return null;
