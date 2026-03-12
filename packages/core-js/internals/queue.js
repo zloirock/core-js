@@ -29,6 +29,8 @@ Queue.prototype = {
     else this.head = next;
     if (next) next.prev = prev;
     else this.tail = prev;
+    entry.prev = null;
+    entry.next = null;
   },
   empty: function () {
     return !this.head;
