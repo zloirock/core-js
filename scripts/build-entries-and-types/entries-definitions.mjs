@@ -1329,6 +1329,18 @@ export const features = {
     namespace: 'Iterator',
     name: 'forEach',
   },
+  'iterator/includes': {
+    modules: ['esnext.iterator.includes'],
+    template: $uncurried,
+    namespace: 'Iterator',
+    name: 'includes',
+  },
+  'iterator/prototype/includes': {
+    modules: ['esnext.iterator.includes'],
+    template: $prototype,
+    namespace: 'Iterator',
+    name: 'includes',
+  },
   'iterator/join': {
     modules: ['esnext.iterator.join'],
     template: $uncurried,
@@ -3515,6 +3527,13 @@ export const proposals = {
     modules: [
       'esnext.iterator.chunks',
       'esnext.iterator.windows',
+    ],
+  },
+  'iterator-includes': {
+    link: 'https://github.com/tc39/proposal-iterator-includes',
+    stage: 2.7,
+    modules: [
+      'esnext.iterator.includes',
     ],
   },
   'iterator-join': {
