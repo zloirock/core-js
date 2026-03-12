@@ -1,0 +1,14 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.math.log2";
+import "core-js/modules/es.string.repeat";
+import "core-js/modules/es.array-buffer.constructor";
+import "core-js/modules/es.array-buffer.detached";
+import "core-js/modules/es.array-buffer.transfer";
+import "core-js/modules/es.array-buffer.transfer-to-fixed-length";
+import "core-js/modules/es.array-buffer.species";
+import "core-js/modules/es.array-buffer.to-string-tag";
+import "core-js/modules/es.data-view.get-float16";
+import "core-js/modules/es.data-view.set-float16";
+import "core-js/modules/es.data-view.to-string-tag";
+import "core-js/modules/es.number.to-fixed";
+new DataView(new ArrayBuffer(8)).byteLength.toFixed(2);
