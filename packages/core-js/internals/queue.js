@@ -28,7 +28,8 @@ Queue.prototype = {
     return entry;
   },
   get: function () {
-    return this.getEntry().item;
+    var entry = this.getEntry();
+    if (entry) return entry.item;
   },
   getEntry: function () {
     var entry = this.head;
@@ -43,6 +44,7 @@ Queue.prototype = {
     }
   },
   erase: function (entry) {
+    if (entry.queue !== this) return;
     var prev = entry.prev;
     var next = entry.next;
     if (prev) prev.next = next;
