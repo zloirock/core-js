@@ -56,7 +56,7 @@ function scheduleNextIdle() {
 function startIdlePeriod() {
   // Move pending to runnable
   var entry;
-  while ((entry = sharedStore.__idleRequestCallbacks.getEntry())) {
+  while (entry = sharedStore.__idleRequestCallbacks.getEntry()) {
     sharedStore.__runnableIdleCallbacks.addEntry(entry);
   }
   sharedStore.__idleRafScheduled = false;
@@ -104,10 +104,8 @@ exports.request = function requestIdleCallback(callback) {
       var cb = sharedStore.__idleCallbackMap[handle];
       if (!cb) return;
       delete sharedStore.__idleCallbackMap[handle];
-      if (sharedStore.__handleObjects[handle].queue == sharedStore.__idleRequestCallbacks)
-        sharedStore.__idleRequestCallbacks.erase(sharedStore.__handleObjects[handle]);
-      if (sharedStore.__handleObjects[handle].queue == sharedStore.__runnableIdleCallbacks)
-        sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
+      if (sharedStore.__handleObjects[handle].queue == sharedStore.__idleRequestCallbacks) sharedStore.__idleRequestCallbacks.erase(sharedStore.__handleObjects[handle]);
+      if (sharedStore.__handleObjects[handle].queue == sharedStore.__runnableIdleCallbacks) sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
       delete sharedStore.__handleObjects[handle];
       var deadline = new IdleDeadline(now(), true);
       try {
@@ -129,9 +127,7 @@ exports.cancel = function cancelIdleCallback(handle) {
     clearTimeout(sharedStore.__timeoutHandles[handle]);
     delete sharedStore.__timeoutHandles[handle];
   }
-  if (sharedStore.__handleObjects[handle].queue == sharedStore.__idleRequestCallbacks)
-    sharedStore.__idleRequestCallbacks.erase(sharedStore.__handleObjects[handle]);
-  if (sharedStore.__handleObjects[handle].queue == sharedStore.__runnableIdleCallbacks)
-    sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
+  if (sharedStore.__handleObjects[handle].queue == sharedStore.__idleRequestCallbacks) sharedStore.__idleRequestCallbacks.erase(sharedStore.__handleObjects[handle]);
+  if (sharedStore.__handleObjects[handle].queue == sharedStore.__runnableIdleCallbacks) sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
   delete sharedStore.__handleObjects[handle];
 };
