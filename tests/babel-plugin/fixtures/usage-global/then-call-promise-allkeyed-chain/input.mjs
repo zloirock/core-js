@@ -1,0 +1,1 @@
+Promise.allKeyed(obj).then(fn);

@@ -1,0 +1,1 @@
+AsyncIterator.from(x).toArray().then(fn);
