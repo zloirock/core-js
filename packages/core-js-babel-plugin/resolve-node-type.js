@@ -35,6 +35,7 @@ const {
   staticProperties: KNOWN_STATIC_PROPERTY_RETURN_TYPES,
   instanceMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   instanceProperties: KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
+  staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
 } = require('@core-js/compat/known-built-in-return-types');
 
 function $Primitive(type) {
@@ -1187,6 +1188,12 @@ function isTypeofVar(node, varName) {
     && node.argument?.type === 'Identifier' && node.argument.name === varName;
 }
 
+// hint convention: lowercase → typeof guard (primitive), capitalized → instanceof guard (object)
+function guardFromHint(hint, negated) {
+  if (PRIMITIVES.has(hint)) return { kind: 'typeof', value: hint, negated };
+  return { kind: 'instanceof', constructorName: hint, negated };
+}
+
 function parseTypeGuard(testNode, varName) {
   let negated = false;
   let test = testNode;
@@ -1215,12 +1222,8 @@ function parseTypeGuard(testNode, varName) {
     const { callee } = test;
     if (callee.type === 'MemberExpression' && !callee.computed
       && callee.object.type === 'Identifier' && callee.property.type === 'Identifier') {
-      const { name: className } = callee.object;
-      const { name: methodName } = callee.property;
-      if ((className === 'Array' && methodName === 'isArray')
-        || (className === 'Error' && methodName === 'isError')) {
-        return { kind: 'instanceof', constructorName: className, negated };
-      }
+      const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, callee.property.name);
+      if (hint) return guardFromHint(hint, negated);
     }
   }
   return null;
