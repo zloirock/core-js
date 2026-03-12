@@ -1,17 +1,21 @@
 import { deepEqual, ok } from 'node:assert/strict';
 
 const knownBuiltInReturnTypes = await fs.readJson('packages/core-js-compat/known-built-in-return-types.json');
+
 const VALID_HINTS = new Set([
-  'string',
-  'number',
-  'boolean',
+  // primitives
   'bigint',
+  'boolean',
+  'number',
+  'string',
   'symbol',
   'undefined',
+  // object types
   'Arguments',
   'Array',
   'ArrayBuffer',
   'AsyncDisposableStack',
+  'AsyncIterator',
   'DisposableStack',
   'Function',
   'Iterator',
@@ -21,6 +25,7 @@ const VALID_HINTS = new Set([
   'Set',
   'SharedArrayBuffer',
   'TypedArray',
+  'URL',
   'WeakMap',
   'WeakSet',
 ]);
@@ -51,7 +56,6 @@ for (const kind of ['staticMethods', 'staticProperties', 'instanceMethods', 'ins
   }
 }
 
-// spot-check global methods and properties
 deepEqual(knownBuiltInReturnTypes.globalMethods.parseInt, 'number');
 deepEqual(knownBuiltInReturnTypes.globalMethods.parseFloat, 'number');
 deepEqual(knownBuiltInReturnTypes.globalMethods.isNaN, 'boolean');
@@ -66,8 +70,6 @@ deepEqual(knownBuiltInReturnTypes.globalProperties.NaN, 'number');
 deepEqual(knownBuiltInReturnTypes.globalProperties.Infinity, 'number');
 deepEqual(knownBuiltInReturnTypes.globalProperties.undefined, 'undefined');
 deepEqual(knownBuiltInReturnTypes.globalProperties.arguments, 'Arguments');
-
-// spot-check some known entries
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.keys, 'Array');
 deepEqual(knownBuiltInReturnTypes.staticMethods.JSON.stringify, 'string');
 deepEqual(knownBuiltInReturnTypes.staticMethods.Number.parseInt, 'number');
@@ -100,7 +102,7 @@ deepEqual(knownBuiltInReturnTypes.instanceMethods.DisposableStack.move, 'Disposa
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Function.bind, 'Function');
 deepEqual(knownBuiltInReturnTypes.instanceMethods.WeakMap.set, 'WeakMap');
 deepEqual(knownBuiltInReturnTypes.instanceMethods.WeakSet.add, 'WeakSet');
-deepEqual(knownBuiltInReturnTypes.staticMethods.Array.fromAsync, 'Array');
+deepEqual(knownBuiltInReturnTypes.staticMethods.Array.fromAsync, 'Promise');
 deepEqual(knownBuiltInReturnTypes.staticMethods.ArrayBuffer.isView, 'boolean');
 deepEqual(knownBuiltInReturnTypes.staticMethods.Iterator.from, 'Iterator');
 deepEqual(knownBuiltInReturnTypes.staticMethods.Symbol.for, 'symbol');
@@ -115,6 +117,8 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.String.fromCharCode, 'string');
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.try, 'Promise');
 deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.has, 'boolean');
 deepEqual(knownBuiltInReturnTypes.staticMethods.Date.UTC, 'number');
+deepEqual(knownBuiltInReturnTypes.staticMethods.AggregateError.isError, 'boolean');
+deepEqual(knownBuiltInReturnTypes.staticMethods.URL.parse, 'URL');
 deepEqual(knownBuiltInReturnTypes.staticProperties.Math.PI, 'number');
 deepEqual(knownBuiltInReturnTypes.staticProperties.Number.MAX_SAFE_INTEGER, 'number');
 deepEqual(knownBuiltInReturnTypes.staticProperties.Symbol.iterator, 'symbol');
@@ -137,5 +141,6 @@ deepEqual(knownBuiltInReturnTypes.instanceProperties.Set.size, 'number');
 deepEqual(knownBuiltInReturnTypes.instanceProperties.SharedArrayBuffer.growable, 'boolean');
 deepEqual(knownBuiltInReturnTypes.instanceProperties.String.length, 'number');
 deepEqual(knownBuiltInReturnTypes.instanceProperties.TypedArray.byteLength, 'number');
+deepEqual(knownBuiltInReturnTypes.instanceProperties.DOMException.message, 'string');
 
 echo(chalk.green('known-built-in-return-types tested'));
