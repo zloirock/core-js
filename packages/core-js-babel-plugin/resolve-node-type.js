@@ -617,6 +617,7 @@ function resolveNodeTypeExpression(path) {
         // known global function: parseInt(), parseFloat(), etc.
         if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
       }
+      if (callee.isImport()) return new $Object('Promise');
       return resolveCallReturnType(callee);
     }
     // tagged templates are semantically calls: String.raw`foo` ≡ String.raw(…)
