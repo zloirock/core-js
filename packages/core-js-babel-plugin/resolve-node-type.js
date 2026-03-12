@@ -475,6 +475,17 @@ function resolveNumericType(path) {
   return new $Primitive(resolved?.type === 'bigint' ? 'bigint' : 'number');
 }
 
+// resolve property name from a MemberExpression, handling both
+// non-computed (obj.prop), string literal (obj['prop']),
+// and constant binding (const key = 'prop'; obj[key])
+function resolveMemberPropertyName(path) {
+  const { property, computed } = path.node;
+  if (!computed) return property.type === 'Identifier' ? property.name : null;
+  if (property.type === 'StringLiteral') return property.value;
+  const resolved = resolvePath(path.get('property'));
+  return resolved.node?.type === 'StringLiteral' ? resolved.node.value : null;
+}
+
 function typesEqual(a, b) {
   return a.type === b.type && a.constructor === b.constructor;
 }
@@ -1024,15 +1035,8 @@ function resolveTypedMember(objectPath, name, callPath) {
 }
 
 function resolveFromMemberExpression(path, callPath) {
-  const { property, computed } = path.node;
-  let name;
-  if (computed) {
-    if (property.type !== 'StringLiteral') return null;
-    name = property.value;
-  } else {
-    if (property.type !== 'Identifier') return null;
-    name = property.name;
-  }
+  const name = resolveMemberPropertyName(path);
+  if (!name) return null;
   const objectPath = resolvePath(path.get('object'));
   if (objectPath.isObjectExpression()) return resolveObjectMember(objectPath, name, callPath);
   const ctx = resolveClassContext(objectPath);
@@ -1045,36 +1049,38 @@ function typeFromHint(hint) {
   return new $Object(hint);
 }
 
-// resolve the global object name and non-computed property name from a MemberExpression
+// two-level table lookup: table[key1][key2]
+function lookupNested(table, key1, key2) {
+  const group = hasOwn(table, key1) ? table[key1] : null;
+  return group && hasOwn(group, key2) ? group[key2] : null;
+}
+
+// resolve the global object name and property name from a MemberExpression
 function resolveGlobalMember(path) {
-  if (path.node.computed) return null;
-  const property = path.get('property');
-  if (!property.isIdentifier()) return null;
+  const memberName = resolveMemberPropertyName(path);
+  if (!memberName) return null;
   const objectName = resolveGlobalName(path.get('object'));
-  return objectName ? { objectName, memberName: property.node.name } : null;
+  return objectName ? { objectName, memberName } : null;
 }
 
 // resolve return type of a known instance member (method or property) from a lookup table
 function resolveKnownInstanceMember(path, table) {
-  if (path.node.computed) return null;
-  const property = path.get('property');
-  if (!property.isIdentifier()) return null;
+  const name = resolveMemberPropertyName(path);
+  if (!name) return null;
   const objectType = resolveNodeType(path.get('object'));
   if (!objectType) return null;
   const key = objectType.primitive ? (PRIMITIVE_WRAPPERS[objectType.type] || null) : objectType.constructor;
-  const members = key && hasOwn(table, key) ? table[key] : null;
-  if (!members) return null;
-  const { name } = property.node;
-  return hasOwn(members, name) ? typeFromHint(members[name]) : null;
+  if (!key) return null;
+  const hint = lookupNested(table, key, name);
+  return hint ? typeFromHint(hint) : null;
 }
 
 function resolveKnownStaticReturnType(callee) {
   if (!callee.isMemberExpression()) return null;
   const info = resolveGlobalMember(callee);
   if (!info) return null;
-  const methods = hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName)
-    ? KNOWN_STATIC_METHOD_RETURN_TYPES[info.objectName] : null;
-  return methods && hasOwn(methods, info.memberName) ? typeFromHint(methods[info.memberName]) : null;
+  const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
+  return hint ? typeFromHint(hint) : null;
 }
 
 function resolveKnownMethodReturnType(callee) {
@@ -1091,12 +1097,9 @@ function resolveGlobalStaticReference(path) {
   const info = resolveGlobalMember(path);
   if (!info) return null;
   const { objectName, memberName } = info;
-  const props = hasOwn(KNOWN_STATIC_PROPERTY_RETURN_TYPES, objectName)
-    ? KNOWN_STATIC_PROPERTY_RETURN_TYPES[objectName] : null;
-  if (props && hasOwn(props, memberName)) return typeFromHint(props[memberName]);
-  const methods = hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, objectName)
-    ? KNOWN_STATIC_METHOD_RETURN_TYPES[objectName] : null;
-  return methods && hasOwn(methods, memberName) ? new $Object('Function') : null;
+  const propHint = lookupNested(KNOWN_STATIC_PROPERTY_RETURN_TYPES, objectName, memberName);
+  if (propHint) return typeFromHint(propHint);
+  return lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, objectName, memberName) ? new $Object('Function') : null;
 }
 
 // resolve type of a global property or method accessed through a global proxy
