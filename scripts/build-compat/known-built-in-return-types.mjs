@@ -1,4 +1,6 @@
 import {
+  globalMethods,
+  globalProperties,
   instanceMethods,
   instanceProperties,
   staticMethods,
@@ -6,6 +8,8 @@ import {
 } from '../../packages/core-js-compat/src/known-built-in-return-types.mjs';
 
 await fs.writeJson('packages/core-js-compat/known-built-in-return-types.json', {
+  globalMethods,
+  globalProperties,
   staticMethods,
   staticProperties,
   instanceMethods,
