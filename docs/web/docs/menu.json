@@ -272,6 +272,10 @@
                 "url": "{docs-version}/docs/features/proposals/iterator-chunking"
               },
               {
+                "title": "Iterator includes",
+                "url": "{docs-version}/docs/features/proposals/iterator-includes"
+              },
+              {
                 "title": "Iterator join",
                 "url": "{docs-version}/docs/features/proposals/iterator-join"
               },

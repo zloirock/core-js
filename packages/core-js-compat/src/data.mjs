@@ -2448,6 +2448,8 @@ export const data = {
   },
   'esnext.iterator.chunks': {
   },
+  'esnext.iterator.includes': {
+  },
   'esnext.iterator.join': {
   },
   'esnext.iterator.range': {
