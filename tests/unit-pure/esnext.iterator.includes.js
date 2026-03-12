@@ -1,4 +1,3 @@
-import { STRICT } from '../helpers/constants.js';
 import { createIterator } from '../helpers/helpers.js';
 
 import Iterator from '@core-js/pure/actual/iterator';
@@ -62,8 +61,7 @@ QUnit.test('Iterator#includes', assert => {
   assert.throws(() => includes.call(it3, 1, 1.5), TypeError, 'non-integer skippedElements');
   assert.true(it3.closed, 'iterator closes on non-integer skippedElements');
 
-  if (STRICT) {
-    assert.throws(() => includes.call(undefined, 1), TypeError, 'non-object this #1');
-    assert.throws(() => includes.call(null, 1), TypeError, 'non-object this #2');
-  }
+  // invalid this
+  assert.throws(() => includes.call(undefined, 1), TypeError, 'non-object this #1');
+  assert.throws(() => includes.call(null, 1), TypeError, 'non-object this #2');
 });

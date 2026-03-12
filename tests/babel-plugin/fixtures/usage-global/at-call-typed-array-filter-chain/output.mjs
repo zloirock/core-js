@@ -38,5 +38,4 @@ import "core-js/modules/es.typed-array.to-sorted";
 import "core-js/modules/es.typed-array.to-string";
 import "core-js/modules/es.typed-array.values";
 import "core-js/modules/es.typed-array.with";
-import "core-js/modules/web.dom-collections.iterator";
 new Float32Array([1, 2, 3]).filter(x => x > 1).at(0);
