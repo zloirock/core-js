@@ -1,14 +1,16 @@
 'use strict';
+const { hasOwn } = Object;
+
 const MAX_DEPTH = 15;
 
-const possibleGlobalProxies = new Set([
+const POSSIBLE_GLOBAL_PROXIES = new Set([
   'global',
   'globalThis',
   'self',
   'window',
 ]);
 
-const primitives = new Set([
+const PRIMITIVES = new Set([
   'bigint',
   'boolean',
   'null',
@@ -18,9 +20,17 @@ const primitives = new Set([
   'undefined',
 ]);
 
+const PRIMITIVE_WRAPPERS = Object.assign(Object.create(null), {
+  string: 'String',
+  number: 'Number',
+  boolean: 'Boolean',
+});
+
 const {
-  static: KNOWN_STATIC_RETURN_TYPES,
-  instance: KNOWN_METHOD_RETURN_TYPES,
+  staticMethods: KNOWN_STATIC_METHOD_RETURN_TYPES,
+  staticProperties: KNOWN_STATIC_PROPERTY_RETURN_TYPES,
+  instanceMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES,
+  instanceProperties: KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
 } = require('@core-js/compat/known-built-in-return-types');
 
 function $Primitive(type) {
@@ -513,7 +523,7 @@ function resolveGlobalName(path) {
   const object = path.get('object');
   if (!object.isIdentifier()) return null;
   const { name } = object.node;
-  if (!possibleGlobalProxies.has(name)) return null;
+  if (!POSSIBLE_GLOBAL_PROXIES.has(name)) return null;
   if (object.scope.getBinding(name)) return null;
   const property = path.get('property');
   return property.isIdentifier() ? property.node.name : null;
@@ -589,7 +599,9 @@ function resolveNodeTypeExpression(path) {
     }
     case 'MemberExpression':
     case 'OptionalMemberExpression':
-      return resolveFromMemberExpression(path);
+      return resolveFromMemberExpression(path)
+        || resolveKnownPropertyReturnType(path)
+        || resolveGlobalStaticReference(path);
     case 'CallExpression':
     case 'OptionalCallExpression': {
       const callee = path.get('callee');
@@ -1027,34 +1039,62 @@ function resolveFromMemberExpression(path, callPath) {
 }
 
 function typeFromHint(hint) {
-  if (primitives.has(hint)) return new $Primitive(hint);
+  if (PRIMITIVES.has(hint)) return new $Primitive(hint);
   return new $Object(hint);
 }
 
-function resolveKnownStaticReturnType(callee) {
-  if (!callee.isMemberExpression() || callee.node.computed) return null;
-  const name = resolveGlobalName(callee.get('object'));
-  if (!name) return null;
-  const methods = KNOWN_STATIC_RETURN_TYPES[name];
-  if (!methods) return null;
-  const property = callee.get('property');
+// resolve the global object name and non-computed property name from a MemberExpression
+function resolveGlobalMember(path) {
+  if (path.node.computed) return null;
+  const property = path.get('property');
   if (!property.isIdentifier()) return null;
-  const returnType = methods[property.node.name];
-  return returnType ? typeFromHint(returnType) : null;
+  const objectName = resolveGlobalName(path.get('object'));
+  return objectName ? { objectName, memberName: property.node.name } : null;
+}
+
+// resolve return type of a known instance member (method or property) from a lookup table
+function resolveKnownInstanceMember(path, table) {
+  if (path.node.computed) return null;
+  const property = path.get('property');
+  if (!property.isIdentifier()) return null;
+  const objectType = resolveNodeType(path.get('object'));
+  if (!objectType) return null;
+  const key = objectType.primitive ? (PRIMITIVE_WRAPPERS[objectType.type] || null) : objectType.constructor;
+  const members = key && hasOwn(table, key) ? table[key] : null;
+  if (!members) return null;
+  const { name } = property.node;
+  return hasOwn(members, name) ? typeFromHint(members[name]) : null;
+}
+
+function resolveKnownStaticReturnType(callee) {
+  if (!callee.isMemberExpression()) return null;
+  const info = resolveGlobalMember(callee);
+  if (!info) return null;
+  const methods = hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName)
+    ? KNOWN_STATIC_METHOD_RETURN_TYPES[info.objectName] : null;
+  return methods && hasOwn(methods, info.memberName) ? typeFromHint(methods[info.memberName]) : null;
 }
 
 function resolveKnownMethodReturnType(callee) {
-  if (callee.node.computed) return null;
-  const property = callee.get('property');
-  if (!property.isIdentifier()) return null;
-  const objectType = resolveNodeType(callee.get('object'));
-  if (!objectType) return null;
-  const wrapper = { string: 'String', number: 'Number', boolean: 'Boolean' };
-  const key = objectType.primitive ? (wrapper[objectType.type] || null) : objectType.constructor;
-  const methods = key && KNOWN_METHOD_RETURN_TYPES[key];
-  if (!methods) return null;
-  const returnType = methods[property.node.name];
-  return returnType ? typeFromHint(returnType) : null;
+  return resolveKnownInstanceMember(callee, KNOWN_INSTANCE_METHOD_RETURN_TYPES);
+}
+
+function resolveKnownPropertyReturnType(path) {
+  return resolveKnownInstanceMember(path, KNOWN_INSTANCE_PROPERTY_RETURN_TYPES);
+}
+
+// resolve type of a known global static member (e.g. Math.PI, Number.MAX_SAFE_INTEGER, Math.max)
+// static properties return their known type, static methods return Function
+function resolveGlobalStaticReference(path) {
+  const info = resolveGlobalMember(path);
+  if (!info) return null;
+  const { objectName, memberName } = info;
+  const props = hasOwn(KNOWN_STATIC_PROPERTY_RETURN_TYPES, objectName)
+    ? KNOWN_STATIC_PROPERTY_RETURN_TYPES[objectName] : null;
+  if (props && hasOwn(props, memberName)) return typeFromHint(props[memberName]);
+  const methods = hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, objectName)
+    ? KNOWN_STATIC_METHOD_RETURN_TYPES[objectName] : null;
+  return methods && hasOwn(methods, memberName) ? new $Object('Function') : null;
 }
 
 function resolveCallReturnType(callee) {
@@ -1243,4 +1283,4 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = { possibleGlobalProxies, resolveGlobalName, resolveNodeType, toHint, isString, isObject };
+module.exports = { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, toHint, isString, isObject };
