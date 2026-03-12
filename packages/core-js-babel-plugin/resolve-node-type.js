@@ -890,6 +890,8 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
 
 // resolve return type of a function, inferring generic type parameters from call-site arguments
 function resolveReturnType(fnPath, callPath) {
+  // generator functions return iterators, async generators return async iterators
+  if (fnPath.node.generator) return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator');
   const { returnType, typeParameters } = fnPath.node;
   // infer generic type parameters and substitute into return type
   if (returnType && callPath && typeParameters?.params?.length) {
