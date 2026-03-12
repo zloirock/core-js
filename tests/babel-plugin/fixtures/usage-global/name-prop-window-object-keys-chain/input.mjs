@@ -1,1 +1,0 @@
-window.Object.keys.name;
