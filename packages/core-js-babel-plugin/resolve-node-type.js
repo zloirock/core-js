@@ -1218,7 +1218,7 @@ function resolveDestructuredType(objectPattern, name, scope) {
   const keyName = findDestructuredKeyName(objectPattern, name);
   if (!keyName) return null;
   for (const member of members) {
-    if (member.key?.type !== 'Identifier' || member.key.name !== keyName) continue;
+    if (!keyMatchesName(member.key, keyName)) continue;
     // TS: member.typeAnnotation, Flow: member.value
     return resolveTypeAnnotation(member.typeAnnotation || member.value, scope);
   }
@@ -1514,13 +1514,19 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
   if (objectPattern.typeAnnotation) {
     return resolveDestructuredType(objectPattern, varName, bindingPath.scope);
   }
-  // resolve from runtime init expression (e.g. object literal)
-  // const { name } = { name: 'alice' } or const { name } = obj where obj = { name: 'alice' }
+  // resolve from init expression: runtime object literal or annotated variable
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
     const keyName = findDestructuredKeyName(objectPattern, varName);
     if (keyName) {
       const initPath = resolvePath(bindingPath.get('init'));
+      // const { name } = { name: 'alice' }
       if (initPath.isObjectExpression()) return resolveObjectMember(initPath, keyName);
+      // const { key } = annotatedVar where annotatedVar: { key: string }
+      const annotationInfo = findExpressionAnnotation(bindingPath.get('init'));
+      if (annotationInfo) {
+        const memberType = findTypeMember(unwrapTypeAnnotation(annotationInfo.annotation), keyName, annotationInfo.scope);
+        if (memberType) return resolveTypeAnnotation(memberType, annotationInfo.scope);
+      }
     }
   }
   return null;
