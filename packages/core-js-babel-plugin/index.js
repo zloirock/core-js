@@ -318,7 +318,7 @@ module.exports = defineProvider(({
         desc = resolveHint(desc, enhanced);
         if (desc === null) return true;
       }
-      if (typeof desc === 'string') desc = { dependencies: desc };
+      if (typeof desc === 'string') desc = { dependencies: [desc] };
       const { dependencies, filters } = desc;
       if (!dependencies?.length) return true;
       if (applyFilters(filters, path)) return true;
