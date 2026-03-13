@@ -1423,12 +1423,17 @@ function resolveBindingType(path) {
   return null;
 }
 
+function matchesTypeofValue(resolved, value) {
+  if (value === 'object') return !resolved.primitive || resolved.type === 'null';
+  if (value === 'function') return resolved.constructor === 'Function';
+  return resolved.primitive && resolved.type === value;
+}
+
 function matchesGuard(resolved, guard) {
-  if (guard.kind === 'typeof') {
-    const { value } = guard;
-    if (value === 'object') return !resolved.primitive || resolved.type === 'null';
-    if (value === 'function') return resolved.constructor === 'Function';
-    return resolved.primitive && resolved.type === value;
+  if (guard.kind === 'typeof') return matchesTypeofValue(resolved, guard.value);
+  if (guard.kind === 'typeof-or') {
+    for (const value of guard.values) if (matchesTypeofValue(resolved, value)) return true;
+    return false;
   }
   return !resolved.primitive && resolved.constructor === guard.constructorName;
 }
@@ -1499,15 +1504,32 @@ function flattenCondition(node, operator) {
   return [node];
 }
 
+// parse an OR group of typeof guards: typeof x === 'a' || typeof x === 'b' (conditionTrue=true)
+// or De Morgan form: typeof x !== 'a' && typeof x !== 'b' (conditionTrue=false)
+function parseTypeofOrGuard(node, varName, conditionTrue) {
+  const operator = conditionTrue ? '||' : '&&';
+  const expectNegated = !conditionTrue;
+  if (node.type !== 'LogicalExpression' || node.operator !== operator) return null;
+  const parts = flattenCondition(node, operator);
+  const values = new Set();
+  for (const part of parts) {
+    const guard = parseTypeGuard(part, varName);
+    if (!guard || guard.kind !== 'typeof' || guard.negated !== expectNegated) return null;
+    values.add(guard.value);
+  }
+  return values.size >= 2 ? { kind: 'typeof-or', values, negated: expectNegated } : null;
+}
+
 // extract guards for varName from a condition, applying && / || flattening
 function parseGuardsFromCondition(testNode, conditionTrue, varName) {
   const parts = flattenCondition(testNode, conditionTrue ? '&&' : '||');
   const guards = [];
   for (const part of parts) {
-    const guard = parseTypeGuard(part, varName);
-    if (!guard) continue;
-    guard.positive = conditionTrue !== guard.negated;
-    guards.push(guard);
+    const guard = parseTypeGuard(part, varName) || parseTypeofOrGuard(part, varName, conditionTrue);
+    if (guard) {
+      guard.positive = conditionTrue !== guard.negated;
+      guards.push(guard);
+    }
   }
   return guards;
 }
@@ -1601,7 +1623,8 @@ function findEnclosingTypeGuards(path, varName) {
 // resolve the type a guard implies: typeof 'string' -> $Primitive('string'), instanceof Array -> $Object('Array')
 function resolveGuardType(guard) {
   if (guard.kind === 'typeof') return PRIMITIVES.has(guard.value) ? new $Primitive(guard.value) : null;
-  return resolveKnownConstructor(guard.constructorName);
+  if (guard.kind === 'instanceof') return resolveKnownConstructor(guard.constructorName);
+  return null;
 }
 
 // filter candidate types by guards, return the unique surviving type or null
@@ -1663,12 +1686,11 @@ function toHint(type) {
   return type.constructor?.toLowerCase() ?? null;
 }
 
-// intersect a whitelist set with the hints of a typeof group
-// if included is null, returns a fresh copy of the group's hints
-function intersectTypeofGroup(included, typeofValue) {
-  const group = TYPEOF_HINT_GROUPS[typeofValue];
-  if (!included) return new Set(group);
-  for (const hint of included) if (!group.has(hint)) included.delete(hint);
+// intersect a whitelist set with another hint set
+// if included is null, returns a fresh copy of the hints
+function intersectHintSets(included, hints) {
+  if (!included) return new Set(hints);
+  for (const hint of included) if (!hints.has(hint)) included.delete(hint);
   return included;
 }
 
@@ -1688,8 +1710,20 @@ function resolveGuardHints(path) {
   // whitelist is future-proof: unknown future hints are excluded by default
   let included = null;
   for (const guard of guards) {
-    if (!guard.positive || guard.kind !== 'typeof' || !hasOwn(TYPEOF_HINT_GROUPS, guard.value)) continue;
-    included = intersectTypeofGroup(included, guard.value);
+    if (!guard.positive) continue;
+    if (guard.kind === 'typeof') {
+      if (!hasOwn(TYPEOF_HINT_GROUPS, guard.value)) continue;
+      included = intersectHintSets(included, TYPEOF_HINT_GROUPS[guard.value]);
+    } else if (guard.kind === 'typeof-or') {
+      // OR group: union of all typeof groups, then intersect with accumulated whitelist
+      const union = new Set();
+      for (const value of guard.values) {
+        if (hasOwn(TYPEOF_HINT_GROUPS, value)) {
+          for (const hint of TYPEOF_HINT_GROUPS[value]) union.add(hint);
+        }
+      }
+      if (union.size) included = intersectHintSets(included, union);
+    }
   }
 
   if (included) {
