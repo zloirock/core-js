@@ -126,8 +126,8 @@ module.exports = defineProvider(({
   method,
   shouldInjectPolyfill,
 }, {
-  pkg,
-  pkgs,
+  package: pkg,
+  additionalPackages,
   mode = 'actual',
   version = '4.0',
   shippedProposals = false,
@@ -153,7 +153,7 @@ module.exports = defineProvider(({
   } = createASTHelpers(t);
   const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
 
-  const packages = pkgs ? [...defaultCoreJSPackages, ...pkgs] : defaultCoreJSPackages;
+  const packages = additionalPackages ? [...defaultCoreJSPackages, ...additionalPackages] : defaultCoreJSPackages;
 
   const entriesSetForTargetVersion = method === 'usage-pure' && new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));

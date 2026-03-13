@@ -8,8 +8,7 @@
         "targets": {
           "chrome": 135
         },
-        "pkg": "@x/y",
-        "pkgs": ["@x/y"]
+        "package": "@x/y"
       }
     ]
   ]
