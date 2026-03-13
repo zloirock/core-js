@@ -14,9 +14,9 @@ type Options = Pick<CompatOptions, "targets"> & {
   /** entry point layer: 'es', 'stable', 'actual', or 'full', by default 'actual' */
   mode?: Mode,
   /** the package to use for imports, by default 'core-js' for global, '@core-js/pure' for pure */
-  pkg?: string,
+  package?: string,
   /** additional packages to recognize as core-js entry points */
-  pkgs?: string[],
+  additionalPackages?: string[],
   /** include specific polyfills by name or pattern */
   include?: readonly (string | RegExp)[],
   /** exclude specific polyfills by name or pattern */
