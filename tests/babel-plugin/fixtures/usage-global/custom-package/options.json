@@ -8,7 +8,7 @@
         "targets": {
           "ie": 11
         },
-        "pkg": "my-core-js"
+        "package": "my-core-js"
       }
     ]
   ]
