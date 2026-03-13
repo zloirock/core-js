@@ -137,7 +137,7 @@ function resolveTypeParameter(name, scope, depth) {
   while (currentScope) {
     const params = currentScope.block.typeParameters?.params;
     if (params) for (const param of params) {
-      if (param.name === name) return param.constraint ? resolveTypeAnnotation(param.constraint, scope, depth + 1) : null;
+      if (param.name === name) return param.constraint ? resolveTypeAnnotation(param.constraint, currentScope, depth + 1) : null;
     }
     currentScope = currentScope.parent;
   }
@@ -1530,7 +1530,7 @@ function resolveBindingType(path) {
 }
 
 function matchesTypeofValue(resolved, value) {
-  if (value === 'object') return !resolved.primitive || resolved.type === 'null';
+  if (value === 'object') return (!resolved.primitive && resolved.constructor !== 'Function') || resolved.type === 'null';
   if (value === 'function') return resolved.constructor === 'Function';
   return resolved.primitive && resolved.type === value;
 }
