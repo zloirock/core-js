@@ -10,10 +10,6 @@
         }
       }
     ]
-  ],
-  "parserOpts": {
-    "plugins": [
-      "typescript"
-    ]
-  }
+  ]
 }
+
