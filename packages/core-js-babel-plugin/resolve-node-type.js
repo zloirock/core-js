@@ -227,7 +227,8 @@ function findTypeMember(objectType, key, scope) {
   if (!members) return null;
   for (const member of members) {
     if (member.type !== 'TSPropertySignature') continue;
-    if (member.key?.type === 'Identifier' && member.key.name === key) return member.typeAnnotation;
+    if (member.key?.type === 'Identifier' && member.key.name === key
+      || member.key?.type === 'StringLiteral' && member.key.value === key) return member.typeAnnotation;
   }
   return null;
 }
@@ -247,6 +248,13 @@ function findTupleElement(objectType, index, scope) {
   return element.type === 'TSNamedTupleMember' ? element.elementType : element;
 }
 
+function isAssignableTo(candidate, target) {
+  if (typesEqual(candidate, target)) return true;
+  // any non-primitive is assignable to Object
+  if (!candidate.primitive && target.constructor === 'Object') return true;
+  return false;
+}
+
 function resolveExtractExclude(first, second, scope, depth, keep) {
   const target = resolveTypeAnnotation(second, scope, depth + 1);
   if (!target) return null;
@@ -257,7 +265,7 @@ function resolveExtractExclude(first, second, scope, depth, keep) {
   for (const member of types) {
     const resolved = resolveTypeAnnotation(member, scope, depth + 1);
     if (!resolved) return null;
-    if (typesEqual(resolved, target) !== keep) continue;
+    if (isAssignableTo(resolved, target) !== keep) continue;
     if (result && !typesEqual(result, resolved)) return null;
     result = resolved;
   }
@@ -986,12 +994,18 @@ function resolveClassContext(objectPath) {
   return null;
 }
 
-function findClassMember(classPath, name, isStatic) {
+function findClassMember(classPath, name, isStatic, depth = 0) {
+  if (depth > MAX_DEPTH) return null;
   for (const member of classPath.get('body').get('body')) {
     const { key } = member.node;
     if (key?.type !== 'Identifier' || key.name !== name) continue;
     if (!!member.node.static !== isStatic) continue;
     return member;
+  }
+  const superClass = classPath.get('superClass');
+  if (superClass.node) {
+    const resolved = resolvePath(superClass);
+    if (resolved.isClass()) return findClassMember(resolved, name, isStatic, depth + 1);
   }
   return null;
 }
@@ -1021,8 +1035,9 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
 
 function findObjectMember(objectPath, name) {
   for (const prop of objectPath.get('properties')) {
-    if (prop.node.key?.type !== 'Identifier' || prop.node.key.name !== name) continue;
-    return prop;
+    const { key } = prop.node;
+    if (key?.type === 'Identifier' && key.name === name
+      || key?.type === 'StringLiteral' && key.value === name) return prop;
   }
   return null;
 }
@@ -1181,7 +1196,9 @@ function findDestructuredKeyName(objectPattern, name) {
     if (prop.type !== 'ObjectProperty') continue;
     const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
     if (value?.type === 'Identifier' && value.name === name) {
-      return prop.key?.type === 'Identifier' ? prop.key.name : null;
+      if (prop.key?.type === 'Identifier') return prop.key.name;
+      if (prop.key?.type === 'StringLiteral') return prop.key.value;
+      return null;
     }
   }
   return null;
@@ -1231,7 +1248,7 @@ function resolveElementType(node, scope, depth) {
       }
       return result;
     }
-    // Array<T>, Set<T>, Map<K,V>, user type aliases
+    // Array<T>, Set<T>, Map<K,V>, Iterable<T>, Generator<T>, user type aliases
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
@@ -1240,6 +1257,9 @@ function resolveElementType(node, scope, depth) {
       switch (name) {
         case 'Array': case 'ReadonlyArray':
         case 'Set': case 'ReadonlySet':
+        case 'Iterable': case 'IterableIterator': case 'Iterator':
+        case 'AsyncIterable': case 'AsyncIterableIterator': case 'AsyncIterator':
+        case 'Generator': case 'AsyncGenerator':
           return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
         case 'Map': case 'ReadonlyMap':
           return new $Object('Array');
@@ -1602,12 +1622,14 @@ function parseTypeGuard(testNode, varName) {
 }
 
 function blockAlwaysExits(block) {
-  if (block.isReturnStatement() || block.isThrowStatement()) return true;
+  if (block.isReturnStatement() || block.isThrowStatement()
+    || block.isContinueStatement() || block.isBreakStatement()) return true;
   if (block.isBlockStatement()) {
     const body = block.get('body');
     if (!body.length) return false;
     const last = body[body.length - 1];
-    return last.isReturnStatement() || last.isThrowStatement();
+    return last.isReturnStatement() || last.isThrowStatement()
+      || last.isContinueStatement() || last.isBreakStatement();
   }
   return false;
 }
@@ -1751,7 +1773,12 @@ function findEnclosingTypeGuards(path, varName) {
 
 // resolve the type a guard implies: typeof 'string' -> $Primitive('string'), instanceof Array -> $Object('Array')
 function resolveGuardType(guard) {
-  if (guard.kind === 'typeof') return PRIMITIVES.has(guard.value) ? new $Primitive(guard.value) : null;
+  if (guard.kind === 'typeof') {
+    if (PRIMITIVES.has(guard.value)) return new $Primitive(guard.value);
+    if (guard.value === 'function') return new $Object('Function');
+    // 'object' is too ambiguous - could be Array, Map, Set, Date, null, etc.
+    return null;
+  }
   if (guard.kind === 'instanceof') return resolveKnownConstructor(guard.constructorName);
   return null;
 }
