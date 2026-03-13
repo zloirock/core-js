@@ -106,8 +106,8 @@ Array.from(items);
 | `version` | `string` | `'4.0'` | Used `core-js` version, it's recommended to specify the used minor version like `'4.1'` |
 | `targets` | `string` \| `object` | from browserslist config / all engines | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
-| `pkg` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
-| `pkgs` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
+| `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
+| `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
 | `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills by name or pattern |
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills by name or pattern |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
