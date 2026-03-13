@@ -4,7 +4,7 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-function foo(x: Generator<string>) {
+function foo(x: IterableIterator<string>) {
   for (const item of x) {
     item.at(0);
   }
