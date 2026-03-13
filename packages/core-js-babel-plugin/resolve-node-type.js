@@ -390,7 +390,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     // TS template literal type: `prefix_${string}`
     case 'TSTemplateLiteralType':
       return new $Primitive('string');
-    // TS type predicate: `x is string` → boolean
+    // TS type predicate: `x is string` -> boolean
     case 'TSTypePredicate':
       return new $Primitive('boolean');
     // TS conditional type: T extends U ? X : Y — resolve if both branches have the same type, or one is `never`
@@ -1107,7 +1107,7 @@ function resolveGlobalStaticReference(path) {
 }
 
 // resolve type of a global property or method accessed through a global proxy
-// e.g. globalThis.NaN → number, window.parseInt → Function
+// e.g. globalThis.NaN -> number, window.parseInt -> Function
 function resolveKnownGlobalReference(path) {
   const name = resolveGlobalName(path);
   if (!name) return null;
@@ -1161,11 +1161,11 @@ function resolveElementType(node, scope, depth) {
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
   switch (node.type) {
-    // string[] → element type
+    // string[] -> element type
     case 'TSArrayType':
     case 'ArrayTypeAnnotation':
       return resolveTypeAnnotation(node.elementType, scope, depth + 1);
-    // [string, number] → common element type if all same
+    // [string, number] -> common element type if all same
     case 'TSTupleType':
     case 'TupleTypeAnnotation': {
       const elements = node.elementTypes;
@@ -1267,7 +1267,7 @@ function extractElementAnnotation(node, scope, depth) {
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member, scope, depth + 1);
         if (resolved && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
-        if (result) return null; // multiple non-null collection members → ambiguous
+        if (result) return null; // multiple non-null collection members -> ambiguous
         result = extractElementAnnotation(member, scope, depth + 1);
         if (!result) return null;
       }
@@ -1285,12 +1285,7 @@ function resolveArrayPatternBinding(arrayPattern, varName, annotation, scope) {
   if (!unwrapped) return null;
   for (let i = 0; i < elements.length; i++) {
     const element = elements[i];
-    if (!element) continue;
-    if (element.type === 'RestElement') {
-      const restId = element.argument?.type === 'AssignmentPattern' ? element.argument.left : element.argument;
-      if (restId?.type === 'Identifier' && restId.name === varName) return new $Object('Array');
-      continue;
-    }
+    if (!element || element.type === 'RestElement') continue;
     const id = element.type === 'AssignmentPattern' ? element.left : element;
     if (id?.type !== 'Identifier' || id.name !== varName) continue;
     const tupleElem = findTupleElement(unwrapped, i, scope);
@@ -1354,22 +1349,40 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   return null;
 }
 
+function findDestructuringPattern(bindingPath, type) {
+  if (bindingPath.node.type === type) return bindingPath.node;
+  if (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === type) return bindingPath.node.id;
+  return null;
+}
+
 function resolveBindingType(path) {
   if (!path.isIdentifier()) return null;
   const binding = path.scope.getBinding(path.node.name);
   if (!binding) return null;
   const { path: bindingPath } = binding;
-  // destructured object: function foo({ x }: { x: T }) or const { x }: { x: T } = ...
-  const objectPattern = bindingPath.isObjectPattern() ? bindingPath.node
-    : (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === 'ObjectPattern') ? bindingPath.node.id
-    : null;
-  if (objectPattern?.typeAnnotation) return resolveDestructuredType(objectPattern, path.node.name, bindingPath.scope);
-  // destructured array: all annotation sources handled by resolveArrayBinding
-  const arrayPattern = bindingPath.isArrayPattern() ? bindingPath.node
-    : (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === 'ArrayPattern') ? bindingPath.node.id
-    : null;
+  const { name } = path.node;
+  // destructured object
+  const objectPattern = findDestructuringPattern(bindingPath, 'ObjectPattern');
+  if (objectPattern) {
+    // object rest: const { a, ...rest } = obj -> rest is always Object
+    for (const prop of objectPattern.properties) {
+      if (prop.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === name) {
+        return new $Object('Object');
+      }
+    }
+    if (objectPattern.typeAnnotation) return resolveDestructuredType(objectPattern, name, bindingPath.scope);
+  }
+  // destructured array
+  const arrayPattern = findDestructuringPattern(bindingPath, 'ArrayPattern');
   if (arrayPattern) {
-    const result = resolveArrayBinding(arrayPattern, path.node.name, bindingPath);
+    // array rest: const [a, ...rest] = items -> rest is always Array
+    for (const element of arrayPattern.elements || []) {
+      if (element?.type === 'RestElement') {
+        const restId = element.argument?.type === 'Identifier' ? element.argument : null;
+        if (restId && restId.name === name) return new $Object('Array');
+      }
+    }
+    const result = resolveArrayBinding(arrayPattern, name, bindingPath);
     if (result) return result;
   }
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
@@ -1396,7 +1409,7 @@ function isTypeofVar(node, varName) {
     && node.argument?.type === 'Identifier' && node.argument.name === varName;
 }
 
-// hint convention: lowercase → typeof guard (primitive), capitalized → instanceof guard (object)
+// hint convention: lowercase -> typeof guard (primitive), capitalized -> instanceof guard (object)
 function guardFromHint(hint, negated) {
   if (PRIMITIVES.has(hint)) return { kind: 'typeof', value: hint, negated };
   return { kind: 'instanceof', constructorName: hint, negated };
@@ -1500,7 +1513,7 @@ function findSwitchCaseGuard(current, varName) {
   return { kind: 'typeof', value: caseTest.value, positive: true, negated: false };
 }
 
-// if (typeof x === 'string') return; → x is narrowed after the if
+// if (typeof x === 'string') return; -> x is narrowed after the if
 // collects ALL preceding exit guards, including && / || flattening
 function findPrecedingExitGuards(siblings, index, varName) {
   const guards = [];
