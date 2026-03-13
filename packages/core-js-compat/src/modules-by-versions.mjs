@@ -116,7 +116,6 @@ export default {
     'es.error.to-string',
     'es.aggregate-error.cause',
     'es.number.to-exponential',
-    'es.regexp.has-indices',
     'esnext.array.group-by-to-map',
     'esnext.array.to-reversed',
     'esnext.array.to-sorted',
@@ -323,5 +322,8 @@ export default {
     'es.map.get-or-insert-computed',
     'es.weak-map.get-or-insert',
     'es.weak-map.get-or-insert-computed',
+  ],
+  3.49: [
+    'es.regexp.has-indices',
   ],
 };
