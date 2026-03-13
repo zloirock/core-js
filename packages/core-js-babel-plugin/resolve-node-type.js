@@ -1521,15 +1521,29 @@ function findConditionalGuards(current, varName) {
   return parseGuardsFromCondition(testNode, conditionTrue, varName);
 }
 
-// switch (typeof x) { case 'string': ... }
-function findSwitchCaseGuard(current, varName) {
+// switch (typeof x) { case 'string': ... ; default: ... }
+function findSwitchCaseGuards(current, varName) {
   if (!current.parentPath?.isSwitchCase()) return null;
   const switchCase = current.parentPath;
   const switchStmt = switchCase.parentPath;
   if (!switchStmt?.isSwitchStatement()) return null;
+  if (!isTypeofVar(switchStmt.node.discriminant, varName)) return null;
   const caseTest = switchCase.node.test;
-  if (caseTest?.type !== 'StringLiteral' || !isTypeofVar(switchStmt.node.discriminant, varName)) return null;
-  return { kind: 'typeof', value: caseTest.value, positive: true, negated: false };
+  // specific case: typeof value is known
+  if (caseTest?.type === 'StringLiteral') {
+    return [{ kind: 'typeof', value: caseTest.value, positive: true, negated: false }];
+  }
+  // default case: none of the explicit cases matched -> negative guards for each
+  if (caseTest === null) {
+    const guards = [];
+    for (const $case of switchStmt.node.cases) {
+      if ($case.test?.type === 'StringLiteral') {
+        guards.push({ kind: 'typeof', value: $case.test.value, positive: false, negated: false });
+      }
+    }
+    return guards.length ? guards : null;
+  }
+  return null;
 }
 
 // if (typeof x === 'string') return; -> x is narrowed after the if
@@ -1565,8 +1579,8 @@ function findEnclosingTypeGuards(path, varName) {
   while (current) {
     if (current.isFunction()) break;
     guards.push(...findConditionalGuards(current, varName));
-    const switchGuard = findSwitchCaseGuard(current, varName);
-    if (switchGuard) guards.push(switchGuard);
+    const switchGuards = findSwitchCaseGuards(current, varName);
+    if (switchGuards) guards.push(...switchGuards);
     const exitGuards = findEarlyExitGuards(current, varName);
     if (exitGuards) guards.push(...exitGuards);
     current = current.parentPath;
