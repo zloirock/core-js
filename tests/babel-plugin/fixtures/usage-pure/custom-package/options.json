@@ -5,7 +5,7 @@
       {
         "method": "usage-pure",
         "version": "4.0",
-        "pkg": "my-core-js-pure",
+        "package": "my-core-js-pure",
         "targets": {
           "ie": 11
         }
