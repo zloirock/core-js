@@ -3,6 +3,17 @@ const { hasOwn } = Object;
 
 const MAX_DEPTH = 15;
 
+function keyMatchesName(key, name) {
+  return key?.type === 'Identifier' && key.name === name
+    || key?.type === 'StringLiteral' && key.value === name;
+}
+
+function getKeyName(key) {
+  if (key?.type === 'Identifier') return key.name;
+  if (key?.type === 'StringLiteral') return key.value;
+  return null;
+}
+
 const POSSIBLE_GLOBAL_PROXIES = new Set([
   'global',
   'globalThis',
@@ -227,8 +238,7 @@ function findTypeMember(objectType, key, scope) {
   if (!members) return null;
   for (const member of members) {
     if (member.type !== 'TSPropertySignature') continue;
-    if (member.key?.type === 'Identifier' && member.key.name === key
-      || member.key?.type === 'StringLiteral' && member.key.value === key) return member.typeAnnotation;
+    if (keyMatchesName(member.key, key)) return member.typeAnnotation;
   }
   return null;
 }
@@ -997,8 +1007,7 @@ function resolveClassContext(objectPath) {
 function findClassMember(classPath, name, isStatic, depth = 0) {
   if (depth > MAX_DEPTH) return null;
   for (const member of classPath.get('body').get('body')) {
-    const { key } = member.node;
-    if (key?.type !== 'Identifier' || key.name !== name) continue;
+    if (!keyMatchesName(member.node.key, name)) continue;
     if (!!member.node.static !== isStatic) continue;
     return member;
   }
@@ -1035,9 +1044,7 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
 
 function findObjectMember(objectPath, name) {
   for (const prop of objectPath.get('properties')) {
-    const { key } = prop.node;
-    if (key?.type === 'Identifier' && key.name === name
-      || key?.type === 'StringLiteral' && key.value === name) return prop;
+    if (keyMatchesName(prop.node.key, name)) return prop;
   }
   return null;
 }
@@ -1076,7 +1083,7 @@ function resolveTypedMember(objectPath, name, callPath) {
   const members = getTypeMembers(annotation, scope);
   if (!members) return null;
   for (const member of members) {
-    if (member.key?.type !== 'Identifier' || member.key.name !== name) continue;
+    if (!keyMatchesName(member.key, name)) continue;
     if (member.type === 'TSMethodSignature') return resolveTypeAnnotation(member.typeAnnotation, scope);
     if (member.type === 'TSPropertySignature') {
       const fnType = unwrapTypeAnnotation(member.typeAnnotation);
@@ -1195,11 +1202,7 @@ function findDestructuredKeyName(objectPattern, name) {
   for (const prop of objectPattern.properties) {
     if (prop.type !== 'ObjectProperty') continue;
     const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-    if (value?.type === 'Identifier' && value.name === name) {
-      if (prop.key?.type === 'Identifier') return prop.key.name;
-      if (prop.key?.type === 'StringLiteral') return prop.key.value;
-      return null;
-    }
+    if (value?.type === 'Identifier' && value.name === name) return getKeyName(prop.key);
   }
   return null;
 }
@@ -1317,6 +1320,9 @@ function extractElementAnnotation(node, scope, depth) {
       switch (name) {
         case 'Array': case 'ReadonlyArray':
         case 'Set': case 'ReadonlySet':
+        case 'Iterable': case 'IterableIterator': case 'Iterator':
+        case 'AsyncIterable': case 'AsyncIterableIterator': case 'AsyncIterator':
+        case 'Generator': case 'AsyncGenerator':
           return node.typeParameters?.params[0] ?? null;
         default: {
           const decl = findTypeDeclaration(name, scope);
@@ -1621,25 +1627,20 @@ function parseTypeGuard(testNode, varName) {
   return null;
 }
 
+const EXIT_STATEMENTS = new Set(['BreakStatement', 'ContinueStatement', 'ReturnStatement', 'ThrowStatement']);
+
 function blockAlwaysExits(block) {
-  if (block.isReturnStatement() || block.isThrowStatement()
-    || block.isContinueStatement() || block.isBreakStatement()) return true;
+  if (EXIT_STATEMENTS.has(block.node.type)) return true;
   if (block.isBlockStatement()) {
     const body = block.get('body');
-    if (!body.length) return false;
-    const last = body[body.length - 1];
-    return last.isReturnStatement() || last.isThrowStatement()
-      || last.isContinueStatement() || last.isBreakStatement();
+    return body.length > 0 && EXIT_STATEMENTS.has(body[body.length - 1].node.type);
   }
   return false;
 }
 
 function canFallThrough($case) {
   const { consequent } = $case;
-  if (!consequent.length) return true;
-  const last = consequent[consequent.length - 1];
-  return last.type !== 'BreakStatement' && last.type !== 'ReturnStatement'
-    && last.type !== 'ThrowStatement' && last.type !== 'ContinueStatement';
+  return !consequent.length || !EXIT_STATEMENTS.has(consequent[consequent.length - 1].type);
 }
 
 // flatten a && b && c when condition is true, or a || b || c when condition is false
@@ -1709,15 +1710,24 @@ function findSwitchCaseGuards(current, varName) {
   if (!isTypeofVar(switchStmt.node.discriminant, varName)) return null;
   const { cases } = switchStmt.node;
   const caseIndex = cases.indexOf(switchCase.node);
-  // bail if a preceding case can fall through to this one - narrowing would be unsound
-  if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return null;
   const caseTest = switchCase.node.test;
   // specific case: typeof value is known
   if (caseTest?.type === 'StringLiteral') {
-    return [{ kind: 'typeof', value: caseTest.value, positive: true, negated: false }];
+    // collect fall-through predecessors into a typeof-or group
+    const values = new Set([caseTest.value]);
+    for (let i = caseIndex - 1; i >= 0; i--) {
+      if (!canFallThrough(cases[i])) break;
+      // bail if default or non-string test in the fall-through chain
+      if (cases[i].test?.type !== 'StringLiteral') return null;
+      values.add(cases[i].test.value);
+    }
+    if (values.size === 1) return [{ kind: 'typeof', value: caseTest.value, positive: true, negated: false }];
+    return [{ kind: 'typeof-or', values, negated: false, positive: true }];
   }
   // default case: none of the explicit cases matched -> negative guards for each
   if (caseTest === null) {
+    // bail if a preceding case can fall through to default - negative guards would be unsound
+    if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return null;
     const guards = [];
     for (const $case of cases) {
       if ($case.test?.type === 'StringLiteral') {
