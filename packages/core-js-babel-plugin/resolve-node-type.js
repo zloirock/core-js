@@ -1574,13 +1574,21 @@ function narrowByGuards(candidates, guards) {
   return result;
 }
 
-function resolveTypeGuardNarrowing(path) {
+// shared prologue: find guards for an identifier binding
+function findGuardsForBinding(path) {
   if (!path.isIdentifier()) return null;
   const { name } = path.node;
   const binding = path.scope.getBinding(name);
   if (!binding) return null;
   const guards = findEnclosingTypeGuards(path, name);
   if (!guards) return null;
+  return { binding, guards };
+}
+
+function resolveTypeGuardNarrowing(path) {
+  const info = findGuardsForBinding(path);
+  if (!info) return null;
+  const { binding, guards } = info;
   const annotation = findBindingAnnotation(binding.path);
   if (annotation) {
     // narrow union type annotation by guards
@@ -1612,6 +1620,20 @@ function toHint(type) {
   return type.constructor?.toLowerCase() ?? null;
 }
 
+// collect excluded type hints from negative guards when no annotation and no positive narrowing
+function resolveExcludedHints(path) {
+  const info = findGuardsForBinding(path);
+  if (!info) return null;
+  const { binding, guards } = info;
+  if (findBindingAnnotation(binding.path) || guards.some(g => g.positive)) return null;
+  const excluded = new Set();
+  for (const guard of guards) {
+    const hint = toHint(resolveGuardType(guard));
+    if (hint) excluded.add(hint);
+  }
+  return excluded.size ? excluded : null;
+}
+
 function isString(path) {
   const it = resolveNodeType(path);
   return it?.type === 'string' || it?.constructor === 'String';
@@ -1621,4 +1643,4 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, toHint, isString, isObject };
+module.exports = { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, resolveExcludedHints, toHint, isString, isObject };
