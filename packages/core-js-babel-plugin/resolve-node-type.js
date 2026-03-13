@@ -1332,13 +1332,21 @@ function findExpressionAnnotation(path) {
   return null;
 }
 
-// detect for-of context and return the iterable's type annotation
-function findForOfAnnotation(bindingPath) {
+// traverse from a binding to its enclosing for-in/for-of statement (if any)
+// binding must be a VariableDeclarator without init, declared in the loop header
+function findForLoopParent(bindingPath) {
   if (!bindingPath.isVariableDeclarator() || bindingPath.node.init) return null;
   const declarationPath = bindingPath.parentPath;
   if (!declarationPath?.isVariableDeclaration()) return null;
-  const forOfPath = declarationPath.parentPath;
-  if (!forOfPath?.isForOfStatement() || forOfPath.node.left !== declarationPath.node) return null;
+  const forPath = declarationPath.parentPath;
+  if (!forPath || forPath.node.left !== declarationPath.node) return null;
+  return forPath;
+}
+
+// detect for-of context and return the iterable's type annotation
+function findForOfAnnotation(bindingPath) {
+  const forOfPath = findForLoopParent(bindingPath);
+  if (!forOfPath?.isForOfStatement()) return null;
   return findExpressionAnnotation(forOfPath.get('right'));
 }
 
@@ -1407,6 +1415,8 @@ function resolveBindingType(path) {
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
   const typeAnnotation = findBindingAnnotation(bindingPath);
   if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
+  // for-in: iteration variable is always a string per ECMAScript spec
+  if (findForLoopParent(bindingPath)?.isForInStatement()) return new $Primitive('string');
   // for-of: infer element type from the iterable's annotation
   const forOfInfo = findForOfAnnotation(bindingPath);
   if (forOfInfo) return resolveElementType(forOfInfo.annotation, forOfInfo.scope, 0);
