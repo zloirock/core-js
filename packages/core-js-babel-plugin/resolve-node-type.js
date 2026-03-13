@@ -28,6 +28,25 @@ const PRIMITIVE_WRAPPERS = Object.assign(Object.create(null), {
   symbol: 'Symbol',
 });
 
+const TYPEOF_HINT_GROUPS = Object.assign(Object.create(null), {
+  string: new Set(['string']),
+  number: new Set(['number']),
+  boolean: new Set(['boolean']),
+  bigint: new Set(['bigint']),
+  symbol: new Set(['symbol']),
+  function: new Set(['function']),
+  // lack of boxed primitives - acceptable assumption
+  object: new Set([
+    'array',
+    'date',
+    'object',
+    'promise',
+    'regexp',
+    'iterator',
+    'asynciterator',
+  ]),
+});
+
 const {
   globalMethods: KNOWN_GLOBAL_METHOD_RETURN_TYPES,
   globalProperties: KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
@@ -1620,18 +1639,60 @@ function toHint(type) {
   return type.constructor?.toLowerCase() ?? null;
 }
 
-// collect excluded type hints from negative guards when no annotation and no positive narrowing
-function resolveExcludedHints(path) {
+// intersect a whitelist set with the hints of a typeof group
+// if included is null, returns a fresh copy of the group's hints
+function intersectTypeofGroup(included, typeofValue) {
+  const group = TYPEOF_HINT_GROUPS[typeofValue];
+  if (!included) return new Set(group);
+  for (const hint of included) if (!group.has(hint)) included.delete(hint);
+  return included;
+}
+
+// collect type hints to include/exclude from typeof / instanceof guards when no annotation
+// returns { includedHints: Set } for positive typeof (whitelist, future-proof)
+// or { excludedHints: Set } for negative-only guards (blacklist)
+// or null when no hints can be determined
+function resolveGuardHints(path) {
   const info = findGuardsForBinding(path);
   if (!info) return null;
   const { binding, guards } = info;
-  if (findBindingAnnotation(binding.path) || guards.some(g => g.positive)) return null;
+  if (findBindingAnnotation(binding.path)) return null;
+  // bail if any positive guard resolves to a concrete type (already handled by resolveTypeGuardNarrowing)
+  if (guards.some(g => g.positive && resolveGuardType(g))) return null;
+
+  // check for positive typeof guards -> use whitelist approach
+  // whitelist is future-proof: unknown future hints are excluded by default
+  let included = null;
+  for (const guard of guards) {
+    if (!guard.positive || guard.kind !== 'typeof' || !hasOwn(TYPEOF_HINT_GROUPS, guard.value)) continue;
+    included = intersectTypeofGroup(included, guard.value);
+  }
+
+  if (included) {
+    // subtract negative guards from the whitelist
+    for (const guard of guards) {
+      if (guard.positive) continue;
+      if (guard.kind === 'typeof' && hasOwn(TYPEOF_HINT_GROUPS, guard.value)) {
+        for (const hint of TYPEOF_HINT_GROUPS[guard.value]) included.delete(hint);
+      } else {
+        const hint = toHint(resolveGuardType(guard));
+        if (hint) included.delete(hint);
+      }
+    }
+    return included.size ? { includedHints: included } : null;
+  }
+
+  // no positive typeof -> use blacklist approach (conservative: unknown future hints are included)
   const excluded = new Set();
   for (const guard of guards) {
-    const hint = toHint(resolveGuardType(guard));
-    if (hint) excluded.add(hint);
+    if (guard.kind === 'typeof' && !guard.positive && hasOwn(TYPEOF_HINT_GROUPS, guard.value)) {
+      for (const hint of TYPEOF_HINT_GROUPS[guard.value]) excluded.add(hint);
+    } else if (!guard.positive) {
+      const hint = toHint(resolveGuardType(guard));
+      if (hint) excluded.add(hint);
+    }
   }
-  return excluded.size ? excluded : null;
+  return excluded.size ? { excludedHints: excluded } : null;
 }
 
 function isString(path) {
@@ -1643,4 +1704,4 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, resolveExcludedHints, toHint, isString, isObject };
+module.exports = { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, resolveGuardHints, toHint, isString, isObject };
