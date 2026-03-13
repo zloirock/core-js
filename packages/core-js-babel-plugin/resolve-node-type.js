@@ -1147,6 +1147,20 @@ function resolveCallReturnType(callee) {
   return resolved.isFunction() ? resolveReturnType(resolved, callee.parentPath) : null;
 }
 
+// find the original property key name for a destructured variable
+// e.g. const { foo: bar } = obj -> findDestructuredKeyName(pattern, 'bar') -> 'foo'
+// e.g. const { foo } = obj -> findDestructuredKeyName(pattern, 'foo') -> 'foo'
+function findDestructuredKeyName(objectPattern, name) {
+  for (const prop of objectPattern.properties) {
+    if (prop.type !== 'ObjectProperty') continue;
+    const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+    if (value?.type === 'Identifier' && value.name === name) {
+      return prop.key?.type === 'Identifier' ? prop.key.name : null;
+    }
+  }
+  return null;
+}
+
 function resolveDestructuredType(objectPattern, name, scope) {
   const type = unwrapTypeAnnotation(objectPattern.typeAnnotation);
   if (!type) return null;
@@ -1155,16 +1169,7 @@ function resolveDestructuredType(objectPattern, name, scope) {
     : type.type === 'ObjectTypeAnnotation' ? type.properties
     : null;
   if (!members) return null;
-  // find the property key matching the destructured variable
-  let keyName;
-  for (const prop of objectPattern.properties) {
-    if (prop.type !== 'ObjectProperty') continue;
-    const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-    if (value?.type === 'Identifier' && value.name === name) {
-      keyName = prop.key?.type === 'Identifier' ? prop.key.name : null;
-      break;
-    }
-  }
+  const keyName = findDestructuredKeyName(objectPattern, name);
   if (!keyName) return null;
   for (const member of members) {
     if (member.key?.type !== 'Identifier' || member.key.name !== keyName) continue;
@@ -1376,6 +1381,23 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   return null;
 }
 
+function resolveObjectBinding(objectPattern, varName, bindingPath) {
+  // annotation on the pattern: const { items }: { items: number[] } = ...
+  if (objectPattern.typeAnnotation) {
+    return resolveDestructuredType(objectPattern, varName, bindingPath.scope);
+  }
+  // resolve from runtime init expression (e.g. object literal)
+  // const { name } = { name: 'alice' } or const { name } = obj where obj = { name: 'alice' }
+  if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
+    const keyName = findDestructuredKeyName(objectPattern, varName);
+    if (keyName) {
+      const initPath = resolvePath(bindingPath.get('init'));
+      if (initPath.isObjectExpression()) return resolveObjectMember(initPath, keyName);
+    }
+  }
+  return null;
+}
+
 function findDestructuringPattern(bindingPath, type) {
   if (bindingPath.node.type === type) return bindingPath.node;
   if (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === type) return bindingPath.node.id;
@@ -1397,7 +1419,8 @@ function resolveBindingType(path) {
         return new $Object('Object');
       }
     }
-    if (objectPattern.typeAnnotation) return resolveDestructuredType(objectPattern, name, bindingPath.scope);
+    const result = resolveObjectBinding(objectPattern, name, bindingPath);
+    if (result) return result;
   }
   // destructured array
   const arrayPattern = findDestructuringPattern(bindingPath, 'ArrayPattern');
