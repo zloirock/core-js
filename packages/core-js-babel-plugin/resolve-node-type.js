@@ -631,6 +631,7 @@ function resolveNodeTypeExpression(path) {
     case 'MemberExpression':
     case 'OptionalMemberExpression':
       return resolveFromMemberExpression(path)
+        || resolveArrayIndexAccess(path)
         || resolveKnownPropertyReturnType(path)
         || resolveGlobalStaticReference(path)
         || resolveKnownGlobalReference(path);
@@ -1069,6 +1070,18 @@ function resolveFromMemberExpression(path, callPath) {
   const ctx = resolveClassContext(objectPath);
   if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
   return resolveTypedMember(objectPath, name, callPath);
+}
+
+// arr[0], arr[1] — numeric index access on array literals
+function resolveArrayIndexAccess(path) {
+  if (!path.node.computed) return null;
+  const resolvedProp = resolvePath(path.get('property'));
+  if (resolvedProp.node?.type !== 'NumericLiteral') return null;
+  const index = resolvedProp.node.value;
+  if (!Number.isInteger(index) || index < 0) return null;
+  const objectPath = resolvePath(path.get('object'));
+  if (!objectPath.isArrayExpression()) return null;
+  return resolveArrayLiteralElement(objectPath, index);
 }
 
 function typeFromHint(hint) {
