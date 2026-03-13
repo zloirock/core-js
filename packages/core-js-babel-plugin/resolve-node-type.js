@@ -435,7 +435,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
         const resolved = resolveTypeAnnotation(member, scope, depth + 1);
         if (!resolved) return null;
         // skip nullable / never types in unions: T | null | undefined | never -> T
-        if (isUnion && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
+        if (isUnion && isNullableOrNever(resolved)) continue;
         if (result && !typesEqual(result, resolved)) return null;
         result = resolved;
       }
@@ -511,6 +511,10 @@ function resolveMemberPropertyName(path) {
 
 function typesEqual(a, b) {
   return a.type === b.type && a.constructor === b.constructor;
+}
+
+function isNullableOrNever(resolved) {
+  return resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never';
 }
 
 function resolveUnionType(leftPath, rightPath) {
@@ -892,7 +896,7 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     for (const member of node.types) {
       const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
       if (!resolved) return null;
-      if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
+      if (isNullableOrNever(resolved)) continue;
       if (result && !typesEqual(result, resolved)) return null;
       result = resolved;
     }
@@ -1199,7 +1203,7 @@ function resolveElementType(node, scope, depth) {
         const actual = elem.type === 'TSNamedTupleMember' ? elem.elementType : elem;
         const resolved = resolveTypeAnnotation(actual, scope, depth + 1);
         if (!resolved) return null;
-        if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
+        if (isNullableOrNever(resolved)) continue;
         if (result && !typesEqual(result, resolved)) return null;
         result = resolved;
       }
@@ -1236,7 +1240,7 @@ function resolveElementType(node, scope, depth) {
       let result = null;
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member, scope, depth + 1);
-        if (resolved && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
+        if (resolved && isNullableOrNever(resolved)) continue;
         const elemType = resolveElementType(member, scope, depth + 1);
         if (!elemType) return null;
         if (result && !typesEqual(result, elemType)) return null;
@@ -1290,7 +1294,7 @@ function extractElementAnnotation(node, scope, depth) {
       let result = null;
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member, scope, depth + 1);
-        if (resolved && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
+        if (resolved && isNullableOrNever(resolved)) continue;
         if (result) return null; // multiple non-null collection members -> ambiguous
         result = extractElementAnnotation(member, scope, depth + 1);
         if (!result) return null;
@@ -1303,20 +1307,13 @@ function extractElementAnnotation(node, scope, depth) {
 
 // resolve the type of a variable destructured from an ArrayPattern
 function resolveArrayPatternBinding(arrayPattern, varName, annotation, scope) {
-  const { elements } = arrayPattern;
-  if (!elements) return null;
+  const index = findPatternIndex(arrayPattern, varName);
+  if (index < 0) return null;
   const unwrapped = unwrapTypeAnnotation(annotation);
   if (!unwrapped) return null;
-  for (let i = 0; i < elements.length; i++) {
-    const element = elements[i];
-    if (!element || element.type === 'RestElement') continue;
-    const id = element.type === 'AssignmentPattern' ? element.left : element;
-    if (id?.type !== 'Identifier' || id.name !== varName) continue;
-    const tupleElem = findTupleElement(unwrapped, i, scope);
-    if (tupleElem) return resolveTypeAnnotation(tupleElem, scope);
-    return resolveElementType(unwrapped, scope, 0);
-  }
-  return null;
+  const tupleElem = findTupleElement(unwrapped, index, scope);
+  if (tupleElem) return resolveTypeAnnotation(tupleElem, scope);
+  return resolveElementType(unwrapped, scope, 0);
 }
 
 // find the raw type annotation of an expression (follows bindings and const chains)
@@ -1348,11 +1345,60 @@ function findForLoopParent(bindingPath) {
   return forPath;
 }
 
-// check if a path resolves to a runtime string value (literal or variable holding a literal)
-// used for inferring iteration element type: iterating a string yields individual characters
-function resolveRuntimeString(path) {
-  const resolved = resolveNodeType(resolvePath(path));
-  return resolved?.primitive && resolved.type === 'string' ? new $Primitive('string') : null;
+// find the index of a variable in an ArrayPattern, accounting for holes and defaults
+function findPatternIndex(arrayPattern, varName) {
+  const { elements } = arrayPattern;
+  if (!elements) return -1;
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    if (!element || element.type === 'RestElement') continue;
+    const id = element.type === 'AssignmentPattern' ? element.left : element;
+    if (id?.type === 'Identifier' && id.name === varName) return i;
+  }
+  return -1;
+}
+
+// resolve the type of a specific element in an ArrayExpression by index
+// arrayPath must already be a resolved ArrayExpression path
+function resolveArrayLiteralElement(arrayPath, index) {
+  const { elements } = arrayPath.node;
+  if (index < 0 || index >= elements.length) return null;
+  // bail if any spread at or before target index — positions become unpredictable
+  for (let i = 0; i <= index; i++) {
+    if (elements[i]?.type === 'SpreadElement') return null;
+  }
+  if (!elements[index]) return null; // hole
+  return resolveNodeType(arrayPath.get(`elements.${ index }`));
+}
+
+// resolve common element type from an ArrayExpression if all elements share the same type
+// arrayPath must already be a resolved ArrayExpression path
+function resolveArrayLiteralCommonType(arrayPath) {
+  const { elements } = arrayPath.node;
+  if (elements.length === 0) return null;
+  let common = null;
+  for (let i = 0; i < elements.length; i++) {
+    // bail on holes and spreads — can't determine element types
+    if (!elements[i] || elements[i].type === 'SpreadElement') return null;
+    const resolved = resolveNodeType(arrayPath.get(`elements.${ i }`));
+    if (!resolved) return null;
+    if (!common) {
+      common = resolved;
+    } else if (!typesEqual(common, resolved)) {
+      return null; // mixed types
+    }
+  }
+  return common;
+}
+
+// resolve element type from a runtime iterable (follows variables via resolvePath)
+// handles: string literals (chars) and homogeneous array literals (common element type)
+function resolveRuntimeIterableElement(path) {
+  const resolved = resolvePath(path);
+  const nodeType = resolveNodeType(resolved);
+  if (nodeType?.primitive && nodeType.type === 'string') return new $Primitive('string');
+  if (resolved.isArrayExpression()) return resolveArrayLiteralCommonType(resolved);
+  return null;
 }
 
 function findBindingAnnotation(bindingPath) {
@@ -1363,6 +1409,12 @@ function findBindingAnnotation(bindingPath) {
 
 // resolve array destructuring from any annotation source: pattern, init, or for-of iterable
 function resolveArrayBinding(arrayPattern, varName, bindingPath) {
+  // array rest: const [a, ...rest] = items -> rest is always Array
+  for (const element of arrayPattern.elements || []) {
+    if (element?.type === 'RestElement' && element.argument?.type === 'Identifier' && element.argument.name === varName) {
+      return new $Object('Array');
+    }
+  }
   // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
   if (arrayPattern.typeAnnotation) {
     return resolveArrayPatternBinding(arrayPattern, varName, arrayPattern.typeAnnotation, bindingPath.scope);
@@ -1371,9 +1423,19 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
     const initInfo = findExpressionAnnotation(bindingPath.get('init'));
     if (initInfo) return resolveArrayPatternBinding(arrayPattern, varName, initInfo.annotation, initInfo.scope);
-    // runtime init: const [a] = 'hello' or const [a] = str where str = 'hello'
-    const runtimeString = resolveRuntimeString(bindingPath.get('init'));
-    if (runtimeString) return runtimeString;
+    // runtime init: resolve through variables to the actual value
+    const initPath = resolvePath(bindingPath.get('init'));
+    const initType = resolveNodeType(initPath);
+    // string → iterating yields individual characters: const [a] = 'hello'
+    if (initType?.primitive && initType.type === 'string') return new $Primitive('string');
+    // array literal → resolve element by index: const [a, b] = ['hello', 42]
+    if (initPath.isArrayExpression()) {
+      const index = findPatternIndex(arrayPattern, varName);
+      if (index >= 0) {
+        const elemType = resolveArrayLiteralElement(initPath, index);
+        if (elemType) return elemType;
+      }
+    }
   }
   // for-of iterable: for (const [a] of typedArr)
   const forOfPath = findForLoopParent(bindingPath);
@@ -1384,14 +1446,20 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
       const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
       if (elemAnnotation) return resolveArrayPatternBinding(arrayPattern, varName, elemAnnotation, annotationInfo.scope);
     }
-    // runtime: for (const [a] of 'hello') or for (const [a] of str) where str = 'hello'
-    const runtimeString = resolveRuntimeString(forOfPath.get('right'));
-    if (runtimeString) return runtimeString;
+    // runtime: for (const [a] of 'hello') or for (const [a] of ['x', 'y'])
+    const runtimeType = resolveRuntimeIterableElement(forOfPath.get('right'));
+    if (runtimeType) return runtimeType;
   }
   return null;
 }
 
 function resolveObjectBinding(objectPattern, varName, bindingPath) {
+  // object rest: const { a, ...rest } = obj -> rest is always Object
+  for (const prop of objectPattern.properties) {
+    if (prop.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === varName) {
+      return new $Object('Object');
+    }
+  }
   // annotation on the pattern: const { items }: { items: number[] } = ...
   if (objectPattern.typeAnnotation) {
     return resolveDestructuredType(objectPattern, varName, bindingPath.scope);
@@ -1408,40 +1476,22 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
   return null;
 }
 
-function findDestructuringPattern(bindingPath, type) {
-  if (bindingPath.node.type === type) return bindingPath.node;
-  if (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === type) return bindingPath.node.id;
-  return null;
-}
-
 function resolveBindingType(path) {
   if (!path.isIdentifier()) return null;
   const binding = path.scope.getBinding(path.node.name);
   if (!binding) return null;
   const { path: bindingPath } = binding;
   const { name } = path.node;
-  // destructured object
-  const objectPattern = findDestructuringPattern(bindingPath, 'ObjectPattern');
+  const { node } = bindingPath;
+  // destructured object: for (const { a } of ...) or const { a } = ...
+  const objectPattern = node.type === 'ObjectPattern' ? node : node.id?.type === 'ObjectPattern' ? node.id : null;
   if (objectPattern) {
-    // object rest: const { a, ...rest } = obj -> rest is always Object
-    for (const prop of objectPattern.properties) {
-      if (prop.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === name) {
-        return new $Object('Object');
-      }
-    }
     const result = resolveObjectBinding(objectPattern, name, bindingPath);
     if (result) return result;
   }
-  // destructured array
-  const arrayPattern = findDestructuringPattern(bindingPath, 'ArrayPattern');
+  // destructured array: for (const [a] of ...) or const [a] = ...
+  const arrayPattern = node.type === 'ArrayPattern' ? node : node.id?.type === 'ArrayPattern' ? node.id : null;
   if (arrayPattern) {
-    // array rest: const [a, ...rest] = items -> rest is always Array
-    for (const element of arrayPattern.elements || []) {
-      if (element?.type === 'RestElement') {
-        const restId = element.argument?.type === 'Identifier' ? element.argument : null;
-        if (restId && restId.name === name) return new $Object('Array');
-      }
-    }
     const result = resolveArrayBinding(arrayPattern, name, bindingPath);
     if (result) return result;
   }
@@ -1458,9 +1508,9 @@ function resolveBindingType(path) {
       // try type annotation on the iterable
       const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
       if (annotationInfo) return resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
-      // try runtime resolution: for (const ch of 'hello') -> element is string
-      const runtimeString = resolveRuntimeString(forLoopParent.get('right'));
-      if (runtimeString) return runtimeString;
+      // try runtime resolution: for (const ch of 'hello') or for (const s of ['a', 'b'])
+      const runtimeType = resolveRuntimeIterableElement(forLoopParent.get('right'));
+      if (runtimeType) return runtimeType;
     }
   }
   return null;
@@ -1675,7 +1725,7 @@ function narrowByGuards(candidates, guards) {
   let result = null;
   for (const resolved of candidates) {
     if (!resolved) continue;
-    if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
+    if (isNullableOrNever(resolved)) continue;
     if (!guards.every(guard => matchesGuard(resolved, guard) === guard.positive)) continue;
     if (result && !typesEqual(result, resolved)) return null;
     result = resolved;
