@@ -1348,11 +1348,11 @@ function findForLoopParent(bindingPath) {
   return forPath;
 }
 
-// detect for-of context and return the iterable's type annotation
-function findForOfAnnotation(bindingPath) {
-  const forOfPath = findForLoopParent(bindingPath);
-  if (!forOfPath?.isForOfStatement()) return null;
-  return findExpressionAnnotation(forOfPath.get('right'));
+// check if a path resolves to a runtime string value (literal or variable holding a literal)
+// used for inferring iteration element type: iterating a string yields individual characters
+function resolveRuntimeString(path) {
+  const resolved = resolveNodeType(resolvePath(path));
+  return resolved?.primitive && resolved.type === 'string' ? new $Primitive('string') : null;
 }
 
 function findBindingAnnotation(bindingPath) {
@@ -1371,12 +1371,22 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
     const initInfo = findExpressionAnnotation(bindingPath.get('init'));
     if (initInfo) return resolveArrayPatternBinding(arrayPattern, varName, initInfo.annotation, initInfo.scope);
+    // runtime init: const [a] = 'hello' or const [a] = str where str = 'hello'
+    const runtimeString = resolveRuntimeString(bindingPath.get('init'));
+    if (runtimeString) return runtimeString;
   }
-  // for-of iterable annotation: for (const [a] of typedArr)
-  const forOfInfo = findForOfAnnotation(bindingPath);
-  if (forOfInfo) {
-    const elemAnnotation = extractElementAnnotation(forOfInfo.annotation, forOfInfo.scope, 0);
-    if (elemAnnotation) return resolveArrayPatternBinding(arrayPattern, varName, elemAnnotation, forOfInfo.scope);
+  // for-of iterable: for (const [a] of typedArr)
+  const forOfPath = findForLoopParent(bindingPath);
+  if (forOfPath?.isForOfStatement()) {
+    // try type annotation on the iterable
+    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+    if (annotationInfo) {
+      const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+      if (elemAnnotation) return resolveArrayPatternBinding(arrayPattern, varName, elemAnnotation, annotationInfo.scope);
+    }
+    // runtime: for (const [a] of 'hello') or for (const [a] of str) where str = 'hello'
+    const runtimeString = resolveRuntimeString(forOfPath.get('right'));
+    if (runtimeString) return runtimeString;
   }
   return null;
 }
@@ -1438,11 +1448,21 @@ function resolveBindingType(path) {
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
   const typeAnnotation = findBindingAnnotation(bindingPath);
   if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
-  // for-in: iteration variable is always a string per ECMAScript spec
-  if (findForLoopParent(bindingPath)?.isForInStatement()) return new $Primitive('string');
-  // for-of: infer element type from the iterable's annotation
-  const forOfInfo = findForOfAnnotation(bindingPath);
-  if (forOfInfo) return resolveElementType(forOfInfo.annotation, forOfInfo.scope, 0);
+  // for-in / for-of
+  const forLoopParent = findForLoopParent(bindingPath);
+  if (forLoopParent) {
+    // for-in: iteration variable is always a string per ECMAScript spec
+    if (forLoopParent.isForInStatement()) return new $Primitive('string');
+    // for-of: infer element type from the iterable
+    if (forLoopParent.isForOfStatement()) {
+      // try type annotation on the iterable
+      const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
+      if (annotationInfo) return resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
+      // try runtime resolution: for (const ch of 'hello') -> element is string
+      const runtimeString = resolveRuntimeString(forLoopParent.get('right'));
+      if (runtimeString) return runtimeString;
+    }
+  }
   return null;
 }
 
