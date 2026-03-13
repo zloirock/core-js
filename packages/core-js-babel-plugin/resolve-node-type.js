@@ -458,6 +458,9 @@ function resolvePath(path) {
     if (!binding || !binding.constant) break;
     const { path: bindingPath } = binding;
     if (bindingPath.isVariableDeclarator()) {
+      // don't follow destructured bindings — the init is the whole collection, not the individual element
+      const { id } = bindingPath.node;
+      if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') break;
       const init = bindingPath.get('init');
       if (init.node) {
         path = init;
@@ -1152,10 +1155,203 @@ function resolveDestructuredType(objectPattern, name, scope) {
   return null;
 }
 
+// resolve the element type of a collection from its type annotation
+function resolveElementType(node, scope, depth) {
+  if (depth > MAX_DEPTH) return null;
+  node = unwrapTypeAnnotation(node);
+  if (!node) return null;
+  switch (node.type) {
+    // string[] → element type
+    case 'TSArrayType':
+    case 'ArrayTypeAnnotation':
+      return resolveTypeAnnotation(node.elementType, scope, depth + 1);
+    // [string, number] → common element type if all same
+    case 'TSTupleType':
+    case 'TupleTypeAnnotation': {
+      const elements = node.elementTypes;
+      if (!elements?.length) return null;
+      let result = null;
+      for (const elem of elements) {
+        const actual = elem.type === 'TSNamedTupleMember' ? elem.elementType : elem;
+        const resolved = resolveTypeAnnotation(actual, scope, depth + 1);
+        if (!resolved) return null;
+        if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
+        if (result && !typesEqual(result, resolved)) return null;
+        result = resolved;
+      }
+      return result;
+    }
+    // Array<T>, Set<T>, Map<K,V>, user type aliases
+    case 'TSTypeReference':
+    case 'GenericTypeAnnotation': {
+      const name = typeRefName(node);
+      if (!name) return null;
+      const params = node.typeParameters?.params;
+      switch (name) {
+        case 'Array': case 'ReadonlyArray':
+        case 'Set': case 'ReadonlySet':
+          return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
+        case 'Map': case 'ReadonlyMap':
+          return new $Object('Array');
+        default: {
+          const decl = findTypeDeclaration(name, scope);
+          if (decl?.type === 'TSTypeAliasDeclaration') return resolveElementType(decl.typeAnnotation, scope, depth + 1);
+          return null;
+        }
+      }
+    }
+    // iterating a string yields characters (strings)
+    case 'TSStringKeyword':
+    case 'StringTypeAnnotation':
+      return new $Primitive('string');
+    // union: strip null/undefined, check remaining
+    case 'TSUnionType':
+    case 'UnionTypeAnnotation': {
+      const { types } = node;
+      if (!types?.length) return null;
+      let result = null;
+      for (const member of types) {
+        const resolved = resolveTypeAnnotation(member, scope, depth + 1);
+        if (resolved && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
+        const elemType = resolveElementType(member, scope, depth + 1);
+        if (!elemType) return null;
+        if (result && !typesEqual(result, elemType)) return null;
+        result = elemType;
+      }
+      return result;
+    }
+    // transparent wrappers: readonly T[], (T[])
+    case 'TSTypeOperator':
+      return node.operator !== 'keyof' ? resolveElementType(node.typeAnnotation, scope, depth + 1) : null;
+    case 'TSParenthesizedType':
+    case 'NullableTypeAnnotation':
+      return resolveElementType(node.typeAnnotation, scope, depth + 1);
+  }
+  return null;
+}
+
+// extract the raw element annotation node (not resolved) from a collection type
+function extractElementAnnotation(node, scope, depth) {
+  if (depth > MAX_DEPTH) return null;
+  node = unwrapTypeAnnotation(node);
+  if (!node) return null;
+  switch (node.type) {
+    case 'TSArrayType':
+    case 'ArrayTypeAnnotation':
+      return node.elementType;
+    case 'TSTypeReference':
+    case 'GenericTypeAnnotation': {
+      const name = typeRefName(node);
+      if (!name) return null;
+      switch (name) {
+        case 'Array': case 'ReadonlyArray':
+        case 'Set': case 'ReadonlySet':
+          return node.typeParameters?.params[0] ?? null;
+        default: {
+          const decl = findTypeDeclaration(name, scope);
+          if (decl?.type === 'TSTypeAliasDeclaration') return extractElementAnnotation(decl.typeAnnotation, scope, depth + 1);
+          return null;
+        }
+      }
+    }
+    case 'TSTypeOperator':
+      return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
+    case 'TSParenthesizedType':
+    case 'NullableTypeAnnotation':
+      return extractElementAnnotation(node.typeAnnotation, scope, depth + 1);
+    case 'TSUnionType':
+    case 'UnionTypeAnnotation': {
+      const { types } = node;
+      if (!types?.length) return null;
+      let result = null;
+      for (const member of types) {
+        const resolved = resolveTypeAnnotation(member, scope, depth + 1);
+        if (resolved && (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never')) continue;
+        if (result) return null; // multiple non-null collection members → ambiguous
+        result = extractElementAnnotation(member, scope, depth + 1);
+        if (!result) return null;
+      }
+      return result;
+    }
+  }
+  return null;
+}
+
+// resolve the type of a variable destructured from an ArrayPattern
+function resolveArrayPatternBinding(arrayPattern, varName, annotation, scope) {
+  const { elements } = arrayPattern;
+  if (!elements) return null;
+  const unwrapped = unwrapTypeAnnotation(annotation);
+  if (!unwrapped) return null;
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    if (!element) continue;
+    if (element.type === 'RestElement') {
+      const restId = element.argument?.type === 'AssignmentPattern' ? element.argument.left : element.argument;
+      if (restId?.type === 'Identifier' && restId.name === varName) return new $Object('Array');
+      continue;
+    }
+    const id = element.type === 'AssignmentPattern' ? element.left : element;
+    if (id?.type !== 'Identifier' || id.name !== varName) continue;
+    const tupleElem = findTupleElement(unwrapped, i, scope);
+    if (tupleElem) return resolveTypeAnnotation(tupleElem, scope);
+    return resolveElementType(unwrapped, scope, 0);
+  }
+  return null;
+}
+
+// find the raw type annotation of an expression (follows bindings and const chains)
+function findExpressionAnnotation(path) {
+  if (path.node.type === 'TSAsExpression' || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
+    return { annotation: path.node.typeAnnotation, scope: path.scope };
+  }
+  if (path.isIdentifier()) {
+    const binding = path.scope.getBinding(path.node.name);
+    if (!binding) return null;
+    const annotation = findBindingAnnotation(binding.path);
+    if (annotation) return { annotation, scope: binding.path.scope };
+    if (binding.constant && binding.path.isVariableDeclarator()) {
+      const init = binding.path.get('init');
+      if (init.node) return findExpressionAnnotation(init);
+    }
+  }
+  return null;
+}
+
+// detect for-of context and return the iterable's type annotation
+function findForOfAnnotation(bindingPath) {
+  if (!bindingPath.isVariableDeclarator() || bindingPath.node.init) return null;
+  const declarationPath = bindingPath.parentPath;
+  if (!declarationPath?.isVariableDeclaration()) return null;
+  const forOfPath = declarationPath.parentPath;
+  if (!forOfPath?.isForOfStatement() || forOfPath.node.left !== declarationPath.node) return null;
+  return findExpressionAnnotation(forOfPath.get('right'));
+}
+
 function findBindingAnnotation(bindingPath) {
   return bindingPath.node.typeAnnotation
     || (bindingPath.isVariableDeclarator() && bindingPath.node.id?.typeAnnotation)
     || (bindingPath.isAssignmentPattern() && bindingPath.node.left?.typeAnnotation);
+}
+
+// resolve array destructuring from any annotation source: pattern, init, or for-of iterable
+function resolveArrayBinding(arrayPattern, varName, bindingPath) {
+  // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
+  if (arrayPattern.typeAnnotation) {
+    return resolveArrayPatternBinding(arrayPattern, varName, arrayPattern.typeAnnotation, bindingPath.scope);
+  }
+  // annotation on the init expression: const [a] = typedArr
+  if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
+    const initInfo = findExpressionAnnotation(bindingPath.get('init'));
+    if (initInfo) return resolveArrayPatternBinding(arrayPattern, varName, initInfo.annotation, initInfo.scope);
+  }
+  // for-of iterable annotation: for (const [a] of typedArr)
+  const forOfInfo = findForOfAnnotation(bindingPath);
+  if (forOfInfo) {
+    const elemAnnotation = extractElementAnnotation(forOfInfo.annotation, forOfInfo.scope, 0);
+    if (elemAnnotation) return resolveArrayPatternBinding(arrayPattern, varName, elemAnnotation, forOfInfo.scope);
+  }
+  return null;
 }
 
 function resolveBindingType(path) {
@@ -1163,14 +1359,26 @@ function resolveBindingType(path) {
   const binding = path.scope.getBinding(path.node.name);
   if (!binding) return null;
   const { path: bindingPath } = binding;
-  // destructured: function foo({ x }: { x: T }) or const { x }: { x: T } = ...
+  // destructured object: function foo({ x }: { x: T }) or const { x }: { x: T } = ...
   const objectPattern = bindingPath.isObjectPattern() ? bindingPath.node
     : (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === 'ObjectPattern') ? bindingPath.node.id
     : null;
   if (objectPattern?.typeAnnotation) return resolveDestructuredType(objectPattern, path.node.name, bindingPath.scope);
+  // destructured array: all annotation sources handled by resolveArrayBinding
+  const arrayPattern = bindingPath.isArrayPattern() ? bindingPath.node
+    : (bindingPath.isVariableDeclarator() && bindingPath.node.id?.type === 'ArrayPattern') ? bindingPath.node.id
+    : null;
+  if (arrayPattern) {
+    const result = resolveArrayBinding(arrayPattern, path.node.name, bindingPath);
+    if (result) return result;
+  }
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
   const typeAnnotation = findBindingAnnotation(bindingPath);
-  return typeAnnotation ? resolveTypeAnnotation(typeAnnotation, bindingPath.scope) : null;
+  if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
+  // for-of: infer element type from the iterable's annotation
+  const forOfInfo = findForOfAnnotation(bindingPath);
+  if (forOfInfo) return resolveElementType(forOfInfo.annotation, forOfInfo.scope, 0);
+  return null;
 }
 
 function matchesGuard(resolved, guard) {
