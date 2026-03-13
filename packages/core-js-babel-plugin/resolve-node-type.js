@@ -1555,22 +1555,16 @@ function findEnclosingTypeGuards(path, varName) {
   return guards.length ? guards : null;
 }
 
-function narrowUnionByGuards(annotation, guards, scope) {
-  let union = unwrapTypeAnnotation(annotation);
-  if (!union) return null;
-  if (union.type === 'TSTypeReference' || union.type === 'GenericTypeAnnotation') {
-    const refName = typeRefName(union);
-    if (refName) {
-      const decl = findTypeDeclaration(refName, scope);
-      if (decl?.type === 'TSTypeAliasDeclaration') union = unwrapTypeAnnotation(decl.typeAnnotation);
-    }
-  }
-  if (!union || (union.type !== 'TSUnionType' && union.type !== 'UnionTypeAnnotation')) return null;
-  const { types } = union;
-  if (!types?.length) return null;
+// resolve the type a guard implies: typeof 'string' -> $Primitive('string'), instanceof Array -> $Object('Array')
+function resolveGuardType(guard) {
+  if (guard.kind === 'typeof') return PRIMITIVES.has(guard.value) ? new $Primitive(guard.value) : null;
+  return resolveKnownConstructor(guard.constructorName);
+}
+
+// filter candidate types by guards, return the unique surviving type or null
+function narrowByGuards(candidates, guards) {
   let result = null;
-  for (const member of types) {
-    const resolved = resolveTypeAnnotation(member, scope);
+  for (const resolved of candidates) {
     if (!resolved) continue;
     if (resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never') continue;
     if (!guards.every(guard => matchesGuard(resolved, guard) === guard.positive)) continue;
@@ -1585,11 +1579,27 @@ function resolveTypeGuardNarrowing(path) {
   const { name } = path.node;
   const binding = path.scope.getBinding(name);
   if (!binding) return null;
-  const annotation = findBindingAnnotation(binding.path);
-  if (!annotation) return null;
   const guards = findEnclosingTypeGuards(path, name);
   if (!guards) return null;
-  return narrowUnionByGuards(annotation, guards, binding.path.scope);
+  const annotation = findBindingAnnotation(binding.path);
+  if (annotation) {
+    // narrow union type annotation by guards
+    const { scope } = binding.path;
+    let union = unwrapTypeAnnotation(annotation);
+    if (union?.type === 'TSTypeReference' || union?.type === 'GenericTypeAnnotation') {
+      const refName = typeRefName(union);
+      if (refName) {
+        const decl = findTypeDeclaration(refName, scope);
+        if (decl?.type === 'TSTypeAliasDeclaration') union = unwrapTypeAnnotation(decl.typeAnnotation);
+      }
+    }
+    if (union?.type !== 'TSUnionType' && union?.type !== 'UnionTypeAnnotation') return null;
+    const { types } = union;
+    if (!types?.length) return null;
+    return narrowByGuards(types.map(member => resolveTypeAnnotation(member, scope)), guards);
+  }
+  // no annotation: resolve type directly from positive guards
+  return narrowByGuards(guards.filter(g => g.positive).map(resolveGuardType), guards);
 }
 
 function resolveNodeType(path) {
