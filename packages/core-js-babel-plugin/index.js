@@ -6,7 +6,15 @@ const compatData = require('@core-js/compat/data.json');
 const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
-const { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, toHint, isString, isObject } = require('./resolve-node-type');
+const {
+  POSSIBLE_GLOBAL_PROXIES,
+  resolveGlobalName,
+  resolveNodeType,
+  resolveExcludedHints,
+  toHint,
+  isString,
+  isObject,
+} = require('./resolve-node-type');
 const createASTHelpers = require('./ast-helpers');
 
 const defaultCoreJSPackages = ['core-js'];
@@ -42,7 +50,7 @@ function descHasTypeHints(desc) {
 }
 
 function resolveHint(desc, meta) {
-  const { placement, object } = meta;
+  const { placement, object, excludedHints } = meta;
   const hint = String(object).toLowerCase();
 
   if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
@@ -51,11 +59,13 @@ function resolveHint(desc, meta) {
     return descHasTypeHints(desc) ? null : hasOwn(desc, 'common') ? desc.common : null;
   }
 
-  if (hasOwn(desc, 'common')) return desc.common;
+  // when hints are excluded by negative guards, skip common and use type-specific entries
+  if (!excludedHints && hasOwn(desc, 'common')) return desc.common;
 
-  // no common — merge all type hint dependencies
+  // merge type hint dependencies, skipping excluded hints from negative guards
   const hintDescs = [];
   for (const $hint of TYPE_HINTS) {
+    if (excludedHints?.has($hint)) continue;
     if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
   }
   if (hasOwn(desc, 'rest')) hintDescs.push(desc.rest);
@@ -75,9 +85,16 @@ function enhanceMeta(meta, path, desc) {
   if (meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
   if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return meta;
   const hint = toHint(resolveNodeType(path.get('object')));
-  if (!hint) return meta;
-  if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
-  return descHasTypeHints(desc) ? null : meta;
+  if (hint) {
+    if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
+    return descHasTypeHints(desc) ? null : meta;
+  }
+  // no type resolved — check for negative type guards to exclude specific hints
+  if (descHasTypeHints(desc)) {
+    const excluded = resolveExcludedHints(path.get('object'));
+    if (excluded) return { ...meta, excludedHints: excluded };
+  }
+  return meta;
 }
 
 function canTransformDestructuring(path) {
