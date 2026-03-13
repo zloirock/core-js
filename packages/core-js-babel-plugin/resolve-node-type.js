@@ -91,7 +91,7 @@ function constantBindingPath(name, scope) {
 
 function resolveTypeQuery(node, scope) {
   const { exprName } = node;
-  // typeof obj.prop — qualified name (one level deep)
+  // typeof obj.prop - qualified name (one level deep)
   if (exprName?.type === 'TSQualifiedName') {
     const { left, right } = exprName;
     if (left.type !== 'Identifier' || right.type !== 'Identifier') return null;
@@ -302,7 +302,7 @@ function resolveNamedType(name, node, scope, depth) {
     case 'Capitalize':
     case 'Uncapitalize':
       return new $Primitive('string');
-    // well-known utility types — resolve type parameter
+    // well-known utility types - resolve type parameter
     case 'NonNullable':
       return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
     case 'Awaited': {
@@ -315,7 +315,7 @@ function resolveNamedType(name, node, scope, depth) {
       }
       return resolveTypeAnnotation(param, scope, depth + 1);
     }
-    // well-known utility types — resolve via function return type
+    // well-known utility types - resolve via function return type
     case 'ReturnType':
       return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
     case 'InstanceType': {
@@ -388,18 +388,19 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     case 'TSConstructorType':
     case 'FunctionTypeAnnotation':
       return new $Object('Function');
-    // TS / Flow named types — only well-known built-ins and utility types
+    // TS / Flow named types - only well-known built-ins and utility types
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
       if (name) return resolveNamedType(name, node, scope, depth);
       return null;
     }
-    // transparent wrappers — unwrap and resolve the inner type
+    // transparent wrappers - unwrap and resolve the inner type
+    case 'TSOptionalType':
     case 'TSParenthesizedType':
     case 'NullableTypeAnnotation':
       return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
-    // TS type operator: `readonly T[]`, `unique symbol` — but NOT `keyof T`
+    // TS type operator: `readonly T[]`, `unique symbol` - but NOT `keyof T`
     case 'TSTypeOperator':
       if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
       return null;
@@ -412,7 +413,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     // TS type predicate: `x is string` -> boolean
     case 'TSTypePredicate':
       return new $Primitive('boolean');
-    // TS conditional type: T extends U ? X : Y — resolve if both branches have the same type, or one is `never`
+    // TS conditional type: T extends U ? X : Y - resolve if both branches have the same type, or one is `never`
     case 'TSConditionalType': {
       const trueResolved = resolveTypeAnnotation(node.trueType, scope, depth + 1);
       const falseResolved = resolveTypeAnnotation(node.falseType, scope, depth + 1);
@@ -422,7 +423,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
       if (falseResolved?.type === 'never') return trueResolved;
       return null;
     }
-    // TS / Flow union and intersection — resolve if all (non-nullable for unions) members have the same type
+    // TS / Flow union and intersection - resolve if all (non-nullable for unions) members have the same type
     case 'TSUnionType':
     case 'UnionTypeAnnotation':
     case 'TSIntersectionType':
@@ -477,7 +478,7 @@ function resolvePath(path) {
     if (!binding || !binding.constant) break;
     const { path: bindingPath } = binding;
     if (bindingPath.isVariableDeclarator()) {
-      // don't follow destructured bindings — the init is the whole collection, not the individual element
+      // don't follow destructured bindings - the init is the whole collection, not the individual element
       const { id } = bindingPath.node;
       if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') break;
       const init = bindingPath.get('init');
@@ -763,9 +764,9 @@ function resolveParamType(binding, fnPath, callPath) {
       continue;
     }
     if (params[i] !== binding.path.node) continue;
-    // argument provided at call site — resolve its type
+    // argument provided at call site - resolve its type
     if (i < args.length) return resolveNodeType(args[i]);
-    // no argument — resolve from the default value
+    // no argument - resolve from the default value
     if (params[i].type === 'AssignmentPattern') return resolveNodeType(fnPath.get('params')[i].get('right'));
     return null;
   }
@@ -845,6 +846,7 @@ function hasTypeParamReference(node, typeParamNames, depth) {
       }
       return false;
     case 'TSTypeOperator':
+    case 'TSOptionalType':
     case 'TSParenthesizedType':
     case 'NullableTypeAnnotation':
       return hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
@@ -857,7 +859,7 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
   const typeParamMap = new Map();
   const args = callPath.get('arguments');
   const { params } = fnPath.node;
-  // phase 1: direct matching — param annotation is exactly T
+  // phase 1: direct matching - param annotation is exactly T
   for (let i = 0; i < params.length && i < args.length; i++) {
     if (params[i].type === 'RestElement') continue;
     const paramAnnotation = unwrapTypeAnnotation(params[i].typeAnnotation);
@@ -891,7 +893,7 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     if (name) return resolveNamedType(name, node, scope, depth);
     return null;
   }
-  // union: T | null, T | undefined — strip nullable, substitute T
+  // union: T | null, T | undefined - strip nullable, substitute T
   if (node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation') {
     let result = null;
     for (const member of node.types) {
@@ -903,7 +905,7 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     }
     return result;
   }
-  // intersection: T & { extra: boolean } — skip plain $Object('Object') from type literals, rest must agree
+  // intersection: T & { extra: boolean } - skip plain $Object('Object') from type literals, rest must agree
   if (node.type === 'TSIntersectionType' || node.type === 'IntersectionTypeAnnotation') {
     let result = null;
     for (const member of node.types) {
@@ -917,11 +919,11 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     return result;
   }
   // transparent wrappers: (T), T?, readonly T[], etc.
-  if (node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation'
+  if (node.type === 'TSOptionalType' || node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation'
     || (node.type === 'TSTypeOperator' && node.operator !== 'keyof')) {
     return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1);
   }
-  // T[] or [T, U] — resolve to Array regardless of element type
+  // T[] or [T, U] - resolve to Array regardless of element type
   if (node.type === 'TSArrayType' || node.type === 'TSTupleType'
     || node.type === 'ArrayTypeAnnotation' || node.type === 'TupleTypeAnnotation') return new $Object('Array');
   // fallback to regular annotation resolution
@@ -959,7 +961,7 @@ function resolveReturnType(fnPath, callPath) {
 function resolveThisClass(path) {
   let current = path;
   while (current = current.parentPath) {
-    // direct child of ClassBody — this is a class member
+    // direct child of ClassBody - this is a class member
     if (current.parentPath?.isClassBody()) {
       const classPath = current.parentPath.parentPath;
       if (classPath?.isClass()) return { classPath, isStatic: !!current.node.static };
@@ -972,9 +974,9 @@ function resolveThisClass(path) {
 }
 
 function resolveClassContext(objectPath) {
-  // Foo.staticProp — object is the class itself
+  // Foo.staticProp - object is the class itself
   if (objectPath.isClass()) return { classPath: objectPath, isStatic: true };
-  // new Foo().prop — object is a class instance
+  // new Foo().prop - object is a class instance
   if (objectPath.isNewExpression()) {
     const cls = resolvePath(objectPath.get('callee'));
     if (cls.isClass()) return { classPath: cls, isStatic: false };
@@ -998,14 +1000,21 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
   const member = findClassMember(classPath, name, isStatic);
   if (!member) return null;
   // method call: foo.bar()
-  if (callPath) return member.isClassMethod() ? resolveReturnType(member, callPath) : null;
+  if (callPath) {
+    if (member.isClassMethod()) return resolveReturnType(member, callPath);
+    if (member.isClassProperty() || member.isClassAccessorProperty()) {
+      const value = member.get('value');
+      if (value.node && value.isFunction()) return resolveReturnType(value, callPath);
+    }
+    return null;
+  }
   // property access: foo.bar
   if (member.isClassProperty() || member.isClassAccessorProperty()) {
     if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation, member.scope);
     const value = member.get('value');
     return value.node ? resolveNodeType(value) : null;
   }
-  // getter — resolve its return type
+  // getter - resolve its return type
   if (member.isClassMethod() && member.node.kind === 'get') return resolveReturnType(member);
   return null;
 }
@@ -1032,7 +1041,7 @@ function resolveObjectMember(objectPath, name, callPath) {
   }
   // property access: obj.foo
   if (prop.isObjectProperty()) return resolveNodeType(prop.get('value'));
-  // getter — resolve its return type
+  // getter - resolve its return type
   if (prop.isObjectMethod() && prop.node.kind === 'get') return resolveReturnType(prop);
   return null;
 }
@@ -1072,7 +1081,7 @@ function resolveFromMemberExpression(path, callPath) {
   return resolveTypedMember(objectPath, name, callPath);
 }
 
-// arr[0], arr[1] — numeric index access on array literals
+// arr[0], arr[1] - numeric index access on array literals
 function resolveArrayIndexAccess(path) {
   if (!path.node.computed) return null;
   const resolvedProp = resolvePath(path.get('property'));
@@ -1159,7 +1168,7 @@ function resolveCallReturnType(callee) {
       || resolveKnownStaticReturnType(callee)
       || resolveKnownMethodReturnType(callee);
   }
-  // direct call: foo() — or IIFE: (() => expr)()
+  // direct call: foo() - or IIFE: (() => expr)()
   const resolved = resolvePath(callee);
   return resolved.isFunction() ? resolveReturnType(resolved, callee.parentPath) : null;
 }
@@ -1264,6 +1273,7 @@ function resolveElementType(node, scope, depth) {
     // transparent wrappers: readonly T[], (T[])
     case 'TSTypeOperator':
       return node.operator !== 'keyof' ? resolveElementType(node.typeAnnotation, scope, depth + 1) : null;
+    case 'TSOptionalType':
     case 'TSParenthesizedType':
     case 'NullableTypeAnnotation':
       return resolveElementType(node.typeAnnotation, scope, depth + 1);
@@ -1297,6 +1307,7 @@ function extractElementAnnotation(node, scope, depth) {
     }
     case 'TSTypeOperator':
       return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
+    case 'TSOptionalType':
     case 'TSParenthesizedType':
     case 'NullableTypeAnnotation':
       return extractElementAnnotation(node.typeAnnotation, scope, depth + 1);
@@ -1376,7 +1387,7 @@ function findPatternIndex(arrayPattern, varName) {
 function resolveArrayLiteralElement(arrayPath, index) {
   const { elements } = arrayPath.node;
   if (index < 0 || index >= elements.length) return null;
-  // bail if any spread at or before target index — positions become unpredictable
+  // bail if any spread at or before target index - positions become unpredictable
   for (let i = 0; i <= index; i++) {
     if (elements[i]?.type === 'SpreadElement') return null;
   }
@@ -1391,7 +1402,7 @@ function resolveArrayLiteralCommonType(arrayPath) {
   if (elements.length === 0) return null;
   let common = null;
   for (let i = 0; i < elements.length; i++) {
-    // bail on holes and spreads — can't determine element types
+    // bail on holes and spreads - can't determine element types
     if (!elements[i] || elements[i].type === 'SpreadElement') return null;
     const resolved = resolveNodeType(arrayPath.get(`elements.${ i }`));
     if (!resolved) return null;
@@ -1601,6 +1612,14 @@ function blockAlwaysExits(block) {
   return false;
 }
 
+function canFallThrough($case) {
+  const { consequent } = $case;
+  if (!consequent.length) return true;
+  const last = consequent[consequent.length - 1];
+  return last.type !== 'BreakStatement' && last.type !== 'ReturnStatement'
+    && last.type !== 'ThrowStatement' && last.type !== 'ContinueStatement';
+}
+
 // flatten a && b && c when condition is true, or a || b || c when condition is false
 // only flattens the matching operator; mixed operators stay as opaque nodes
 function flattenCondition(node, operator) {
@@ -1640,7 +1659,7 @@ function parseGuardsFromCondition(testNode, conditionTrue, varName) {
   return guards;
 }
 
-// if / ternary / && / || — unified: parse guards from condition, determine polarity
+// if / ternary / && / || - unified: parse guards from condition, determine polarity
 function findConditionalGuards(current, varName) {
   const parent = current.parentPath;
   if (!parent) return [];
@@ -1666,6 +1685,10 @@ function findSwitchCaseGuards(current, varName) {
   const switchStmt = switchCase.parentPath;
   if (!switchStmt?.isSwitchStatement()) return null;
   if (!isTypeofVar(switchStmt.node.discriminant, varName)) return null;
+  const { cases } = switchStmt.node;
+  const caseIndex = cases.indexOf(switchCase.node);
+  // bail if a preceding case can fall through to this one - narrowing would be unsound
+  if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return null;
   const caseTest = switchCase.node.test;
   // specific case: typeof value is known
   if (caseTest?.type === 'StringLiteral') {
@@ -1674,7 +1697,7 @@ function findSwitchCaseGuards(current, varName) {
   // default case: none of the explicit cases matched -> negative guards for each
   if (caseTest === null) {
     const guards = [];
-    for (const $case of switchStmt.node.cases) {
+    for (const $case of cases) {
       if ($case.test?.type === 'StringLiteral') {
         guards.push({ kind: 'typeof', value: $case.test.value, positive: false, negated: false });
       }
