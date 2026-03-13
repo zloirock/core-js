@@ -94,7 +94,7 @@ function enhanceMeta(meta, path, desc) {
     if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
     return descHasTypeHints(desc) ? null : meta;
   }
-  // no type resolved — check for type guards to include/exclude specific hints
+  // no type resolved - check for type guards to include/exclude specific hints
   if (descHasTypeHints(desc)) {
     const hints = resolveGuardHints(path.get('object'));
     if (hints) return { ...meta, ...hints };
@@ -106,7 +106,7 @@ function canTransformDestructuring(path) {
   const objectPattern = path.parentPath;
   const destructParent = objectPattern.parentPath;
   if (destructParent.isVariableDeclarator()) {
-    // for-in/for-of: value comes from iteration, not from init — can't polyfill
+    // for-in/for-of: value comes from iteration, not from init - can't polyfill
     if (!destructParent.node.init) return false;
     // insertBefore in for-loop init wraps in IIFE, breaking variable scope
     if (objectPattern.node.properties.length > 1 && destructParent.parentPath.parentPath.isForStatement()) return false;
@@ -294,12 +294,12 @@ module.exports = defineProvider(({
           const staticResolved = resolve({ kind: 'property', object: objectName, key: meta.key, placement: 'static' });
           if (staticResolved && staticResolved.kind === 'static' && hasOwn(staticResolved.desc, 'global')) {
             resolved = staticResolved;
-          } else return; // known object, key is not a polyfilled static — skip
+          } else return; // known object, key is not a polyfilled static - skip
         }
       }
       if (!resolved || !hasOwn(resolved.desc, 'global')) return;
       // when a property is accessed through a global proxy (e.g. globalThis.Error),
-      // the framework skips processing the proxy identifier — inject its polyfill here
+      // the framework skips processing the proxy identifier - inject its polyfill here
       // TODO: fix it on @babel/helper-define-polyfill-provider side
       // https://github.com/babel/babel-polyfills/pull/252
       if (meta.kind === 'property' && POSSIBLE_GLOBAL_PROXIES.has(meta.object)) {
@@ -347,7 +347,7 @@ module.exports = defineProvider(({
         if (path.isObjectProperty()) {
           // destructuring: const { from } = Array
           if (!t.isIdentifier(path.node.value)) return;
-          // can't extract property when rest element is present — would change rest semantics
+          // can't extract property when rest element is present - would change rest semantics
           if (path.parentPath.node.properties.some(p => t.isRestElement(p))) return;
         } else {
           if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
