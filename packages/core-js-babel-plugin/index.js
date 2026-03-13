@@ -10,7 +10,7 @@ const {
   POSSIBLE_GLOBAL_PROXIES,
   resolveGlobalName,
   resolveNodeType,
-  resolveExcludedHints,
+  resolveGuardHints,
   toHint,
   isString,
   isObject,
@@ -50,7 +50,7 @@ function descHasTypeHints(desc) {
 }
 
 function resolveHint(desc, meta) {
-  const { placement, object, excludedHints } = meta;
+  const { placement, object, excludedHints, includedHints } = meta;
   const hint = String(object).toLowerCase();
 
   if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
@@ -59,16 +59,21 @@ function resolveHint(desc, meta) {
     return descHasTypeHints(desc) ? null : hasOwn(desc, 'common') ? desc.common : null;
   }
 
-  // when hints are excluded by negative guards, skip common and use type-specific entries
-  if (!excludedHints && hasOwn(desc, 'common')) return desc.common;
+  // when hints are filtered by type guards, skip common and use type-specific entries
+  if (!excludedHints && !includedHints && hasOwn(desc, 'common')) return desc.common;
 
-  // merge type hint dependencies, skipping excluded hints from negative guards
+  // merge type hint dependencies, skipping filtered hints
   const hintDescs = [];
   for (const $hint of TYPE_HINTS) {
     if (excludedHints?.has($hint)) continue;
+    if (includedHints && !includedHints.has($hint)) continue;
     if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
   }
-  if (hasOwn(desc, 'rest')) hintDescs.push(desc.rest);
+  // with whitelist: include rest only if some included hint has no explicit desc entry
+  // with blacklist or no filter: always include rest (conservative)
+  if (hasOwn(desc, 'rest') && (!includedHints || [...includedHints].some($hint => !hasOwn(desc, $hint)))) {
+    hintDescs.push(desc.rest);
+  }
 
   if (hintDescs.length === 1) return hintDescs[0];
 
@@ -89,10 +94,10 @@ function enhanceMeta(meta, path, desc) {
     if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
     return descHasTypeHints(desc) ? null : meta;
   }
-  // no type resolved — check for negative type guards to exclude specific hints
+  // no type resolved — check for type guards to include/exclude specific hints
   if (descHasTypeHints(desc)) {
-    const excluded = resolveExcludedHints(path.get('object'));
-    if (excluded) return { ...meta, excludedHints: excluded };
+    const hints = resolveGuardHints(path.get('object'));
+    if (hints) return { ...meta, ...hints };
   }
   return meta;
 }
