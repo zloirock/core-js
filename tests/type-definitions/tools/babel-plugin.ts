@@ -16,9 +16,9 @@ plugin({}, { method: 'usage-global', mode: 'es' }, '/path');
 plugin({}, { method: 'usage-global', mode: 'stable' }, '/path');
 plugin({}, { method: 'usage-global', mode: 'full' }, '/path');
 
-plugin({}, { method: 'usage-global', pkg: 'core-js' }, '/path');
-plugin({}, { method: 'usage-pure', pkg: '@core-js/pure' }, '/path');
-plugin({}, { method: 'usage-global', pkgs: ['my-core-js'] }, '/path');
+plugin({}, { method: 'usage-global', package: 'core-js' }, '/path');
+plugin({}, { method: 'usage-pure', package: '@core-js/pure' }, '/path');
+plugin({}, { method: 'usage-global', additionalPackages: ['my-core-js'] }, '/path');
 
 plugin({}, { method: 'usage-global', targets: { chrome: '80' } }, '/path');
 plugin({}, { method: 'usage-global', targets: { chrome: '80', firefox: 72 } }, '/path');
@@ -50,6 +50,8 @@ plugin({}, {
   method: 'usage-global',
   version: '4.0',
   mode: 'actual',
+  package: 'my-core-js',
+  additionalPackages: ['@x/y'],
   targets: {
     chrome: '80',
     node: 'current',
@@ -107,10 +109,10 @@ plugin({}, { method: 'usage-global', targets: 123 }, '/path');
 plugin({}, { method: 'usage-global', version: 4 }, '/path');
 // @ts-expect-error — debug must be a boolean
 plugin({}, { method: 'usage-global', debug: 'yes' }, '/path');
-// @ts-expect-error — pkg must be a string
-plugin({}, { method: 'usage-global', pkg: 123 }, '/path');
-// @ts-expect-error — pkgs must be a string array
-plugin({}, { method: 'usage-global', pkgs: [123] }, '/path');
+// @ts-expect-error — package must be a string
+plugin({}, { method: 'usage-global', package: 123 }, '/path');
+// @ts-expect-error — additionalPackages must be a string array
+plugin({}, { method: 'usage-global', additionalPackages: [123] }, '/path');
 // @ts-expect-error — include must be an array
 plugin({}, { method: 'usage-global', include: 'es.array.push' }, '/path');
 // @ts-expect-error — exclude must be an array
