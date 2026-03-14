@@ -18,9 +18,7 @@ $({ global: true, forced: true }, {
     var options = arguments[1];
     var timeout;
     if (options && options.timeout !== undefined) timeout = +options.timeout;
-    if (timeout <= 0)
-      return nativeRequestIdleCallback(callback);
-    else
-      return nativeRequestIdleCallback(callback, { timeout: timeout });
+    if (timeout <= 0) return nativeRequestIdleCallback(callback);
+    return nativeRequestIdleCallback(callback, { timeout: timeout });
   }
 });
