@@ -1,5 +1,4 @@
 'use strict';
-var globalThis = require('../internals/global-this');
 var $ = require('../internals/export');
 
 var $IdleDeadline = require('../internals/idle-callbacks').deadline;
