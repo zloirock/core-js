@@ -206,13 +206,12 @@ function findTypeDeclaration(name, scope) {
   return null;
 }
 
-function resolveTypeParameter(name, scope, depth) {
-  if (!scope) return null;
+function findTypeParameter(name, scope) {
   let currentScope = scope;
   while (currentScope) {
     const params = currentScope.block.typeParameters?.params;
     if (params) for (const param of params) {
-      if (param.name === name) return param.constraint ? resolveTypeAnnotation(param.constraint, currentScope, depth + 1) : null;
+      if (param.name === name) return { constraint: param.constraint, scope: currentScope };
     }
     currentScope = currentScope.parent;
   }
@@ -274,6 +273,9 @@ function resolveKnownConstructor(name) {
 }
 
 function resolveUserDefinedType(name, scope, depth) {
+  // type parameters shadow type declarations with the same name
+  const typeParam = findTypeParameter(name, scope);
+  if (typeParam) return typeParam.constraint ? resolveTypeAnnotation(typeParam.constraint, typeParam.scope, depth + 1) : null;
   const decl = findTypeDeclaration(name, scope);
   if (decl) {
     if (decl.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(decl.typeAnnotation, scope, depth + 1);
@@ -290,7 +292,7 @@ function resolveUserDefinedType(name, scope, depth) {
       return new $Object('Object');
     }
   }
-  return resolveTypeParameter(name, scope, depth);
+  return null;
 }
 
 function getTypeMembers(objectType, scope, depth = 0) {
@@ -1109,7 +1111,7 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
   if (callPath) {
     if (member.isClassMethod()) return resolveReturnType(member, callPath);
     if (member.isClassProperty() || member.isClassAccessorProperty()) {
-      const value = member.get('value');
+      const value = resolveRuntimeExpression(member.get('value'));
       if (value.node && value.isFunction()) return resolveReturnType(value, callPath);
     }
     return null;
@@ -1139,7 +1141,7 @@ function resolveObjectMember(objectPath, name, callPath) {
   if (callPath) {
     if (prop.isObjectMethod()) return resolveReturnType(prop, callPath);
     if (prop.isObjectProperty()) {
-      const value = prop.get('value');
+      const value = resolveRuntimeExpression(prop.get('value'));
       if (value.isFunction()) return resolveReturnType(value, callPath);
     }
     return null;
@@ -1605,7 +1607,8 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
   if (isRestBinding(objectPattern.properties, varName)) return new $Object('Object');
   // annotation on the pattern: const { items }: { items: number[] } = ...
   if (objectPattern.typeAnnotation) {
-    return resolveDestructuredType(objectPattern, varName, bindingPath.scope);
+    const result = resolveDestructuredType(objectPattern, varName, bindingPath.scope);
+    if (result) return result;
   }
   const keyName = findDestructuredKeyName(objectPattern, varName);
   if (!keyName) return null;
