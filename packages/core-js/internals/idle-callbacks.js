@@ -156,6 +156,7 @@ exports.request = function requestIdleCallback(callback) {
 exports.cancel = function cancelIdleCallback(handle) {
   validateArgumentsLength(arguments.length, 1);
   handle = +handle;
+  if ($isNaN(handle)) { return; }
   delete sharedStore.__idleCallbackMap[handle];
   if (sharedStore.__timeoutHandles[handle] !== undefined) {
     clearTimeout(sharedStore.__timeoutHandles[handle]);
