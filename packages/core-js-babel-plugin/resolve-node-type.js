@@ -121,6 +121,20 @@ function typeRefName(node) {
   return id?.type === 'Identifier' ? id.name : null;
 }
 
+// follow type alias chain: type A = type B = ... until non-alias or non-reference found
+function followTypeAliasChain(node, scope) {
+  let depth = MAX_DEPTH;
+  node = unwrapTypeAnnotation(node);
+  while (depth-- && (node?.type === 'TSTypeReference' || node?.type === 'GenericTypeAnnotation')) {
+    const refName = typeRefName(node);
+    if (!refName) break;
+    const decl = findTypeDeclaration(refName, scope);
+    if (decl?.type !== 'TSTypeAliasDeclaration') break;
+    node = unwrapTypeAnnotation(decl.typeAnnotation);
+  }
+  return node;
+}
+
 function constantBindingPath(name, scope) {
   if (!scope) return null;
   const binding = scope.getBinding(name);
@@ -1321,8 +1335,7 @@ function resolveElementType(node, scope, depth) {
       const params = node.typeParameters?.params;
       if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
       if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
-      const decl = findTypeDeclaration(name, scope);
-      return decl?.type === 'TSTypeAliasDeclaration' ? resolveElementType(decl.typeAnnotation, scope, depth + 1) : null;
+      return resolveUserTypeElement(name, scope, depth, resolveElementType);
     }
     // iterating a string yields characters (strings)
     case 'TSStringKeyword':
@@ -1355,6 +1368,21 @@ function resolveElementType(node, scope, depth) {
   return null;
 }
 
+// follow user-defined type aliases and interface extends chain using a parameterized resolver
+function resolveUserTypeElement(name, scope, depth, resolver) {
+  const decl = findTypeDeclaration(name, scope);
+  if (decl?.type === 'TSTypeAliasDeclaration') return resolver(decl.typeAnnotation, scope, depth + 1);
+  if (decl?.type !== 'TSInterfaceDeclaration' || !decl.extends?.length) return null;
+  for (const parent of decl.extends) {
+    const expr = parent.expression ?? parent;
+    if (expr.type !== 'Identifier') continue;
+    const parentRef = { type: 'TSTypeReference', typeName: expr, typeParameters: parent.typeParameters };
+    const result = resolver(parentRef, scope, depth + 1);
+    if (result) return result;
+  }
+  return null;
+}
+
 // extract the raw element annotation node (not resolved) from a collection type
 function extractElementAnnotation(node, scope, depth) {
   if (depth > MAX_DEPTH) return null;
@@ -1369,8 +1397,7 @@ function extractElementAnnotation(node, scope, depth) {
       const name = typeRefName(node);
       if (!name) return null;
       if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return node.typeParameters?.params[0] ?? null;
-      const decl = findTypeDeclaration(name, scope);
-      return decl?.type === 'TSTypeAliasDeclaration' ? extractElementAnnotation(decl.typeAnnotation, scope, depth + 1) : null;
+      return resolveUserTypeElement(name, scope, depth, extractElementAnnotation);
     }
     case 'TSTypeOperator':
       return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
@@ -1901,14 +1928,7 @@ function resolveTypeGuardNarrowing(path) {
   if (annotation) {
     // narrow union type annotation by guards
     const { scope } = binding.path;
-    let union = unwrapTypeAnnotation(annotation);
-    if (union?.type === 'TSTypeReference' || union?.type === 'GenericTypeAnnotation') {
-      const refName = typeRefName(union);
-      if (refName) {
-        const decl = findTypeDeclaration(refName, scope);
-        if (decl?.type === 'TSTypeAliasDeclaration') union = unwrapTypeAnnotation(decl.typeAnnotation);
-      }
-    }
+    const union = followTypeAliasChain(annotation, scope);
     if (union?.type !== 'TSUnionType' && union?.type !== 'UnionTypeAnnotation') return null;
     const { types } = union;
     if (!types?.length) return null;
