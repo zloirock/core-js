@@ -1,7 +1,7 @@
 /* eslint no-underscore-dangle: 0 -- internal vars use sharedStore.__ for private state */
 'use strict';
 var aCallable = require('./a-callable');
-var anObjectOrUndefined = require(./an-object-or-undefined');
+var anObjectOrUndefined = require('./an-object-or-undefined');
 var aNumber = require('./a-number');
 var validateArgumentsLength = require('./validate-arguments-length');
 var uncurryThis = require('./function-uncurry-this');
