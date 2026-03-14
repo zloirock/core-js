@@ -370,20 +370,57 @@ function resolveExtractExclude(first, second, scope, depth, keep) {
   return result;
 }
 
-function resolveReturnTypeFromTypeQuery(param, scope) {
+// resolve a member of an object/class binding to its runtime value path
+function resolveMemberValuePath(bindingPath, name) {
+  let containerPath;
+  if (bindingPath.isVariableDeclarator()) {
+    containerPath = resolveRuntimeExpression(bindingPath.get('init'));
+  } else if (bindingPath.isClassDeclaration()) {
+    containerPath = bindingPath;
+  }
+  if (!containerPath?.node) return null;
+  if (containerPath.isObjectExpression()) {
+    const prop = findObjectMember(containerPath, name);
+    if (!prop) return null;
+    if (prop.isObjectProperty()) return resolveRuntimeExpression(prop.get('value'));
+    if (prop.isObjectMethod()) return prop;
+  }
+  if (containerPath.isClass()) {
+    const member = findClassMember(containerPath, name, true);
+    if (!member) return null;
+    if (member.isClassMethod()) return member;
+    if (member.isClassProperty() || member.isClassAccessorProperty()) {
+      const value = member.get('value');
+      return value.node ? resolveRuntimeExpression(value) : null;
+    }
+  }
+  return null;
+}
+
+// resolve TSTypeQuery (typeof x or typeof x.y) to the runtime path of the target
+function resolveTypeQueryBinding(param, scope) {
   if (param.type !== 'TSTypeQuery') return null;
   const { exprName } = param;
+  if (exprName?.type === 'TSQualifiedName') {
+    const { left, right } = exprName;
+    if (left.type !== 'Identifier' || right.type !== 'Identifier') return null;
+    const bindingPath = constantBindingPath(left.name, scope);
+    return bindingPath ? resolveMemberValuePath(bindingPath, right.name) : null;
+  }
   if (exprName?.type !== 'Identifier') return null;
   const bindingPath = constantBindingPath(exprName.name, scope);
   if (!bindingPath) return null;
-  let fnPath;
-  if (bindingPath.isFunctionDeclaration()) {
-    fnPath = bindingPath;
-  } else if (bindingPath.isVariableDeclarator()) {
-    const init = resolveRuntimeExpression(bindingPath.get('init'));
-    if (init.isFunction()) fnPath = init;
+  if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return bindingPath;
+  if (bindingPath.isVariableDeclarator()) {
+    const init = bindingPath.get('init');
+    return init.node ? resolveRuntimeExpression(init) : null;
   }
-  return fnPath ? resolveReturnType(fnPath) : null;
+  return null;
+}
+
+function resolveReturnTypeFromTypeQuery(param, scope) {
+  const resolved = resolveTypeQueryBinding(param, scope);
+  return resolved?.isFunction() ? resolveReturnType(resolved) : null;
 }
 
 function resolveNamedType(name, node, scope, depth) {
@@ -426,16 +463,9 @@ function resolveNamedType(name, node, scope, depth) {
       return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
     case 'InstanceType': {
       const param = node.typeParameters?.params[0];
-      if (!param || param.type !== 'TSTypeQuery') return null;
-      const { exprName } = param;
-      if (exprName?.type !== 'Identifier') return null;
-      const bindingPath = constantBindingPath(exprName.name, scope);
-      if (!bindingPath) return null;
-      if (bindingPath.isClassDeclaration()) return resolveClassInheritance(bindingPath) || new $Object('Object');
-      if (bindingPath.isVariableDeclarator()) {
-        const init = resolveRuntimeExpression(bindingPath.get('init'));
-        if (init.isClass()) return resolveClassInheritance(init) || new $Object('Object');
-      }
+      if (!param) return null;
+      const resolved = resolveTypeQueryBinding(param, scope);
+      if (resolved?.isClass()) return resolveClassInheritance(resolved) || new $Object('Object');
       return null;
     }
     case 'Extract':
