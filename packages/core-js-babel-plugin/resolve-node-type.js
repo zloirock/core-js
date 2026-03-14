@@ -420,10 +420,10 @@ function resolveNamedType(name, node, scope, depth) {
       if (exprName?.type !== 'Identifier') return null;
       const bindingPath = constantBindingPath(exprName.name, scope);
       if (!bindingPath) return null;
-      if (bindingPath.isClassDeclaration()) return new $Object(null);
+      if (bindingPath.isClassDeclaration()) return resolveClassInheritance(bindingPath) || new $Object('Object');
       if (bindingPath.isVariableDeclarator()) {
-        const init = bindingPath.get('init');
-        if (init.isClassExpression()) return new $Object(null);
+        const init = resolveRuntimeExpression(bindingPath.get('init'));
+        if (init.isClass()) return resolveClassInheritance(init) || new $Object('Object');
       }
       return null;
     }
@@ -831,16 +831,13 @@ function resolveNodeTypeExpression(path) {
       const type = resolveNodeType(argument);
       // await on non-Promise value returns the value type unchanged
       if (type && type.constructor !== 'Promise') return type;
-      // try to unwrap Promise<T> from the binding's raw type annotation
-      const resolved = resolvePath(argument);
-      if (resolved.isIdentifier()) {
-        const binding = resolved.scope.getBinding(resolved.node.name);
-        if (binding) {
-          const annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
-          if (annotation && typeRefName(annotation) === 'Promise') {
-            const inner = annotation.typeParameters?.params[0];
-            if (inner) return resolveTypeAnnotation(inner, binding.path.scope);
-          }
+      // try to unwrap Promise<T> from type annotation on the awaited expression
+      const annotationInfo = findExpressionAnnotation(argument);
+      if (annotationInfo) {
+        const annotation = unwrapTypeAnnotation(annotationInfo.annotation);
+        if (annotation && typeRefName(annotation) === 'Promise') {
+          const inner = annotation.typeParameters?.params[0];
+          if (inner) return resolveTypeAnnotation(inner, annotationInfo.scope);
         }
       }
       return null;
