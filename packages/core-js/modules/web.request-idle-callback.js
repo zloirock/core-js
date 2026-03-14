@@ -8,6 +8,7 @@ var $requestIdleCallback = require('../internals/idle-callbacks').request;
 var nativeRequestIdleCallback = globalThis.requestIdleCallback;
 var apply = uncurryThis(Function.prototype.apply);
 var NEEDED = require('../internals/idle-callbacks').forced;
+
 var $isNaN = isNaN;
 
 $({ global: true, forced: true }, {
