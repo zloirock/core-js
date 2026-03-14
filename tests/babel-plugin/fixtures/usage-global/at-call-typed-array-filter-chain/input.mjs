@@ -1,1 +1,1 @@
-new Float32Array([1, 2, 3]).filter(x => x > 1).at(0);
+new Uint8Array([1, 2]).filter(fn).at(0);
