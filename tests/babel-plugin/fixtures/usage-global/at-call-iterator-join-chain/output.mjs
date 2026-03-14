@@ -1,5 +1,7 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.join";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.iterator.drop";

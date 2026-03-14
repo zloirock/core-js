@@ -76,13 +76,16 @@ const SINGLE_ELEMENT_COLLECTIONS = new Set([
 function $Primitive(type) {
   this.type = type;
   this.constructor = null;
+  // inner stored as a hint string, resolved lazily via resolveInnerType
+  this.inner = type === 'string' ? 'string' : null;
 }
 
 $Primitive.prototype.primitive = true;
 
-function $Object(constructor) {
+function $Object(constructor, inner) {
   this.type = 'object';
   this.constructor = constructor;
+  this.inner = inner ?? null;
 }
 
 $Object.prototype.primitive = false;
@@ -874,6 +877,9 @@ function resolveNodeTypeExpression(path) {
       const type = resolveNodeType(argument);
       // await on non-Promise value returns the value type unchanged
       if (type && type.constructor !== 'Promise') return type;
+      // if the Promise has a known resolved inner type, use it
+      const resolved = resolveInnerType(type);
+      if (resolved) return resolved;
       // try to unwrap Promise<T> from type annotation on the awaited expression
       const annotationInfo = findExpressionAnnotation(argument);
       if (annotationInfo) {
@@ -992,7 +998,7 @@ function hasTypeParamReference(node, typeParamNames, depth) {
   return false;
 }
 
-// extract type parameter name from an array annotation: T[] → T, Array<T> → T, ReadonlyArray<T> → T
+// extract type parameter name from an array annotation: T[] -> T, Array<T> -> T, ReadonlyArray<T> -> T
 function arrayElementTypeParamName(annotation, refName) {
   if (annotation.type === 'TSArrayType' || annotation.type === 'ArrayTypeAnnotation') {
     return typeRefName(annotation.elementType);
@@ -1278,9 +1284,22 @@ function resolveArrayIndexAccess(path) {
   return resolveArrayLiteralElement(objectPath, index);
 }
 
-function typeFromHint(hint) {
-  if (PRIMITIVES.has(hint)) return new $Primitive(hint);
-  return new $Object(hint);
+// convert a normalized hint to a type object
+// objectType (optional) enables resolution of 'element'/'inherit' directives in instance method hints
+function typeFromHint(hint, objectType) {
+  if (hint === 'element' || hint === 'inherit') return resolveInnerType(objectType);
+  if (PRIMITIVES.has(hint.type)) return new $Primitive(hint.type);
+  const innerHint = hint.element ?? hint.resolved ?? null;
+  const inner = innerHint ? typeFromHint(innerHint, objectType) : null;
+  return new $Object(hint.type, inner);
+}
+
+// resolve the inner (element/resolved) type of a container
+// $Primitive stores inner as a hint string (lazy), $Object stores it as a type object (eager)
+function resolveInnerType(type) {
+  if (!type?.inner) return null;
+  const { inner } = type;
+  return typeof inner === 'string' ? new $Primitive(inner) : inner;
 }
 
 // two-level table lookup: table[key1][key2]
@@ -1298,6 +1317,7 @@ function resolveGlobalMember(path) {
 }
 
 // resolve return type of a known instance member (method or property) from a lookup table
+// for methods, objectType is passed through to typeFromHint to resolve 'element'/'inherit'
 function resolveKnownInstanceMember(path, table) {
   const name = resolveMemberPropertyName(path);
   if (!name) return null;
@@ -1306,7 +1326,8 @@ function resolveKnownInstanceMember(path, table) {
   const key = objectType.primitive ? (PRIMITIVE_WRAPPERS[objectType.type] || null) : objectType.constructor;
   if (!key) return null;
   const hint = lookupNested(table, key, name);
-  return hint ? typeFromHint(hint) : null;
+  if (!hint) return null;
+  return typeFromHint(hint, objectType);
 }
 
 function resolveKnownStaticReturnType(callee) {
@@ -1315,10 +1336,6 @@ function resolveKnownStaticReturnType(callee) {
   if (!info) return null;
   const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
   return hint ? typeFromHint(hint) : null;
-}
-
-function resolveKnownMethodReturnType(callee) {
-  return resolveKnownInstanceMember(callee, KNOWN_INSTANCE_METHOD_RETURN_TYPES);
 }
 
 function resolveKnownPropertyReturnType(path) {
@@ -1349,7 +1366,7 @@ function resolveKnownGlobalReference(path) {
 function resolveMemberCallType(memberPath, callPath) {
   return resolveFromMemberExpression(memberPath, callPath)
     || resolveKnownStaticReturnType(memberPath)
-    || resolveKnownMethodReturnType(memberPath);
+    || resolveKnownInstanceMember(memberPath, KNOWN_INSTANCE_METHOD_RETURN_TYPES);
 }
 
 function resolveCallReturnType(callee) {
@@ -1610,7 +1627,8 @@ function resolveArrayLiteralCommonType(arrayPath) {
 function resolveRuntimeIterableElement(path) {
   const resolved = resolveRuntimeExpression(path);
   const nodeType = resolveNodeType(resolved);
-  if (nodeType?.primitive && nodeType.type === 'string') return new $Primitive('string');
+  const inner = resolveInnerType(nodeType);
+  if (inner) return inner;
   if (resolved.isArrayExpression()) return resolveArrayLiteralCommonType(resolved);
   return null;
 }
@@ -1639,9 +1657,9 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
     // runtime init: resolve through variables to the actual value
     const initPath = resolveRuntimeExpression(bindingPath.get('init'));
     const initType = resolveNodeType(initPath);
-    // string → iterating yields individual characters: const [a] = 'hello'
-    if (initType?.primitive && initType.type === 'string') return new $Primitive('string');
-    // array literal → resolve element by index: const [a, b] = ['hello', 42]
+    const inner = resolveInnerType(initType);
+    if (inner) return inner;
+    // array literal -> resolve element by index: const [a, b] = ['hello', 42]
     if (initPath.isArrayExpression()) {
       const index = findPatternIndex(arrayPattern, varName);
       if (index >= 0) {
@@ -1653,11 +1671,13 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   // for-of iterable: for (const [a] of typedArr)
   const elemInfo = resolveForOfElementAnnotation(bindingPath);
   if (elemInfo) return resolveArrayPatternBinding(arrayPattern, varName, elemInfo.annotation, elemInfo.scope);
-  // runtime: for (const [a] of 'hello') or for (const [a] of ['x', 'y'])
+  // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
   const forOfPath = findForLoopParent(bindingPath);
   if (forOfPath?.isForOfStatement()) {
     const runtimeType = resolveRuntimeIterableElement(forOfPath.get('right'));
-    if (runtimeType) return runtimeType;
+    // runtimeType is the for-of element; unwrap one more level for array destructuring
+    const inner = resolveInnerType(runtimeType);
+    if (inner) return inner;
   }
   return null;
 }
@@ -1778,8 +1798,8 @@ function isTypeofVar(node, varName) {
 
 // hint convention: lowercase -> typeof guard (primitive), capitalized -> instanceof guard (object)
 function guardFromHint(hint, negated) {
-  if (PRIMITIVES.has(hint)) return { kind: 'typeof', value: hint, negated };
-  return { kind: 'instanceof', constructorName: hint, negated };
+  if (PRIMITIVES.has(hint.type)) return { kind: 'typeof', value: hint.type, negated };
+  return { kind: 'instanceof', constructorName: hint.type, negated };
 }
 
 function parseTypeGuard(testNode, varName) {

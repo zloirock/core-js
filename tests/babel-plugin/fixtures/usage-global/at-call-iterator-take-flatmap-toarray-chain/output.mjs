@@ -1,6 +1,8 @@
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.flat-map";
+import "core-js/modules/es.array.unscopables.flat-map";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.iterator.drop";
@@ -15,6 +17,7 @@ import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 Iterator.from(x).take(5).flatMap(fn).toArray().at(-1);
