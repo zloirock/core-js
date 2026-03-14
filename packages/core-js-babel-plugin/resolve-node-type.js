@@ -241,9 +241,14 @@ function resolveUserDefinedType(name, scope, depth) {
   if (decl) {
     if (decl.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(decl.typeAnnotation, scope, depth + 1);
     if (decl.type === 'TSInterfaceDeclaration') {
-      const base = decl.extends?.[0]?.expression;
-      if (base?.type === 'Identifier') {
-        return resolveKnownConstructor(base.name) || resolveUserDefinedType(base.name, scope, depth + 1) || new $Object('Object');
+      const parents = decl.extends;
+      if (parents?.length) {
+        for (const parent of parents) {
+          const base = parent.expression ?? parent;
+          if (base.type !== 'Identifier') continue;
+          const result = resolveKnownConstructor(base.name) || resolveUserDefinedType(base.name, scope, depth + 1);
+          if (result) return result;
+        }
       }
       return new $Object('Object');
     }
@@ -1087,8 +1092,8 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
     const value = member.get('value');
     return value.node ? resolveNodeType(value) : null;
   }
-  // getter - resolve its return type
-  if (member.isClassMethod() && member.node.kind === 'get') return resolveReturnType(member);
+  // method: getter returns its return type, regular method returns Function
+  if (member.isClassMethod()) return member.node.kind === 'get' ? resolveReturnType(member) : new $Object('Function');
   return null;
 }
 
@@ -1113,8 +1118,8 @@ function resolveObjectMember(objectPath, name, callPath) {
   }
   // property access: obj.foo
   if (prop.isObjectProperty()) return resolveNodeType(prop.get('value'));
-  // getter - resolve its return type
-  if (prop.isObjectMethod() && prop.node.kind === 'get') return resolveReturnType(prop);
+  // method: getter returns its return type, regular method returns Function
+  if (prop.isObjectMethod()) return prop.node.kind === 'get' ? resolveReturnType(prop) : new $Object('Function');
   return null;
 }
 
@@ -1521,15 +1526,11 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
     }
   }
   // for-of iterable: for (const [a] of typedArr)
+  const elemInfo = resolveForOfElementAnnotation(bindingPath);
+  if (elemInfo) return resolveArrayPatternBinding(arrayPattern, varName, elemInfo.annotation, elemInfo.scope);
+  // runtime: for (const [a] of 'hello') or for (const [a] of ['x', 'y'])
   const forOfPath = findForLoopParent(bindingPath);
   if (forOfPath?.isForOfStatement()) {
-    // try type annotation on the iterable
-    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
-    if (annotationInfo) {
-      const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
-      if (elemAnnotation) return resolveArrayPatternBinding(arrayPattern, varName, elemAnnotation, annotationInfo.scope);
-    }
-    // runtime: for (const [a] of 'hello') or for (const [a] of ['x', 'y'])
     const runtimeType = resolveRuntimeIterableElement(forOfPath.get('right'));
     if (runtimeType) return runtimeType;
   }
@@ -1539,6 +1540,16 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
 function resolveAnnotatedMember(annotation, keyName, scope) {
   const memberType = findTypeMember(unwrapTypeAnnotation(annotation), keyName, scope);
   return memberType ? resolveTypeAnnotation(memberType, scope) : null;
+}
+
+// resolve the raw element annotation of a for-of iterable from its type annotation
+function resolveForOfElementAnnotation(path) {
+  const forOfPath = findForLoopParent(path);
+  if (!forOfPath?.isForOfStatement()) return null;
+  const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+  if (!annotationInfo) return null;
+  const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+  return elemAnnotation ? { annotation: elemAnnotation, scope: annotationInfo.scope } : null;
 }
 
 function resolveObjectBinding(objectPattern, varName, bindingPath) {
@@ -1563,14 +1574,14 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
     }
   }
   // for-of iterable: for (const { name } of typedArr)
-  const forOfPath = findForLoopParent(bindingPath);
-  if (forOfPath?.isForOfStatement()) {
-    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
-    if (annotationInfo) {
-      const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
-      if (elemAnnotation) return resolveAnnotatedMember(elemAnnotation, keyName, annotationInfo.scope);
-    }
-  }
+  const elemInfo = resolveForOfElementAnnotation(bindingPath);
+  if (elemInfo) return resolveAnnotatedMember(elemInfo.annotation, keyName, elemInfo.scope);
+  return null;
+}
+
+function findBindingPattern(node, type) {
+  if (node.type === type) return node;
+  if (node.id?.type === type) return node.id;
   return null;
 }
 
@@ -1582,13 +1593,13 @@ function resolveBindingType(path) {
   const { name } = path.node;
   const { node } = bindingPath;
   // destructured object: for (const { a } of ...) or const { a } = ...
-  const objectPattern = node.type === 'ObjectPattern' ? node : node.id?.type === 'ObjectPattern' ? node.id : null;
+  const objectPattern = findBindingPattern(node, 'ObjectPattern');
   if (objectPattern) {
     const result = resolveObjectBinding(objectPattern, name, bindingPath);
     if (result) return result;
   }
   // destructured array: for (const [a] of ...) or const [a] = ...
-  const arrayPattern = node.type === 'ArrayPattern' ? node : node.id?.type === 'ArrayPattern' ? node.id : null;
+  const arrayPattern = findBindingPattern(node, 'ArrayPattern');
   if (arrayPattern) {
     const result = resolveArrayBinding(arrayPattern, name, bindingPath);
     if (result) return result;
@@ -1596,19 +1607,21 @@ function resolveBindingType(path) {
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
   const typeAnnotation = findBindingAnnotation(bindingPath);
   if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
-  // for-in / for-of
-  const forLoopParent = findForLoopParent(bindingPath);
-  if (forLoopParent) {
-    // for-in: iteration variable is always a string per ECMAScript spec
-    if (forLoopParent.isForInStatement()) return new $Primitive('string');
-    // for-of: infer element type from the iterable
-    if (forLoopParent.isForOfStatement()) {
-      // try type annotation on the iterable
-      const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
-      if (annotationInfo) return resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
-      // try runtime resolution: for (const ch of 'hello') or for (const s of ['a', 'b'])
-      const runtimeType = resolveRuntimeIterableElement(forLoopParent.get('right'));
-      if (runtimeType) return runtimeType;
+  // for-in / for-of (only for direct bindings — destructured bindings are handled above)
+  if (!objectPattern && !arrayPattern) {
+    const forLoopParent = findForLoopParent(bindingPath);
+    if (forLoopParent) {
+      // for-in: iteration variable is always a string per ECMAScript spec
+      if (forLoopParent.isForInStatement()) return new $Primitive('string');
+      // for-of: infer element type from the iterable
+      if (forLoopParent.isForOfStatement()) {
+        // try type annotation on the iterable
+        const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
+        if (annotationInfo) return resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
+        // try runtime resolution: for (const ch of 'hello') or for (const s of ['a', 'b'])
+        const runtimeType = resolveRuntimeIterableElement(forLoopParent.get('right'));
+        if (runtimeType) return runtimeType;
+      }
     }
   }
   return null;
@@ -1922,8 +1935,10 @@ function resolvePropertyObjectType(path) {
   const declarator = objectPattern.parentPath;
   if (!declarator?.isVariableDeclarator()) return null;
   if (declarator.node.init) return resolveNodeType(declarator.get('init'));
+  const elemInfo = resolveForOfElementAnnotation(declarator);
+  if (elemInfo) return resolveTypeAnnotation(elemInfo.annotation, elemInfo.scope);
   const forOfPath = findForLoopParent(declarator);
-  if (forOfPath?.isForOfStatement()) return resolveNodeType(forOfPath.get('right'));
+  if (forOfPath?.isForOfStatement()) return resolveRuntimeIterableElement(forOfPath.get('right'));
   return null;
 }
 
