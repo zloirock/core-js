@@ -14,6 +14,8 @@ import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.regexp.to-string";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+import "core-js/modules/web.dom-collections.for-each";
 Iterator.from(x).forEach(fn).toString();
