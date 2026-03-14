@@ -309,12 +309,7 @@ function findTypeMember(objectType, key, scope) {
 }
 
 function findTupleElement(objectType, index, scope) {
-  let tuple = objectType;
-  if (tuple.type !== 'TSTupleType') {
-    const name = typeRefName(tuple);
-    const decl = name ? findTypeDeclaration(name, scope) : null;
-    if (decl?.type === 'TSTypeAliasDeclaration') tuple = decl.typeAnnotation;
-  }
+  const tuple = followTypeAliasChain(objectType, scope);
   if (tuple?.type !== 'TSTupleType') return null;
   const elements = tuple.elementTypes;
   if (!elements || index < 0 || index >= elements.length) return null;
@@ -2047,7 +2042,6 @@ function isObject(path) {
 module.exports = {
   POSSIBLE_GLOBAL_PROXIES,
   resolveGlobalName,
-  resolveNodeType,
   resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
