@@ -1,1 +1,1 @@
-new Uint8Array([1, 2]).filter(fn).at(0);
+new Int32Array(10).filter(fn).at(0).toFixed(2);
