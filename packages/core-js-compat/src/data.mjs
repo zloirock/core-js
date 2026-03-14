@@ -3210,7 +3210,6 @@ export const data = {
   },
   'web.request-idle-callback': {
     chrome: '47',
-    firefox: '55',
   },
   'web.cancel-idle-callback': {
     chrome: '47',

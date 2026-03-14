@@ -2277,7 +2277,15 @@ GLOBAL.tests = {
   'web.url-search-params.size': [URL_AND_URL_SEARCH_PARAMS_SUPPORT, function () {
     return 'size' in URLSearchParams.prototype;
   }],
-  'web.request-idle-callback': IDLE_CALLBACKS,
+  'web.request-idle-callback': [
+    IDLE_CALLBACKS,
+    function () {
+      // Firefox bug on negative / 0 timeout
+      // Proper test would be requestIdleCallback(a=>(console.log(a.didTimeout)), {timeout: -1})
+      // -- if that gives false we're good
+      return /Firefox .\./.test(USERAGENT);
+    }
+  ],
   'web.cancel-idle-callback': IDLE_CALLBACKS,
   'web.idle-deadline.constructor': IDLE_CALLBACKS
 };
