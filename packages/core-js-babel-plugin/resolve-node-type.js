@@ -1820,11 +1820,18 @@ function parseTypeGuard(testNode, varName) {
 
 const EXIT_STATEMENTS = new Set(['BreakStatement', 'ContinueStatement', 'ReturnStatement', 'ThrowStatement']);
 
-function blockAlwaysExits(block) {
+function blockAlwaysExits(block, depth = 0) {
+  if (depth > MAX_DEPTH) return false;
   if (EXIT_STATEMENTS.has(block.node.type)) return true;
   if (block.isBlockStatement()) {
     const body = block.get('body');
-    return body.length > 0 && EXIT_STATEMENTS.has(body[body.length - 1].node.type);
+    return body.length > 0 && blockAlwaysExits(body[body.length - 1], depth + 1);
+  }
+  // if both branches always exit, the if-statement always exits
+  if (block.isIfStatement()) {
+    return block.node.alternate
+      && blockAlwaysExits(block.get('consequent'), depth + 1)
+      && blockAlwaysExits(block.get('alternate'), depth + 1);
   }
   return false;
 }
