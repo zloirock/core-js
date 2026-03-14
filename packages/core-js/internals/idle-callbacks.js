@@ -122,8 +122,8 @@ exports.request = function requestIdleCallback(callback) {
   var handle = ++sharedStore.__idleCallbackId;
   sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__handleObjects[handle] = sharedStore.__idleRequestCallbacks.add(handle);
-  if (options && options.timeout !== undefined) aNumber(options.timeout);
-  if (options && options.timeout && options.timeout > 0) {
+  if (options) options.timeout = +options.timeout;
+  if (options && options.timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // options.timeout, however maintaining such a priority queue would be very tedious
     sharedStore.__timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
@@ -153,7 +153,7 @@ exports.request = function requestIdleCallback(callback) {
 };
 exports.cancel = function cancelIdleCallback(handle) {
   validateArgumentsLength(arguments.length, 1);
-  aNumber(handle);
+  handle = +handle;
   delete sharedStore.__idleCallbackMap[handle];
   if (sharedStore.__timeoutHandles[handle] !== undefined) {
     clearTimeout(sharedStore.__timeoutHandles[handle]);
