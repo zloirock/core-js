@@ -34,10 +34,10 @@ if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.__handleObjects = {};
 }
 
-var IdleDeadline = function IdleDeadline(token, deadline, didTimeout) {
-  if (token !== TOKEN) throw new $TypeError('Illegal Constructor');
-  this.__deadlineTime = deadline;
-  this.didTimeout = didTimeout;
+var IdleDeadline = function IdleDeadline() {
+  if (arguments[0] !== TOKEN) throw new $TypeError('Illegal Constructor');
+  this.__deadlineTime = arguments[1];
+  this.didTimeout = arguments[2];
 };
 exports.deadline = IdleDeadline;
 defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() {

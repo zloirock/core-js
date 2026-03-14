@@ -45,5 +45,6 @@ QUnit.test('idle callbacks', assert => {
   });
 
   assert.isFunction(IdleDeadline);
-  // assert.throws(IdleDeadline, TypeError);
+  assert.arity(IdleDeadline, 0);
+  assert.throws(IdleDeadline, TypeError);
 });
