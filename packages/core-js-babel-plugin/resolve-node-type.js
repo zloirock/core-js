@@ -369,8 +369,8 @@ function resolveReturnTypeFromTypeQuery(param, scope) {
   if (bindingPath.isFunctionDeclaration()) {
     fnPath = bindingPath;
   } else if (bindingPath.isVariableDeclarator()) {
-    const init = bindingPath.get('init');
-    if (init.isFunctionExpression() || init.isArrowFunctionExpression()) fnPath = init;
+    const init = resolveRuntimeExpression(bindingPath.get('init'));
+    if (init.isFunction()) fnPath = init;
   }
   return fnPath ? resolveReturnType(fnPath) : null;
 }
@@ -1277,7 +1277,7 @@ function resolveCallReturnType(callee) {
   // method call: obj.method() or obj?.method()
   if (isMemberLike(callee)) return resolveMemberCallType(callee, callee.parentPath);
   // direct call: foo() - or IIFE: (() => expr)()
-  const resolved = resolvePath(callee);
+  const resolved = resolveRuntimeExpression(callee);
   if (resolved.isFunction()) return resolveReturnType(resolved, callee.parentPath);
   // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
   if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
