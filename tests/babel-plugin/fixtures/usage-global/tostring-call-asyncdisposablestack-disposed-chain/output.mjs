@@ -7,4 +7,5 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.async-disposable-stack.constructor";
 import "core-js/modules/es.async-iterator.async-dispose";
 import "core-js/modules/es.iterator.dispose";
+import "core-js/modules/es.regexp.to-string";
 new AsyncDisposableStack().disposed.toString();
