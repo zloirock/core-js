@@ -1,7 +1,8 @@
 import requestIdleCallback from 'core-js-pure/stable/request-idle-callback';
 import cancelIdleCallback from 'core-js-pure/stable/cancel-idle-callback';
+import IdleDeadline from 'core-js-pure/stable/idle-deadline';
 
-QUnit.test('requestIdleCallback', assert => {
+QUnit.test('idle callbacks', assert => {
   // Avoid infinite waiting if a handle is not called.
   assert.timeout(3000);
 
@@ -42,4 +43,7 @@ QUnit.test('requestIdleCallback', assert => {
     assert.true(ran, 'not FIFO');
     done();
   });
+
+  assert.isFunction(IdleDeadline);
+  // assert.throws(IdleDeadline, TypeError);
 });

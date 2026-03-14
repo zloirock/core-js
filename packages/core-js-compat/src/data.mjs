@@ -3216,6 +3216,10 @@ export const data = {
     chrome: '47',
     firefox: '55',
   },
+  'web.idle-deadline.constructor': {
+    chrome: '47',
+    firefox: '55',
+  },
 };
 
 export const renamed = new Map([

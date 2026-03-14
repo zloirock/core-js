@@ -327,7 +327,7 @@ function TIMERS() {
 }
 
 function IDLE_CALLBACKS() {
-  return requestIdleCallback && cancelIdleCallback;
+  return requestIdleCallback && cancelIdleCallback && IdleDeadline;
 }
 
 // https://github.com/tc39/ecma262/pull/3467
@@ -2278,5 +2278,6 @@ GLOBAL.tests = {
     return 'size' in URLSearchParams.prototype;
   }],
   'web.request-idle-callback': IDLE_CALLBACKS,
-  'web.cancel-idle-callback': IDLE_CALLBACKS
+  'web.cancel-idle-callback': IDLE_CALLBACKS,
+  'web.idle-deadline.constructor': IDLE_CALLBACKS
 };

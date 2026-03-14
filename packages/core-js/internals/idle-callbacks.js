@@ -3,7 +3,11 @@
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
 var sharedStore = require('./shared-store');
+var defineBuiltIn = require('./define-built-in');
 var Queue = require('./queue');
+
+var $TypeError = TypeError;
+var TOKEN = '__core_js_polyfill_idle_callback__';
 
 var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;
@@ -30,17 +34,15 @@ if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.__handleObjects = {};
 }
 
-function IdleDeadline(deadlineTime, didTimeout) {
-  this.__deadlineTime = deadlineTime;
-  // Not done with a getter as the spec suggests,
-  // since it's just a simple property so we can
-  // drop dependency on defineProperty internal
+var IdleDeadline = function IdleDeadline(token, deadline, didTimeout) {
+  if (token !== TOKEN) throw new $TypeError('Illegal Constructor');
+  this.__deadlineTime = deadline;
   this.didTimeout = didTimeout;
-}
-IdleDeadline.prototype.timeRemaining = function () {
-  var remaining = this.__deadlineTime - now();
-  return $max(remaining, 0);
 };
+exports.deadline = IdleDeadline;
+defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() {
+  return $max(this.__deadlineTime - now(), 0);
+});
 
 function scheduleNextIdle() {
   if (sharedStore.__idleRafScheduled) return;
@@ -75,7 +77,7 @@ function startIdlePeriod() {
       delete sharedStore.__timeoutHandles[handle];
     }
 
-    var deadline = new IdleDeadline(deadlineTime, false);
+    var deadline = new IdleDeadline(TOKEN, deadlineTime, false);
     try {
       cb(deadline);
     } catch (error) {
@@ -110,7 +112,7 @@ exports.request = function requestIdleCallback(callback) {
         sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
       }
       delete sharedStore.__handleObjects[handle];
-      var deadline = new IdleDeadline(now(), true);
+      var deadline = new IdleDeadline(TOKEN, now(), true);
       try {
         cb(deadline);
       } catch (error) {
