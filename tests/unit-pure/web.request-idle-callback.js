@@ -10,7 +10,7 @@ QUnit.test('idle callbacks', assert => {
   assert.arity(requestIdleCallback, 1);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
-  const done = assert.async(4);
+  const done = assert.async(5);
 
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout, 'timed out without a timeout');
