@@ -182,6 +182,9 @@ function resolveTypeQuery(node, scope) {
     if (annotation) return resolveTypeAnnotation(annotation, scope);
     const init = bindingPath.get('init');
     if (init.node) return resolveNodeType(init);
+  } else {
+    const annotation = findBindingAnnotation(bindingPath);
+    if (annotation) return resolveTypeAnnotation(annotation, scope);
   }
   if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return new $Object('Function');
   return null;
