@@ -9,7 +9,7 @@ const { Globals, StaticProperties, InstanceProperties } = require('@core-js/comp
 const {
   POSSIBLE_GLOBAL_PROXIES,
   resolveGlobalName,
-  resolveNodeType,
+  resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
   isString,
@@ -88,14 +88,13 @@ function resolveHint(desc, meta) {
 function enhanceMeta(meta, path, desc) {
   if (!meta) return meta;
   if (meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
-  if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return meta;
-  const hint = toHint(resolveNodeType(path.get('object')));
+  const hint = toHint(resolvePropertyObjectType(path));
   if (hint) {
     if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
     return descHasTypeHints(desc) ? null : meta;
   }
-  // no type resolved - check for type guards to include/exclude specific hints
-  if (descHasTypeHints(desc)) {
+  // no type resolved — check for type guards to include/exclude specific hints (MemberExpression only)
+  if ((path.isMemberExpression() || path.isOptionalMemberExpression()) && descHasTypeHints(desc)) {
     const hints = resolveGuardHints(path.get('object'));
     if (hints) return { ...meta, ...hints };
   }
