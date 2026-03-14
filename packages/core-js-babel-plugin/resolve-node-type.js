@@ -322,15 +322,18 @@ function getTypeMembers(objectType, scope, depth = 0) {
 function findTypeMember(objectType, key, scope) {
   const members = getTypeMembers(objectType, scope);
   if (!members) return null;
+  let indexSignatureType = null;
   for (const member of members) {
-    if (member.type !== 'TSPropertySignature' && member.type !== 'TSMethodSignature') continue;
-    if (keyMatchesName(member.key, key)) {
-      // TSMethodSignature as non-call property access: the member itself is a function
-      if (member.type === 'TSMethodSignature') return { type: 'TSFunctionType' };
-      return member.typeAnnotation;
+    if (member.type === 'TSPropertySignature' || member.type === 'TSMethodSignature') {
+      if (keyMatchesName(member.key, key)) {
+        // TSMethodSignature as non-call property access: the member itself is a function
+        return member.type === 'TSMethodSignature' ? { type: 'TSFunctionType' } : member.typeAnnotation;
+      }
+    } else if (!indexSignatureType && member.type === 'TSIndexSignature' && member.typeAnnotation) {
+      indexSignatureType = member.typeAnnotation;
     }
   }
-  return null;
+  return indexSignatureType;
 }
 
 function findTupleElement(objectType, index, scope) {
@@ -1222,7 +1225,10 @@ function resolveFromMemberExpression(path, callPath) {
   if (!name) return null;
   const originalObjectPath = path.get('object');
   const objectPath = resolveRuntimeExpression(originalObjectPath);
-  if (objectPath.isObjectExpression()) return resolveObjectMember(objectPath, name, callPath);
+  if (objectPath.isObjectExpression()) {
+    const result = resolveObjectMember(objectPath, name, callPath);
+    if (result) return result;
+  }
   const ctx = resolveClassContext(objectPath);
   if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
   // try typed member on resolved path first, then on original path (in case resolvePath lost annotation)
