@@ -1,1 +1,1 @@
-Object.keys(obj).at(-1);
+Object.keys(x).at(0).includes('a');

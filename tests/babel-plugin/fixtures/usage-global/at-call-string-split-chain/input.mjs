@@ -1,1 +1,1 @@
-'a,b,c'.split(',').at(-1);
+'a,b'.split(',').at(0).includes('a');
