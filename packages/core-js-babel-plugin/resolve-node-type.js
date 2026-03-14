@@ -102,6 +102,13 @@ function isMemberLike(path) {
   return path.isMemberExpression() || path.isOptionalMemberExpression();
 }
 
+function isRestBinding(elements, varName) {
+  for (const element of elements) {
+    if (element?.type === 'RestElement' && element.argument?.type === 'Identifier' && element.argument.name === varName) return true;
+  }
+  return false;
+}
+
 function unwrapTypeAnnotation(node) {
   if (!node) return null;
   if (node.type === 'TSTypeAnnotation' || node.type === 'TypeAnnotation') return unwrapTypeAnnotation(node.typeAnnotation);
@@ -244,7 +251,8 @@ function resolveUserDefinedType(name, scope, depth) {
   return resolveTypeParameter(name, scope, depth);
 }
 
-function getTypeMembers(objectType, scope) {
+function getTypeMembers(objectType, scope, depth = 0) {
+  if (depth > MAX_DEPTH) return null;
   if (objectType.type === 'TSTypeLiteral') return objectType.members;
   const name = typeRefName(objectType);
   const decl = name ? findTypeDeclaration(name, scope) : null;
@@ -258,7 +266,7 @@ function getTypeMembers(objectType, scope) {
       // TSExpressionWithTypeArguments has .expression (Identifier), wrap as TSTypeReference
       const expr = parent.expression ?? parent;
       const parentRef = expr.type === 'Identifier' ? { type: 'TSTypeReference', typeName: expr } : expr;
-      const parentMembers = getTypeMembers(parentRef, scope);
+      const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
       if (parentMembers) for (const m of parentMembers) all.push(m);
     }
     return all.length ? all : null;
@@ -1138,11 +1146,14 @@ function resolveTypedMember(objectPath, name, callPath) {
 function resolveFromMemberExpression(path, callPath) {
   const name = resolveMemberPropertyName(path);
   if (!name) return null;
-  const objectPath = resolvePath(path.get('object'));
+  const originalObjectPath = path.get('object');
+  const objectPath = resolvePath(originalObjectPath);
   if (objectPath.isObjectExpression()) return resolveObjectMember(objectPath, name, callPath);
   const ctx = resolveClassContext(objectPath);
   if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
-  return resolveTypedMember(objectPath, name, callPath);
+  // try typed member on resolved path first, then on original path (in case resolvePath lost annotation)
+  return resolveTypedMember(objectPath, name, callPath)
+    || (objectPath !== originalObjectPath ? resolveTypedMember(originalObjectPath, name, callPath) : null);
 }
 
 // arr[0], arr[1] - numeric index access on array literals
@@ -1255,19 +1266,18 @@ function findDestructuredKeyName(objectPattern, name) {
 }
 
 function resolveDestructuredType(objectPattern, name, scope) {
-  const type = unwrapTypeAnnotation(objectPattern.typeAnnotation);
-  if (!type) return null;
-  // TS: TSTypeLiteral.members, Flow: ObjectTypeAnnotation.properties
-  const members = type.type === 'TSTypeLiteral' ? type.members
-    : type.type === 'ObjectTypeAnnotation' ? type.properties
-    : null;
-  if (!members) return null;
   const keyName = findDestructuredKeyName(objectPattern, name);
   if (!keyName) return null;
-  for (const member of members) {
-    if (!keyMatchesName(member.key, keyName)) continue;
-    // TS: member.typeAnnotation, Flow: member.value
-    return resolveTypeAnnotation(member.typeAnnotation || member.value, scope);
+  // TS: TSTypeLiteral or TSTypeReference (interface/type alias)
+  const result = resolveAnnotatedMember(objectPattern.typeAnnotation, keyName, scope);
+  if (result) return result;
+  // Flow: ObjectTypeAnnotation.properties
+  const type = unwrapTypeAnnotation(objectPattern.typeAnnotation);
+  if (type?.type === 'ObjectTypeAnnotation') {
+    for (const member of type.properties) {
+      if (!keyMatchesName(member.key, keyName)) continue;
+      return resolveTypeAnnotation(member.value, scope);
+    }
   }
   return null;
 }
@@ -1393,7 +1403,8 @@ function resolveArrayPatternBinding(arrayPattern, varName, annotation, scope) {
 }
 
 // find the raw type annotation of an expression (follows bindings and const chains)
-function findExpressionAnnotation(path) {
+function findExpressionAnnotation(path, depth = 0) {
+  if (depth > MAX_DEPTH) return null;
   if (path.node.type === 'TSAsExpression' || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
     return { annotation: path.node.typeAnnotation, scope: path.scope };
   }
@@ -1404,7 +1415,7 @@ function findExpressionAnnotation(path) {
     if (annotation) return { annotation, scope: binding.path.scope };
     if (binding.constant && binding.path.isVariableDeclarator()) {
       const init = binding.path.get('init');
-      if (init.node) return findExpressionAnnotation(init);
+      if (init.node) return findExpressionAnnotation(init, depth + 1);
     }
   }
   return null;
@@ -1486,11 +1497,7 @@ function findBindingAnnotation(bindingPath) {
 // resolve array destructuring from any annotation source: pattern, init, or for-of iterable
 function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   // array rest: const [a, ...rest] = items -> rest is always Array
-  for (const element of arrayPattern.elements || []) {
-    if (element?.type === 'RestElement' && element.argument?.type === 'Identifier' && element.argument.name === varName) {
-      return new $Object('Array');
-    }
-  }
+  if (isRestBinding(arrayPattern.elements || [], varName)) return new $Object('Array');
   // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
   if (arrayPattern.typeAnnotation) {
     return resolveArrayPatternBinding(arrayPattern, varName, arrayPattern.typeAnnotation, bindingPath.scope);
@@ -1529,45 +1536,39 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   return null;
 }
 
+function resolveAnnotatedMember(annotation, keyName, scope) {
+  const memberType = findTypeMember(unwrapTypeAnnotation(annotation), keyName, scope);
+  return memberType ? resolveTypeAnnotation(memberType, scope) : null;
+}
+
 function resolveObjectBinding(objectPattern, varName, bindingPath) {
   // object rest: const { a, ...rest } = obj -> rest is always Object
-  for (const prop of objectPattern.properties) {
-    if (prop.type === 'RestElement' && prop.argument?.type === 'Identifier' && prop.argument.name === varName) {
-      return new $Object('Object');
-    }
-  }
+  if (isRestBinding(objectPattern.properties, varName)) return new $Object('Object');
   // annotation on the pattern: const { items }: { items: number[] } = ...
   if (objectPattern.typeAnnotation) {
     return resolveDestructuredType(objectPattern, varName, bindingPath.scope);
   }
+  const keyName = findDestructuredKeyName(objectPattern, varName);
+  if (!keyName) return null;
   // resolve from init expression: runtime object literal or annotated variable
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
-    const keyName = findDestructuredKeyName(objectPattern, varName);
-    if (keyName) {
-      const initPath = resolvePath(bindingPath.get('init'));
-      // const { name } = { name: 'alice' }
-      if (initPath.isObjectExpression()) return resolveObjectMember(initPath, keyName);
-      // const { key } = annotatedVar where annotatedVar: { key: string }
-      const annotationInfo = findExpressionAnnotation(bindingPath.get('init'));
-      if (annotationInfo) {
-        const memberType = findTypeMember(unwrapTypeAnnotation(annotationInfo.annotation), keyName, annotationInfo.scope);
-        if (memberType) return resolveTypeAnnotation(memberType, annotationInfo.scope);
-      }
+    const initPath = resolvePath(bindingPath.get('init'));
+    // const { name } = { name: 'alice' }
+    if (initPath.isObjectExpression()) return resolveObjectMember(initPath, keyName);
+    // const { key } = annotatedVar where annotatedVar: { key: string }
+    const annotationInfo = findExpressionAnnotation(bindingPath.get('init'));
+    if (annotationInfo) {
+      const result = resolveAnnotatedMember(annotationInfo.annotation, keyName, annotationInfo.scope);
+      if (result) return result;
     }
   }
   // for-of iterable: for (const { name } of typedArr)
   const forOfPath = findForLoopParent(bindingPath);
   if (forOfPath?.isForOfStatement()) {
-    const keyName = findDestructuredKeyName(objectPattern, varName);
-    if (keyName) {
-      const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
-      if (annotationInfo) {
-        const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
-        if (elemAnnotation) {
-          const memberType = findTypeMember(unwrapTypeAnnotation(elemAnnotation), keyName, annotationInfo.scope);
-          if (memberType) return resolveTypeAnnotation(memberType, annotationInfo.scope);
-        }
-      }
+    const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+    if (annotationInfo) {
+      const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+      if (elemAnnotation) return resolveAnnotatedMember(elemAnnotation, keyName, annotationInfo.scope);
     }
   }
   return null;
@@ -1908,6 +1909,24 @@ function resolveNodeType(path) {
   return resolveNodeTypeExpression(path) || resolveBindingType(path) || resolveTypeGuardNarrowing(path);
 }
 
+// resolve the type of the object from which a property is accessed:
+// member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj)
+function resolvePropertyObjectType(path) {
+  if (isMemberLike(path)) return resolveNodeType(path.get('object'));
+  if (!path.isObjectProperty()) return null;
+  const objectPattern = path.parentPath;
+  if (!objectPattern?.isObjectPattern()) return null;
+  if (objectPattern.node.typeAnnotation) {
+    return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
+  }
+  const declarator = objectPattern.parentPath;
+  if (!declarator?.isVariableDeclarator()) return null;
+  if (declarator.node.init) return resolveNodeType(declarator.get('init'));
+  const forOfPath = findForLoopParent(declarator);
+  if (forOfPath?.isForOfStatement()) return resolveNodeType(forOfPath.get('right'));
+  return null;
+}
+
 function toHint(type) {
   if (!type) return null;
   if (type.primitive) return type.type;
@@ -1990,4 +2009,13 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = { POSSIBLE_GLOBAL_PROXIES, resolveGlobalName, resolveNodeType, resolveGuardHints, toHint, isString, isObject };
+module.exports = {
+  POSSIBLE_GLOBAL_PROXIES,
+  resolveGlobalName,
+  resolveNodeType,
+  resolvePropertyObjectType,
+  resolveGuardHints,
+  toHint,
+  isString,
+  isObject,
+};
