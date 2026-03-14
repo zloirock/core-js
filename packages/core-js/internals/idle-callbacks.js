@@ -57,7 +57,7 @@ defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() 
 }, { writable: true, enumerable: true, configurable: true });
 if (DESCRIPTORS) {
   defineProperty(IdleDeadline.prototype, "didTimeout", {
-    get() {
+    get: function get() {
       return this.__didTimeout;
     },
     enumerable: true,
