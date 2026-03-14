@@ -1972,20 +1972,22 @@ function findSwitchCaseGuards(current, varName) {
   return null;
 }
 
+// if (...) return; -> false (consequent exits, condition was true -> narrowed type is !condition)
+// if (...) {} else return; -> true (alternate exits, condition was true -> narrowed type is condition)
+function resolveExitCondition(sibling) {
+  if (!sibling.isIfStatement()) return null;
+  if (blockAlwaysExits(sibling.get('consequent'))) return false;
+  if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) return true;
+  return null;
+}
+
 // if (typeof x === 'string') return; -> x is narrowed after the if
 // collects ALL preceding exit guards, including && / || flattening
 function findPrecedingExitGuards(siblings, index, varName) {
   const guards = [];
   for (let i = index - 1; i >= 0; i--) {
-    const sibling = siblings[i];
-    if (!sibling.isIfStatement()) continue;
-    let conditionTrue;
-    if (blockAlwaysExits(sibling.get('consequent'))) {
-      conditionTrue = false;
-    } else if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) {
-      conditionTrue = true;
-    } else continue;
-    guards.push(...parseGuardsFromCondition(sibling.node.test, conditionTrue, varName));
+    const conditionTrue = resolveExitCondition(siblings[i]);
+    if (conditionTrue !== null) guards.push(...parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName));
   }
   return guards;
 }
@@ -2039,6 +2041,29 @@ function narrowByGuards(candidates, guards) {
   return result;
 }
 
+// check whether any reassignment of binding could execute between a guard check and usagePath
+function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
+  const violates = scope => constantViolations.some(v => {
+    for (let p = v; p; p = p.parentPath) if (p === scope) return true;
+    return false;
+  });
+  for (let current = usagePath, parent; (parent = current.parentPath) && !parent.isFunction(); current = parent) {
+    if (findConditionalGuards(current, varName).length && violates(current)) return true;
+    if (findSwitchCaseGuards(current, varName) && violates(parent)) return true;
+    if (findEarlyExitGuards(current, varName)) {
+      const siblings = parent.get('body');
+      for (let i = current.key - 1; i >= 0; i--) {
+        const conditionTrue = resolveExitCondition(siblings[i]);
+        if (conditionTrue === null) continue;
+        if (!parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName).length) continue;
+        for (let j = i + 1; j <= current.key; j++) if (violates(siblings[j])) return true;
+        break;
+      }
+    }
+  }
+  return false;
+}
+
 // shared prologue: find guards for an identifier binding
 function findGuardsForBinding(path) {
   if (!path.isIdentifier()) return null;
@@ -2047,6 +2072,7 @@ function findGuardsForBinding(path) {
   if (!binding) return null;
   const guards = findEnclosingTypeGuards(path, name);
   if (!guards) return null;
+  if (!binding.constant && hasMutationAfterGuards(binding, path, name)) return null;
   return { binding, guards };
 }
 
