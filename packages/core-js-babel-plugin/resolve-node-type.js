@@ -290,7 +290,7 @@ function getTypeMembers(objectType, scope, depth = 0) {
     }
     return all.length ? all : null;
   }
-  if (decl?.type === 'TSTypeAliasDeclaration' && decl.typeAnnotation?.type === 'TSTypeLiteral') return decl.typeAnnotation.members;
+  if (decl?.type === 'TSTypeAliasDeclaration') return getTypeMembers(unwrapTypeAnnotation(decl.typeAnnotation), scope, depth + 1);
   return null;
 }
 
