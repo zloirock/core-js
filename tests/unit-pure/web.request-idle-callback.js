@@ -44,6 +44,18 @@ QUnit.test('idle callbacks', assert => {
     done();
   });
 
+  assert.throws(requestIdleCallback, TypeError);
+  assert.throws(cancelIdleCallback, TypeError);
+  assert.throws(() => {
+    requestIdleCallback("allison");
+  }, TypeError);
+  assert.throws(() => {
+    cancelIdleCallback("allison");
+  }, TypeError);
+  assert.throws(() => {
+    requestIdleCallback(() => {}, {timeout: "Allison"});
+  }, TypeError);
+
   assert.isFunction(IdleDeadline);
   assert.arity(IdleDeadline, 0);
   assert.name(IdleDeadline, 'IdleDeadline');
