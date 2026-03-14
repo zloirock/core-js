@@ -517,15 +517,10 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     case 'TSTypePredicate':
       return new $Primitive('boolean');
     // TS conditional type: T extends U ? X : Y - resolve if both branches have the same type, or one is `never`
-    case 'TSConditionalType': {
-      const trueResolved = resolveTypeAnnotation(node.trueType, scope, depth + 1);
-      const falseResolved = resolveTypeAnnotation(node.falseType, scope, depth + 1);
-      if (trueResolved && falseResolved && typesEqual(trueResolved, falseResolved)) return trueResolved;
-      // if one branch is `never`, the useful type is in the other branch
-      if (trueResolved?.type === 'never') return falseResolved;
-      if (falseResolved?.type === 'never') return trueResolved;
-      return null;
-    }
+    case 'TSConditionalType':
+      return resolveConditionalBranches(
+        resolveTypeAnnotation(node.trueType, scope, depth + 1),
+        resolveTypeAnnotation(node.falseType, scope, depth + 1));
     // TS / Flow union and intersection - resolve if all (non-nullable for unions) members have the same type
     case 'TSUnionType':
     case 'UnionTypeAnnotation':
@@ -619,6 +614,14 @@ function typesEqual(a, b) {
 
 function isNullableOrNever(resolved) {
   return resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never';
+}
+
+// resolve conditional type branches: if both match return that type, if one is `never` return the other
+function resolveConditionalBranches(trueBranch, falseBranch) {
+  if (trueBranch && falseBranch && typesEqual(trueBranch, falseBranch)) return trueBranch;
+  if (trueBranch?.type === 'never') return falseBranch;
+  if (falseBranch?.type === 'never') return trueBranch;
+  return null;
 }
 
 function resolveUnionType(leftPath, rightPath) {
@@ -944,6 +947,9 @@ function hasTypeParamReference(node, typeParamNames, depth) {
         if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
       }
       return false;
+    case 'TSConditionalType':
+      return hasTypeParamReference(node.trueType, typeParamNames, depth + 1)
+        || hasTypeParamReference(node.falseType, typeParamNames, depth + 1);
     case 'TSTypeOperator':
     case 'TSOptionalType':
     case 'TSParenthesizedType':
@@ -1046,9 +1052,19 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     || (node.type === 'TSTypeOperator' && node.operator !== 'keyof')) {
     return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1);
   }
+  // conditional type: T extends U ? X : Y - substitute in branches
+  if (node.type === 'TSConditionalType') {
+    return resolveConditionalBranches(
+      substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1),
+      substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1));
+  }
   // T[] or [T, U] - resolve to Array regardless of element type
   if (node.type === 'TSArrayType' || node.type === 'TSTupleType'
     || node.type === 'ArrayTypeAnnotation' || node.type === 'TupleTypeAnnotation') return new $Object('Array');
+  // function type: (x: T) => R - always Function regardless of type parameters
+  if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
+  // mapped type: { [K in keyof T]: V } - always Object
+  if (node.type === 'TSMappedType') return new $Object('Object');
   // fallback to regular annotation resolution
   return resolveTypeAnnotation(node, scope, depth);
 }
