@@ -169,6 +169,7 @@ function resolveTypeQuery(node, scope) {
     if (bindingPath.isVariableDeclarator()) {
       const init = resolveRuntimeExpression(bindingPath.get('init'));
       if (init.isObjectExpression()) return resolveObjectMember(init, right.name);
+      if (init.isClass()) return resolveClassMember(init, right.name, true);
     }
     if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, right.name, true);
     return null;
