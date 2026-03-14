@@ -23,6 +23,8 @@ var rAF = globalThis.requestAnimationFrame || function (callback) {
   }, 16);
 };
 
+exports.forced = !globalThis.requestIdleCallback || !globalThis.cancelIdleCallback || !globalThis.IdleDeadline;
+
 if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.idleCallbackPolyfilled = true;
   sharedStore.__idleRequestCallbacks = new Queue();
