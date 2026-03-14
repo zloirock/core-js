@@ -102,6 +102,23 @@ function isMemberLike(path) {
   return path.isMemberExpression() || path.isOptionalMemberExpression();
 }
 
+// resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
+// iterates: after unwrapping a TS wrapper, the underlying expression may be another variable reference
+// `x as Type`, `x!`, `x satisfies Type`
+function resolveRuntimeExpression(path) {
+  let depth = MAX_DEPTH;
+  while (depth--) {
+    path = resolvePath(path);
+    const { type } = path.node;
+    if (type === 'TSAsExpression' || type === 'TSSatisfiesExpression'
+      || type === 'TSNonNullExpression' || type === 'TSInstantiationExpression'
+      || type === 'TypeCastExpression') {
+      path = path.get('expression');
+    } else break;
+  }
+  return path;
+}
+
 function isRestBinding(elements, varName) {
   for (const element of elements) {
     if (element?.type === 'RestElement' && element.argument?.type === 'Identifier' && element.argument.name === varName) return true;
@@ -150,7 +167,7 @@ function resolveTypeQuery(node, scope) {
     const bindingPath = constantBindingPath(left.name, scope);
     if (!bindingPath) return null;
     if (bindingPath.isVariableDeclarator()) {
-      const init = resolvePath(bindingPath.get('init'));
+      const init = resolveRuntimeExpression(bindingPath.get('init'));
       if (init.isObjectExpression()) return resolveObjectMember(init, right.name);
     }
     if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, right.name, true);
@@ -1161,7 +1178,7 @@ function resolveFromMemberExpression(path, callPath) {
   const name = resolveMemberPropertyName(path);
   if (!name) return null;
   const originalObjectPath = path.get('object');
-  const objectPath = resolvePath(originalObjectPath);
+  const objectPath = resolveRuntimeExpression(originalObjectPath);
   if (objectPath.isObjectExpression()) return resolveObjectMember(objectPath, name, callPath);
   const ctx = resolveClassContext(objectPath);
   if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
@@ -1177,7 +1194,7 @@ function resolveArrayIndexAccess(path) {
   if (resolvedProp.node?.type !== 'NumericLiteral') return null;
   const index = resolvedProp.node.value;
   if (!Number.isInteger(index) || index < 0) return null;
-  const objectPath = resolvePath(path.get('object'));
+  const objectPath = resolveRuntimeExpression(path.get('object'));
   if (!objectPath.isArrayExpression()) return null;
   return resolveArrayLiteralElement(objectPath, index);
 }
@@ -1508,7 +1525,7 @@ function resolveArrayLiteralCommonType(arrayPath) {
 // resolve element type from a runtime iterable (follows variables via resolvePath)
 // handles: string literals (chars) and homogeneous array literals (common element type)
 function resolveRuntimeIterableElement(path) {
-  const resolved = resolvePath(path);
+  const resolved = resolveRuntimeExpression(path);
   const nodeType = resolveNodeType(resolved);
   if (nodeType?.primitive && nodeType.type === 'string') return new $Primitive('string');
   if (resolved.isArrayExpression()) return resolveArrayLiteralCommonType(resolved);
@@ -1532,9 +1549,12 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   // annotation on the init expression: const [a] = typedArr
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
     const initInfo = findExpressionAnnotation(bindingPath.get('init'));
-    if (initInfo) return resolveArrayPatternBinding(arrayPattern, varName, initInfo.annotation, initInfo.scope);
+    if (initInfo) {
+      const initResult = resolveArrayPatternBinding(arrayPattern, varName, initInfo.annotation, initInfo.scope);
+      if (initResult) return initResult;
+    }
     // runtime init: resolve through variables to the actual value
-    const initPath = resolvePath(bindingPath.get('init'));
+    const initPath = resolveRuntimeExpression(bindingPath.get('init'));
     const initType = resolveNodeType(initPath);
     // string → iterating yields individual characters: const [a] = 'hello'
     if (initType?.primitive && initType.type === 'string') return new $Primitive('string');
@@ -1585,7 +1605,7 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
   if (!keyName) return null;
   // resolve from init expression: runtime object literal or annotated variable
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
-    const initPath = resolvePath(bindingPath.get('init'));
+    const initPath = resolveRuntimeExpression(bindingPath.get('init'));
     // const { name } = { name: 'alice' }
     if (initPath.isObjectExpression()) return resolveObjectMember(initPath, keyName);
     // const { key } = annotatedVar where annotatedVar: { key: string }
@@ -1639,7 +1659,10 @@ function resolveBindingType(path) {
       if (forLoopParent.isForOfStatement()) {
         // try type annotation on the iterable
         const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
-        if (annotationInfo) return resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
+        if (annotationInfo) {
+          const annotatedType = resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
+          if (annotatedType) return annotatedType;
+        }
         // try runtime resolution: for (const ch of 'hello') or for (const s of ['a', 'b'])
         const runtimeType = resolveRuntimeIterableElement(forLoopParent.get('right'));
         if (runtimeType) return runtimeType;
