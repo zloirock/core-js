@@ -172,6 +172,8 @@ function resolveTypeQuery(node, scope) {
       if (init.isClass()) return resolveClassMember(init, right.name, true);
     }
     if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, right.name, true);
+    const annotation = findBindingAnnotation(bindingPath);
+    if (annotation) return resolveAnnotatedMember(annotation, right.name, scope);
     return null;
   }
   if (exprName?.type !== 'Identifier') return null;
