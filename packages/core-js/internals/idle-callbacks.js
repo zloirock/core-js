@@ -2,7 +2,6 @@
 'use strict';
 var aCallable = require('./a-callable');
 var anObjectOrUndefined = require('./an-object-or-undefined');
-var aNumber = require('./a-number');
 var validateArgumentsLength = require('./validate-arguments-length');
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
@@ -57,7 +56,7 @@ defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() 
   return $max(this.__deadlineTime - now(), 0);
 }, { writable: true, enumerable: true, configurable: true });
 if (DESCRIPTORS) {
-  defineProperty(IdleDeadline.prototype, "didTimeout", {
+  defineProperty(IdleDeadline.prototype, 'didTimeout', {
     get: function get() {
       return this.__didTimeout;
     },
@@ -123,7 +122,7 @@ exports.request = function requestIdleCallback(callback) {
   var handle = ++sharedStore.__idleCallbackId;
   sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__handleObjects[handle] = sharedStore.__idleRequestCallbacks.add(handle);
-  var timeout = undefined;
+  var timeout;
   if (options && options.timeout !== undefined) timeout = +options.timeout;
   if (options && !$isNaN(timeout) && timeout !== undefined && timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +

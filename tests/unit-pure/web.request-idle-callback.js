@@ -22,7 +22,7 @@ QUnit.test('idle callbacks', assert => {
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout, 'timed out without a timeout');
     done();
-  }, {timeout: "Allison"});
+  }, { timeout: 'Allison' });
 
   assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
@@ -53,10 +53,10 @@ QUnit.test('idle callbacks', assert => {
   assert.throws(requestIdleCallback, TypeError);
   assert.throws(cancelIdleCallback, TypeError);
   assert.throws(() => {
-    requestIdleCallback("allison");
+    requestIdleCallback('allison');
   }, TypeError);
   // Shouldn't do anything, as allison is not a number.
-  cancelIdleCallback("allison");
+  cancelIdleCallback('allison');
 
   assert.isFunction(IdleDeadline);
   assert.arity(IdleDeadline, 0);
