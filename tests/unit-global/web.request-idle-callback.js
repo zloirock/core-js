@@ -41,8 +41,12 @@ QUnit.test('idle callbacks', assert => {
   });
 
   assert.throws(requestIdleCallback, TypeError);
+  assert.throws(cancelIdleCallback, TypeError);
   assert.throws(() => {
     requestIdleCallback("allison");
+  }, TypeError);
+  assert.throws(() => {
+    cancelIdleCallback("allison");
   }, TypeError);
   assert.throws(() => {
     requestIdleCallback(() => {}, {timeout: "Allison"});
