@@ -1,2 +1,5 @@
 import "core-js/modules/es.array.at";
-'a,b,c'.split(',').at(-1);
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.string.at";
+import "core-js/modules/es.string.includes";
+'a,b'.split(',').at(0).includes('a');
