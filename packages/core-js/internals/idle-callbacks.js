@@ -16,6 +16,7 @@ var setToStringTag = require('./set-to-string-tag');
 
 var $TypeError = TypeError;
 var TOKEN = '__core_js_polyfill_idle_callback__';
+var $isNaN = isNaN;
 
 var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;
@@ -122,8 +123,9 @@ exports.request = function requestIdleCallback(callback) {
   var handle = ++sharedStore.__idleCallbackId;
   sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__handleObjects[handle] = sharedStore.__idleRequestCallbacks.add(handle);
-  if (options) options.timeout = +options.timeout;
-  if (options && options.timeout > 0) {
+  var timeout = undefined;
+  if (options && options.timeout !== undefined) timeout = +options.timeout;
+  if (options && !$isNaN(timeout) && timeout !== undefined && timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // options.timeout, however maintaining such a priority queue would be very tedious
     sharedStore.__timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
