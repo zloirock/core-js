@@ -675,8 +675,7 @@ function resolveClassInheritance(classPath) {
     const superPath = current.get('superClass');
     const name = resolveGlobalName(superPath);
     if (name) return resolveKnownConstructor(name);
-    if (!superPath.isIdentifier()) return null;
-    current = resolvePath(superPath);
+    current = resolveRuntimeExpression(superPath);
     if (!current.isClass()) return null;
   }
   return null;
@@ -718,8 +717,8 @@ function resolveNodeTypeExpression(path) {
         if (name === 'Object') return new $Object(null);
         return resolveKnownConstructor(name) || new $Object(name);
       }
-      if (callee.isIdentifier()) {
-        const resolved = resolvePath(callee);
+      {
+        const resolved = resolveRuntimeExpression(callee);
         if (resolved.isClass()) return resolveClassInheritance(resolved) || new $Object('Object');
       }
       return new $Object(null);
@@ -1074,7 +1073,7 @@ function resolveClassContext(objectPath) {
   if (objectPath.isClass()) return { classPath: objectPath, isStatic: true };
   // new Foo().prop - object is a class instance
   if (objectPath.isNewExpression()) {
-    const cls = resolvePath(objectPath.get('callee'));
+    const cls = resolveRuntimeExpression(objectPath.get('callee'));
     if (cls.isClass()) return { classPath: cls, isStatic: false };
   }
   // this.prop inside a class member
@@ -1091,7 +1090,7 @@ function findClassMember(classPath, name, isStatic, depth = 0) {
   }
   const superClass = classPath.get('superClass');
   if (superClass.node) {
-    const resolved = resolvePath(superClass);
+    const resolved = resolveRuntimeExpression(superClass);
     if (resolved.isClass()) return findClassMember(resolved, name, isStatic, depth + 1);
   }
   return null;
