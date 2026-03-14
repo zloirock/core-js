@@ -5,4 +5,5 @@ import "core-js/modules/es.array-buffer.transfer";
 import "core-js/modules/es.array-buffer.transfer-to-fixed-length";
 import "core-js/modules/es.array-buffer.species";
 import "core-js/modules/es.array-buffer.to-string-tag";
+import "core-js/modules/es.regexp.to-string";
 new ArrayBuffer(8).detached.toString();

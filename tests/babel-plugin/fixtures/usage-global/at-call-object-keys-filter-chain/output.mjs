@@ -1,4 +1,10 @@
 import "core-js/modules/es.object.keys";
+import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.filter";
-Object.keys(obj).filter(Boolean).at(-1);
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.iterator.constructor";
+import "core-js/modules/es.iterator.filter";
+import "core-js/modules/es.string.at";
+import "core-js/modules/es.string.includes";
+Object.keys(x).filter(fn).at(0).includes('a');
