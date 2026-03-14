@@ -6,7 +6,7 @@ var sharedStore = require('./shared-store');
 var defineBuiltIn = require('./define-built-in');
 var Queue = require('./queue');
 var DESCRIPTORS = require('./descriptors');
-var defineProperty = require('./object-define-property');
+var defineProperty = require('./object-define-property').f;
 
 var setToStringTag = require('./set-to-string-tag');
 
