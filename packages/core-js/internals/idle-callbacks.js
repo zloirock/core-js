@@ -5,6 +5,7 @@ var globalThis = require('./global-this');
 var sharedStore = require('./shared-store');
 var defineBuiltIn = require('./define-built-in');
 var Queue = require('./queue');
+var setToStringTag = require('./set-to-string-tag');
 
 var $TypeError = TypeError;
 var TOKEN = '__core_js_polyfill_idle_callback__';
@@ -42,6 +43,7 @@ var IdleDeadline = function IdleDeadline() {
   this.didTimeout = arguments[2];
 };
 exports.deadline = IdleDeadline;
+setToStringTag(IdleDeadline, "IdleDeadline");
 defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() {
   return $max(this.__deadlineTime - now(), 0);
 });
