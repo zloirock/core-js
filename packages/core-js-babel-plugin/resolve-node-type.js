@@ -1446,8 +1446,12 @@ function resolveArrayPatternBinding(arrayPattern, varName, annotation, scope) {
 // find the raw type annotation of an expression (follows bindings and const chains)
 function findExpressionAnnotation(path, depth = 0) {
   if (depth > MAX_DEPTH) return null;
-  if (path.node.type === 'TSAsExpression' || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
+  if (path.node.type === 'TSAsExpression' || path.node.type === 'TSSatisfiesExpression'
+    || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
     return { annotation: path.node.typeAnnotation, scope: path.scope };
+  }
+  if (path.node.type === 'TSNonNullExpression' || path.node.type === 'TSInstantiationExpression') {
+    return findExpressionAnnotation(path.get('expression'), depth + 1);
   }
   if (path.isIdentifier()) {
     const binding = path.scope.getBinding(path.node.name);
