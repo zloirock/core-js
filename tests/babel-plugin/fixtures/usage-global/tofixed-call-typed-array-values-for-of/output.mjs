@@ -1,3 +1,4 @@
+import "core-js/modules/es.symbol.iterator";
 import "core-js/modules/es.object.to-string";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.repeat";
@@ -41,4 +42,6 @@ import "core-js/modules/es.typed-array.to-string";
 import "core-js/modules/es.typed-array.values";
 import "core-js/modules/es.typed-array.with";
 import "core-js/modules/web.dom-collections.iterator";
-new Int32Array(10).filter(fn).at(0).toFixed(2);
+for (const n of new Int32Array(10).values()) {
+  n.toFixed(2);
+}
