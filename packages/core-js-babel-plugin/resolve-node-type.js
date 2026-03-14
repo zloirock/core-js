@@ -1,18 +1,17 @@
 'use strict';
-const { hasOwn } = Object;
+const {
+  globalMethods: KNOWN_GLOBAL_METHOD_RETURN_TYPES,
+  globalProperties: KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
+  staticMethods: KNOWN_STATIC_METHOD_RETURN_TYPES,
+  staticProperties: KNOWN_STATIC_PROPERTY_RETURN_TYPES,
+  instanceMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES,
+  instanceProperties: KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
+  staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
+} = require('@core-js/compat/known-built-in-return-types');
+
+const { assign, create, hasOwn } = Object;
 
 const MAX_DEPTH = 15;
-
-function keyMatchesName(key, name) {
-  return key?.type === 'Identifier' && key.name === name
-    || key?.type === 'StringLiteral' && key.value === name;
-}
-
-function getKeyName(key) {
-  if (key?.type === 'Identifier') return key.name;
-  if (key?.type === 'StringLiteral') return key.value;
-  return null;
-}
 
 const POSSIBLE_GLOBAL_PROXIES = new Set([
   'global',
@@ -31,7 +30,7 @@ const PRIMITIVES = new Set([
   'undefined',
 ]);
 
-const PRIMITIVE_WRAPPERS = Object.assign(Object.create(null), {
+const PRIMITIVE_WRAPPERS = assign(create(null), {
   bigint: 'BigInt',
   boolean: 'Boolean',
   number: 'Number',
@@ -39,7 +38,7 @@ const PRIMITIVE_WRAPPERS = Object.assign(Object.create(null), {
   symbol: 'Symbol',
 });
 
-const TYPEOF_HINT_GROUPS = Object.assign(Object.create(null), {
+const TYPEOF_HINT_GROUPS = assign(create(null), {
   string: new Set(['string']),
   number: new Set(['number']),
   boolean: new Set(['boolean']),
@@ -58,15 +57,21 @@ const TYPEOF_HINT_GROUPS = Object.assign(Object.create(null), {
   ]),
 });
 
-const {
-  globalMethods: KNOWN_GLOBAL_METHOD_RETURN_TYPES,
-  globalProperties: KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
-  staticMethods: KNOWN_STATIC_METHOD_RETURN_TYPES,
-  staticProperties: KNOWN_STATIC_PROPERTY_RETURN_TYPES,
-  instanceMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES,
-  instanceProperties: KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
-  staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
-} = require('@core-js/compat/known-built-in-return-types');
+// collection types whose first type parameter is the element type
+const SINGLE_ELEMENT_COLLECTIONS = new Set([
+  'Array',
+  'ReadonlyArray',
+  'Set',
+  'ReadonlySet',
+  'Iterable',
+  'IterableIterator',
+  'Iterator',
+  'AsyncIterable',
+  'AsyncIterableIterator',
+  'AsyncIterator',
+  'Generator',
+  'AsyncGenerator',
+]);
 
 function $Primitive(type) {
   this.type = type;
@@ -81,6 +86,21 @@ function $Object(constructor) {
 }
 
 $Object.prototype.primitive = false;
+
+function keyMatchesName(key, name) {
+  return key?.type === 'Identifier' && key.name === name
+    || key?.type === 'StringLiteral' && key.value === name;
+}
+
+function getKeyName(key) {
+  if (key?.type === 'Identifier') return key.name;
+  if (key?.type === 'StringLiteral') return key.value;
+  return null;
+}
+
+function isMemberLike(path) {
+  return path.isMemberExpression() || path.isOptionalMemberExpression();
+}
 
 function unwrapTypeAnnotation(node) {
   if (!node) return null;
@@ -228,7 +248,21 @@ function getTypeMembers(objectType, scope) {
   if (objectType.type === 'TSTypeLiteral') return objectType.members;
   const name = typeRefName(objectType);
   const decl = name ? findTypeDeclaration(name, scope) : null;
-  if (decl?.type === 'TSInterfaceDeclaration') return decl.body?.body;
+  if (decl?.type === 'TSInterfaceDeclaration') {
+    const own = decl.body?.body;
+    // collect members from the extends chain
+    const parents = decl.extends;
+    if (!parents?.length) return own;
+    const all = own ? [...own] : [];
+    for (const parent of parents) {
+      // TSExpressionWithTypeArguments has .expression (Identifier), wrap as TSTypeReference
+      const expr = parent.expression ?? parent;
+      const parentRef = expr.type === 'Identifier' ? { type: 'TSTypeReference', typeName: expr } : expr;
+      const parentMembers = getTypeMembers(parentRef, scope);
+      if (parentMembers) for (const m of parentMembers) all.push(m);
+    }
+    return all.length ? all : null;
+  }
   if (decl?.type === 'TSTypeAliasDeclaration' && decl.typeAnnotation?.type === 'TSTypeLiteral') return decl.typeAnnotation.members;
   return null;
 }
@@ -237,8 +271,12 @@ function findTypeMember(objectType, key, scope) {
   const members = getTypeMembers(objectType, scope);
   if (!members) return null;
   for (const member of members) {
-    if (member.type !== 'TSPropertySignature') continue;
-    if (keyMatchesName(member.key, key)) return member.typeAnnotation;
+    if (member.type !== 'TSPropertySignature' && member.type !== 'TSMethodSignature') continue;
+    if (keyMatchesName(member.key, key)) {
+      // TSMethodSignature as non-call property access: the member itself is a function
+      if (member.type === 'TSMethodSignature') return { type: 'TSFunctionType' };
+      return member.typeAnnotation;
+    }
   }
   return null;
 }
@@ -580,7 +618,7 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
 
 function resolveGlobalName(path) {
   if (path.isIdentifier() && !path.scope.getBinding(path.node.name)) return path.node.name;
-  if (!path.isMemberExpression() || path.node.computed) return null;
+  if (!isMemberLike(path) || path.node.computed) return null;
   const object = path.get('object');
   if (!object.isIdentifier()) return null;
   const { name } = object.node;
@@ -880,7 +918,8 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
   // phase 1: direct matching - param annotation is exactly T
   for (let i = 0; i < params.length && i < args.length; i++) {
     if (params[i].type === 'RestElement') continue;
-    const paramAnnotation = unwrapTypeAnnotation(params[i].typeAnnotation);
+    const param = params[i].type === 'AssignmentPattern' ? params[i].left : params[i];
+    const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
     if (!paramAnnotation) continue;
     const name = typeRefName(paramAnnotation);
     if (name && typeParamNames.has(name) && !typeParamMap.has(name)) {
@@ -972,7 +1011,10 @@ function resolveReturnType(fnPath, callPath) {
     if (resolved) return resolved;
   }
   // fallback: analyze return statements in the function body
-  return resolveBodyReturnType(fnPath, callPath);
+  const bodyType = resolveBodyReturnType(fnPath, callPath);
+  // async functions wrap the body return type in Promise
+  if (bodyType && fnPath.node.async && bodyType.constructor !== 'Promise') return new $Object('Promise');
+  return bodyType;
 }
 
 // resolve `this` to the enclosing class context
@@ -1147,7 +1189,7 @@ function resolveKnownInstanceMember(path, table) {
 }
 
 function resolveKnownStaticReturnType(callee) {
-  if (!callee.isMemberExpression()) return null;
+  if (!isMemberLike(callee)) return null;
   const info = resolveGlobalMember(callee);
   if (!info) return null;
   const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
@@ -1183,16 +1225,21 @@ function resolveKnownGlobalReference(path) {
   return null;
 }
 
+function resolveMemberCallType(memberPath, callPath) {
+  return resolveFromMemberExpression(memberPath, callPath)
+    || resolveKnownStaticReturnType(memberPath)
+    || resolveKnownMethodReturnType(memberPath);
+}
+
 function resolveCallReturnType(callee) {
   // method call: obj.method() or obj?.method()
-  if (callee.isMemberExpression() || callee.isOptionalMemberExpression()) {
-    return resolveFromMemberExpression(callee, callee.parentPath)
-      || resolveKnownStaticReturnType(callee)
-      || resolveKnownMethodReturnType(callee);
-  }
+  if (isMemberLike(callee)) return resolveMemberCallType(callee, callee.parentPath);
   // direct call: foo() - or IIFE: (() => expr)()
   const resolved = resolvePath(callee);
-  return resolved.isFunction() ? resolveReturnType(resolved, callee.parentPath) : null;
+  if (resolved.isFunction()) return resolveReturnType(resolved, callee.parentPath);
+  // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
+  if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
+  return null;
 }
 
 // find the original property key name for a destructured variable
@@ -1257,21 +1304,10 @@ function resolveElementType(node, scope, depth) {
       const name = typeRefName(node);
       if (!name) return null;
       const params = node.typeParameters?.params;
-      switch (name) {
-        case 'Array': case 'ReadonlyArray':
-        case 'Set': case 'ReadonlySet':
-        case 'Iterable': case 'IterableIterator': case 'Iterator':
-        case 'AsyncIterable': case 'AsyncIterableIterator': case 'AsyncIterator':
-        case 'Generator': case 'AsyncGenerator':
-          return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
-        case 'Map': case 'ReadonlyMap':
-          return new $Object('Array');
-        default: {
-          const decl = findTypeDeclaration(name, scope);
-          if (decl?.type === 'TSTypeAliasDeclaration') return resolveElementType(decl.typeAnnotation, scope, depth + 1);
-          return null;
-        }
-      }
+      if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
+      if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
+      const decl = findTypeDeclaration(name, scope);
+      return decl?.type === 'TSTypeAliasDeclaration' ? resolveElementType(decl.typeAnnotation, scope, depth + 1) : null;
     }
     // iterating a string yields characters (strings)
     case 'TSStringKeyword':
@@ -1317,19 +1353,9 @@ function extractElementAnnotation(node, scope, depth) {
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
       if (!name) return null;
-      switch (name) {
-        case 'Array': case 'ReadonlyArray':
-        case 'Set': case 'ReadonlySet':
-        case 'Iterable': case 'IterableIterator': case 'Iterator':
-        case 'AsyncIterable': case 'AsyncIterableIterator': case 'AsyncIterator':
-        case 'Generator': case 'AsyncGenerator':
-          return node.typeParameters?.params[0] ?? null;
-        default: {
-          const decl = findTypeDeclaration(name, scope);
-          if (decl?.type === 'TSTypeAliasDeclaration') return extractElementAnnotation(decl.typeAnnotation, scope, depth + 1);
-          return null;
-        }
-      }
+      if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return node.typeParameters?.params[0] ?? null;
+      const decl = findTypeDeclaration(name, scope);
+      return decl?.type === 'TSTypeAliasDeclaration' ? extractElementAnnotation(decl.typeAnnotation, scope, depth + 1) : null;
     }
     case 'TSTypeOperator':
       return node.operator !== 'keyof' ? extractElementAnnotation(node.typeAnnotation, scope, depth + 1) : null;
@@ -1529,6 +1555,21 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
       }
     }
   }
+  // for-of iterable: for (const { name } of typedArr)
+  const forOfPath = findForLoopParent(bindingPath);
+  if (forOfPath?.isForOfStatement()) {
+    const keyName = findDestructuredKeyName(objectPattern, varName);
+    if (keyName) {
+      const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+      if (annotationInfo) {
+        const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+        if (elemAnnotation) {
+          const memberType = findTypeMember(unwrapTypeAnnotation(elemAnnotation), keyName, annotationInfo.scope);
+          if (memberType) return resolveTypeAnnotation(memberType, annotationInfo.scope);
+        }
+      }
+    }
+  }
   return null;
 }
 
@@ -1707,6 +1748,20 @@ function findConditionalGuards(current, varName) {
   return parseGuardsFromCondition(testNode, conditionTrue, varName);
 }
 
+// resolve a string value from a case test: StringLiteral directly or constant Identifier binding
+function caseTestStringValue(test, scope) {
+  if (!test) return null;
+  if (test.type === 'StringLiteral') return test.value;
+  if (test.type === 'Identifier') {
+    const bindingPath = constantBindingPath(test.name, scope);
+    if (bindingPath?.isVariableDeclarator()) {
+      const { init } = bindingPath.node;
+      if (init?.type === 'StringLiteral') return init.value;
+    }
+  }
+  return null;
+}
+
 // switch (typeof x) { case 'string': ... ; default: ... }
 function findSwitchCaseGuards(current, varName) {
   if (!current.parentPath?.isSwitchCase()) return null;
@@ -1715,30 +1770,31 @@ function findSwitchCaseGuards(current, varName) {
   if (!switchStmt?.isSwitchStatement()) return null;
   if (!isTypeofVar(switchStmt.node.discriminant, varName)) return null;
   const { cases } = switchStmt.node;
+  const { scope } = switchCase;
   const caseIndex = cases.indexOf(switchCase.node);
-  const caseTest = switchCase.node.test;
+  const caseValue = caseTestStringValue(switchCase.node.test, scope);
   // specific case: typeof value is known
-  if (caseTest?.type === 'StringLiteral') {
+  if (caseValue !== null) {
     // collect fall-through predecessors into a typeof-or group
-    const values = new Set([caseTest.value]);
+    const values = new Set([caseValue]);
     for (let i = caseIndex - 1; i >= 0; i--) {
       if (!canFallThrough(cases[i])) break;
-      // bail if default or non-string test in the fall-through chain
-      if (cases[i].test?.type !== 'StringLiteral') return null;
-      values.add(cases[i].test.value);
+      // bail if default or non-resolvable test in the fall-through chain
+      const predValue = caseTestStringValue(cases[i].test, scope);
+      if (predValue === null) return null;
+      values.add(predValue);
     }
-    if (values.size === 1) return [{ kind: 'typeof', value: caseTest.value, positive: true, negated: false }];
+    if (values.size === 1) return [{ kind: 'typeof', value: caseValue, positive: true, negated: false }];
     return [{ kind: 'typeof-or', values, negated: false, positive: true }];
   }
   // default case: none of the explicit cases matched -> negative guards for each
-  if (caseTest === null) {
+  if (switchCase.node.test === null) {
     // bail if a preceding case can fall through to default - negative guards would be unsound
     if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return null;
     const guards = [];
     for (const $case of cases) {
-      if ($case.test?.type === 'StringLiteral') {
-        guards.push({ kind: 'typeof', value: $case.test.value, positive: false, negated: false });
-      }
+      const value = caseTestStringValue($case.test, scope);
+      if (value !== null) guards.push({ kind: 'typeof', value, positive: false, negated: false });
     }
     return guards.length ? guards : null;
   }
