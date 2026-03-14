@@ -601,7 +601,7 @@ function resolveMemberPropertyName(path) {
   const { property, computed } = path.node;
   if (!computed) return property.type === 'Identifier' ? property.name : null;
   if (property.type === 'StringLiteral') return property.value;
-  const resolved = resolvePath(path.get('property'));
+  const resolved = resolveRuntimeExpression(path.get('property'));
   return resolved.node?.type === 'StringLiteral' ? resolved.node.value : null;
 }
 
@@ -1190,7 +1190,7 @@ function resolveFromMemberExpression(path, callPath) {
 // arr[0], arr[1] - numeric index access on array literals
 function resolveArrayIndexAccess(path) {
   if (!path.node.computed) return null;
-  const resolvedProp = resolvePath(path.get('property'));
+  const resolvedProp = resolveRuntimeExpression(path.get('property'));
   if (resolvedProp.node?.type !== 'NumericLiteral') return null;
   const index = resolvedProp.node.value;
   if (!Number.isInteger(index) || index < 0) return null;
