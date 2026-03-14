@@ -6,13 +6,19 @@ QUnit.test('idle callbacks', assert => {
   assert.arity(requestIdleCallback, 1);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
-  const done = assert.async(3);
+  const done = assert.async(4);
 
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout, 'timed out without a timeout');
     assert.strictEqual(typeof deadline.timeRemaining(), 'number', 'not a number');
     done();
   });
+
+  // A string is coerced into NaN ==> no timeout.
+  requestIdleCallback(deadline => {
+    assert.false(deadline.didTimeout, 'timed out without a timeout');
+    done();
+  }, {timeout: "Allison"});
 
   assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
@@ -45,12 +51,8 @@ QUnit.test('idle callbacks', assert => {
   assert.throws(() => {
     requestIdleCallback("allison");
   }, TypeError);
-  assert.throws(() => {
-    cancelIdleCallback("allison");
-  }, TypeError);
-  assert.throws(() => {
-    requestIdleCallback(() => {}, {timeout: "Allison"});
-  }, TypeError);
+  // Shouldn't do anything, as allison is not a number.
+  cancelIdleCallback("allison");
 
   assert.isFunction(IdleDeadline);
   assert.arity(IdleDeadline, 0);
