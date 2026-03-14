@@ -1716,8 +1716,9 @@ function parseTypeGuard(testNode, varName) {
   }
   if (test.type === 'BinaryExpression') {
     const { operator, left, right } = test;
-    if (operator === '===' || operator === '!==') {
-      if (operator === '!==') negated = !negated;
+    const isNegatedOp = operator === '!==' || operator === '!=';
+    if (isNegatedOp || operator === '===' || operator === '==') {
+      if (isNegatedOp) negated = !negated;
       // normalize: typeof may be on either side
       const [typeofSide, literalSide] = left.type === 'UnaryExpression' ? [left, right] : [right, left];
       if (isTypeofVar(typeofSide, varName) && literalSide.type === 'StringLiteral') {
