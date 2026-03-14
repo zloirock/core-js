@@ -1,5 +1,9 @@
 /* eslint no-underscore-dangle: 0 -- internal vars use sharedStore.__ for private state */
 'use strict';
+var aCallable = require('./a-callable');
+var anObjectOrUndefined = require(./an-object-or-undefined');
+var aNumber = require('./a-number');
+var validateArgumentsLength = require('./validate-arguments-length');
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
 var sharedStore = require('./shared-store');
@@ -111,10 +115,14 @@ function startIdlePeriod() {
 
 // Exported methods
 exports.request = function requestIdleCallback(callback) {
-  var options = arguments[1] || null;
+  validateArgumentsLength(arguments.length, 1);
+  aCallable(callback);
+  var options = arguments[1];
+  anObjectOrUndefined(options);
   var handle = ++sharedStore.__idleCallbackId;
   sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__handleObjects[handle] = sharedStore.__idleRequestCallbacks.add(handle);
+  if (options && options.timeout !== undefined) aNumber(options.timeout);
   if (options && options.timeout && options.timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // options.timeout, however maintaining such a priority queue would be very tedious
@@ -144,6 +152,8 @@ exports.request = function requestIdleCallback(callback) {
   return handle;
 };
 exports.cancel = function cancelIdleCallback(handle) {
+  validateArgumentsLength(arguments.length, 1);
+  aNumber(handle);
   delete sharedStore.__idleCallbackMap[handle];
   if (sharedStore.__timeoutHandles[handle] !== undefined) {
     clearTimeout(sharedStore.__timeoutHandles[handle]);
