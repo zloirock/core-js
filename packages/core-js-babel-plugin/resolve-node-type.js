@@ -110,7 +110,7 @@ function resolveRuntimeExpression(path) {
   while (depth--) {
     path = resolvePath(path);
     const { type } = path.node;
-    if (type === 'TSAsExpression' || type === 'TSSatisfiesExpression'
+    if (type === 'TSAsExpression' || type === 'TSTypeAssertion' || type === 'TSSatisfiesExpression'
       || type === 'TSNonNullExpression' || type === 'TSInstantiationExpression'
       || type === 'TypeCastExpression') {
       path = path.get('expression');
