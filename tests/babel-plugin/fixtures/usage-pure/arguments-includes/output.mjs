@@ -1,3 +1,4 @@
+import _includesInstanceProperty from "@core-js/pure/actual/instance/includes";
 function foo() {
-  return arguments.includes(1);
+  return _includesInstanceProperty(arguments).call(arguments, 1);
 }
