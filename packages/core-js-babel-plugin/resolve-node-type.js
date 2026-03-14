@@ -953,21 +953,44 @@ function hasTypeParamReference(node, typeParamNames, depth) {
   return false;
 }
 
+// extract type parameter name from an array annotation: T[] → T, Array<T> → T, ReadonlyArray<T> → T
+function arrayElementTypeParamName(annotation, refName) {
+  if (annotation.type === 'TSArrayType' || annotation.type === 'ArrayTypeAnnotation') {
+    return typeRefName(annotation.elementType);
+  }
+  if (refName === 'Array' || refName === 'ReadonlyArray') {
+    const typeArgs = annotation.typeParameters?.params;
+    if (typeArgs?.length === 1) return typeRefName(typeArgs[0]);
+  }
+  return null;
+}
+
 // build a Map<string, Type> of type parameter bindings from call-site arguments
 function buildTypeParamMap(typeParamNames, fnPath, callPath) {
   const typeParamMap = new Map();
   const args = callPath.get('arguments');
   const { params } = fnPath.node;
-  // phase 1: direct matching - param annotation is exactly T
+  // phase 1: match param annotations against type parameter names
   for (let i = 0; i < params.length && i < args.length; i++) {
     if (params[i].type === 'RestElement') continue;
     const param = params[i].type === 'AssignmentPattern' ? params[i].left : params[i];
     const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
     if (!paramAnnotation) continue;
     const name = typeRefName(paramAnnotation);
+    // direct: param type is exactly T
     if (name && typeParamNames.has(name) && !typeParamMap.has(name)) {
       const resolved = resolveNodeType(args[i]);
       if (resolved) typeParamMap.set(name, resolved);
+      continue;
+    }
+    // array wrapper: param type is T[] or Array<T> / ReadonlyArray<T>
+    const elemParamName = arrayElementTypeParamName(paramAnnotation, name);
+    if (elemParamName && typeParamNames.has(elemParamName) && !typeParamMap.has(elemParamName)) {
+      const argPath = resolveRuntimeExpression(args[i]);
+      if (argPath.isArrayExpression()) {
+        const elementType = resolveArrayLiteralCommonType(argPath);
+        if (elementType) typeParamMap.set(elemParamName, elementType);
+      }
     }
   }
   // phase 2: constraint fallback for unresolved type params
