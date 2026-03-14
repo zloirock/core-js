@@ -8,6 +8,7 @@ var $requestIdleCallback = require('../internals/idle-callbacks').request;
 var nativeRequestIdleCallback = globalThis.requestIdleCallback;
 var apply = uncurryThis(Function.prototype.apply);
 var NEEDED = require('../internals/idle-callbacks').forced;
+var $isNaN = isNaN;
 
 $({ global: true, forced: true }, {
   requestIdleCallback: function requestIdleCallback(callback) {
@@ -18,7 +19,7 @@ $({ global: true, forced: true }, {
     var options = arguments[1];
     var timeout;
     if (options && options.timeout !== undefined) timeout = +options.timeout;
-    if (timeout <= 0) return nativeRequestIdleCallback(callback);
+    if ($isNaN(timeout) || timeout <= 0) return nativeRequestIdleCallback(callback);
     return nativeRequestIdleCallback(callback, { timeout: timeout });
   }
 });

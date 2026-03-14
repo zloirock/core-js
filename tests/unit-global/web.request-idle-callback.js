@@ -16,9 +16,14 @@ QUnit.test('idle callbacks', assert => {
 
   // A string is coerced into NaN ==> no timeout.
   requestIdleCallback(deadline => {
-    assert.false(deadline.didTimeout, 'timed out without a timeout');
+    assert.false(deadline.didTimeout, 'timed out with NaN timeout');
     done();
   }, { timeout: 'Allison' });
+
+  requestIdleCallback(deadline => {
+    assert.false(deadline.didTimeout, 'timed out with negative timeout');
+    done();
+  }, { timeout: -10 });
 
   assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
