@@ -5,6 +5,9 @@ var globalThis = require('./global-this');
 var sharedStore = require('./shared-store');
 var defineBuiltIn = require('./define-built-in');
 var Queue = require('./queue');
+var DESCRIPTORS = require('./descriptors');
+var defineProperty = require('./object-define-property');
+
 var setToStringTag = require('./set-to-string-tag');
 
 var $TypeError = TypeError;
@@ -24,8 +27,6 @@ var rAF = globalThis.requestAnimationFrame || function (callback) {
   }, 16);
 };
 
-exports.forced = !globalThis.requestIdleCallback || !globalThis.cancelIdleCallback || !globalThis.IdleDeadline;
-
 if (sharedStore.idleCallbackPolyfilled === undefined) {
   sharedStore.idleCallbackPolyfilled = true;
   sharedStore.__idleRequestCallbacks = new Queue();
@@ -40,13 +41,25 @@ if (sharedStore.idleCallbackPolyfilled === undefined) {
 var IdleDeadline = function IdleDeadline() {
   if (arguments[0] !== TOKEN) throw new $TypeError('Illegal Constructor');
   this.__deadlineTime = arguments[1];
-  this.didTimeout = arguments[2];
+  if (DESCRIPTORS) {
+    this.__didTimeout = arguments[2];
+  } else {
+    this.didTimeout = arguments[2];
+  }
 };
-exports.deadline = IdleDeadline;
-setToStringTag(IdleDeadline, "IdleDeadline");
+setToStringTag(IdleDeadline, 'IdleDeadline');
 defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() {
   return $max(this.__deadlineTime - now(), 0);
-});
+}, { writable: true, enumerable: true, configurable: true });
+if (DESCRIPTORS) {
+  defineProperty(IdleDeadline.prototype, "didTimeout", {
+    get() {
+      return this.__didTimeout;
+    },
+    enumerable: true,
+    configurable: true
+  });
+}
 
 function scheduleNextIdle() {
   if (sharedStore.__idleRafScheduled) return;
@@ -144,3 +157,5 @@ exports.cancel = function cancelIdleCallback(handle) {
   }
   delete sharedStore.__handleObjects[handle];
 };
+exports.deadline = IdleDeadline;
+exports.forced = !globalThis.requestIdleCallback || !globalThis.cancelIdleCallback || !globalThis.IdleDeadline;
