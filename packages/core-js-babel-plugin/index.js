@@ -117,14 +117,14 @@ function enhanceMeta(meta, path, desc) {
 
 function canTransformDestructuring(path) {
   const objectPattern = path.parentPath;
-  const destructParent = objectPattern.parentPath;
-  if (destructParent.isVariableDeclarator()) {
+  const destructParent = objectPattern?.parentPath;
+  if (destructParent?.isVariableDeclarator()) {
     // for-in/for-of: value comes from iteration, not from init - can't polyfill
     if (!destructParent.node.init) return false;
     // insertBefore in for-loop init wraps in IIFE, breaking variable scope
-    if (objectPattern.node.properties.length > 1 && destructParent.parentPath.parentPath.isForStatement()) return false;
-  } else if (destructParent.isAssignmentExpression()) {
-    if (!destructParent.parentPath.isExpressionStatement()) return false;
+    if (objectPattern.node.properties.length > 1 && destructParent.parentPath?.parentPath?.isForStatement()) return false;
+  } else if (destructParent?.isAssignmentExpression()) {
+    if (!destructParent.parentPath?.isExpressionStatement()) return false;
   } else {
     return false;
   }
