@@ -205,7 +205,8 @@ function findTypeDeclaration(name, scope) {
   while (currentScope) {
     const { block } = currentScope;
     const body = block.type === 'Program' ? block.body : block.body?.body;
-    if (Array.isArray(body)) for (const stmt of body) {
+    if (Array.isArray(body)) for (let stmt of body) {
+      if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration) stmt = stmt.declaration;
       if (stmt.id?.name === name && (stmt.type === 'TSTypeAliasDeclaration' || stmt.type === 'TSInterfaceDeclaration')) return stmt;
     }
     currentScope = currentScope.parent;
