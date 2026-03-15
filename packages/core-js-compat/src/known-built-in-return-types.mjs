@@ -354,7 +354,7 @@ export const instanceMethods = {
   },
   Promise: {
     catch: 'Promise',
-    finally: 'Promise',
+    finally: { type: 'Promise', resolved: 'inherit' },
     // eslint-disable-next-line unicorn/no-thenable -- false positive
     then: 'Promise',
   },
