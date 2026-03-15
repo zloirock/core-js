@@ -415,8 +415,9 @@ module.exports = defineProvider(({
         if (kind === 'instance') {
           replaceInstanceLike(path, id);
         } else {
+          const chainStart = path.node.optional;
           path.replaceWith(id);
-          normalizeOptionalChain(path, true);
+          normalizeOptionalChain(path, !chainStart);
         }
       }
     },
