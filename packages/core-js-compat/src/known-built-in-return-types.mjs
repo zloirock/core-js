@@ -423,6 +423,7 @@ export const instanceMethods = {
   },
   TypedArray: {
     at: 'number',
+    // only `number` for all those methods - acceptable assumption
     copyWithin: { type: 'TypedArray', element: 'number' },
     entries: { type: 'Iterator', element: { type: 'Array', element: 'number' } },
     every: 'boolean',
@@ -514,12 +515,12 @@ export const staticMethods = {
     asUintN: 'bigint',
   },
   BigInt64Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'bigint' },
+    of: { type: 'TypedArray', element: 'bigint' },
   },
   BigUint64Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'bigint' },
+    of: { type: 'TypedArray', element: 'bigint' },
   },
   Date: {
     now: 'number',
@@ -533,39 +534,41 @@ export const staticMethods = {
     isError: 'boolean',
   },
   Float16Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Float32Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Float64Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Int16Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Int32Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Int8Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Iterator: {
     concat: 'Iterator',
     from: 'Iterator',
-    range: 'Iterator',
-    zip: 'Iterator',
-    zipKeyed: 'Iterator',
+    // only `number` - acceptable assumption
+    range: { type: 'Iterator', element: 'number' },
+    zip: { type: 'Iterator', element: 'Array' },
+    zipKeyed: { type: 'Iterator', element: 'Object' },
   },
   JSON: {
     isRawJSON: 'boolean',
     rawJSON: 'Object',
+    // only `string` - acceptable assumption
     stringify: 'string',
   },
   Map: {
@@ -632,6 +635,7 @@ export const staticMethods = {
     getOwnPropertyDescriptors: 'Object',
     getOwnPropertyNames: { type: 'Array', element: 'string' },
     getOwnPropertySymbols: { type: 'Array', element: 'symbol' },
+    // only `Object` - acceptable assumption
     getPrototypeOf: 'Object',
     groupBy: 'Object',
     hasOwn: 'boolean',
@@ -667,6 +671,7 @@ export const staticMethods = {
   Reflect: {
     defineProperty: 'boolean',
     deleteProperty: 'boolean',
+    // only `Object` - acceptable assumption
     getPrototypeOf: 'Object',
     has: 'boolean',
     isExtensible: 'boolean',
@@ -708,6 +713,7 @@ export const staticMethods = {
   },
   URL: {
     canParse: 'boolean',
+    // only `URL` - acceptable assumption
     parse: 'URL',
   },
   Uint16Array: {
