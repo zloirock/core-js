@@ -1147,7 +1147,7 @@ function resolveReturnType(fnPath, callPath) {
   // fallback: analyze return statements in the function body
   const bodyType = resolveBodyReturnType(fnPath, callPath);
   // async functions wrap the body return type in Promise
-  if (bodyType && fnPath.node.async && bodyType.constructor !== 'Promise') return new $Object('Promise');
+  if (bodyType && fnPath.node.async && bodyType.constructor !== 'Promise') return new $Object('Promise', bodyType);
   return bodyType;
 }
 
