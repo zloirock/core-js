@@ -432,7 +432,16 @@ function resolveReturnTypeFromTypeQuery(param, scope) {
 
 function resolveNamedType(name, node, scope, depth) {
   const known = resolveKnownConstructor(name);
-  if (known) return known;
+  if (known) {
+    // extract inner type from type parameters for known container types
+    // e.g. Array<string> -> $Object('Array', $Primitive('string'))
+    // e.g. Promise<number[]> -> $Object('Promise', $Object('Array', ...))
+    const params = node.typeParameters?.params;
+    if (params?.[0] && (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise')) {
+      known.inner = resolveNonNullableAnnotation(params[0], scope, depth);
+    }
+    return known;
+  }
   switch (name) {
     // well-known utility types -> Object
     case 'Record':
@@ -523,8 +532,9 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     case 'ObjectTypeAnnotation':
       return new $Object('Object');
     case 'TSArrayType':
-    case 'TSTupleType':
     case 'ArrayTypeAnnotation':
+      return new $Object('Array', resolveNonNullableAnnotation(node.elementType, scope, depth));
+    case 'TSTupleType':
     case 'TupleTypeAnnotation':
       return new $Object('Array');
     case 'TSFunctionType':
@@ -655,6 +665,13 @@ function typesEqual(a, b) {
 
 function isNullableOrNever(resolved) {
   return resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never';
+}
+
+// resolve a type annotation, returning null for nullable/never types (not useful as inner types)
+function resolveNonNullableAnnotation(node, scope, depth) {
+  if (!node) return null;
+  const resolved = resolveTypeAnnotation(node, scope, depth + 1);
+  return resolved && !isNullableOrNever(resolved) ? resolved : null;
 }
 
 // resolve conditional type branches: if both match return that type, if one is `never` return the other
