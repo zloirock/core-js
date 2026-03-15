@@ -1080,13 +1080,15 @@ function hasTypeParamReference(node, typeParamNames, depth) {
 }
 
 // extract type parameter name from an array annotation: T[] -> T, Array<T> -> T, ReadonlyArray<T> -> T
-function arrayElementTypeParamName(annotation, refName) {
+function innerTypeParamName(annotation, refName) {
+  // T[] syntax
   if (annotation.type === 'TSArrayType' || annotation.type === 'ArrayTypeAnnotation') {
     return typeRefName(annotation.elementType);
   }
-  if (refName === 'Array' || refName === 'ReadonlyArray') {
+  // Container<T>: Set<T>, Promise<T>, Iterator<T>, Array<T>, ReadonlyArray<T>, etc.
+  if (refName && (SINGLE_ELEMENT_COLLECTIONS.has(refName) || refName === 'Promise')) {
     const typeArgs = annotation.typeParameters?.params;
-    if (typeArgs?.length === 1) return typeRefName(typeArgs[0]);
+    if (typeArgs?.length >= 1) return typeRefName(typeArgs[0]);
   }
   return null;
 }
@@ -1121,8 +1123,8 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
       if (resolved) typeParamMap.set(name, resolved);
       continue;
     }
-    // array wrapper: param type is T[] or Array<T> / ReadonlyArray<T>
-    const elemParamName = arrayElementTypeParamName(paramAnnotation, name);
+    // container wrapper: param type is T[], Array<T>, Set<T>, Promise<T>, etc.
+    const elemParamName = innerTypeParamName(paramAnnotation, name);
     if (elemParamName && typeParamNames.has(elemParamName) && !typeParamMap.has(elemParamName)) {
       const elementType = resolveInnerType(resolveNodeType(args[i]));
       if (elementType) typeParamMap.set(elemParamName, elementType);
