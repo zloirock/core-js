@@ -2,26 +2,30 @@
 var call = require('../internals/function-call');
 var perform = require('../internals/perform');
 var anObject = require('../internals/an-object');
-var create = require('../internals/object-create');
 var createNonEnumerableProperty = require('../internals/create-non-enumerable-property');
 var defineBuiltIns = require('../internals/define-built-ins');
 var wellKnownSymbol = require('../internals/well-known-symbol');
-var InternalStateModule = require('../internals/internal-state');
+var setInternalState = require('../internals/internal-state').set;
+var internalStateGetterFor = require('../internals/internal-state-getter-for');
 var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
 
+// @dependency: es.promise.constructor
+// @dependency: es.promise.catch
+// @dependency: es.promise.finally
+// @dependency: es.promise.reject
+// @dependency: es.promise.resolve
 var Promise = getBuiltIn('Promise');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ASYNC_ITERATOR_HELPER = 'AsyncIteratorHelper';
 var WRAP_FOR_VALID_ASYNC_ITERATOR = 'WrapForValidAsyncIterator';
-var setInternalState = InternalStateModule.set;
 
 var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
   var IS_GENERATOR = !IS_ITERATOR;
-  var getInternalState = InternalStateModule.getterFor(IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER);
+  var getInternalState = internalStateGetterFor(IS_ITERATOR ? WRAP_FOR_VALID_ASYNC_ITERATOR : ASYNC_ITERATOR_HELPER);
 
   var getStateOrEarlyExit = function (that) {
     var stateCompletion = perform(function () {
@@ -36,7 +40,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
     } return { exit: false, value: state };
   };
 
-  return defineBuiltIns(create(AsyncIteratorPrototype), {
+  return defineBuiltIns(Object.create(AsyncIteratorPrototype), {
     next: function next() {
       var stateCompletion = getStateOrEarlyExit(this);
       var state = stateCompletion.value;
@@ -49,7 +53,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       if (handlerError) state.done = true;
       return handlerError ? Promise.reject(value) : Promise.resolve(value);
     },
-    'return': function () {
+    return: function () {
       var stateCompletion = getStateOrEarlyExit(this);
       var state = stateCompletion.value;
       if (stateCompletion.exit) return state;
@@ -104,13 +108,14 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       }
 
       return closeOuterIterator();
-    }
+    },
   });
 };
 
 var WrapForValidAsyncIteratorPrototype = createAsyncIteratorProxyPrototype(true);
 var AsyncIteratorHelperPrototype = createAsyncIteratorProxyPrototype(false);
 
+// @dependency: es.object.to-string
 createNonEnumerableProperty(AsyncIteratorHelperPrototype, TO_STRING_TAG, 'Async Iterator Helper');
 
 module.exports = function (nextHandler, IS_ITERATOR) {

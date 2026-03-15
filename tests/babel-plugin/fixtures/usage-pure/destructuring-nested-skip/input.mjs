@@ -1,0 +1,1 @@
+const { from: { length } } = Array;

@@ -1,3 +1,4 @@
+// @types: web/atob-btoa
 'use strict';
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
@@ -9,6 +10,10 @@ var toString = require('../internals/to-string');
 var validateArgumentsLength = require('../internals/validate-arguments-length');
 var i2c = require('../internals/base64-map').i2c;
 
+// @dependency: web.dom-exception.constructor
+// @dependency: web.dom-exception.stack
+// @dependency: web.dom-exception.to-string-tag
+var DOMException = getBuiltIn('DOMException');
 var $btoa = getBuiltIn('btoa');
 var $Array = Array;
 var join = uncurryThis([].join);
@@ -49,10 +54,10 @@ $({ global: true, bind: true, enumerable: true, forced: !BASIC || NO_ARG_RECEIVI
     while (charAt(string, position) || (map = '=', position % 1)) {
       charCode = charCodeAt(string, position += 3 / 4);
       if (charCode > 0xFF) {
-        throw new (getBuiltIn('DOMException'))('The string contains characters outside of the Latin1 range', 'InvalidCharacterError');
+        throw new DOMException('The string contains characters outside of the Latin1 range', 'InvalidCharacterError');
       }
       block = block << 8 | charCode;
       output[outputIndex++] = charAt(map, 63 & block >> 8 - position % 1 * 8);
     } return join(output, '');
-  }
+  },
 });

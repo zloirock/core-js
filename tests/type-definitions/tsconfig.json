@@ -2,12 +2,9 @@
   "compilerOptions": {
     "strict": true,
     "target": "esnext",
-    "module": "esnext",
-    "moduleResolution": "node",
+    "module": "nodenext",
     "esModuleInterop": true,
+    "moduleResolution": "nodenext",
     "noEmit": true
-  },
-  "include": [
-    "*.ts"
-  ]
+  }
 }

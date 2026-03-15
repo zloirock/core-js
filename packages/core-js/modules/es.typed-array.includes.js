@@ -1,9 +1,8 @@
+// @types: proposals/array-includes
 'use strict';
-var ArrayBufferViewCore = require('../internals/array-buffer-view-core');
-var $includes = require('../internals/array-includes').includes;
-
-var aTypedArray = ArrayBufferViewCore.aTypedArray;
-var exportTypedArrayMethod = ArrayBufferViewCore.exportTypedArrayMethod;
+var exportTypedArrayMethod = require('../internals/export-typed-array-method');
+var aTypedArray = require('../internals/a-typed-array');
+var $includes = require('../internals/array-includes');
 
 // `%TypedArray%.prototype.includes` method
 // https://tc39.es/ecma262/#sec-%typedarray%.prototype.includes
