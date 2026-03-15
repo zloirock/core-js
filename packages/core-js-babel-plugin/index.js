@@ -65,7 +65,7 @@ function descHasTypeHints(desc) {
 
 function resolveHint(desc, meta) {
   const { placement, object, excludedHints, includedHints } = meta;
-  const hint = String(object).toLowerCase();
+  const hint = object === null || object === undefined ? null : String(object).toLowerCase();
 
   if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
     if (hasOwn(desc, hint)) return desc[hint];
@@ -101,7 +101,8 @@ function resolveHint(desc, meta) {
 
 function enhanceMeta(meta, path, desc) {
   if (!meta) return meta;
-  if (meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
+  if (meta.object !== null && meta.object !== undefined
+    && meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
   const hint = toHint(resolvePropertyObjectType(path));
   if (hint) {
     if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
