@@ -425,6 +425,7 @@ export const instanceMethods = {
   TypedArray: {
     at: 'element',
     copyWithin: { type: 'TypedArray', element: 'inherit' },
+    // only `number` - acceptable assumption
     entries: { type: 'Iterator', element: { type: 'Array', element: 'number' } },
     every: 'boolean',
     fill: { type: 'TypedArray', element: 'inherit' },
