@@ -3210,6 +3210,17 @@ export const data = {
     node: '19.8',
     safari: '17.0',
   },
+  'web.request-idle-callback': {
+    chrome: '47',
+  },
+  'web.cancel-idle-callback': {
+    chrome: '47',
+    firefox: '55',
+  },
+  'web.idle-deadline.constructor': {
+    chrome: '47',
+    firefox: '55',
+  },
 };
 
 export const renamed = new Map([
