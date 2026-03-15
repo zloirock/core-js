@@ -1287,7 +1287,11 @@ function resolveArrayIndexAccess(path) {
 // convert a normalized hint to a type object
 // objectType (optional) enables resolution of 'element'/'inherit' directives in instance method hints
 function typeFromHint(hint, objectType) {
-  if (hint === 'element' || hint === 'inherit') return resolveInnerType(objectType);
+  if (typeof hint === 'string') {
+    if (hint === 'element' || hint === 'inherit') return resolveInnerType(objectType);
+    if (PRIMITIVES.has(hint)) return new $Primitive(hint);
+    return new $Object(hint);
+  }
   if (PRIMITIVES.has(hint.type)) return new $Primitive(hint.type);
   const innerHint = hint.element ?? hint.resolved ?? null;
   const inner = innerHint ? typeFromHint(innerHint, objectType) : null;
