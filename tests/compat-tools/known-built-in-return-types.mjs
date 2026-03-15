@@ -13,6 +13,7 @@ const VALID_TYPES = new Set([
   // object types
   'Arguments',
   'Array',
+  'Error',
   'ArrayBuffer',
   'AsyncDisposableStack',
   'AsyncIterator',
@@ -49,6 +50,7 @@ ok(knownBuiltInReturnTypes.staticMethods, 'has staticMethods');
 ok(knownBuiltInReturnTypes.staticProperties, 'has staticProperties');
 ok(knownBuiltInReturnTypes.instanceMethods, 'has instanceMethods');
 ok(knownBuiltInReturnTypes.instanceProperties, 'has instanceProperties');
+ok(knownBuiltInReturnTypes.staticTypeGuards, 'has staticTypeGuards');
 
 // validate flat maps (globalMethods, globalProperties)
 for (const kind of ['globalMethods', 'globalProperties']) {
@@ -59,7 +61,7 @@ for (const kind of ['globalMethods', 'globalProperties']) {
 }
 
 // validate nested maps (staticMethods, staticProperties, instanceMethods, instanceProperties)
-for (const kind of ['staticMethods', 'staticProperties', 'instanceMethods', 'instanceProperties']) {
+for (const kind of ['staticMethods', 'staticProperties', 'instanceMethods', 'instanceProperties', 'staticTypeGuards']) {
   for (const [className, members] of Object.entries(knownBuiltInReturnTypes[kind])) {
     ok(typeof className === 'string' && className, `${ kind }: class name is non-empty string`);
     for (const [member, hint] of Object.entries(members)) {
@@ -155,5 +157,12 @@ deepEqual(knownBuiltInReturnTypes.instanceProperties.Function.name, { type: 'str
 deepEqual(knownBuiltInReturnTypes.instanceProperties.RegExp.flags, { type: 'string' });
 deepEqual(knownBuiltInReturnTypes.instanceProperties.URL.searchParams, { type: 'URLSearchParams' });
 deepEqual(knownBuiltInReturnTypes.instanceProperties.ArrayBuffer.detached, { type: 'boolean' });
+
+// staticTypeGuards
+deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Array.isArray, { type: 'Array' });
+deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Error.isError, { type: 'Error' });
+deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number' });
+deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isNaN, { type: 'number' });
+deepEqual(knownBuiltInReturnTypes.staticTypeGuards.TypeError.isError, { type: 'Error' });
 
 echo(chalk.green('known-built-in-return-types tested'));
