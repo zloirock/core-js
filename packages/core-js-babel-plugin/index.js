@@ -21,6 +21,14 @@ const defaultCoreJSPackages = ['core-js'];
 
 const { hasOwn } = Object;
 
+// skip core-js internals and bundles — polyfilling their own code creates circular dependencies
+const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:internals|modules)[/\\]/;
+const CORE_JS_BUNDLE = /[/\\](?:core-js-bundle|@core-js[/\\]bundle)[/\\]/;
+
+function isCoreJSFile(filename) {
+  return CORE_JS_INTERNAL_FILE.test(filename) || CORE_JS_BUNDLE.test(filename);
+}
+
 function normalizeImportPath(path) {
   return typeof path != 'string' ? null : path
     .replaceAll('\\', '/')
@@ -158,6 +166,7 @@ module.exports = defineProvider(({
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
+  let skipFile = false;
 
   const resolve = createMetaResolver({
     global: Globals,
@@ -277,7 +286,11 @@ module.exports = defineProvider(({
   return {
     name: 'core-js@4',
     polyfills: compatData,
+    pre() {
+      skipFile = !!this.filename && isCoreJSFile(this.filename);
+    },
     entryGlobal({ source }, utils, path) {
+      if (skipFile) return;
       const entry = getCoreJSEntry(source);
       if (entry === null) return;
       if (!path.node.loc && injectedModules.has(entry)) return;
@@ -286,6 +299,7 @@ module.exports = defineProvider(({
       path.remove();
     },
     usageGlobal(meta, utils, path) {
+      if (skipFile) return;
       let resolved = resolve(meta);
       // detect static method access via global proxy (e.g. globalThis.Object.keys, globalThis.Array.from)
       // the framework misclassifies these as instance accesses
@@ -332,6 +346,7 @@ module.exports = defineProvider(({
     },
 
     usagePure(meta, utils, path) {
+      if (skipFile) return;
       if (skippedNodes.has(path.node)) return;
       if (isInTypeAnnotation(path)) return;
 
@@ -403,6 +418,7 @@ module.exports = defineProvider(({
     visitor: method === 'usage-global' && {
       // import('foo')
       CallExpression(path) {
+        if (skipFile) return;
         if (path.get('callee').isImport()) {
           const utils = getUtils(path);
           if (isWebpack) {
@@ -415,6 +431,7 @@ module.exports = defineProvider(({
       },
       // (async function () { }).finally(...)
       Function(path) {
+        if (skipFile) return;
         if (path.node.async) {
           injectModulesForModeEntry('promise/constructor', getUtils(path));
           // async function * () { }
@@ -428,6 +445,7 @@ module.exports = defineProvider(({
       },
       // for-of, [a, b] = c
       'ForOfStatement|ArrayPattern'(path) {
+        if (skipFile) return;
         injectModulesForModeEntry('symbol/iterator', getUtils(path));
         // for-await-of
         if (path.isForOfStatement() && path.node.await) {
@@ -436,18 +454,21 @@ module.exports = defineProvider(({
       },
       // [...spread]
       SpreadElement(path) {
+        if (skipFile) return;
         if (!path.parentPath.isObjectExpression()) {
           injectModulesForModeEntry('symbol/iterator', getUtils(path));
         }
       },
       // yield *
       YieldExpression(path) {
+        if (skipFile) return;
         if (path.node.delegate) {
           injectModulesForModeEntry('symbol/iterator', getUtils(path));
         }
       },
       // decorators metadata
       Class(path) {
+        if (skipFile) return;
         if (path.node.decorators?.length || path.node.body.body.some(el => el.decorators?.length)) {
           injectModulesForModeEntry('symbol/metadata', getUtils(path));
         }
