@@ -1838,27 +1838,36 @@ function parseTypeGuard(testNode, varName) {
   return null;
 }
 
-const EXIT_STATEMENTS = new Set(['BreakStatement', 'ContinueStatement', 'ReturnStatement', 'ThrowStatement']);
+const EXIT_STATEMENTS = new Set([
+  'BreakStatement',
+  'ContinueStatement',
+  'ReturnStatement',
+  'ThrowStatement',
+]);
 
-function blockAlwaysExits(block, depth = 0) {
+function nodeAlwaysExits(node, depth = 0) {
   if (depth > MAX_DEPTH) return false;
-  if (EXIT_STATEMENTS.has(block.node.type)) return true;
-  if (block.isBlockStatement()) {
-    const body = block.get('body');
-    return body.length > 0 && blockAlwaysExits(body[body.length - 1], depth + 1);
+  if (EXIT_STATEMENTS.has(node.type)) return true;
+  if (node.type === 'BlockStatement') {
+    const { body } = node;
+    return body.length > 0 && nodeAlwaysExits(body[body.length - 1], depth + 1);
   }
   // if both branches always exit, the if-statement always exits
-  if (block.isIfStatement()) {
-    return block.node.alternate
-      && blockAlwaysExits(block.get('consequent'), depth + 1)
-      && blockAlwaysExits(block.get('alternate'), depth + 1);
+  if (node.type === 'IfStatement') {
+    return node.alternate
+      && nodeAlwaysExits(node.consequent, depth + 1)
+      && nodeAlwaysExits(node.alternate, depth + 1);
   }
   return false;
 }
 
+function blockAlwaysExits(block, depth = 0) {
+  return nodeAlwaysExits(block.node, depth);
+}
+
 function canFallThrough($case) {
   const { consequent } = $case;
-  return !consequent.length || !EXIT_STATEMENTS.has(consequent[consequent.length - 1].type);
+  return !consequent.length || !nodeAlwaysExits(consequent[consequent.length - 1]);
 }
 
 // flatten a && b && c when condition is true, or a || b || c when condition is false
