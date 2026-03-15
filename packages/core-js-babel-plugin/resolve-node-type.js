@@ -113,9 +113,13 @@ function resolveRuntimeExpression(path) {
   while (depth--) {
     path = resolvePath(path);
     const { type } = path.node;
-    if (type === 'TSAsExpression' || type === 'TSTypeAssertion' || type === 'TSSatisfiesExpression'
-      || type === 'TSNonNullExpression' || type === 'TSInstantiationExpression'
-      || type === 'TypeCastExpression') {
+    if (type === 'TSAsExpression'
+      || type === 'TSTypeAssertion'
+      || type === 'TSSatisfiesExpression'
+      || type === 'TSNonNullExpression'
+      || type === 'TSInstantiationExpression'
+      || type === 'TypeCastExpression'
+      || type === 'ParenthesizedExpression') {
       path = path.get('expression');
     } else break;
   }
