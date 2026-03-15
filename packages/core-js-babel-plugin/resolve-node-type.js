@@ -1284,13 +1284,35 @@ function findClassMember(classPath, name, isStatic, depth = 0) {
   return null;
 }
 
+// find the single consistently-returned runtime expression from a function body
+// returns a path (not a type) — useful for resolving getter calls like property calls
+function resolveBodyReturnValue(fnPath) {
+  const body = fnPath.get('body');
+  if (!body.isBlockStatement()) return resolveRuntimeExpression(body);
+  let result = null;
+  body.traverse({
+    ReturnStatement(returnPath) {
+      if (result === false) return;
+      const arg = returnPath.get('argument');
+      const value = arg.node ? resolveRuntimeExpression(arg) : null;
+      result = value && (result === null || result === value) ? value : false;
+    },
+    Function(innerPath) { innerPath.skip(); },
+  });
+  return result || null;
+}
+
 function resolveClassMember(classPath, name, isStatic, callPath) {
   const member = findClassMember(classPath, name, isStatic);
   if (!member) return null;
   // method call: foo.bar()
   if (callPath) {
-    if (member.isClassMethod()) return resolveReturnType(member, callPath);
-    if (member.isClassProperty() || member.isClassAccessorProperty()) {
+    if (member.isClassMethod()) {
+      if (member.node.kind !== 'get') return resolveReturnType(member, callPath);
+      // getter call: resolve like property — get the returned value, if callable → call it
+      const value = resolveBodyReturnValue(member);
+      if (value?.isFunction()) return resolveReturnType(value, callPath);
+    } else if (member.isClassProperty() || member.isClassAccessorProperty()) {
       const value = resolveRuntimeExpression(member.get('value'));
       if (value.node && value.isFunction()) return resolveReturnType(value, callPath);
     }
@@ -1319,8 +1341,12 @@ function resolveObjectMember(objectPath, name, callPath) {
   if (!prop) return null;
   // method call: obj.foo()
   if (callPath) {
-    if (prop.isObjectMethod()) return resolveReturnType(prop, callPath);
-    if (prop.isObjectProperty()) {
+    if (prop.isObjectMethod()) {
+      if (prop.node.kind !== 'get') return resolveReturnType(prop, callPath);
+      // getter call: resolve like property — get the returned value, if callable → call it
+      const value = resolveBodyReturnValue(prop);
+      if (value?.isFunction()) return resolveReturnType(value, callPath);
+    } else if (prop.isObjectProperty()) {
       const value = resolveRuntimeExpression(prop.get('value'));
       if (value.isFunction()) return resolveReturnType(value, callPath);
     }
