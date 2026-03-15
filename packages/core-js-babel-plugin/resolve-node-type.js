@@ -2261,12 +2261,13 @@ function resolvePropertyObjectType(path) {
   if (objectPattern.node.typeAnnotation) {
     return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
   }
-  const declarator = objectPattern.parentPath;
-  if (!declarator?.isVariableDeclarator()) return null;
-  if (declarator.node.init) return resolveNodeType(declarator.get('init'));
-  const elemInfo = resolveForOfElementAnnotation(declarator);
+  const parent = objectPattern.parentPath;
+  if (parent?.isAssignmentExpression()) return resolveNodeType(parent.get('right'));
+  if (!parent?.isVariableDeclarator()) return null;
+  if (parent.node.init) return resolveNodeType(parent.get('init'));
+  const elemInfo = resolveForOfElementAnnotation(parent);
   if (elemInfo) return resolveTypeAnnotation(elemInfo.annotation, elemInfo.scope);
-  const forOfPath = findForLoopParent(declarator);
+  const forOfPath = findForLoopParent(parent);
   if (forOfPath?.isForOfStatement()) return resolveRuntimeIterableElement(forOfPath.get('right'));
   return null;
 }
