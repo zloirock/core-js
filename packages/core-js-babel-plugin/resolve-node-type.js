@@ -430,18 +430,24 @@ function resolveReturnTypeFromTypeQuery(param, scope) {
   return resolved?.isFunction() ? resolveReturnType(resolved) : null;
 }
 
-function resolveNamedType(name, node, scope, depth) {
+// resolve a known constructor type, extracting inner type from the first type parameter
+// for container types (Array, Set, Iterator, Promise, etc.) using the provided resolver
+// e.g. Array<string> -> $Object('Array', $Primitive('string'))
+// e.g. Promise<number[]> -> $Object('Promise', $Object('Array', ...))
+function resolveKnownContainerType(name, node, innerResolver) {
   const known = resolveKnownConstructor(name);
-  if (known) {
-    // extract inner type from type parameters for known container types
-    // e.g. Array<string> -> $Object('Array', $Primitive('string'))
-    // e.g. Promise<number[]> -> $Object('Promise', $Object('Array', ...))
-    const params = node.typeParameters?.params;
-    if (params?.[0] && (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise')) {
-      known.inner = resolveNonNullableAnnotation(params[0], scope, depth);
-    }
-    return known;
+  if (!known) return null;
+  const params = node.typeParameters?.params;
+  if (params?.[0] && (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise')) {
+    const inner = innerResolver(params[0]);
+    if (inner && !isNullableOrNever(inner)) known.inner = inner;
   }
+  return known;
+}
+
+function resolveNamedType(name, node, scope, depth) {
+  const known = resolveKnownContainerType(name, node, p => resolveTypeAnnotation(p, scope, depth + 1));
+  if (known) return known;
   switch (name) {
     // well-known utility types -> Object
     case 'Record':
@@ -1084,11 +1090,16 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   if (depth > MAX_DEPTH) return null;
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
-  // direct type parameter reference
+  // direct type parameter reference or known type with substituted inner
   if (node.type === 'TSTypeReference' || node.type === 'GenericTypeAnnotation') {
     const name = typeRefName(node);
     if (name && typeParamMap.has(name)) return typeParamMap.get(name);
-    if (name) return resolveNamedType(name, node, scope, depth);
+    if (name) {
+      // substitute type params in container inner types: Array<T>, Promise<T>, etc.
+      const known = resolveKnownContainerType(name, node, p => substituteTypeParams(p, typeParamMap, scope, depth + 1));
+      if (known) return known;
+      return resolveNamedType(name, node, scope, depth);
+    }
     return null;
   }
   // union: T | null, T | undefined - strip nullable, substitute T
@@ -1127,9 +1138,13 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
       substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1),
       substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1));
   }
-  // T[] or [T, U] - resolve to Array regardless of element type
-  if (node.type === 'TSArrayType' || node.type === 'TSTupleType'
-    || node.type === 'ArrayTypeAnnotation' || node.type === 'TupleTypeAnnotation') return new $Object('Array');
+  // T[] -> Array with substituted element type
+  if (node.type === 'TSArrayType' || node.type === 'ArrayTypeAnnotation') {
+    const inner = substituteTypeParams(node.elementType, typeParamMap, scope, depth + 1);
+    return new $Object('Array', inner && !isNullableOrNever(inner) ? inner : null);
+  }
+  // [T, U] - resolve to Array regardless of element type
+  if (node.type === 'TSTupleType' || node.type === 'TupleTypeAnnotation') return new $Object('Array');
   // function type: (x: T) => R - always Function regardless of type parameters
   if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
   // mapped type: { [K in keyof T]: V } - always Object
