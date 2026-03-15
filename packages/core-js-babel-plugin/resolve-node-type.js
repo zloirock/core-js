@@ -1839,37 +1839,31 @@ function resolveBindingType(path) {
   const { node } = bindingPath;
   // destructured object: for (const { a } of ...) or const { a } = ...
   const objectPattern = findBindingPattern(node, 'ObjectPattern');
-  if (objectPattern) {
-    const result = resolveObjectBinding(objectPattern, name, bindingPath);
-    if (result) return result;
-  }
+  if (objectPattern) return resolveObjectBinding(objectPattern, name, bindingPath);
   // destructured array: for (const [a] of ...) or const [a] = ...
   const arrayPattern = findBindingPattern(node, 'ArrayPattern');
-  if (arrayPattern) {
-    const result = resolveArrayBinding(arrayPattern, name, bindingPath);
-    if (result) return result;
-  }
+  if (arrayPattern) return resolveArrayBinding(arrayPattern, name, bindingPath);
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
+  // must NOT be reached for destructured bindings — their pattern-level annotation
+  // describes the container type, not the element type
   const typeAnnotation = findBindingAnnotation(bindingPath);
   if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
-  // for-in / for-of (only for direct bindings — destructured bindings are handled above)
-  if (!objectPattern && !arrayPattern) {
-    const forLoopParent = findForLoopParent(bindingPath);
-    if (forLoopParent) {
-      // for-in: iteration variable is always a string per ECMAScript spec
-      if (forLoopParent.isForInStatement()) return new $Primitive('string');
-      // for-of: infer element type from the iterable
-      if (forLoopParent.isForOfStatement()) {
-        // try type annotation on the iterable
-        const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
-        if (annotationInfo) {
-          const annotatedType = resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
-          if (annotatedType) return annotatedType;
-        }
-        // try runtime resolution: for (const ch of 'hello') or for (const s of ['a', 'b'])
-        const runtimeType = resolveRuntimeIterableElement(forLoopParent.get('right'));
-        if (runtimeType) return runtimeType;
+  // for-in / for-of (only for direct bindings — destructured bindings return early above)
+  const forLoopParent = findForLoopParent(bindingPath);
+  if (forLoopParent) {
+    // for-in: iteration variable is always a string per ECMAScript spec
+    if (forLoopParent.isForInStatement()) return new $Primitive('string');
+    // for-of: infer element type from the iterable
+    if (forLoopParent.isForOfStatement()) {
+      // try type annotation on the iterable
+      const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
+      if (annotationInfo) {
+        const annotatedType = resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
+        if (annotatedType) return annotatedType;
       }
+      // try runtime resolution: for (const ch of 'hello') or for (const s of ['a', 'b'])
+      const runtimeType = resolveRuntimeIterableElement(forLoopParent.get('right'));
+      if (runtimeType) return runtimeType;
     }
   }
   return null;
