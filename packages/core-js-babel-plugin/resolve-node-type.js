@@ -2311,6 +2311,11 @@ function resolveNodeType(path) {
     const annotated = resolveBindingType(path);
     if (annotated?.inner && typesEqual(result, annotated)) result = annotated;
   }
+  // $Primitive('unknown') (e.g. from `+` with unresolved operands) is truthy but imprecise —
+  // allow typeof / instanceof guards to refine it to a concrete type
+  if (result?.type === 'unknown') {
+    result = resolveTypeGuardNarrowing(path) || result;
+  }
   resolveCache.set(node, result);
   return result;
 }
