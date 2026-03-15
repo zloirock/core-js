@@ -943,7 +943,15 @@ function resolveBodyReturnType(fnPath, callPath) {
       if (!resolved) return;
       const arg = returnPath.get('argument');
       const type = arg.node ? resolveBodyExpr(arg, fnPath, callPath) : new $Primitive('undefined');
-      if (!type || (result && !typesEqual(result, type))) {
+      if (!type) {
+        resolved = false;
+        returnPath.stop();
+        return;
+      }
+      // skip nullable/never returns — common in catch bail-outs like `catch { return; }`
+      // consistent with how resolveConditionalBranches handles `never` branches
+      if (isNullableOrNever(type)) return;
+      if (result && !typesEqual(result, type)) {
         resolved = false;
         returnPath.stop();
         return;
