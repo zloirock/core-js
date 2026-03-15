@@ -3,7 +3,7 @@ var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
 var anObjectOrUndefined = require('../internals/an-object-or-undefined');
-const toUnsignedLong = require('../internals/to-unsigned-long');
+var toUnsignedLong = require('../internals/to-unsigned-long');
 
 var $requestIdleCallback = require('../internals/idle-callbacks').request;
 
