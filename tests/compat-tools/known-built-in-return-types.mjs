@@ -108,7 +108,9 @@ deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.at, 'element');
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.find, 'element');
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.pop, 'element');
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.find, 'element');
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.at, { type: 'number' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.at, 'element');
+deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.find, 'element');
+deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.findLast, 'element');
 // instanceMethods — 'inherit' hints (element-preserving methods)
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.filter, { type: 'Array', element: 'inherit' });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.slice, { type: 'Array', element: 'inherit' });
@@ -134,14 +136,17 @@ deepEqual(knownBuiltInReturnTypes.instanceMethods.URLSearchParams.getAll, { type
 deepEqual(knownBuiltInReturnTypes.instanceMethods.URLSearchParams.keys, { type: 'Iterator', element: { type: 'string' } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.URLSearchParams.entries, { type: 'Iterator', element: { type: 'Array', element: { type: 'string' } } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.toSpliced, { type: 'Array' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.filter, { type: 'TypedArray', element: { type: 'number' } });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.filter, { type: 'TypedArray', element: 'inherit' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.slice, { type: 'TypedArray', element: 'inherit' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.values, { type: 'Iterator', element: 'inherit' });
+// keys yields indices (always number), entries yields [number, element] tuples (heterogeneous)
 deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.keys, { type: 'Iterator', element: { type: 'number' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.values, { type: 'Iterator', element: { type: 'number' } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.entries, { type: 'Iterator', element: { type: 'Array', element: { type: 'number' } } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Map.entries, { type: 'Iterator', element: { type: 'Array' } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.entries, { type: 'Iterator', element: { type: 'Array', element: 'inherit' } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.values, { type: 'Iterator', element: 'inherit' });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.keys, { type: 'Iterator', element: 'inherit' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.add, { type: 'Set', element: 'inherit' });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.difference, { type: 'Set', element: 'inherit' });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.intersection, { type: 'Set', element: 'inherit' });
 // instanceProperties
