@@ -1068,7 +1068,9 @@ function hasTypeParamReference(node, typeParamNames, depth) {
       }
       return false;
     case 'TSConditionalType':
-      return hasTypeParamReference(node.trueType, typeParamNames, depth + 1)
+      return hasTypeParamReference(node.checkType, typeParamNames, depth + 1)
+        || hasTypeParamReference(node.extendsType, typeParamNames, depth + 1)
+        || hasTypeParamReference(node.trueType, typeParamNames, depth + 1)
         || hasTypeParamReference(node.falseType, typeParamNames, depth + 1);
     case 'TSTypeOperator':
     case 'TSOptionalType':
