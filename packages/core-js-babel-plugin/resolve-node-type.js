@@ -675,7 +675,7 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
       if (left?.type === 'string' || right?.type === 'string') return new $Primitive('string');
       if (left?.type === 'number' && right?.type === 'number') return new $Primitive('number');
       if (left?.type === 'bigint' && right?.type === 'bigint') return new $Primitive('bigint');
-      return new $Primitive(null);
+      return new $Primitive('unknown');
     }
     // >>> (unsigned right shift) throws on BigInt, result is always Number
     case '>>>':
@@ -2136,7 +2136,7 @@ function resolvePropertyObjectType(path) {
 
 function toHint(type) {
   if (!type) return null;
-  if (type.primitive) return type.type;
+  if (type.primitive) return type.type === 'unknown' ? null : type.type;
   return type.constructor?.toLowerCase() ?? null;
 }
 
