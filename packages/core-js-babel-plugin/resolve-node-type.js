@@ -2293,13 +2293,15 @@ function resolvePropertyObjectType(path) {
   const initPath = parent?.isAssignmentExpression() ? parent.get('right')
     : parent?.isVariableDeclarator() ? parent.get('init') : null;
   if (initPath?.node) return resolveNodeType(initPath);
-  // for-of variable destructuring - resolve the iterable element type
-  if (!parent?.isVariableDeclarator()) return null;
-  const elemInfo = resolveForOfElementAnnotation(parent);
-  if (elemInfo) return resolveTypeAnnotation(elemInfo.annotation, elemInfo.scope);
-  const forOfPath = findForLoopParent(parent);
-  if (forOfPath?.isForOfStatement()) return resolveRuntimeIterableElement(forOfPath.get('right'));
-  return null;
+  // for-of destructuring - resolve the iterable element type
+  const forOfPath = parent?.isForOfStatement() ? parent : findForLoopParent(parent);
+  if (!forOfPath?.isForOfStatement()) return null;
+  const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+  if (annotationInfo) {
+    const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+    if (elemAnnotation) return resolveTypeAnnotation(elemAnnotation, annotationInfo.scope);
+  }
+  return resolveRuntimeIterableElement(forOfPath.get('right'));
 }
 
 function toHint(type) {
