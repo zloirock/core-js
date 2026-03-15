@@ -644,6 +644,7 @@ function resolveMemberPropertyName(path) {
   return resolved.node?.type === 'StringLiteral' ? resolved.node.value : null;
 }
 
+// intentionally compares only outer type identity (type + constructor), ignoring `inner`
 function typesEqual(a, b) {
   return a.type === b.type && a.constructor === b.constructor;
 }
