@@ -9,6 +9,7 @@
 - Minor performance optimization polyfills of methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert)
 - Polyfills of methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) from the pure version made generic to make it work with polyfilled and native collections
 - Wrap `Symbol.for` in `Symbol.prototype.description` polyfill for correct handling of empty string descriptions
+- Fixed [a modern Safari bug](https://bugs.webkit.org/show_bug.cgi?id=309342) in `Array.prototype.includes` with sparse arrays and `fromIndex`
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed proxying `.return()` on exhausted iterator from some methods of iterator helpers polyfill to the underlying iterator
@@ -97,6 +98,7 @@
   - [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum) marked as [shipped in V8 ~ Chrome 147](https://issues.chromium.org/issues/374310075#comment16)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Safari 26.4
+  - Because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=309342), `Array.prototype.includes` marked as not supported in modern Safari
   - Fixed compat data for `parseInt` and `parseFloat`
   - Added Deno [2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7), [2.7.0](https://github.com/denoland/deno/releases/tag/v2.7.0) and [2.7.2](https://github.com/denoland/deno/releases/tag/v2.7.2) compat data mapping
   - Added Electron 42 compat data mapping

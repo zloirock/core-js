@@ -526,7 +526,10 @@ GLOBAL.tests = {
   'es.array.from': SAFE_ITERATION_CLOSING_SUPPORT,
   'es.array.includes': function () {
     return Array(1).includes()
-      && Array.prototype[Symbol.unscopables].includes;
+      && Array.prototype[Symbol.unscopables].includes
+      // https://bugs.webkit.org/show_bug.cgi?id=309342
+      // eslint-disable-next-line no-sparse-arrays -- testing
+      && ![, 1].includes(undefined, 1);
   },
   'es.array.index-of': function () {
     try {
