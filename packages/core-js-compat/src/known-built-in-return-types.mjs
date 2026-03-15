@@ -3,6 +3,7 @@ export const globalMethods = {
   atob: 'string',
   btoa: 'string',
   cancelAnimationFrame: 'undefined',
+  clearImmediate: 'undefined',
   clearInterval: 'undefined',
   clearTimeout: 'undefined',
   decodeURI: 'string',
@@ -190,7 +191,7 @@ export const instanceMethods = {
     slice: { type: 'Array', element: 'inherit' },
     some: 'boolean',
     sort: { type: 'Array', element: 'inherit' },
-    splice: { type: 'Array', element: 'inherit' },
+    splice: 'Array',
     toLocaleString: 'string',
     toReversed: { type: 'Array', element: 'inherit' },
     toSorted: { type: 'Array', element: 'inherit' },
@@ -689,6 +690,7 @@ export const staticMethods = {
   },
   String: {
     cooked: 'string',
+    dedent: 'string',
     fromCharCode: 'string',
     fromCodePoint: 'string',
     raw: 'string',
@@ -717,22 +719,22 @@ export const staticMethods = {
     parse: 'URL',
   },
   Uint16Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Uint32Array: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Uint8Array: {
-    from: 'TypedArray',
-    fromBase64: 'TypedArray',
-    fromHex: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    fromBase64: { type: 'TypedArray', element: 'number' },
+    fromHex: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   Uint8ClampedArray: {
-    from: 'TypedArray',
-    of: 'TypedArray',
+    from: { type: 'TypedArray', element: 'number' },
+    of: { type: 'TypedArray', element: 'number' },
   },
   WeakMap: {
     from: 'WeakMap',
@@ -746,10 +748,16 @@ export const staticMethods = {
 
 // known static type guard methods
 export const staticTypeGuards = {
+  AggregateError: {
+    isError: 'Error',
+  },
   Array: {
     isArray: 'Array',
   },
   Error: {
+    isError: 'Error',
+  },
+  EvalError: {
     isError: 'Error',
   },
   Number: {
@@ -757,5 +765,23 @@ export const staticTypeGuards = {
     isInteger: 'number',
     isNaN: 'number',
     isSafeInteger: 'number',
+  },
+  RangeError: {
+    isError: 'Error',
+  },
+  ReferenceError: {
+    isError: 'Error',
+  },
+  SuppressedError: {
+    isError: 'Error',
+  },
+  SyntaxError: {
+    isError: 'Error',
+  },
+  TypeError: {
+    isError: 'Error',
+  },
+  URIError: {
+    isError: 'Error',
   },
 };
