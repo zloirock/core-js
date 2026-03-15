@@ -481,12 +481,7 @@ function resolveNamedType(name, node, scope, depth) {
     case 'Awaited': {
       const param = node.typeParameters?.params[0];
       if (!param) return null;
-      // unwrap Promise<T> -> resolve T
-      if (typeRefName(param) === 'Promise') {
-        const innerParam = param.typeParameters?.params[0];
-        if (innerParam) return resolveTypeAnnotation(innerParam, scope, depth + 1);
-      }
-      return resolveTypeAnnotation(param, scope, depth + 1);
+      return unwrapPromise(resolveTypeAnnotation(param, scope, depth + 1));
     }
     // well-known utility types - resolve via function return type
     case 'ReturnType':
@@ -949,9 +944,9 @@ function resolveNodeTypeExpression(path) {
       const type = resolveNodeType(argument);
       // await on non-Promise value returns the value type unchanged
       if (type && type.constructor !== 'Promise') return type;
-      // if the Promise has a known resolved inner type, use it
-      const resolved = resolveInnerType(type);
-      if (resolved) return resolved;
+      // recursively unwrap Promise<Promise<...T>> -> T
+      const resolved = unwrapPromise(type);
+      if (resolved && resolved !== type) return resolved;
       // try to unwrap Promise<T> from type annotation on the awaited expression
       const annotationInfo = findExpressionAnnotation(argument);
       if (annotationInfo) {
@@ -1081,7 +1076,7 @@ function hasTypeParamReference(node, typeParamNames, depth) {
   return false;
 }
 
-// extract type parameter name from an array annotation: T[] -> T, Array<T> -> T, ReadonlyArray<T> -> T
+// extract inner type parameter name from a container annotation: T[] -> T, Array<T> -> T, Set<T> -> T, Promise<T> -> T, etc.
 function innerTypeParamName(annotation, refName) {
   // T[] syntax
   if (annotation.type === 'TSArrayType' || annotation.type === 'ArrayTypeAnnotation') {
@@ -1411,6 +1406,17 @@ function resolveInnerType(type) {
   if (!type?.inner) return null;
   const { inner } = type;
   return typeof inner === 'string' ? new $Primitive(inner) : inner;
+}
+
+// recursively unwrap Promise layers: Promise<Promise<T>> -> T
+function unwrapPromise(type) {
+  let result = type;
+  while (result?.type === 'object' && result.constructor === 'Promise') {
+    const inner = resolveInnerType(result);
+    if (!inner) return result;
+    result = inner;
+  }
+  return result;
 }
 
 // two-level table lookup: table[key1][key2]
