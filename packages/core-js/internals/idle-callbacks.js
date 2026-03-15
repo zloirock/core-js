@@ -16,7 +16,6 @@ var setToStringTag = require('./set-to-string-tag');
 
 var $TypeError = TypeError;
 var TOKEN = '__core_js_polyfill_idle_callback__';
-var $isNaN = isNaN;
 
 var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;

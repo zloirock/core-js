@@ -9,7 +9,6 @@ var TypeError = globalThis.TypeError;
 var stringSlice = uncurryThis(''.slice);
 var charCodeAt = uncurryThis(''.charCodeAt);
 
-
 // `ToNumber` abstract operation
 // https://tc39.es/ecma262/#sec-tonumber
 module.exports = function (argument) {
