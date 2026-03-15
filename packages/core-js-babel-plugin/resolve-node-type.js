@@ -2262,9 +2262,12 @@ function resolvePropertyObjectType(path) {
     return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
   }
   const parent = objectPattern.parentPath;
-  if (parent?.isAssignmentExpression()) return resolveNodeType(parent.get('right'));
+  // assignment or variable destructuring — resolve the right-hand side
+  const initPath = parent?.isAssignmentExpression() ? parent.get('right')
+    : parent?.isVariableDeclarator() ? parent.get('init') : null;
+  if (initPath?.node) return resolveNodeType(initPath);
+  // for-of variable destructuring — resolve the iterable element type
   if (!parent?.isVariableDeclarator()) return null;
-  if (parent.node.init) return resolveNodeType(parent.get('init'));
   const elemInfo = resolveForOfElementAnnotation(parent);
   if (elemInfo) return resolveTypeAnnotation(elemInfo.annotation, elemInfo.scope);
   const forOfPath = findForLoopParent(parent);
