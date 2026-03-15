@@ -52,6 +52,12 @@ const TYPE_HINTS = new Set([
   'symbol',
 ]);
 
+function getDependencies(desc) {
+  if (typeof desc === 'string') return [desc];
+  if (Array.isArray(desc)) return desc;
+  return desc?.dependencies;
+}
+
 function descHasTypeHints(desc) {
   for (const hint of TYPE_HINTS) if (hasOwn(desc, hint)) return true;
   return false;
@@ -86,7 +92,7 @@ function resolveHint(desc, meta) {
   if (hintDescs.length === 1) return hintDescs[0];
 
   if (hintDescs.length > 1) {
-    const dependencies = [...new Set(hintDescs.flatMap(d => d?.dependencies ?? []))];
+    const dependencies = [...new Set(hintDescs.flatMap(d => getDependencies(d) ?? []))];
     return dependencies.length ? { dependencies } : null;
   }
 
@@ -162,7 +168,7 @@ module.exports = defineProvider(({
 
   const packages = additionalPackages ? [...defaultCoreJSPackages, ...additionalPackages] : defaultCoreJSPackages;
 
-  const entriesSetForTargetVersion = method === 'usage-pure' && new Set(getEntriesListForTargetVersion(version));
+  const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
@@ -256,12 +262,13 @@ module.exports = defineProvider(({
       if (target === null) return null;
     }
     if (applyFilters(target.filters, path)) return null;
-    if (!target.dependencies?.length) return null;
-    const [entry] = target.dependencies;
+    const dependencies = getDependencies(target);
+    if (!dependencies?.length) return null;
+    const [entry] = dependencies;
     if (!isEntryNeeded(entry) && !(target.guard && isEntryNeeded(target.guard))) return null;
     // import from common wrapper to get correct (non-decurried) export
     if (kind === 'instance') {
-      const commonEntry = desc.common?.dependencies?.[0];
+      const commonEntry = getDependencies(desc.common)?.[0];
       if (commonEntry && isEntryNeeded(commonEntry)) return commonEntry;
     }
     return entry;
@@ -322,7 +329,7 @@ module.exports = defineProvider(({
       if (meta.kind === 'property' && POSSIBLE_GLOBAL_PROXIES.has(meta.object)) {
         const proxyResolved = resolve({ kind: 'global', name: meta.object });
         if (proxyResolved && hasOwn(proxyResolved.desc, 'global')) {
-          const { dependencies: proxyDeps } = proxyResolved.desc.global;
+          const proxyDeps = getDependencies(proxyResolved.desc.global);
           if (proxyDeps?.length) {
             for (const entry of proxyDeps) injectModulesForModeEntry(entry, utils);
           }
@@ -335,10 +342,9 @@ module.exports = defineProvider(({
         desc = resolveHint(desc, enhanced);
         if (desc === null) return true;
       }
-      if (typeof desc === 'string') desc = { dependencies: [desc] };
-      const { dependencies, filters } = desc;
+      const dependencies = getDependencies(desc);
       if (!dependencies?.length) return true;
-      if (applyFilters(filters, path)) return true;
+      if (applyFilters(desc.filters, path)) return true;
       for (const entry of dependencies) {
         injectModulesForModeEntry(entry, utils);
       }
