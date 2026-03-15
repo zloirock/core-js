@@ -372,8 +372,8 @@ function resolveExtractExclude(first, second, scope, depth, keep) {
     const resolved = resolveTypeAnnotation(member, scope, depth + 1);
     if (!resolved) return null;
     if (isAssignableTo(resolved, target) !== keep) continue;
-    if (result && !typesEqual(result, resolved)) return null;
-    result = resolved;
+    result = commonType(result, resolved);
+    if (!result) return null;
   }
   return result;
 }
@@ -592,8 +592,8 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
         if (!resolved) return null;
         // skip nullable / never types in unions: T | null | undefined | never -> T
         if (isUnion && isNullableOrNever(resolved)) continue;
-        if (result && !typesEqual(result, resolved)) return null;
-        result = resolved;
+        result = commonType(result, resolved);
+        if (!result) return null;
       }
       return result;
     }
@@ -670,6 +670,23 @@ function typesEqual(a, b) {
   return a.type === b.type && a.constructor === b.constructor;
 }
 
+// deep equality of inner type hints (string hints or type objects)
+function innersEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (typeof a === 'string' || typeof b === 'string') return a === b;
+  return typesEqual(a, b) && innersEqual(a.inner, b.inner);
+}
+
+// merge two types into a common type: returns null if outer types differ,
+// strips inner if outer types match but inner types disagree
+function commonType(existing, incoming) {
+  if (!existing) return incoming;
+  if (!typesEqual(existing, incoming)) return null;
+  if (existing.primitive || innersEqual(existing.inner, incoming.inner)) return existing;
+  return new $Object(existing.constructor);
+}
+
 function isNullableOrNever(resolved) {
   return resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never';
 }
@@ -683,7 +700,10 @@ function resolveNonNullableAnnotation(node, scope, depth) {
 
 // resolve conditional type branches: if both match return that type, if one is `never` return the other
 function resolveConditionalBranches(trueBranch, falseBranch) {
-  if (trueBranch && falseBranch && typesEqual(trueBranch, falseBranch)) return trueBranch;
+  if (trueBranch && falseBranch) {
+    const merged = commonType(trueBranch, falseBranch);
+    if (merged) return merged;
+  }
   if (trueBranch?.type === 'never') return falseBranch;
   if (falseBranch?.type === 'never') return trueBranch;
   return null;
@@ -692,8 +712,7 @@ function resolveConditionalBranches(trueBranch, falseBranch) {
 function resolveUnionType(leftPath, rightPath) {
   const left = resolveNodeType(leftPath);
   const right = resolveNodeType(rightPath);
-  if (left && right && typesEqual(left, right)) return left;
-  return null;
+  return left && right ? commonType(left, right) : null;
 }
 
 function resolveBinaryOperatorType(operator, leftPath, rightPath) {
@@ -975,12 +994,13 @@ function resolveBodyReturnType(fnPath, callPath) {
       // skip nullable/never returns — common in catch bail-outs like `catch { return; }`
       // consistent with how resolveConditionalBranches handles `never` branches
       if (isNullableOrNever(type)) return;
-      if (result && !typesEqual(result, type)) {
+      const merged = commonType(result, type);
+      if (result && !merged) {
         resolved = false;
         returnPath.stop();
         return;
       }
-      result = type;
+      result = merged;
     },
     Function(innerPath) {
       innerPath.skip();
@@ -1119,8 +1139,8 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
       const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
       if (!resolved) return null;
       if (isNullableOrNever(resolved)) continue;
-      if (result && !typesEqual(result, resolved)) return null;
-      result = resolved;
+      result = commonType(result, resolved);
+      if (!result) return null;
     }
     return result;
   }
@@ -1132,8 +1152,8 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
       if (!resolved) continue;
       // skip structural additions like { key: value } that resolve to plain Object
       if (!resolved.primitive && resolved.constructor === 'Object') continue;
-      if (result && !typesEqual(result, resolved)) return null;
-      result = resolved;
+      result = commonType(result, resolved);
+      if (!result) return null;
     }
     return result;
   }
@@ -1489,8 +1509,8 @@ function resolveElementType(node, scope, depth) {
         const resolved = resolveTypeAnnotation(actual, scope, depth + 1);
         if (!resolved) return null;
         if (isNullableOrNever(resolved)) continue;
-        if (result && !typesEqual(result, resolved)) return null;
-        result = resolved;
+        result = commonType(result, resolved);
+        if (!result) return null;
       }
       return result;
     }
@@ -1519,8 +1539,8 @@ function resolveElementType(node, scope, depth) {
         if (resolved && isNullableOrNever(resolved)) continue;
         const elemType = resolveElementType(member, scope, depth + 1);
         if (!elemType) return null;
-        if (result && !typesEqual(result, elemType)) return null;
-        result = elemType;
+        result = commonType(result, elemType);
+        if (!result) return null;
       }
       return result;
     }
@@ -1672,11 +1692,8 @@ function resolveArrayLiteralCommonType(arrayPath) {
     if (!elements[i] || elements[i].type === 'SpreadElement') return null;
     const resolved = resolveNodeType(arrayPath.get(`elements.${ i }`));
     if (!resolved) return null;
-    if (!common) {
-      common = resolved;
-    } else if (!typesEqual(common, resolved)) {
-      return null; // mixed types
-    }
+    common = commonType(common, resolved);
+    if (!common) return null; // mixed types
   }
   return common;
 }
@@ -2105,8 +2122,8 @@ function narrowByGuards(candidates, guards) {
     if (!resolved) continue;
     if (isNullableOrNever(resolved)) continue;
     if (!guards.every(guard => matchesGuard(resolved, guard) === guard.positive)) continue;
-    if (result && !typesEqual(result, resolved)) return null;
-    result = resolved;
+    result = commonType(result, resolved);
+    if (!result) return null;
   }
   return result;
 }
