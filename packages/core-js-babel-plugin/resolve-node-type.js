@@ -1864,10 +1864,17 @@ function canFallThrough($case) {
 // flatten a && b && c when condition is true, or a || b || c when condition is false
 // only flattens the matching operator; mixed operators stay as opaque nodes
 function flattenCondition(node, operator) {
-  if (node.type === 'LogicalExpression' && node.operator === operator) {
-    return [...flattenCondition(node.left, operator), ...flattenCondition(node.right, operator)];
+  const result = [];
+  const stack = [node];
+  while (stack.length) {
+    const current = stack.pop();
+    if (current.type === 'LogicalExpression' && current.operator === operator) {
+      stack.push(current.right, current.left);
+    } else {
+      result.push(current);
+    }
   }
-  return [node];
+  return result;
 }
 
 // parse an OR group of typeof guards: typeof x === 'a' || typeof x === 'b' (conditionTrue=true)
