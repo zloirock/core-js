@@ -139,7 +139,11 @@ deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.keys, { type: 'Iter
 deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.values, { type: 'Iterator', element: { type: 'number' } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.entries, { type: 'Iterator', element: { type: 'Array', element: { type: 'number' } } });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Map.entries, { type: 'Iterator', element: { type: 'Array' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.entries, { type: 'Iterator', element: { type: 'Array' } });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.entries, { type: 'Iterator', element: { type: 'Array', element: 'inherit' } });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.values, { type: 'Iterator', element: 'inherit' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.keys, { type: 'Iterator', element: 'inherit' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.difference, { type: 'Set', element: 'inherit' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.intersection, { type: 'Set', element: 'inherit' });
 // instanceProperties
 deepEqual(knownBuiltInReturnTypes.instanceProperties.Function.name, { type: 'string' });
 deepEqual(knownBuiltInReturnTypes.instanceProperties.RegExp.flags, { type: 'string' });
