@@ -50,8 +50,11 @@ module.exports = function (t) {
       if (path.key !== 'callee') return null;
     } else return null;
     let topPath = null;
+    let seenOptional = false;
+    const isOptional = p => p.isOptionalMemberExpression() || p.isOptionalCallExpression();
     // eslint-disable-next-line no-unmodified-loop-condition -- safe
-    while ((parentPath.isOptionalMemberExpression() || parentPath.isOptionalCallExpression()) && (all || !parentPath.node.optional)) {
+    while (isOptional(parentPath) && (!parentPath.node.optional || all && !seenOptional)) {
+      if (parentPath.node.optional) seenOptional = true;
       topPath = parentPath;
       deoptionalizeNode(parentPath);
       ({ parentPath } = parentPath);
