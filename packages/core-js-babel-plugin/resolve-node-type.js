@@ -2200,13 +2200,18 @@ function narrowByGuards(candidates, guards) {
 
 // check whether any reassignment of binding could execute between a guard check and usagePath
 function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
-  const violates = scope => constantViolations.some(v => {
+  const usageStart = usagePath.node.start;
+  const isDescendant = (v, scope) => {
     for (let p = v; p; p = p.parentPath) if (p === scope) return true;
     return false;
-  });
+  };
+  // any mutation inside scope
+  const violates = scope => constantViolations.some(v => isDescendant(v, scope));
+  // only mutations inside scope that are positionally before usagePath
+  const violatesBefore = scope => constantViolations.some(v => v.node.start < usageStart && isDescendant(v, scope));
   for (let current = usagePath, parent; (parent = current.parentPath) && !parent.isFunction(); current = parent) {
-    if (findConditionalGuards(current, varName).length && violates(current)) return true;
-    if (findSwitchCaseGuards(current, varName) && violates(parent)) return true;
+    if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
+    if (findSwitchCaseGuards(current, varName) && violatesBefore(parent)) return true;
     if (findEarlyExitGuards(current, varName)) {
       const siblings = parent.get('body');
       for (let i = current.key - 1; i >= 0; i--) {
