@@ -1,6 +1,6 @@
 import "core-js/modules/es.array.at";
 function getData(x) {
-  if (x) return [1, 2, 3];
-  return;
+  if (!x) return null;
+  return [1, 2, 3];
 }
-getData(true).at(-1);
+getData(x).at(-1);
