@@ -10,6 +10,7 @@ var defineBuiltIn = require('./define-built-in');
 var Queue = require('./queue');
 var DESCRIPTORS = require('./descriptors');
 var defineProperty = require('./object-define-property').f;
+var toUnsignedLong = require('./to-unsigned-long');
 
 var setToStringTag = require('./set-to-string-tag');
 
@@ -122,9 +123,9 @@ exports.request = function requestIdleCallback(callback) {
   var handle = ++sharedStore.__idleCallbackId;
   sharedStore.__idleCallbackMap[handle] = callback;
   sharedStore.__handleObjects[handle] = sharedStore.__idleRequestCallbacks.add(handle);
-  var timeout;
-  if (options && options.timeout !== undefined) timeout = +options.timeout;
-  if (options && !$isNaN(timeout) && timeout !== undefined && timeout > 0) {
+  var timeout = 0;
+  if (options !== undefined) timeout = toUnsignedLong(options.timeout);
+  if (options && timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // options.timeout, however maintaining such a priority queue would be very tedious
     sharedStore.__timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
@@ -154,8 +155,8 @@ exports.request = function requestIdleCallback(callback) {
 };
 exports.cancel = function cancelIdleCallback(handle) {
   validateArgumentsLength(arguments.length, 1);
-  handle = +handle;
-  if ($isNaN(handle)) { return; }
+  handle = toUnsignedLong(handle);
+  if (sharedStore.__handleObjects[handle] === undefined) return;
   delete sharedStore.__idleCallbackMap[handle];
   if (sharedStore.__timeoutHandles[handle] !== undefined) {
     clearTimeout(sharedStore.__timeoutHandles[handle]);
