@@ -346,14 +346,26 @@ function findTypeMember(objectType, key, scope) {
   return indexSignatureType;
 }
 
+function unwrapTupleMember(element) {
+  const unwrapped = element.type === 'TSNamedTupleMember' ? element.elementType : element;
+  return unwrapped.type === 'TSRestType' ? unwrapped.typeAnnotation : unwrapped;
+}
+
+function isTupleRestElement(element) {
+  const unwrapped = element.type === 'TSNamedTupleMember' ? element.elementType : element;
+  return unwrapped.type === 'TSRestType';
+}
+
 function findTupleElement(objectType, index, scope) {
   const tuple = followTypeAliasChain(objectType, scope);
   if (tuple?.type !== 'TSTupleType') return null;
   const elements = tuple.elementTypes;
   if (!elements || index < 0 || index >= elements.length) return null;
   const element = elements[index];
-  // named tuple member: [name: string, items: number[]]
-  return element.type === 'TSNamedTupleMember' ? element.elementType : element;
+  // rest element: [string, ...number[]] - extract element annotation from the collection type
+  if (isTupleRestElement(element)) return extractElementAnnotation(unwrapTupleMember(element), scope, 0);
+  // named tuple member: [name: string, items: number[]] - unwrap to inner type
+  return unwrapTupleMember(element);
 }
 
 function isAssignableTo(candidate, target) {
@@ -697,8 +709,10 @@ function commonType(existing, incoming) {
 function resolveTupleInner(elements, resolver) {
   let inner = null;
   for (const elem of elements) {
-    const actual = elem.type === 'TSNamedTupleMember' ? elem.elementType : elem;
-    const resolved = resolver(actual);
+    // rest element: ...string[] or ...Array<string> - resolve the collection type, use its inner
+    const resolved = isTupleRestElement(elem)
+      ? resolver(unwrapTupleMember(elem))?.inner ?? null
+      : resolver(unwrapTupleMember(elem));
     if (!resolved) return null;
     if (isNullableOrNever(resolved)) continue;
     inner = commonType(inner, resolved);
@@ -1011,7 +1025,7 @@ function resolveBodyReturnType(fnPath, callPath) {
         returnPath.stop();
         return;
       }
-      // skip nullable/never returns — common in catch bail-outs like `catch { return; }`
+      // skip nullable/never returns - common in catch bail-outs like `catch { return; }`
       // consistent with how resolveConditionalBranches handles `never` branches
       if (isNullableOrNever(type)) return;
       const merged = commonType(result, type);
@@ -1286,7 +1300,7 @@ function findClassMember(classPath, name, isStatic, depth = 0) {
 }
 
 // find the single consistently-returned runtime expression from a function body
-// returns a path (not a type) — useful for resolving getter calls like property calls
+// returns a path (not a type) - useful for resolving getter calls like property calls
 function resolveBodyReturnValue(fnPath) {
   const body = fnPath.get('body');
   if (!body.isBlockStatement()) return resolveRuntimeExpression(body);
@@ -1310,7 +1324,7 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
   if (callPath) {
     if (member.isClassMethod()) {
       if (member.node.kind !== 'get') return resolveReturnType(member, callPath);
-      // getter call: resolve like property — get the returned value, if callable → call it
+      // getter call: resolve like property - get the returned value, if callable → call it
       const value = resolveBodyReturnValue(member);
       if (value?.isFunction()) return resolveReturnType(value, callPath);
     } else if (member.isClassProperty() || member.isClassAccessorProperty()) {
@@ -1344,7 +1358,7 @@ function resolveObjectMember(objectPath, name, callPath) {
   if (callPath) {
     if (prop.isObjectMethod()) {
       if (prop.node.kind !== 'get') return resolveReturnType(prop, callPath);
-      // getter call: resolve like property — get the returned value, if callable → call it
+      // getter call: resolve like property - get the returned value, if callable → call it
       const value = resolveBodyReturnValue(prop);
       if (value?.isFunction()) return resolveReturnType(value, callPath);
     } else if (prop.isObjectProperty()) {
@@ -1871,11 +1885,11 @@ function resolveBindingType(path) {
   const arrayPattern = findBindingPattern(node, 'ArrayPattern');
   if (arrayPattern) return resolveArrayBinding(arrayPattern, name, bindingPath);
   // direct annotation: function foo(x: T) or const x: T = ... or (x: T = default)
-  // must NOT be reached for destructured bindings — their pattern-level annotation
+  // must NOT be reached for destructured bindings - their pattern-level annotation
   // describes the container type, not the element type
   const typeAnnotation = findBindingAnnotation(bindingPath);
   if (typeAnnotation) return resolveTypeAnnotation(typeAnnotation, bindingPath.scope);
-  // for-in / for-of (only for direct bindings — destructured bindings return early above)
+  // for-in / for-of (only for direct bindings - destructured bindings return early above)
   const forLoopParent = findForLoopParent(bindingPath);
   if (forLoopParent) {
     // for-in: iteration variable is always a string per ECMAScript spec
@@ -2263,11 +2277,11 @@ function resolvePropertyObjectType(path) {
     return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
   }
   const parent = objectPattern.parentPath;
-  // assignment or variable destructuring — resolve the right-hand side
+  // assignment or variable destructuring - resolve the right-hand side
   const initPath = parent?.isAssignmentExpression() ? parent.get('right')
     : parent?.isVariableDeclarator() ? parent.get('init') : null;
   if (initPath?.node) return resolveNodeType(initPath);
-  // for-of variable destructuring — resolve the iterable element type
+  // for-of variable destructuring - resolve the iterable element type
   if (!parent?.isVariableDeclarator()) return null;
   const elemInfo = resolveForOfElementAnnotation(parent);
   if (elemInfo) return resolveTypeAnnotation(elemInfo.annotation, elemInfo.scope);
