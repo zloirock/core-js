@@ -991,6 +991,19 @@ function resolveNodeTypeExpression(path) {
       }
       return null;
     }
+    case 'YieldExpression': {
+      // yield expression evaluates to the value passed to generator.next(value),
+      // which is TNext in Generator<TYield, TReturn, TNext>
+      const fnPath = path.getFunctionParent();
+      if (!fnPath?.node.generator) return null;
+      const returnAnnotation = unwrapTypeAnnotation(fnPath.node.returnType?.typeAnnotation);
+      const name = typeRefName(returnAnnotation);
+      if (name === 'Generator' || name === 'AsyncGenerator') {
+        const params = returnAnnotation.typeParameters?.params;
+        if (params?.[2]) return resolveTypeAnnotation(params[2], fnPath.scope);
+      }
+      return null;
+    }
   }
   return null;
 }
