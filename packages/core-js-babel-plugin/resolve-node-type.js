@@ -260,6 +260,7 @@ function resolveKnownConstructor(name) {
       return new $Object('Error');
     case 'BigInt64Array':
     case 'BigUint64Array':
+      return new $Object('TypedArray', 'bigint');
     case 'Float16Array':
     case 'Float32Array':
     case 'Float64Array':
@@ -270,7 +271,7 @@ function resolveKnownConstructor(name) {
     case 'Uint8ClampedArray':
     case 'Uint16Array':
     case 'Uint32Array':
-      return new $Object('TypedArray');
+      return new $Object('TypedArray', 'number');
     case 'ReadonlyArray':
     case 'ReadonlyMap':
     case 'ReadonlySet':
@@ -778,7 +779,7 @@ function resolveNodeTypeExpression(path) {
     case 'ObjectExpression':
       return new $Object('Object');
     case 'ArrayExpression':
-      return new $Object('Array');
+      return new $Object('Array', resolveArrayLiteralCommonType(path));
     case 'FunctionExpression':
     case 'ArrowFunctionExpression':
     case 'FunctionDeclaration':
