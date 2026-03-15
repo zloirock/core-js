@@ -294,7 +294,8 @@ function resolveUserDefinedType(name, scope, depth) {
         for (const parent of parents) {
           const base = parent.expression ?? parent;
           if (base.type !== 'Identifier') continue;
-          const result = resolveKnownConstructor(base.name) || resolveUserDefinedType(base.name, scope, depth + 1);
+          const result = resolveKnownContainerType(base.name, parent, p => resolveTypeAnnotation(p, scope, depth + 1))
+            || resolveUserDefinedType(base.name, scope, depth + 1);
           if (result) return result;
         }
       }
