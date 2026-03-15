@@ -1295,7 +1295,7 @@ function resolveBodyReturnValue(fnPath) {
       if (result === false) return;
       const arg = returnPath.get('argument');
       const value = arg.node ? resolveRuntimeExpression(arg) : null;
-      result = value && (result === null || result === value) ? value : false;
+      result = value && (result === null || result.node === value.node) ? value : false;
     },
     Function(innerPath) { innerPath.skip(); },
   });
