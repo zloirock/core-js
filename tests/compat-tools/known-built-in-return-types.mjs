@@ -98,6 +98,7 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.allSettled, { type: 'Pro
 deepEqual(knownBuiltInReturnTypes.staticMethods.Array.fromAsync, { type: 'Promise', resolved: { type: 'Array' } });
 // instanceMethods — simple normalized hints
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.then, { type: 'Promise' });
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.finally, { type: 'Promise', resolved: 'inherit' });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.map, { type: 'Iterator' });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Symbol.valueOf, { type: 'symbol' });
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.union, { type: 'Set' });
