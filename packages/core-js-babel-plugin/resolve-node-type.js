@@ -1847,9 +1847,8 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
   const forOfPath = findForLoopParent(bindingPath);
   if (forOfPath?.isForOfStatement()) {
-    const runtimeType = resolveRuntimeIterableElement(forOfPath.get('right'));
-    // runtimeType is the for-of element; unwrap one more level for array destructuring
-    const inner = resolveInnerType(runtimeType);
+    // resolve for-of element, then unwrap one more level for array destructuring
+    const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
     if (inner) return inner;
   }
   return null;
@@ -1860,14 +1859,36 @@ function resolveAnnotatedMember(annotation, keyName, scope) {
   return memberType ? resolveTypeAnnotation(memberType, scope) : null;
 }
 
+// unwrap Promise<T> annotation to T for for-await-of element types
+function unwrapPromiseAnnotation(node) {
+  node = unwrapTypeAnnotation(node);
+  if (node?.type === 'TSTypeReference' && typeRefName(node) === 'Promise') return node.typeParameters?.params[0] ?? node;
+  return node;
+}
+
 // resolve the raw element annotation of a for-of iterable from its type annotation
 function resolveForOfElementAnnotation(path) {
   const forOfPath = findForLoopParent(path);
   if (!forOfPath?.isForOfStatement()) return null;
   const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
   if (!annotationInfo) return null;
-  const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+  let elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
+  // for-await-of unwraps Promise elements: Iterable<Promise<T>> → T
+  if (elemAnnotation && forOfPath.node.await) elemAnnotation = unwrapPromiseAnnotation(elemAnnotation);
   return elemAnnotation ? { annotation: elemAnnotation, scope: annotationInfo.scope } : null;
+}
+
+// resolve the element type of a for-of iterable, unwrapping Promise for for-await-of
+function resolveForOfResolvedElement(forOfPath) {
+  const isAwait = forOfPath.node.await;
+  const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
+  if (annotationInfo) {
+    const annotatedType = resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
+    if (annotatedType) return isAwait ? unwrapPromise(annotatedType) : annotatedType;
+  }
+  const runtimeType = resolveRuntimeIterableElement(forOfPath.get('right'));
+  if (runtimeType) return isAwait ? unwrapPromise(runtimeType) : runtimeType;
+  return null;
 }
 
 function resolveObjectBinding(objectPattern, varName, bindingPath) {
@@ -1927,18 +1948,8 @@ function resolveBindingType(path) {
   if (forLoopParent) {
     // for-in: iteration variable is always a string per ECMAScript spec
     if (forLoopParent.isForInStatement()) return new $Primitive('string');
-    // for-of: infer element type from the iterable
-    if (forLoopParent.isForOfStatement()) {
-      // try type annotation on the iterable
-      const annotationInfo = findExpressionAnnotation(forLoopParent.get('right'));
-      if (annotationInfo) {
-        const annotatedType = resolveElementType(annotationInfo.annotation, annotationInfo.scope, 0);
-        if (annotatedType) return annotatedType;
-      }
-      // try runtime resolution: for (const ch of 'hello') or for (const s of ['a', 'b'])
-      const runtimeType = resolveRuntimeIterableElement(forLoopParent.get('right'));
-      if (runtimeType) return runtimeType;
-    }
+    // for-of / for-await-of: infer element type from the iterable
+    if (forLoopParent.isForOfStatement()) return resolveForOfResolvedElement(forLoopParent);
   }
   return null;
 }
@@ -2319,15 +2330,10 @@ function resolvePropertyObjectType(path) {
   const initPath = parent?.isAssignmentExpression() ? parent.get('right')
     : parent?.isVariableDeclarator() ? parent.get('init') : null;
   if (initPath?.node) return resolveNodeType(initPath);
-  // for-of destructuring - resolve the iterable element type
+  // for-of / for-await-of destructuring - resolve the iterable element type
   const forOfPath = parent?.isForOfStatement() ? parent : findForLoopParent(parent);
   if (!forOfPath?.isForOfStatement()) return null;
-  const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
-  if (annotationInfo) {
-    const elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
-    if (elemAnnotation) return resolveTypeAnnotation(elemAnnotation, annotationInfo.scope);
-  }
-  return resolveRuntimeIterableElement(forOfPath.get('right'));
+  return resolveForOfResolvedElement(forOfPath);
 }
 
 function toHint(type) {
