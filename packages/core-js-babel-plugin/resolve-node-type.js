@@ -1050,6 +1050,18 @@ function arrayElementTypeParamName(annotation, refName) {
 // build a Map<string, Type> of type parameter bindings from call-site arguments
 function buildTypeParamMap(typeParamNames, fnPath, callPath) {
   const typeParamMap = new Map();
+  // phase 0: explicit type arguments at call site: foo<string>(...)
+  const callTypeArgs = callPath.node.typeParameters?.params;
+  if (callTypeArgs) {
+    const fnTypeParams = fnPath.node.typeParameters.params;
+    for (let i = 0; i < fnTypeParams.length && i < callTypeArgs.length; i++) {
+      const { name } = fnTypeParams[i];
+      if (!typeParamMap.has(name)) {
+        const resolved = resolveTypeAnnotation(callTypeArgs[i], callPath.scope);
+        if (resolved) typeParamMap.set(name, resolved);
+      }
+    }
+  }
   const args = callPath.get('arguments');
   const { params } = fnPath.node;
   // phase 1: match param annotations against type parameter names
@@ -1068,11 +1080,8 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
     // array wrapper: param type is T[] or Array<T> / ReadonlyArray<T>
     const elemParamName = arrayElementTypeParamName(paramAnnotation, name);
     if (elemParamName && typeParamNames.has(elemParamName) && !typeParamMap.has(elemParamName)) {
-      const argPath = resolveRuntimeExpression(args[i]);
-      if (argPath.isArrayExpression()) {
-        const elementType = resolveArrayLiteralCommonType(argPath);
-        if (elementType) typeParamMap.set(elemParamName, elementType);
-      }
+      const elementType = resolveInnerType(resolveNodeType(args[i]));
+      if (elementType) typeParamMap.set(elemParamName, elementType);
     }
   }
   // phase 2: constraint fallback for unresolved type params
@@ -1675,12 +1684,7 @@ function resolveArrayLiteralCommonType(arrayPath) {
 // resolve element type from a runtime iterable (follows variables via resolvePath)
 // handles: string literals (chars) and homogeneous array literals (common element type)
 function resolveRuntimeIterableElement(path) {
-  const resolved = resolveRuntimeExpression(path);
-  const nodeType = resolveNodeType(resolved);
-  const inner = resolveInnerType(nodeType);
-  if (inner) return inner;
-  if (resolved.isArrayExpression()) return resolveArrayLiteralCommonType(resolved);
-  return null;
+  return resolveInnerType(resolveNodeType(resolveRuntimeExpression(path)));
 }
 
 function findBindingAnnotation(bindingPath) {
