@@ -446,6 +446,12 @@ function resolveKnownContainerType(name, node, innerResolver) {
   return known;
 }
 
+// resolve a known constructor with type parameters from a runtime expression (NewExpression / CallExpression)
+// e.g. new Set<string>() -> $Object('Set', $Primitive('string'))
+function resolveConstructorType(name, path) {
+  return resolveKnownContainerType(name, path.node, p => resolveTypeAnnotation(p, path.scope));
+}
+
 function resolveNamedType(name, node, scope, depth) {
   const known = resolveKnownContainerType(name, node, p => resolveTypeAnnotation(p, scope, depth + 1));
   if (known) return known;
@@ -543,7 +549,9 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
       return new $Object('Array', resolveNonNullableAnnotation(node.elementType, scope, depth));
     case 'TSTupleType':
     case 'TupleTypeAnnotation':
-      return new $Object('Array');
+      return new $Object('Array', node.elementTypes?.length
+        ? resolveTupleInner(node.elementTypes, e => resolveTypeAnnotation(e, scope, depth + 1))
+        : null);
     case 'TSFunctionType':
     case 'TSConstructorType':
     case 'FunctionTypeAnnotation':
@@ -687,6 +695,21 @@ function commonType(existing, incoming) {
   return new $Object(existing.constructor);
 }
 
+// compute common inner type from tuple elements using a parameterized resolver
+// returns the common type if all non-nullable elements agree, null otherwise
+function resolveTupleInner(elements, resolver) {
+  let inner = null;
+  for (const elem of elements) {
+    const actual = elem.type === 'TSNamedTupleMember' ? elem.elementType : elem;
+    const resolved = resolver(actual);
+    if (!resolved) return null;
+    if (isNullableOrNever(resolved)) continue;
+    inner = commonType(inner, resolved);
+    if (!inner) return null;
+  }
+  return inner;
+}
+
 function isNullableOrNever(resolved) {
   return resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never';
 }
@@ -810,7 +833,7 @@ function resolveNodeTypeExpression(path) {
       const name = resolveGlobalName(callee);
       if (name) {
         if (name === 'Object') return new $Object(null);
-        return resolveKnownConstructor(name) || new $Object(name);
+        return resolveConstructorType(name, path) || new $Object(name);
       }
       {
         const resolved = resolveRuntimeExpression(callee);
@@ -841,7 +864,7 @@ function resolveNodeTypeExpression(path) {
             return new $Object(null);
         }
         // constructors like Array, RegExp, Error, Function, etc. work without `new`
-        const known = resolveKnownConstructor(name);
+        const known = resolveConstructorType(name, path);
         if (known) return known;
         // known global function: parseInt(), parseFloat(), etc.
         if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
@@ -1173,8 +1196,12 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     const inner = substituteTypeParams(node.elementType, typeParamMap, scope, depth + 1);
     return new $Object('Array', inner && !isNullableOrNever(inner) ? inner : null);
   }
-  // [T, U] - resolve to Array regardless of element type
-  if (node.type === 'TSTupleType' || node.type === 'TupleTypeAnnotation') return new $Object('Array');
+  // [T, U] - resolve to Array, compute inner type if all elements agree
+  if (node.type === 'TSTupleType' || node.type === 'TupleTypeAnnotation') {
+    return new $Object('Array', node.elementTypes?.length
+      ? resolveTupleInner(node.elementTypes, e => substituteTypeParams(e, typeParamMap, scope, depth + 1))
+      : null);
+  }
   // function type: (x: T) => R - always Function regardless of type parameters
   if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
   // mapped type: { [K in keyof T]: V } - always Object
@@ -1500,20 +1527,10 @@ function resolveElementType(node, scope, depth) {
       return resolveTypeAnnotation(node.elementType, scope, depth + 1);
     // [string, number] -> common element type if all same
     case 'TSTupleType':
-    case 'TupleTypeAnnotation': {
-      const elements = node.elementTypes;
-      if (!elements?.length) return null;
-      let result = null;
-      for (const elem of elements) {
-        const actual = elem.type === 'TSNamedTupleMember' ? elem.elementType : elem;
-        const resolved = resolveTypeAnnotation(actual, scope, depth + 1);
-        if (!resolved) return null;
-        if (isNullableOrNever(resolved)) continue;
-        result = commonType(result, resolved);
-        if (!result) return null;
-      }
-      return result;
-    }
+    case 'TupleTypeAnnotation':
+      return node.elementTypes?.length
+        ? resolveTupleInner(node.elementTypes, e => resolveTypeAnnotation(e, scope, depth + 1))
+        : null;
     // Array<T>, Set<T>, Map<K,V>, Iterable<T>, Generator<T>, user type aliases
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
@@ -2189,9 +2206,16 @@ function resolveNodeType(path) {
   // sentinel before recursion: circular references (e.g. `const a = b.x(); const b = a.x();`)
   // resolve to null (unknown type) instead of causing infinite recursion
   resolveCache.set(node, null);
-  const result = resolveNodeTypeExpression(path)
-    || resolveBindingType(path)
-    || resolveTypeGuardNarrowing(path);
+  let result = resolveNodeTypeExpression(path);
+  if (!result) {
+    result = resolveBindingType(path) || resolveTypeGuardNarrowing(path);
+  } else if (!result.inner && path.isIdentifier()) {
+    // when runtime resolution determined the outer type but not the inner type (e.g. `new Set()` -> Set),
+    // check if a type annotation provides a richer type with the same outer but known inner
+    // (e.g. `const s: Set<string> = new Set()` -> Set<string>)
+    const annotated = resolveBindingType(path);
+    if (annotated?.inner && typesEqual(result, annotated)) result = annotated;
+  }
   resolveCache.set(node, result);
   return result;
 }
