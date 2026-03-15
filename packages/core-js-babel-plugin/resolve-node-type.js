@@ -2110,8 +2110,16 @@ function resolveTypeGuardNarrowing(path) {
   return narrowByGuards(guards.filter(g => g.positive).map(resolveGuardType), guards);
 }
 
+const resolveCache = new WeakMap();
+
 function resolveNodeType(path) {
-  return resolveNodeTypeExpression(path) || resolveBindingType(path) || resolveTypeGuardNarrowing(path);
+  const { node } = path;
+  if (resolveCache.has(node)) return resolveCache.get(node);
+  const result = resolveNodeTypeExpression(path)
+    || resolveBindingType(path)
+    || resolveTypeGuardNarrowing(path);
+  resolveCache.set(node, result);
+  return result;
 }
 
 // resolve the type of the object from which a property is accessed:
