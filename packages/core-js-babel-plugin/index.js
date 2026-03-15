@@ -251,7 +251,11 @@ module.exports = defineProvider(({
     const [entry] = target.dependencies;
     if (!isEntryNeeded(entry) && !(target.guard && isEntryNeeded(target.guard))) return null;
     // import from common wrapper to get correct (non-decurried) export
-    return kind === 'instance' ? desc.common?.dependencies?.[0] ?? entry : entry;
+    if (kind === 'instance') {
+      const commonEntry = desc.common?.dependencies?.[0];
+      if (commonEntry && isEntryNeeded(commonEntry)) return commonEntry;
+    }
+    return entry;
   }
 
   function handleSymbolIterator(path, utils) {
