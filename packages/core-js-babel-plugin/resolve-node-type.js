@@ -604,15 +604,20 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
       if (!types || !types.length) return null;
       const isUnion = node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation';
       let result = null;
+      let skipped = null;
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member, scope, depth + 1);
         if (!resolved) return null;
         // skip nullable / never types in unions: T | null | undefined | never -> T
-        if (isUnion && isNullableOrNever(resolved)) continue;
+        if (isUnion && isNullableOrNever(resolved)) {
+          skipped ??= resolved;
+          continue;
+        }
         result = commonType(result, resolved);
         if (!result) return null;
       }
-      return result;
+      // all-nullable union (null | undefined | never) -> return a representative nullable type
+      return result ?? skipped;
     }
     // TS literal types: 'hello', 42, true, etc.
     case 'TSLiteralType':
@@ -1324,7 +1329,7 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
   if (callPath) {
     if (member.isClassMethod()) {
       if (member.node.kind !== 'get') return resolveReturnType(member, callPath);
-      // getter call: resolve like property - get the returned value, if callable → call it
+      // getter call: resolve like property - get the returned value, if callable -> call it
       const value = resolveBodyReturnValue(member);
       if (value?.isFunction()) return resolveReturnType(value, callPath);
     } else if (member.isClassProperty() || member.isClassAccessorProperty()) {
@@ -1358,7 +1363,7 @@ function resolveObjectMember(objectPath, name, callPath) {
   if (callPath) {
     if (prop.isObjectMethod()) {
       if (prop.node.kind !== 'get') return resolveReturnType(prop, callPath);
-      // getter call: resolve like property - get the returned value, if callable → call it
+      // getter call: resolve like property - get the returned value, if callable -> call it
       const value = resolveBodyReturnValue(prop);
       if (value?.isFunction()) return resolveReturnType(value, callPath);
     } else if (prop.isObjectProperty()) {
@@ -1605,7 +1610,8 @@ function resolveElementType(node, scope, depth) {
       let result = null;
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member, scope, depth + 1);
-        if (resolved && isNullableOrNever(resolved)) continue;
+        if (!resolved) return null;
+        if (isNullableOrNever(resolved)) continue;
         const elemType = resolveElementType(member, scope, depth + 1);
         if (!elemType) return null;
         result = commonType(result, elemType);
@@ -1668,7 +1674,8 @@ function extractElementAnnotation(node, scope, depth) {
       let result = null;
       for (const member of types) {
         const resolved = resolveTypeAnnotation(member, scope, depth + 1);
-        if (resolved && isNullableOrNever(resolved)) continue;
+        if (!resolved) return null;
+        if (isNullableOrNever(resolved)) continue;
         if (result) return null; // multiple non-null collection members -> ambiguous
         result = extractElementAnnotation(member, scope, depth + 1);
         if (!result) return null;
