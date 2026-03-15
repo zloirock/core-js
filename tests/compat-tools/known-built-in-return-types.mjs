@@ -88,7 +88,7 @@ deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.all, { type: 'Promise', 
 deepEqual(knownBuiltInReturnTypes.staticMethods.Iterator.from, { type: 'Iterator' });
 deepEqual(knownBuiltInReturnTypes.staticMethods.BigInt.asIntN, { type: 'bigint' });
 deepEqual(knownBuiltInReturnTypes.staticMethods.URL.parse, { type: 'URL' });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Uint8Array.fromBase64, { type: 'TypedArray' });
+deepEqual(knownBuiltInReturnTypes.staticMethods.Uint8Array.fromBase64, { type: 'TypedArray', element: { type: 'number' } });
 // staticMethods — structured hints with inner types
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.entries, { type: 'Array', element: { type: 'Array' } });
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.getOwnPropertyNames, { type: 'Array', element: { type: 'string' } });
