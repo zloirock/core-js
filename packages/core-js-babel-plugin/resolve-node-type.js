@@ -199,16 +199,29 @@ function resolveTypeQuery(node, scope) {
   return null;
 }
 
+function findInStatements(name, stmts) {
+  if (!Array.isArray(stmts)) return null;
+  for (let stmt of stmts) {
+    if ((stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration') && stmt.declaration) {
+      stmt = stmt.declaration;
+    }
+    if (stmt.id?.name === name && (stmt.type === 'TSTypeAliasDeclaration' || stmt.type === 'TSInterfaceDeclaration')) return stmt;
+    if (stmt.type === 'TSModuleDeclaration') {
+      const inner = findInStatements(name, stmt.body?.body);
+      if (inner) return inner;
+    }
+  }
+  return null;
+}
+
 function findTypeDeclaration(name, scope) {
   if (!scope) return null;
   let currentScope = scope;
   while (currentScope) {
     const { block } = currentScope;
     const body = block.type === 'Program' ? block.body : block.body?.body;
-    if (Array.isArray(body)) for (let stmt of body) {
-      if (stmt.type === 'ExportNamedDeclaration' && stmt.declaration) stmt = stmt.declaration;
-      if (stmt.id?.name === name && (stmt.type === 'TSTypeAliasDeclaration' || stmt.type === 'TSInterfaceDeclaration')) return stmt;
-    }
+    const result = findInStatements(name, body);
+    if (result) return result;
     currentScope = currentScope.parent;
   }
   return null;
