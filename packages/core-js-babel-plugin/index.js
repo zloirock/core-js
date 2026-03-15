@@ -216,6 +216,7 @@ module.exports = defineProvider(({
 
   function injectModule(moduleName, utils) {
     const moduleEntry = `modules/${ moduleName }`;
+    if (injectedModules.has(moduleEntry)) return;
     utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
     injectedModules.add(moduleEntry);
     debug(moduleName);
