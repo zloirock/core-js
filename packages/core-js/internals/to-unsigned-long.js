@@ -13,6 +13,6 @@ module.exports = function toUnsignedLong(value) {
   var r = floor(abs(value));
   if (value < 0) r = -r;
   value = r;
-  value %= 2 ^ 32;
+  value %= 2 ** 32;
   return value;
 };
