@@ -20,9 +20,10 @@ var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;
 var $clearTimeout = globalThis.clearTimeout;
 var getTime = uncurryThis($Date.prototype.getTime);
+var $performance = globalThis.performance;
 var $now;
-if (globalThis.performance) {
-  var $now = globalThis.performance.now;
+if ($performance) {
+  var $now = uncurryThis(globalThis.performance.now).bind(null, $performance);
 }
 var $max = Math.max;
 var now = $now || function () {
