@@ -1,6 +1,8 @@
 import {
+  constructors,
   globalMethods,
   globalProperties,
+  globalProxies,
   instanceMethods,
   instanceProperties,
   staticMethods,
@@ -33,6 +35,32 @@ function normalizeNested(table) {
   return result;
 }
 
+function normalizeConstructorHint(type, element) {
+  if (type === null) return { type: null };
+  const hint = { type };
+  if (element !== undefined) hint.element = normalizeHint(element);
+  return hint;
+}
+
+function normalizeConstructors(table) {
+  const result = {};
+  for (const [name, entry] of Object.entries(table)) {
+    if (typeof entry === 'string') {
+      const hint = { type: entry };
+      result[name] = { new: hint, call: hint };
+    } else {
+      const { element } = entry;
+      const newType = entry.new ?? null;
+      const callType = 'call' in entry ? entry.call : newType;
+      result[name] = {
+        new: normalizeConstructorHint(newType, element),
+        call: normalizeConstructorHint(callType, element),
+      };
+    }
+  }
+  return result;
+}
+
 await fs.writeJson('packages/core-js-compat/known-built-in-return-types.json', {
   globalMethods: normalizeFlat(globalMethods),
   globalProperties: normalizeFlat(globalProperties),
@@ -41,6 +69,8 @@ await fs.writeJson('packages/core-js-compat/known-built-in-return-types.json', {
   instanceMethods: normalizeNested(instanceMethods),
   instanceProperties: normalizeNested(instanceProperties),
   staticTypeGuards: normalizeNested(staticTypeGuards),
+  globalProxies,
+  constructors: normalizeConstructors(constructors),
 }, { spaces: '  ' });
 
 echo(chalk.green('known-built-in-return-types rebuilt'));

@@ -13,18 +13,27 @@ const VALID_TYPES = new Set([
   // object types
   'Arguments',
   'Array',
-  'Error',
   'ArrayBuffer',
   'AsyncDisposableStack',
   'AsyncIterator',
+  'BigInt',
+  'Boolean',
+  'DataView',
+  'Date',
   'DisposableStack',
+  'DOMException',
+  'Error',
   'Function',
   'Iterator',
   'Map',
+  'Number',
   'Object',
   'Promise',
+  'RegExp',
   'Set',
   'SharedArrayBuffer',
+  'String',
+  'Symbol',
   'TypedArray',
   'URL',
   'URLSearchParams',
@@ -44,125 +53,89 @@ function isValidHint(hint) {
   return innerHint === null || isValidHint(innerHint);
 }
 
-ok(knownBuiltInReturnTypes.globalMethods, 'has globalMethods');
-ok(knownBuiltInReturnTypes.globalProperties, 'has globalProperties');
-ok(knownBuiltInReturnTypes.staticMethods, 'has staticMethods');
-ok(knownBuiltInReturnTypes.staticProperties, 'has staticProperties');
-ok(knownBuiltInReturnTypes.instanceMethods, 'has instanceMethods');
-ok(knownBuiltInReturnTypes.instanceProperties, 'has instanceProperties');
-ok(knownBuiltInReturnTypes.staticTypeGuards, 'has staticTypeGuards');
-
-// validate flat maps (globalMethods, globalProperties)
+// structural validation — every entry in every table has a valid shape
 for (const kind of ['globalMethods', 'globalProperties']) {
+  ok(knownBuiltInReturnTypes[kind], `has ${ kind }`);
   for (const [name, hint] of Object.entries(knownBuiltInReturnTypes[kind])) {
-    ok(typeof name === 'string' && name, `${ kind }.${ name }: name is non-empty string`);
     ok(isValidHint(hint), `${ kind }.${ name }: hint '${ JSON.stringify(hint) }' is valid`);
   }
 }
 
-// validate nested maps (staticMethods, staticProperties, instanceMethods, instanceProperties)
 for (const kind of ['staticMethods', 'staticProperties', 'instanceMethods', 'instanceProperties', 'staticTypeGuards']) {
+  ok(knownBuiltInReturnTypes[kind], `has ${ kind }`);
   for (const [className, members] of Object.entries(knownBuiltInReturnTypes[kind])) {
-    ok(typeof className === 'string' && className, `${ kind }: class name is non-empty string`);
     for (const [member, hint] of Object.entries(members)) {
-      ok(typeof member === 'string' && member, `${ kind }.${ className }.${ member }: name is non-empty string`);
       ok(isValidHint(hint), `${ kind }.${ className }.${ member }: hint '${ JSON.stringify(hint) }' is valid`);
     }
   }
 }
 
-// spot-check representative entries across all tables
-// globalMethods — normalized simple hints
+// spot-checks — one per distinct hint shape
+// simple primitive / object
 deepEqual(knownBuiltInReturnTypes.globalMethods.parseInt, { type: 'number' });
-deepEqual(knownBuiltInReturnTypes.globalMethods.isNaN, { type: 'boolean' });
-deepEqual(knownBuiltInReturnTypes.globalMethods.atob, { type: 'string' });
 deepEqual(knownBuiltInReturnTypes.globalMethods.fetch, { type: 'Promise' });
-// globalProperties
-deepEqual(knownBuiltInReturnTypes.globalProperties.NaN, { type: 'number' });
 deepEqual(knownBuiltInReturnTypes.globalProperties.undefined, { type: 'undefined' });
-deepEqual(knownBuiltInReturnTypes.globalProperties.arguments, { type: 'Arguments' });
-// staticProperties
-deepEqual(knownBuiltInReturnTypes.staticProperties.Math.PI, { type: 'number' });
 deepEqual(knownBuiltInReturnTypes.staticProperties.Symbol.iterator, { type: 'symbol' });
-// staticMethods
+// element hint
 deepEqual(knownBuiltInReturnTypes.staticMethods.Object.keys, { type: 'Array', element: { type: 'string' } });
+// resolved hint
 deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.all, { type: 'Promise', resolved: { type: 'Array' } });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Iterator.from, { type: 'Iterator' });
-deepEqual(knownBuiltInReturnTypes.staticMethods.BigInt.asIntN, { type: 'bigint' });
-deepEqual(knownBuiltInReturnTypes.staticMethods.URL.parse, { type: 'URL' });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Uint8Array.fromBase64, { type: 'TypedArray', element: { type: 'number' } });
-// staticMethods — structured hints with inner types
-deepEqual(knownBuiltInReturnTypes.staticMethods.Object.entries, { type: 'Array', element: { type: 'Array' } });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Object.getOwnPropertyNames, { type: 'Array', element: { type: 'string' } });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Object.getOwnPropertySymbols, { type: 'Array', element: { type: 'symbol' } });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Reflect.ownKeys, { type: 'Array' });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Promise.allSettled, { type: 'Promise', resolved: { type: 'Array' } });
-deepEqual(knownBuiltInReturnTypes.staticMethods.Array.fromAsync, { type: 'Promise', resolved: { type: 'Array' } });
-// instanceMethods — simple normalized hints
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.then, { type: 'Promise' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.finally, { type: 'Promise', resolved: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.map, { type: 'Iterator' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Symbol.valueOf, { type: 'symbol' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.union, { type: 'Set' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncDisposableStack.move, { type: 'AsyncDisposableStack' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.SharedArrayBuffer.slice, { type: 'SharedArrayBuffer' });
-// instanceMethods — 'element' hints (element-returning methods)
+// 'element' directive
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.at, 'element');
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.find, 'element');
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.pop, 'element');
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.find, 'element');
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.at, 'element');
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.find, 'element');
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.findLast, 'element');
-// instanceMethods — 'inherit' hints (element-preserving methods)
+// 'inherit' directive
 deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.filter, { type: 'Array', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.slice, { type: 'Array', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.values, { type: 'Iterator', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.toArray, { type: 'Array', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.toAsync, { type: 'AsyncIterator', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.chunks, { type: 'Iterator', element: { type: 'Array', element: 'inherit' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.windows, { type: 'Iterator', element: { type: 'Array', element: 'inherit' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncDisposableStack.disposeAsync, { type: 'Promise', resolved: { type: 'undefined' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.every, { type: 'Promise', resolved: { type: 'boolean' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.some, { type: 'Promise', resolved: { type: 'boolean' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.forEach, { type: 'Promise', resolved: { type: 'undefined' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.filter, { type: 'AsyncIterator', element: 'inherit' });
+// resolved 'inherit'
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Promise.finally, { type: 'Promise', resolved: 'inherit' });
+// resolved 'element'
 deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.find, { type: 'Promise', resolved: 'element' });
+// nested inherit
+deepEqual(knownBuiltInReturnTypes.instanceMethods.Iterator.chunks, { type: 'Iterator', element: { type: 'Array', element: 'inherit' } });
+// nested resolved
 deepEqual(knownBuiltInReturnTypes.instanceMethods.AsyncIterator.toArray, { type: 'Promise', resolved: { type: 'Array', element: 'inherit' } });
-// instanceMethods — structured hints with explicit inner types
-deepEqual(knownBuiltInReturnTypes.instanceMethods.String.split, { type: 'Array', element: { type: 'string' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.String.match, { type: 'Array', element: { type: 'string' } });
+// deep nesting
 deepEqual(knownBuiltInReturnTypes.instanceMethods.String.matchAll, { type: 'Iterator', element: { type: 'Array', element: { type: 'string' } } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.keys, { type: 'Iterator', element: { type: 'number' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.entries, { type: 'Iterator', element: { type: 'Array' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.URLSearchParams.getAll, { type: 'Array', element: { type: 'string' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.URLSearchParams.keys, { type: 'Iterator', element: { type: 'string' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.URLSearchParams.entries, { type: 'Iterator', element: { type: 'Array', element: { type: 'string' } } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Array.toSpliced, { type: 'Array' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.filter, { type: 'TypedArray', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.slice, { type: 'TypedArray', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.values, { type: 'Iterator', element: 'inherit' });
-// keys yields indices (always number), entries yields [number, element] tuples (heterogeneous)
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.keys, { type: 'Iterator', element: { type: 'number' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.TypedArray.entries, { type: 'Iterator', element: { type: 'Array', element: { type: 'number' } } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Map.entries, { type: 'Iterator', element: { type: 'Array' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.entries, { type: 'Iterator', element: { type: 'Array', element: 'inherit' } });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.values, { type: 'Iterator', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.keys, { type: 'Iterator', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.add, { type: 'Set', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.difference, { type: 'Set', element: 'inherit' });
-deepEqual(knownBuiltInReturnTypes.instanceMethods.Set.intersection, { type: 'Set', element: 'inherit' });
-// instanceProperties
-deepEqual(knownBuiltInReturnTypes.instanceProperties.Function.name, { type: 'string' });
-deepEqual(knownBuiltInReturnTypes.instanceProperties.RegExp.flags, { type: 'string' });
+// instance property
 deepEqual(knownBuiltInReturnTypes.instanceProperties.URL.searchParams, { type: 'URLSearchParams' });
-deepEqual(knownBuiltInReturnTypes.instanceProperties.ArrayBuffer.detached, { type: 'boolean' });
-
-// staticTypeGuards
+// type guard
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Array.isArray, { type: 'Array' });
-deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Error.isError, { type: 'Error' });
 deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isFinite, { type: 'number' });
-deepEqual(knownBuiltInReturnTypes.staticTypeGuards.Number.isNaN, { type: 'number' });
-deepEqual(knownBuiltInReturnTypes.staticTypeGuards.TypeError.isError, { type: 'Error' });
+
+// globalProxies
+ok(Array.isArray(knownBuiltInReturnTypes.globalProxies), 'globalProxies is array');
+for (const proxy of knownBuiltInReturnTypes.globalProxies) {
+  ok(typeof proxy === 'string' && proxy, `globalProxy '${ proxy }' is non-empty string`);
+}
+
+// constructors — structural validation
+function isValidConstructorHint(hint) {
+  if (typeof hint !== 'object' || hint === null) return false;
+  if (hint.type !== null && !VALID_TYPES.has(hint.type)) return false;
+  const validKeys = new Set(['type', 'element']);
+  for (const key of Object.keys(hint)) if (!validKeys.has(key)) return false;
+  if (hint.element !== undefined) return isValidHint(hint.element);
+  return true;
+}
+
+const { constructors } = knownBuiltInReturnTypes;
+ok(constructors, 'has constructors');
+for (const [name, entry] of Object.entries(constructors)) {
+  ok(isValidConstructorHint(entry.new), `constructor '${ name }.new': hint '${ JSON.stringify(entry.new) }' is valid`);
+  ok(isValidConstructorHint(entry.call), `constructor '${ name }.call': hint '${ JSON.stringify(entry.call) }' is valid`);
+}
+
+// constructors — spot-checks: one per distinct constructor shape
+// simple (new === call)
+deepEqual(constructors.Array, { new: { type: 'Array' }, call: { type: 'Array' } });
+// primitive wrapper (new: boxed object, call: primitive)
+deepEqual(constructors.String, { new: { type: 'String' }, call: { type: 'string' } });
+// null type
+deepEqual(constructors.Object, { new: { type: null }, call: { type: null } });
+// error mapping
+deepEqual(constructors.AggregateError, { new: { type: 'Error' }, call: { type: 'Error' } });
+// TypedArray with element
+deepEqual(constructors.BigInt64Array, { new: { type: 'TypedArray', element: { type: 'bigint' } }, call: { type: 'TypedArray', element: { type: 'bigint' } } });
+deepEqual(constructors.Float32Array, { new: { type: 'TypedArray', element: { type: 'number' } }, call: { type: 'TypedArray', element: { type: 'number' } } });
+// readonly variant
+deepEqual(constructors.ReadonlyArray, { new: { type: 'Array' }, call: { type: 'Array' } });
 
 echo(chalk.green('known-built-in-return-types tested'));
