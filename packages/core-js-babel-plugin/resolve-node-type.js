@@ -1194,14 +1194,18 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   // union: T | null, T | undefined - strip nullable, substitute T
   if (node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation') {
     let result = null;
+    let skipped = false;
     for (const member of node.types) {
       const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
       if (!resolved) return null;
-      if (isNullableOrNever(resolved)) continue;
+      if (isNullableOrNever(resolved)) {
+        skipped = true;
+        continue;
+      }
       result = commonType(result, resolved);
       if (!result) return null;
     }
-    return result;
+    return result ?? (skipped ? new $Primitive('undefined') : null);
   }
   // intersection: T & { extra: boolean } - skip plain $Object('Object') from type literals, rest must agree
   if (node.type === 'TSIntersectionType' || node.type === 'IntersectionTypeAnnotation') {
