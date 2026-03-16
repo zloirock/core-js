@@ -132,6 +132,7 @@ exports.request = function requestIdleCallback(callback) {
       var cb = sharedStore.__idleCallbackMap[handle];
       if (!cb) return;
       delete sharedStore.__idleCallbackMap[handle];
+      delete sharedStore.__timeoutHandles[handle];
       if (sharedStore.__handleObjects[handle].queue === sharedStore.__idleRequestCallbacks) {
         sharedStore.__idleRequestCallbacks.erase(sharedStore.__handleObjects[handle]);
       }
