@@ -36,7 +36,8 @@ var $min = Math.min;
 var now = $now || function () {
   return getTime(new $Date());
 };
-var rAF = globalThis.requestAnimationFrame || function (callback) {
+var $rAF = globalThis.requestAnimationFrame || globalThis.mozRequestAnimationFrame || globalThis.webkitRequestAnimationFrame;
+var rAF = $rAF || function (callback) {
   $setTimeout(function () {
     callback();
   }, 16);
