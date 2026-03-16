@@ -10,6 +10,7 @@ var $requestIdleCallback = require('../internals/idle-callbacks').request;
 var nativeRequestIdleCallback = globalThis.requestIdleCallback;
 var apply = uncurryThis(Function.prototype.apply);
 var NEEDED = require('../internals/idle-callbacks').forced;
+var $min = Math.min;
 
 $({ global: true, forced: true }, {
   requestIdleCallback: function requestIdleCallback(callback) {
@@ -21,6 +22,8 @@ $({ global: true, forced: true }, {
     anObjectOrUndefined(options);
     var timeout = 0;
     if (options !== undefined) timeout = toUnsignedLong(options.timeout);
+    // FF behaves wrong for timeouts above that, even though spec permits it.
+    timeout = $min(timeout, 0x7FFFFFFF);
     if (timeout <= 0) return nativeRequestIdleCallback(callback);
     return nativeRequestIdleCallback(callback, { timeout: timeout });
   }
