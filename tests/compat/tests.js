@@ -2283,5 +2283,5 @@ GLOBAL.tests = {
       // -- if that gives false we're good
       return requestIdleCallback && cancelIdleCallback && IdleDeadline && (!/Firefox/.test(USERAGENT));
     }
-  ],
+  ]
 };
