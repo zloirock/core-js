@@ -49,7 +49,7 @@ var __handleObjects = {};
 var IdleDeadlineState = function IdleDeadlineState(deadlineTime, didTimeout) {
   this.deadlineTime = deadlineTime;
   this.didTimeout = didTimeout;
-}
+};
 IdleDeadlineState.prototype.type = 'IdleDeadline';
 
 var IdleDeadline = function IdleDeadline() {
@@ -57,12 +57,12 @@ var IdleDeadline = function IdleDeadline() {
 };
 setToStringTag(IdleDeadline, 'IdleDeadline');
 defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() {
-  return $max(getInternalIdleDeadlineState(this)['deadlineTime'] - now(), 0);
+  return $max(getInternalIdleDeadlineState(this).deadlineTime - now(), 0);
 }, { writable: true, enumerable: true, configurable: true });
 if (DESCRIPTORS) {
   defineProperty(IdleDeadline.prototype, 'didTimeout', {
-    get: function() {
-      return getInternalIdleDeadlineState(this)['didTimeout'];
+    get: function () {
+      return getInternalIdleDeadlineState(this).didTimeout;
     },
     enumerable: true,
     configurable: true
@@ -72,9 +72,9 @@ if (DESCRIPTORS) {
 var IdleDeadlinePriv = function IdleDeadlinePriv(deadlineTime, didTimeout) {
   setInternalState(this, new IdleDeadlineState(deadlineTime, didTimeout));
   if (!DESCRIPTORS) {
-    this.didTimeout = getInternalIdleDeadlineState(this)['didTimeout'];
+    this.didTimeout = getInternalIdleDeadlineState(this).didTimeout;
   }
-}
+};
 IdleDeadlinePriv.prototype = IdleDeadline.prototype;
 
 function scheduleNextIdle() {
