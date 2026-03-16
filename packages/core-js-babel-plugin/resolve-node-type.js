@@ -1373,7 +1373,10 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
 }
 
 function findObjectMember(objectPath, name) {
-  for (const prop of objectPath.get('properties')) {
+  const properties = objectPath.get('properties');
+  for (let i = properties.length - 1; i >= 0; i--) {
+    const prop = properties[i];
+    if (prop.isSpreadElement()) return null;
     if (keyMatchesName(prop.node.key, name)) return prop;
   }
   return null;
