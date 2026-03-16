@@ -25,6 +25,7 @@ if ($performance) {
   var $now = uncurryThis(globalThis.performance.now).bind(null, $performance);
 }
 var $max = Math.max;
+var $min = Math.min;
 var now = $now || function () {
   return getTime(new $Date());
 };
@@ -129,7 +130,7 @@ exports.request = function requestIdleCallback(callback) {
   var timeout = 0;
   if (options !== undefined) timeout = toUnsignedLong(options.timeout);
   // Clamp timeout to maximum allowed by setTimeout, which is long, not unsigned long.
-  timeout = $max(timeout, 0x7FFFFFFF);
+  timeout = $min(timeout, 0x7FFFFFFF);
   if (options && timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // timeout, however maintaining such a priority queue would be very tedious
