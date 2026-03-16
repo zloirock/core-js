@@ -1414,17 +1414,12 @@ function resolveBodyReturnValue(fnPath) {
   const body = fnPath.get('body');
   if (!body.isBlockStatement()) return resolveRuntimeExpression(body);
   let result = null;
-  body.traverse({
-    ReturnStatement(returnPath) {
-      if (result === false) return;
-      const arg = returnPath.get('argument');
-      const value = arg.node ? resolveRuntimeExpression(arg) : null;
-      result = value && (result === null || result.node === value.node) ? value : false;
-    },
-    Function(innerPath) {
-      innerPath.skip();
-    },
-  });
+  for (const returnPath of collectReturnPaths(body)) {
+    const arg = returnPath.get('argument');
+    const value = arg.node ? resolveRuntimeExpression(arg) : null;
+    result = value && (result === null || result.node === value.node) ? value : false;
+    if (result === false) return null;
+  }
   return result || null;
 }
 
