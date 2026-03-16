@@ -1421,7 +1421,9 @@ function resolveBodyReturnValue(fnPath) {
       const value = arg.node ? resolveRuntimeExpression(arg) : null;
       result = value && (result === null || result.node === value.node) ? value : false;
     },
-    Function(innerPath) { innerPath.skip(); },
+    Function(innerPath) {
+      innerPath.skip();
+    },
   });
   return result || null;
 }
@@ -1475,7 +1477,7 @@ function resolveObjectMember(objectPath, name, callPath) {
       if (value?.isFunction()) return resolveReturnType(value, callPath);
     } else if (prop.isObjectProperty()) {
       const value = resolveRuntimeExpression(prop.get('value'));
-      if (value.isFunction()) return resolveReturnType(value, callPath);
+      if (value.node && value.isFunction()) return resolveReturnType(value, callPath);
     }
     return null;
   }
