@@ -20,9 +20,12 @@ var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;
 var $clearTimeout = globalThis.clearTimeout;
 var getTime = uncurryThis($Date.prototype.getTime);
-var $performance = globalThis.performance;
+var $now;
+if (globalThis.performance) {
+  var $now = globalThis.performance.now;
+}
 var $max = Math.max;
-var now = ($performance && function () { return $performance.now(); }) || function () {
+var now = $now || function () {
   return getTime(new $Date());
 };
 var rAF = globalThis.requestAnimationFrame || function (callback) {
