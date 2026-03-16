@@ -180,9 +180,12 @@ function resolveTypeQuery(node, scope) {
     const bindingPath = constantBindingPath(left.name, scope);
     if (!bindingPath) return null;
     if (bindingPath.isVariableDeclarator()) {
-      const init = resolveRuntimeExpression(bindingPath.get('init'));
-      if (init.isObjectExpression()) return resolveObjectMember(init, right.name);
-      if (init.isClass()) return resolveClassMember(init, right.name, true);
+      const init = bindingPath.get('init');
+      if (init.node) {
+        const resolved = resolveRuntimeExpression(init);
+        if (resolved.isObjectExpression()) return resolveObjectMember(resolved, right.name);
+        if (resolved.isClass()) return resolveClassMember(resolved, right.name, true);
+      }
     }
     if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, right.name, true);
     const annotation = findBindingAnnotation(bindingPath);
