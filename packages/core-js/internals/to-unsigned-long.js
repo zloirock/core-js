@@ -4,6 +4,7 @@ var toNumber = require('./to-number');
 var $isNaN = isNaN;
 var abs = Math.abs;
 var floor = Math.floor;
+var MOD = 0x100000000;
 
 // WebIDL Unsigned Long
 module.exports = function toUnsignedLong(value) {
@@ -14,6 +15,6 @@ module.exports = function toUnsignedLong(value) {
   var r = floor(abs(value));
   if (value < 0) r = -r;
   value = r;
-  value %= 0x100000000;
+  value = ((value % MOD) + MOD) % MOD;
   return value;
 };
