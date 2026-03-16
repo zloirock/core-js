@@ -86,7 +86,7 @@ function $Object(constructor, inner) {
 
 $Object.prototype.primitive = false;
 
-// get the primitive type name, unboxing wrapper objects: $Object('String') → 'string', $Primitive('number') → 'number'
+// get the primitive type name, unboxing wrapper objects: $Object('String') -> 'string', $Primitive('number') -> 'number'
 function primitiveTypeOf(type) {
   return type?.primitive ? type.type : UNBOXED_PRIMITIVES[type?.constructor] ?? null;
 }
@@ -1441,6 +1441,16 @@ function resolveObjectMember(objectPath, name, callPath) {
   return null;
 }
 
+// extract the return type annotation from a method/property call signature
+function memberCallReturnAnnotation(member) {
+  if (member.type === 'TSMethodSignature') return member.typeAnnotation;
+  if (member.type === 'TSPropertySignature') {
+    const fnType = unwrapTypeAnnotation(member.typeAnnotation);
+    if (fnType?.type === 'TSFunctionType') return fnType.typeAnnotation;
+  }
+  return null;
+}
+
 function resolveTypedMember(objectPath, name, callPath) {
   if (!objectPath.isIdentifier()) return null;
   const binding = objectPath.scope.getBinding(objectPath.node.name);
@@ -1449,21 +1459,25 @@ function resolveTypedMember(objectPath, name, callPath) {
   const annotation = unwrapTypeAnnotation(findBindingAnnotation(bindingPath));
   if (!annotation) return null;
   const { scope } = bindingPath;
+  // property access (not a call): delegate to findTypeMember
   if (!callPath) {
     const memberType = findTypeMember(annotation, name, scope);
     return memberType ? resolveTypeAnnotation(memberType, scope) : null;
   }
+  // method call: merge return types from all matching overloads via commonType
   const members = getTypeMembers(annotation, scope);
   if (!members) return null;
+  let result = null;
   for (const member of members) {
     if (!keyMatchesName(member.key, name)) continue;
-    if (member.type === 'TSMethodSignature') return resolveTypeAnnotation(member.typeAnnotation, scope);
-    if (member.type === 'TSPropertySignature') {
-      const fnType = unwrapTypeAnnotation(member.typeAnnotation);
-      if (fnType?.type === 'TSFunctionType') return resolveTypeAnnotation(fnType.typeAnnotation, scope);
-    }
+    const returnAnnotation = memberCallReturnAnnotation(member);
+    if (!returnAnnotation) continue;
+    const resolved = resolveTypeAnnotation(returnAnnotation, scope);
+    if (!resolved) return null;
+    result = commonType(result, resolved);
+    if (!result) return null;
   }
-  return null;
+  return result;
 }
 
 function resolveFromMemberExpression(path, callPath) {
@@ -1896,7 +1910,7 @@ function resolveAnnotatedMember(annotation, keyName, scope) {
 }
 
 // recursively unwrap Promise<T> annotation to T for for-await-of element types
-// mirrors runtime `await` semantics: Promise<Promise<T>> → T
+// mirrors runtime `await` semantics: Promise<Promise<T>> -> T
 function unwrapPromiseAnnotation(node) {
   let result = unwrapTypeAnnotation(node);
   while (result?.type === 'TSTypeReference' && typeRefName(result) === 'Promise') {
@@ -1916,7 +1930,7 @@ function resolveForOfElementAnnotation(path) {
   const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
   if (!annotationInfo) return null;
   let elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
-  // for-await-of unwraps Promise elements: Iterable<Promise<T>> → T
+  // for-await-of unwraps Promise elements: Iterable<Promise<T>> -> T
   if (elemAnnotation && forOfPath.node.await) elemAnnotation = unwrapPromiseAnnotation(elemAnnotation);
   return elemAnnotation ? { annotation: elemAnnotation, scope: annotationInfo.scope } : null;
 }
@@ -2302,7 +2316,7 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
         const conditionTrue = resolveExitCondition(siblings[i]);
         if (conditionTrue === null) continue;
         if (!parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName).length) continue;
-        // check ALL exit guards, not just the nearest — a weaker guard closer to usage
+        // check ALL exit guards, not just the nearest - a weaker guard closer to usage
         // does not invalidate mutations that occurred after a stronger guard further away
         for (let j = i + 1; j <= current.key; j++) if (violates(siblings[j])) return true;
       }
@@ -2360,7 +2374,7 @@ function resolveNodeType(path) {
     const annotated = resolveBindingType(path);
     if (annotated?.inner && typesEqual(result, annotated)) result = annotated;
   }
-  // $Primitive('unknown') (e.g. from `+` with unresolved operands) is truthy but imprecise —
+  // $Primitive('unknown') (e.g. from `+` with unresolved operands) is truthy but imprecise -
   // allow typeof / instanceof guards to refine it to a concrete type
   if (result?.type === 'unknown') {
     result = resolveTypeGuardNarrowing(path) || result;
