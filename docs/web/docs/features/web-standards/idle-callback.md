@@ -5,7 +5,7 @@
 Note that `requestIdleCallback` cannot really be polyfilled as we don't know when an idle period happens.  However, the polyfill contained in core-js uses `requestAnimationFrame` to ensure that operations contained in `requestIdleCallback` will not significantly throttle the rendering of graphics.
 
 ## Modules 
-[`web.request-idle-callback`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.request-idle-callback.js), [`web.cancel-idle-callback`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.cancel-idle-callback.js), [`web.idle-deadline.constructor`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.idle-deadline.constructor.js),
+[`web.request-idle-callback`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.request-idle-callback.js)
 
 ## Built-ins signatures
 ```ts
