@@ -204,6 +204,29 @@ function resolveTypeQuery(node, scope) {
   return null;
 }
 
+// resolve an enum declaration to a primitive type
+// string enum -> $Primitive('string'), numeric enum -> $Primitive('number'), mixed/empty -> null
+function resolveEnumMemberKind(initializer) {
+  if (!initializer) return 'number'; // implicit numeric
+  const { type } = initializer;
+  if (type === 'StringLiteral') return 'string';
+  if (type === 'NumericLiteral' || type === 'UnaryExpression') return 'number';
+  return null; // template literal, expression, etc.
+}
+
+function resolveEnumType(declaration) {
+  const { members } = declaration;
+  if (!members?.length) return null;
+  let kind = null;
+  for (const member of members) {
+    const memberKind = resolveEnumMemberKind(member.initializer);
+    if (!memberKind) return null;
+    if (!kind) kind = memberKind;
+    else if (kind !== memberKind) return null;
+  }
+  return kind ? new $Primitive(kind) : null;
+}
+
 function findInStatements(name, statements) {
   if (!Array.isArray(statements)) return null;
   for (let statement of statements) {
@@ -211,7 +234,8 @@ function findInStatements(name, statements) {
       statement = statement.declaration;
     }
     if (statement.id?.name === name
-      && (statement.type === 'TSTypeAliasDeclaration' || statement.type === 'TSInterfaceDeclaration')) return statement;
+      && (statement.type === 'TSTypeAliasDeclaration' || statement.type === 'TSInterfaceDeclaration'
+        || statement.type === 'TSEnumDeclaration')) return statement;
     if (statement.type === 'TSModuleDeclaration') {
       const inner = findInStatements(name, statement.body?.body);
       if (inner) return inner;
@@ -291,6 +315,7 @@ function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
     ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1)
     : p => resolveTypeAnnotation(p, scope, depth + 1);
   if (declaration.type === 'TSTypeAliasDeclaration') return resolve(declaration.typeAnnotation);
+  if (declaration.type === 'TSEnumDeclaration') return resolveEnumType(declaration);
   if (declaration.type === 'TSInterfaceDeclaration') {
     const parents = declaration.extends;
     if (parents?.length) {
