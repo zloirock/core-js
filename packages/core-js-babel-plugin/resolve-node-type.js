@@ -2232,11 +2232,11 @@ function caseTestStringValue(test, scope) {
 
 // switch (typeof x) { case 'string': ... ; default: ... }
 function findSwitchCaseGuards(current, varName) {
-  if (!current.parentPath?.isSwitchCase()) return null;
+  if (!current.parentPath?.isSwitchCase()) return [];
   const switchCase = current.parentPath;
   const switchStmt = switchCase.parentPath;
-  if (!switchStmt?.isSwitchStatement()) return null;
-  if (!isTypeofVar(switchStmt.node.discriminant, varName)) return null;
+  if (!switchStmt?.isSwitchStatement()) return [];
+  if (!isTypeofVar(switchStmt.node.discriminant, varName)) return [];
   const { cases } = switchStmt.node;
   const { scope } = switchCase;
   const caseIndex = cases.indexOf(switchCase.node);
@@ -2249,7 +2249,7 @@ function findSwitchCaseGuards(current, varName) {
       if (!canFallThrough(cases[i])) break;
       // bail if default or non-resolvable test in the fall-through chain
       const predValue = caseTestStringValue(cases[i].test, scope);
-      if (predValue === null) return null;
+      if (predValue === null) return [];
       values.add(predValue);
     }
     if (values.size === 1) return [{ kind: 'typeof', value: caseValue, positive: true, negated: false }];
@@ -2258,15 +2258,15 @@ function findSwitchCaseGuards(current, varName) {
   // default case: none of the explicit cases matched -> negative guards for each
   if (switchCase.node.test === null) {
     // bail if a preceding case can fall through to default - negative guards would be unsound
-    if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return null;
+    if (caseIndex > 0 && canFallThrough(cases[caseIndex - 1])) return [];
     const guards = [];
     for (const $case of cases) {
       const value = caseTestStringValue($case.test, scope);
       if (value !== null) guards.push({ kind: 'typeof', value, positive: false, negated: false });
     }
-    return guards.length ? guards : null;
+    return guards;
   }
-  return null;
+  return [];
 }
 
 // if (...) return; -> false (consequent exits, condition was true -> narrowed type is !condition)
@@ -2291,24 +2291,20 @@ function findPrecedingExitGuards(siblings, index, varName) {
 
 function findEarlyExitGuards(current, varName) {
   const parent = current.parentPath;
-  if (typeof current.key !== 'number' || current.listKey !== 'body') return null;
-  if (!parent.isBlockStatement() && !parent.isProgram()) return null;
-  const guards = findPrecedingExitGuards(parent.get('body'), current.key, varName);
-  return guards.length ? guards : null;
+  if (typeof current.key !== 'number' || current.listKey !== 'body') return [];
+  if (!parent.isBlockStatement() && !parent.isProgram()) return [];
+  return findPrecedingExitGuards(parent.get('body'), current.key, varName);
 }
 
 // collect ALL type guards along the AST path for cumulative narrowing
 function findEnclosingTypeGuards(path, varName) {
   const guards = [];
-  let current = path.parentPath;
-  while (current) {
-    if (current.isFunction()) break;
-    guards.push(...findConditionalGuards(current, varName));
-    const switchGuards = findSwitchCaseGuards(current, varName);
-    if (switchGuards) guards.push(...switchGuards);
-    const exitGuards = findEarlyExitGuards(current, varName);
-    if (exitGuards) guards.push(...exitGuards);
-    current = current.parentPath;
+  for (let current = path.parentPath; current && !current.isFunction(); current = current.parentPath) {
+    guards.push(
+      ...findConditionalGuards(current, varName),
+      ...findSwitchCaseGuards(current, varName),
+      ...findEarlyExitGuards(current, varName),
+    );
   }
   return guards.length ? guards : null;
 }
@@ -2354,8 +2350,8 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
   const violatesBefore = scope => constantViolations.some(v => isDescendant(v, scope) && isBefore(v));
   for (let current = usagePath, parent; (parent = current.parentPath) && !parent.isFunction(); current = parent) {
     if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
-    if (findSwitchCaseGuards(current, varName) && violatesBefore(parent)) return true;
-    if (findEarlyExitGuards(current, varName)) {
+    if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent)) return true;
+    if (findEarlyExitGuards(current, varName).length) {
       const siblings = parent.get('body');
       for (let i = current.key - 1; i >= 0; i--) {
         const conditionTrue = resolveExitCondition(siblings[i]);
@@ -2370,16 +2366,24 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
   return false;
 }
 
-// shared prologue: find guards for an identifier binding
+// shared prologue: find guards for an identifier binding, cached per AST node
+const guardsCache = new WeakMap();
+
 function findGuardsForBinding(path) {
   if (!path.isIdentifier()) return null;
-  const { name } = path.node;
+  const { node } = path;
+  if (guardsCache.has(node)) return guardsCache.get(node);
+  const { name } = node;
   const binding = path.scope.getBinding(name);
-  if (!binding) return null;
-  const guards = findEnclosingTypeGuards(path, name);
-  if (!guards) return null;
-  if (!binding.constant && hasMutationAfterGuards(binding, path, name)) return null;
-  return { binding, guards };
+  let result = null;
+  if (binding) {
+    const guards = findEnclosingTypeGuards(path, name);
+    if (guards && (binding.constant || !hasMutationAfterGuards(binding, path, name))) {
+      result = { binding, guards };
+    }
+  }
+  guardsCache.set(node, result);
+  return result;
 }
 
 function resolveTypeGuardNarrowing(path) {
