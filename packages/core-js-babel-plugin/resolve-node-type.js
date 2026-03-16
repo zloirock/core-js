@@ -1101,6 +1101,7 @@ function hasTypeParamReference(node, typeParamNames, depth) {
         || hasTypeParamReference(node.trueType, typeParamNames, depth + 1)
         || hasTypeParamReference(node.falseType, typeParamNames, depth + 1);
     case 'TSTypeOperator':
+    case 'TSRestType':
     case 'TSOptionalType':
     case 'TSParenthesizedType':
     case 'NullableTypeAnnotation':
