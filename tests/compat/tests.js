@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
+/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this, no-unused-vars -- required for testing */
 /* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
@@ -324,10 +324,6 @@ function TIMERS() {
     var version = Bun.version.split('.');
     return version.length < 3 || version[0] === '0' && (version[1] < 3 || version[1] === '3' && version[2] === '0');
   })());
-}
-
-function IDLE_CALLBACKS() {
-  return requestIdleCallback && cancelIdleCallback && IdleDeadline;
 }
 
 // https://github.com/tc39/ecma262/pull/3467
@@ -2281,14 +2277,11 @@ GLOBAL.tests = {
     return 'size' in URLSearchParams.prototype;
   }],
   'web.request-idle-callback': [
-    IDLE_CALLBACKS,
     function () {
       // Firefox bug on negative / 0 timeout
       // Proper test would be requestIdleCallback(a=>(console.log(a.didTimeout)), {timeout: -1})
       // -- if that gives false we're good
-      return /Firefox .\./.test(USERAGENT);
+      return requestIdleCallback && cancelIdleCallback && IdleDeadline && (!/Firefox/.test(USERAGENT));
     }
   ],
-  'web.cancel-idle-callback': IDLE_CALLBACKS,
-  'web.idle-deadline.constructor': IDLE_CALLBACKS
 };
