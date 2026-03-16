@@ -128,6 +128,8 @@ exports.request = function requestIdleCallback(callback) {
   __handleObjects[handle] = __idleRequestCallbacks.add(handle);
   var timeout = 0;
   if (options !== undefined) timeout = toUnsignedLong(options.timeout);
+  // Clamp timeout to maximum allowed by setTimeout, which is long, not unsigned long.
+  timeout = $max(timeout, 0x7FFFFFFF);
   if (options && timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // timeout, however maintaining such a priority queue would be very tedious
