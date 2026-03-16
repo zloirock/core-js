@@ -834,6 +834,35 @@ function resolveClassInheritance(classPath) {
   return null;
 }
 
+// if annotation resolves to Generator/AsyncGenerator, return its type params; otherwise null
+function generatorTypeParams(annotation, scope) {
+  const ref = followTypeAliasChain(annotation, scope);
+  const refName = typeRefName(ref);
+  return (refName === 'Generator' || refName === 'AsyncGenerator') ? ref.typeParameters?.params : null;
+}
+
+// resolve a specific Generator/AsyncGenerator type parameter from an expression
+// paramIndex: 0 = TYield, 1 = TReturn, 2 = TNext
+function resolveGeneratorTypeParam(exprPath, paramIndex) {
+  // direct annotation: identifier with type, type cast, etc.
+  const info = findExpressionAnnotation(exprPath);
+  if (info) {
+    const params = generatorTypeParams(info.annotation, info.scope);
+    if (params?.[paramIndex]) return resolveTypeAnnotation(params[paramIndex], info.scope);
+    return null;
+  }
+  // call expression: resolve callee function's return type annotation
+  const resolved = resolveRuntimeExpression(exprPath);
+  if (resolved.isCallExpression() || resolved.isNewExpression()) {
+    const callee = resolveRuntimeExpression(resolved.get('callee'));
+    if (callee.isFunction() && callee.node.returnType) {
+      const params = generatorTypeParams(unwrapTypeAnnotation(callee.node.returnType), callee.scope);
+      if (params?.[paramIndex]) return resolveTypeAnnotation(params[paramIndex], callee.scope);
+    }
+  }
+  return null;
+}
+
 function resolveNodeTypeExpression(path) {
   path = resolvePath(path);
 
@@ -987,16 +1016,15 @@ function resolveNodeTypeExpression(path) {
       return null;
     }
     case 'YieldExpression': {
-      // yield expression evaluates to the value passed to generator.next(value),
-      // which is TNext in Generator<TYield, TReturn, TNext>
       const fnPath = path.getFunctionParent();
       if (!fnPath?.node.generator) return null;
-      const returnAnnotation = unwrapTypeAnnotation(fnPath.node.returnType?.typeAnnotation);
-      const name = typeRefName(returnAnnotation);
-      if (name === 'Generator' || name === 'AsyncGenerator') {
-        const params = returnAnnotation.typeParameters?.params;
-        if (params?.[2]) return resolveTypeAnnotation(params[2], fnPath.scope);
+      if (path.node.delegate) {
+        // yield* delegates to an iterable; result is the delegated iterator's TReturn (params[1])
+        return resolveGeneratorTypeParam(path.get('argument'), 1);
       }
+      // yield evaluates to the value passed to generator.next(value) = TNext (params[2])
+      const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType?.typeAnnotation), fnPath.scope);
+      if (params?.[2]) return resolveTypeAnnotation(params[2], fnPath.scope);
       return null;
     }
   }
@@ -2262,8 +2290,9 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
   const violates = scope => constantViolations.some(v => isDescendant(v, scope));
   // only mutations inside scope that are positionally before usagePath
   // if either position is missing (synthetic AST nodes), conservatively assume mutation is before usage
-  const violatesBefore = scope => constantViolations.some(v =>
-    isDescendant(v, scope) && (v.node.start == null || usageStart == null || v.node.start < usageStart));
+  const isBefore = v => v.node.start === null || v.node.start === undefined
+    || usageStart === null || usageStart === undefined || v.node.start < usageStart;
+  const violatesBefore = scope => constantViolations.some(v => isDescendant(v, scope) && isBefore(v));
   for (let current = usagePath, parent; (parent = current.parentPath) && !parent.isFunction(); current = parent) {
     if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
     if (findSwitchCaseGuards(current, varName) && violatesBefore(parent)) return true;
