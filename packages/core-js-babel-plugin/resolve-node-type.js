@@ -1087,39 +1087,57 @@ function resolveBodyExpr(path, fnPath, callPath) {
   return resolveParamType(binding, fnPath, callPath);
 }
 
+const FUNCTION_NODE_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassMethod',
+  'ClassPrivateMethod',
+]);
+
+// collect return statement paths from a block body, skipping nested functions
+function collectReturnPaths(blockPath) {
+  const returns = [];
+  const getChildren = (path, key) => Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
+  const walk = path => {
+    if (!path.node || FUNCTION_NODE_TYPES.has(path.node.type)) return;
+    if (path.isReturnStatement()) {
+      returns.push(path);
+      return;
+    }
+    const { node } = path;
+    // recurse into block/control-flow children
+    if (node.body) for (const p of getChildren(path, 'body')) walk(p);
+    if (node.consequent) for (const p of getChildren(path, 'consequent')) walk(p);
+    if (node.alternate) walk(path.get('alternate'));
+    if (node.cases) for (const p of path.get('cases')) walk(p);
+    if (node.block) walk(path.get('block'));
+    if (node.handler) walk(path.get('handler'));
+    if (node.finalizer) walk(path.get('finalizer'));
+  };
+  for (const stmt of blockPath.get('body')) walk(stmt);
+  return returns;
+}
+
 function resolveBodyReturnType(fnPath, callPath) {
   const body = fnPath.get('body');
   // arrow with expression body: () => [1, 2, 3]
   if (!body.isBlockStatement()) return resolveBodyExpr(body, fnPath, callPath);
-  // block body: traverse all return statements, skip nested functions
+  // block body: collect return statements, skip nested functions
   let result = null;
-  let resolved = true;
-  body.traverse({
-    ReturnStatement(returnPath) {
-      if (!resolved) return;
-      const arg = returnPath.get('argument');
-      const type = arg.node ? resolveBodyExpr(arg, fnPath, callPath) : new $Primitive('undefined');
-      if (!type) {
-        resolved = false;
-        returnPath.stop();
-        return;
-      }
-      // skip nullable/never returns - common in catch bail-outs like `catch { return; }`
-      // consistent with how resolveConditionalBranches handles `never` branches
-      if (isNullableOrNever(type)) return;
-      const merged = commonType(result, type);
-      if (result && !merged) {
-        resolved = false;
-        returnPath.stop();
-        return;
-      }
-      result = merged;
-    },
-    Function(innerPath) {
-      innerPath.skip();
-    },
-  });
-  return resolved ? (result ?? new $Primitive('undefined')) : null;
+  for (const returnPath of collectReturnPaths(body)) {
+    const arg = returnPath.get('argument');
+    const type = arg.node ? resolveBodyExpr(arg, fnPath, callPath) : new $Primitive('undefined');
+    if (!type) return null;
+    // skip nullable/never returns - common in catch bail-outs like `catch { return; }`
+    // consistent with how resolveConditionalBranches handles `never` branches
+    if (isNullableOrNever(type)) continue;
+    const merged = commonType(result, type);
+    if (result && !merged) return null;
+    result = merged;
+  }
+  return result ?? new $Primitive('undefined');
 }
 
 // check whether a type annotation AST node references any type parameter from the given set
