@@ -1170,6 +1170,7 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
   const callTypeArgs = callPath.node.typeParameters?.params;
   if (callTypeArgs) {
     const fnTypeParams = fnPath.node.typeParameters?.params;
+    if (!fnTypeParams) return typeParamMap;
     for (let i = 0; i < fnTypeParams.length && i < callTypeArgs.length; i++) {
       const { name } = fnTypeParams[i];
       if (!typeParamMap.has(name)) {
