@@ -2302,8 +2302,9 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
         const conditionTrue = resolveExitCondition(siblings[i]);
         if (conditionTrue === null) continue;
         if (!parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName).length) continue;
+        // check ALL exit guards, not just the nearest — a weaker guard closer to usage
+        // does not invalidate mutations that occurred after a stronger guard further away
         for (let j = i + 1; j <= current.key; j++) if (violates(siblings[j])) return true;
-        break;
       }
     }
   }
