@@ -2348,6 +2348,7 @@ const resolveCache = new WeakMap();
 
 function resolveNodeType(path) {
   const { node } = path;
+  if (!node) return null;
   if (resolveCache.has(node)) return resolveCache.get(node);
   // sentinel before recursion: circular references (e.g. `const a = b.x(); const b = a.x();`)
   // resolve to null (unknown type) instead of causing infinite recursion
