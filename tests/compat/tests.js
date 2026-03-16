@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this, no-unused-vars -- required for testing */
+/* eslint-disable prefer-regex-literals, radix, unicorn/prefer-global-this -- required for testing */
 /* eslint-disable regexp/no-empty-capturing-group, regexp/no-lazy-ends, regexp/no-useless-quantifier -- required for testing */
 var GLOBAL = typeof global != 'undefined' ? global : Function('return this')();
 var WHITESPACES = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
@@ -2281,7 +2281,7 @@ GLOBAL.tests = {
       // Firefox bug on negative / 0 timeout
       // Proper test would be requestIdleCallback(a=>(console.log(a.didTimeout)), {timeout: -1})
       // -- if that gives false we're good
-      return requestIdleCallback && cancelIdleCallback && IdleDeadline && (!/Firefox/.test(USERAGENT));
+      return requestIdleCallback && cancelIdleCallback && IdleDeadline && !/Firefox/.test(USERAGENT);
     }
   ]
 };
