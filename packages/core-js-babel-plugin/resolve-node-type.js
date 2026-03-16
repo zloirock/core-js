@@ -17,16 +17,6 @@ const MAX_DEPTH = 15;
 
 const POSSIBLE_GLOBAL_PROXIES = new Set(globalProxies);
 
-const PRIMITIVES = new Set([
-  'bigint',
-  'boolean',
-  'null',
-  'number',
-  'string',
-  'symbol',
-  'undefined',
-]);
-
 const PRIMITIVE_WRAPPERS = assign(create(null), {
   bigint: 'BigInt',
   boolean: 'Boolean',
@@ -35,9 +25,14 @@ const PRIMITIVE_WRAPPERS = assign(create(null), {
   symbol: 'Symbol',
 });
 
-// reverse of PRIMITIVE_WRAPPERS: boxed constructor name → primitive type name
 const UNBOXED_PRIMITIVES = create(null);
 for (const [primitive, constructor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[constructor] = primitive;
+
+const PRIMITIVES = new Set([
+  ...Object.keys(PRIMITIVE_WRAPPERS),
+  'null',
+  'undefined',
+]);
 
 const TYPEOF_HINT_GROUPS = assign(create(null), {
   string: new Set(['string']),
@@ -1970,6 +1965,7 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
 function findBindingPattern(node, type) {
   if (node.type === type) return node;
   if (node.id?.type === type) return node.id;
+  if (node.left?.type === type) return node.left;
   return null;
 }
 
