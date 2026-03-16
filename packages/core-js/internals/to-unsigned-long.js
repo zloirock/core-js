@@ -5,6 +5,7 @@ var $isNaN = isNaN;
 var abs = Math.abs;
 var floor = Math.floor;
 
+// WebIDL Unsigned Long
 module.exports = function toUnsignedLong(value) {
   value = toNumber(value);
   // Normalize -0
@@ -13,6 +14,6 @@ module.exports = function toUnsignedLong(value) {
   var r = floor(abs(value));
   if (value < 0) r = -r;
   value = r;
-  value %= 2 ** 32;
+  value %= 0x100000000;
   return value;
 };
