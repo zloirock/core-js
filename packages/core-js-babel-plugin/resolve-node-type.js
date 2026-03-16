@@ -648,8 +648,10 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
           return new $Primitive(node.literal.argument?.type === 'BigIntLiteral' ? 'bigint' : 'number');
       }
       return null;
-    // TS indexed access type: Config["items"] or [string, number[]][1]
+    // TS indexed access type: Config["items"], [string, number[]][1], or Items[number]
     case 'TSIndexedAccessType': {
+      // T[number] — element type of array/tuple
+      if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
       if (node.indexType?.type !== 'TSLiteralType') return null;
       const { literal } = node.indexType;
       let member;
