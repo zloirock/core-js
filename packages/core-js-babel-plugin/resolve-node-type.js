@@ -1839,11 +1839,16 @@ function resolveAnnotatedMember(annotation, keyName, scope) {
   return memberType ? resolveTypeAnnotation(memberType, scope) : null;
 }
 
-// unwrap Promise<T> annotation to T for for-await-of element types
+// recursively unwrap Promise<T> annotation to T for for-await-of element types
+// mirrors runtime `await` semantics: Promise<Promise<T>> → T
 function unwrapPromiseAnnotation(node) {
-  node = unwrapTypeAnnotation(node);
-  if (node?.type === 'TSTypeReference' && typeRefName(node) === 'Promise') return node.typeParameters?.params[0] ?? node;
-  return node;
+  let result = unwrapTypeAnnotation(node);
+  while (result?.type === 'TSTypeReference' && typeRefName(result) === 'Promise') {
+    const inner = result.typeParameters?.params[0];
+    if (!inner) break;
+    result = unwrapTypeAnnotation(inner);
+  }
+  return result ?? node;
 }
 
 // resolve the raw element annotation of a for-of iterable from its type annotation
