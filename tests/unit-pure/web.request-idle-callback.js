@@ -10,7 +10,7 @@ QUnit.test('idle callbacks', assert => {
   assert.arity(requestIdleCallback, 1);
   assert.name(requestIdleCallback, 'requestIdleCallback');
 
-  const done = assert.async(5);
+  const done = assert.async(6);
 
   requestIdleCallback(deadline => {
     assert.false(deadline.didTimeout, 'timed out without a timeout');
@@ -29,6 +29,11 @@ QUnit.test('idle callbacks', assert => {
     done();
   }, { timeout: -10 });
 
+  requestIdleCallback(deadline => {
+    assert.false(deadline.didTimeout, 'timed out with truncated 0 timeout');
+    done();
+  }, { timeout: 0.00001 });
+
   assert.isFunction(cancelIdleCallback);
   assert.arity(cancelIdleCallback, 1);
   assert.name(cancelIdleCallback, 'cancelIdleCallback');
@@ -37,7 +42,8 @@ QUnit.test('idle callbacks', assert => {
     // Shouldn't ever be called.
     assert.true(false, 'canceled callback called');
   });
-  cancelIdleCallback(handle);
+  // test that floats are truncated
+  cancelIdleCallback(handle + 0.1);
 
   // Give the inner "shouldn't ever be called"
   // assert a chance to run and fail.
