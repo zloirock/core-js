@@ -116,8 +116,9 @@ function isMemberLike(path) {
 // `x as Type`, `x!`, `x satisfies Type`
 function resolveRuntimeExpression(path) {
   let depth = MAX_DEPTH;
-  while (depth--) {
+  while (depth-- && path.node) {
     path = resolvePath(path);
+    if (!path.node) break;
     const { type } = path.node;
     if (type === 'TSAsExpression'
       || type === 'TSTypeAssertion'
@@ -1133,7 +1134,7 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
   // phase 0: explicit type arguments at call site: foo<string>(...)
   const callTypeArgs = callPath.node.typeParameters?.params;
   if (callTypeArgs) {
-    const fnTypeParams = fnPath.node.typeParameters.params;
+    const fnTypeParams = fnPath.node.typeParameters?.params;
     for (let i = 0; i < fnTypeParams.length && i < callTypeArgs.length; i++) {
       const { name } = fnTypeParams[i];
       if (!typeParamMap.has(name)) {
