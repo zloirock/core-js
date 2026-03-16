@@ -37,7 +37,7 @@ const PRIMITIVE_WRAPPERS = assign(create(null), {
 
 // reverse of PRIMITIVE_WRAPPERS: boxed constructor name → primitive type name
 const UNBOXED_PRIMITIVES = create(null);
-for (const [prim, ctor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[ctor] = prim;
+for (const [primitive, constructor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[constructor] = primitive;
 
 const TYPEOF_HINT_GROUPS = assign(create(null), {
   string: new Set(['string']),
@@ -209,15 +209,16 @@ function resolveTypeQuery(node, scope) {
   return null;
 }
 
-function findInStatements(name, stmts) {
-  if (!Array.isArray(stmts)) return null;
-  for (let stmt of stmts) {
-    if ((stmt.type === 'ExportNamedDeclaration' || stmt.type === 'ExportDefaultDeclaration') && stmt.declaration) {
-      stmt = stmt.declaration;
+function findInStatements(name, statements) {
+  if (!Array.isArray(statements)) return null;
+  for (let statement of statements) {
+    if ((statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration') && statement.declaration) {
+      statement = statement.declaration;
     }
-    if (stmt.id?.name === name && (stmt.type === 'TSTypeAliasDeclaration' || stmt.type === 'TSInterfaceDeclaration')) return stmt;
-    if (stmt.type === 'TSModuleDeclaration') {
-      const inner = findInStatements(name, stmt.body?.body);
+    if (statement.id?.name === name
+      && (statement.type === 'TSTypeAliasDeclaration' || statement.type === 'TSInterfaceDeclaration')) return statement;
+    if (statement.type === 'TSModuleDeclaration') {
+      const inner = findInStatements(name, statement.body?.body);
       if (inner) return inner;
     }
   }
@@ -288,21 +289,21 @@ function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
       ? substituteTypeParams(typeParam.constraint, typeParamMap, typeParam.scope, depth + 1)
       : resolveTypeAnnotation(typeParam.constraint, typeParam.scope, depth + 1);
   }
-  const decl = findTypeDeclaration(name, scope);
-  if (!decl) return null;
-  typeParamMap = resolveTypeArgs(decl, node, typeParamMap, scope, depth);
+  const declaration = findTypeDeclaration(name, scope);
+  if (!declaration) return null;
+  typeParamMap = resolveTypeArgs(declaration, node, typeParamMap, scope, depth);
   const resolve = typeParamMap
     ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1)
     : p => resolveTypeAnnotation(p, scope, depth + 1);
-  if (decl.type === 'TSTypeAliasDeclaration') return resolve(decl.typeAnnotation);
-  if (decl.type === 'TSInterfaceDeclaration') {
-    const parents = decl.extends;
+  if (declaration.type === 'TSTypeAliasDeclaration') return resolve(declaration.typeAnnotation);
+  if (declaration.type === 'TSInterfaceDeclaration') {
+    const parents = declaration.extends;
     if (parents?.length) {
       for (const parent of parents) {
         const base = parent.expression ?? parent;
         if (base.type !== 'Identifier') continue;
-        const ctor = resolveKnownConstructor(base.name);
-        const result = resolveKnownContainerType(base.name, ctor, parent, resolve)
+        const constructor = resolveKnownConstructor(base.name);
+        const result = resolveKnownContainerType(base.name, constructor, parent, resolve)
           || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap);
         if (result) return result;
       }
@@ -316,11 +317,11 @@ function getTypeMembers(objectType, scope, depth = 0) {
   if (depth > MAX_DEPTH) return null;
   if (objectType.type === 'TSTypeLiteral') return objectType.members;
   const name = typeRefName(objectType);
-  const decl = name ? findTypeDeclaration(name, scope) : null;
-  if (decl?.type === 'TSInterfaceDeclaration') {
-    const own = decl.body?.body;
+  const declaration = name ? findTypeDeclaration(name, scope) : null;
+  if (declaration?.type === 'TSInterfaceDeclaration') {
+    const own = declaration.body?.body;
     // collect members from the extends chain
-    const parents = decl.extends;
+    const parents = declaration.extends;
     if (!parents?.length) return own;
     const all = own ? [...own] : [];
     for (const parent of parents) {
@@ -332,7 +333,9 @@ function getTypeMembers(objectType, scope, depth = 0) {
     }
     return all.length ? all : null;
   }
-  if (decl?.type === 'TSTypeAliasDeclaration') return getTypeMembers(unwrapTypeAnnotation(decl.typeAnnotation), scope, depth + 1);
+  if (declaration?.type === 'TSTypeAliasDeclaration') {
+    return getTypeMembers(unwrapTypeAnnotation(declaration.typeAnnotation), scope, depth + 1);
+  }
   return null;
 }
 
@@ -409,10 +412,10 @@ function resolveMemberValuePath(bindingPath, name) {
   }
   if (!containerPath?.node) return null;
   if (containerPath.isObjectExpression()) {
-    const prop = findObjectMember(containerPath, name);
-    if (!prop) return null;
-    if (prop.isObjectProperty()) return resolveRuntimeExpression(prop.get('value'));
-    if (prop.isObjectMethod()) return prop;
+    const property = findObjectMember(containerPath, name);
+    if (!property) return null;
+    if (property.isObjectProperty()) return resolveRuntimeExpression(property.get('value'));
+    if (property.isObjectMethod()) return property;
   }
   if (containerPath.isClass()) {
     const member = findClassMember(containerPath, name, true);
@@ -1126,8 +1129,8 @@ function hasTypeParamReference(node, typeParamNames, depth) {
       return false;
     case 'TSTupleType':
     case 'TupleTypeAnnotation':
-      for (const elem of node.elementTypes || []) {
-        const actual = elem.type === 'TSNamedTupleMember' ? elem.elementType : elem;
+      for (const element of node.elementTypes || []) {
+        const actual = element.type === 'TSNamedTupleMember' ? element.elementType : element;
         if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
       }
       return false;
@@ -1191,18 +1194,18 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
       continue;
     }
     // container wrapper: param type is T[], Array<T>, Set<T>, Promise<T>, etc.
-    const elemParamName = innerTypeParamName(paramAnnotation, name);
-    if (elemParamName && typeParamNames.has(elemParamName) && !typeParamMap.has(elemParamName)) {
+    const elementParamName = innerTypeParamName(paramAnnotation, name);
+    if (elementParamName && typeParamNames.has(elementParamName) && !typeParamMap.has(elementParamName)) {
       const elementType = resolveInnerType(resolveNodeType(args[i]));
-      if (elementType) typeParamMap.set(elemParamName, elementType);
+      if (elementType) typeParamMap.set(elementParamName, elementType);
     }
   }
   // phase 2: constraint fallback for unresolved type params
-  for (const tp of fnPath.node.typeParameters.params) {
-    if (typeParamMap.has(tp.name)) continue;
-    if (tp.constraint) {
-      const resolved = resolveTypeAnnotation(tp.constraint, fnPath.scope);
-      if (resolved) typeParamMap.set(tp.name, resolved);
+  for (const typeParam of fnPath.node.typeParameters.params) {
+    if (typeParamMap.has(typeParam.name)) continue;
+    if (typeParam.constraint) {
+      const resolved = resolveTypeAnnotation(typeParam.constraint, fnPath.scope);
+      if (resolved) typeParamMap.set(typeParam.name, resolved);
     }
   }
   return typeParamMap;
@@ -1341,8 +1344,8 @@ function resolveClassContext(objectPath) {
   if (objectPath.isClass()) return { classPath: objectPath, isStatic: true };
   // new Foo().prop - object is a class instance
   if (objectPath.isNewExpression()) {
-    const cls = resolveRuntimeExpression(objectPath.get('callee'));
-    if (cls.isClass()) return { classPath: cls, isStatic: false };
+    const classPath = resolveRuntimeExpression(objectPath.get('callee'));
+    if (classPath.isClass()) return { classPath, isStatic: false };
   }
   // this.prop inside a class member
   if (objectPath.isThisExpression()) return resolveThisClass(objectPath);
