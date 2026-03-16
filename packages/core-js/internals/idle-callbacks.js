@@ -19,6 +19,7 @@ var TOKEN = '__core_js_polyfill_idle_callback__';
 
 var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;
+var $clearTimeout = globalThis.clearTimeout;
 var getTime = uncurryThis($Date.prototype.getTime);
 var $performance = globalThis.performance;
 var $max = Math.max;
@@ -94,7 +95,7 @@ function startIdlePeriod() {
     delete sharedStore.__idleCallbackMap[handle];
     // Cancel the timeout timer.
     if (sharedStore.__timeoutHandles[handle] !== undefined) {
-      clearTimeout(sharedStore.__timeoutHandles[handle]);
+      $clearTimeout(sharedStore.__timeoutHandles[handle]);
       delete sharedStore.__timeoutHandles[handle];
     }
 
@@ -158,7 +159,7 @@ exports.cancel = function cancelIdleCallback(handle) {
   if (sharedStore.__handleObjects[handle] === undefined) return;
   delete sharedStore.__idleCallbackMap[handle];
   if (sharedStore.__timeoutHandles[handle] !== undefined) {
-    clearTimeout(sharedStore.__timeoutHandles[handle]);
+    $clearTimeout(sharedStore.__timeoutHandles[handle]);
     delete sharedStore.__timeoutHandles[handle];
   }
   if (sharedStore.__handleObjects[handle].queue === sharedStore.__idleRequestCallbacks) {
