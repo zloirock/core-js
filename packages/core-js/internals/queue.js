@@ -15,7 +15,7 @@ Queue.prototype = {
   },
   addEntry: function (entry) {
     var queue = entry.queue;
-    if (queue) queue.remove(entry);
+    if (queue) queue.erase(entry);
 
     entry.prev = this.tail;
     entry.next = null;
