@@ -1729,7 +1729,7 @@ function findExpressionAnnotation(path, depth = 0) {
 // traverse from a binding to its enclosing for-in/for-of statement (if any)
 // binding must be a VariableDeclarator without init, declared in the loop header
 function findForLoopParent(bindingPath) {
-  if (!bindingPath.isVariableDeclarator() || bindingPath.node.init) return null;
+  if (!bindingPath?.isVariableDeclarator() || bindingPath.node.init) return null;
   const declarationPath = bindingPath.parentPath;
   if (!declarationPath?.isVariableDeclaration()) return null;
   const forPath = declarationPath.parentPath;
