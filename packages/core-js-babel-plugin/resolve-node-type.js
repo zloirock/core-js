@@ -11,7 +11,7 @@ const {
   staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
 } = require('@core-js/compat/known-built-in-return-types');
 
-const { assign, create, hasOwn } = Object;
+const { assign, create, entries, hasOwn } = Object;
 
 const MAX_DEPTH = 15;
 
@@ -34,6 +34,10 @@ const PRIMITIVE_WRAPPERS = assign(create(null), {
   string: 'String',
   symbol: 'Symbol',
 });
+
+// reverse of PRIMITIVE_WRAPPERS: boxed constructor name → primitive type name
+const UNBOXED_PRIMITIVES = create(null);
+for (const [prim, ctor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[ctor] = prim;
 
 const TYPEOF_HINT_GROUPS = assign(create(null), {
   string: new Set(['string']),
@@ -86,6 +90,11 @@ function $Object(constructor, inner) {
 }
 
 $Object.prototype.primitive = false;
+
+// get the primitive type name, unboxing wrapper objects: $Object('String') → 'string', $Primitive('number') → 'number'
+function primitiveTypeOf(type) {
+  return type?.primitive ? type.type : UNBOXED_PRIMITIVES[type?.constructor] ?? null;
+}
 
 function keyMatchesName(key, name) {
   return key?.type === 'Identifier' && key.name === name
@@ -675,7 +684,7 @@ function resolvePath(path) {
 function resolveNumericType(path) {
   const resolved = resolveNodeType(path);
   // `number` if resolving is not possible - acceptable assumption within `core-js`
-  return new $Primitive(resolved?.type === 'bigint' ? 'bigint' : 'number');
+  return new $Primitive(primitiveTypeOf(resolved) === 'bigint' ? 'bigint' : 'number');
 }
 
 // resolve property name from a MemberExpression, handling both
@@ -759,11 +768,11 @@ function resolveUnionType(leftPath, rightPath) {
 function resolveBinaryOperatorType(operator, leftPath, rightPath) {
   switch (operator) {
     case '+': {
-      const left = resolveNodeType(leftPath);
-      const right = resolveNodeType(rightPath);
-      if (left?.type === 'string' || right?.type === 'string') return new $Primitive('string');
-      if (left?.type === 'number' && right?.type === 'number') return new $Primitive('number');
-      if (left?.type === 'bigint' && right?.type === 'bigint') return new $Primitive('bigint');
+      const leftType = primitiveTypeOf(resolveNodeType(leftPath));
+      const rightType = primitiveTypeOf(resolveNodeType(rightPath));
+      if (leftType === 'string' || rightType === 'string') return new $Primitive('string');
+      if (leftType === 'number' && rightType === 'number') return new $Primitive('number');
+      if (leftType === 'bigint' && rightType === 'bigint') return new $Primitive('bigint');
       return new $Primitive('unknown');
     }
     // >>> (unsigned right shift) throws on BigInt, result is always Number
@@ -781,9 +790,9 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
     case '^':
     case '<<':
     case '>>': {
-      const left = resolveNodeType(leftPath);
-      const right = resolveNodeType(rightPath);
-      if (left?.type === 'bigint' || right?.type === 'bigint') return new $Primitive('bigint');
+      const leftType = primitiveTypeOf(resolveNodeType(leftPath));
+      const rightType = primitiveTypeOf(resolveNodeType(rightPath));
+      if (leftType === 'bigint' || rightType === 'bigint') return new $Primitive('bigint');
       // `number` if resolving is not possible - acceptable assumption within `core-js`
       return new $Primitive('number');
     }
@@ -2400,8 +2409,7 @@ function resolveGuardHints(path) {
 }
 
 function isString(path) {
-  const it = resolveNodeType(path);
-  return it?.type === 'string' || it?.constructor === 'String';
+  return primitiveTypeOf(resolveNodeType(path)) === 'string';
 }
 
 function isObject(path) {
