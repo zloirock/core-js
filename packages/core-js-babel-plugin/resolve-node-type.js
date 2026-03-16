@@ -2256,7 +2256,9 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
   // any mutation inside scope
   const violates = scope => constantViolations.some(v => isDescendant(v, scope));
   // only mutations inside scope that are positionally before usagePath
-  const violatesBefore = scope => constantViolations.some(v => v.node.start < usageStart && isDescendant(v, scope));
+  // if either position is missing (synthetic AST nodes), conservatively assume mutation is before usage
+  const violatesBefore = scope => constantViolations.some(v =>
+    isDescendant(v, scope) && (v.node.start == null || usageStart == null || v.node.start < usageStart));
   for (let current = usagePath, parent; (parent = current.parentPath) && !parent.isFunction(); current = parent) {
     if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
     if (findSwitchCaseGuards(current, varName) && violatesBefore(parent)) return true;
