@@ -505,7 +505,7 @@ function resolveNamedType(name, node, scope, depth) {
       return new $Primitive('string');
     // well-known utility types - resolve type parameter
     case 'NonNullable':
-      return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
+      return node.typeParameters?.params[0] ? resolveNonNullableAnnotation(node.typeParameters.params[0], scope, depth) : null;
     case 'Awaited': {
       const param = node.typeParameters?.params[0];
       if (!param) return null;
