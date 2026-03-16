@@ -1856,7 +1856,9 @@ function unwrapPromiseAnnotation(node) {
   while (result?.type === 'TSTypeReference' && typeRefName(result) === 'Promise') {
     const inner = result.typeParameters?.params[0];
     if (!inner) break;
-    result = unwrapTypeAnnotation(inner);
+    const unwrapped = unwrapTypeAnnotation(inner);
+    if (!unwrapped) break;
+    result = unwrapped;
   }
   return result ?? node;
 }
