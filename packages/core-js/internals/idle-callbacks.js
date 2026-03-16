@@ -15,7 +15,6 @@ var toUnsignedLong = require('./to-unsigned-long');
 var setToStringTag = require('./set-to-string-tag');
 
 var $TypeError = TypeError;
-var TOKEN = '__core_js_polyfill_idle_callback__';
 
 var $Date = globalThis.Date;
 var $setTimeout = globalThis.setTimeout;
@@ -44,13 +43,7 @@ if (sharedStore.idleCallbackPolyfilled === undefined) {
 }
 
 var IdleDeadline = function IdleDeadline() {
-  if (arguments[0] !== TOKEN) throw new $TypeError('Illegal Constructor');
-  this.__deadlineTime = arguments[1];
-  if (DESCRIPTORS) {
-    this.__didTimeout = arguments[2];
-  } else {
-    this.didTimeout = arguments[2];
-  }
+  throw new $TypeError('Illegal Constructor');
 };
 setToStringTag(IdleDeadline, 'IdleDeadline');
 defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() {
@@ -65,6 +58,16 @@ if (DESCRIPTORS) {
     configurable: true
   });
 }
+
+var IdleDeadlinePriv = function IdleDeadline(deadlineTime, didTimeout) {
+  this.__deadlineTime = deadlineTime;
+  if (DESCRIPTORS) {
+    this.__didTimeout = didTimeout;
+  } else {
+    this.didTimeout = didTimeout;
+  }
+}
+IdleDeadlinePriv.prototype = IdleDeadline.prototype;
 
 function scheduleNextIdle() {
   if (sharedStore.__idleRafScheduled) return;
@@ -99,7 +102,7 @@ function startIdlePeriod() {
       delete sharedStore.__timeoutHandles[handle];
     }
 
-    var deadline = new IdleDeadline(TOKEN, deadlineTime, false);
+    var deadline = new IdleDeadlinePriv(deadlineTime, false);
     try {
       cb(deadline);
     } catch (error) {
@@ -140,7 +143,7 @@ exports.request = function requestIdleCallback(callback) {
         sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
       }
       delete sharedStore.__handleObjects[handle];
-      var deadline = new IdleDeadline(TOKEN, now(), true);
+      var deadline = new IdleDeadlinePriv(now(), true);
       try {
         cb(deadline);
       } catch (error) {
