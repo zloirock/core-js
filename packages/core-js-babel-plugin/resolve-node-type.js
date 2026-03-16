@@ -1,5 +1,7 @@
 'use strict';
 const {
+  globalProxies,
+  constructors: KNOWN_CONSTRUCTORS,
   globalMethods: KNOWN_GLOBAL_METHOD_RETURN_TYPES,
   globalProperties: KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
   staticMethods: KNOWN_STATIC_METHOD_RETURN_TYPES,
@@ -13,12 +15,7 @@ const { assign, create, hasOwn } = Object;
 
 const MAX_DEPTH = 15;
 
-const POSSIBLE_GLOBAL_PROXIES = new Set([
-  'global',
-  'globalThis',
-  'self',
-  'window',
-]);
+const POSSIBLE_GLOBAL_PROXIES = new Set(globalProxies);
 
 const PRIMITIVES = new Set([
   'bigint',
@@ -240,58 +237,7 @@ function findTypeParameter(name, scope) {
 }
 
 function resolveKnownConstructor(name) {
-  switch (name) {
-    case 'Array':
-    case 'AsyncDisposableStack':
-    case 'BigInt':
-    case 'Boolean':
-    case 'Date':
-    case 'DisposableStack':
-    case 'DOMException':
-    case 'Function':
-    case 'Map':
-    case 'Number':
-    case 'Object':
-    case 'Promise':
-    case 'RegExp':
-    case 'Set':
-    case 'String':
-    case 'Symbol':
-    case 'URL':
-    case 'URLSearchParams':
-    case 'WeakMap':
-    case 'WeakSet':
-      return new $Object(name);
-    case 'AggregateError':
-    case 'Error':
-    case 'EvalError':
-    case 'RangeError':
-    case 'ReferenceError':
-    case 'SuppressedError':
-    case 'SyntaxError':
-    case 'TypeError':
-    case 'URIError':
-      return new $Object('Error');
-    case 'BigInt64Array':
-    case 'BigUint64Array':
-      return new $Object('TypedArray', 'bigint');
-    case 'Float16Array':
-    case 'Float32Array':
-    case 'Float64Array':
-    case 'Int8Array':
-    case 'Int16Array':
-    case 'Int32Array':
-    case 'Uint8Array':
-    case 'Uint8ClampedArray':
-    case 'Uint16Array':
-    case 'Uint32Array':
-      return new $Object('TypedArray', 'number');
-    case 'ReadonlyArray':
-    case 'ReadonlyMap':
-    case 'ReadonlySet':
-      return new $Object(name.replace(/^Readonly/, ''));
-  }
-  return null;
+  return hasOwn(KNOWN_CONSTRUCTORS, name) ? typeFromHint(KNOWN_CONSTRUCTORS[name].new) : null;
 }
 
 function resolveUserDefinedType(name, scope, depth) {
@@ -307,7 +253,8 @@ function resolveUserDefinedType(name, scope, depth) {
         for (const parent of parents) {
           const base = parent.expression ?? parent;
           if (base.type !== 'Identifier') continue;
-          const result = resolveKnownContainerType(base.name, parent, p => resolveTypeAnnotation(p, scope, depth + 1))
+          const ctor = resolveKnownConstructor(base.name);
+          const result = resolveKnownContainerType(base.name, ctor, parent, p => resolveTypeAnnotation(p, scope, depth + 1))
             || resolveUserDefinedType(base.name, scope, depth + 1);
           if (result) return result;
         }
@@ -458,29 +405,37 @@ function resolveReturnTypeFromTypeQuery(param, scope) {
   return resolved?.isFunction() ? resolveReturnType(resolved) : null;
 }
 
-// resolve a known constructor type, extracting inner type from the first type parameter
-// for container types (Array, Set, Iterator, Promise, etc.) using the provided resolver
+// resolve inner type from the first type parameter for container types
+// (Array, Set, Iterator, Promise, etc.) using the provided resolver
 // e.g. Array<string> -> $Object('Array', $Primitive('string'))
 // e.g. Promise<number[]> -> $Object('Promise', $Object('Array', ...))
-function resolveKnownContainerType(name, node, innerResolver) {
-  const known = resolveKnownConstructor(name);
-  if (!known) return null;
+function resolveKnownContainerType(name, base, node, innerResolver) {
+  if (!base) return null;
   const params = node.typeParameters?.params;
   if (params?.[0] && (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise')) {
     const inner = innerResolver(params[0]);
-    if (inner && !isNullableOrNever(inner)) known.inner = inner;
+    if (inner && !isNullableOrNever(inner)) base.inner = inner;
   }
-  return known;
+  return base;
 }
 
-// resolve a known constructor with type parameters from a runtime expression (NewExpression / CallExpression)
+// resolve a known constructor with type parameters from a runtime expression
 // e.g. new Set<string>() -> $Object('Set', $Primitive('string'))
 function resolveConstructorType(name, path) {
-  return resolveKnownContainerType(name, path.node, p => resolveTypeAnnotation(p, path.scope));
+  return resolveKnownContainerType(name, resolveKnownConstructor(name), path.node, p => resolveTypeAnnotation(p, path.scope));
+}
+
+// resolve a known constructor CALL (without `new`) with type parameters
+// e.g. Array<string>() -> $Object('Array', $Primitive('string')), String() -> $Primitive('string')
+function resolveConstructorCallType(name, path) {
+  if (!hasOwn(KNOWN_CONSTRUCTORS, name)) return null;
+  const callResult = typeFromHint(KNOWN_CONSTRUCTORS[name].call);
+  if (callResult.primitive) return callResult;
+  return resolveKnownContainerType(name, callResult, path.node, p => resolveTypeAnnotation(p, path.scope));
 }
 
 function resolveNamedType(name, node, scope, depth) {
-  const known = resolveKnownContainerType(name, node, p => resolveTypeAnnotation(p, scope, depth + 1));
+  const known = resolveKnownContainerType(name, resolveKnownConstructor(name), node, p => resolveTypeAnnotation(p, scope, depth + 1));
   if (known) return known;
   switch (name) {
     // well-known utility types -> Object
@@ -861,7 +816,6 @@ function resolveNodeTypeExpression(path) {
       const callee = path.get('callee');
       const name = resolveGlobalName(callee);
       if (name) {
-        if (name === 'Object') return new $Object(null);
         return resolveConstructorType(name, path) || new $Object(name);
       }
       {
@@ -882,18 +836,8 @@ function resolveNodeTypeExpression(path) {
       const callee = path.get('callee');
       const name = resolveGlobalName(callee);
       if (name) {
-        switch (name) {
-          case 'String':
-          case 'Number':
-          case 'Boolean':
-          case 'BigInt':
-          case 'Symbol':
-            return new $Primitive(name.toLowerCase());
-          case 'Object':
-            return new $Object(null);
-        }
-        // constructors like Array, RegExp, Error, Function, etc. work without `new`
-        const known = resolveConstructorType(name, path);
+        // known constructor called without `new`: String(), Array(), etc.
+        const known = resolveConstructorCallType(name, path);
         if (known) return known;
         // known global function: parseInt(), parseFloat(), etc.
         if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
@@ -1195,7 +1139,8 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
     if (name && typeParamMap.has(name)) return typeParamMap.get(name);
     if (name) {
       // substitute type params in container inner types: Array<T>, Promise<T>, etc.
-      const known = resolveKnownContainerType(name, node, p => substituteTypeParams(p, typeParamMap, scope, depth + 1));
+      const ctor = resolveKnownConstructor(name);
+      const known = resolveKnownContainerType(name, ctor, node, p => substituteTypeParams(p, typeParamMap, scope, depth + 1));
       if (known) return known;
       return resolveNamedType(name, node, scope, depth);
     }
