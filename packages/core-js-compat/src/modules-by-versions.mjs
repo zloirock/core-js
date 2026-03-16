@@ -325,7 +325,5 @@ export default {
   ],
   3.49: [
     'web.request-idle-callback',
-    'web.cancel-idle-callback',
-    'web.idle-deadline.constructor',
   ],
 };

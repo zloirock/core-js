@@ -3210,14 +3210,7 @@ export const data = {
   },
   'web.request-idle-callback': {
     chrome: '47',
-  },
-  'web.cancel-idle-callback': {
-    chrome: '47',
-    firefox: '55',
-  },
-  'web.idle-deadline.constructor': {
-    chrome: '47',
-    firefox: '55',
+    // firefox: '55', -- incorrect type for timeout
   },
 };
 

@@ -1,5 +1,5 @@
 'use strict';
-require('../modules/web.idle-deadline.constructor');
+require('../modules/web.request-idle-callback');
 var path = require('../internals/path');
 
 module.exports = path.IdleDeadline;
