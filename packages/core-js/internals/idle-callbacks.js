@@ -1,11 +1,10 @@
-/* eslint no-underscore-dangle: 0 -- internal vars use sharedStore.__ for private state */
+/* eslint no-underscore-dangle: 0 -- internal vars use __ for private state */
 'use strict';
 var aCallable = require('./a-callable');
 var anObjectOrUndefined = require('./an-object-or-undefined');
 var validateArgumentsLength = require('./validate-arguments-length');
 var uncurryThis = require('./function-uncurry-this');
 var globalThis = require('./global-this');
-var sharedStore = require('./shared-store');
 var defineBuiltIn = require('./define-built-in');
 var Queue = require('./queue');
 var DESCRIPTORS = require('./descriptors');
@@ -35,16 +34,13 @@ var rAF = globalThis.requestAnimationFrame || function (callback) {
   }, 16);
 };
 
-if (sharedStore.idleCallbackPolyfilled === undefined) {
-  sharedStore.idleCallbackPolyfilled = true;
-  sharedStore.__idleRequestCallbacks = new Queue();
-  sharedStore.__runnableIdleCallbacks = new Queue();
-  sharedStore.__idleCallbackId = 0;
-  sharedStore.__idleCallbackMap = {};
-  sharedStore.__idleRafScheduled = false;
-  sharedStore.__timeoutHandles = {};
-  sharedStore.__handleObjects = {};
-}
+var __idleRequestCallbacks = new Queue();
+var __runnableIdleCallbacks = new Queue();
+var __idleCallbackId = 0;
+var __idleCallbackMap = {};
+var __idleRafScheduled = false;
+var __timeoutHandles = {};
+var __handleObjects = {};
 
 var IdleDeadline = function IdleDeadline() {
   throw new $TypeError('Illegal Constructor');
@@ -74,8 +70,8 @@ var IdleDeadlinePriv = function IdleDeadline(deadlineTime, didTimeout) {
 IdleDeadlinePriv.prototype = IdleDeadline.prototype;
 
 function scheduleNextIdle() {
-  if (sharedStore.__idleRafScheduled) return;
-  sharedStore.__idleRafScheduled = true;
+  if (__idleRafScheduled) return;
+  __idleRafScheduled = true;
 
   rAF(function () {
     $setTimeout(startIdlePeriod, 0);
@@ -86,24 +82,24 @@ function scheduleNextIdle() {
 function startIdlePeriod() {
   // Move pending to runnable
   var entry;
-  while (entry = sharedStore.__idleRequestCallbacks.getEntry()) {
-    sharedStore.__runnableIdleCallbacks.addEntry(entry);
+  while (entry = __idleRequestCallbacks.getEntry()) {
+    __runnableIdleCallbacks.addEntry(entry);
   }
-  sharedStore.__idleRafScheduled = false;
+  __idleRafScheduled = false;
 
   // 8 does not drop framerate in most places; there's no way
   // to actually get how much time we have before the browser
   // starts to paint the next frame
   var deadlineTime = now() + 8;
-  while (!sharedStore.__runnableIdleCallbacks.empty()) {
-    var handle = sharedStore.__runnableIdleCallbacks.get();
-    var cb = sharedStore.__idleCallbackMap[handle];
+  while (!__runnableIdleCallbacks.empty()) {
+    var handle = __runnableIdleCallbacks.get();
+    var cb = __idleCallbackMap[handle];
     if (!cb) continue; // cancelled or timed out
-    delete sharedStore.__idleCallbackMap[handle];
+    delete __idleCallbackMap[handle];
     // Cancel the timeout timer.
-    if (sharedStore.__timeoutHandles[handle] !== undefined) {
-      $clearTimeout(sharedStore.__timeoutHandles[handle]);
-      delete sharedStore.__timeoutHandles[handle];
+    if (__timeoutHandles[handle] !== undefined) {
+      $clearTimeout(__timeoutHandles[handle]);
+      delete __timeoutHandles[handle];
     }
 
     var deadline = new IdleDeadlinePriv(deadlineTime, false);
@@ -116,7 +112,7 @@ function startIdlePeriod() {
   }
 
   // Reschedule if any callbacks remain
-  if (!sharedStore.__runnableIdleCallbacks.empty()) {
+  if (!__runnableIdleCallbacks.empty()) {
     scheduleNextIdle();
   }
 }
@@ -127,26 +123,26 @@ exports.request = function requestIdleCallback(callback) {
   aCallable(callback);
   var options = arguments[1];
   anObjectOrUndefined(options);
-  var handle = ++sharedStore.__idleCallbackId;
-  sharedStore.__idleCallbackMap[handle] = callback;
-  sharedStore.__handleObjects[handle] = sharedStore.__idleRequestCallbacks.add(handle);
+  var handle = ++__idleCallbackId;
+  __idleCallbackMap[handle] = callback;
+  __handleObjects[handle] = __idleRequestCallbacks.add(handle);
   var timeout = 0;
   if (options !== undefined) timeout = toUnsignedLong(options.timeout);
   if (options && timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
     // timeout, however maintaining such a priority queue would be very tedious
-    sharedStore.__timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
-      var cb = sharedStore.__idleCallbackMap[handle];
+    __timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
+      var cb = __idleCallbackMap[handle];
       if (!cb) return;
-      delete sharedStore.__idleCallbackMap[handle];
-      delete sharedStore.__timeoutHandles[handle];
-      if (sharedStore.__handleObjects[handle].queue === sharedStore.__idleRequestCallbacks) {
-        sharedStore.__idleRequestCallbacks.erase(sharedStore.__handleObjects[handle]);
+      delete __idleCallbackMap[handle];
+      delete __timeoutHandles[handle];
+      if (__handleObjects[handle].queue === __idleRequestCallbacks) {
+        __idleRequestCallbacks.erase(__handleObjects[handle]);
       }
-      if (sharedStore.__handleObjects[handle].queue === sharedStore.__runnableIdleCallbacks) {
-        sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
+      if (__handleObjects[handle].queue === __runnableIdleCallbacks) {
+        __runnableIdleCallbacks.erase(__handleObjects[handle]);
       }
-      delete sharedStore.__handleObjects[handle];
+      delete __handleObjects[handle];
       var deadline = new IdleDeadlinePriv(now(), true);
       try {
         cb(deadline);
@@ -164,19 +160,19 @@ exports.request = function requestIdleCallback(callback) {
 exports.cancel = function cancelIdleCallback(handle) {
   validateArgumentsLength(arguments.length, 1);
   handle = toUnsignedLong(handle);
-  if (sharedStore.__handleObjects[handle] === undefined) return;
-  delete sharedStore.__idleCallbackMap[handle];
-  if (sharedStore.__timeoutHandles[handle] !== undefined) {
-    $clearTimeout(sharedStore.__timeoutHandles[handle]);
-    delete sharedStore.__timeoutHandles[handle];
+  if (__handleObjects[handle] === undefined) return;
+  delete __idleCallbackMap[handle];
+  if (__timeoutHandles[handle] !== undefined) {
+    $clearTimeout(__timeoutHandles[handle]);
+    delete __timeoutHandles[handle];
   }
-  if (sharedStore.__handleObjects[handle].queue === sharedStore.__idleRequestCallbacks) {
-    sharedStore.__idleRequestCallbacks.erase(sharedStore.__handleObjects[handle]);
+  if (__handleObjects[handle].queue === __idleRequestCallbacks) {
+    __idleRequestCallbacks.erase(__handleObjects[handle]);
   }
-  if (sharedStore.__handleObjects[handle].queue === sharedStore.__runnableIdleCallbacks) {
-    sharedStore.__runnableIdleCallbacks.erase(sharedStore.__handleObjects[handle]);
+  if (__handleObjects[handle].queue === __runnableIdleCallbacks) {
+    __runnableIdleCallbacks.erase(__handleObjects[handle]);
   }
-  delete sharedStore.__handleObjects[handle];
+  delete __handleObjects[handle];
 };
 exports.deadline = IdleDeadline;
 exports.forced = !globalThis.requestIdleCallback || !globalThis.cancelIdleCallback || !globalThis.IdleDeadline;
