@@ -736,7 +736,7 @@ function resolveTupleInner(elements, resolver) {
     let resolved;
     if (isTupleRestElement(elem)) {
       const restType = resolver(unwrapTupleMember(elem));
-      resolved = restType?.inner && typeof restType.inner === 'object' ? restType.inner : null;
+      resolved = resolveInnerType(restType);
     } else {
       resolved = resolver(unwrapTupleMember(elem));
     }
