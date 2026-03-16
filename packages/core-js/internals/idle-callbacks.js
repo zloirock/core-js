@@ -126,7 +126,7 @@ exports.request = function requestIdleCallback(callback) {
   if (options !== undefined) timeout = toUnsignedLong(options.timeout);
   if (options && timeout > 0) {
     // FIXME: Spec says that the timeout calling must sort by currentTime +
-    // options.timeout, however maintaining such a priority queue would be very tedious
+    // timeout, however maintaining such a priority queue would be very tedious
     sharedStore.__timeoutHandles[handle] = $setTimeout(function timeoutCallback() {
       var cb = sharedStore.__idleCallbackMap[handle];
       if (!cb) return;
@@ -146,7 +146,7 @@ exports.request = function requestIdleCallback(callback) {
           throw error;
         }, 0);
       }
-    }, options.timeout);
+    }, timeout);
   }
   // Start running things on the next frame if needed
   scheduleNextIdle();
