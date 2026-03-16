@@ -1213,15 +1213,19 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   // intersection: T & { extra: boolean } - skip plain $Object('Object') from type literals, rest must agree
   if (node.type === 'TSIntersectionType' || node.type === 'IntersectionTypeAnnotation') {
     let result = null;
+    let skipped = false;
     for (const member of node.types) {
       const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
       if (!resolved) continue;
       // skip structural additions like { key: value } that resolve to plain Object
-      if (!resolved.primitive && resolved.constructor === 'Object') continue;
+      if (!resolved.primitive && resolved.constructor === 'Object') {
+        skipped = true;
+        continue;
+      }
       result = commonType(result, resolved);
       if (!result) return null;
     }
-    return result;
+    return result ?? (skipped ? new $Object(null) : null);
   }
   // transparent wrappers: (T), T?, readonly T[], etc.
   if (node.type === 'TSOptionalType' || node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation'
