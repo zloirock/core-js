@@ -50,6 +50,13 @@ QUnit.test('Set#intersection', assert => {
     },
   }));
 
+  const s1 = new Set([1, 2, 3]);
+  assert.deepEqual(from(s1.intersection({
+    size: 10,
+    has(v) { s1.delete(v + 1); return true; },
+    keys() { throw new Error('Unexpected call to |keys| method'); },
+  })), [1, 3], 'Set.prototype.intersection re-checks SetDataHas after has()');
+
   assert.throws(() => new Set([1, 2, 3]).intersection(), TypeError);
 
   assert.throws(() => intersection.call({}, [1, 2, 3]), TypeError);

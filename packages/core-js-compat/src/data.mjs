@@ -314,7 +314,9 @@ export const data = {
     // FF99-101 broken on sparse arrays
     firefox: '102', // '48',
     rhino: '1.8.0',
-    safari: '10.0',
+    // Safari broken on sparse arrays with fromIndex
+    // https://bugs.webkit.org/show_bug.cgi?id=309342
+    // safari: '10.0',
   },
   'es.array.index-of': {
     chrome: '51',
@@ -1393,7 +1395,7 @@ export const data = {
   },
   'es.parse-float': {
     chrome: '35',
-    edge: '74',
+    edge: '79',
     firefox: '8',
     hermes: '0.1',
     ie: '8',
@@ -1402,7 +1404,7 @@ export const data = {
   },
   'es.parse-int': {
     chrome: '35',
-    edge: '74',
+    edge: '79',
     firefox: '21',
     hermes: '0.1',
     ie: '9',

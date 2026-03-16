@@ -39,8 +39,12 @@ QUnit.test('URL constructor', assert => {
   assert.same(String(new URL('http://0300.168.0xF0')), 'http://192.168.0.240/');
   assert.same(String(new URL('http://[20:0:0:1:0:0:0:ff]')), 'http://[20:0:0:1::ff]/');
   // assert.same(String(new URL('http://257.168.0xF0')), 'http://257.168.0xf0/', 'incorrect IPv4 parsed as host'); // TypeError in Chrome and Safari
+  assert.throws(() => new URL('http://257.168.0xF0'), 'invalid IPv4: octet > 255');
   assert.same(String(new URL('http://0300.168.0xG0')), 'http://0300.168.0xg0/', 'incorrect IPv4 parsed as host');
 
+  assert.throws(() => new URL('http://1.2.3.4.5/'), 'IPv4 with > 4 parts');
+  assert.throws(() => new URL('http://a.b.c.d.5/'), 'host ending in number with non-numeric parts');
+  assert.throws(() => new URL('http://foo.1/'), 'host ending in number with non-IPv4');
   assert.same(String(new URL('file:///var/log/system.log')), 'file:///var/log/system.log', 'file scheme');
 
   // Chromium ~ 145 on Windows works differently

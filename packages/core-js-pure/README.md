@@ -9,7 +9,7 @@
 **I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
 ---
 
-> Modular standard library for JavaScript. Includes polyfills for [ECMAScript up to 2025](https://github.com/zloirock/core-js#ecmascript): [promises](https://github.com/zloirock/core-js#ecmascript-promise), [symbols](https://github.com/zloirock/core-js#ecmascript-symbol), [collections](https://github.com/zloirock/core-js#ecmascript-collections), iterators, [typed arrays](https://github.com/zloirock/core-js#ecmascript-typed-arrays), many other features, [ECMAScript proposals](https://github.com/zloirock/core-js#ecmascript-proposals), [some cross-platform WHATWG / W3C features and proposals](#web-standards) like [`URL`](https://github.com/zloirock/core-js#url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
+> [`core-js`](https://core-js.io) is a modular standard library for JavaScript. Includes polyfills for ECMAScript up to 2026: [promises](https://core-js.io/docs/features/ecmascript/promise), [symbols](https://core-js.io/docs/features/ecmascript/symbol), [collections](https://core-js.io/docs/features/ecmascript/collections), [iterators](https://core-js.io/docs/features/ecmascript/iterator), [typed arrays](https://core-js.io/docs/features/ecmascript/typed-arrays), many other features, ECMAScript proposals, some cross-platform WHATWG / W3C features and proposals like [`URL`](https://core-js.io/docs/features/web-standards/url-and-urlsearchparams). You can load only required features or use it without global namespace pollution.
 
 ## Raising funds
 
@@ -92,4 +92,4 @@ Iterator.concat([1, 2], function * (i) { while (true) yield i++; }(3))
 structuredClone(new Set([1, 2, 3])); // => new Set([1, 2, 3])
 ```
 
-**It's a version without global namespace pollution (the third example), for more info see [`core-js` documentation](https://github.com/zloirock/core-js/blob/master/README.md)**.
+**It's a version without global namespace pollution (the third example), for more info see [`core-js` documentation](https://core-js.io)**.

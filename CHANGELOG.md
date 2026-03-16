@@ -1,15 +1,19 @@
 # Changelog
 ### Unreleased
-- Added polyfill for ``requestIdleCallback`` and ``cancelIdleCallback``
-- Improved performance of `atob`, `btoa`, `Uint8Array.fromHex`, `Uint8Array.prototype.setFromHex`, and `Uint8Array.prototype.toHex`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464), [#1510](https://github.com/zloirock/core-js/issues/1510)
+- Added polyfill for ``requestIdleCallback``
+
+### [3.49.0 - 2026.03.16](https://github.com/zloirock/core-js/releases/tag/v3.49.0)
+- Changes [v3.48.0...v3.49.0](https://github.com/zloirock/core-js/compare/v3.48.0...v3.49.0) (373 commits)
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
   - Allow `null` as `optionOrStep`
 - Improved accuracy of `Math.{ asinh, atanh }` polyfills with big and small values
 - Improved accuracy of `Number.prototype.toExponential` polyfills with big and small values
+- Improved performance of `atob`, `btoa`, `Uint8Array.fromHex`, `Uint8Array.prototype.setFromHex`, and `Uint8Array.prototype.toHex`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464), [#1510](https://github.com/zloirock/core-js/issues/1510), thanks [**@johnzhou721**](https://github.com/johnzhou721)
 - Minor performance optimization polyfills of methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert)
 - Polyfills of methods from [`Map` upsert proposal](https://github.com/tc39/proposal-upsert) from the pure version made generic to make it work with polyfilled and native collections
 - Wrap `Symbol.for` in `Symbol.prototype.description` polyfill for correct handling of empty string descriptions
+- Fixed [a modern Safari bug](https://bugs.webkit.org/show_bug.cgi?id=309342) in `Array.prototype.includes` with sparse arrays and `fromIndex`
 - Fixed one more case (`Iterator.prototype.take`) of a V8 ~ Chromium < 126 [bug](https://issues.chromium.org/issues/336839115)
 - Forced replacement of `Iterator.{ concat, zip, zipKeyed }` in the pure version for ensuring proper wrapped `Iterator` instances as the result
 - Fixed proxying `.return()` on exhausted iterator from some methods of iterator helpers polyfill to the underlying iterator
@@ -17,6 +21,7 @@
 - Fixed closing iterator on `IteratorValue` errors in the internal `iterate` helper that affected some polyfills
 - Fixed iterator closing in `Array.from` polyfill on failure to create array property
 - Fixed order of arguments validation in `Array.fromAsync` polyfill
+- Fixed a lack of counter validation on `MAX_SAFE_INTEGER` in `Array.fromAsync` polyfill
 - Fixed order of arguments validation in `Array.prototype.flat` polyfill
 - Fixed handling strings as iterables in `Iterator.{ zip, zipKeyed }` polyfills
 - Fixed some cases of iterators closing in `Iterator.{ zip, zipKeyed }` polyfills
@@ -43,6 +48,7 @@
 - Fixed possible removal of unnecessary entries in `URLSearchParam.prototype.delete` polyfill with second argument
 - Fixed an error in some cases of non-special URLs without a path in the `URL` polyfill
 - Fixed some percent encode cases / character sets in the `URL` polyfill
+- Fixed parsing of non-IPv4 hosts ends in a number in the `URL` polyfill
 - Fixed some cases of `''` and `null` host handling in the `URL` polyfill
 - Fixed host parsing with `hostname = host:port` in the `URL` polyfill
 - Fixed host inheritance in some cases of file scheme in the `URL` polyfill
@@ -96,10 +102,12 @@
   - [`Math.sumPrecise`](https://github.com/tc39/proposal-math-sum) marked as [shipped in V8 ~ Chrome 147](https://issues.chromium.org/issues/374310075#comment16)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as [shipped in V8 ~ Chrome 146](https://issues.chromium.org/issues/434977727#comment7)
   - [`Iterator.concat`](https://github.com/tc39/proposal-iterator-sequencing) marked as shipped in Safari 26.4
-  - Added [Deno 2.6.7 / 2.7](https://github.com/denoland/deno/releases/tag/v2.6.7) compat data mapping
+  - Because of [a bug](https://bugs.webkit.org/show_bug.cgi?id=309342), `Array.prototype.includes` marked as not supported in modern Safari
+  - Fixed compat data for `parseInt` and `parseFloat`
+  - Added Deno [2.6.7](https://github.com/denoland/deno/releases/tag/v2.6.7), [2.7.0](https://github.com/denoland/deno/releases/tag/v2.7.0) and [2.7.2](https://github.com/denoland/deno/releases/tag/v2.7.2) compat data mapping
   - Added Electron 42 compat data mapping
-  - Added [Opera Android 95](https://forums.opera.com/topic/87912/opera-for-android-95) compat data mapping
-  - Added Oculus Quest Browser 42 compat data mapping
+  - Added Opera for Android [95](https://forums.opera.com/topic/87912/opera-for-android-95) and [96](https://forums.opera.com/topic/88254/opera-for-android-96) compat data mapping
+  - Added [Oculus Quest Browser 42](https://developers.meta.com/horizon/downloads/package/browser/42.0/) compat data mapping
 
 ### [3.48.0 - 2026.01.21](https://github.com/zloirock/core-js/releases/tag/v3.48.0)
 - Changes [v3.47.0...v3.48.0](https://github.com/zloirock/core-js/compare/v3.47.0...v3.48.0) (126 commits)

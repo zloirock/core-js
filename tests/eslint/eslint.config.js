@@ -7,6 +7,7 @@ import pluginDepend from 'eslint-plugin-depend';
 import pluginESX from 'eslint-plugin-es-x';
 import pluginESlintComments from '@eslint-community/eslint-plugin-eslint-comments';
 import pluginImport from 'eslint-plugin-import-x';
+import { createNodeResolver } from 'eslint-plugin-import-x/node-resolver';
 import pluginJSONC from 'eslint-plugin-jsonc';
 import pluginMarkdown from '@eslint/markdown';
 import pluginMath from 'eslint-plugin-math';
@@ -29,6 +30,7 @@ const DEV_NODE_VERSIONS = '^20.19';
 
 const ERROR = 'error';
 const OFF = 'off';
+const WARN = 'warn';
 const ALWAYS = 'always';
 const NEVER = 'never';
 const READONLY = 'readonly';
@@ -1096,10 +1098,6 @@ const base = {
   'eslint-comments/no-duplicate-disable': ERROR,
   // disallow `eslint-disable` comments without rule names
   'eslint-comments/no-unlimited-disable': ERROR,
-  // disallow unused `eslint-disable` comments
-  //   it's clearly disabled since result of some rules (like `redos/no-vulnerable`) is non-deterministic
-  //   and anyway it's reported because of `reportUnusedDisableDirectives` option
-  'eslint-comments/no-unused-disable': OFF,
   // disallow unused `eslint-enable` comments
   'eslint-comments/no-unused-enable': ERROR,
   // require include descriptions in eslint directive-comments
@@ -2157,6 +2155,8 @@ const packageJSON = {
   'package-json/valid-bundleDependencies': ERROR,
   // enforce that the `bin` property is valid
   'package-json/valid-bin': ERROR,
+  // enforce that the `bugs` property is valid
+  'package-json/valid-bugs': ERROR,
   // enforce that the `config` property is valid
   'package-json/valid-config': ERROR,
   // enforce that the `contributors` property is valid
@@ -2175,6 +2175,8 @@ const packageJSON = {
   'package-json/valid-exports': ERROR,
   // enforce that the `files` property is valid
   'package-json/valid-files': ERROR,
+  // enforce that the `funding` property is valid
+  'package-json/valid-funding': ERROR,
   // enforce that the `homepage` property is valid
   'package-json/valid-homepage': ERROR,
   // enforce that the `keywords` property is valid
@@ -2227,6 +2229,8 @@ const packagesPackageJSON = {
   // requires the `exports` property to be present
   // TODO: core-js@4
   // 'package-json/require-exports': ERROR,
+  // requires the `funding` property to be present
+  'package-json/require-funding': ERROR,
   // requires the `homepage` property to be present
   'package-json/require-homepage': ERROR,
   // requires the `license` property to be present
@@ -2248,7 +2252,7 @@ const packagesPackageJSON = {
 
 const nodeDependencies = {
   // enforce the versions of the engines of the dependencies to be compatible
-  'node-dependencies/compat-engines': ERROR,
+  'node-dependencies/compat-engines': [ERROR, { devDependencies: true }],
   // disallow having dependencies on deprecate packages
   'node-dependencies/no-deprecated': ERROR,
   // enforce versions that is valid as a semantic version
@@ -2349,7 +2353,7 @@ export default [
       },
     },
     linterOptions: {
-      reportUnusedDisableDirectives: true,
+      reportUnusedDisableDirectives: WARN,
     },
     plugins: {
       '@stylistic': pluginStylistic,
@@ -2382,6 +2386,7 @@ export default [
     },
     settings: {
       'es-x': { allowTestedProperty: true },
+      'import-x/resolver-next': [createNodeResolver()],
     },
   },
   {

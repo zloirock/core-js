@@ -123,6 +123,7 @@ export default {
     [142, '2.6'],
     [145, '2.6.7'],
     [145, '2.7'],
+    [146, '2.7.2'],
   ],
   // https://releases.electronjs.org/
   // https://github.com/electron/electron/releases
@@ -299,6 +300,7 @@ export default {
     [142, 93],
     [143, 94],
     [144, 95],
+    [145, 96],
   ],
   // https://developers.meta.com/horizon/release-notes/web/
   // https://www.meta.com/experiences/browser/1916519981771802/

@@ -9,7 +9,7 @@
 **I highly recommend reading this: [So, what's next?](https://github.com/zloirock/core-js/blob/master/docs/2023-02-14-so-whats-next.md)**
 ---
 
-[`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://github.com/zloirock/core-js) modules and API for getting a list of required core-js modules by browserslist query.
+[`core-js-compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://core-js.io) modules and API for getting a list of required core-js modules by browserslist query.
 
 ```js
 import compat from 'core-js-compat';
@@ -27,7 +27,7 @@ const {
   exclude: [                  // optional list / filter of modules to exclude, the signature is similar to `modules` option
     'web.atob',
   ],
-  version: '3.48',            // used `core-js` version, by default - the latest
+  version: '3.49',            // used `core-js` version, by default - the latest
   inverse: false,             // inverse of the result - shows modules that are NOT required for the target environment
 });
 
@@ -129,9 +129,9 @@ require('core-js-compat/modules'); // => Array<ModuleName>
 require('core-js-compat').modules; // => Array<ModuleName>
 
 // the subset of modules which available in the passed `core-js` version:
-require('core-js-compat/get-modules-list-for-target-version')('3.48'); // => Array<ModuleName>
+require('core-js-compat/get-modules-list-for-target-version')('3.49'); // => Array<ModuleName>
 // or
-require('core-js-compat').getModulesListForTargetVersion('3.48'); // => Array<ModuleName>
+require('core-js-compat').getModulesListForTargetVersion('3.49'); // => Array<ModuleName>
 ```
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:

@@ -68,7 +68,24 @@ var TAB_AND_NEW_LINE = /[\t\n\r]/g;
 // eslint-disable-next-line no-unassigned-vars -- expected `undefined` value
 var EOF;
 
-// https://url.spec.whatwg.org/#ipv4-number-parser
+// https://url.spec.whatwg.org/#ends-in-a-number-checker
+var endsInNumber = function (input) {
+  var parts = split(input, '.');
+  var last, hexPart;
+  if (parts[parts.length - 1] === '') {
+    if (parts.length === 1) return false;
+    parts.length--;
+  }
+  last = parts[parts.length - 1];
+  if (exec(DEC, last)) return true;
+  if (exec(HEX_START, last)) {
+    hexPart = stringSlice(last, 2);
+    return hexPart === '' || !!exec(HEX, hexPart);
+  }
+  return false;
+};
+
+// https://url.spec.whatwg.org/#concept-ipv4-parser
 var parseIPv4 = function (input) {
   var parts = split(input, '.');
   var partsLength, numbers, index, part, radix, number, ipv4;
@@ -76,11 +93,11 @@ var parseIPv4 = function (input) {
     parts.length--;
   }
   partsLength = parts.length;
-  if (partsLength > 4) return input;
+  if (partsLength > 4) return null;
   numbers = [];
   for (index = 0; index < partsLength; index++) {
     part = parts[index];
-    if (part === '') return input;
+    if (part === '') return null;
     radix = 10;
     if (part.length > 1 && charAt(part, 0) === '0') {
       radix = exec(HEX_START, part) ? 16 : 8;
@@ -89,7 +106,7 @@ var parseIPv4 = function (input) {
     if (part === '') {
       number = 0;
     } else {
-      if (!exec(radix === 10 ? DEC : radix === 8 ? OCT : HEX, part)) return input;
+      if (!exec(radix === 10 ? DEC : radix === 8 ? OCT : HEX, part)) return null;
       number = parseInt(part, radix);
     }
     push(numbers, number);
@@ -771,9 +788,13 @@ URLState.prototype = {
     } else {
       input = toASCII(input);
       if (exec(FORBIDDEN_HOST_CODE_POINT, input)) return INVALID_HOST;
-      result = parseIPv4(input);
-      if (result === null) return INVALID_HOST;
-      this.host = result;
+      if (endsInNumber(input)) {
+        result = parseIPv4(input);
+        if (result === null) return INVALID_HOST;
+        this.host = result;
+      } else {
+        this.host = input;
+      }
     }
   },
   // https://url.spec.whatwg.org/#cannot-have-a-username-password-port

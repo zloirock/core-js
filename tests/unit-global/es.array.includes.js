@@ -18,6 +18,9 @@ QUnit.test('Array#includes', assert => {
   assert.false(array.includes({}));
   assert.true(Array(1).includes(undefined));
   assert.true([NaN].includes(NaN));
+  // https://bugs.webkit.org/show_bug.cgi?id=309342
+  // eslint-disable-next-line no-sparse-arrays -- testing
+  assert.false([, 1].includes(undefined, 1), '`Array#includes(undefined, fromIndex)` should not find holes before fromIndex');
   if (STRICT) {
     assert.throws(() => includes.call(null, 0), TypeError);
     assert.throws(() => includes.call(undefined, 0), TypeError);
