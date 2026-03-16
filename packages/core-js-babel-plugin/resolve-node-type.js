@@ -730,9 +730,13 @@ function resolveTupleInner(elements, resolver) {
   let inner = null;
   for (const elem of elements) {
     // rest element: ...string[] or ...Array<string> - resolve the collection type, use its inner
-    const resolved = isTupleRestElement(elem)
-      ? resolver(unwrapTupleMember(elem))?.inner ?? null
-      : resolver(unwrapTupleMember(elem));
+    let resolved;
+    if (isTupleRestElement(elem)) {
+      const restType = resolver(unwrapTupleMember(elem));
+      resolved = restType?.inner && typeof restType.inner === 'object' ? restType.inner : null;
+    } else {
+      resolved = resolver(unwrapTupleMember(elem));
+    }
     if (!resolved) return null;
     if (isNullableOrNever(resolved)) continue;
     inner = commonType(inner, resolved);
