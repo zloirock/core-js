@@ -2,8 +2,8 @@
 
 Additional arguments fix for IE9-.
 
-## Module 
-[`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js).
+## Modules
+[`web.timers`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.timers.js), [`web.set-interval`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-interval.js), [`web.set-timeout`](https://github.com/zloirock/core-js/blob/master/packages/core-js/modules/web.set-timeout.js).
 
 ## Built-ins signatures
 ```ts
