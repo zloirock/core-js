@@ -1,17 +1,18 @@
 /* eslint no-underscore-dangle: 0 -- internal vars use __ for private state */
 'use strict';
-var aCallable = require('./a-callable');
-var anObjectOrUndefined = require('./an-object-or-undefined');
-var validateArgumentsLength = require('./validate-arguments-length');
-var uncurryThis = require('./function-uncurry-this');
-var globalThis = require('./global-this');
-var defineBuiltIn = require('./define-built-in');
-var Queue = require('./queue');
-var DESCRIPTORS = require('./descriptors');
-var defineProperty = require('./object-define-property').f;
-var toUnsignedLong = require('./to-unsigned-long');
+var aCallable = require('../internals/a-callable');
+var anObjectOrUndefined = require('../internals/an-object-or-undefined');
+var validateArgumentsLength = require('../internals/validate-arguments-length');
+var uncurryThis = require('../internals/function-uncurry-this');
+var globalThis = require('../internals/global-this');
+var defineBuiltIn = require('../internals/define-built-in');
+var Queue = require('../internals/queue');
+var DESCRIPTORS = require('../internals/descriptors');
+var defineProperty = require('../internals/object-define-property').f;
+var toUnsignedLong = require('../internals/to-unsigned-long');
+var InternalStateModule = require('../internals/internal-state');
 
-var setToStringTag = require('./set-to-string-tag');
+var setToStringTag = require('../internals/set-to-string-tag');
 
 var $TypeError = TypeError;
 
@@ -20,9 +21,11 @@ var $setTimeout = globalThis.setTimeout;
 var $clearTimeout = globalThis.clearTimeout;
 var getTime = uncurryThis($Date.prototype.getTime);
 var $performance = globalThis.performance;
+var setInternalState = InternalStateModule.set;
+var getInternalIdleDeadlineState = InternalStateModule.getterFor('IdleDeadline');
 var $now;
 if ($performance) {
-  var $now = uncurryThis(globalThis.performance.now).bind(null, $performance);
+  $now = uncurryThis(globalThis.performance.now).bind(null, $performance);
 }
 var $max = Math.max;
 var $min = Math.min;
@@ -43,29 +46,32 @@ var __idleRafScheduled = false;
 var __timeoutHandles = {};
 var __handleObjects = {};
 
+var IdleDeadlineState = function IdleDeadlineState(deadlineTime, didTimeout) {
+  this.deadlineTime = deadlineTime;
+  this.didTimeout = didTimeout;
+}
+
 var IdleDeadline = function IdleDeadline() {
   throw new $TypeError('Illegal Constructor');
 };
 setToStringTag(IdleDeadline, 'IdleDeadline');
 defineBuiltIn(IdleDeadline.prototype, 'timeRemaining', function timeRemaining() {
-  return $max(this.__deadlineTime - now(), 0);
+  return $max(getInternalIdleDeadlineState(this)["deadlineTime"]() - now(), 0);
 }, { writable: true, enumerable: true, configurable: true });
 if (DESCRIPTORS) {
   defineProperty(IdleDeadline.prototype, 'didTimeout', {
-    get: function get() {
-      return this.__didTimeout;
+    get: function() {
+      return getInternalIdleDeadlineState(this)["didTimeout"]();
     },
     enumerable: true,
     configurable: true
   });
 }
 
-var IdleDeadlinePriv = function IdleDeadline(deadlineTime, didTimeout) {
-  this.__deadlineTime = deadlineTime;
-  if (DESCRIPTORS) {
-    this.__didTimeout = didTimeout;
-  } else {
-    this.didTimeout = didTimeout;
+var IdleDeadlinePriv = function IdleDeadlinePriv(deadlineTime, didTimeout) {
+  setInternalState(this, new IdleDeadlineState(deadlineTime, didTimeout));
+  if (!DESCRIPTORS) {
+    this.didTimeout = getInternalIdleDeadlineState(this)["didTimeout"]();
   }
 }
 IdleDeadlinePriv.prototype = IdleDeadline.prototype;
