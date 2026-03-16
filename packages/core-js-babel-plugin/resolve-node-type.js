@@ -240,27 +240,61 @@ function resolveKnownConstructor(name) {
   return hasOwn(KNOWN_CONSTRUCTORS, name) ? typeFromHint(KNOWN_CONSTRUCTORS[name].new) : null;
 }
 
-function resolveUserDefinedType(name, scope, depth) {
+// resolve type arguments at a usage site and map them to a declaration's type parameters
+// when typeParamMap is provided, extends it; when null, builds from scratch
+// e.g. for `type Foo<T> = Array<T>` used as `Foo<string>`, maps { T: $Primitive('string') }
+function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
+  const declParams = decl.typeParameters?.params;
+  const callArgs = node?.typeParameters?.params;
+  if (!declParams?.length || !callArgs?.length) return typeParamMap;
+  const base = typeParamMap || new Map();
+  const localMap = new Map(base);
+  let extended = false;
+  for (let i = 0; i < declParams.length && i < callArgs.length; i++) {
+    const resolved = typeParamMap
+      ? substituteTypeParams(callArgs[i], typeParamMap, scope, depth + 1)
+      : resolveTypeAnnotation(callArgs[i], scope, depth + 1);
+    if (resolved) {
+      localMap.set(declParams[i].name, resolved);
+      extended = true;
+    }
+  }
+  return extended ? localMap : typeParamMap;
+}
+
+// resolve a user-defined type alias or interface, optionally substituting type parameters
+// typeParamMap: when provided (from generic function substitution or parent type args), propagates substitutions
+// when null, type arguments at usage site (e.g. Foo<string>) are resolved and propagated automatically
+function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
+  if (depth > MAX_DEPTH) return null;
   // type parameters shadow type declarations with the same name
   const typeParam = findTypeParameter(name, scope);
-  if (typeParam) return typeParam.constraint ? resolveTypeAnnotation(typeParam.constraint, typeParam.scope, depth + 1) : null;
+  if (typeParam) {
+    if (!typeParam.constraint) return null;
+    return typeParamMap
+      ? substituteTypeParams(typeParam.constraint, typeParamMap, typeParam.scope, depth + 1)
+      : resolveTypeAnnotation(typeParam.constraint, typeParam.scope, depth + 1);
+  }
   const decl = findTypeDeclaration(name, scope);
-  if (decl) {
-    if (decl.type === 'TSTypeAliasDeclaration') return resolveTypeAnnotation(decl.typeAnnotation, scope, depth + 1);
-    if (decl.type === 'TSInterfaceDeclaration') {
-      const parents = decl.extends;
-      if (parents?.length) {
-        for (const parent of parents) {
-          const base = parent.expression ?? parent;
-          if (base.type !== 'Identifier') continue;
-          const ctor = resolveKnownConstructor(base.name);
-          const result = resolveKnownContainerType(base.name, ctor, parent, p => resolveTypeAnnotation(p, scope, depth + 1))
-            || resolveUserDefinedType(base.name, scope, depth + 1);
-          if (result) return result;
-        }
+  if (!decl) return null;
+  typeParamMap = resolveTypeArgs(decl, node, typeParamMap, scope, depth);
+  const resolve = typeParamMap
+    ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1)
+    : p => resolveTypeAnnotation(p, scope, depth + 1);
+  if (decl.type === 'TSTypeAliasDeclaration') return resolve(decl.typeAnnotation);
+  if (decl.type === 'TSInterfaceDeclaration') {
+    const parents = decl.extends;
+    if (parents?.length) {
+      for (const parent of parents) {
+        const base = parent.expression ?? parent;
+        if (base.type !== 'Identifier') continue;
+        const ctor = resolveKnownConstructor(base.name);
+        const result = resolveKnownContainerType(base.name, ctor, parent, resolve)
+          || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap);
+        if (result) return result;
       }
-      return new $Object('Object');
     }
+    return new $Object('Object');
   }
   return null;
 }
@@ -481,7 +515,7 @@ function resolveNamedType(name, node, scope, depth) {
     }
   }
   // resolve user-defined type aliases and interfaces via scope chain
-  return resolveUserDefinedType(name, scope, depth);
+  return resolveUserDefinedType(name, node, scope, depth);
 }
 
 function resolveTypeAnnotation(node, scope, depth = 0) {
@@ -1142,7 +1176,8 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
       const ctor = resolveKnownConstructor(name);
       const known = resolveKnownContainerType(name, ctor, node, p => substituteTypeParams(p, typeParamMap, scope, depth + 1));
       if (known) return known;
-      return resolveNamedType(name, node, scope, depth);
+      // user-defined type alias / interface: propagate type parameter substitutions
+      return resolveUserDefinedType(name, node, scope, depth, typeParamMap) ?? resolveNamedType(name, node, scope, depth);
     }
     return null;
   }
