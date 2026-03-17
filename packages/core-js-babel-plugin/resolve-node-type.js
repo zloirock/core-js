@@ -243,26 +243,31 @@ function resolveTypeofBinding(name, scope) {
   return null;
 }
 
+// typeof obj.prop — resolve a qualified member access from a binding
+function resolveTypeofQualifiedMember(objectName, memberName, scope) {
+  const bindingPath = constantBindingPath(objectName, scope);
+  if (!bindingPath) return null;
+  if (bindingPath.isVariableDeclarator()) {
+    const init = bindingPath.get('init');
+    if (init.node) {
+      const resolved = resolveRuntimeExpression(init);
+      if (resolved.isObjectExpression()) return resolveObjectMember(resolved, memberName);
+      if (resolved.isClass()) return resolveClassMember(resolved, memberName, true);
+    }
+  }
+  if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, memberName, true);
+  const annotation = findBindingAnnotation(bindingPath);
+  if (annotation) return resolveAnnotatedMember(annotation, memberName, scope);
+  return null;
+}
+
 function resolveTypeQuery(node, scope) {
   const { exprName } = node;
   // typeof obj.prop - qualified name (one level deep)
   if (exprName?.type === 'TSQualifiedName') {
     const { left, right } = exprName;
     if (left.type !== 'Identifier' || right.type !== 'Identifier') return null;
-    const bindingPath = constantBindingPath(left.name, scope);
-    if (!bindingPath) return null;
-    if (bindingPath.isVariableDeclarator()) {
-      const init = bindingPath.get('init');
-      if (init.node) {
-        const resolved = resolveRuntimeExpression(init);
-        if (resolved.isObjectExpression()) return resolveObjectMember(resolved, right.name);
-        if (resolved.isClass()) return resolveClassMember(resolved, right.name, true);
-      }
-    }
-    if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, right.name, true);
-    const annotation = findBindingAnnotation(bindingPath);
-    if (annotation) return resolveAnnotatedMember(annotation, right.name, scope);
-    return null;
+    return resolveTypeofQualifiedMember(left.name, right.name, scope);
   }
   if (exprName?.type !== 'Identifier') return null;
   return resolveTypeofBinding(exprName.name, scope);
@@ -751,9 +756,14 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     // Flow typeof in type position: `typeof variable`
     case 'TypeofTypeAnnotation': {
       const arg = node.argument;
-      if (arg?.type === 'GenericTypeAnnotation' && arg.id?.type === 'Identifier') {
-        return resolveTypeofBinding(arg.id.name, scope);
+      if (arg?.type !== 'GenericTypeAnnotation') return null;
+      // typeof obj.prop — qualified access (one level deep)
+      if (arg.id?.type === 'QualifiedTypeIdentifier') {
+        const { qualification, id: right } = arg.id;
+        if (qualification?.type !== 'Identifier' || right?.type !== 'Identifier') return null;
+        return resolveTypeofQualifiedMember(qualification.name, right.name, scope);
       }
+      if (arg.id?.type === 'Identifier') return resolveTypeofBinding(arg.id.name, scope);
       return null;
     }
     // TS template literal type: `prefix_${string}`
@@ -1476,7 +1486,16 @@ function resolveReturnType(fnPath, callPath) {
   // yield type is extracted from Generator<TYield>/AsyncGenerator<TYield> annotation if present
   if (fnPath.node.generator) {
     const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
-    const inner = params?.[0] ? resolveTypeAnnotation(params[0], fnPath.scope) : null;
+    let inner = params?.[0] ? resolveTypeAnnotation(params[0], fnPath.scope) : null;
+    // substitute generic type parameters from call site into the yield type
+    if (!inner && params?.[0] && callPath && fnPath.node.typeParameters?.params?.length) {
+      const typeParamNames = new Set();
+      for (const p of fnPath.node.typeParameters.params) typeParamNames.add(p.name);
+      if (hasTypeParamReference(params[0], typeParamNames, 0)) {
+        const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
+        if (typeParamMap.size > 0) inner = substituteTypeParams(params[0], typeParamMap, fnPath.scope, 0);
+      }
+    }
     return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', inner && !isNullableOrNever(inner) ? inner : null);
   }
   const { returnType, typeParameters } = fnPath.node;
@@ -1489,7 +1508,10 @@ function resolveReturnType(fnPath, callPath) {
       const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
       if (typeParamMap.size > 0) {
         const substituted = substituteTypeParams(returnAnnotation, typeParamMap, fnPath.scope, 0);
-        if (substituted) return substituted;
+        if (substituted) {
+          if (fnPath.node.async && substituted.constructor !== 'Promise') return new $Object('Promise', substituted);
+          return substituted;
+        }
       }
     }
   }
@@ -1544,8 +1566,10 @@ function resolveClassContext(objectPath) {
 function findClassMember(classPath, name, isStatic, depth = 0) {
   if (depth > MAX_DEPTH) return null;
   for (const member of classPath.get('body').get('body')) {
+    if (member.node.computed) continue;
     if (!keyMatchesName(member.node.key, name)) continue;
     if (!!member.node.static !== isStatic) continue;
+    if (member.node.kind === 'set') continue;
     return member;
   }
   const superClass = classPath.get('superClass');
@@ -1603,7 +1627,7 @@ function findObjectMember(objectPath, name) {
   for (let i = properties.length - 1; i >= 0; i--) {
     const prop = properties[i];
     if (prop.isSpreadElement()) return null;
-    if (keyMatchesName(prop.node.key, name)) return prop;
+    if (!prop.node.computed && prop.node.kind !== 'set' && keyMatchesName(prop.node.key, name)) return prop;
   }
   return null;
 }
@@ -2246,8 +2270,12 @@ function parseTypeGuard(testNode, varName) {
       if (isNegatedOp) negated = !negated;
       // normalize: typeof may be on either side
       const [typeofSide, literalSide] = left.type === 'UnaryExpression' ? [left, right] : [right, left];
-      if (isTypeofVar(typeofSide, varName) && literalSide.type === 'StringLiteral') {
-        return { kind: 'typeof', value: literalSide.value, negated };
+      if (isTypeofVar(typeofSide, varName)) {
+        if (literalSide.type === 'StringLiteral') return { kind: 'typeof', value: literalSide.value, negated };
+        // template literal with no expressions: `object` === typeof x
+        if (literalSide.type === 'TemplateLiteral' && literalSide.expressions.length === 0) {
+          return { kind: 'typeof', value: literalSide.quasis[0].value.cooked, negated };
+        }
       }
     }
     if (operator === 'instanceof'
@@ -2280,7 +2308,8 @@ function nodeAlwaysExits(node, depth = 0) {
   if (EXIT_STATEMENTS.has(node.type)) return true;
   if (node.type === 'BlockStatement') {
     const { body } = node;
-    return body.length > 0 && nodeAlwaysExits(body[body.length - 1], depth + 1);
+    for (let i = 0; i < body.length; i++) if (nodeAlwaysExits(body[i], depth + 1)) return true;
+    return false;
   }
   // if both branches always exit, the if-statement always exits
   if (node.type === 'IfStatement') {
@@ -2508,7 +2537,8 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
         if (!parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName).length) continue;
         // check ALL exit guards, not just the nearest - a weaker guard closer to usage
         // does not invalidate mutations that occurred after a stronger guard further away
-        for (let j = i + 1; j <= current.key; j++) if (violates(siblings[j])) return true;
+        for (let j = i + 1; j < current.key; j++) if (violates(siblings[j])) return true;
+        if (violatesBefore(siblings[current.key])) return true;
       }
     }
   }
