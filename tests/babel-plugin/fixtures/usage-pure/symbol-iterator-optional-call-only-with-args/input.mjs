@@ -1,0 +1,1 @@
+foo[Symbol.iterator]?.(arg);
