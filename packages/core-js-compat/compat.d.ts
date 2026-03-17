@@ -1,4 +1,4 @@
-import type { ModuleName, Target, TargetVersion } from "./shared";
+import type { ModuleName, Target, TargetVersion } from "./shared.js";
 
 type StringOrRegExp = string | RegExp;
 
@@ -41,4 +41,4 @@ type CompatOutput = {
 
 declare function compat(options?: CompatOptions): CompatOutput;
 
-export = compat;
+export default compat;

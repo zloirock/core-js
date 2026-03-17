@@ -1774,6 +1774,8 @@ const nodePackages = {
   ...forbidSomeES2025Syntax,
   // disallow explicit resource management syntax
   'es/no-using-declarations': ERROR,
+  'es/no-import-attributes': OFF,
+  'es/no-json-modules': OFF,
 };
 
 const nodeDev = {
@@ -2197,6 +2199,10 @@ const markdown = {
   'prefer-regex-literals': OFF,
   // disallow top-level `await`
   'es/no-top-level-await': OFF,
+  // import used for tasks
+  'import/first': OFF,
+  // enforce a newline after import statements
+  'import/newline-after-import': OFF,
   // ensure imports point to files / modules that can be resolved
   'import/no-unresolved': OFF,
   // allow modern syntax in code examples
@@ -2327,7 +2333,9 @@ export default [
   {
     files: [
       '**/*.mjs',
+      'packages/core-js-babel-plugin/**',
       'packages/core-js-builder/**',
+      'packages/core-js-compat/**',
       `tests/eslint/**/${ jsFile }`,
     ],
     languageOptions: {
