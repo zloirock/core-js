@@ -771,7 +771,10 @@ function foldTypes(members, resolve, classify) {
     const resolved = resolve(member);
     const action = classify(resolved);
     if (action === 0) return null; // BAIL
-    if (action === 1) { skipped ??= resolved ?? new $Object(null); continue; } // SKIP
+    if (action === 1) { // SKIP
+      skipped ??= resolved ?? new $Object(null);
+      continue;
+    }
     result = commonType(result, resolved);
     if (!result) return null;
   }
