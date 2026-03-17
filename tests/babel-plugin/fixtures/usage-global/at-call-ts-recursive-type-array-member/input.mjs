@@ -1,0 +1,2 @@
+type Tree = { value: string; children: Tree[] };
+function f(t: Tree) { t.children.at(0); }
