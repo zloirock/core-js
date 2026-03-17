@@ -230,7 +230,7 @@ function constantBindingPath(name, scope) {
   return binding?.constant ? binding.path : null;
 }
 
-// resolve `typeof variable` to a type — shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
+// resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
 function resolveTypeofBinding(name, scope) {
   const bindingPath = constantBindingPath(name, scope);
   if (!bindingPath) return null;
@@ -247,7 +247,7 @@ function resolveTypeofBinding(name, scope) {
   return null;
 }
 
-// typeof obj.prop — resolve a qualified member access from a binding
+// typeof obj.prop - resolve a qualified member access from a binding
 function resolveTypeofQualifiedMember(objectName, memberName, scope) {
   const bindingPath = constantBindingPath(objectName, scope);
   if (!bindingPath) return null;
@@ -413,6 +413,15 @@ function getTypeMembers(objectType, scope, depth = 0) {
   if (depth > MAX_DEPTH) return null;
   if (objectType.type === 'TSTypeLiteral') return objectType.members;
   if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
+  // intersection: collect members from all parts
+  if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
+    const all = [];
+    for (const member of objectType.types) {
+      const members = getTypeMembers(unwrapTypeAnnotation(member), scope, depth + 1);
+      if (members) for (const m of members) all.push(m);
+    }
+    return all.length ? all : null;
+  }
   const name = typeRefName(objectType);
   const declaration = name ? findTypeDeclaration(name, scope) : null;
   if (isInterfaceDeclaration(declaration)) {
@@ -774,7 +783,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     case 'TypeofTypeAnnotation': {
       const arg = node.argument;
       if (arg?.type !== 'GenericTypeAnnotation') return null;
-      // typeof obj.prop — qualified access (one level deep)
+      // typeof obj.prop - qualified access (one level deep)
       if (arg.id?.type === 'QualifiedTypeIdentifier') {
         const { qualification, id: right } = arg.id;
         if (qualification?.type !== 'Identifier' || right?.type !== 'Identifier') return null;
@@ -1281,27 +1290,35 @@ const FUNCTION_NODE_TYPES = new Set([
 ]);
 
 // collect return statement paths from a block body, skipping nested functions
+// per JS spec, `return` in `finally` always overrides `return` in the try/catch
+// of the same TryStatement - this is handled per-TryStatement, not globally,
+// so returns outside a try-finally are unaffected
 function collectReturnPaths(blockPath) {
-  const returns = [];
   const getChildren = (path, key) => Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
-  const walk = path => {
-    if (!path.node || FUNCTION_NODE_TYPES.has(path.node.type)) return;
-    if (path.isReturnStatement()) {
-      returns.push(path);
-      return;
-    }
+  const collect = path => {
+    if (!path.node || FUNCTION_NODE_TYPES.has(path.node.type)) return [];
+    if (path.isReturnStatement()) return [path];
     const { node } = path;
+    // TryStatement: if finally has returns, they override try/catch returns
+    if (node.type === 'TryStatement') {
+      const finalizerReturns = node.finalizer ? collect(path.get('finalizer')) : [];
+      if (finalizerReturns.length) return finalizerReturns;
+      const result = [];
+      if (node.block) for (const r of collect(path.get('block'))) result.push(r);
+      if (node.handler) for (const r of collect(path.get('handler'))) result.push(r);
+      return result;
+    }
     // recurse into block/control-flow children
-    if (node.body) for (const p of getChildren(path, 'body')) walk(p);
-    if (node.consequent) for (const p of getChildren(path, 'consequent')) walk(p);
-    if (node.alternate) walk(path.get('alternate'));
-    if (node.cases) for (const p of path.get('cases')) walk(p);
-    if (node.block) walk(path.get('block'));
-    if (node.handler) walk(path.get('handler'));
-    if (node.finalizer) walk(path.get('finalizer'));
+    const result = [];
+    if (node.body) for (const p of getChildren(path, 'body')) for (const r of collect(p)) result.push(r);
+    if (node.consequent) for (const p of getChildren(path, 'consequent')) for (const r of collect(p)) result.push(r);
+    if (node.alternate) for (const r of collect(path.get('alternate'))) result.push(r);
+    if (node.cases) for (const p of path.get('cases')) for (const r of collect(p)) result.push(r);
+    return result;
   };
-  for (const stmt of blockPath.get('body')) walk(stmt);
-  return returns;
+  const result = [];
+  for (const stmt of blockPath.get('body')) for (const r of collect(stmt)) result.push(r);
+  return result;
 }
 
 function resolveBodyReturnType(fnPath, callPath) {
@@ -1491,7 +1508,7 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
       ? resolveTupleInner(elements, e => substituteTypeParams(e, typeParamMap, scope, depth + 1))
       : null);
   }
-  // T["key"] or T[number] — resolve indexed access through regular annotation resolution
+  // T["key"] or T[number] - resolve indexed access through regular annotation resolution
   // hasTypeParamReference detects the reference so the substitution path is entered,
   // but the actual resolution happens through resolveTypeAnnotation which handles TSIndexedAccessType
   if (node.type === 'TSIndexedAccessType') return resolveTypeAnnotation(node, scope, depth);
