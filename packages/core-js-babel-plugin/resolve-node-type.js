@@ -34,6 +34,23 @@ const PRIMITIVES = new Set([
   'undefined',
 ]);
 
+const TYPE_HINTS = new Set([
+  'array',
+  'asynciterator',
+  'bigint',
+  'boolean',
+  'date',
+  'function',
+  'iterator',
+  'number',
+  'object',
+  'promise',
+  'regexp',
+  'string',
+  'symbol',
+]);
+
+// lack of boxed primitives - acceptable assumption
 const TYPEOF_HINT_GROUPS = assign(create(null), {
   string: new Set(['string']),
   number: new Set(['number']),
@@ -41,17 +58,13 @@ const TYPEOF_HINT_GROUPS = assign(create(null), {
   bigint: new Set(['bigint']),
   symbol: new Set(['symbol']),
   function: new Set(['function']),
-  // lack of boxed primitives - acceptable assumption
-  object: new Set([
-    'array',
-    'date',
-    'object',
-    'promise',
-    'regexp',
-    'iterator',
-    'asynciterator',
-  ]),
 });
+
+// object group: all hints not covered by explicit typeof groups
+TYPEOF_HINT_GROUPS.object = new Set([...TYPE_HINTS].filter(h => {
+  for (const group of Object.values(TYPEOF_HINT_GROUPS)) if (group.has(h)) return false;
+  return true;
+}));
 
 // collection types whose first type parameter is the element type
 const SINGLE_ELEMENT_COLLECTIONS = new Set([
@@ -2671,6 +2684,7 @@ function isObject(path) {
 }
 
 module.exports = {
+  TYPE_HINTS,
   resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
