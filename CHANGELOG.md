@@ -1,6 +1,8 @@
 # Changelog
 ### Unreleased
 - Added polyfill for ``requestIdleCallback``
+- Compat data improvements:
+  - Updated Electron 42 compat data mapping
 
 ### [3.49.0 - 2026.03.16](https://github.com/zloirock/core-js/releases/tag/v3.49.0)
 - Changes [v3.48.0...v3.49.0](https://github.com/zloirock/core-js/compare/v3.48.0...v3.49.0) (373 commits)
