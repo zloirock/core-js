@@ -16,7 +16,7 @@ export const constructors = {
   BigUint64Array: { new: 'TypedArray', element: 'bigint' },
   Boolean: { new: 'Boolean', call: 'boolean' },
   DataView: 'DataView',
-  Date: 'Date',
+  Date: { new: 'Date', call: 'string' },
   DisposableStack: 'DisposableStack',
   DOMException: 'DOMException',
   Error: 'Error',
