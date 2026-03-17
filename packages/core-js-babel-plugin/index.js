@@ -280,6 +280,7 @@ module.exports = defineProvider(({
     polyfills: compatData,
     pre() {
       skipFile = !!this.filename && isCoreJSFile(this.filename);
+      injectedModules.clear();
     },
     entryGlobal({ source }, utils, path) {
       if (skipFile) return;
