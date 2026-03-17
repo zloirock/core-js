@@ -377,8 +377,17 @@ function findTypeMember(objectType, key, scope) {
 }
 
 function unwrapTupleMember(element) {
-  const unwrapped = element.type === 'TSNamedTupleMember' ? element.elementType : element;
-  return unwrapped.type === 'TSRestType' ? unwrapped.typeAnnotation : unwrapped;
+  let node = element;
+  // peel TSNamedTupleMember and TSRestType wrappers in any order:
+  // [name: string] -> TSNamedTupleMember -> elementType
+  // [...number[]] -> TSRestType -> typeAnnotation
+  // [...rest: string[]] -> TSRestType -> TSNamedTupleMember -> elementType
+  for (let i = 0; i < 2; i++) {
+    if (node.type === 'TSNamedTupleMember') node = node.elementType;
+    else if (node.type === 'TSRestType') node = node.typeAnnotation;
+    else break;
+  }
+  return node;
 }
 
 function isTupleRestElement(element) {
@@ -390,11 +399,13 @@ function findTupleElement(objectType, index, scope) {
   const tuple = followTypeAliasChain(objectType, scope);
   if (tuple?.type !== 'TSTupleType') return null;
   const elements = tuple.elementTypes;
-  if (!elements || index < 0 || index >= elements.length) return null;
-  const element = elements[index];
-  // rest element: [string, ...number[]] - extract element annotation from the collection type
+  if (!elements || index < 0) return null;
+  // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number
+  const element = index < elements.length ? elements[index]
+    // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
+    : isTupleRestElement(elements[elements.length - 1]) ? elements[elements.length - 1] : null;
+  if (!element) return null;
   if (isTupleRestElement(element)) return extractElementAnnotation(unwrapTupleMember(element), scope, 0);
-  // named tuple member: [name: string, items: number[]] - unwrap to inner type
   return unwrapTupleMember(element);
 }
 
@@ -675,7 +686,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
       return null;
     // TS indexed access type: Config["items"], [string, number[]][1], or Items[number]
     case 'TSIndexedAccessType': {
-      // T[number] — element type of array/tuple
+      // T[number] - element type of array/tuple
       if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
       if (node.indexType?.type !== 'TSLiteralType') return null;
       const { literal } = node.indexType;
