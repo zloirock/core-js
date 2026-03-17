@@ -1,11 +1,10 @@
-'use strict';
-const { compare, filterOutStabilizedProposals, intersection } = require('./helpers');
-const data = require('./data');
-const externalData = require('./external');
-const entries = require('./entries');
-const getModulesListForTargetVersion = require('./get-modules-list-for-target-version');
-const allModules = require('./modules');
-const targetsParser = require('./targets-parser');
+import { compare, filterOutStabilizedProposals, intersection } from './helpers.js';
+import data from './data.json' with { type: 'json' };
+import externalData from './external.json' with { type: 'json' };
+import entries from './entries.json' with { type: 'json' };
+import getModulesListForTargetVersion from './get-modules-list-for-target-version.js';
+import allModules from './modules.json' with { type: 'json' };
+import targetsParser from './targets-parser.js';
 
 const { actual } = entries;
 
@@ -53,7 +52,7 @@ function checkModule(name, targets, external) {
   return result;
 }
 
-module.exports = function ({
+export default function ({
   modules = null,
   exclude = [],
   targets = null,
@@ -92,4 +91,4 @@ module.exports = function ({
   }
 
   return result;
-};
+}

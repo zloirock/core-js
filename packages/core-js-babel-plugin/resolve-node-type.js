@@ -1,4 +1,5 @@
-'use strict';
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+
 const {
   globalProxies,
   constructors: KNOWN_CONSTRUCTORS,
@@ -9,7 +10,7 @@ const {
   instanceMethods: KNOWN_INSTANCE_METHOD_RETURN_TYPES,
   instanceProperties: KNOWN_INSTANCE_PROPERTY_RETURN_TYPES,
   staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
-} = require('@core-js/compat/known-built-in-return-types');
+} = knownBuiltInReturnTypes;
 
 const { assign, create, entries, hasOwn } = Object;
 
@@ -2773,7 +2774,7 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-module.exports = {
+export {
   TYPE_HINTS,
   resolvePropertyObjectType,
   resolveGuardHints,
