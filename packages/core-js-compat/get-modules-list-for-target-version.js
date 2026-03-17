@@ -1,12 +1,11 @@
-'use strict';
-const { compare, intersection, normalizeCoreJSVersion } = require('./helpers');
-const modulesByVersions = require('./modules-by-versions');
-const allModules = require('./modules');
+import { compare, intersection, normalizeCoreJSVersion } from './helpers.js';
+import modulesByVersions from './modules-by-versions.json' with { type: 'json' };
+import allModules from './modules.json' with { type: 'json' };
 
-module.exports = function (raw) {
+export default function (raw) {
   const corejs = normalizeCoreJSVersion(raw);
   const result = Object.entries(modulesByVersions).flatMap(([version, modules]) => {
     return compare(version, '<=', corejs) ? modules : [];
   });
   return intersection(result, allModules);
-};
+}
