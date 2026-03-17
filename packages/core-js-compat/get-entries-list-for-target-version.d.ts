@@ -1,5 +1,5 @@
-import type { EntryName, TargetVersion } from "./shared";
+import type { EntryName, TargetVersion } from "./shared.js";
 
 declare function getEntriesListForTargetVersion(version: TargetVersion): readonly EntryName[];
 
-export = getEntriesListForTargetVersion;
+export default getEntriesListForTargetVersion;
