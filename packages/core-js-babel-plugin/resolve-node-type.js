@@ -104,15 +104,19 @@ function primitiveTypeOf(type) {
   return type?.primitive ? type.type : UNBOXED_PRIMITIVES[type?.constructor] ?? null;
 }
 
-function keyMatchesName(key, name) {
-  return key?.type === 'Identifier' && key.name === name
-    || key?.type === 'StringLiteral' && key.value === name;
+function literalKeyValue(node) {
+  if (node?.type === 'StringLiteral') return node.value;
+  if (node?.type === 'NumericLiteral') return String(node.value);
+  return null;
 }
 
 function getKeyName(key) {
   if (key?.type === 'Identifier') return key.name;
-  if (key?.type === 'StringLiteral') return key.value;
-  return null;
+  return literalKeyValue(key);
+}
+
+function keyMatchesName(key, name) {
+  return getKeyName(key) === name;
 }
 
 function isMemberLike(path) {
@@ -450,9 +454,15 @@ function findTypeMember(objectType, key, scope) {
     }
   }
   if (indexSignatureType) return indexSignatureType;
-  // Flow: ObjectTypeIndexer stored separately in the type node
-  if (objectType.type === 'ObjectTypeAnnotation' && objectType.indexers?.length) {
-    return objectType.indexers[0].value;
+  // Flow: ObjectTypeIndexer stored separately in the type node, not in properties
+  // resolve through type aliases since getTypeMembers follows aliases but returns only properties
+  let resolvedType = objectType;
+  if (resolvedType.type !== 'ObjectTypeAnnotation') {
+    const { node } = followTypeAliasChain(resolvedType, scope);
+    if (node) resolvedType = node;
+  }
+  if (resolvedType.type === 'ObjectTypeAnnotation' && resolvedType.indexers?.length) {
+    return resolvedType.indexers[0].value;
   }
   return null;
 }
@@ -864,14 +874,13 @@ function resolveNumericType(path) {
 }
 
 // resolve property name from a MemberExpression, handling both
-// non-computed (obj.prop), string literal (obj['prop']),
+// non-computed (obj.prop), string/numeric literal (obj['prop'], obj[0]),
 // and constant binding (const key = 'prop'; obj[key])
 function resolveMemberPropertyName(path) {
   const { property, computed } = path.node;
   if (!computed) return property.type === 'Identifier' ? property.name : null;
-  if (property.type === 'StringLiteral') return property.value;
-  const resolved = resolveRuntimeExpression(path.get('property'));
-  return resolved.node?.type === 'StringLiteral' ? resolved.node.value : null;
+  return literalKeyValue(property)
+    ?? literalKeyValue(resolveRuntimeExpression(path.get('property')).node);
 }
 
 // intentionally compares only outer type identity (type + constructor), ignoring `inner`
@@ -912,7 +921,7 @@ function foldTypes(members, resolve, classify) {
     const action = classify(resolved);
     if (action === 0) return null; // BAIL
     if (action === 1) { // SKIP
-      skipped ??= resolved ?? new $Object(null);
+      if (resolved) skipped ??= resolved;
       continue;
     }
     result = commonType(result, resolved);
@@ -1356,6 +1365,9 @@ function hasTypeParamReference(node, typeParamNames, depth) {
         || hasTypeParamReference(node.falseType, typeParamNames, depth + 1);
     case 'TSNamedTupleMember':
       return hasTypeParamReference(node.elementType, typeParamNames, depth + 1);
+    case 'TSIndexedAccessType':
+      return hasTypeParamReference(node.objectType, typeParamNames, depth + 1)
+        || hasTypeParamReference(node.indexType, typeParamNames, depth + 1);
     case 'TSTypeOperator':
     case 'TSRestType':
     case 'TSOptionalType':
@@ -1479,6 +1491,10 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
       ? resolveTupleInner(elements, e => substituteTypeParams(e, typeParamMap, scope, depth + 1))
       : null);
   }
+  // T["key"] or T[number] — resolve indexed access through regular annotation resolution
+  // hasTypeParamReference detects the reference so the substitution path is entered,
+  // but the actual resolution happens through resolveTypeAnnotation which handles TSIndexedAccessType
+  if (node.type === 'TSIndexedAccessType') return resolveTypeAnnotation(node, scope, depth);
   // function type: (x: T) => R - always Function regardless of type parameters
   if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
   // mapped type: { [K in keyof T]: V } - always Object
@@ -1669,6 +1685,11 @@ function memberCallReturnAnnotation(member) {
     const fnType = unwrapTypeAnnotation(member.typeAnnotation);
     if (fnType?.type === 'TSFunctionType') return fnType.typeAnnotation;
   }
+  // Flow: ObjectTypeProperty with FunctionTypeAnnotation value
+  if (member.type === 'ObjectTypeProperty') {
+    const fnType = unwrapTypeAnnotation(member.value);
+    if (fnType?.type === 'FunctionTypeAnnotation') return fnType.returnType;
+  }
   return null;
 }
 
@@ -1719,7 +1740,10 @@ function resolveFromMemberExpression(path, callPath) {
     if (result) return result;
   }
   const ctx = resolveClassContext(objectPath);
-  if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
+  if (ctx) {
+    const result = resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
+    if (result) return result;
+  }
   // try typed member on resolved path first, then on original path (in case resolvePath lost annotation)
   return resolveTypedMember(objectPath, name, callPath)
     || (objectPath !== originalObjectPath ? resolveTypedMember(originalObjectPath, name, callPath) : null);
@@ -2078,9 +2102,10 @@ function resolveRuntimeIterableElement(path) {
 }
 
 function findBindingAnnotation(bindingPath) {
-  return bindingPath.node.typeAnnotation
-    || (bindingPath.isVariableDeclarator() && bindingPath.node.id?.typeAnnotation)
-    || (bindingPath.isAssignmentPattern() && bindingPath.node.left?.typeAnnotation);
+  const { node } = bindingPath;
+  return node.typeAnnotation
+    || node.id?.typeAnnotation
+    || (bindingPath.isAssignmentPattern() && node.left?.typeAnnotation);
 }
 
 // resolve array destructuring from any annotation source: pattern, init, or for-of iterable
