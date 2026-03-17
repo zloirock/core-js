@@ -7,8 +7,6 @@ const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
 const {
-  POSSIBLE_GLOBAL_PROXIES,
-  resolveGlobalName,
   resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
@@ -309,34 +307,8 @@ module.exports = defineProvider(({
     },
     usageGlobal(meta, utils, path) {
       if (skipFile) return;
-      let resolved = resolve(meta);
-      // detect static method access via global proxy (e.g. globalThis.Object.keys, globalThis.Array.from)
-      // the framework misclassifies these as instance accesses
-      // TODO: fix it on @babel/helper-define-polyfill-provider side
-      // https://github.com/babel/babel-polyfills/pull/252
-      if (!meta.object && (path.isMemberExpression() || path.isOptionalMemberExpression())) {
-        const objectName = resolveGlobalName(path.get('object'));
-        if (objectName && hasOwn(StaticProperties, objectName)) {
-          const staticResolved = resolve({ kind: 'property', object: objectName, key: meta.key, placement: 'static' });
-          if (staticResolved && staticResolved.kind === 'static' && hasOwn(staticResolved.desc, 'global')) {
-            resolved = staticResolved;
-          } else return; // known object, key is not a polyfilled static - skip
-        }
-      }
+      const resolved = resolve(meta);
       if (!resolved || !hasOwn(resolved.desc, 'global')) return;
-      // when a property is accessed through a global proxy (e.g. globalThis.Error),
-      // the framework skips processing the proxy identifier - inject its polyfill here
-      // TODO: fix it on @babel/helper-define-polyfill-provider side
-      // https://github.com/babel/babel-polyfills/pull/252
-      if (meta.kind === 'property' && POSSIBLE_GLOBAL_PROXIES.has(meta.object)) {
-        const proxyResolved = resolve({ kind: 'global', name: meta.object });
-        if (proxyResolved && hasOwn(proxyResolved.desc, 'global')) {
-          const proxyDeps = getDependencies(proxyResolved.desc.global);
-          if (proxyDeps?.length) {
-            for (const entry of proxyDeps) injectModulesForModeEntry(entry, utils);
-          }
-        }
-      }
       let { kind, desc: { global: desc } } = resolved;
       if (kind === 'instance') {
         const enhanced = enhanceMeta(meta, path, desc);
