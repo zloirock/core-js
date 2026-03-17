@@ -1,6 +1,6 @@
 # Changelog
 ### Unreleased
-- Added polyfill for ``requestIdleCallback``
+- Added polyfill for `requestIdleCallback`
 - Compat data improvements:
   - Updated Electron 42 compat data mapping
 
