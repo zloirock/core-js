@@ -395,10 +395,15 @@ function isTupleRestElement(element) {
   return unwrapped.type === 'TSRestType';
 }
 
+// get tuple element list: TS uses elementTypes, Flow uses types
+function tupleElements(node) {
+  return node.elementTypes || node.types;
+}
+
 function findTupleElement(objectType, index, scope) {
   const tuple = followTypeAliasChain(objectType, scope);
-  if (tuple?.type !== 'TSTupleType') return null;
-  const elements = tuple.elementTypes;
+  if (tuple?.type !== 'TSTupleType' && tuple?.type !== 'TupleTypeAnnotation') return null;
+  const elements = tupleElements(tuple);
   if (!elements?.length || index < 0) return null;
   // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number
   const element = index < elements.length ? elements[index]
@@ -495,7 +500,7 @@ function resolveKnownContainerType(name, base, node, innerResolver) {
   const params = node.typeParameters?.params;
   if (params?.[0] && (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise')) {
     const inner = innerResolver(params[0]);
-    if (inner && !isNullableOrNever(inner)) base.inner = inner;
+    if (inner && !isNullableOrNever(inner)) return new $Object(base.constructor, inner);
   }
   return base;
 }
@@ -606,10 +611,12 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     case 'ArrayTypeAnnotation':
       return new $Object('Array', resolveNonNullableAnnotation(node.elementType, scope, depth));
     case 'TSTupleType':
-    case 'TupleTypeAnnotation':
-      return new $Object('Array', node.elementTypes?.length
-        ? resolveTupleInner(node.elementTypes, e => resolveTypeAnnotation(e, scope, depth + 1))
+    case 'TupleTypeAnnotation': {
+      const elements = tupleElements(node);
+      return new $Object('Array', elements?.length
+        ? resolveTupleInner(elements, e => resolveTypeAnnotation(e, scope, depth + 1))
         : null);
+    }
     case 'TSFunctionType':
     case 'TSConstructorType':
     case 'FunctionTypeAnnotation':
@@ -749,68 +756,48 @@ function commonType(existing, incoming) {
   return new $Object(existing.constructor);
 }
 
-// compute common inner type from tuple elements using a parameterized resolver
-// returns the common type if all non-nullable elements agree, null otherwise
-function resolveTupleInner(elements, resolver) {
-  let inner = null;
-  for (const elem of elements) {
-    // rest element: ...string[] or ...Array<string> - resolve the collection type, use its inner
-    let resolved;
-    if (isTupleRestElement(elem)) {
-      const restType = resolver(unwrapTupleMember(elem));
-      resolved = resolveInnerType(restType);
-    } else {
-      resolved = resolver(unwrapTupleMember(elem));
-    }
-    if (!resolved) return null;
-    if (isNullableOrNever(resolved)) continue;
-    inner = commonType(inner, resolved);
-    if (!inner) return null;
-  }
-  return inner;
-}
-
 function isNullableOrNever(resolved) {
   return resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never';
 }
 
-// fold union members: resolve each, skip nullable/never, remaining must agree via commonType
-// returns null if any non-nullable member is unresolvable or types conflict
-function foldUnionTypes(types, resolve) {
+// unified fold: resolve each member, classify via `classify(resolved)`:
+//   FOLD (2) - contribute to commonType
+//   SKIP (1) - skip member, track as fallback for all-skipped case
+//   BAIL (0) - abort, return null
+function foldTypes(members, resolve, classify) {
   let result = null;
   let skipped = null;
-  for (const member of types) {
+  for (const member of members) {
     const resolved = resolve(member);
-    if (!resolved) return null;
-    // skip nullable / never types in unions: T | null | undefined | never -> T
-    if (isNullableOrNever(resolved)) {
-      skipped ??= resolved;
-      continue;
-    }
+    const action = classify(resolved);
+    if (action === 0) return null; // BAIL
+    if (action === 1) { skipped ??= resolved ?? new $Object(null); continue; } // SKIP
     result = commonType(result, resolved);
     if (!result) return null;
   }
-  // all-nullable union (null | undefined | never) -> return a representative nullable type
   return result ?? skipped;
 }
 
-// fold intersection members: skip unresolvable and plain Object members, remaining must agree via commonType
-// e.g. string & { __brand: B } -> string, T & SomeUnknownInterface -> T
+// fold union members: unresolvable -> bail, nullable/never -> skip, rest -> fold
+function foldUnionTypes(types, resolve) {
+  return foldTypes(types, resolve, r => !r ? 0 : isNullableOrNever(r) ? 1 : 2);
+}
+
+// fold intersection members: unresolvable or plain Object -> skip, rest -> fold
 function foldIntersectionTypes(types, resolve) {
-  let result = null;
-  let skipped = null;
-  for (const member of types) {
-    const resolved = resolve(member);
-    // unresolvable members (branded types, unknown interfaces) are skipped -
-    // the resolvable members still provide useful type info
-    if (!resolved) { skipped ??= new $Object(null); continue; }
-    // skip structural additions like { key: value } that resolve to plain Object
-    if (!resolved.primitive && resolved.constructor === 'Object') { skipped ??= resolved; continue; }
-    result = commonType(result, resolved);
-    if (!result) return null;
-  }
-  // all-skipped intersection -> return generic object
-  return result ?? skipped;
+  return foldTypes(types, resolve, r => !r || (!r.primitive && r.constructor === 'Object') ? 1 : 2);
+}
+
+// compute common inner type from tuple elements using a parameterized resolver
+// returns the common type if all non-nullable elements agree, null otherwise
+function resolveTupleInner(elements, resolver) {
+  const result = foldTypes(elements, elem => {
+    // rest element: ...string[] or ...Array<string> - resolve the collection type, use its inner
+    if (isTupleRestElement(elem)) return resolveInnerType(resolver(unwrapTupleMember(elem)));
+    return resolver(unwrapTupleMember(elem));
+  }, r => !r ? 0 : isNullableOrNever(r) ? 1 : 2);
+  // all-nullable tuples: return null (unknown inner), not the nullable fallback
+  return result && isNullableOrNever(result) ? null : result;
 }
 
 // resolve a type annotation, returning null for nullable/never types (not useful as inner types)
@@ -1112,7 +1099,7 @@ function resolveNodeTypeExpression(path) {
         return resolveGeneratorTypeParam(path.get('argument'), 1);
       }
       // yield evaluates to the value passed to generator.next(value) = TNext (params[2])
-      const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType?.typeAnnotation), fnPath.scope);
+      const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
       if (params?.[2]) return resolveTypeAnnotation(params[2], fnPath.scope);
       return null;
     }
@@ -1233,7 +1220,7 @@ function hasTypeParamReference(node, typeParamNames, depth) {
       return false;
     case 'TSTupleType':
     case 'TupleTypeAnnotation':
-      for (const element of node.elementTypes || []) {
+      for (const element of tupleElements(node) || []) {
         const actual = element.type === 'TSNamedTupleMember' ? element.elementType : element;
         if (hasTypeParamReference(actual, typeParamNames, depth + 1)) return true;
       }
@@ -1243,6 +1230,8 @@ function hasTypeParamReference(node, typeParamNames, depth) {
         || hasTypeParamReference(node.extendsType, typeParamNames, depth + 1)
         || hasTypeParamReference(node.trueType, typeParamNames, depth + 1)
         || hasTypeParamReference(node.falseType, typeParamNames, depth + 1);
+    case 'TSNamedTupleMember':
+      return hasTypeParamReference(node.elementType, typeParamNames, depth + 1);
     case 'TSTypeOperator':
     case 'TSRestType':
     case 'TSOptionalType':
@@ -1361,8 +1350,9 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   }
   // [T, U] - resolve to Array, compute inner type if all elements agree
   if (node.type === 'TSTupleType' || node.type === 'TupleTypeAnnotation') {
-    return new $Object('Array', node.elementTypes?.length
-      ? resolveTupleInner(node.elementTypes, e => substituteTypeParams(e, typeParamMap, scope, depth + 1))
+    const elements = tupleElements(node);
+    return new $Object('Array', elements?.length
+      ? resolveTupleInner(elements, e => substituteTypeParams(e, typeParamMap, scope, depth + 1))
       : null);
   }
   // function type: (x: T) => R - always Function regardless of type parameters
@@ -1403,8 +1393,11 @@ function resolveReturnType(fnPath, callPath) {
   }
   // fallback: analyze return statements in the function body
   const bodyType = resolveBodyReturnType(fnPath, callPath);
-  // async functions wrap the body return type in Promise
-  if (bodyType && fnPath.node.async && bodyType.constructor !== 'Promise') return new $Object('Promise', bodyType);
+  // async functions always return a Promise, even if body return type is unresolvable
+  if (fnPath.node.async) {
+    if (!bodyType) return new $Object('Promise');
+    if (bodyType.constructor !== 'Promise') return new $Object('Promise', bodyType);
+  }
   return bodyType;
 }
 
@@ -1747,10 +1740,12 @@ function resolveElementType(node, scope, depth) {
       return resolveTypeAnnotation(node.elementType, scope, depth + 1);
     // [string, number] -> common element type if all same
     case 'TSTupleType':
-    case 'TupleTypeAnnotation':
-      return node.elementTypes?.length
-        ? resolveTupleInner(node.elementTypes, e => resolveTypeAnnotation(e, scope, depth + 1))
+    case 'TupleTypeAnnotation': {
+      const elements = tupleElements(node);
+      return elements?.length
+        ? resolveTupleInner(elements, e => resolveTypeAnnotation(e, scope, depth + 1))
         : null;
+    }
     // Array<T>, Set<T>, Map<K,V>, Iterable<T>, Generator<T>, user type aliases
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
