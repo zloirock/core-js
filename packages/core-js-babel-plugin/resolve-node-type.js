@@ -147,6 +147,25 @@ function typeRefName(node) {
   return id?.type === 'Identifier' ? id.name : null;
 }
 
+function isTypeAlias(decl) {
+  return decl?.type === 'TSTypeAliasDeclaration' || decl?.type === 'TypeAlias' || decl?.type === 'OpaqueType';
+}
+
+function isInterfaceDeclaration(decl) {
+  return decl?.type === 'TSInterfaceDeclaration' || decl?.type === 'InterfaceDeclaration';
+}
+
+function typeAliasBody(decl) {
+  if (decl.type === 'TSTypeAliasDeclaration') return decl.typeAnnotation;
+  if (decl.type === 'OpaqueType') return decl.impltype;
+  return decl.right;
+}
+
+// TS extends: TSExpressionWithTypeArguments has .expression; Flow extends: InterfaceExtends has .id
+function extendsId(parent) {
+  return parent.expression ?? parent.id ?? parent;
+}
+
 // follow type alias chain: type A = type B = ... until non-alias or non-reference found
 // returns { node, subst } where subst is a Map<string, ASTNode> of accumulated type parameter
 // substitutions through the chain, or null if no generic aliases were traversed
@@ -158,7 +177,7 @@ function followTypeAliasChain(node, scope) {
     const refName = typeRefName(node);
     if (!refName) break;
     const decl = findTypeDeclaration(refName, scope);
-    if (decl?.type !== 'TSTypeAliasDeclaration') break;
+    if (!isTypeAlias(decl)) break;
     // accumulate type parameter substitutions for generic aliases
     const declParams = decl.typeParameters?.params;
     const usageArgs = node.typeParameters?.params;
@@ -176,7 +195,7 @@ function followTypeAliasChain(node, scope) {
       }
       subst = newSubst;
     }
-    node = unwrapTypeAnnotation(decl.typeAnnotation);
+    node = unwrapTypeAnnotation(typeAliasBody(decl));
   }
   return { node, subst };
 }
@@ -266,7 +285,7 @@ function findInStatements(name, statements) {
       statement = statement.declaration;
     }
     if (statement.id?.name === name
-      && (statement.type === 'TSTypeAliasDeclaration' || statement.type === 'TSInterfaceDeclaration'
+      && (isTypeAlias(statement) || isInterfaceDeclaration(statement)
         || statement.type === 'TSEnumDeclaration')) return statement;
     if (statement.type === 'TSModuleDeclaration') {
       const inner = findInStatements(name, statement.body?.body);
@@ -294,7 +313,7 @@ function findTypeParameter(name, scope) {
   while (currentScope) {
     const params = currentScope.block.typeParameters?.params;
     if (params) for (const param of params) {
-      if (param.name === name) return { constraint: param.constraint, scope: currentScope };
+      if (param.name === name) return { constraint: param.constraint ?? param.bound, scope: currentScope };
     }
     currentScope = currentScope.parent;
   }
@@ -346,13 +365,13 @@ function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
   const resolve = typeParamMap
     ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1)
     : p => resolveTypeAnnotation(p, scope, depth + 1);
-  if (declaration.type === 'TSTypeAliasDeclaration') return resolve(declaration.typeAnnotation);
+  if (isTypeAlias(declaration)) return resolve(typeAliasBody(declaration));
   if (declaration.type === 'TSEnumDeclaration') return resolveEnumType(declaration);
-  if (declaration.type === 'TSInterfaceDeclaration') {
+  if (isInterfaceDeclaration(declaration)) {
     const parents = declaration.extends;
     if (parents?.length) {
       for (const parent of parents) {
-        const base = parent.expression ?? parent;
+        const base = extendsId(parent);
         if (base.type !== 'Identifier') continue;
         const constructor = resolveKnownConstructor(base.name);
         const result = resolveKnownContainerType(base.name, constructor, parent, resolve)
@@ -368,25 +387,28 @@ function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
 function getTypeMembers(objectType, scope, depth = 0) {
   if (depth > MAX_DEPTH) return null;
   if (objectType.type === 'TSTypeLiteral') return objectType.members;
+  if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
   const name = typeRefName(objectType);
   const declaration = name ? findTypeDeclaration(name, scope) : null;
-  if (declaration?.type === 'TSInterfaceDeclaration') {
-    const own = declaration.body?.body;
+  if (isInterfaceDeclaration(declaration)) {
+    // TS: declaration.body.body, Flow: declaration.body.properties
+    const own = declaration.body?.body ?? declaration.body?.properties;
     // collect members from the extends chain
     const parents = declaration.extends;
     if (!parents?.length) return own;
     const all = own ? [...own] : [];
     for (const parent of parents) {
-      // TSExpressionWithTypeArguments has .expression (Identifier), wrap as TSTypeReference
-      const expr = parent.expression ?? parent;
-      const parentRef = expr.type === 'Identifier' ? { type: 'TSTypeReference', typeName: expr } : expr;
+      const expr = extendsId(parent);
+      const parentRef = expr.type === 'Identifier'
+        ? { type: 'TSTypeReference', typeName: expr, typeParameters: parent.typeParameters }
+        : expr;
       const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
       if (parentMembers) for (const m of parentMembers) all.push(m);
     }
     return all.length ? all : null;
   }
-  if (declaration?.type === 'TSTypeAliasDeclaration') {
-    return getTypeMembers(unwrapTypeAnnotation(declaration.typeAnnotation), scope, depth + 1);
+  if (isTypeAlias(declaration)) {
+    return getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1);
   }
   return null;
 }
@@ -398,14 +420,20 @@ function findTypeMember(objectType, key, scope) {
   for (const member of members) {
     if (member.type === 'TSPropertySignature' || member.type === 'TSMethodSignature') {
       if (keyMatchesName(member.key, key)) {
-        // TSMethodSignature as non-call property access: the member itself is a function
         return member.type === 'TSMethodSignature' ? { type: 'TSFunctionType' } : member.typeAnnotation;
       }
+    } else if (member.type === 'ObjectTypeProperty') {
+      if (keyMatchesName(member.key, key)) return member.value;
     } else if (!indexSignatureType && member.type === 'TSIndexSignature' && member.typeAnnotation) {
       indexSignatureType = member.typeAnnotation;
     }
   }
-  return indexSignatureType;
+  if (indexSignatureType) return indexSignatureType;
+  // Flow: ObjectTypeIndexer stored separately in the type node
+  if (objectType.type === 'ObjectTypeAnnotation' && objectType.indexers?.length) {
+    return objectType.indexers[0].value;
+  }
+  return null;
 }
 
 function unwrapTupleMember(element) {
@@ -459,8 +487,11 @@ function isAssignableTo(candidate, target) {
 function resolveExtractExclude(first, second, scope, depth, keep) {
   const target = resolveTypeAnnotation(second, scope, depth + 1);
   if (!target) return null;
-  const unwrapped = unwrapTypeAnnotation(first);
+  let unwrapped = unwrapTypeAnnotation(first);
   if (!unwrapped) return null;
+  // follow type alias chain to unwrap aliases like type MyUnion = string | number
+  const { node: aliasTarget } = followTypeAliasChain(unwrapped, scope);
+  if (aliasTarget) unwrapped = aliasTarget;
   const types = unwrapped.type === 'TSUnionType' || unwrapped.type === 'UnionTypeAnnotation' ? unwrapped.types : [unwrapped];
   let result = null;
   for (const member of types) {
@@ -1452,7 +1483,11 @@ function resolveReturnType(fnPath, callPath) {
   // try return type annotation
   if (returnType) {
     const resolved = resolveTypeAnnotation(returnType, fnPath.scope);
-    if (resolved) return resolved;
+    if (resolved) {
+      // Flow allows async functions with non-Promise return annotations (e.g. async function(): string)
+      if (fnPath.node.async && resolved.constructor !== 'Promise') return new $Object('Promise', resolved);
+      return resolved;
+    }
   }
   // fallback: analyze return statements in the function body
   const bodyType = resolveBodyReturnType(fnPath, callPath);
@@ -1594,13 +1629,21 @@ function memberCallReturnAnnotation(member) {
 }
 
 function resolveTypedMember(objectPath, name, callPath) {
-  if (!objectPath.isIdentifier()) return null;
-  const binding = objectPath.scope.getBinding(objectPath.node.name);
-  if (!binding) return null;
-  const { path: bindingPath } = binding;
-  const annotation = unwrapTypeAnnotation(findBindingAnnotation(bindingPath));
+  let annotation, scope;
+  if (objectPath.isIdentifier()) {
+    const binding = objectPath.scope.getBinding(objectPath.node.name);
+    if (!binding) return null;
+    annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
+    scope = binding.path.scope;
+  } else {
+    const { type } = objectPath.node;
+    if (type === 'TSAsExpression' || type === 'TSTypeAssertion'
+      || type === 'TSSatisfiesExpression' || type === 'TypeCastExpression') {
+      annotation = unwrapTypeAnnotation(objectPath.node.typeAnnotation);
+      scope = objectPath.scope;
+    }
+  }
   if (!annotation) return null;
-  const { scope } = bindingPath;
   // property access (not a call): delegate to findTypeMember
   if (!callPath) {
     const memberType = findTypeMember(annotation, name, scope);
@@ -1777,18 +1820,7 @@ function findDestructuredKeyName(objectPattern, name) {
 function resolveDestructuredType(objectPattern, name, scope) {
   const keyName = findDestructuredKeyName(objectPattern, name);
   if (!keyName) return null;
-  // TS: TSTypeLiteral or TSTypeReference (interface/type alias)
-  const result = resolveAnnotatedMember(objectPattern.typeAnnotation, keyName, scope);
-  if (result) return result;
-  // Flow: ObjectTypeAnnotation.properties
-  const type = unwrapTypeAnnotation(objectPattern.typeAnnotation);
-  if (type?.type === 'ObjectTypeAnnotation') {
-    for (const member of type.properties) {
-      if (!keyMatchesName(member.key, keyName)) continue;
-      return resolveTypeAnnotation(member.value, scope);
-    }
-  }
-  return null;
+  return resolveAnnotatedMember(objectPattern.typeAnnotation, keyName, scope);
 }
 
 // resolve the element type of a collection from its type annotation
@@ -1854,10 +1886,10 @@ function resolveElementType(node, scope, depth) {
 // follow user-defined type aliases and interface extends chain using a parameterized resolver
 function resolveUserTypeElement(name, scope, depth, resolver) {
   const decl = findTypeDeclaration(name, scope);
-  if (decl?.type === 'TSTypeAliasDeclaration') return resolver(decl.typeAnnotation, scope, depth + 1);
-  if (decl?.type !== 'TSInterfaceDeclaration' || !decl.extends?.length) return null;
+  if (isTypeAlias(decl)) return resolver(typeAliasBody(decl), scope, depth + 1);
+  if (!isInterfaceDeclaration(decl) || !decl.extends?.length) return null;
   for (const parent of decl.extends) {
-    const expr = parent.expression ?? parent;
+    const expr = extendsId(parent);
     if (expr.type !== 'Identifier') continue;
     const parentRef = { type: 'TSTypeReference', typeName: expr, typeParameters: parent.typeParameters };
     const result = resolver(parentRef, scope, depth + 1);
@@ -2062,7 +2094,7 @@ function resolveAnnotatedMember(annotation, keyName, scope) {
 // mirrors runtime `await` semantics: Promise<Promise<T>> -> T
 function unwrapPromiseAnnotation(node) {
   let result = unwrapTypeAnnotation(node);
-  while (result?.type === 'TSTypeReference' && typeRefName(result) === 'Promise') {
+  while ((result?.type === 'TSTypeReference' || result?.type === 'GenericTypeAnnotation') && typeRefName(result) === 'Promise') {
     const inner = result.typeParameters?.params[0];
     if (!inner) break;
     const unwrapped = unwrapTypeAnnotation(inner);
