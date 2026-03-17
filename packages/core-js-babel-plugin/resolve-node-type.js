@@ -251,7 +251,10 @@ function resolveTypeofQualifiedMember(objectName, memberName, scope) {
     const init = bindingPath.get('init');
     if (init.node) {
       const resolved = resolveRuntimeExpression(init);
-      if (resolved.isObjectExpression()) return resolveObjectMember(resolved, memberName);
+      if (resolved.isObjectExpression()) {
+        const result = resolveObjectMember(resolved, memberName);
+        if (result) return result;
+      }
       if (resolved.isClass()) return resolveClassMember(resolved, memberName, true);
     }
   }
@@ -512,13 +515,17 @@ function resolveExtractExclude(first, second, scope, depth, keep) {
   if (aliasTarget) unwrapped = aliasTarget;
   const types = unwrapped.type === 'TSUnionType' || unwrapped.type === 'UnionTypeAnnotation' ? unwrapped.types : [unwrapped];
   let result = null;
+  let anyKept = false;
   for (const member of types) {
     const resolved = resolveTypeAnnotation(member, scope, depth + 1);
     if (!resolved) return null;
     if (isAssignableTo(resolved, target) !== keep) continue;
+    anyKept = true;
     result = commonType(result, resolved);
     if (!result) return null;
   }
+  // all members excluded → never (not null/unknown)
+  if (!anyKept) return new $Primitive('never');
   return result;
 }
 
@@ -2180,7 +2187,10 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
     const initPath = resolveRuntimeExpression(bindingPath.get('init'));
     // const { name } = { name: 'alice' }
-    if (initPath.isObjectExpression()) return resolveObjectMember(initPath, keyName);
+    if (initPath.isObjectExpression()) {
+      const result = resolveObjectMember(initPath, keyName);
+      if (result) return result;
+    }
     // const { key } = annotatedVar where annotatedVar: { key: string }
     const annotationInfo = findExpressionAnnotation(bindingPath.get('init'));
     if (annotationInfo) {
@@ -2326,7 +2336,8 @@ function blockAlwaysExits(block, depth = 0) {
 
 function canFallThrough($case) {
   const { consequent } = $case;
-  return !consequent.length || !nodeAlwaysExits(consequent[consequent.length - 1]);
+  for (let i = 0; i < consequent.length; i++) if (nodeAlwaysExits(consequent[i])) return false;
+  return true;
 }
 
 // flatten a && b && c when condition is true, or a || b || c when condition is false
@@ -2467,11 +2478,18 @@ function findPrecedingExitGuards(siblings, index, varName) {
   return guards;
 }
 
-function findEarlyExitGuards(current, varName) {
+// get the statement list containing `current` if it's a numbered member of a block-like parent
+function getStatementSiblings(current) {
+  if (typeof current.key !== 'number') return null;
   const parent = current.parentPath;
-  if (typeof current.key !== 'number' || current.listKey !== 'body') return [];
-  if (!parent.isBlockStatement() && !parent.isProgram()) return [];
-  return findPrecedingExitGuards(parent.get('body'), current.key, varName);
+  if (current.listKey === 'body' && (parent.isBlockStatement() || parent.isProgram())) return parent.get('body');
+  if (current.listKey === 'consequent' && parent.isSwitchCase()) return parent.get('consequent');
+  return null;
+}
+
+function findEarlyExitGuards(current, varName) {
+  const siblings = getStatementSiblings(current);
+  return siblings ? findPrecedingExitGuards(siblings, current.key, varName) : [];
 }
 
 // collect ALL type guards along the AST path for cumulative narrowing
@@ -2530,7 +2548,7 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
     if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
     if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent)) return true;
     if (findEarlyExitGuards(current, varName).length) {
-      const siblings = parent.get('body');
+      const siblings = getStatementSiblings(current);
       for (let i = current.key - 1; i >= 0; i--) {
         const conditionTrue = resolveExitCondition(siblings[i]);
         if (conditionTrue === null) continue;
