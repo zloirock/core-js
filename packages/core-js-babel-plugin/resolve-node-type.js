@@ -194,6 +194,23 @@ function constantBindingPath(name, scope) {
   return binding?.constant ? binding.path : null;
 }
 
+// resolve `typeof variable` to a type — shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
+function resolveTypeofBinding(name, scope) {
+  const bindingPath = constantBindingPath(name, scope);
+  if (!bindingPath) return null;
+  if (bindingPath.isVariableDeclarator()) {
+    const annotation = bindingPath.node.id?.typeAnnotation;
+    if (annotation) return resolveTypeAnnotation(annotation, scope);
+    const init = bindingPath.get('init');
+    if (init.node) return resolveNodeType(init);
+  } else {
+    const annotation = findBindingAnnotation(bindingPath);
+    if (annotation) return resolveTypeAnnotation(annotation, scope);
+  }
+  if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return new $Object('Function');
+  return null;
+}
+
 function resolveTypeQuery(node, scope) {
   const { exprName } = node;
   // typeof obj.prop - qualified name (one level deep)
@@ -216,19 +233,7 @@ function resolveTypeQuery(node, scope) {
     return null;
   }
   if (exprName?.type !== 'Identifier') return null;
-  const bindingPath = constantBindingPath(exprName.name, scope);
-  if (!bindingPath) return null;
-  if (bindingPath.isVariableDeclarator()) {
-    const annotation = bindingPath.node.id?.typeAnnotation;
-    if (annotation) return resolveTypeAnnotation(annotation, scope);
-    const init = bindingPath.get('init');
-    if (init.node) return resolveNodeType(init);
-  } else {
-    const annotation = findBindingAnnotation(bindingPath);
-    if (annotation) return resolveTypeAnnotation(annotation, scope);
-  }
-  if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return new $Object('Function');
-  return null;
+  return resolveTypeofBinding(exprName.name, scope);
 }
 
 // resolve an enum declaration to a primitive type
@@ -437,7 +442,8 @@ function findTupleElement(objectType, index, scope) {
     // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
     : isTupleRestElement(elements[elements.length - 1]) ? elements[elements.length - 1] : null;
   if (!element) return null;
-  const memberNode = isTupleRestElement(element) ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
+  const memberNode = isTupleRestElement(element)
+    ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
   if (!memberNode) return null;
   // substitute type parameters from generic aliases: type Pair<T> = [T, T] -> Pair<string>[0] = string
   return applyAliasSubst(memberNode, subst);
@@ -554,27 +560,42 @@ function resolveNamedType(name, node, scope, depth) {
   if (known) return known;
   switch (name) {
     // well-known utility types -> Object
+    // Flow: $ReadOnly, $Shape, $Diff, $Rest, $ObjMap, $ObjMapi, $ObjMapConst
     case 'Record':
     case 'Partial':
     case 'Required':
     case 'Pick':
     case 'Omit':
     case 'Readonly':
+    case '$ReadOnly':
+    case '$Shape':
+    case '$Diff':
+    case '$Rest':
+    case '$ObjMap':
+    case '$ObjMapi':
+    case '$ObjMapConst':
       return new $Object('Object');
     // well-known utility types -> Array
     case 'Parameters':
     case 'ConstructorParameters':
       return new $Object('Array');
     // well-known utility types -> string
+    // Flow: $Keys
     case 'Uppercase':
     case 'Lowercase':
     case 'Capitalize':
     case 'Uncapitalize':
+    case '$Keys':
       return new $Primitive('string');
-    // well-known utility types - resolve type parameter
+    // well-known utility types - transparent wrappers resolving type parameter
+    // Flow: $Exact
     case 'NoInfer':
+    case '$Exact':
       return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
+    // well-known utility types - resolve type parameter, strip nullable/never
+    // Flow: $NonMaybeType
     case 'NonNullable':
+    case '$NonMaybeType':
       return node.typeParameters?.params[0] ? resolveNonNullableAnnotation(node.typeParameters.params[0], scope, depth) : null;
     case 'Awaited': {
       const param = node.typeParameters?.params[0];
@@ -596,6 +617,18 @@ function resolveNamedType(name, node, scope, depth) {
       const params = node.typeParameters?.params;
       return params?.length >= 2 ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract') : null;
     }
+    // Flow $ReadOnlyArray<T> -> Array with inner type (equivalent to ReadonlyArray<T>)
+    case '$ReadOnlyArray': {
+      const inner = node.typeParameters?.params[0]
+        ? resolveNonNullableAnnotation(node.typeParameters.params[0], scope, depth) : null;
+      return new $Object('Array', inner);
+    }
+    // Flow utility types (conservative: unknown)
+    case '$Values':
+    case '$ElementType':
+    case '$PropertyType':
+    case '$Call':
+      return null;
   }
   // resolve user-defined type aliases and interfaces via scope chain
   return resolveUserDefinedType(name, node, scope, depth);
@@ -671,6 +704,14 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     // TS typeof in type position: `typeof variable`
     case 'TSTypeQuery':
       return resolveTypeQuery(node, scope);
+    // Flow typeof in type position: `typeof variable`
+    case 'TypeofTypeAnnotation': {
+      const arg = node.argument;
+      if (arg?.type === 'GenericTypeAnnotation' && arg.id?.type === 'Identifier') {
+        return resolveTypeofBinding(arg.id.name, scope);
+      }
+      return null;
+    }
     // TS template literal type: `prefix_${string}`
     case 'TSTemplateLiteralType':
       return new $Primitive('string');
