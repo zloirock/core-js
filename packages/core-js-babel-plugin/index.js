@@ -264,7 +264,7 @@ module.exports = defineProvider(({
     if (node.computed) skippedNodes.add(node.property);
     const isCall = t.isCallExpression(parent, { callee: node })
       || t.isOptionalCallExpression(parent, { callee: node });
-    if (isCall && parent.arguments.length === 0) {
+    if (isCall && parent.arguments.length === 0 && !parent.optional) {
       if (!isEntryNeeded('get-iterator')) return;
       replaceCallWithSimple(path, injectPureImport('get-iterator', 'getIterator', utils));
       debug('get-iterator');
