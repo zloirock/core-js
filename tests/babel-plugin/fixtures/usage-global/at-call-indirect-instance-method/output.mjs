@@ -1,4 +1,3 @@
-import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.join";
 import "core-js/modules/es.string.at";
 const arr = [1, 2, 3];

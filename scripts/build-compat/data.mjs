@@ -2,9 +2,8 @@
 import { dataWithIgnored as data, ignored, modules } from '../../packages/core-js-compat/src/data.mjs';
 import external from '../../packages/core-js-compat/src/external.mjs';
 import mappings from '../../packages/core-js-compat/src/mapping.mjs';
-import helpers from '../../packages/core-js-compat/helpers.js';
+import { compare, semver, sortObjectByKey } from '../../packages/core-js-compat/helpers.js';
 
-const { compare, semver, sortObjectByKey } = helpers;
 const { hasOwn } = Object;
 
 for (const scope of [data, external]) {
