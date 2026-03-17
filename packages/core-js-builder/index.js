@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { styleText } from 'node:util';
 import { build } from 'rolldown';
 import { transform } from '@swc/core';
-import compat from '@core-js/compat/compat.js';
-import { banner, getRolldownOptions, MinifyOptions, ModernSyntax } from './config.mjs';
+import compat from '@core-js/compat/compat';
+import { banner, getRolldownOptions, MinifyOptions, ModernSyntax } from './config.js';
 
 function normalizeSummary(unit = {}) {
   let size, modules;
