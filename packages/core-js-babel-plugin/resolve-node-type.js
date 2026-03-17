@@ -680,6 +680,13 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
           return new $Primitive(node.literal.argument?.type === 'BigIntLiteral' ? 'bigint' : 'number');
       }
       return null;
+    // Flow literal types: 'hello', 42, true
+    case 'StringLiteralTypeAnnotation':
+      return new $Primitive('string');
+    case 'NumberLiteralTypeAnnotation':
+      return new $Primitive('number');
+    case 'BooleanLiteralTypeAnnotation':
+      return new $Primitive('boolean');
     // TS indexed access type: Config["items"], [string, number[]][1], or Items[number]
     case 'TSIndexedAccessType': {
       // T[number] - element type of array/tuple
