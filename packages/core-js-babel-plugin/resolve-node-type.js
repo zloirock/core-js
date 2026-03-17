@@ -148,17 +148,44 @@ function typeRefName(node) {
 }
 
 // follow type alias chain: type A = type B = ... until non-alias or non-reference found
+// returns { node, subst } where subst is a Map<string, ASTNode> of accumulated type parameter
+// substitutions through the chain, or null if no generic aliases were traversed
 function followTypeAliasChain(node, scope) {
   let depth = MAX_DEPTH;
+  let subst = null;
   node = unwrapTypeAnnotation(node);
   while (depth-- && (node?.type === 'TSTypeReference' || node?.type === 'GenericTypeAnnotation')) {
     const refName = typeRefName(node);
     if (!refName) break;
     const decl = findTypeDeclaration(refName, scope);
     if (decl?.type !== 'TSTypeAliasDeclaration') break;
+    // accumulate type parameter substitutions for generic aliases
+    const declParams = decl.typeParameters?.params;
+    const usageArgs = node.typeParameters?.params;
+    if (declParams?.length && usageArgs?.length) {
+      const newSubst = new Map(subst);
+      for (let i = 0; i < declParams.length && i < usageArgs.length; i++) {
+        let arg = usageArgs[i];
+        // resolve through existing substitutions for chained generic aliases:
+        // type A<T> = B<T>; type B<U> = [U, U]; -> A<string> needs U -> T -> string
+        if (subst) {
+          const argName = typeRefName(arg);
+          if (argName && subst.has(argName)) arg = subst.get(argName);
+        }
+        newSubst.set(declParams[i].name, arg);
+      }
+      subst = newSubst;
+    }
     node = unwrapTypeAnnotation(decl.typeAnnotation);
   }
-  return node;
+  return { node, subst };
+}
+
+// substitute direct type parameter references through a subst map from followTypeAliasChain
+function applyAliasSubst(node, subst) {
+  if (!subst) return node;
+  const name = typeRefName(node);
+  return name && subst.has(name) ? subst.get(name) : node;
 }
 
 function constantBindingPath(name, scope) {
@@ -401,7 +428,7 @@ function tupleElements(node) {
 }
 
 function findTupleElement(objectType, index, scope) {
-  const tuple = followTypeAliasChain(objectType, scope);
+  const { node: tuple, subst } = followTypeAliasChain(objectType, scope);
   if (tuple?.type !== 'TSTupleType' && tuple?.type !== 'TupleTypeAnnotation') return null;
   const elements = tupleElements(tuple);
   if (!elements?.length || index < 0) return null;
@@ -410,8 +437,10 @@ function findTupleElement(objectType, index, scope) {
     // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
     : isTupleRestElement(elements[elements.length - 1]) ? elements[elements.length - 1] : null;
   if (!element) return null;
-  if (isTupleRestElement(element)) return extractElementAnnotation(unwrapTupleMember(element), scope, 0);
-  return unwrapTupleMember(element);
+  const memberNode = isTupleRestElement(element) ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
+  if (!memberNode) return null;
+  // substitute type parameters from generic aliases: type Pair<T> = [T, T] -> Pair<string>[0] = string
+  return applyAliasSubst(memberNode, subst);
 }
 
 function isAssignableTo(candidate, target) {
@@ -543,6 +572,8 @@ function resolveNamedType(name, node, scope, depth) {
     case 'Uncapitalize':
       return new $Primitive('string');
     // well-known utility types - resolve type parameter
+    case 'NoInfer':
+      return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
     case 'NonNullable':
       return node.typeParameters?.params[0] ? resolveNonNullableAnnotation(node.typeParameters.params[0], scope, depth) : null;
     case 'Awaited': {
@@ -895,36 +926,17 @@ function resolveClassInheritance(classPath) {
   return null;
 }
 
-// when annotation is an alias with type arguments (e.g. MyGen<string> -> Generator<T>),
-// build a substitution map from alias type params -> outer args and apply it to the inner params
-function substituteAliasArgs(params, annotation, scope) {
-  const outerArgs = annotation?.typeParameters?.params;
-  if (!outerArgs?.length) return params;
-  const aliasName = typeRefName(annotation);
-  if (!aliasName) return params;
-  const decl = findTypeDeclaration(aliasName, scope);
-  const declParams = decl?.typeParameters?.params;
-  if (!declParams?.length) return params;
-  const subst = new Map();
-  for (let i = 0; i < declParams.length && i < outerArgs.length; i++) {
-    if (declParams[i].name) subst.set(declParams[i].name, outerArgs[i]);
-  }
-  if (!subst.size) return params;
-  return params.map(p => {
-    const name = typeRefName(p);
-    return name && subst.has(name) ? subst.get(name) : p;
-  });
-}
-
 // if annotation resolves to Generator/AsyncGenerator, return its type params; otherwise null
 // handles aliased types: type MyGen<T> = Generator<T> -> substitutes T with actual args
+// supports chained aliases with different param names: type A<T> = B<T>; type B<U> = Generator<U>
 function generatorTypeParams(annotation, scope) {
-  const ref = followTypeAliasChain(annotation, scope);
+  const { node: ref, subst } = followTypeAliasChain(annotation, scope);
   const refName = typeRefName(ref);
   if (refName !== 'Generator' && refName !== 'AsyncGenerator') return null;
   const params = ref.typeParameters?.params;
   if (!params?.length) return null;
-  return annotation === ref ? params : substituteAliasArgs(params, annotation, scope);
+  if (!subst) return params;
+  return params.map(p => applyAliasSubst(p, subst));
 }
 
 // resolve a specific Generator/AsyncGenerator type parameter from an expression
@@ -2445,11 +2457,11 @@ function resolveTypeGuardNarrowing(path) {
   if (annotation) {
     // narrow union type annotation by guards
     const { scope } = binding.path;
-    const union = followTypeAliasChain(annotation, scope);
+    const { node: union, subst } = followTypeAliasChain(annotation, scope);
     if (union?.type !== 'TSUnionType' && union?.type !== 'UnionTypeAnnotation') return null;
     const { types } = union;
     if (!types?.length) return null;
-    return narrowByGuards(types.map(member => resolveTypeAnnotation(member, scope)), guards);
+    return narrowByGuards(types.map(member => resolveTypeAnnotation(applyAliasSubst(member, subst), scope)), guards);
   }
   // no annotation: resolve type directly from positive guards
   return narrowByGuards(guards.filter(g => g.positive).map(resolveGuardType), guards);
