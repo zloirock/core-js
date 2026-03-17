@@ -1767,6 +1767,8 @@ const nodePackages = {
   // prefer top-level await
   'unicorn/prefer-top-level-await': ERROR,
   ...forbidSomeES2025Syntax,
+  'es/no-import-attributes': OFF,
+  'es/no-json-modules': OFF,
 };
 
 const nodeDev = {
@@ -2190,6 +2192,10 @@ const markdown = {
   'prefer-regex-literals': OFF,
   // disallow top-level `await`
   'es/no-top-level-await': OFF,
+  // import used for tasks
+  'import/first': OFF,
+  // enforce a newline after import statements
+  'import/newline-after-import': OFF,
   // ensure imports point to files / modules that can be resolved
   'import/no-unresolved': OFF,
   // enforces the use of `catch()` on un-returned promises
@@ -2304,7 +2310,9 @@ export default [
   {
     files: [
       '**/*.mjs',
+      'packages/core-js-babel-plugin/**',
       'packages/core-js-builder/**',
+      'packages/core-js-compat/**',
       'tests/eslint/**',
     ],
     languageOptions: {

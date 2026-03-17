@@ -1,4 +1,7 @@
-'use strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+
 const SEMVER = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
 // eslint-disable-next-line sonarjs/slow-regex -- ok
 const SEMVER_WITH_REQUIRED_MINOR_COMPONENT = /(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/;
@@ -44,11 +47,10 @@ function normalizeCoreJSVersion(raw) {
   let requiredMinorComponent = true;
 
   if (raw === 'node_modules') {
-    // eslint-disable-next-line node/global-require -- ok
     raw = require('core-js/package.json').version;
   } else if (raw === 'package.json') {
     requiredMinorComponent = false;
-    // eslint-disable-next-line node/global-require, import/no-dynamic-require -- ok
+    // eslint-disable-next-line import/no-dynamic-require -- ok
     const { dependencies, devDependencies, peerDependencies } = require(`${ process.cwd() }/package.json`);
     raw = dependencies?.['core-js'] ?? devDependencies?.['core-js'] ?? peerDependencies?.['core-js'];
     if (raw === undefined) {
@@ -89,7 +91,7 @@ function sortObjectByKey(object, fn) {
   }, {});
 }
 
-module.exports = {
+export {
   compare,
   filterOutStabilizedProposals,
   intersection,

@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "type": "commonjs",
+  "type": "module",
   "description": "core-js compat",
   "repository": {
     "type": "git",
@@ -84,5 +84,8 @@
   },
   "dependencies": {
     "browserslist": "^4.28.1"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   }
 }

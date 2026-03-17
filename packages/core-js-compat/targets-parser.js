@@ -1,7 +1,6 @@
-'use strict';
-const browserslist = require('browserslist');
-const { compare } = require('./helpers');
-const external = require('./external');
+import browserslist from 'browserslist';
+import { compare } from './helpers.js';
+import external from './external.json' with { type: 'json' };
 
 const { entries, hasOwn } = Object;
 const { isArray } = Array;
@@ -48,7 +47,7 @@ const toLowerKeys = function (object) {
   }, {});
 };
 
-module.exports = function (targets) {
+export default function (targets) {
   const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || isArray(targets))
     ? { browsers: targets } : toLowerKeys(targets);
 
@@ -108,4 +107,4 @@ module.exports = function (targets) {
   }
 
   return reduced;
-};
+}
