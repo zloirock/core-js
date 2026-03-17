@@ -7,6 +7,7 @@ const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list
 const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
 const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
 const {
+  TYPE_HINTS,
   resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
@@ -33,22 +34,6 @@ function normalizeImportPath(path) {
     .replace(/(?:\/(?:index)?)?(?:\.js)?$/i, '')
     .toLowerCase();
 }
-
-const TYPE_HINTS = new Set([
-  'array',
-  'asynciterator',
-  'bigint',
-  'boolean',
-  'date',
-  'function',
-  'iterator',
-  'number',
-  'object',
-  'promise',
-  'regexp',
-  'string',
-  'symbol',
-]);
 
 function getDependencies(desc) {
   if (typeof desc === 'string') return [desc];
