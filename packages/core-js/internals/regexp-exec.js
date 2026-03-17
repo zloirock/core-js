@@ -14,7 +14,8 @@ var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 var UNSUPPORTED_HAS_INDICES = require('../internals/regexp-unsupported-has-indices');
 
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
-var nativeExec = RegExp.prototype.exec;
+var NativeRegExp = RegExp;
+var nativeExec = NativeRegExp.prototype.exec;
 var patchedExec = nativeExec;
 var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
@@ -94,15 +95,43 @@ var getGroupParents = function (source) {
   return parents;
 };
 
+// Parse backreference number starting at position i in source
+// Returns { refNum: number, newIndex: number }
+var parseBackreference = function (source, i) {
+  var next = charAt(source, i);
+  var refNum = next - '0';
+  // Handle multi-digit backreferences like \10, \12
+  while (i + 1 < source.length) {
+    var digit = charAt(source, i + 1);
+    if (digit >= '0' && digit <= '9') {
+      i++;
+      refNum = refNum * 10 + (digit - '0');
+    } else break;
+  }
+  return { refNum: refNum, newIndex: i };
+};
+
 // Inject empty capture `()` before each capturing open paren
+// Also renumber backreferences: \N -> \2N (since each original group N becomes group 2N)
 var buildInstrumentedSource = function (source) {
   var result = '';
   var inClass = false;
   for (var i = 0; i < source.length; i++) {
     var ch = charAt(source, i);
     if (ch === '\\') {
-      result += ch + charAt(source, i + 1);
+      result += ch;
       i++;
+      if (i >= source.length) continue;
+      var next = charAt(source, i);
+      // Renumber backreferences: \1 -> \2, \2 -> \4, \N -> \2N
+      if (next >= '1' && next <= '9') {
+        var parsed = parseBackreference(source, i);
+        i = parsed.newIndex;
+        // Renumber: each original group N becomes 2N
+        result += String(parsed.refNum * 2);
+      } else {
+        result += next;
+      }
       continue;
     }
     if (ch === '[') {
@@ -147,7 +176,8 @@ var computeIndicesInstrumented = function (originalRe, match, str, matchStart, m
   instrFlags = replace(instrFlags, 'y', '');
   instrFlags = replace(instrFlags, 'd', '');
   var instrSource = buildInstrumentedSource(originalRe.source);
-  var instrRe = new RegExp(instrSource, instrFlags);
+  // Use native RegExp constructor to avoid polyfill side effects
+  var instrRe = new NativeRegExp(instrSource, instrFlags);
   var instrMatch = call(nativeExec, instrRe, stringSlice(str, matchStart));
 
   if (!instrMatch || instrMatch.index !== 0) return false;
