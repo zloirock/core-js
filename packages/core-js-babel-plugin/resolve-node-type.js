@@ -2532,8 +2532,6 @@ function isObject(path) {
 }
 
 module.exports = {
-  POSSIBLE_GLOBAL_PROXIES,
-  resolveGlobalName,
   resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
