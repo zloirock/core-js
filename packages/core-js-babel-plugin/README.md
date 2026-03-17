@@ -117,6 +117,53 @@ Array.from(items);
 | `absoluteImports` | `boolean` \| `string` | `false` | Use absolute paths for injected imports |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
 
+### `version`
+
+The `core-js` version installed in your project. The plugin uses this to determine which polyfill modules and entry points are available.
+
+It's recommended to specify the minor version (e.g., `'4.1'`) rather than just the major version (`'4.0'`), so that the plugin can use polyfills added in minor releases.
+
+```json
+{
+  "plugins": [["@core-js", {
+    "method": "usage-global",
+    "version": "4.1",
+    "targets": { "ie": 11 }
+  }]]
+}
+```
+
+### `package`
+
+The package name used in generated import paths. Defaults to `'core-js'` for `entry-global` and `usage-global`, and `'@core-js/pure'` for `usage-pure`.
+
+Override this if you use a custom package name:
+
+```json
+{
+  "plugins": [["@core-js", {
+    "method": "usage-global",
+    "version": "4.0",
+    "package": "my-core-js-version"
+  }]]
+}
+```
+
+### `additionalPackages`
+
+Additional package names to recognize as `core-js` entry points in `entry-global` mode. By default, only `core-js` is recognized. If you re-export `core-js` from another package, add it here so the plugin can process those imports too.
+
+```json
+{
+  "plugins": [["@core-js", {
+    "method": "entry-global",
+    "version": "4.0",
+    "package": "my-core-js-version",
+    "additionalPackages": ["core-js"]
+  }]]
+}
+```
+
 ### `mode`
 
 Controls which features are available:
@@ -187,7 +234,7 @@ module.exports = {
 
 ### `shippedProposals`
 
-When `true` and `mode` is `'es'` or `'stable'`, upgrades the effective mode to `'actual'`, allowing Stage 3+ proposals that have already been shipped in browsers to be included.
+When `true` and `mode` is `'es'` or `'stable'`, upgrades the effective mode to `'actual'`, allowing Stage 3+ proposals.
 
 ### `configPath`
 
