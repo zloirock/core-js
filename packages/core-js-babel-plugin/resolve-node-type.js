@@ -399,7 +399,7 @@ function findTupleElement(objectType, index, scope) {
   const tuple = followTypeAliasChain(objectType, scope);
   if (tuple?.type !== 'TSTupleType') return null;
   const elements = tuple.elementTypes;
-  if (!elements || index < 0) return null;
+  if (!elements?.length || index < 0) return null;
   // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number
   const element = index < elements.length ? elements[index]
     // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
