@@ -870,11 +870,36 @@ function resolveClassInheritance(classPath) {
   return null;
 }
 
+// when annotation is an alias with type arguments (e.g. MyGen<string> -> Generator<T>),
+// build a substitution map from alias type params -> outer args and apply it to the inner params
+function substituteAliasArgs(params, annotation, scope) {
+  const outerArgs = annotation?.typeParameters?.params;
+  if (!outerArgs?.length) return params;
+  const aliasName = typeRefName(annotation);
+  if (!aliasName) return params;
+  const decl = findTypeDeclaration(aliasName, scope);
+  const declParams = decl?.typeParameters?.params;
+  if (!declParams?.length) return params;
+  const subst = new Map();
+  for (let i = 0; i < declParams.length && i < outerArgs.length; i++) {
+    if (declParams[i].name) subst.set(declParams[i].name, outerArgs[i]);
+  }
+  if (!subst.size) return params;
+  return params.map(p => {
+    const name = typeRefName(p);
+    return name && subst.has(name) ? subst.get(name) : p;
+  });
+}
+
 // if annotation resolves to Generator/AsyncGenerator, return its type params; otherwise null
+// handles aliased types: type MyGen<T> = Generator<T> -> substitutes T with actual args
 function generatorTypeParams(annotation, scope) {
   const ref = followTypeAliasChain(annotation, scope);
   const refName = typeRefName(ref);
-  return (refName === 'Generator' || refName === 'AsyncGenerator') ? ref.typeParameters?.params : null;
+  if (refName !== 'Generator' && refName !== 'AsyncGenerator') return null;
+  const params = ref.typeParameters?.params;
+  if (!params?.length) return null;
+  return annotation === ref ? params : substituteAliasArgs(params, annotation, scope);
 }
 
 // resolve a specific Generator/AsyncGenerator type parameter from an expression
@@ -1927,7 +1952,8 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   if (isRestBinding(arrayPattern.elements || [], varName)) return new $Object('Array');
   // annotation on the pattern itself: function foo([a]: string[]) or const [a]: string[] = ...
   if (arrayPattern.typeAnnotation) {
-    return resolveArrayPatternBinding(arrayPattern, varName, arrayPattern.typeAnnotation, bindingPath.scope);
+    const result = resolveArrayPatternBinding(arrayPattern, varName, arrayPattern.typeAnnotation, bindingPath.scope);
+    if (result) return result;
   }
   // annotation on the init expression: const [a] = typedArr
   if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
@@ -1952,7 +1978,10 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   }
   // for-of iterable: for (const [a] of typedArr)
   const elemInfo = resolveForOfElementAnnotation(bindingPath);
-  if (elemInfo) return resolveArrayPatternBinding(arrayPattern, varName, elemInfo.annotation, elemInfo.scope);
+  if (elemInfo) {
+    const elemResult = resolveArrayPatternBinding(arrayPattern, varName, elemInfo.annotation, elemInfo.scope);
+    if (elemResult) return elemResult;
+  }
   // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
   const forOfPath = findForLoopParent(bindingPath);
   if (forOfPath?.isForOfStatement()) {
