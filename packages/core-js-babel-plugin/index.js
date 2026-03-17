@@ -1,20 +1,19 @@
-'use strict';
-const { default: defineProvider } = require('@babel/helper-define-polyfill-provider');
-const entries = require('@core-js/compat/entries.json');
-const { normalizeCoreJSVersion } = require('@core-js/compat/helpers');
-const compatData = require('@core-js/compat/data.json');
-const getEntriesListForTargetVersion = require('@core-js/compat/get-entries-list-for-target-version');
-const getModulesListForTargetVersion = require('@core-js/compat/get-modules-list-for-target-version');
-const { Globals, StaticProperties, InstanceProperties } = require('@core-js/compat/built-in-definitions');
-const {
+import defineProvider from '@babel/helper-define-polyfill-provider';
+import entries from '@core-js/compat/entries' with { type: 'json' };
+import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
+import compatData from '@core-js/compat/data' with { type: 'json' };
+import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
+import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
+import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
+import createASTHelpers from './ast-helpers.js';
+import {
   TYPE_HINTS,
   resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
   isString,
   isObject,
-} = require('./resolve-node-type');
-const createASTHelpers = require('./ast-helpers');
+} from './resolve-node-type.js';
 
 const defaultCoreJSPackages = ['core-js'];
 
@@ -115,7 +114,7 @@ function canTransformDestructuring(path) {
   return true;
 }
 
-module.exports = defineProvider(({
+export default defineProvider(({
   babel,
   createMetaResolver,
   debug,
@@ -159,9 +158,9 @@ module.exports = defineProvider(({
   let skipFile = false;
 
   const resolve = createMetaResolver({
-    global: Globals,
-    static: StaticProperties,
-    instance: InstanceProperties,
+    global: builtInDefinitions.Globals,
+    static: builtInDefinitions.StaticProperties,
+    instance: builtInDefinitions.InstanceProperties,
   });
 
   function getCoreJSEntry(source) {
