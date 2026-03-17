@@ -4,7 +4,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "type": "commonjs",
+  "type": "module",
   "description": "core-js babel plugin",
   "repository": {
     "type": "git",
