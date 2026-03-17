@@ -529,6 +529,29 @@ if (DESCRIPTORS) {
       assert.deepEqual(match34.indices.groups.word, [0, 3], 'named backreference group');
     }
 
+    // Nested groups with numeric backreference (from maintainer review)
+    // The \2 references the inner group (a), both groups capture 'a' at position 0-1
+    const reNestedBackref = new RegExp('((a))\\2', 'd');
+    const matchNestedBackref = reNestedBackref.exec('aa');
+    if (matchNestedBackref) {
+      assert.deepEqual(matchNestedBackref.indices[0], [0, 2], 'nested backreference entire match');
+      assert.deepEqual(matchNestedBackref.indices[1], [0, 1], 'outer group ((a)) captures same as inner');
+      assert.deepEqual(matchNestedBackref.indices[2], [0, 1], 'inner group (a) - the one referenced by \\2');
+    }
+
+    // Nested groups with named backreference (from maintainer review)
+    // eslint-disable-next-line sonarjs/slow-regex -- required for testing
+    const reNamedBackref = new RegExp('((?<a>\\w+)) \\k<a>', 'd');
+    const matchNamedBackref = reNamedBackref.exec('foo foo');
+    if (matchNamedBackref) {
+      assert.deepEqual(matchNamedBackref.indices[0], [0, 7], 'named backreference entire match');
+      assert.deepEqual(matchNamedBackref.indices[1], [0, 3], 'outer group');
+      // eslint-disable-next-line regexp/prefer-result-array-groups -- testing both indexed and named access
+      assert.deepEqual(matchNamedBackref.indices[2], [0, 3], 'inner named group (?<a>)');
+      // Use indices.groups.a to access named group indices (not match array)
+      assert.deepEqual(matchNamedBackref.indices.groups.a, [0, 3], 'named group a indices');
+    }
+
     // Greedy quantifier
     const re44 = new RegExp('(a+)', 'd');
     const match35 = re44.exec('aaa');
