@@ -12,7 +12,7 @@
 [`@core-js/compat` package](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) contains data about the necessity of [`core-js`](https://core-js.io) modules and API for getting a list of required core-js modules by browserslist query.
 
 ```js
-import compat from '@core-js/compat';
+import compat from '@core-js/compat/compat';
 
 const {
   list,                       // array of required modules
@@ -108,38 +108,37 @@ console.log(targets);
 ### Additional API:
 
 ```js
-// equals of of the method from the example above
-require('@core-js/compat/compat')({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
-// or
-require('@core-js/compat').compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
+// equals of the method from the example above
+import compat from '@core-js/compat/compat';
+compat({ targets, modules, version }); // => { list: Array<ModuleName>, targets: { [ModuleName]: { [EngineName]: EngineVersion } } }
 
 // full compat data:
-require('@core-js/compat/data'); // => { [ModuleName]: { [EngineName]: EngineVersion } }
-// or
-require('@core-js/compat').data; // => { [ModuleName]: { [EngineName]: EngineVersion } }
+import data from '@core-js/compat/data' with { type: 'json' };
+// => { [ModuleName]: { [EngineName]: EngineVersion } }
 
 // map of modules by `core-js` entry points:
-require('@core-js/compat/entries'); // => { [EntryPoint]: Array<ModuleName> }
-// or
-require('@core-js/compat').entries; // => { [EntryPoint]: Array<ModuleName> }
+import entries from '@core-js/compat/entries' with { type: 'json' };
+// => { [EntryPoint]: Array<ModuleName> }
 
 // full list of modules:
-require('@core-js/compat/modules'); // => Array<ModuleName>
-// or
-require('@core-js/compat').modules; // => Array<ModuleName>
+import modules from '@core-js/compat/modules' with { type: 'json' };
+// => Array<ModuleName>
 
 // the subset of entries which available in the passed `core-js` version:
-require('@core-js/compat/get-entries-list-for-target-version')('4.0'); // => Array<EntryName>
+import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
+getEntriesListForTargetVersion('4.0'); // => Array<EntryName>
 
 // the subset of modules which available in the passed `core-js` version:
-require('@core-js/compat/get-modules-list-for-target-version')('4.0'); // => Array<ModuleName>
-// or
-require('@core-js/compat').getModulesListForTargetVersion('4.0'); // => Array<ModuleName>
+import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
+getModulesListForTargetVersion('4.0'); // => Array<ModuleName>
+
+// built-in definitions - globals, static and instance properties mapped to polyfill modules (used by `@core-js/babel-plugin`):
+import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
+// => { Globals, StaticProperties, InstanceProperties }
 
 // known return types for built-in members (used by `@core-js/babel-plugin` for type inference):
-require('@core-js/compat/known-built-in-return-types'); // => { staticMethods, staticProperties, instanceMethods, instanceProperties }
-// or
-require('@core-js/compat').knownBuiltInReturnTypes;
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+// => { staticMethods, staticProperties, instanceMethods, instanceProperties, ... }
 ```
 
 If you wanna help to improve this data, you could take a look at the related section of [`CONTRIBUTING.md`](https://github.com/zloirock/core-js/blob/master/CONTRIBUTING.md#how-to-update-core-js-compat-data). The visualization of compatibility data and the browser tests runner is available [here](http://zloirock.github.io/core-js/master/compat/), the example:

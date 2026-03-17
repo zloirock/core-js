@@ -1,5 +1,4 @@
-'use strict';
-module.exports = function (t) {
+export default function (t) {
   function isCallee(callee, parent) {
     return t.isCallExpression(parent, { callee })
       || t.isOptionalCallExpression(parent, { callee })
@@ -172,4 +171,4 @@ module.exports = function (t) {
     resolveDestructuringObject,
     handleDestructuredProperty,
   };
-};
+}

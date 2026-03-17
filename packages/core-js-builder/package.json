@@ -26,17 +26,17 @@
     "url": "http://zloirock.ru"
   },
   "sideEffects": false,
-  "main": "index.mjs",
+  "main": "index.js",
   "exports": {
     ".": {
       "types": "./index.d.ts",
-      "default": "./index.mjs"
+      "default": "./index.js"
     },
-    "./index.mjs": {
+    "./index.js": {
       "types": "./index.d.ts",
-      "default": "./index.mjs"
+      "default": "./index.js"
     },
-    "./config.mjs": "./config.mjs"
+    "./config.js": "./config.js"
   },
   "types": "index.d.ts",
   "dependencies": {

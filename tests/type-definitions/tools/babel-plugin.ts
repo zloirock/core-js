@@ -1,4 +1,4 @@
-import plugin = require('@core-js/babel-plugin');
+import plugin from '@core-js/babel-plugin';
 
 // return type
 const result: { name: string, visitor: object } = plugin({}, { method: 'usage-global' }, '/path');
