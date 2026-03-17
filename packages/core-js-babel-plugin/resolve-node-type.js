@@ -646,27 +646,16 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
         resolveTypeAnnotation(node.falseType, scope, depth + 1));
     // TS / Flow union and intersection - resolve if all (non-nullable for unions) members have the same type
     case 'TSUnionType':
-    case 'UnionTypeAnnotation':
+    case 'UnionTypeAnnotation': {
+      const { types } = node;
+      if (!types || !types.length) return null;
+      return foldUnionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1));
+    }
     case 'TSIntersectionType':
     case 'IntersectionTypeAnnotation': {
       const { types } = node;
       if (!types || !types.length) return null;
-      const isUnion = node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation';
-      let result = null;
-      let skipped = null;
-      for (const member of types) {
-        const resolved = resolveTypeAnnotation(member, scope, depth + 1);
-        if (!resolved) return null;
-        // skip nullable / never types in unions: T | null | undefined | never -> T
-        if (isUnion && isNullableOrNever(resolved)) {
-          skipped ??= resolved;
-          continue;
-        }
-        result = commonType(result, resolved);
-        if (!result) return null;
-      }
-      // all-nullable union (null | undefined | never) -> return a representative nullable type
-      return result ?? skipped;
+      return foldIntersectionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1));
     }
     // TS literal types: 'hello', 42, true, etc.
     case 'TSLiteralType':
@@ -783,6 +772,45 @@ function resolveTupleInner(elements, resolver) {
 
 function isNullableOrNever(resolved) {
   return resolved.type === 'null' || resolved.type === 'undefined' || resolved.type === 'never';
+}
+
+// fold union members: resolve each, skip nullable/never, remaining must agree via commonType
+// returns null if any non-nullable member is unresolvable or types conflict
+function foldUnionTypes(types, resolve) {
+  let result = null;
+  let skipped = null;
+  for (const member of types) {
+    const resolved = resolve(member);
+    if (!resolved) return null;
+    // skip nullable / never types in unions: T | null | undefined | never -> T
+    if (isNullableOrNever(resolved)) {
+      skipped ??= resolved;
+      continue;
+    }
+    result = commonType(result, resolved);
+    if (!result) return null;
+  }
+  // all-nullable union (null | undefined | never) -> return a representative nullable type
+  return result ?? skipped;
+}
+
+// fold intersection members: skip unresolvable and plain Object members, remaining must agree via commonType
+// e.g. string & { __brand: B } -> string, T & SomeUnknownInterface -> T
+function foldIntersectionTypes(types, resolve) {
+  let result = null;
+  let skipped = null;
+  for (const member of types) {
+    const resolved = resolve(member);
+    // unresolvable members (branded types, unknown interfaces) are skipped -
+    // the resolvable members still provide useful type info
+    if (!resolved) { skipped ??= new $Object(null); continue; }
+    // skip structural additions like { key: value } that resolve to plain Object
+    if (!resolved.primitive && resolved.constructor === 'Object') { skipped ??= resolved; continue; }
+    result = commonType(result, resolved);
+    if (!result) return null;
+  }
+  // all-skipped intersection -> return generic object
+  return result ?? skipped;
 }
 
 // resolve a type annotation, returning null for nullable/never types (not useful as inner types)
@@ -1309,36 +1337,11 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   }
   // union: T | null, T | undefined - strip nullable, substitute T
   if (node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation') {
-    let result = null;
-    let skipped = false;
-    for (const member of node.types) {
-      const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
-      if (!resolved) return null;
-      if (isNullableOrNever(resolved)) {
-        skipped = true;
-        continue;
-      }
-      result = commonType(result, resolved);
-      if (!result) return null;
-    }
-    return result ?? (skipped ? new $Primitive('undefined') : null);
+    return foldUnionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1));
   }
   // intersection: T & { extra: boolean } - skip plain $Object('Object') from type literals, rest must agree
   if (node.type === 'TSIntersectionType' || node.type === 'IntersectionTypeAnnotation') {
-    let result = null;
-    let skipped = false;
-    for (const member of node.types) {
-      const resolved = substituteTypeParams(member, typeParamMap, scope, depth + 1);
-      if (!resolved) continue;
-      // skip structural additions like { key: value } that resolve to plain Object
-      if (!resolved.primitive && resolved.constructor === 'Object') {
-        skipped = true;
-        continue;
-      }
-      result = commonType(result, resolved);
-      if (!result) return null;
-    }
-    return result ?? (skipped ? new $Object(null) : null);
+    return foldIntersectionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1));
   }
   // transparent wrappers: (T), T?, readonly T[], etc.
   if (node.type === 'TSOptionalType' || node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation'
