@@ -6,7 +6,6 @@ import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.promise.all";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.at";
-import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 const arr = await Promise.all(p);
