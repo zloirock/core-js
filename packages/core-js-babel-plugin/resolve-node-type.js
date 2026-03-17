@@ -1337,7 +1337,12 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
 // resolve return type of a function, inferring generic type parameters from call-site arguments
 function resolveReturnType(fnPath, callPath) {
   // generator functions return iterators, async generators return async iterators
-  if (fnPath.node.generator) return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator');
+  // yield type is extracted from Generator<TYield>/AsyncGenerator<TYield> annotation if present
+  if (fnPath.node.generator) {
+    const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
+    const inner = params?.[0] ? resolveTypeAnnotation(params[0], fnPath.scope) : null;
+    return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', inner && !isNullableOrNever(inner) ? inner : null);
+  }
   const { returnType, typeParameters } = fnPath.node;
   // infer generic type parameters and substitute into return type
   if (returnType && callPath && typeParameters?.params?.length) {
@@ -1573,11 +1578,12 @@ function resolveInnerType(type) {
 }
 
 // recursively unwrap Promise layers: Promise<Promise<T>> -> T
+// Promise without inner (Promise<any>) unwraps to null (unknown) since await resolves to any
 function unwrapPromise(type) {
   let result = type;
   while (result?.type === 'object' && result.constructor === 'Promise') {
     const inner = resolveInnerType(result);
-    if (!inner) return result;
+    if (!inner) return null;
     result = inner;
   }
   return result;
