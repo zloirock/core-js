@@ -1,3 +1,3 @@
 var _ref;
-import _keysInstanceProperty from "@core-js/pure/actual/instance/keys";
-_keysInstanceProperty(_ref = []).call(_ref);
+import _keysMaybeArray from "@core-js/pure/actual/array/instance/keys";
+_keysMaybeArray(_ref = []).call(_ref);

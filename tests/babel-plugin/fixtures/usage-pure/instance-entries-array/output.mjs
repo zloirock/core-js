@@ -1,3 +1,3 @@
 var _ref;
-import _entriesInstanceProperty from "@core-js/pure/actual/instance/entries";
-_entriesInstanceProperty(_ref = []).call(_ref);
+import _entriesMaybeArray from "@core-js/pure/actual/array/instance/entries";
+_entriesMaybeArray(_ref = []).call(_ref);

@@ -1,10 +1,11 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 interface TreeNode {
   children: TreeNode[];
   name: string;
 }
 function f(n: TreeNode) {
   var _ref, _ref2;
-  _atInstanceProperty(_ref = n.name).call(_ref, 0);
-  _atInstanceProperty(_ref2 = n.children).call(_ref2, 0);
+  _atMaybeString(_ref = n.name).call(_ref, 0);
+  _atMaybeArray(_ref2 = n.children).call(_ref2, 0);
 }
