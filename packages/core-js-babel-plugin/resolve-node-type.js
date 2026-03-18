@@ -840,10 +840,21 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
       return new $Primitive('number');
     case 'BooleanLiteralTypeAnnotation':
       return new $Primitive('boolean');
-    // TS indexed access type: Config["items"], [string, number[]][1], or Items[number]
+    // TS indexed access type: Config["items"], [string, number[]][1], Items[number], or Dict[string]
     case 'TSIndexedAccessType': {
       // T[number] - element type of array/tuple
       if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
+      // T[string] - string index signature type
+      if (node.indexType?.type === 'TSStringKeyword') {
+        const members = getTypeMembers(node.objectType, scope);
+        if (members) for (const member of members) {
+          if (member.type === 'TSIndexSignature' && member.typeAnnotation
+            && member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword') {
+            return resolveTypeAnnotation(member.typeAnnotation, scope, depth + 1);
+          }
+        }
+        return null;
+      }
       if (node.indexType?.type !== 'TSLiteralType') return null;
       const { literal } = node.indexType;
       let member;
