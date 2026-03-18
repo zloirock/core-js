@@ -1131,6 +1131,11 @@ function resolveNodeTypeExpression(path) {
     case 'ClassExpression':
     case 'ClassDeclaration':
       return new $Object('Function');
+    case 'ThisExpression': {
+      const context = resolveThisClass(path);
+      if (context) return resolveClassInheritance(context.classPath) || new $Object('Object');
+      return null;
+    }
     case 'NewExpression': {
       const callee = path.get('callee');
       const name = resolveGlobalName(callee);
