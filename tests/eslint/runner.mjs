@@ -1,3 +1,3 @@
-process.env.ESLINT_USE_FLAT_CONFIG = true;
+process.env.TIMING = true;
 
-await $`TIMING=1 eslint --concurrency=auto --config ./tests/eslint/eslint.config.js ./`;
+await $`eslint --concurrency=auto --config ./tests/eslint/eslint.config.js ./ --fix=${ !!process.env.FIX }`;
