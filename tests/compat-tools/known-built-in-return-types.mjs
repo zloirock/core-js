@@ -23,6 +23,7 @@ const VALID_TYPES = new Set([
   'DisposableStack',
   'DOMException',
   'Error',
+  'FinalizationRegistry',
   'Function',
   'Iterator',
   'Map',
@@ -38,6 +39,7 @@ const VALID_TYPES = new Set([
   'URL',
   'URLSearchParams',
   'WeakMap',
+  'WeakRef',
   'WeakSet',
 ]);
 
