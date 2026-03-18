@@ -19,6 +19,30 @@ const defaultCoreJSPackages = ['core-js'];
 
 const { hasOwn } = Object;
 
+// array/instance/at and array/prototype/at -> array/at
+function normalizeEntryPath(entry) {
+  return entry
+    .replace('/instance/', '/')
+    .replace('/prototype/', '/');
+}
+
+function collectEntryPaths(patterns) {
+  if (!Array.isArray(patterns)) return new Set();
+  const result = new Set();
+  for (const pattern of patterns) {
+    if (typeof pattern == 'string' && hasOwn(entries, `full/${ pattern }`)) {
+      result.add(pattern);
+    }
+  }
+  return result;
+}
+
+function removeEntryPaths(patterns) {
+  if (!Array.isArray(patterns)) return patterns;
+  const filtered = patterns.filter(p => typeof p != 'string' || !hasOwn(entries, `full/${ p }`));
+  return filtered.length ? filtered : undefined;
+}
+
 // skip core-js internals and bundles — polyfilling their own code creates circular dependencies
 const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:internals|modules)[/\\]/;
 const CORE_JS_BUNDLE = /[/\\](?:core-js-bundle|@core-js[/\\]bundle)[/\\]/;
@@ -127,16 +151,26 @@ export default defineProvider(({
   getUtils,
   method,
   shouldInjectPolyfill,
-}, {
-  package: pkg,
-  additionalPackages,
-  mode = 'actual',
-  version = '4.0',
-  shippedProposals = false,
-}) => {
+}, options) => {
+  let {
+    package: pkg,
+    additionalPackages,
+    mode = 'actual',
+    version = '4.0',
+    shippedProposals = false,
+    include,
+    exclude,
+  } = options;
+
   if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
   if (!['es', 'stable', 'actual', 'full'].includes(mode)) throw new TypeError('Incorrect plugin mode');
   if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
+
+  // for usage-pure: extract entry-path patterns from include/exclude
+  const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();
+  const excludeEntries = method === 'usage-pure' ? collectEntryPaths(exclude) : new Set();
+  if (includeEntries.size) options.include = removeEntryPaths(include);
+  if (excludeEntries.size) options.exclude = removeEntryPaths(exclude);
 
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
@@ -240,6 +274,9 @@ export default defineProvider(({
   }
 
   function isEntryNeeded(entry) {
+    const normalized = normalizeEntryPath(entry);
+    if (excludeEntries.has(entry) || excludeEntries.has(normalized)) return false;
+    if (includeEntries.has(entry) || includeEntries.has(normalized)) return true;
     const modeEntry = `${ mode }/${ entry }`;
     return entriesSetForTargetVersion.has(modeEntry) && !!getModulesForEntry(modeEntry).length;
   }
