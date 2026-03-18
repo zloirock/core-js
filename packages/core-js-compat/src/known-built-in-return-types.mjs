@@ -18,7 +18,11 @@ export const constructors = {
   DataView: 'DataView',
   Date: { new: 'Date', call: 'string' },
   DisposableStack: 'DisposableStack',
+  Document: 'Document',
+  DocumentFragment: 'DocumentFragment',
   DOMException: 'DOMException',
+  DOMTokenList: 'DOMTokenList',
+  Element: 'Element',
   Error: 'Error',
   EvalError: 'Error',
   FinalizationRegistry: 'FinalizationRegistry',
@@ -26,10 +30,13 @@ export const constructors = {
   Float32Array: { new: 'TypedArray', element: 'number' },
   Float64Array: { new: 'TypedArray', element: 'number' },
   Function: 'Function',
+  HTMLCollection: 'HTMLCollection',
   Int8Array: { new: 'TypedArray', element: 'number' },
   Int16Array: { new: 'TypedArray', element: 'number' },
   Int32Array: { new: 'TypedArray', element: 'number' },
   Map: 'Map',
+  Node: 'Node',
+  NodeList: 'NodeList',
   Number: { new: 'Number', call: 'number' },
   Object: { new: null, call: null },
   Promise: 'Promise',
@@ -85,6 +92,7 @@ export const globalMethods = {
 // known types for global properties and well-known identifiers
 export const globalProperties = {
   arguments: 'Arguments',
+  document: 'Document',
   Infinity: 'number',
   NaN: 'number',
   undefined: 'undefined',
@@ -160,6 +168,26 @@ export const instanceProperties = {
     message: 'string',
     name: 'string',
   },
+  DOMTokenList: {
+    length: 'number',
+  },
+  Document: {
+    all: 'HTMLCollection',
+    childNodes: 'NodeList',
+    children: 'HTMLCollection',
+    forms: 'HTMLCollection',
+    images: 'HTMLCollection',
+    links: 'HTMLCollection',
+    scripts: 'HTMLCollection',
+  },
+  Element: {
+    childNodes: 'NodeList',
+    children: 'HTMLCollection',
+    classList: 'DOMTokenList',
+  },
+  Node: {
+    childNodes: 'NodeList',
+  },
   Error: {
     message: 'string',
     name: 'string',
@@ -168,8 +196,14 @@ export const instanceProperties = {
     length: 'number',
     name: 'string',
   },
+  HTMLCollection: {
+    length: 'number',
+  },
   Map: {
     size: 'number',
+  },
+  NodeList: {
+    length: 'number',
   },
   RegExp: {
     dotAll: 'boolean',
@@ -371,6 +405,28 @@ export const instanceMethods = {
   DOMException: {
     toString: 'string',
   },
+  DOMTokenList: {
+    entries: { type: 'Iterator', element: 'Array' },
+    forEach: 'undefined',
+    keys: { type: 'Iterator', element: 'number' },
+    values: { type: 'Iterator', element: 'inherit' },
+  },
+  Document: {
+    getElementsByClassName: 'HTMLCollection',
+    getElementsByName: 'NodeList',
+    getElementsByTagName: 'HTMLCollection',
+    getElementsByTagNameNS: 'HTMLCollection',
+    querySelectorAll: 'NodeList',
+  },
+  DocumentFragment: {
+    querySelectorAll: 'NodeList',
+  },
+  Element: {
+    getElementsByClassName: 'HTMLCollection',
+    getElementsByTagName: 'HTMLCollection',
+    getElementsByTagNameNS: 'HTMLCollection',
+    querySelectorAll: 'NodeList',
+  },
   Error: {
     toString: 'string',
   },
@@ -405,6 +461,12 @@ export const instanceMethods = {
     keys: 'Iterator',
     set: 'Map',
     values: 'Iterator',
+  },
+  NodeList: {
+    entries: { type: 'Iterator', element: 'Array' },
+    forEach: 'undefined',
+    keys: { type: 'Iterator', element: 'number' },
+    values: { type: 'Iterator', element: 'inherit' },
   },
   Number: {
     clamp: 'number',
