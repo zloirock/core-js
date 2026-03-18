@@ -1,3 +1,3 @@
 var _ref;
-import _includesInstanceProperty from "@core-js/pure/actual/instance/includes";
-_includesInstanceProperty(_ref = x as string).call(_ref, "o");
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+_includesMaybeString(_ref = x as string).call(_ref, "o");

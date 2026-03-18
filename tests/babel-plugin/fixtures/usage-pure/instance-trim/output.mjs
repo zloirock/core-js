@@ -1,2 +1,2 @@
-import _trimInstanceProperty from "@core-js/pure/actual/instance/trim";
-_trimInstanceProperty(s).call(s);
+import _trimMaybeString from "@core-js/pure/actual/string/instance/trim";
+_trimMaybeString(s).call(s);
