@@ -4,6 +4,8 @@ var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var globalThis = require('../internals/global-this');
 var anElement = require('../internals/an-element');
+var wellKnownSymbol = require('../internals/well-known-symbol');
+var create = require('../internals/object-create');
 
 if (globalThis.Element) {
   var BASIC = !!Element.prototype.remove;
@@ -19,4 +21,12 @@ if (globalThis.Element) {
       else this.outerHTML = '';
     }
   });
+
+  if (Element.prototype[wellKnownSymbol('unscopables')] === undefined) {
+    defineProperty(ArrayPrototype, UNSCOPABLES, {
+      configurable: true,
+      value: create(null)
+    });
+  }
+  Element.prototype[wellKnownSymbol('unscopables')].remove = true;
 }
