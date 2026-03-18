@@ -552,6 +552,50 @@ if (DESCRIPTORS) {
       assert.deepEqual(matchNamedBackref.indices.groups.a, [0, 3], 'named group a indices');
     }
 
+    // Multi-digit backreference (from contributor review)
+    // \10 references the 10th capturing group, not \1 followed by '0'
+    // This tests that the polyfill correctly handles backreferences with 2+ digits
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
+    const reMultiDigitBackref = new RegExp('(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\10', 'd');
+    const matchMultiDigitBackref = reMultiDigitBackref.exec('abcdefghijj');
+    if (matchMultiDigitBackref) {
+      assert.deepEqual(matchMultiDigitBackref.indices[0], [0, 11], 'multi-digit backreference entire match');
+      assert.deepEqual(matchMultiDigitBackref.indices[1], [0, 1], 'group 1 (a)');
+      assert.deepEqual(matchMultiDigitBackref.indices[2], [1, 2], 'group 2 (b)');
+      assert.deepEqual(matchMultiDigitBackref.indices[4], [3, 4], 'group 4 (d)');
+      assert.deepEqual(matchMultiDigitBackref.indices[10], [9, 10], 'group 10 (j) - referenced by \\10');
+    }
+
+    // Multi-digit backreference \99 (2 digits)
+    // \99 references the 99th capturing group
+    // This tests that the polyfill correctly handles 2-digit backreferences
+    // Build a pattern with 99 capturing groups
+    let pattern99 = '';
+    let input99 = '';
+    for (let g = 0; g < 99; g++) {
+      pattern99 += '(\\d)';
+      input99 += String(g % 10);
+    }
+    pattern99 += '\\99'; // Backreference to group 99
+    input99 += '8'; // Group 99 captures '8' (98 % 10 = 8), so we expect '8' at the end
+    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
+    const re99 = new RegExp(pattern99, 'd');
+    const match99 = re99.exec(input99);
+    if (match99) {
+      assert.same(match99.length, 100, '\\99 match array length should be 100');
+      assert.same(match99[0].length, 100, '\\99 entire match length should be 100');
+      assert.same(match99[99], '8', '\\99 should capture digit 8');
+      assert.deepEqual(match99.indices[99], [98, 99], 'group 99 indices for \\99 backreference');
+      // Verify some intermediate groups to ensure correct parsing
+      assert.deepEqual(match99.indices[1], [0, 1], 'group 1 indices for \\99 test');
+      assert.deepEqual(match99.indices[9], [8, 9], 'group 9 indices for \\99 test');
+      assert.deepEqual(match99.indices[10], [9, 10], 'group 10 indices for \\99 test');
+      assert.deepEqual(match99.indices[50], [49, 50], 'group 50 indices for \\99 test');
+      assert.deepEqual(match99.indices[98], [97, 98], 'group 98 indices for \\99 test');
+      // Verify entire match indices
+      assert.deepEqual(match99.indices[0], [0, 100], 'entire match indices for \\99 test');
+    }
+
     // Greedy quantifier
     const re44 = new RegExp('(a+)', 'd');
     const match35 = re44.exec('aaa');

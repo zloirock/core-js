@@ -16,12 +16,14 @@ var UNSUPPORTED_HAS_INDICES = require('../internals/regexp-unsupported-has-indic
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
 var NativeRegExp = RegExp;
 var nativeExec = NativeRegExp.prototype.exec;
+var $String = String;
 var patchedExec = nativeExec;
 var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
 var max = Math.max;
+var arrayFill = uncurryThis(require('../internals/array-fill'));
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
   var re1 = /a/;
@@ -128,7 +130,7 @@ var buildInstrumentedSource = function (source) {
         var parsed = parseBackreference(source, i);
         i = parsed.newIndex;
         // Renumber: each original group N becomes 2N
-        result += String(parsed.refNum * 2);
+        result += $String(parsed.refNum * 2);
       } else {
         result += next;
       }
@@ -183,9 +185,8 @@ var computeIndicesInstrumented = function (originalRe, match, str, matchStart, m
   if (!instrMatch || instrMatch.index !== 0) return false;
 
   var parents = getGroupParents(originalRe.source);
-  var scanPos = [];
+  var scanPos = arrayFill(Array(n), 0);
   var i;
-  for (i = 0; i < n; i++) scanPos[i] = 0;
 
   for (i = 1; i < n; i++) {
     var captured = instrMatch[2 * i] !== undefined ? instrMatch[2 * i] : match[i];
@@ -304,8 +305,11 @@ if (PATCH) {
 
     if (sticky) {
       flags = replace(flags, 'y', '');
-      if (indexOf(flags, 'g') === -1) flags += 'g';
+      if (indexOf(flags, 'g') === -1) {
+        flags += 'g';
+      }
       strCopy = stringSlice(str, re.lastIndex);
+      // Support anchored sticky behavior.
       var prevChar = re.lastIndex > 0 && charAt(str, re.lastIndex - 1);
       if (re.lastIndex > 0 &&
         (!re.multiline || re.multiline && prevChar !== '\n' && prevChar !== '\r' && prevChar !== '\u2028' && prevChar !== '\u2029')) {
