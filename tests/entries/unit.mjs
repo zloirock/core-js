@@ -674,6 +674,309 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(instanceWith({}) === undefined);
     ok(typeof instanceWith([]) == 'function');
     ok(instanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
+
+    const arrayInstanceAt = load(NS, 'array/instance/at');
+    ok(typeof arrayInstanceAt == 'function');
+    ok(typeof arrayInstanceAt([]) == 'function');
+    ok(arrayInstanceAt([]).call([1, 2, 3], -1) === 3);
+
+    const arrayInstanceConcat = load(NS, 'array/instance/concat');
+    ok(typeof arrayInstanceConcat == 'function');
+    ok(typeof arrayInstanceConcat([]) == 'function');
+    ok(arrayInstanceConcat([]).call([1], [2]).length === 2);
+
+    const arrayInstanceCopyWithin = load(NS, 'array/instance/copy-within');
+    ok(typeof arrayInstanceCopyWithin == 'function');
+    ok(typeof arrayInstanceCopyWithin([]) == 'function');
+    ok(arrayInstanceCopyWithin([]).call([1, 2, 3, 4, 5], 0, 3)[0] === 4);
+
+    const arrayInstanceEntries = load(NS, 'array/instance/entries');
+    ok(typeof arrayInstanceEntries == 'function');
+    ok(typeof arrayInstanceEntries([]) == 'function');
+
+    const arrayInstanceFill = load(NS, 'array/instance/fill');
+    ok(typeof arrayInstanceFill == 'function');
+    ok(typeof arrayInstanceFill([]) == 'function');
+    ok(arrayInstanceFill([]).call([1, 2, 3], 0)[0] === 0);
+
+    const arrayInstanceFilter = load(NS, 'array/instance/filter');
+    ok(typeof arrayInstanceFilter == 'function');
+    ok(typeof arrayInstanceFilter([]) == 'function');
+    ok(arrayInstanceFilter([]).call([1, 2, 3], it => it > 1).length === 2);
+
+    const arrayInstanceFind = load(NS, 'array/instance/find');
+    ok(typeof arrayInstanceFind == 'function');
+    ok(typeof arrayInstanceFind([]) == 'function');
+    ok(arrayInstanceFind([]).call([1, 2, 3], it => it > 1) === 2);
+
+    const arrayInstanceFindIndex = load(NS, 'array/instance/find-index');
+    ok(typeof arrayInstanceFindIndex == 'function');
+    ok(typeof arrayInstanceFindIndex([]) == 'function');
+    ok(arrayInstanceFindIndex([]).call([1, 2, 3], it => it > 1) === 1);
+
+    const arrayInstanceFindLast = load(NS, 'array/instance/find-last');
+    ok(typeof arrayInstanceFindLast == 'function');
+    ok(typeof arrayInstanceFindLast([]) == 'function');
+    ok(arrayInstanceFindLast([]).call([1, 2, 3], it => it > 1) === 3);
+
+    const arrayInstanceFindLastIndex = load(NS, 'array/instance/find-last-index');
+    ok(typeof arrayInstanceFindLastIndex == 'function');
+    ok(typeof arrayInstanceFindLastIndex([]) == 'function');
+    ok(arrayInstanceFindLastIndex([]).call([1, 2, 3], it => it > 1) === 2);
+
+    const arrayInstanceFlat = load(NS, 'array/instance/flat');
+    ok(typeof arrayInstanceFlat == 'function');
+    ok(typeof arrayInstanceFlat([]) == 'function');
+    ok(arrayInstanceFlat([]).call([[1], [2]]).length === 2);
+
+    const arrayInstanceFlatMap = load(NS, 'array/instance/flat-map');
+    ok(typeof arrayInstanceFlatMap == 'function');
+    ok(typeof arrayInstanceFlatMap([]) == 'function');
+    ok(arrayInstanceFlatMap([]).call([1, 2], it => [it, it]).length === 4);
+
+    const arrayInstanceIncludes = load(NS, 'array/instance/includes');
+    ok(typeof arrayInstanceIncludes == 'function');
+    ok(typeof arrayInstanceIncludes([]) == 'function');
+    ok(arrayInstanceIncludes([]).call([1, 2, 3], 2));
+
+    const arrayInstanceIndexOf = load(NS, 'array/instance/index-of');
+    ok(typeof arrayInstanceIndexOf == 'function');
+    ok(typeof arrayInstanceIndexOf([]) == 'function');
+    ok(arrayInstanceIndexOf([]).call([1, 2, 3], 2) === 1);
+
+    const arrayInstanceJoin = load(NS, 'array/instance/join');
+    ok(typeof arrayInstanceJoin == 'function');
+    ok(typeof arrayInstanceJoin([]) == 'function');
+    ok(arrayInstanceJoin([]).call([1, 2], '-') === '1-2');
+
+    const arrayInstanceKeys = load(NS, 'array/instance/keys');
+    ok(typeof arrayInstanceKeys == 'function');
+    ok(typeof arrayInstanceKeys([]) == 'function');
+
+    const arrayInstanceLastIndexOf = load(NS, 'array/instance/last-index-of');
+    ok(typeof arrayInstanceLastIndexOf == 'function');
+    ok(typeof arrayInstanceLastIndexOf([]) == 'function');
+    ok(arrayInstanceLastIndexOf([]).call([1, 2, 1], 1) === 2);
+
+    const arrayInstanceMap = load(NS, 'array/instance/map');
+    ok(typeof arrayInstanceMap == 'function');
+    ok(typeof arrayInstanceMap([]) == 'function');
+    ok(arrayInstanceMap([]).call([1, 2, 3], it => it * 2)[0] === 2);
+
+    const arrayInstancePush = load(NS, 'array/instance/push');
+    ok(typeof arrayInstancePush == 'function');
+    ok(typeof arrayInstancePush([]) == 'function');
+    const pushArr = [1];
+    arrayInstancePush([]).call(pushArr, 2);
+    ok(pushArr.length === 2);
+
+    const arrayInstanceReduce = load(NS, 'array/instance/reduce');
+    ok(typeof arrayInstanceReduce == 'function');
+    ok(typeof arrayInstanceReduce([]) == 'function');
+    ok(arrayInstanceReduce([]).call([1, 2, 3], (a, b) => a + b, 0) === 6);
+
+    const arrayInstanceReduceRight = load(NS, 'array/instance/reduce-right');
+    ok(typeof arrayInstanceReduceRight == 'function');
+    ok(typeof arrayInstanceReduceRight([]) == 'function');
+    ok(arrayInstanceReduceRight([]).call([1, 2, 3], (a, b) => a + b, 0) === 6);
+
+    const arrayInstanceReverse = load(NS, 'array/instance/reverse');
+    ok(typeof arrayInstanceReverse == 'function');
+    ok(typeof arrayInstanceReverse([]) == 'function');
+    ok(arrayInstanceReverse([]).call([1, 2, 3])[0] === 3);
+
+    const arrayInstanceSlice = load(NS, 'array/instance/slice');
+    ok(typeof arrayInstanceSlice == 'function');
+    ok(typeof arrayInstanceSlice([]) == 'function');
+    ok(arrayInstanceSlice([]).call([1, 2, 3], 1).length === 2);
+
+    const arrayInstanceSort = load(NS, 'array/instance/sort');
+    ok(typeof arrayInstanceSort == 'function');
+    ok(typeof arrayInstanceSort([]) == 'function');
+
+    const arrayInstanceSplice = load(NS, 'array/instance/splice');
+    ok(typeof arrayInstanceSplice == 'function');
+    ok(typeof arrayInstanceSplice([]) == 'function');
+
+    const arrayInstanceToReversed = load(NS, 'array/instance/to-reversed');
+    ok(typeof arrayInstanceToReversed == 'function');
+    ok(typeof arrayInstanceToReversed([]) == 'function');
+    ok(arrayInstanceToReversed([]).call([1, 2, 3])[0] === 3);
+
+    const arrayInstanceToSorted = load(NS, 'array/instance/to-sorted');
+    ok(typeof arrayInstanceToSorted == 'function');
+    ok(typeof arrayInstanceToSorted([]) == 'function');
+    ok(arrayInstanceToSorted([]).call([3, 2, 1])[0] === 1);
+
+    const arrayInstanceToSpliced = load(NS, 'array/instance/to-spliced');
+    ok(typeof arrayInstanceToSpliced == 'function');
+    ok(typeof arrayInstanceToSpliced([]) == 'function');
+    ok(arrayInstanceToSpliced([]).call([1, 2, 3], 1, 1, 4).length === 3);
+
+    const arrayInstanceUnshift = load(NS, 'array/instance/unshift');
+    ok(typeof arrayInstanceUnshift == 'function');
+    ok(typeof arrayInstanceUnshift([]) == 'function');
+    const unshiftArr = [1];
+    arrayInstanceUnshift([]).call(unshiftArr, 0);
+    ok(unshiftArr[0] === 0);
+
+    const arrayInstanceValues = load(NS, 'array/instance/values');
+    ok(typeof arrayInstanceValues == 'function');
+    ok(typeof arrayInstanceValues([]) == 'function');
+    ok(arrayInstanceValues([]).call([1, 2, 3]).next().value === 1);
+
+    const arrayInstanceWith = load(NS, 'array/instance/with');
+    ok(typeof arrayInstanceWith == 'function');
+    ok(typeof arrayInstanceWith([]) == 'function');
+    ok(arrayInstanceWith([]).call([1, 2, 3], 1, 4)[1] === 4);
+
+    // type-specific string/instance/* entries
+    const stringInstanceAnchor = load(NS, 'string/instance/anchor');
+    ok(typeof stringInstanceAnchor == 'function');
+    ok(typeof stringInstanceAnchor('') == 'function');
+
+    const stringInstanceAt = load(NS, 'string/instance/at');
+    ok(typeof stringInstanceAt == 'function');
+    ok(typeof stringInstanceAt('') == 'function');
+    ok(stringInstanceAt('').call('abc', -1) === 'c');
+
+    const stringInstanceBig = load(NS, 'string/instance/big');
+    ok(typeof stringInstanceBig == 'function');
+    ok(typeof stringInstanceBig('') == 'function');
+
+    const stringInstanceBlink = load(NS, 'string/instance/blink');
+    ok(typeof stringInstanceBlink == 'function');
+    ok(typeof stringInstanceBlink('') == 'function');
+
+    const stringInstanceBold = load(NS, 'string/instance/bold');
+    ok(typeof stringInstanceBold == 'function');
+    ok(typeof stringInstanceBold('') == 'function');
+
+    const stringInstanceCodePointAt = load(NS, 'string/instance/code-point-at');
+    ok(typeof stringInstanceCodePointAt == 'function');
+    ok(typeof stringInstanceCodePointAt('') == 'function');
+    ok(stringInstanceCodePointAt('').call('a', 0) === 97);
+
+    const stringInstanceEndsWith = load(NS, 'string/instance/ends-with');
+    ok(typeof stringInstanceEndsWith == 'function');
+    ok(typeof stringInstanceEndsWith('') == 'function');
+    ok(stringInstanceEndsWith('').call('abc', 'bc'));
+
+    const stringInstanceFixed = load(NS, 'string/instance/fixed');
+    ok(typeof stringInstanceFixed == 'function');
+    ok(typeof stringInstanceFixed('') == 'function');
+
+    const stringInstanceFontcolor = load(NS, 'string/instance/fontcolor');
+    ok(typeof stringInstanceFontcolor == 'function');
+    ok(typeof stringInstanceFontcolor('') == 'function');
+
+    const stringInstanceFontsize = load(NS, 'string/instance/fontsize');
+    ok(typeof stringInstanceFontsize == 'function');
+    ok(typeof stringInstanceFontsize('') == 'function');
+
+    const stringInstanceIncludes = load(NS, 'string/instance/includes');
+    ok(typeof stringInstanceIncludes == 'function');
+    ok(typeof stringInstanceIncludes('') == 'function');
+    ok(stringInstanceIncludes('').call('abc', 'b'));
+
+    const stringInstanceIsWellFormed = load(NS, 'string/instance/is-well-formed');
+    ok(typeof stringInstanceIsWellFormed == 'function');
+    ok(typeof stringInstanceIsWellFormed('') == 'function');
+    ok(stringInstanceIsWellFormed('').call('a'));
+
+    const stringInstanceItalics = load(NS, 'string/instance/italics');
+    ok(typeof stringInstanceItalics == 'function');
+    ok(typeof stringInstanceItalics('') == 'function');
+
+    const stringInstanceLink = load(NS, 'string/instance/link');
+    ok(typeof stringInstanceLink == 'function');
+    ok(typeof stringInstanceLink('') == 'function');
+
+    const stringInstanceMatchAll = load(NS, 'string/instance/match-all');
+    ok(typeof stringInstanceMatchAll == 'function');
+    ok(typeof stringInstanceMatchAll('') == 'function');
+
+    const stringInstancePadEnd = load(NS, 'string/instance/pad-end');
+    ok(typeof stringInstancePadEnd == 'function');
+    ok(typeof stringInstancePadEnd('') == 'function');
+    ok(stringInstancePadEnd('').call('a', 3, 'b') === 'abb');
+
+    const stringInstancePadStart = load(NS, 'string/instance/pad-start');
+    ok(typeof stringInstancePadStart == 'function');
+    ok(typeof stringInstancePadStart('') == 'function');
+    ok(stringInstancePadStart('').call('a', 3, 'b') === 'bba');
+
+    const stringInstanceRepeat = load(NS, 'string/instance/repeat');
+    ok(typeof stringInstanceRepeat == 'function');
+    ok(typeof stringInstanceRepeat('') == 'function');
+    ok(stringInstanceRepeat('').call('ab', 3) === 'ababab');
+
+    const stringInstanceReplaceAll = load(NS, 'string/instance/replace-all');
+    ok(typeof stringInstanceReplaceAll == 'function');
+    ok(typeof stringInstanceReplaceAll('') == 'function');
+    ok(stringInstanceReplaceAll('').call('aaa', 'a', 'b') === 'bbb');
+
+    const stringInstanceSmall = load(NS, 'string/instance/small');
+    ok(typeof stringInstanceSmall == 'function');
+    ok(typeof stringInstanceSmall('') == 'function');
+
+    const stringInstanceStartsWith = load(NS, 'string/instance/starts-with');
+    ok(typeof stringInstanceStartsWith == 'function');
+    ok(typeof stringInstanceStartsWith('') == 'function');
+    ok(stringInstanceStartsWith('').call('abc', 'ab'));
+
+    const stringInstanceStrike = load(NS, 'string/instance/strike');
+    ok(typeof stringInstanceStrike == 'function');
+    ok(typeof stringInstanceStrike('') == 'function');
+
+    const stringInstanceSub = load(NS, 'string/instance/sub');
+    ok(typeof stringInstanceSub == 'function');
+    ok(typeof stringInstanceSub('') == 'function');
+
+    const stringInstanceSup = load(NS, 'string/instance/sup');
+    ok(typeof stringInstanceSup == 'function');
+    ok(typeof stringInstanceSup('') == 'function');
+
+    const stringInstanceToWellFormed = load(NS, 'string/instance/to-well-formed');
+    ok(typeof stringInstanceToWellFormed == 'function');
+    ok(typeof stringInstanceToWellFormed('') == 'function');
+    ok(stringInstanceToWellFormed('').call('a') === 'a');
+
+    const stringInstanceTrim = load(NS, 'string/instance/trim');
+    ok(typeof stringInstanceTrim == 'function');
+    ok(typeof stringInstanceTrim('') == 'function');
+    ok(stringInstanceTrim('').call(' a ') === 'a');
+
+    const stringInstanceTrimEnd = load(NS, 'string/instance/trim-end');
+    ok(typeof stringInstanceTrimEnd == 'function');
+    ok(typeof stringInstanceTrimEnd('') == 'function');
+    ok(stringInstanceTrimEnd('').call(' a ') === ' a');
+
+    const stringInstanceTrimLeft = load(NS, 'string/instance/trim-left');
+    ok(typeof stringInstanceTrimLeft == 'function');
+    ok(typeof stringInstanceTrimLeft('') == 'function');
+    ok(stringInstanceTrimLeft('').call(' a ') === 'a ');
+
+    const stringInstanceTrimRight = load(NS, 'string/instance/trim-right');
+    ok(typeof stringInstanceTrimRight == 'function');
+    ok(typeof stringInstanceTrimRight('') == 'function');
+    ok(stringInstanceTrimRight('').call(' a ') === ' a');
+
+    const stringInstanceTrimStart = load(NS, 'string/instance/trim-start');
+    ok(typeof stringInstanceTrimStart == 'function');
+    ok(typeof stringInstanceTrimStart('') == 'function');
+    ok(stringInstanceTrimStart('').call(' a ') === 'a ');
+
+    // type-specific number/instance/* entries
+    const numberInstanceToExponential = load(NS, 'number/instance/to-exponential');
+    ok(typeof numberInstanceToExponential == 'function');
+    ok(typeof numberInstanceToExponential(1) == 'function');
+    ok(numberInstanceToExponential(1).call(1, 1) === '1.0e+0');
+
+    const numberInstanceToFixed = load(NS, 'number/instance/to-fixed');
+    ok(typeof numberInstanceToFixed == 'function');
+    ok(typeof numberInstanceToFixed(1) == 'function');
+    ok(numberInstanceToFixed(1).call(3.14, 1) === '3.1');
   }
 
   for (const NS of ['stable', 'actual', 'full']) {
@@ -807,6 +1110,19 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(instanceUniqueBy({}) === undefined);
     ok(typeof instanceUniqueBy([]) == 'function');
     ok(instanceUniqueBy([]).call([1, 2, 3, 2, 1]).length === 3);
+
+    const numberInstanceClamp = load(NS, 'number/instance/clamp');
+    ok(typeof numberInstanceClamp == 'function');
+    ok(typeof numberInstanceClamp(1) == 'function');
+
+    const arrayInstanceFilterReject = load(NS, 'array/instance/filter-reject');
+    ok(typeof arrayInstanceFilterReject == 'function');
+    ok(typeof arrayInstanceFilterReject([]) == 'function');
+    ok(arrayInstanceFilterReject([]).call([1, 2, 3], it => it > 1).length === 1);
+
+    const arrayInstanceUniqueBy = load(NS, 'array/instance/unique-by');
+    ok(typeof arrayInstanceUniqueBy == 'function');
+    ok(typeof arrayInstanceUniqueBy([]) == 'function');
   }
 
   load('proposals/accessible-object-hasownproperty');
