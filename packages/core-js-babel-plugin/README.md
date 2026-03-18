@@ -103,7 +103,7 @@ Array.from(items);
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'4.0'` | Used `core-js` version, it's recommended to specify the used minor version like `'4.1'` |
+| `version` | `string` | `'4.0'` | Used `core-js` version, it's recommended to specify the used minor version like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
 | `targets` | `string` \| `object` | from browserslist config / all engines | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
@@ -122,6 +122,10 @@ Array.from(items);
 The `core-js` version installed in your project. The plugin uses this to determine which polyfill modules and entry points are available.
 
 It's recommended to specify the minor version (e.g., `'4.1'`) rather than just the major version (`'4.0'`), so that the plugin can use polyfills added in minor releases.
+
+Special values:
+- `'node_modules'` — reads the version from the installed `core-js` package (`core-js/package.json`)
+- `'package.json'` — reads the version range from the project's `package.json` `dependencies`, `devDependencies`, or `peerDependencies`
 
 ```json
 {
