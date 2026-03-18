@@ -1,2 +1,2 @@
-import _replaceAllInstanceProperty from "@core-js/pure/actual/instance/replace-all";
-_replaceAllInstanceProperty(s).call(s, "a", "b");
+import _replaceAllMaybeString from "@core-js/pure/actual/string/instance/replace-all";
+_replaceAllMaybeString(s).call(s, "a", "b");

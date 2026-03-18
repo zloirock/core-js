@@ -1,3 +1,3 @@
 var _ref;
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
-_atInstanceProperty(_ref = x = []).call(_ref, -1);
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+_atMaybeArray(_ref = x = []).call(_ref, -1);

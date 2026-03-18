@@ -1,5 +1,5 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 function foo(x: number[]) {
   var _ref;
-  _atInstanceProperty(_ref = x!).call(_ref, -1);
+  _atMaybeArray(_ref = x!).call(_ref, -1);
 }
