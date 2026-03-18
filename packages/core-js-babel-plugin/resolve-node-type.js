@@ -1041,14 +1041,29 @@ function resolveBinaryOperatorType(operator, leftPath, rightPath) {
   return null;
 }
 
+function isGlobalThis(path) {
+  let current = path;
+  while (current = current.parentPath) {
+    // non-arrow function rebinds `this` - not global
+    if (current.isFunction() && !current.isArrowFunctionExpression()) return false;
+    if (current.isProgram()) return true;
+  }
+  return true;
+}
+
+function isGlobalProxy(objectPath) {
+  if (objectPath.isIdentifier()) {
+    return POSSIBLE_GLOBAL_PROXIES.has(objectPath.node.name) && !objectPath.scope.getBinding(objectPath.node.name);
+  }
+  // top-level `this` (not inside any non-arrow function or class) is a global proxy
+  return objectPath.isThisExpression() && isGlobalThis(objectPath);
+}
+
 function resolveGlobalName(path) {
   if (path.isIdentifier() && !path.scope.getBinding(path.node.name)) return path.node.name;
   if (!isMemberLike(path) || path.node.computed) return null;
   const object = path.get('object');
-  if (!object.isIdentifier()) return null;
-  const { name } = object.node;
-  if (!POSSIBLE_GLOBAL_PROXIES.has(name)) return null;
-  if (object.scope.getBinding(name)) return null;
+  if (!isGlobalProxy(object)) return null;
   const property = path.get('property');
   return property.isIdentifier() ? property.node.name : null;
 }
@@ -2372,7 +2387,9 @@ function isTypeofVar(node, varName) {
 // extract the property name from a global proxy member expression node (e.g. globalThis.Array -> 'Array')
 function resolveGlobalPropertyName(node) {
   if (node.type !== 'MemberExpression' || node.computed) return null;
-  if (node.object.type !== 'Identifier' || !POSSIBLE_GLOBAL_PROXIES.has(node.object.name)) return null;
+  const isProxy = (node.object.type === 'Identifier' && POSSIBLE_GLOBAL_PROXIES.has(node.object.name))
+    || node.object.type === 'ThisExpression';
+  if (!isProxy) return null;
   return node.property.type === 'Identifier' ? node.property.name : null;
 }
 
