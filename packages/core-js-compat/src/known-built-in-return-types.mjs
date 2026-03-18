@@ -21,6 +21,7 @@ export const constructors = {
   DOMException: 'DOMException',
   Error: 'Error',
   EvalError: 'Error',
+  FinalizationRegistry: 'FinalizationRegistry',
   Float16Array: { new: 'TypedArray', element: 'number' },
   Float32Array: { new: 'TypedArray', element: 'number' },
   Float64Array: { new: 'TypedArray', element: 'number' },
@@ -50,6 +51,7 @@ export const constructors = {
   URL: 'URL',
   URLSearchParams: 'URLSearchParams',
   WeakMap: 'WeakMap',
+  WeakRef: 'WeakRef',
   WeakSet: 'WeakSet',
   // TS types
   ReadonlyArray: 'Array',
