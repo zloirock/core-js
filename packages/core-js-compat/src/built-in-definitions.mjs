@@ -283,9 +283,7 @@ export const InstanceProperties = {
   codePointAt: { string: 'string/instance/code-point-at' },
   concat: { array: 'array/instance/concat' },
   copyWithin: { array: 'array/instance/copy-within' },
-  demethodize: {
-    function: 'instance/demethodize',
-  },
+  demethodize: { function: 'instance/demethodize' },
   description: { global: { symbol: 'symbol/description' } },
   dotAll: { global: { regexp: 'regexp/dot-all' } },
   drop: {
@@ -351,12 +349,10 @@ export const InstanceProperties = {
   forEach: {
     pure: {
       common: 'instance/for-each',
-      array: [],
       domcollection: 'dom-collections/instance/for-each',
     },
     global: {
       common: ['instance/for-each', 'iterator/for-each'],
-      array: [],
       asynciterator: 'async-iterator/for-each',
       domcollection: 'dom-collections/instance/for-each',
       iterator: 'iterator/for-each',
