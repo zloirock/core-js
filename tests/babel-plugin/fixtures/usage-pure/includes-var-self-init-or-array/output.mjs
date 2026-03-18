@@ -1,3 +1,3 @@
-import _includesInstanceProperty from "@core-js/pure/actual/instance/includes";
+import _includes from "@core-js/pure/actual/instance/includes";
 var n = n || [];
-_includesInstanceProperty(n).call(n, 1);
+_includes(n).call(n, 1);
