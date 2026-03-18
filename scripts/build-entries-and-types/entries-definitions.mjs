@@ -1107,13 +1107,31 @@ export const features = {
   },
   'error/index': {
     modules: [/^(?:es|esnext)\.error\./],
-    template: $path,
+    template: $namespace,
+    name: 'Error',
   },
   'error/constructor': {
     modules: ['es.error.cause'],
-    template: $path, // !!!!!!!
+    template: $namespace,
+    name: 'Error',
   },
   'error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
+  },
+  'eval-error/index': {
+    modules: ['es.error.cause', 'es.error.is-error'],
+    template: $namespace,
+    name: 'EvalError',
+  },
+  'eval-error/constructor': {
+    modules: ['es.error.cause'],
+    template: $namespace,
+    name: 'EvalError',
+  },
+  'eval-error/is-error': {
     modules: ['es.error.is-error'],
     template: $static,
     namespace: 'Error',
@@ -2281,6 +2299,38 @@ export const features = {
     name: 'withResolvers',
     arity: 0,
   },
+  'range-error/index': {
+    modules: ['es.error.cause', 'es.error.is-error'],
+    template: $namespace,
+    name: 'RangeError',
+  },
+  'range-error/constructor': {
+    modules: ['es.error.cause'],
+    template: $namespace,
+    name: 'RangeError',
+  },
+  'range-error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
+  },
+  'reference-error/index': {
+    modules: ['es.error.cause', 'es.error.is-error'],
+    template: $namespace,
+    name: 'ReferenceError',
+  },
+  'reference-error/constructor': {
+    modules: ['es.error.cause'],
+    template: $namespace,
+    name: 'ReferenceError',
+  },
+  'reference-error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
+  },
   'reflect/index': {
     modules: [/^(?:es|esnext)\.reflect\./],
     template: $namespace,
@@ -3108,6 +3158,22 @@ export const features = {
     template: $instanceString,
     name: 'trimStart',
   },
+  'syntax-error/index': {
+    modules: ['es.error.cause', 'es.error.is-error'],
+    template: $namespace,
+    name: 'SyntaxError',
+  },
+  'syntax-error/constructor': {
+    modules: ['es.error.cause'],
+    template: $namespace,
+    name: 'SyntaxError',
+  },
+  'syntax-error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
+  },
   'suppressed-error/index': {
     modules: [/^(?:es|esnext)\.suppressed-error\./],
     template: $namespace,
@@ -3258,6 +3324,22 @@ export const features = {
     template: $static,
     namespace: 'Symbol',
     name: 'unscopables',
+  },
+  'type-error/index': {
+    modules: ['es.error.cause', 'es.error.is-error'],
+    template: $namespace,
+    name: 'TypeError',
+  },
+  'type-error/constructor': {
+    modules: ['es.error.cause'],
+    template: $namespace,
+    name: 'TypeError',
+  },
+  'type-error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
   },
   'typed-array/index': {
     modules: [/^(?:es|esnext)\.typed-array\./],
@@ -3475,6 +3557,22 @@ export const features = {
   'typed-array/with': {
     modules: ['es.typed-array.with'],
     template: $justImport,
+  },
+  'uri-error/index': {
+    modules: ['es.error.cause', 'es.error.is-error'],
+    template: $namespace,
+    name: 'URIError',
+  },
+  'uri-error/constructor': {
+    modules: ['es.error.cause'],
+    template: $namespace,
+    name: 'URIError',
+  },
+  'uri-error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
   },
   'url/index': {
     modules: [/^web\.url(?:-search-params)?\./],
