@@ -1509,10 +1509,19 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
       ? resolveTupleInner(elements, e => substituteTypeParams(e, typeParamMap, scope, depth + 1))
       : null);
   }
-  // T["key"] or T[number] - resolve indexed access through regular annotation resolution
-  // hasTypeParamReference detects the reference so the substitution path is entered,
-  // but the actual resolution happens through resolveTypeAnnotation which handles TSIndexedAccessType
-  if (node.type === 'TSIndexedAccessType') return resolveTypeAnnotation(node, scope, depth);
+  // T["key"] or T[number] - resolve indexed access, substituting type params in the object type
+  if (node.type === 'TSIndexedAccessType') {
+    // if objectType references a type parameter, resolve through its constraint
+    const objParamName = typeRefName(node.objectType);
+    if (objParamName && typeParamMap.has(objParamName)) {
+      const paramInfo = findTypeParameter(objParamName, scope);
+      if (paramInfo?.constraint) {
+        const syntheticNode = { type: 'TSIndexedAccessType', objectType: paramInfo.constraint, indexType: node.indexType };
+        return resolveTypeAnnotation(syntheticNode, paramInfo.scope, depth);
+      }
+    }
+    return resolveTypeAnnotation(node, scope, depth);
+  }
   // function type: (x: T) => R - always Function regardless of type parameters
   if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
   // mapped type: { [K in keyof T]: V } - always Object
