@@ -14,6 +14,7 @@ const TYPE_HINTS = new Set([
   'bigint',
   'boolean',
   'date',
+  'domcollection',
   'function',
   'iterator',
   'number',
