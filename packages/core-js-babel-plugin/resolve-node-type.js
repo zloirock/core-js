@@ -40,6 +40,7 @@ const TYPE_HINTS = new Set([
   'array',
   'asynciterator',
   'date',
+  'domcollection',
   'function',
   'iterator',
   'object',
@@ -2783,10 +2784,19 @@ function resolvePropertyObjectType(path) {
   return resolveForOfResolvedElement(forOfPath);
 }
 
+const DOM_COLLECTION_CONSTRUCTORS = assign(create(null), {
+  DOMTokenList: 'domcollection',
+  HTMLCollection: 'domcollection',
+  NodeList: 'domcollection',
+});
+
 function toHint(type) {
   if (!type) return null;
   if (type.primitive) return type.type === 'unknown' ? null : type.type;
-  return type.constructor?.toLowerCase() ?? null;
+  const name = type.constructor;
+  if (!name) return null;
+  if (hasOwn(DOM_COLLECTION_CONSTRUCTORS, name)) return DOM_COLLECTION_CONSTRUCTORS[name];
+  return name.toLowerCase();
 }
 
 // intersect a whitelist set with another hint set
