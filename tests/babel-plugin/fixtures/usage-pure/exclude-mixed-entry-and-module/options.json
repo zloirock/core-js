@@ -1,0 +1,13 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": { "ie": 11 },
+        "exclude": ["array/at", "array/includes"]
+      }
+    ]
+  ]
+}
