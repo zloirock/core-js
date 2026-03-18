@@ -1,2 +1,2 @@
-import _flatInstanceProperty from "@core-js/pure/actual/instance/flat";
-const f = _flatInstanceProperty(foo);
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+const f = _flatMaybeArray(foo);

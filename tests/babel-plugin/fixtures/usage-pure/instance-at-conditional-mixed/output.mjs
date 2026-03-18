@@ -1,3 +1,3 @@
 var _ref;
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
-_atInstanceProperty(_ref = c ? 'a' : []).call(_ref, -1);
+import _at from "@core-js/pure/actual/instance/at";
+_at(_ref = c ? 'a' : []).call(_ref, -1);

@@ -1,4 +1,4 @@
-import _includesInstanceProperty from "@core-js/pure/actual/instance/includes";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 function foo(x: string) {
-  _includesInstanceProperty(x).call(x, 'test');
+  _includesMaybeString(x).call(x, 'test');
 }

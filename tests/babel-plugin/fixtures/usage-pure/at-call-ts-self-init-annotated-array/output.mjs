@@ -1,3 +1,3 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var n: string[] = n ? n : [];
-_atInstanceProperty(n).call(n, 0);
+_atMaybeArray(n).call(n, 0);

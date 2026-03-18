@@ -1,5 +1,5 @@
-import _includesInstanceProperty from "@core-js/pure/actual/instance/includes";
-import _flatInstanceProperty from "@core-js/pure/actual/instance/flat";
-_includesInstanceProperty(foo).apply(bar, [1, 2]);
-_flatInstanceProperty(foo).call(bar);
-const fn = _flatInstanceProperty(foo).bind(bar);
+import _includes from "@core-js/pure/actual/instance/includes";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+_includes(foo).apply(bar, [1, 2]);
+_flatMaybeArray(foo).call(bar);
+const fn = _flatMaybeArray(foo).bind(bar);

@@ -1,5 +1,5 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 const a = b;
 const b = c;
 const c = a;
-_atInstanceProperty(a).call(a, 0);
+_at(a).call(a, 0);
