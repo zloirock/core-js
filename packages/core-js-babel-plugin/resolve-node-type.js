@@ -12,7 +12,7 @@ const {
   staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
 } = knownBuiltInReturnTypes;
 
-const { assign, create, entries, hasOwn } = Object;
+const { assign, create, entries, hasOwn, keys } = Object;
 
 const MAX_DEPTH = 15;
 
@@ -30,36 +30,28 @@ const UNBOXED_PRIMITIVES = create(null);
 for (const [primitive, constructor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[constructor] = primitive;
 
 const PRIMITIVES = new Set([
-  ...Object.keys(PRIMITIVE_WRAPPERS),
+  ...keys(PRIMITIVE_WRAPPERS),
   'null',
   'undefined',
 ]);
 
 const TYPE_HINTS = new Set([
+  ...keys(PRIMITIVE_WRAPPERS),
   'array',
   'asynciterator',
-  'bigint',
-  'boolean',
   'date',
   'function',
   'iterator',
-  'number',
   'object',
   'promise',
   'regexp',
-  'string',
-  'symbol',
 ]);
 
 // lack of boxed primitives - acceptable assumption
-const TYPEOF_HINT_GROUPS = assign(create(null), {
-  string: new Set(['string']),
-  number: new Set(['number']),
-  boolean: new Set(['boolean']),
-  bigint: new Set(['bigint']),
-  symbol: new Set(['symbol']),
-  function: new Set(['function']),
-});
+const TYPEOF_HINT_GROUPS = [...keys(PRIMITIVE_WRAPPERS), 'function'].reduce((memo, type) => {
+  memo[type] = new Set([type]);
+  return memo;
+}, create(null));
 
 // object group: all hints not covered by explicit typeof groups
 TYPEOF_HINT_GROUPS.object = new Set([...TYPE_HINTS].filter(h => {
@@ -2189,6 +2181,7 @@ function findBindingAnnotation(bindingPath) {
   const { node } = bindingPath;
   return node.typeAnnotation
     || node.id?.typeAnnotation
+    || node.param?.typeAnnotation
     || (bindingPath.isAssignmentPattern() && node.left?.typeAnnotation);
 }
 
