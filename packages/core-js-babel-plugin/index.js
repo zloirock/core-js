@@ -432,6 +432,17 @@ export default defineProvider(({
           injectModulesForModeEntry('symbol/iterator', getUtils(path));
         }
       },
+      // using x = ..., await using x = ...
+      VariableDeclaration(path) {
+        if (skipFile) return;
+        const { kind } = path.node;
+        if (kind === 'using' || kind === 'await using') {
+          // babel uses all those polyfills in all cases of `using`
+          injectModulesForModeEntry('symbol/async-dispose', getUtils(path));
+          injectModulesForModeEntry('symbol/dispose', getUtils(path));
+          injectModulesForModeEntry('suppressed-error', getUtils(path));
+        }
+      },
       // decorators metadata
       Class(path) {
         if (skipFile) return;
