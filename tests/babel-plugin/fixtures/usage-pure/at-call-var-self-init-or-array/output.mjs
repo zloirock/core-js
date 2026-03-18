@@ -1,3 +1,3 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _at from "@core-js/pure/actual/instance/at";
 var n = n || [1, 2, 3];
-_atInstanceProperty(n).call(n, 0);
+_at(n).call(n, 0);
