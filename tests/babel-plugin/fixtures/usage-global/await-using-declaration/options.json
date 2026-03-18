@@ -12,6 +12,6 @@
     ]
   ],
   "parserOpts": {
-    "plugins": ["typescript"]
+    "plugins": ["explicitResourceManagement"]
   }
 }
