@@ -18,7 +18,7 @@ if (!NODE && !BUN) {
     `;
     assert.throws(Function(code)(), ReferenceError);
 
-    const invalidThis = { hello: "world" };
+    const invalidThis = { allison: 'brian' };
     assert.throws(() => Element.prototype.remove.call(invalidThis), TypeError);
   });
 }
