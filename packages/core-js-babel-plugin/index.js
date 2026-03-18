@@ -98,6 +98,12 @@ function enhanceMeta(meta, path, desc) {
   return meta;
 }
 
+function pureImportName(kind, name, importEntry) {
+  if (kind !== 'instance') return name;
+  const match = importEntry.match(/^(?<type>[^/]+)\/instance\//);
+  return match ? `${ name }Maybe${ match.groups.type.replace(/(?:^|-)(?<char>\w)/g, (_, char) => char.toUpperCase()) }` : name;
+}
+
 function canTransformDestructuring(path) {
   const objectPattern = path.parentPath;
   const destructParent = objectPattern?.parentPath;
@@ -250,11 +256,6 @@ export default defineProvider(({
     if (!dependencies?.length) return null;
     const [entry] = dependencies;
     if (!isEntryNeeded(entry) && !(target.guard && isEntryNeeded(target.guard))) return null;
-    // import from common wrapper to get correct (non-decurried) export
-    if (kind === 'instance') {
-      const commonEntry = getDependencies(desc.common)?.[0];
-      if (commonEntry && isEntryNeeded(commonEntry)) return commonEntry;
-    }
     return entry;
   }
 
@@ -355,7 +356,7 @@ export default defineProvider(({
       if (!importEntry) return;
       debug(importEntry);
 
-      const hintName = kind === 'instance' ? `${ resolved.name }InstanceProperty` : resolved.name;
+      const hintName = pureImportName(kind, resolved.name, importEntry);
 
       if (path.isObjectProperty()) {
         if (!canTransformDestructuring(path)) return;
