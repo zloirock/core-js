@@ -261,7 +261,7 @@ export const $namespace = p => ({
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
-      const namespace: typeof ${ p.prefix ?? '' }${ p.name };
+      const namespace: typeof ${ p.prefix ?? '' }${ p.typeName ?? p.name };
       export = namespace;
     }
   `,
