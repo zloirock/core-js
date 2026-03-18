@@ -150,7 +150,7 @@ Configuration example:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'4.0'` | Used `core-js` version, it's recommended to specify the used minor version like `'4.1'` |
+| `version` | `string` | `'4.0'` | Used `core-js` version. It's recommended to specify the used minor version like `'4.1'`. Special values: `'node_modules'` reads the version from the installed `core-js` package, `'package.json'` reads the version range from the project's `package.json` dependencies |
 | `targets` | `string` \| `object` | all browsers | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `pkg` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
