@@ -1,2 +1,2 @@
-import _toReversedInstanceProperty from "@core-js/pure/actual/instance/to-reversed";
-_toReversedInstanceProperty(arr).call(arr);
+import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
+_toReversedMaybeArray(arr).call(arr);
