@@ -124,9 +124,15 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'array/prototype/to-spliced').call([3, 2, 1], 1, 1, 4, 5).length === 4);
     ok('from' in load(NS, 'array'));
     ok(load(NS, 'array/splice')([1, 2, 3], 1, 2)[0] === 2);
-    ok(new (load(NS, 'error/constructor').Error)(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'error/constructor'))(1, { cause: 7 }).cause === 7);
     ok(load(NS, 'error/is-error')(new Error()));
-    ok(new (load(NS, 'error').Error)(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'error'))(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'error/constructor') === Error);
+    ok(load(NS, 'error') === Error);
+    ok(new (load(NS, 'eval-error/constructor'))(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'eval-error'))(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'eval-error/is-error')(new Error()));
+    ok(load(NS, 'eval-error') === EvalError);
     ok(load(NS, 'math/acosh')(1) === 0);
     ok(Object.is(load(NS, 'math/asinh')(-0), -0));
     ok(load(NS, 'math/atanh')(1) === Infinity);
@@ -250,6 +256,14 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'string/prototype/to-well-formed').call('a') === 'a');
     ok('next' in load(NS, 'string/prototype/iterator').call('qwe'));
     ok('raw' in load(NS, 'string'));
+    ok(new (load(NS, 'range-error/constructor'))(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'range-error'))(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'range-error/is-error')(new Error()));
+    ok(load(NS, 'range-error') === RangeError);
+    ok(new (load(NS, 'reference-error/constructor'))(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'reference-error'))(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'reference-error/is-error')(new Error()));
+    ok(load(NS, 'reference-error') === ReferenceError);
     load(NS, 'regexp/constructor');
     ok(load(NS, 'regexp/escape')('10$') === '\\x310\\$');
     load(NS, 'regexp/dot-all');
@@ -370,8 +384,20 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'iterator/prototype/take') == 'function');
     ok(typeof load(NS, 'iterator/prototype/to-array') == 'function');
     ok(typeof load(NS, 'iterator') == 'function');
+    ok(new (load(NS, 'syntax-error/constructor'))(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'syntax-error'))(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'syntax-error/is-error')(new Error()));
+    ok(load(NS, 'syntax-error') === SyntaxError);
     ok(new (load(NS, 'suppressed-error/constructor'))(1, 2).suppressed === 2);
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
+    ok(new (load(NS, 'type-error/constructor'))(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'type-error'))(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'type-error/is-error')(new Error()));
+    ok(load(NS, 'type-error') === TypeError);
+    ok(new (load(NS, 'uri-error/constructor'))(1, { cause: 7 }).cause === 7);
+    ok(new (load(NS, 'uri-error'))(1, { cause: 7 }).cause === 7);
+    ok(load(NS, 'uri-error/is-error')(new Error()));
+    ok(load(NS, 'uri-error') === URIError);
     ok(typeof load(NS, 'disposable-stack/constructor') == 'function');
     ok(typeof load(NS, 'disposable-stack') == 'function');
     ok(load(NS, 'symbol/async-dispose'));
@@ -1281,11 +1307,45 @@ for (const NS of ['es', 'stable', 'actual', 'full']) {
   load(NS, 'typed-array/values');
   load(NS, 'typed-array/with');
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
+
+  // individual typed array entry points
+  const typedArrayCommonMethods = [
+    'at', 'copy-within', 'entries', 'every', 'fill', 'filter', 'find', 'find-index',
+    'find-last', 'find-last-index', 'for-each', 'from', 'includes', 'index-of',
+    'iterator', 'join', 'keys', 'last-index-of', 'map', 'of', 'reduce', 'reduce-right',
+    'reverse', 'set', 'slice', 'some', 'sort', 'subarray', 'to-locale-string',
+    'to-reversed', 'to-sorted', 'to-string', 'values', 'with',
+  ];
+
+  for (const TA of ['float32-array', 'float64-array', 'int8-array', 'int16-array', 'int32-array',
+    'uint8-clamped-array', 'uint16-array', 'uint32-array']) {
+    ok(typeof load(NS, `${ TA }`) == 'function');
+    ok(typeof load(NS, `${ TA }/constructor`) == 'function');
+    for (const method of typedArrayCommonMethods) load(NS, `${ TA }/${ method }`);
+  }
+
+  // Uint8Array — common + Uint8-only methods
+  ok(typeof load(NS, 'uint8-array') == 'function');
+  ok(typeof load(NS, 'uint8-array/constructor') == 'function');
+  for (const method of typedArrayCommonMethods) load(NS, `uint8-array/${ method }`);
+  load(NS, 'uint8-array/from-base64');
+  load(NS, 'uint8-array/from-hex');
+  load(NS, 'uint8-array/set-from-base64');
+  load(NS, 'uint8-array/set-from-hex');
+  load(NS, 'uint8-array/to-base64');
+  load(NS, 'uint8-array/to-hex');
 }
 
 for (const NS of ['full']) {
   load(NS, 'typed-array/filter-reject');
   load(NS, 'typed-array/unique-by');
+
+  // individual typed array esnext methods
+  for (const TA of ['float32-array', 'float64-array', 'int8-array', 'int16-array', 'int32-array',
+    'uint8-array', 'uint8-clamped-array', 'uint16-array', 'uint32-array']) {
+    load(NS, `${ TA }/filter-reject`);
+    load(NS, `${ TA }/unique-by`);
+  }
 }
 
 echo(chalk.green(`tested ${ chalk.cyan(tested.size) } commonjs entry points`));
