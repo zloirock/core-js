@@ -87,6 +87,13 @@ function getCustomGenerics(count) {
 
 export const wrapEntryInStrict = template => `'use strict';\n${ template }\n`;
 
+const instanceTypes = p => dedent`
+  declare module '${ buildModulePath(p) }' {
+    const method: (arg: NonNullable<any>) => any;
+    export = method;
+  }
+`;
+
 export const $justImport = p => ({
   entry: dedent`
     ${ importModules(p) }
@@ -305,12 +312,7 @@ export const $instanceArray = p => ({
       return ownProperty;
     };
   `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  types: instanceTypes(p),
 });
 
 export const $instanceNumber = p => ({
@@ -327,12 +329,7 @@ export const $instanceNumber = p => ({
       return ownProperty;
     };
   `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  types: instanceTypes(p),
 });
 
 export const $instanceString = p => ({
@@ -349,12 +346,7 @@ export const $instanceString = p => ({
       return ownProperty;
     };
   `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  types: instanceTypes(p),
 });
 
 export const $instanceFunction = p => ({
@@ -371,40 +363,40 @@ export const $instanceFunction = p => ({
       } return ownProperty;
     };
   `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  types: instanceTypes(p),
 });
 
-export const $instanceDOMIterables = p => ({
-  entry: dedent`
+function instanceDOMIterableEntry(p, arrayMethodExpr) {
+  return dedent`
     ${ importModules(p) }
 
     var classof = ${ importInternal('classof', p.level) }
     var hasOwn = ${ importInternal('has-own-property', p.level) }
-  
-    var arrayMethod = Array.prototype.${ p.name };
-  
+
+    var arrayMethod = ${ arrayMethodExpr };
+
     var DOMIterables = {
       DOMTokenList: true,
+      HTMLCollection: true,
       NodeList: true,
     };
-  
+
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (hasOwn(DOMIterables, classof(it))) return arrayMethod;
       return ownProperty;
     };
-  `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  `;
+}
+
+export const $instanceDOMIterable = p => ({
+  entry: instanceDOMIterableEntry(p, `require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }')`),
+  types: instanceTypes(p),
+});
+
+export const $instanceDOMIterableFromNative = p => ({
+  entry: instanceDOMIterableEntry(p, `Array.prototype.${ p.name }`),
+  types: instanceTypes(p),
 });
 
 export const $instanceArrayString = p => ({
@@ -412,10 +404,10 @@ export const $instanceArrayString = p => ({
     var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
     var arrayMethod = require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }');
     var stringMethod = require('${ '../'.repeat(p.level - 1) }string/prototype/${ basename(p.entry) }');
-  
+
     var ArrayPrototype = Array.prototype;
     var StringPrototype = String.prototype;
-  
+
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
@@ -424,15 +416,10 @@ export const $instanceArrayString = p => ({
       return ownProperty;
     };
   `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  types: instanceTypes(p),
 });
 
-export const $instanceArrayDOMIterables = p => ({
+export const $instanceArrayDOMIterable = p => ({
   entry: dedent`
     ${ importModules(p) }
 
@@ -440,14 +427,14 @@ export const $instanceArrayDOMIterables = p => ({
     var hasOwn = ${ importInternal('has-own-property', p.level) }
     var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
     var arrayMethod = require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }');
-  
+
     var ArrayPrototype = Array.prototype;
-  
+
     var DOMIterables = {
       DOMTokenList: true,
       NodeList: true,
     };
-  
+
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (it === ArrayPrototype || ((isPrototypeOf(ArrayPrototype, it)
@@ -455,12 +442,7 @@ export const $instanceArrayDOMIterables = p => ({
       return ownProperty;
     };
   `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  types: instanceTypes(p),
 });
 
 export const $instanceRegExpFlags = p => ({
@@ -469,19 +451,14 @@ export const $instanceRegExpFlags = p => ({
 
     var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
     var flags = require('${ '../'.repeat(p.level - 1) }regexp/flags');
-  
+
     var RegExpPrototype = RegExp.prototype;
-  
+
     module.exports = function (it) {
       return (it === RegExpPrototype || isPrototypeOf(RegExpPrototype, it)) ? flags(it) : it.flags;
     };
   `,
-  types: dedent`
-    declare module '${ buildModulePath(p) }' {
-      const method: (arg: NonNullable<any>) => any;
-      export = method;
-    }
-  `,
+  types: instanceTypes(p),
 });
 
 export const $proposal = p => ({
