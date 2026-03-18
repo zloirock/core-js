@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Add polyfill for ``Element.remove``
 - Compat data improvements:
   - Updated Electron 42 compat data mapping
 
