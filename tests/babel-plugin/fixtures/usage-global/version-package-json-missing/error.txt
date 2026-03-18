@@ -1,0 +1,1 @@
+[BABEL] unknown file: `core-js` is not specified in your `package.json` (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
