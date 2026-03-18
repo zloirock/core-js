@@ -1,2 +1,2 @@
-import _includesInstanceProperty from "@core-js/pure/actual/instance/includes";
-_includesInstanceProperty(foo).call(foo, 'a');
+import _includes from "@core-js/pure/actual/instance/includes";
+_includes(foo).call(foo, 'a');

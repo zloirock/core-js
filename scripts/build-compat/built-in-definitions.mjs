@@ -75,6 +75,16 @@ function unfoldMode(data, kind, modeName, entryName) {
       if (value) result[key] = unfoldHint(value);
     }
   } else result.common = unfoldHint(data);
+  // validate pure instance properties: all dependencies must use /instance/ paths
+  if (modeName === 'pure' || modeName === 'shared') {
+    for (const [key, hint] of Object.entries(result)) {
+      if (!hint?.dependencies?.length) continue;
+      const [dep] = hint.dependencies;
+      if (TYPE_HINTS.has(key) && !dep.startsWith('instance/') && !dep.includes('/instance/')) {
+        throw new Error(`${ entryName }: pure instance '${ key }' dependency must use /instance/ path, got '${ dep }'`);
+      }
+    }
+  }
   return result;
 }
 
