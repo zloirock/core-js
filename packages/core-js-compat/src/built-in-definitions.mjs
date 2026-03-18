@@ -296,8 +296,9 @@ export const InstanceProperties = {
   },
   endsWith: { string: 'string/instance/ends-with' },
   entries: {
-    common: 'instance/keys',
+    common: 'instance/entries',
     array: 'array/instance/entries',
+    domcollection: 'dom-collections/instance/entries',
   },
   every: {
     global: {
@@ -348,10 +349,16 @@ export const InstanceProperties = {
   fontcolor: { global: { string: 'string/fontcolor' } },
   fontsize: { global: { string: 'string/fontsize' } },
   forEach: {
-    pure: 'instance/for-each',
+    pure: {
+      common: 'instance/for-each',
+      array: [],
+      domcollection: 'dom-collections/instance/for-each',
+    },
     global: {
       common: ['instance/for-each', 'iterator/for-each'],
+      array: [],
       asynciterator: 'async-iterator/for-each',
+      domcollection: 'dom-collections/instance/for-each',
       iterator: 'iterator/for-each',
     },
   },
@@ -382,6 +389,7 @@ export const InstanceProperties = {
   keys: {
     common: 'instance/keys',
     array: 'array/instance/keys',
+    domcollection: 'dom-collections/instance/keys',
   },
   lastIndexOf: { array: 'array/instance/last-index-of' },
   link: { global: { string: 'string/link' } },
@@ -478,6 +486,7 @@ export const InstanceProperties = {
   values: {
     common: 'instance/values',
     array: 'array/instance/values',
+    domcollection: 'dom-collections/instance/values',
   },
   windows: { global: { iterator: 'iterator/windows' } },
   with: { array: 'array/instance/with' },
