@@ -990,6 +990,10 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     load(NS, 'dom-collections/keys');
     load(NS, 'dom-collections/values');
     load(NS, 'dom-collections/entries');
+    load(NS, 'dom-collections/prototype/for-each');
+    load(NS, 'dom-collections/prototype/entries');
+    load(NS, 'dom-collections/prototype/keys');
+    load(NS, 'dom-collections/prototype/values');
     ok(load(NS, 'self').Math === Math);
     ok(typeof load(NS, 'set-immediate') == 'function');
     ok(load(NS, 'structured-clone')(42) === 42);
@@ -1009,6 +1013,18 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof instanceForEach == 'function');
     ok(instanceForEach({}) === undefined);
     ok(typeof instanceForEach([]) == 'function');
+
+    const domInstanceForEach = load(NS, 'dom-collections/instance/for-each');
+    ok(typeof domInstanceForEach == 'function');
+
+    const domInstanceEntries = load(NS, 'dom-collections/instance/entries');
+    ok(typeof domInstanceEntries == 'function');
+
+    const domInstanceKeys = load(NS, 'dom-collections/instance/keys');
+    ok(typeof domInstanceKeys == 'function');
+
+    const domInstanceValues = load(NS, 'dom-collections/instance/values');
+    ok(typeof domInstanceValues == 'function');
   }
 
   for (const NS of ['actual', 'full']) {
