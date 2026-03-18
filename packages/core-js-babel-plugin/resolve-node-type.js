@@ -997,6 +997,23 @@ function resolveUnionType(leftPath, rightPath) {
   return left && right ? commonType(left, right) : null;
 }
 
+// recognize Babel's destructuring default desugaring: _ref === void 0 ? DEFAULT : _ref
+// and resolve to the type of DEFAULT (the consequent branch)
+function resolveDesugarDefaultTernary(path) {
+  const { test, alternate } = path.node;
+  if (test.type !== 'BinaryExpression' || test.operator !== '===') return null;
+  const { left, right } = test;
+  // pattern: _ref === void 0 ? DEFAULT : _ref
+  if (!isVoidZero(right) || left.type !== 'Identifier') return null;
+  if (alternate.type !== 'Identifier' || alternate.name !== left.name) return null;
+  return resolveNodeType(path.get('consequent'));
+}
+
+function isVoidZero(node) {
+  return node.type === 'UnaryExpression' && node.operator === 'void'
+    && node.argument.type === 'NumericLiteral' && node.argument.value === 0;
+}
+
 function resolveBinaryOperatorType(operator, leftPath, rightPath) {
   switch (operator) {
     case '+': {
@@ -1212,7 +1229,10 @@ function resolveNodeTypeExpression(path) {
           return resolveBinaryOperatorType(path.node.operator.slice(0, -1), path.get('left'), path.get('right'));
       }
     case 'ConditionalExpression':
-      return resolveUnionType(path.get('consequent'), path.get('alternate'));
+      // Babel desugars destructuring defaults as: _ref === void 0 ? DEFAULT : _ref
+      // when one branch is a void-0 check and the other is the same identifier, resolve to the default branch
+      return resolveDesugarDefaultTernary(path)
+        || resolveUnionType(path.get('consequent'), path.get('alternate'));
     case 'LogicalExpression':
       return resolveUnionType(path.get('left'), path.get('right'));
     case 'ParenthesizedExpression':
@@ -1923,6 +1943,24 @@ function findDestructuredKeyName(objectPattern, name) {
   return null;
 }
 
+// resolve the type of a destructuring default: const { items = [] } = obj or const [a = []] = arr
+function resolveDestructuringDefault(pattern, varName, bindingPath) {
+  const patternPath = bindingPath.node === pattern ? bindingPath
+    : bindingPath.node.id === pattern ? bindingPath.get('id')
+    : bindingPath.node.left === pattern ? bindingPath.get('left') : null;
+  if (!patternPath) return null;
+  const children = patternPath.get(pattern.properties ? 'properties' : 'elements');
+  for (const child of children) {
+    if (!child.node) continue;
+    const valuePath = child.node.type === 'ObjectProperty' ? child.get('value') : child;
+    if (!valuePath.isAssignmentPattern()) continue;
+    if (valuePath.node.left?.type === 'Identifier' && valuePath.node.left.name === varName) {
+      return resolveNodeType(valuePath.get('right'));
+    }
+  }
+  return null;
+}
+
 function resolveDestructuredType(objectPattern, name, scope) {
   const keyName = findDestructuredKeyName(objectPattern, name);
   if (!keyName) return null;
@@ -2189,7 +2227,8 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
     const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
     if (inner) return inner;
   }
-  return null;
+  // fallback: resolve from destructuring default value: const [a = []] = arr
+  return resolveDestructuringDefault(arrayPattern, varName, bindingPath);
 }
 
 function resolveAnnotatedMember(annotation, keyName, scope) {
@@ -2264,7 +2303,8 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
   // for-of iterable: for (const { name } of typedArr)
   const elemInfo = resolveForOfElementAnnotation(bindingPath);
   if (elemInfo) return resolveAnnotatedMember(elemInfo.annotation, keyName, elemInfo.scope);
-  return null;
+  // fallback: resolve from destructuring default value: const { items = [] } = obj
+  return resolveDestructuringDefault(objectPattern, varName, bindingPath);
 }
 
 function findBindingPattern(node, type) {
