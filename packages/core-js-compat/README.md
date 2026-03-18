@@ -28,6 +28,8 @@ const {
     'web.atob',
   ],
   version: '4.0',             // used `core-js` version, by default - the latest
+  // special values: 'node_modules' - reads version from installed core-js
+  //                 'package.json' - reads version range from project's package.json
   inverse: false,             // inverse of the result - shows modules that are NOT required for the target environment
 });
 
