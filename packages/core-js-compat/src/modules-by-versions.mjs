@@ -323,7 +323,7 @@ export default {
     'es.weak-map.get-or-insert',
     'es.weak-map.get-or-insert-computed',
   ],
-  3.49: [
+  '3.50': [
     'web.request-idle-callback',
   ],
 };
