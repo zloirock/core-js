@@ -186,6 +186,11 @@ export const features = {
     namespace: 'Array',
     name: 'at',
   },
+  'array/instance/at': {
+    modules: ['es.array.at'],
+    template: $instanceArray,
+    name: 'at',
+  },
   'array/concat': {
     modules: ['es.array.concat'],
     template: $uncurried,
@@ -196,6 +201,11 @@ export const features = {
     modules: ['es.array.concat'],
     template: $prototype,
     namespace: 'Array',
+    name: 'concat',
+  },
+  'array/instance/concat': {
+    modules: ['es.array.concat'],
+    template: $instanceArray,
     name: 'concat',
   },
   'array/copy-within': {
@@ -210,6 +220,11 @@ export const features = {
     namespace: 'Array',
     name: 'copyWithin',
   },
+  'array/instance/copy-within': {
+    modules: ['es.array.copy-within'],
+    template: $instanceArray,
+    name: 'copyWithin',
+  },
   'array/entries': {
     modules: ['es.array.entries'],
     template: $uncurried,
@@ -220,6 +235,11 @@ export const features = {
     modules: ['es.array.entries'],
     template: $prototype,
     namespace: 'Array',
+    name: 'entries',
+  },
+  'array/instance/entries': {
+    modules: ['es.array.entries'],
+    template: $instanceArray,
     name: 'entries',
   },
   'array/fill': {
@@ -234,6 +254,11 @@ export const features = {
     namespace: 'Array',
     name: 'fill',
   },
+  'array/instance/fill': {
+    modules: ['es.array.fill'],
+    template: $instanceArray,
+    name: 'fill',
+  },
   'array/filter': {
     modules: ['es.array.filter'],
     template: $uncurried,
@@ -244,6 +269,11 @@ export const features = {
     modules: ['es.array.filter'],
     template: $prototype,
     namespace: 'Array',
+    name: 'filter',
+  },
+  'array/instance/filter': {
+    modules: ['es.array.filter'],
+    template: $instanceArray,
     name: 'filter',
   },
   'array/filter-reject': {
@@ -258,6 +288,11 @@ export const features = {
     namespace: 'Array',
     name: 'filterReject',
   },
+  'array/instance/filter-reject': {
+    modules: ['esnext.array.filter-reject'],
+    template: $instanceArray,
+    name: 'filterReject',
+  },
   'array/find': {
     modules: ['es.array.find'],
     template: $uncurried,
@@ -268,6 +303,11 @@ export const features = {
     modules: ['es.array.find'],
     template: $prototype,
     namespace: 'Array',
+    name: 'find',
+  },
+  'array/instance/find': {
+    modules: ['es.array.find'],
+    template: $instanceArray,
     name: 'find',
   },
   'array/find-index': {
@@ -282,6 +322,11 @@ export const features = {
     namespace: 'Array',
     name: 'findIndex',
   },
+  'array/instance/find-index': {
+    modules: ['es.array.find-index'],
+    template: $instanceArray,
+    name: 'findIndex',
+  },
   'array/find-last': {
     modules: ['es.array.find-last'],
     template: $uncurried,
@@ -292,6 +337,11 @@ export const features = {
     modules: ['es.array.find-last'],
     template: $prototype,
     namespace: 'Array',
+    name: 'findLast',
+  },
+  'array/instance/find-last': {
+    modules: ['es.array.find-last'],
+    template: $instanceArray,
     name: 'findLast',
   },
   'array/find-last-index': {
@@ -306,6 +356,11 @@ export const features = {
     namespace: 'Array',
     name: 'findLastIndex',
   },
+  'array/instance/find-last-index': {
+    modules: ['es.array.find-last-index'],
+    template: $instanceArray,
+    name: 'findLastIndex',
+  },
   'array/flat': {
     modules: ['es.array.flat'],
     template: $uncurried,
@@ -316,6 +371,11 @@ export const features = {
     modules: ['es.array.flat'],
     template: $prototype,
     namespace: 'Array',
+    name: 'flat',
+  },
+  'array/instance/flat': {
+    modules: ['es.array.flat'],
+    template: $instanceArray,
     name: 'flat',
   },
   'array/flat-map': {
@@ -330,6 +390,11 @@ export const features = {
     modules: ['es.array.flat-map'],
     template: $prototype,
     namespace: 'Array',
+    name: 'flatMap',
+  },
+  'array/instance/flat-map': {
+    modules: ['es.array.flat-map'],
+    template: $instanceArray,
     name: 'flatMap',
   },
   'array/from': {
@@ -356,6 +421,11 @@ export const features = {
     namespace: 'Array',
     name: 'includes',
   },
+  'array/instance/includes': {
+    modules: ['es.array.includes'],
+    template: $instanceArray,
+    name: 'includes',
+  },
   'array/index-of': {
     modules: ['es.array.index-of'],
     template: $uncurried,
@@ -366,6 +436,11 @@ export const features = {
     modules: ['es.array.index-of'],
     template: $prototype,
     namespace: 'Array',
+    name: 'indexOf',
+  },
+  'array/instance/index-of': {
+    modules: ['es.array.index-of'],
+    template: $instanceArray,
     name: 'indexOf',
   },
   'array/is-template-object': {
@@ -396,6 +471,11 @@ export const features = {
     namespace: 'Array',
     name: 'join',
   },
+  'array/instance/join': {
+    modules: ['es.array.join'],
+    template: $instanceArray,
+    name: 'join',
+  },
   'array/keys': {
     modules: ['es.array.keys'],
     template: $uncurried,
@@ -406,6 +486,11 @@ export const features = {
     modules: ['es.array.keys'],
     template: $prototype,
     namespace: 'Array',
+    name: 'keys',
+  },
+  'array/instance/keys': {
+    modules: ['es.array.keys'],
+    template: $instanceArray,
     name: 'keys',
   },
   'array/last-index-of': {
@@ -420,6 +505,11 @@ export const features = {
     namespace: 'Array',
     name: 'lastIndexOf',
   },
+  'array/instance/last-index-of': {
+    modules: ['es.array.last-index-of'],
+    template: $instanceArray,
+    name: 'lastIndexOf',
+  },
   'array/map': {
     modules: ['es.array.map'],
     template: $uncurried,
@@ -430,6 +520,11 @@ export const features = {
     modules: ['es.array.map'],
     template: $prototype,
     namespace: 'Array',
+    name: 'map',
+  },
+  'array/instance/map': {
+    modules: ['es.array.map'],
+    template: $instanceArray,
     name: 'map',
   },
   'array/of': {
@@ -450,6 +545,11 @@ export const features = {
     namespace: 'Array',
     name: 'push',
   },
+  'array/instance/push': {
+    modules: ['es.array.push'],
+    template: $instanceArray,
+    name: 'push',
+  },
   'array/reduce': {
     modules: ['es.array.reduce'],
     template: $uncurried,
@@ -460,6 +560,11 @@ export const features = {
     modules: ['es.array.reduce'],
     template: $prototype,
     namespace: 'Array',
+    name: 'reduce',
+  },
+  'array/instance/reduce': {
+    modules: ['es.array.reduce'],
+    template: $instanceArray,
     name: 'reduce',
   },
   'array/reduce-right': {
@@ -474,6 +579,11 @@ export const features = {
     namespace: 'Array',
     name: 'reduceRight',
   },
+  'array/instance/reduce-right': {
+    modules: ['es.array.reduce-right'],
+    template: $instanceArray,
+    name: 'reduceRight',
+  },
   'array/reverse': {
     modules: ['es.array.reverse'],
     template: $uncurried,
@@ -484,6 +594,11 @@ export const features = {
     modules: ['es.array.reverse'],
     template: $prototype,
     namespace: 'Array',
+    name: 'reverse',
+  },
+  'array/instance/reverse': {
+    modules: ['es.array.reverse'],
+    template: $instanceArray,
     name: 'reverse',
   },
   'array/slice': {
@@ -498,6 +613,11 @@ export const features = {
     namespace: 'Array',
     name: 'slice',
   },
+  'array/instance/slice': {
+    modules: ['es.array.slice'],
+    template: $instanceArray,
+    name: 'slice',
+  },
   'array/sort': {
     modules: ['es.array.sort'],
     template: $uncurried,
@@ -508,6 +628,11 @@ export const features = {
     modules: ['es.array.sort'],
     template: $prototype,
     namespace: 'Array',
+    name: 'sort',
+  },
+  'array/instance/sort': {
+    modules: ['es.array.sort'],
+    template: $instanceArray,
     name: 'sort',
   },
   'array/splice': {
@@ -522,6 +647,11 @@ export const features = {
     namespace: 'Array',
     name: 'splice',
   },
+  'array/instance/splice': {
+    modules: ['es.array.splice'],
+    template: $instanceArray,
+    name: 'splice',
+  },
   'array/to-reversed': {
     modules: ['es.array.to-reversed'],
     template: $uncurried,
@@ -534,6 +664,11 @@ export const features = {
     namespace: 'Array',
     name: 'toReversed',
   },
+  'array/instance/to-reversed': {
+    modules: ['es.array.to-reversed'],
+    template: $instanceArray,
+    name: 'toReversed',
+  },
   'array/to-sorted': {
     modules: ['es.array.to-sorted'],
     template: $uncurried,
@@ -544,6 +679,11 @@ export const features = {
     modules: ['es.array.to-sorted'],
     template: $prototype,
     namespace: 'Array',
+    name: 'toSorted',
+  },
+  'array/instance/to-sorted': {
+    modules: ['es.array.to-sorted'],
+    template: $instanceArray,
     name: 'toSorted',
   },
   'array/to-spliced': {
@@ -560,6 +700,11 @@ export const features = {
     namespace: 'Array',
     name: 'toSpliced',
   },
+  'array/instance/to-spliced': {
+    modules: ['es.array.to-spliced'],
+    template: $instanceArray,
+    name: 'toSpliced',
+  },
   'array/unshift': {
     modules: ['es.array.unshift'],
     template: $uncurried,
@@ -570,6 +715,11 @@ export const features = {
     modules: ['es.array.unshift'],
     template: $prototype,
     namespace: 'Array',
+    name: 'unshift',
+  },
+  'array/instance/unshift': {
+    modules: ['es.array.unshift'],
+    template: $instanceArray,
     name: 'unshift',
   },
   'array/unique-by': {
@@ -584,6 +734,11 @@ export const features = {
     namespace: 'Array',
     name: 'uniqueBy',
   },
+  'array/instance/unique-by': {
+    modules: ['esnext.array.unique-by'],
+    template: $instanceArray,
+    name: 'uniqueBy',
+  },
   'array/values': {
     modules: ['es.array.values'],
     template: $uncurried,
@@ -596,6 +751,11 @@ export const features = {
     namespace: 'Array',
     name: 'values',
   },
+  'array/instance/values': {
+    modules: ['es.array.values'],
+    template: $instanceArray,
+    name: 'values',
+  },
   'array/with': {
     modules: ['es.array.with'],
     template: $uncurried,
@@ -606,6 +766,11 @@ export const features = {
     modules: ['es.array.with'],
     template: $prototype,
     namespace: 'Array',
+    name: 'with',
+  },
+  'array/instance/with': {
+    modules: ['es.array.with'],
+    template: $instanceArray,
     name: 'with',
   },
   'array-buffer/index': {
@@ -1663,6 +1828,11 @@ export const features = {
     namespace: 'Number',
     name: 'clamp',
   },
+  'number/instance/clamp': {
+    modules: ['esnext.number.clamp'],
+    template: $instanceNumber,
+    name: 'clamp',
+  },
   'number/epsilon': {
     modules: ['es.number.epsilon'],
     template: $static,
@@ -1729,6 +1899,11 @@ export const features = {
     namespace: 'Number',
     name: 'toExponential',
   },
+  'number/instance/to-exponential': {
+    modules: ['es.number.to-exponential'],
+    template: $instanceNumber,
+    name: 'toExponential',
+  },
   'number/to-fixed': {
     modules: ['es.number.to-fixed'],
     template: $uncurried,
@@ -1739,6 +1914,11 @@ export const features = {
     modules: ['es.number.to-fixed'],
     template: $prototype,
     namespace: 'Number',
+    name: 'toFixed',
+  },
+  'number/instance/to-fixed': {
+    modules: ['es.number.to-fixed'],
+    template: $instanceNumber,
     name: 'toFixed',
   },
   'object/index': {
@@ -2327,6 +2507,11 @@ export const features = {
     namespace: 'String',
     name: 'anchor',
   },
+  'string/instance/anchor': {
+    modules: ['es.string.anchor'],
+    template: $instanceString,
+    name: 'anchor',
+  },
   'string/at': {
     modules: ['es.string.at'],
     template: $uncurried,
@@ -2337,6 +2522,11 @@ export const features = {
     modules: ['es.string.at'],
     template: $prototype,
     namespace: 'String',
+    name: 'at',
+  },
+  'string/instance/at': {
+    modules: ['es.string.at'],
+    template: $instanceString,
     name: 'at',
   },
   'string/big': {
@@ -2351,6 +2541,11 @@ export const features = {
     namespace: 'String',
     name: 'big',
   },
+  'string/instance/big': {
+    modules: ['es.string.big'],
+    template: $instanceString,
+    name: 'big',
+  },
   'string/blink': {
     modules: ['es.string.blink'],
     template: $uncurried,
@@ -2361,6 +2556,11 @@ export const features = {
     modules: ['es.string.blink'],
     template: $prototype,
     namespace: 'String',
+    name: 'blink',
+  },
+  'string/instance/blink': {
+    modules: ['es.string.blink'],
+    template: $instanceString,
     name: 'blink',
   },
   'string/bold': {
@@ -2375,6 +2575,11 @@ export const features = {
     namespace: 'String',
     name: 'bold',
   },
+  'string/instance/bold': {
+    modules: ['es.string.bold'],
+    template: $instanceString,
+    name: 'bold',
+  },
   'string/code-point-at': {
     modules: ['es.string.code-point-at'],
     template: $uncurried,
@@ -2385,6 +2590,11 @@ export const features = {
     modules: ['es.string.code-point-at'],
     template: $prototype,
     namespace: 'String',
+    name: 'codePointAt',
+  },
+  'string/instance/code-point-at': {
+    modules: ['es.string.code-point-at'],
+    template: $instanceString,
     name: 'codePointAt',
   },
   'string/cooked': {
@@ -2411,6 +2621,11 @@ export const features = {
     namespace: 'String',
     name: 'endsWith',
   },
+  'string/instance/ends-with': {
+    modules: ['es.string.ends-with'],
+    template: $instanceString,
+    name: 'endsWith',
+  },
   'string/fixed': {
     modules: ['es.string.fixed'],
     template: $uncurried,
@@ -2421,6 +2636,11 @@ export const features = {
     modules: ['es.string.fixed'],
     template: $prototype,
     namespace: 'String',
+    name: 'fixed',
+  },
+  'string/instance/fixed': {
+    modules: ['es.string.fixed'],
+    template: $instanceString,
     name: 'fixed',
   },
   'string/fontcolor': {
@@ -2435,6 +2655,11 @@ export const features = {
     namespace: 'String',
     name: 'fontcolor',
   },
+  'string/instance/fontcolor': {
+    modules: ['es.string.fontcolor'],
+    template: $instanceString,
+    name: 'fontcolor',
+  },
   'string/fontsize': {
     modules: ['es.string.fontsize'],
     template: $uncurried,
@@ -2445,6 +2670,11 @@ export const features = {
     modules: ['es.string.fontsize'],
     template: $prototype,
     namespace: 'String',
+    name: 'fontsize',
+  },
+  'string/instance/fontsize': {
+    modules: ['es.string.fontsize'],
+    template: $instanceString,
     name: 'fontsize',
   },
   'string/from-code-point': {
@@ -2465,6 +2695,11 @@ export const features = {
     namespace: 'String',
     name: 'includes',
   },
+  'string/instance/includes': {
+    modules: ['es.string.includes'],
+    template: $instanceString,
+    name: 'includes',
+  },
   'string/is-well-formed': {
     modules: ['es.string.is-well-formed'],
     template: $uncurried,
@@ -2477,6 +2712,11 @@ export const features = {
     namespace: 'String',
     name: 'isWellFormed',
   },
+  'string/instance/is-well-formed': {
+    modules: ['es.string.is-well-formed'],
+    template: $instanceString,
+    name: 'isWellFormed',
+  },
   'string/italics': {
     modules: ['es.string.italics'],
     template: $uncurried,
@@ -2487,6 +2727,11 @@ export const features = {
     modules: ['es.string.italics'],
     template: $prototype,
     namespace: 'String',
+    name: 'italics',
+  },
+  'string/instance/italics': {
+    modules: ['es.string.italics'],
+    template: $instanceString,
     name: 'italics',
   },
   'string/iterator': {
@@ -2511,6 +2756,11 @@ export const features = {
     namespace: 'String',
     name: 'link',
   },
+  'string/instance/link': {
+    modules: ['es.string.link'],
+    template: $instanceString,
+    name: 'link',
+  },
   'string/match': {
     modules: ['es.string.match'],
     template: $justImport,
@@ -2529,6 +2779,11 @@ export const features = {
     namespace: 'String',
     name: 'matchAll',
   },
+  'string/instance/match-all': {
+    modules: ['es.string.match-all'],
+    template: $instanceString,
+    name: 'matchAll',
+  },
   'string/pad-end': {
     modules: ['es.string.pad-end'],
     template: $uncurried,
@@ -2541,6 +2796,11 @@ export const features = {
     namespace: 'String',
     name: 'padEnd',
   },
+  'string/instance/pad-end': {
+    modules: ['es.string.pad-end'],
+    template: $instanceString,
+    name: 'padEnd',
+  },
   'string/pad-start': {
     modules: ['es.string.pad-start'],
     template: $uncurried,
@@ -2551,6 +2811,11 @@ export const features = {
     modules: ['es.string.pad-start'],
     template: $prototype,
     namespace: 'String',
+    name: 'padStart',
+  },
+  'string/instance/pad-start': {
+    modules: ['es.string.pad-start'],
+    template: $instanceString,
     name: 'padStart',
   },
   'string/raw': {
@@ -2571,6 +2836,11 @@ export const features = {
     namespace: 'String',
     name: 'repeat',
   },
+  'string/instance/repeat': {
+    modules: ['es.string.repeat'],
+    template: $instanceString,
+    name: 'repeat',
+  },
   'string/replace': {
     modules: ['es.string.replace'],
     template: $justImport,
@@ -2587,6 +2857,11 @@ export const features = {
     modules: ['es.string.replace-all'],
     template: $prototype,
     namespace: 'String',
+    name: 'replaceAll',
+  },
+  'string/instance/replace-all': {
+    modules: ['es.string.replace-all'],
+    template: $instanceString,
     name: 'replaceAll',
   },
   'string/search': {
@@ -2607,6 +2882,11 @@ export const features = {
     namespace: 'String',
     name: 'small',
   },
+  'string/instance/small': {
+    modules: ['es.string.small'],
+    template: $instanceString,
+    name: 'small',
+  },
   'string/split': {
     modules: ['es.string.split'],
     template: $justImport,
@@ -2625,6 +2905,11 @@ export const features = {
     namespace: 'String',
     name: 'startsWith',
   },
+  'string/instance/starts-with': {
+    modules: ['es.string.starts-with'],
+    template: $instanceString,
+    name: 'startsWith',
+  },
   'string/strike': {
     modules: ['es.string.strike'],
     template: $uncurried,
@@ -2635,6 +2920,11 @@ export const features = {
     modules: ['es.string.strike'],
     template: $prototype,
     namespace: 'String',
+    name: 'strike',
+  },
+  'string/instance/strike': {
+    modules: ['es.string.strike'],
+    template: $instanceString,
     name: 'strike',
   },
   'string/sub': {
@@ -2649,6 +2939,11 @@ export const features = {
     namespace: 'String',
     name: 'sub',
   },
+  'string/instance/sub': {
+    modules: ['es.string.sub'],
+    template: $instanceString,
+    name: 'sub',
+  },
   'string/sup': {
     modules: ['es.string.sup'],
     template: $uncurried,
@@ -2659,6 +2954,11 @@ export const features = {
     modules: ['es.string.sup'],
     template: $prototype,
     namespace: 'String',
+    name: 'sup',
+  },
+  'string/instance/sup': {
+    modules: ['es.string.sup'],
+    template: $instanceString,
     name: 'sup',
   },
   'string/to-well-formed': {
@@ -2673,6 +2973,11 @@ export const features = {
     namespace: 'String',
     name: 'toWellFormed',
   },
+  'string/instance/to-well-formed': {
+    modules: ['es.string.to-well-formed'],
+    template: $instanceString,
+    name: 'toWellFormed',
+  },
   'string/trim': {
     modules: ['es.string.trim'],
     template: $uncurried,
@@ -2683,6 +2988,11 @@ export const features = {
     modules: ['es.string.trim'],
     template: $prototype,
     namespace: 'String',
+    name: 'trim',
+  },
+  'string/instance/trim': {
+    modules: ['es.string.trim'],
+    template: $instanceString,
     name: 'trim',
   },
   'string/trim-end': {
@@ -2697,6 +3007,11 @@ export const features = {
     namespace: 'String',
     name: 'trimEnd',
   },
+  'string/instance/trim-end': {
+    modules: ['es.string.trim-end'],
+    template: $instanceString,
+    name: 'trimEnd',
+  },
   'string/trim-left': {
     modules: ['es.string.trim-left'],
     template: $uncurried,
@@ -2707,6 +3022,11 @@ export const features = {
     modules: ['es.string.trim-left'],
     template: $prototype,
     namespace: 'String',
+    name: 'trimLeft',
+  },
+  'string/instance/trim-left': {
+    modules: ['es.string.trim-left'],
+    template: $instanceString,
     name: 'trimLeft',
   },
   'string/trim-right': {
@@ -2721,6 +3041,11 @@ export const features = {
     namespace: 'String',
     name: 'trimRight',
   },
+  'string/instance/trim-right': {
+    modules: ['es.string.trim-right'],
+    template: $instanceString,
+    name: 'trimRight',
+  },
   'string/trim-start': {
     modules: ['es.string.trim-start'],
     template: $uncurried,
@@ -2731,6 +3056,11 @@ export const features = {
     modules: ['es.string.trim-start'],
     template: $prototype,
     namespace: 'String',
+    name: 'trimStart',
+  },
+  'string/instance/trim-start': {
+    modules: ['es.string.trim-start'],
+    template: $instanceString,
     name: 'trimStart',
   },
   'suppressed-error/index': {

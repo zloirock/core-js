@@ -1,4 +1,4 @@
 var _ref;
-import _includesInstanceProperty from "@core-js/pure/actual/instance/includes";
-import _flatInstanceProperty from "@core-js/pure/actual/instance/flat";
-_includesInstanceProperty(_ref = _flatInstanceProperty(foo).call(foo)).call(_ref, 1);
+import _includes from "@core-js/pure/actual/instance/includes";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+_includes(_ref = _flatMaybeArray(foo).call(foo)).call(_ref, 1);
