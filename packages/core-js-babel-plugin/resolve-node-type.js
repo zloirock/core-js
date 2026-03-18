@@ -1423,6 +1423,14 @@ function hasTypeParamReference(node, typeParamNames, depth) {
     case 'TSParenthesizedType':
     case 'NullableTypeAnnotation':
       return hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
+    case 'TSTypeLiteral':
+      for (const member of node.members) {
+        if (hasTypeParamReference(member.typeAnnotation, typeParamNames, depth + 1)) return true;
+      }
+      return false;
+    case 'TSFunctionType':
+    case 'FunctionTypeAnnotation':
+      return hasTypeParamReference(node.returnType ?? node.typeAnnotation, typeParamNames, depth + 1);
   }
   return false;
 }
