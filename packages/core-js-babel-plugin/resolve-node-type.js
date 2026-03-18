@@ -2323,6 +2323,13 @@ function isTypeofVar(node, varName) {
     && node.argument?.type === 'Identifier' && node.argument.name === varName;
 }
 
+// extract the property name from a global proxy member expression node (e.g. globalThis.Array -> 'Array')
+function resolveGlobalPropertyName(node) {
+  if (node.type !== 'MemberExpression' || node.computed) return null;
+  if (node.object.type !== 'Identifier' || !POSSIBLE_GLOBAL_PROXIES.has(node.object.name)) return null;
+  return node.property.type === 'Identifier' ? node.property.name : null;
+}
+
 // hint convention: lowercase -> typeof guard (primitive), capitalized -> instanceof guard (object)
 function guardFromHint(hint, negated) {
   if (PRIMITIVES.has(hint.type)) return { kind: 'typeof', value: hint.type, negated };
@@ -2352,9 +2359,9 @@ function parseTypeGuard(testNode, varName) {
       }
     }
     if (operator === 'instanceof'
-      && left.type === 'Identifier' && left.name === varName
-      && right.type === 'Identifier') {
-      return { kind: 'instanceof', constructorName: right.name, negated };
+      && left.type === 'Identifier' && left.name === varName) {
+      const constructorName = right.type === 'Identifier' ? right.name : resolveGlobalPropertyName(right);
+      if (constructorName) return { kind: 'instanceof', constructorName, negated };
     }
   }
   if (test.type === 'CallExpression' && test.arguments?.length === 1
