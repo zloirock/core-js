@@ -6,6 +6,7 @@ var globalThis = require('../internals/global-this');
 var anElement = require('../internals/an-element');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var create = require('../internals/object-create');
+var defineProperty = require('../internals/object-define-property').f;
 
 if (globalThis.Element) {
   var BASIC = !!Element.prototype.remove;
@@ -23,7 +24,7 @@ if (globalThis.Element) {
   });
 
   if (Element.prototype[wellKnownSymbol('unscopables')] === undefined) {
-    defineProperty(ArrayPrototype, UNSCOPABLES, {
+    defineProperty(Element.prototype, wellKnownSymbol('unscopables'), {
       configurable: true,
       value: create(null)
     });
