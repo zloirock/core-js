@@ -7,4 +7,4 @@ Using targets: {
 
 Using polyfills with `usage-pure` method:
 The core-js@4 polyfill added the following polyfills:
-  instance/at
+  string/instance/at

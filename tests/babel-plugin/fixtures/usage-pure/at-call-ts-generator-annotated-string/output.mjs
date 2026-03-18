@@ -1,7 +1,7 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 function* gen(): Generator<string> {
   yield "x";
 }
 for (const x of gen()) {
-  _atInstanceProperty(x).call(x, 0);
+  _atMaybeString(x).call(x, 0);
 }

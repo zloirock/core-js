@@ -1,4 +1,4 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 function foo(x: number[] & ReadonlyArray<number>) {
-  _atInstanceProperty(x).call(x, -1);
+  _atMaybeArray(x).call(x, -1);
 }

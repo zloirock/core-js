@@ -1,2 +1,2 @@
-import _padStartInstanceProperty from "@core-js/pure/actual/instance/pad-start";
-_padStartInstanceProperty(s).call(s, 10, "0");
+import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
+_padStartMaybeString(s).call(s, 10, "0");

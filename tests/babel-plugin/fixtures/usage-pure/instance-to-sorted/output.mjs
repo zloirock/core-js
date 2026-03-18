@@ -1,2 +1,2 @@
-import _toSortedInstanceProperty from "@core-js/pure/actual/instance/to-sorted";
-_toSortedInstanceProperty(arr).call(arr);
+import _toSortedMaybeArray from "@core-js/pure/actual/array/instance/to-sorted";
+_toSortedMaybeArray(arr).call(arr);

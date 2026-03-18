@@ -1,3 +1,3 @@
 var _ref;
-import _toFixedInstanceProperty from "@core-js/pure/actual/instance/to-fixed";
-_toFixedInstanceProperty(_ref = Number(x)).call(_ref, 2);
+import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
+_toFixedMaybeNumber(_ref = Number(x)).call(_ref, 2);
