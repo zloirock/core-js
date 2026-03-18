@@ -17,6 +17,11 @@ deepEqual(getEntriesListForTargetVersion('4.1'), entries41, '4.1');
 deepEqual(getEntriesListForTargetVersion('4.1.0'), entries41, '4.1.0');
 deepEqual(getEntriesListForTargetVersion('4.1.1'), entries41, '4.1.1');
 
+// special version values
+deepEqual(getEntriesListForTargetVersion('node_modules'), entries40, 'node_modules');
+// 'package.json' reads from process.cwd()/package.json — root package.json has no core-js dependency
+throws(() => getEntriesListForTargetVersion('package.json'), TypeError, 'package.json without core-js dep');
+
 throws(() => getEntriesListForTargetVersion(4), TypeError, 'num 4');
 throws(() => getEntriesListForTargetVersion('4'), TypeError, '4');
 throws(() => getEntriesListForTargetVersion('3.0'), RangeError, '3.0');
