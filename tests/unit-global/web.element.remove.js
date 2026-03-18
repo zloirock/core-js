@@ -16,7 +16,7 @@ if (!NODE && !BUN) {
         remove();
       }
     `;
-    assert.throws(Function(code)(), ReferenceError);
+    assert.throws(Function(code), ReferenceError);
 
     const invalidThis = { allison: 'brian' };
     assert.throws(() => Element.prototype.remove.call(invalidThis), TypeError);
