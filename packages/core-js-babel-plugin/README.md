@@ -108,8 +108,8 @@ Array.from(items);
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
-| `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills by name or pattern |
-| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills by name or pattern |
+| `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills by module name, entry path (for pure version), or pattern |
+| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills by module name, entry path (for pure version), or pattern |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
 | `shippedProposals` | `boolean` | `false` | Treat proposals that have been shipped in browsers as stable features |
 | `configPath` | `string` | `'.'` | Directory to search for a browserslist config file |
@@ -203,7 +203,7 @@ When `targets` is not specified, the plugin reads targets from your browserslist
 
 ### `include` / `exclude`
 
-Force include or exclude specific polyfills regardless of target environment. Accepts module names (like `es.array.from`) or regular expressions. Cannot be used together with `shouldInjectPolyfill`.
+Force include or exclude specific polyfills regardless of target environment. Accepts module names (like `es.array.from`), entry point paths (for pure version, like `array/from`), or regular expressions. Entry point paths are automatically expanded to the corresponding module names. Cannot be used together with `shouldInjectPolyfill`.
 
 ```json
 {
@@ -211,8 +211,20 @@ Force include or exclude specific polyfills regardless of target environment. Ac
     "method": "usage-global",
     "version": "4.0",
     "targets": { "chrome": 135 },
-    "include": ["es.array.from"],
+    "include": ["es.array.at"],
     "exclude": ["es.string.at"]
+  }]]
+}
+```
+
+```json
+{
+  "plugins": [["@core-js", {
+    "method": "usage-pure",
+    "version": "4.0",
+    "targets": { "chrome": 135 },
+    "include": ["array/at"],
+    "exclude": ["string/at"]
   }]]
 }
 ```
