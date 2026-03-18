@@ -294,11 +294,11 @@ export const $path = p => ({
 
 export const $instanceArray = p => ({
   entry: dedent`
-    var isPrototypeOf = require('../../internals/object-is-prototype-of');
-    var arrayMethod = require('../array/prototype/${ basename(p.entry) }');
-  
+    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var arrayMethod = require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }');
+
     var ArrayPrototype = Array.prototype;
-  
+
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (it === ArrayPrototype || (isPrototypeOf(ArrayPrototype, it) && ownProperty === ArrayPrototype.${ p.name })) return arrayMethod;
@@ -315,11 +315,11 @@ export const $instanceArray = p => ({
 
 export const $instanceNumber = p => ({
   entry: dedent`
-    var isPrototypeOf = require('../../internals/object-is-prototype-of');
-    var numberMethod = require('../number/prototype/${ basename(p.entry) }');
-  
+    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var numberMethod = require('${ '../'.repeat(p.level - 1) }number/prototype/${ basename(p.entry) }');
+
     var NumberPrototype = Number.prototype;
-  
+
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (typeof it == 'number' || it === NumberPrototype
@@ -337,11 +337,11 @@ export const $instanceNumber = p => ({
 
 export const $instanceString = p => ({
   entry: dedent`
-    var isPrototypeOf = require('../../internals/object-is-prototype-of');
-    var stringMethod = require('../string/prototype/${ basename(p.entry) }');
-  
+    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var stringMethod = require('${ '../'.repeat(p.level - 1) }string/prototype/${ basename(p.entry) }');
+
     var StringPrototype = String.prototype;
-  
+
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (typeof it == 'string' || it === StringPrototype
@@ -359,11 +359,11 @@ export const $instanceString = p => ({
 
 export const $instanceFunction = p => ({
   entry: dedent`
-    var isPrototypeOf = require('../../internals/object-is-prototype-of');
-    var functionMethod = require('../function/prototype/${ basename(p.entry) }');
-  
+    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var functionMethod = require('${ '../'.repeat(p.level - 1) }function/prototype/${ basename(p.entry) }');
+
     var FunctionPrototype = Function.prototype;
-  
+
     module.exports = function (it) {
       var ownProperty = it.${ p.name };
       if (it === FunctionPrototype || (isPrototypeOf(FunctionPrototype, it) && ownProperty === FunctionPrototype.${ p.name })) {
@@ -382,9 +382,9 @@ export const $instanceFunction = p => ({
 export const $instanceDOMIterables = p => ({
   entry: dedent`
     ${ importModules(p) }
-    
-    var classof = require('../../internals/classof');
-    var hasOwn = require('../../internals/has-own-property');
+
+    var classof = ${ importInternal('classof', p.level) }
+    var hasOwn = ${ importInternal('has-own-property', p.level) }
   
     var arrayMethod = Array.prototype.${ p.name };
   
@@ -409,9 +409,9 @@ export const $instanceDOMIterables = p => ({
 
 export const $instanceArrayString = p => ({
   entry: dedent`
-    var isPrototypeOf = require('../../internals/object-is-prototype-of');
-    var arrayMethod = require('../array/prototype/${ basename(p.entry) }');
-    var stringMethod = require('../string/prototype/${ basename(p.entry) }');
+    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var arrayMethod = require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }');
+    var stringMethod = require('${ '../'.repeat(p.level - 1) }string/prototype/${ basename(p.entry) }');
   
     var ArrayPrototype = Array.prototype;
     var StringPrototype = String.prototype;
@@ -435,11 +435,11 @@ export const $instanceArrayString = p => ({
 export const $instanceArrayDOMIterables = p => ({
   entry: dedent`
     ${ importModules(p) }
-  
-    var classof = require('../../internals/classof');
-    var hasOwn = require('../../internals/has-own-property');
-    var isPrototypeOf = require('../../internals/object-is-prototype-of');
-    var arrayMethod = require('../array/prototype/${ basename(p.entry) }');
+
+    var classof = ${ importInternal('classof', p.level) }
+    var hasOwn = ${ importInternal('has-own-property', p.level) }
+    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var arrayMethod = require('${ '../'.repeat(p.level - 1) }array/prototype/${ basename(p.entry) }');
   
     var ArrayPrototype = Array.prototype;
   
@@ -466,9 +466,9 @@ export const $instanceArrayDOMIterables = p => ({
 export const $instanceRegExpFlags = p => ({
   entry: dedent`
     ${ importModules(p) }
-  
-    var isPrototypeOf = require('../../internals/object-is-prototype-of');
-    var flags = require('../regexp/flags');
+
+    var isPrototypeOf = ${ importInternal('object-is-prototype-of', p.level) }
+    var flags = require('${ '../'.repeat(p.level - 1) }regexp/flags');
   
     var RegExpPrototype = RegExp.prototype;
   

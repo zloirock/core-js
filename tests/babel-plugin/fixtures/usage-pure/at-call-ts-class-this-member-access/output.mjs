@@ -1,9 +1,9 @@
 var _ref;
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 class Foo {
   items: number[] = [];
   getItems() {
     return this.items;
   }
 }
-_atInstanceProperty(_ref = new Foo().getItems()).call(_ref, -1);
+_atMaybeArray(_ref = new Foo().getItems()).call(_ref, -1);

@@ -1,4 +1,4 @@
-import _atInstanceProperty from "@core-js/pure/actual/instance/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 const arr: string[] = ['hello', 'world'];
 const [first]: unknown[] = arr;
-_atInstanceProperty(first).call(first, 0);
+_atMaybeString(first).call(first, 0);
