@@ -140,6 +140,9 @@ export default defineProvider(({
 
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
+  if (additionalPackages !== null && additionalPackages !== undefined && !Array.isArray(additionalPackages)) {
+    throw new TypeError('`additionalPackages` should be an array');
+  }
 
   version = normalizeCoreJSVersion(version);
 
