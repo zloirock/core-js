@@ -1,3 +1,3 @@
 var _ref;
-import _concatInstanceProperty from "@core-js/pure/actual/instance/concat";
-_concatInstanceProperty(_ref = []).call(_ref, 1);
+import _concatMaybeArray from "@core-js/pure/actual/array/instance/concat";
+_concatMaybeArray(_ref = []).call(_ref, 1);
