@@ -14,9 +14,10 @@ import {
   $instanceNumber,
   $instanceString,
   $instanceFunction,
-  $instanceDOMIterables,
+  $instanceDOMIterable,
+  $instanceDOMIterableFromNative,
   $instanceArrayString,
-  $instanceArrayDOMIterables,
+  $instanceArrayDOMIterable,
   $instanceRegExpFlags,
   $path,
 } from './templates.mjs';
@@ -1034,9 +1035,31 @@ export const features = {
     modules: ['web.dom-collections.entries'],
     template: $justImport,
   },
+  'dom-collections/prototype/entries': {
+    modules: ['web.dom-collections.entries'],
+    template: $prototype,
+    namespace: 'Array',
+    name: 'entries',
+  },
+  'dom-collections/instance/entries': {
+    modules: ['web.dom-collections.entries'],
+    template: $instanceDOMIterable,
+    name: 'entries',
+  },
   'dom-collections/for-each': {
     modules: ['web.dom-collections.for-each'],
     template: $justImport,
+  },
+  'dom-collections/prototype/for-each': {
+    modules: ['web.dom-collections.for-each'],
+    template: $prototype,
+    namespace: 'Array',
+    name: 'forEach',
+  },
+  'dom-collections/instance/for-each': {
+    modules: ['web.dom-collections.for-each'],
+    template: $instanceDOMIterableFromNative,
+    name: 'forEach',
   },
   'dom-collections/iterator': {
     modules: ['web.dom-collections.iterator'],
@@ -1046,9 +1069,31 @@ export const features = {
     modules: ['web.dom-collections.keys'],
     template: $justImport,
   },
+  'dom-collections/prototype/keys': {
+    modules: ['web.dom-collections.keys'],
+    template: $prototype,
+    namespace: 'Array',
+    name: 'keys',
+  },
+  'dom-collections/instance/keys': {
+    modules: ['web.dom-collections.keys'],
+    template: $instanceDOMIterable,
+    name: 'keys',
+  },
   'dom-collections/values': {
     modules: ['web.dom-collections.values'],
     template: $justImport,
+  },
+  'dom-collections/prototype/values': {
+    modules: ['web.dom-collections.values'],
+    template: $prototype,
+    namespace: 'Array',
+    name: 'values',
+  },
+  'dom-collections/instance/values': {
+    modules: ['web.dom-collections.values'],
+    template: $instanceDOMIterable,
+    name: 'values',
   },
   'dom-exception/index': {
     modules: [/^web\.dom-exception\./],
@@ -1133,7 +1178,7 @@ export const features = {
   'instance/entries': {
     modules: ['es.array.entries', 'web.dom-collections.entries'],
     template: $instanceArray,
-    templateStable: $instanceArrayDOMIterables,
+    templateStable: $instanceArrayDOMIterable,
     name: 'entries',
   },
   'instance/fill': {
@@ -1188,7 +1233,7 @@ export const features = {
   },
   'instance/for-each': {
     modules: ['web.dom-collections.for-each'],
-    template: $instanceDOMIterables,
+    template: $instanceDOMIterableFromNative,
     name: 'forEach',
   },
   'instance/includes': {
@@ -1214,7 +1259,7 @@ export const features = {
   'instance/keys': {
     modules: ['es.array.keys', 'web.dom-collections.keys'],
     template: $instanceArray,
-    templateStable: $instanceArrayDOMIterables,
+    templateStable: $instanceArrayDOMIterable,
     name: 'keys',
   },
   'instance/last-index-of': {
@@ -1360,7 +1405,7 @@ export const features = {
   'instance/values': {
     modules: ['es.array.values', 'web.dom-collections.values'],
     template: $instanceArray,
-    templateStable: $instanceArrayDOMIterables,
+    templateStable: $instanceArrayDOMIterable,
     name: 'values',
   },
   'instance/with': {
