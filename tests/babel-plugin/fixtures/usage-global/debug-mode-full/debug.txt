@@ -27,6 +27,10 @@ The core-js@4 polyfill added the following polyfills:
   es.iterator.take { "ie":"11" }
   es.iterator.to-array { "ie":"11" }
   es.string.iterator { "ie":"11" }
+  esnext.iterator.chunks { "ie":"11" }
+  esnext.iterator.includes { "ie":"11" }
+  esnext.iterator.join { "ie":"11" }
   esnext.iterator.to-async { "ie":"11" }
+  esnext.iterator.windows { "ie":"11" }
   web.dom-collections.iterator { "ie":"11" }
   esnext.iterator.zip { "ie":"11" }

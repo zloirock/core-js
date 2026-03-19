@@ -18,6 +18,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     let O;
     ok(load(NS, 'global-this').Math === Math);
     ok(new (load(NS, 'aggregate-error/constructor'))([42]).errors[0] === 42);
+    ok(load(NS, 'aggregate-error/is-error')(new Error()));
     ok(new (load(NS, 'aggregate-error'))([42]).errors[0] === 42);
     ok(load(NS, 'object/assign')({ q: 1 }, { w: 2 }).w === 2);
     ok(load(NS, 'object/create')(Array.prototype) instanceof Array);
@@ -389,6 +390,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(load(NS, 'syntax-error/is-error')(new Error()));
     ok(load(NS, 'syntax-error') === SyntaxError);
     ok(new (load(NS, 'suppressed-error/constructor'))(1, 2).suppressed === 2);
+    ok(load(NS, 'suppressed-error/is-error')(new Error()));
     ok(new (load(NS, 'suppressed-error'))(1, 2).suppressed === 2);
     ok(new (load(NS, 'type-error/constructor'))(1, { cause: 7 }).cause === 7);
     ok(new (load(NS, 'type-error'))(1, { cause: 7 }).cause === 7);
