@@ -76,6 +76,7 @@
   },
   "sideEffects": true,
   "main": "index.js",
+  "types": "index.d.ts",
   "scripts": {
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
   }
