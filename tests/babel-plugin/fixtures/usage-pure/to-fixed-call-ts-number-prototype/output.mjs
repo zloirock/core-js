@@ -1,4 +1,4 @@
-import _toFixedMaybeNumber from "@core-js/pure/actual/number/instance/to-fixed";
+import _toFixed from "@core-js/pure/actual/instance/to-fixed";
 function f(x: number) {
-  _toFixedMaybeNumber(x).call(x, 2);
+  _toFixed(x).call(x, 2);
 }
