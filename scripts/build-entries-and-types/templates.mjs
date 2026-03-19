@@ -283,6 +283,22 @@ export const $helper = p => ({
   `,
 });
 
+export const $globalNamespace = p => ({
+  entry: dedent`
+    ${ importModules(p) }
+  
+    var globalThis = ${ importInternal('global-this', p.level) }
+
+    module.exports = globalThis.${ p.name };
+  `,
+  types: dedent`
+    declare module '${ buildModulePath(p) }' {
+      const namespace: typeof ${ p.prefix ?? '' }${ p.typeName ?? p.name };
+      export = namespace;
+    }
+  `,
+});
+
 export const $path = p => ({
   entry: dedent`
     ${ importModules(p) }
