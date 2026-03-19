@@ -1,5 +1,4 @@
 'use strict';
-// TODO: Remove from `core-js@4`
 var $ = require('../internals/export');
 var uncurryThis = require('../internals/function-uncurry-this');
 var globalThis = require('../internals/global-this');
@@ -13,6 +12,8 @@ if (globalThis.Element) {
   var removeChild;
   if (Element.prototype.removeChild) removeChild = uncurryThis(Element.prototype.removeChild);
 
+  // `Element.remove` method
+  // https://dom.spec.whatwg.org/#dom-childnode-remove
   $({ target: 'Element', proto: true, forced: !BASIC }, {
     remove: function remove() {
       anElement(this);
