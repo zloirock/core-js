@@ -1,4 +1,4 @@
-import _valuesMaybeDomCollections from "@core-js/pure/actual/dom-collections/instance/values";
+import _values from "@core-js/pure/actual/instance/values";
 function f(list: NodeList) {
-  _valuesMaybeDomCollections(list).call(list);
+  _values(list).call(list);
 }

@@ -1,3 +1,3 @@
 var _ref;
-import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-_includesMaybeString(_ref = typeof x).call(_ref, 's');
+import _includes from "@core-js/pure/actual/string/includes";
+_includes(_ref = typeof x).call(_ref, 's');
