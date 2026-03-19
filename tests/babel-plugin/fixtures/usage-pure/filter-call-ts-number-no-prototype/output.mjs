@@ -1,2 +1,3 @@
+import _filter from "@core-js/pure/actual/instance/filter";
 declare const x: number;
-x.filter(y => y > 0);
+_filter(x).call(x, y => y > 0);

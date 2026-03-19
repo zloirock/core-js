@@ -1,4 +1,4 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _at from "@core-js/pure/actual/string/at";
 const arr: string[] = ['hello', 'world'];
 const [first]: unknown[] = arr;
-_atMaybeString(first).call(first, 0);
+_at(first).call(first, 0);
