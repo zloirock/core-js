@@ -99,6 +99,10 @@ const IteratorPrototypeMethods = [
   'es.iterator.some',
   'es.iterator.take',
   'es.iterator.to-array',
+  'esnext.iterator.chunks',
+  'esnext.iterator.includes',
+  'esnext.iterator.join',
+  'esnext.iterator.windows',
   'esnext.iterator.to-async',
 ];
 
@@ -128,11 +132,13 @@ const TypedArrayPrototypeMethods = [
   'es.typed-array.slice',
   'es.typed-array.some',
   'es.typed-array.sort',
+  'es.typed-array.species',
   'es.typed-array.subarray',
   'es.typed-array.to-locale-string',
   'es.typed-array.to-reversed',
   'es.typed-array.to-sorted',
   'es.typed-array.to-string',
+  'es.typed-array.to-string-tag',
   'es.typed-array.values',
   'es.typed-array.with',
   'esnext.typed-array.filter-reject',
@@ -274,7 +280,7 @@ const typedArrayNamespaceEntries = {
 
 export const features = {
   'aggregate-error/index': {
-    modules: [/^(?:es|esnext)\.aggregate-error\./],
+    modules: [/^(?:es|esnext)\.aggregate-error\./, 'es.error.is-error'],
     template: $namespace,
     name: 'AggregateError',
   },
@@ -282,6 +288,12 @@ export const features = {
     modules: [/^(?:es|esnext)\.aggregate-error\./],
     template: $namespace,
     name: 'AggregateError',
+  },
+  'aggregate-error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
   },
   'array/index': {
     modules: [/^(?:es|esnext)\.array\./],
@@ -3288,7 +3300,7 @@ export const features = {
     name: 'isError',
   },
   'suppressed-error/index': {
-    modules: [/^(?:es|esnext)\.suppressed-error\./],
+    modules: [/^(?:es|esnext)\.suppressed-error\./, 'es.error.is-error'],
     template: $namespace,
     name: 'SuppressedError',
   },
@@ -3296,6 +3308,12 @@ export const features = {
     modules: [/^(?:es|esnext)\.suppressed-error\./],
     template: $namespace,
     name: 'SuppressedError',
+  },
+  'suppressed-error/is-error': {
+    modules: ['es.error.is-error'],
+    template: $static,
+    namespace: 'Error',
+    name: 'isError',
   },
   'symbol/index': {
     modules: [/^(?:es|esnext)\.symbol\./],
