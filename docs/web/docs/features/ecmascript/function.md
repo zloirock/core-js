@@ -16,9 +16,18 @@ class Function {
 core-js/es|stable|actual|full/function
 core-js(-pure)/es|stable|actual|full/function/virtual
 core-js/es|stable|actual|full/function/name
+core-js/es|stable|actual|full/function/instance/name
+core-js/es|stable|actual|full/instance/name
 ```
 
 ## Examples
 ```js
 (function foo() { /* empty */ }).name; // => 'foo'
+```
+
+```js
+// pure version
+import getName from '@core-js/pure/es/function/name';
+
+getName(function foo() { /* empty */ }); // => 'foo'
 ```
