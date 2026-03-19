@@ -55,7 +55,11 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(typeof load(NS, 'object/prototype/lookup-getter') == 'function');
     ok(typeof load(NS, 'object/prototype/lookup-setter') == 'function');
     ok('values' in load(NS, 'object'));
-    load(NS, 'function/name');
+    // eslint-disable-next-line prefer-arrow-callback -- required
+    ok(load(NS, 'function/name')(function test() { /* empty */ }) === 'test');
+    // eslint-disable-next-line prefer-arrow-callback -- required
+    ok(load(NS, 'function/instance/name')(function test() { /* empty */ }) === 'test');
+    ok(load(NS, 'function/instance/name')({ name: 'foo' }) === 'foo');
     load(NS, 'function');
     ok(Array.isArray(load(NS, 'array/from')('qwe')));
     ok(typeof load(NS, 'array/from-async') == 'function');
@@ -270,6 +274,7 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     load(NS, 'regexp/dot-all');
     load(NS, 'regexp/exec');
     ok(load(NS, 'regexp/flags')(/./g) === 'g');
+    ok(load(NS, 'regexp/instance/flags')(/./g) === 'g');
     load(NS, 'regexp/match');
     load(NS, 'regexp/replace');
     load(NS, 'regexp/search');
@@ -548,6 +553,12 @@ for (PATH of ['@core-js/pure', 'core-js']) {
     ok(instanceMatchAll({}) === undefined);
     ok(typeof instanceMatchAll('') == 'function');
     ok(instanceMatchAll('').call('test1test2', /(?<test>test\d)/g).next().value.groups.test === 'test1');
+
+    const instanceName = load(NS, 'instance/name');
+    ok(typeof instanceName == 'function');
+    // eslint-disable-next-line prefer-arrow-callback -- required
+    ok(instanceName(function test() { /* empty */ }) === 'test');
+    ok(instanceName({ name: 'foo' }) === 'foo');
 
     const instancePadEnd = load(NS, 'instance/pad-end');
     ok(typeof instancePadEnd == 'function');
