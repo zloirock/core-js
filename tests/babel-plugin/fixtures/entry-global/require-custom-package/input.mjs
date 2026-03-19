@@ -1,2 +1,2 @@
-require('core-js/full/math');
-require('core-js/full/regexp');
+require('@x/y/full/math');
+require('@x/y/full/regexp');
