@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Improved performance of `Uint8Array`` base64 methods
 - Compat data improvements:
   - Updated Electron 42 compat data mapping
 
