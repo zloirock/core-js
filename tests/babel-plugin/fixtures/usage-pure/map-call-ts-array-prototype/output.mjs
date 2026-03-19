@@ -1,4 +1,4 @@
-import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
+import _map from "@core-js/pure/actual/instance/map";
 function f(x: number[]) {
-  _mapMaybeArray(x).call(x, String);
+  _map(x).call(x, String);
 }
