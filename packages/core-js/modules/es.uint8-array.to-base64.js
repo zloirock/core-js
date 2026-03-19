@@ -62,7 +62,7 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
     } else if (i + 1 === length) {
       triplet = array[i] << 16;
       result[written++] = at(3);
-      result[written++] = at(1);
+      result[written++] = at(2);
       if (!omitPadding) {
         result[written++] = '=';
         result[written++] = '=';
