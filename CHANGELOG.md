@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
 - Added polyfill for `requestIdleCallback`
+- Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
 - Compat data improvements:
   - Updated Electron 42 compat data mapping
 
