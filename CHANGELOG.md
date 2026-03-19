@@ -1,6 +1,7 @@
 # Changelog
 ### Unreleased
-- Improved performance of `Uint8Array`` base64 methods
+- Improved performance of `Uint8Array` base64 methods
+- Improved performance of `es.escape`
 - Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
 - Compat data improvements:
   - Updated Electron 42 compat data mapping
