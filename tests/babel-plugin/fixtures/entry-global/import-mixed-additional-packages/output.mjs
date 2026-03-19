@@ -1,5 +1,9 @@
 import "core-js/modules/es.iterator.dispose";
 import "core-js/modules/es.math.sum-precise";
+import "core-js/modules/esnext.iterator.chunks";
+import "core-js/modules/esnext.iterator.includes";
+import "core-js/modules/esnext.iterator.join";
 import "core-js/modules/esnext.iterator.to-async";
+import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/esnext.iterator.zip";
 import 'unknown-pkg/es/array';
