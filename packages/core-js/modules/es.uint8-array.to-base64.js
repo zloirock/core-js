@@ -1,5 +1,5 @@
 'use strict';
-/* eslint-disable no-unused-vars -- false positive for [index++] syntax */
+/* eslint-disable no-useless-assignment -- false positive for [index++] syntax */
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
