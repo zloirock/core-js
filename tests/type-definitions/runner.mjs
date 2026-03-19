@@ -4,7 +4,7 @@ import { fs } from 'zx';
 const { mkdir, rm, writeJson } = fs;
 const { cyan, green, grey, red } = chalk;
 
-const { TYPE_DEFINITIONS_TESTS } = process.env;
+const { TYPE_DEFINITIONS_TESTS = 'SMOKE' } = process.env;
 
 if (!['ALL', 'CI', 'SMOKE'].includes(TYPE_DEFINITIONS_TESTS)) {
   throw new Error('Incorrect or lack of TYPE_DEFINITIONS_TESTS');
