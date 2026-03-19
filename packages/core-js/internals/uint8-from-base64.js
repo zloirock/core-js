@@ -153,6 +153,6 @@ module.exports = function (string, options, into, maxLength) {
       }
     }
   }
-
+  bytes.length = written;
   return { bytes: bytes, read: read, written: written };
 };
