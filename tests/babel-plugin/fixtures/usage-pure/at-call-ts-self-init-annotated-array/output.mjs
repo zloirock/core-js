@@ -1,3 +1,3 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/array/at";
 var n: string[] = n ? n : [];
-_atMaybeArray(n).call(n, 0);
+_at(n).call(n, 0);

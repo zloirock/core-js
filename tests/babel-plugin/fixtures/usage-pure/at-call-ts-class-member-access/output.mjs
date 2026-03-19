@@ -1,7 +1,7 @@
 var _ref;
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/array/at";
 class Foo {
   items: number[] = [];
 }
 const f = new Foo();
-_atMaybeArray(_ref = f.items).call(_ref, -1);
+_at(_ref = f.items).call(_ref, -1);
