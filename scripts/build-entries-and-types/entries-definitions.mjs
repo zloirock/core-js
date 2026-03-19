@@ -19,6 +19,7 @@ import {
   $instanceArrayString,
   $instanceArrayDOMIterable,
   $instanceRegExpFlags,
+  $globalNamespace,
   $path,
 } from './templates.mjs';
 
@@ -158,6 +159,118 @@ const Uint8ArrayMethods = unique([
   'es.uint8-array.from-hex',
   ...Uint8ArrayPrototypeMethods,
 ]);
+
+// [method, ...modules] — instance method entries
+const TypedArrayInstanceMethodEntries = [
+  ['at', 'es.typed-array.at'],
+  ['copy-within', 'es.typed-array.copy-within'],
+  ['entries', 'es.typed-array.entries'],
+  ['every', 'es.typed-array.every'],
+  ['fill', 'es.typed-array.fill'],
+  ['filter', 'es.typed-array.filter'],
+  ['filter-reject', 'esnext.typed-array.filter-reject'],
+  ['find', 'es.typed-array.find'],
+  ['find-index', 'es.typed-array.find-index'],
+  ['find-last', 'es.typed-array.find-last'],
+  ['find-last-index', 'es.typed-array.find-last-index'],
+  ['for-each', 'es.typed-array.for-each'],
+  ['includes', 'es.typed-array.includes'],
+  ['index-of', 'es.typed-array.index-of'],
+  ['iterator', 'es.typed-array.iterator'],
+  ['join', 'es.typed-array.join'],
+  ['keys', 'es.typed-array.keys'],
+  ['last-index-of', 'es.typed-array.last-index-of'],
+  ['map', 'es.typed-array.map'],
+  ['reduce', 'es.typed-array.reduce'],
+  ['reduce-right', 'es.typed-array.reduce-right'],
+  ['reverse', 'es.typed-array.reverse'],
+  ['set', 'es.typed-array.set'],
+  ['slice', 'es.typed-array.slice'],
+  ['some', 'es.typed-array.some'],
+  ['sort', 'es.typed-array.sort'],
+  ['subarray', 'es.typed-array.subarray'],
+  ['to-locale-string', 'es.typed-array.to-locale-string'],
+  ['to-reversed', 'es.typed-array.to-reversed'],
+  ['to-sorted', 'es.typed-array.to-sorted'],
+  ['to-string', 'es.typed-array.to-string'],
+  ['unique-by', 'esnext.typed-array.unique-by'],
+  ['values', 'es.typed-array.values'],
+  ['with', 'es.typed-array.with'],
+];
+
+// [method, ...modules] — static method entries
+const TypedArrayStaticMethodEntries = [
+  ['from', 'es.typed-array.from'],
+  ['of', 'es.typed-array.of'],
+];
+
+const Uint8ArrayInstanceMethodEntries = [
+  ...TypedArrayInstanceMethodEntries,
+  ['set-from-base64', 'es.uint8-array.set-from-base64'],
+  ['set-from-hex', 'es.uint8-array.set-from-hex'],
+  ['to-base64', 'es.uint8-array.to-base64'],
+  ['to-hex', 'es.uint8-array.to-hex'],
+];
+
+const Uint8ArrayStaticMethodEntries = [
+  ...TypedArrayStaticMethodEntries,
+  ['from-base64', 'es.uint8-array.from-base64'],
+  ['from-hex', 'es.uint8-array.from-hex'],
+];
+
+const TA = [TypedArrayMethods, TypedArrayPrototypeMethods, TypedArrayInstanceMethodEntries, TypedArrayStaticMethodEntries];
+
+// [kebab, Name, allMethods, prototypeMethods, instanceEntries, staticEntries]
+const TYPED_ARRAY_CONSTRUCTORS = [
+  ['float32-array', 'Float32Array', ...TA],
+  ['float64-array', 'Float64Array', ...TA],
+  ['int8-array', 'Int8Array', ...TA],
+  ['int16-array', 'Int16Array', ...TA],
+  ['int32-array', 'Int32Array', ...TA],
+  ['uint8-array', 'Uint8Array',
+    Uint8ArrayMethods, Uint8ArrayPrototypeMethods, Uint8ArrayInstanceMethodEntries, Uint8ArrayStaticMethodEntries],
+  ['uint8-clamped-array', 'Uint8ClampedArray', ...TA],
+  ['uint16-array', 'Uint16Array', ...TA],
+  ['uint32-array', 'Uint32Array', ...TA],
+];
+
+function typedArrayMethodEntries(prefix, instanceEntries, staticEntries, prototypeMethods) {
+  const instance = instanceEntries.map(([method, ...modules]) => [
+    `${ prefix }/${ method }`, { modules, template: $justImport },
+  ]);
+  const statics = staticEntries.map(([method, ...modules]) => [
+    `${ prefix }/${ method }`, { modules: [...modules, ...prototypeMethods], template: $justImport },
+  ]);
+  return [...instance, ...statics];
+}
+
+// int8-array/*, uint8-array/*, etc.
+const typedArrayIndividualEntries = Object.fromEntries(
+  TYPED_ARRAY_CONSTRUCTORS.flatMap(([kebab, name, methods, prototypeMethods, instanceEntries, staticEntries]) => [
+    [`${ kebab }/index`, { modules: [`es.typed-array.${ kebab }`, ...methods], template: $globalNamespace, name }],
+    [`${ kebab }/constructor`, { modules: [`es.typed-array.${ kebab }`, ...prototypeMethods], template: $globalNamespace, name }],
+    ...typedArrayMethodEntries(kebab, instanceEntries, staticEntries, prototypeMethods),
+  ]),
+);
+
+// typed-array/*
+const typedArrayNamespaceEntries = {
+  'typed-array/index': {
+    modules: [/^(?:es|esnext)\.typed-array\./, /^(?:es|esnext)\.uint8-array\./],
+    template: $path,
+  },
+  'typed-array/constructors': {
+    modules: TYPED_ARRAY_CONSTRUCTORS.map(([kebab]) => `es.typed-array.${ kebab }`),
+    template: $path,
+  },
+  'typed-array/methods': {
+    modules: Uint8ArrayMethods,
+    template: $justImport,
+  },
+  ...Object.fromEntries(
+    typedArrayMethodEntries('typed-array', Uint8ArrayInstanceMethodEntries, Uint8ArrayStaticMethodEntries, Uint8ArrayPrototypeMethods),
+  ),
+};
 
 export const features = {
   'aggregate-error/index': {
@@ -3341,223 +3454,8 @@ export const features = {
     namespace: 'Error',
     name: 'isError',
   },
-  'typed-array/index': {
-    modules: [/^(?:es|esnext)\.typed-array\./],
-    template: $path,
-  },
-  'typed-array/float32-array': {
-    modules: ['es.typed-array.float32-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Float32Array',
-  },
-  'typed-array/float64-array': {
-    modules: ['es.typed-array.float64-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Float64Array',
-  },
-  'typed-array/int8-array': {
-    modules: ['es.typed-array.int8-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Int8Array',
-  },
-  'typed-array/int16-array': {
-    modules: ['es.typed-array.int16-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Int16Array',
-  },
-  'typed-array/int32-array': {
-    modules: ['es.typed-array.int32-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Int32Array',
-  },
-  'typed-array/uint8-array': {
-    modules: ['es.typed-array.uint8-array', ...Uint8ArrayMethods],
-    template: $namespace,
-    name: 'Uint8Array',
-  },
-  'typed-array/uint8-clamped-array': {
-    modules: ['es.typed-array.uint8-clamped-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Uint8ClampedArray',
-  },
-  'typed-array/uint16-array': {
-    modules: ['es.typed-array.uint16-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Uint16Array',
-  },
-  'typed-array/uint32-array': {
-    modules: ['es.typed-array.uint32-array', ...TypedArrayMethods],
-    template: $namespace,
-    name: 'Uint32Array',
-  },
-  'typed-array/from': {
-    modules: ['es.typed-array.from', ...Uint8ArrayPrototypeMethods],
-    template: $justImport,
-  },
-  'typed-array/from-base64': {
-    modules: ['es.uint8-array.from-base64', ...Uint8ArrayPrototypeMethods],
-    template: $justImport,
-  },
-  'typed-array/from-hex': {
-    modules: ['es.uint8-array.from-hex', ...Uint8ArrayPrototypeMethods],
-    template: $justImport,
-  },
-  'typed-array/of': {
-    modules: ['es.typed-array.of', ...Uint8ArrayPrototypeMethods],
-    template: $justImport,
-  },
-  'typed-array/at': {
-    modules: ['es.typed-array.at'],
-    template: $justImport,
-  },
-  'typed-array/copy-within': {
-    modules: ['es.typed-array.copy-within'],
-    template: $justImport,
-  },
-  'typed-array/entries': {
-    modules: ['es.typed-array.entries'],
-    template: $justImport,
-  },
-  'typed-array/every': {
-    modules: ['es.typed-array.every'],
-    template: $justImport,
-  },
-  'typed-array/fill': {
-    modules: ['es.typed-array.fill'],
-    template: $justImport,
-  },
-  'typed-array/filter': {
-    modules: ['es.typed-array.filter'],
-    template: $justImport,
-  },
-  'typed-array/filter-reject': {
-    modules: ['esnext.typed-array.filter-reject'],
-    template: $justImport,
-  },
-  'typed-array/find': {
-    modules: ['es.typed-array.find'],
-    template: $justImport,
-  },
-  'typed-array/find-index': {
-    modules: ['es.typed-array.find-index'],
-    template: $justImport,
-  },
-  'typed-array/find-last': {
-    modules: ['es.typed-array.find-last'],
-    template: $justImport,
-  },
-  'typed-array/find-last-index': {
-    modules: ['es.typed-array.find-last-index'],
-    template: $justImport,
-  },
-  'typed-array/for-each': {
-    modules: ['es.typed-array.for-each'],
-    template: $justImport,
-  },
-  'typed-array/includes': {
-    modules: ['es.typed-array.includes'],
-    template: $justImport,
-  },
-  'typed-array/index-of': {
-    modules: ['es.typed-array.index-of'],
-    template: $justImport,
-  },
-  'typed-array/iterator': {
-    modules: ['es.typed-array.iterator'],
-    template: $justImport,
-  },
-  'typed-array/join': {
-    modules: ['es.typed-array.join'],
-    template: $justImport,
-  },
-  'typed-array/keys': {
-    modules: ['es.typed-array.keys'],
-    template: $justImport,
-  },
-  'typed-array/last-index-of': {
-    modules: ['es.typed-array.last-index-of'],
-    template: $justImport,
-  },
-  'typed-array/map': {
-    modules: ['es.typed-array.map'],
-    template: $justImport,
-  },
-  'typed-array/reduce': {
-    modules: ['es.typed-array.reduce'],
-    template: $justImport,
-  },
-  'typed-array/reduce-right': {
-    modules: ['es.typed-array.reduce-right'],
-    template: $justImport,
-  },
-  'typed-array/reverse': {
-    modules: ['es.typed-array.reverse'],
-    template: $justImport,
-  },
-  'typed-array/set': {
-    modules: ['es.typed-array.set'],
-    template: $justImport,
-  },
-  'typed-array/set-from-base64': {
-    modules: ['es.uint8-array.set-from-base64'],
-    template: $justImport,
-  },
-  'typed-array/set-from-hex': {
-    modules: ['es.uint8-array.set-from-hex'],
-    template: $justImport,
-  },
-  'typed-array/slice': {
-    modules: ['es.typed-array.slice'],
-    template: $justImport,
-  },
-  'typed-array/some': {
-    modules: ['es.typed-array.some'],
-    template: $justImport,
-  },
-  'typed-array/sort': {
-    modules: ['es.typed-array.sort'],
-    template: $justImport,
-  },
-  'typed-array/subarray': {
-    modules: ['es.typed-array.subarray'],
-    template: $justImport,
-  },
-  'typed-array/to-base64': {
-    modules: ['es.uint8-array.to-base64'],
-    template: $justImport,
-  },
-  'typed-array/to-hex': {
-    modules: ['es.uint8-array.to-hex'],
-    template: $justImport,
-  },
-  'typed-array/to-locale-string': {
-    modules: ['es.typed-array.to-locale-string'],
-    template: $justImport,
-  },
-  'typed-array/to-reversed': {
-    modules: ['es.typed-array.to-reversed'],
-    template: $justImport,
-  },
-  'typed-array/to-sorted': {
-    modules: ['es.typed-array.to-sorted'],
-    template: $justImport,
-  },
-  'typed-array/to-string': {
-    modules: ['es.typed-array.to-string'],
-    template: $justImport,
-  },
-  'typed-array/unique-by': {
-    modules: ['esnext.typed-array.unique-by'],
-    template: $justImport,
-  },
-  'typed-array/values': {
-    modules: ['es.typed-array.values'],
-    template: $justImport,
-  },
-  'typed-array/with': {
-    modules: ['es.typed-array.with'],
-    template: $justImport,
-  },
+  ...typedArrayIndividualEntries,
+  ...typedArrayNamespaceEntries,
   'uri-error/index': {
     modules: ['es.error.cause', 'es.error.is-error'],
     template: $namespace,

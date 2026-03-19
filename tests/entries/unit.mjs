@@ -1257,83 +1257,79 @@ for (const NS of ['es', 'stable', 'actual', 'full']) {
   load(NS, 'data-view/get-float16');
   load(NS, 'data-view/set-float16');
   ok(typeof load(NS, 'data-view') == 'function');
-  ok(typeof load(NS, 'typed-array/int8-array') == 'function');
-  ok(typeof load(NS, 'typed-array/uint8-array') == 'function');
-  ok(typeof load(NS, 'typed-array/uint8-clamped-array') == 'function');
-  ok(typeof load(NS, 'typed-array/int16-array') == 'function');
-  ok(typeof load(NS, 'typed-array/uint16-array') == 'function');
-  ok(typeof load(NS, 'typed-array/int32-array') == 'function');
-  ok(typeof load(NS, 'typed-array/uint32-array') == 'function');
-  ok(typeof load(NS, 'typed-array/float32-array') == 'function');
-  ok(typeof load(NS, 'typed-array/float64-array') == 'function');
-  load(NS, 'typed-array/at');
-  load(NS, 'typed-array/copy-within');
-  load(NS, 'typed-array/entries');
-  load(NS, 'typed-array/every');
-  load(NS, 'typed-array/fill');
-  load(NS, 'typed-array/filter');
-  load(NS, 'typed-array/find');
-  load(NS, 'typed-array/find-index');
-  load(NS, 'typed-array/find-last');
-  load(NS, 'typed-array/find-last-index');
-  load(NS, 'typed-array/for-each');
-  load(NS, 'typed-array/from');
-  load(NS, 'typed-array/from-base64');
-  load(NS, 'typed-array/from-hex');
-  load(NS, 'typed-array/includes');
-  load(NS, 'typed-array/index-of');
-  load(NS, 'typed-array/iterator');
-  load(NS, 'typed-array/join');
-  load(NS, 'typed-array/keys');
-  load(NS, 'typed-array/last-index-of');
-  load(NS, 'typed-array/map');
-  load(NS, 'typed-array/of');
-  load(NS, 'typed-array/reduce');
-  load(NS, 'typed-array/reduce-right');
-  load(NS, 'typed-array/reverse');
-  load(NS, 'typed-array/set');
-  load(NS, 'typed-array/set-from-base64');
-  load(NS, 'typed-array/set-from-hex');
-  load(NS, 'typed-array/slice');
-  load(NS, 'typed-array/some');
-  load(NS, 'typed-array/sort');
-  load(NS, 'typed-array/subarray');
-  load(NS, 'typed-array/to-base64');
-  load(NS, 'typed-array/to-hex');
-  load(NS, 'typed-array/to-locale-string');
-  load(NS, 'typed-array/to-reversed');
-  load(NS, 'typed-array/to-sorted');
-  load(NS, 'typed-array/to-string');
-  load(NS, 'typed-array/values');
-  load(NS, 'typed-array/with');
+
   ok(typeof load(NS, 'typed-array').Uint32Array == 'function');
+
+  const typedArrays = [
+    'float32-array',
+    'float64-array',
+    'int8-array',
+    'int16-array',
+    'int32-array',
+    'uint8-array',
+    'uint8-clamped-array',
+    'uint16-array',
+    'uint32-array',
+  ];
 
   // individual typed array entry points
   const typedArrayCommonMethods = [
-    'at', 'copy-within', 'entries', 'every', 'fill', 'filter', 'find', 'find-index',
-    'find-last', 'find-last-index', 'for-each', 'from', 'includes', 'index-of',
-    'iterator', 'join', 'keys', 'last-index-of', 'map', 'of', 'reduce', 'reduce-right',
-    'reverse', 'set', 'slice', 'some', 'sort', 'subarray', 'to-locale-string',
-    'to-reversed', 'to-sorted', 'to-string', 'values', 'with',
+    'at',
+    'copy-within',
+    'entries',
+    'every',
+    'fill',
+    'filter',
+    'find',
+    'find-index',
+    'find-last',
+    'find-last-index',
+    'for-each',
+    'from',
+    'includes',
+    'index-of',
+    'iterator',
+    'join',
+    'keys',
+    'last-index-of',
+    'map',
+    'of',
+    'reduce',
+    'reduce-right',
+    'reverse',
+    'set',
+    'slice',
+    'some',
+    'sort',
+    'subarray',
+    'to-locale-string',
+    'to-reversed',
+    'to-sorted',
+    'to-string',
+    'values',
+    'with',
   ];
 
-  for (const TA of ['float32-array', 'float64-array', 'int8-array', 'int16-array', 'int32-array',
-    'uint8-clamped-array', 'uint16-array', 'uint32-array']) {
+  for (const TA of typedArrays) {
     ok(typeof load(NS, `${ TA }`) == 'function');
     ok(typeof load(NS, `${ TA }/constructor`) == 'function');
+  }
+
+  load(NS, 'typed-array/constructors');
+  load(NS, 'typed-array/methods');
+
+  for (const TA of ['typed-array', ...typedArrays]) {
     for (const method of typedArrayCommonMethods) load(NS, `${ TA }/${ method }`);
   }
 
-  // Uint8Array — common + Uint8-only methods
-  ok(typeof load(NS, 'uint8-array') == 'function');
-  ok(typeof load(NS, 'uint8-array/constructor') == 'function');
-  for (const method of typedArrayCommonMethods) load(NS, `uint8-array/${ method }`);
-  load(NS, 'uint8-array/from-base64');
-  load(NS, 'uint8-array/from-hex');
-  load(NS, 'uint8-array/set-from-base64');
-  load(NS, 'uint8-array/set-from-hex');
-  load(NS, 'uint8-array/to-base64');
-  load(NS, 'uint8-array/to-hex');
+  for (const TA of ['typed-array', 'uint8-array']) {
+    load(NS, `${ TA }/from-base64`);
+    load(NS, `${ TA }/from-hex`);
+    load(NS, `${ TA }/set-from-base64`);
+    load(NS, `${ TA }/set-from-hex`);
+    load(NS, `${ TA }/to-base64`);
+    load(NS, `${ TA }/to-hex`);
+  }
 }
 
 for (const NS of ['full']) {
