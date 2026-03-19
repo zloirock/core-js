@@ -10,6 +10,7 @@ var shared = require('../internals/shared');
 var create = require('../internals/object-create');
 var getInternalState = require('../internals/internal-state').get;
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
+var UNSUPPORTED_HAS_INDICES = require('../internals/regexp-unsupported-has-indices');
 var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
@@ -33,7 +34,7 @@ var UNSUPPORTED_Y = stickyHelpers.BROKEN_CARET;
 // nonparticipating capturing group, copied from es5-shim's String#split patch.
 var NPCG_INCLUDED = /()??/.exec('')[1] !== undefined;
 
-var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL || UNSUPPORTED_NCG;
+var PATCH = UPDATES_LAST_INDEX_WRONG || NPCG_INCLUDED || UNSUPPORTED_Y || UNSUPPORTED_DOT_ALL || UNSUPPORTED_HAS_INDICES || UNSUPPORTED_NCG;
 
 var setGroups = function (re, groups) {
   var object = re.groups = create(null);
@@ -41,6 +42,172 @@ var setGroups = function (re, groups) {
     var group = groups[i];
     object[group[0]] = re[group[1]];
   }
+};
+
+// Compute match indices for the 'd' flag polyfill
+var getGroupNesting = function (source) {
+  // Returns array where nesting[i] is the parent group index of capturing group i (0 = top level)
+  var nesting = [0]; // nesting[0] unused (index 0 is the full match)
+  var stack = [0]; // stack of current group IDs; 0 = top level
+  var groupId = 0;
+  var inCharClass = false;
+  for (var i = 0; i < source.length; i++) {
+    var ch = charAt(source, i);
+    if (ch === '\\') {
+      i++;
+      continue;
+    }
+    if (inCharClass) {
+      if (ch === ']') inCharClass = false;
+      continue;
+    }
+    if (ch === '[') {
+      inCharClass = true;
+      continue;
+    }
+    if (ch === '(') {
+      var next = charAt(source, i + 1);
+      if (next === '?') {
+        var next2 = charAt(source, i + 2);
+        if (next2 === '<' && charAt(source, i + 3) !== '=' && charAt(source, i + 3) !== '!') {
+          // Named capturing group (?<name>...)
+          groupId++;
+          nesting[groupId] = stack[stack.length - 1];
+          stack[stack.length] = groupId;
+        } else {
+          // Non-capturing group or assertion
+          stack[stack.length] = -1;
+        }
+      } else {
+        // Regular capturing group
+        groupId++;
+        nesting[groupId] = stack[stack.length - 1];
+        stack[stack.length] = groupId;
+      }
+    } else if (ch === ')') {
+      stack.length--;
+    }
+  }
+  return nesting;
+};
+
+var getNamedGroups = function (source) {
+  // Extract named capture groups: returns array of [name, groupIndex] pairs
+  var named = [];
+  var groupId = 0;
+  var inCharClass = false;
+  for (var i = 0; i < source.length; i++) {
+    var ch = charAt(source, i);
+    if (ch === '\\') {
+      i++;
+      continue;
+    }
+    if (inCharClass) {
+      if (ch === ']') inCharClass = false;
+      continue;
+    }
+    if (ch === '[') {
+      inCharClass = true;
+      continue;
+    }
+    if (ch === '(') {
+      var next = charAt(source, i + 1);
+      if (next === '?') {
+        var next2 = charAt(source, i + 2);
+        if (next2 === '<' && charAt(source, i + 3) !== '=' && charAt(source, i + 3) !== '!') {
+          // Named capturing group
+          groupId++;
+          var nameStart = i + 3;
+          var nameEnd = indexOf(source, '>', nameStart);
+          named[named.length] = [stringSlice(source, nameStart, nameEnd), groupId];
+          i = nameEnd;
+        }
+      } else {
+        groupId++;
+      }
+    }
+  }
+  return named;
+};
+
+var setIndices = function (match, input, state) {
+  var indices = new Array(match.length);
+  var matchStart = match.index;
+  var matchEnd = matchStart + match[0].length;
+
+  // Full match indices
+  indices[0] = [matchStart, matchEnd];
+
+  if (match.length > 1) {
+    // Parse group nesting from the regex source
+    var re = state.self || match;
+    var regexSource = re.source !== undefined ? re.source : '';
+    var nesting = getGroupNesting(regexSource);
+
+    for (var i = 1; i < match.length; i++) {
+      if (match[i] === undefined) {
+        indices[i] = undefined;
+        continue;
+      }
+
+      var groupText = match[i];
+      var parent = i < nesting.length ? nesting[i] : 0;
+      var searchStart;
+
+      if (parent > 0 && indices[parent] !== undefined) {
+        searchStart = indices[parent][0];
+      } else {
+        searchStart = matchStart;
+      }
+
+      // Search after previous sibling group's end to handle sequential groups correctly
+      for (var j = i - 1; j > 0; j--) {
+        var siblingParent = j < nesting.length ? nesting[j] : 0;
+        if (siblingParent === (i < nesting.length ? nesting[i] : 0) && indices[j] !== undefined) {
+          searchStart = Math.max(indices[j][1], searchStart);
+          break;
+        }
+      }
+
+      var searchEnd = parent > 0 && indices[parent] !== undefined ? indices[parent][1] : matchEnd;
+      var pos = indexOf(input, groupText, searchStart);
+
+      if (pos !== -1 && pos + groupText.length <= searchEnd) {
+        indices[i] = [pos, pos + groupText.length];
+      } else {
+        // Fallback: search from match start
+        pos = indexOf(input, groupText, matchStart);
+        if (pos !== -1 && pos + groupText.length <= matchEnd) {
+          indices[i] = [pos, pos + groupText.length];
+        } else {
+          indices[i] = undefined;
+        }
+      }
+    }
+  }
+
+  // Named groups
+  var groups = state.groups;
+  if (groups) {
+    var namedIndices = indices.groups = create(null);
+    for (var k = 0; k < groups.length; k++) {
+      namedIndices[groups[k][0]] = indices[groups[k][1]];
+    }
+  } else {
+    // If NCG is natively supported, extract named groups from source
+    var re2 = state.self;
+    if (re2 && re2.source) {
+      var namedFromSource = getNamedGroups(re2.source);
+      if (namedFromSource.length) {
+        var namedIndices2 = indices.groups = create(null);
+        for (var m = 0; m < namedFromSource.length; m++) {
+          namedIndices2[namedFromSource[m][0]] = indices[namedFromSource[m][1]];
+        }
+      }
+    }
+  }
+
+  return indices;
 };
 
 if (PATCH) {
@@ -57,6 +224,10 @@ if (PATCH) {
       re.lastIndex = raw.lastIndex;
 
       if (result && state.groups) setGroups(result, state.groups);
+      if (result && state.hasIndices) {
+        state.self = re;
+        result.indices = setIndices(result, str, state);
+      }
 
       return result;
     }
@@ -116,6 +287,10 @@ if (PATCH) {
     }
 
     if (match && groups) setGroups(match, groups);
+    if (match && state.hasIndices) {
+      state.self = re;
+      match.indices = setIndices(match, str, state);
+    }
 
     return match;
   };

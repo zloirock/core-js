@@ -1339,6 +1339,11 @@ GLOBAL.tests = {
 
     return result === expected && calls === expected;
   },
+  'es.regexp.has-indices': function () {
+    var re = RegExp('a', 'd');
+    var result = re.exec('ba');
+    return re.hasIndices && result.indices && result.indices[0][0] === 1 && result.indices[0][1] === 2;
+  },
   'es.regexp.sticky': function () {
     return new RegExp('a', 'y').sticky === true;
   },
