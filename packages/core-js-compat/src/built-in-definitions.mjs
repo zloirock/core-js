@@ -333,7 +333,7 @@ export const InstanceProperties = {
   findLast: { array: 'array/instance/find-last' },
   findLastIndex: { array: 'array/instance/find-last-index' },
   fixed: { global: { string: 'string/fixed' } },
-  flags: { regexp: 'instance/flags' },
+  flags: { regexp: 'regexp/instance/flags' },
   flat: { array: 'array/instance/flat' },
   flatMap: {
     pure: {
@@ -404,7 +404,7 @@ export const InstanceProperties = {
     string: { dependencies: 'string/match', filters: [['arg-is-string', 0]] },
   } },
   matchAll: { string: 'string/instance/match-all' },
-  name: { global: { function: 'function/name' } },
+  name: { function: 'function/instance/name' },
   padEnd: { string: 'string/instance/pad-end' },
   padStart: { string: 'string/instance/pad-start' },
   push: { array: 'array/instance/push' },

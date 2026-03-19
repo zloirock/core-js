@@ -477,6 +477,20 @@ export const $instanceRegExpFlags = p => ({
   types: instanceTypes(p),
 });
 
+export const $instanceFunctionName = p => ({
+  entry: dedent`
+    ${ importModules(p) }
+
+    var isCallable = ${ importInternal('is-callable', p.level) }
+    var getName = require('${ '../'.repeat(p.level - 1) }function/name');
+
+    module.exports = function (it) {
+      return isCallable(it) ? getName(it) : it.name;
+    };
+  `,
+  types: instanceTypes(p),
+});
+
 export const $proposal = p => ({
   entry: dedent`
     // proposal stage: ${ p.stage }
