@@ -58,7 +58,7 @@
     "test-templates": "npm run zxi tests/templates/templates.mjs",
     "test-type-definitions-all": "TYPE_DEFINITIONS_TESTS=ALL npm run zxi time cd tests/type-definitions/runner.mjs",
     "test-type-definitions-ci": "TYPE_DEFINITIONS_TESTS=CI npm run zxi time cd tests/type-definitions/runner.mjs",
-    "test-type-definitions-smoke": "TYPE_DEFINITIONS_TESTS=SMOKE npm run zxi time cd tests/type-definitions/runner.mjs",
+    "test-type-definitions-smoke": "npm run zxi time cd tests/type-definitions/runner.mjs",
     "test262": "npm run zxi time cd tests/test262/runner.mjs",
     "types-coverage": "npm run zxi tests/type-definitions/coverage.mjs",
     "refresh": "UPDATE_DEPENDENCIES=1 npm run prepare-monorepo && npm run test-raw",
