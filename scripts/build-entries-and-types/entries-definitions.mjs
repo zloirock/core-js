@@ -19,6 +19,7 @@ import {
   $instanceArrayString,
   $instanceArrayDOMIterable,
   $instanceRegExpFlags,
+  $instanceFunctionName,
   $globalNamespace,
   $path,
 } from './templates.mjs';
@@ -1281,7 +1282,13 @@ export const features = {
   },
   'function/name': {
     modules: ['es.function.name'],
-    template: $justImport, // <- ???
+    template: $helper,
+    helper: 'function-get-name',
+  },
+  'function/instance/name': {
+    modules: ['es.function.name'],
+    template: $instanceFunctionName,
+    name: 'name',
   },
   'instance/at': {
     modules: ['es.array.at', 'es.string.at'],
@@ -1419,6 +1426,11 @@ export const features = {
     modules: ['es.string.match-all'],
     template: $instanceString,
     name: 'matchAll',
+  },
+  'instance/name': {
+    modules: ['es.function.name'],
+    template: $instanceFunctionName,
+    name: 'name',
   },
   'instance/pad-end': {
     modules: ['es.string.pad-end'],
@@ -2568,6 +2580,11 @@ export const features = {
     modules: ['es.regexp.flags'],
     template: $helper,
     helper: 'regexp-get-flags',
+  },
+  'regexp/instance/flags': {
+    modules: ['es.regexp.flags'],
+    template: $instanceRegExpFlags,
+    name: 'flags',
   },
   'regexp/match': {
     modules: ['es.string.match'],
