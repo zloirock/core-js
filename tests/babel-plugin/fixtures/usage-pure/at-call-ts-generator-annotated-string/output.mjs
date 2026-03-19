@@ -1,7 +1,7 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _at from "@core-js/pure/actual/string/at";
 function* gen(): Generator<string> {
   yield "x";
 }
 for (const x of gen()) {
-  _atMaybeString(x).call(x, 0);
+  _at(x).call(x, 0);
 }

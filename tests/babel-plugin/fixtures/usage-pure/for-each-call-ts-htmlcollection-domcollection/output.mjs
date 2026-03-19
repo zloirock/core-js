@@ -1,4 +1,4 @@
-import _forEachMaybeDomCollections from "@core-js/pure/actual/dom-collections/instance/for-each";
+import _forEach from "@core-js/pure/actual/instance/for-each";
 function f(col: HTMLCollection) {
-  _forEachMaybeDomCollections(col).call(col, el => console.log(el));
+  _forEach(col).call(col, el => console.log(el));
 }

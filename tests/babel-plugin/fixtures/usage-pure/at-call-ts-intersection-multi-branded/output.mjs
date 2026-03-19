@@ -1,7 +1,7 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _at from "@core-js/pure/actual/string/at";
 declare const s: string & {
   __brand: 'A';
 } & {
   __tag: 'B';
 };
-_atMaybeString(s).call(s, 0);
+_at(s).call(s, 0);
