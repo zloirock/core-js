@@ -5,7 +5,7 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 
 // `Array.prototype.fill` method implementation
 // https://tc39.es/ecma262/#sec-array.prototype.fill
-// // eslint-disable-next-line es/no-array-prototype-fill -- fallback included
+// eslint-disable-next-line es/no-array-prototype-fill -- fallback included
 module.exports = Array.prototype.fill || function fill(value /* , start = 0, end = @length */) {
   var O = toObject(this);
   var length = lengthOfArrayLike(O);
