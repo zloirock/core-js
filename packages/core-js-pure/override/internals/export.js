@@ -92,7 +92,18 @@ module.exports = function (options, source) {
       createNonEnumerableProperty(resultProperty, 'sham', true);
     }
 
+    var previous = GLOBAL && target[key];
+
     defineBuiltIn(target, key, resultProperty, options);
+
+    if (previous && typeof previous == 'object') {
+      var names = Object.getOwnPropertyNames(previous);
+      for (var i = 0; i < names.length; i++) {
+        try {
+          createNonEnumerableProperty(resultProperty, names[i], previous[names[i]]);
+        } catch (error) { /* empty */ }
+      }
+    }
 
     if (PROTO) {
       var VIRTUAL_PROTOTYPE = TARGET + 'Prototype';
