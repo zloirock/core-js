@@ -114,6 +114,7 @@ core-js/es|stable|actual|full/regexp/constructor
 core-js(-pure)/es|stable|actual|full/regexp/escape
 core-js/es|stable|actual|full/regexp/dot-all
 core-js(-pure)/es|stable|actual|full/regexp/flags
+core-js(-pure)/es|stable|actual|full/regexp/instance/flags
 core-js/es|stable|actual|full/regexp/sticky
 core-js/es|stable|actual|full/regexp/test
 core-js/es|stable|actual|full/regexp/to-string
