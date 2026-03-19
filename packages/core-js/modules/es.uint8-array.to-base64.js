@@ -31,7 +31,7 @@ var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.t
 if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS }, {
   toBase64: function toBase64(/* options */) {
     var array = anUint8Array(this);
-    var options = anObjectOrUndefined(arguments[0]);
+    var options = arguments.length ? anObjectOrUndefined(arguments[0]) : undefined;
     var alphabet = getAlphabetOption(options) === 'base64' ? base64Alphabet : base64UrlAlphabet;
     var omitPadding = !!options && !!options.omitPadding;
     notDetached(this.buffer);
