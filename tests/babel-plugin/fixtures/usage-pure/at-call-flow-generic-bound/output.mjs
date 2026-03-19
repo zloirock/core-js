@@ -1,4 +1,4 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _at from "@core-js/pure/actual/string/at";
 function foo<T: string>(x: T) {
-  _atMaybeString(x).call(x, -1);
+  _at(x).call(x, -1);
 }
