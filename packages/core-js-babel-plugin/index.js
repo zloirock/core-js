@@ -15,8 +15,6 @@ import {
   isObject,
 } from './resolve-node-type.js';
 
-const defaultCoreJSPackages = ['core-js'];
-
 const { hasOwn } = Object;
 
 // array/instance/at and array/prototype/at -> array/at
@@ -192,7 +190,7 @@ export default defineProvider(({
   } = createASTHelpers(t);
   const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
 
-  const packages = additionalPackages ? [...defaultCoreJSPackages, ...additionalPackages] : defaultCoreJSPackages;
+  const packages = additionalPackages ? [pkg, ...additionalPackages] : [pkg];
 
   const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
