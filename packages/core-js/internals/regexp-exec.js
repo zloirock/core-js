@@ -12,6 +12,7 @@ var getInternalState = require('../internals/internal-state').get;
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
 var UNSUPPORTED_HAS_INDICES = require('../internals/regexp-unsupported-has-indices');
+var arrayFill = require('../internals/array-fill');
 
 var nativeReplace = shared('native-string-replace', String.prototype.replace);
 var NativeRegExp = RegExp;
@@ -22,8 +23,10 @@ var charAt = uncurryThis(''.charAt);
 var indexOf = uncurryThis(''.indexOf);
 var replace = uncurryThis(''.replace);
 var stringSlice = uncurryThis(''.slice);
+var fill = uncurryThis(arrayFill);
 var max = Math.max;
-var arrayFill = uncurryThis(require('../internals/array-fill'));
+var push = uncurryThis([].push);
+var pop = uncurryThis([].pop);
 
 var UPDATES_LAST_INDEX_WRONG = (function () {
   var re1 = /a/;
@@ -83,15 +86,15 @@ var getGroupParents = function (source) {
     if (inClass) continue;
     if (ch === '(') {
       if (isNonCapturingParen(source, i)) {
-        stack.push(-1);
+        push(stack, -1);
       } else {
         groupIndex++;
         var top = stack[stack.length - 1];
-        parents.push(max(top, 0));
-        stack.push(groupIndex);
+        push(parents, max(top, 0));
+        push(stack, groupIndex);
       }
     } else if (ch === ')') {
-      stack.pop();
+      pop(stack);
     }
   }
   return parents;
@@ -158,18 +161,6 @@ var buildInstrumentedSource = function (source) {
   return result;
 };
 
-// Find captured string within matchStr starting at searchFrom
-var findCapturedPosition = function (matchStr, captured, searchFrom) {
-  var capturedLen = captured.length;
-  while (searchFrom <= matchStr.length - capturedLen) {
-    if (stringSlice(matchStr, searchFrom, searchFrom + capturedLen) === captured) {
-      return searchFrom;
-    }
-    searchFrom++;
-  }
-  return -1;
-};
-
 // Run instrumented regex and compute group positions with parent-aware scanning
 var computeIndicesInstrumented = function (originalRe, match, str, matchStart, matchStr, indices) {
   var n = match.length;
@@ -185,7 +176,7 @@ var computeIndicesInstrumented = function (originalRe, match, str, matchStart, m
   if (!instrMatch || instrMatch.index !== 0) return false;
 
   var parents = getGroupParents(originalRe.source);
-  var scanPos = arrayFill(Array(n), 0);
+  var scanPos = fill(Array(n), 0);
   var i;
 
   for (i = 1; i < n; i++) {
@@ -204,7 +195,7 @@ var computeIndicesInstrumented = function (originalRe, match, str, matchStart, m
       continue;
     }
 
-    var found = findCapturedPosition(matchStr, captured, startFrom);
+    var found = indexOf(matchStr, captured, startFrom);
     if (found !== -1) {
       indices[i] = [matchStart + found, matchStart + found + capturedLen];
       scanPos[i] = found;
@@ -232,7 +223,7 @@ var computeIndicesFallback = function (match, str, matchStart, matchStr, indices
       indices[i] = [matchStart + fbPos, matchStart + fbPos];
       continue;
     }
-    var found = findCapturedPosition(matchStr, captured, fbPos);
+    var found = indexOf(matchStr, captured, fbPos);
     if (found !== -1) {
       indices[i] = [matchStart + found, matchStart + found + capturedLen];
       fbPos = found + capturedLen;
