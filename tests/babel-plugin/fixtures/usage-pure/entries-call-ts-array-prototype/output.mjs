@@ -1,4 +1,4 @@
-import _entriesMaybeArray from "@core-js/pure/actual/array/instance/entries";
+import _entries from "@core-js/pure/actual/array/entries";
 function f(x: string[]) {
-  _entriesMaybeArray(x).call(x);
+  _entries(x).call(x);
 }
