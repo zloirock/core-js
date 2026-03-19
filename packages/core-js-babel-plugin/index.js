@@ -175,6 +175,9 @@ export default defineProvider(({
   if (additionalPackages !== null && additionalPackages !== undefined && !Array.isArray(additionalPackages)) {
     throw new TypeError('`additionalPackages` should be an array');
   }
+  if (additionalPackages && additionalPackages.some($pkg => typeof $pkg != 'string')) {
+    throw new TypeError('Incorrect additional package name');
+  }
 
   version = normalizeCoreJSVersion(version);
 
