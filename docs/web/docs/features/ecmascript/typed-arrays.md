@@ -128,55 +128,11 @@ core-js/es|stable|actual|full/data-view
 core-js/es|stable|actual|full/dataview/get-float16
 core-js/es|stable|actual|full/dataview/set-float16
 core-js/es|stable|actual|full/typed-array
-core-js/es|stable|actual|full/typed-array/int8-array
-core-js/es|stable|actual|full/typed-array/uint8-array
-core-js/es|stable|actual|full/typed-array/uint8-clamped-array
-core-js/es|stable|actual|full/typed-array/int16-array
-core-js/es|stable|actual|full/typed-array/uint16-array
-core-js/es|stable|actual|full/typed-array/int32-array
-core-js/es|stable|actual|full/typed-array/uint32-array
-core-js/es|stable|actual|full/typed-array/float32-array
-core-js/es|stable|actual|full/typed-array/float64-array
-core-js/es|stable|actual|full/typed-array/at
-core-js/es|stable|actual|full/typed-array/copy-within
-core-js/es|stable|actual|full/typed-array/entries
-core-js/es|stable|actual|full/typed-array/every
-core-js/es|stable|actual|full/typed-array/fill
-core-js/es|stable|actual|full/typed-array/filter
-core-js/es|stable|actual|full/typed-array/find
-core-js/es|stable|actual|full/typed-array/find-index
-core-js/es|stable|actual|full/typed-array/find-last
-core-js/es|stable|actual|full/typed-array/find-last-index
-core-js/es|stable|actual|full/typed-array/for-each
-core-js/es|stable|actual|full/typed-array/from
-core-js/es|stable|actual|full/typed-array/from-base64
-core-js/es|stable|actual|full/typed-array/from-hex
-core-js/es|stable|actual|full/typed-array/includes
-core-js/es|stable|actual|full/typed-array/index-of
-core-js/es|stable|actual|full/typed-array/iterator
-core-js/es|stable|actual|full/typed-array/join
-core-js/es|stable|actual|full/typed-array/keys
-core-js/es|stable|actual|full/typed-array/last-index-of
-core-js/es|stable|actual|full/typed-array/map
-core-js/es|stable|actual|full/typed-array/of
-core-js/es|stable|actual|full/typed-array/reduce
-core-js/es|stable|actual|full/typed-array/reduce-right
-core-js/es|stable|actual|full/typed-array/reverse
-core-js/es|stable|actual|full/typed-array/set
-core-js/es|stable|actual|full/typed-array/set-from-base64
-core-js/es|stable|actual|full/typed-array/set-from-hex
-core-js/es|stable|actual|full/typed-array/slice
-core-js/es|stable|actual|full/typed-array/some
-core-js/es|stable|actual|full/typed-array/sort
-core-js/es|stable|actual|full/typed-array/subarray
-core-js/es|stable|actual|full/typed-array/to-base64
-core-js/es|stable|actual|full/typed-array/to-hex
-core-js/es|stable|actual|full/typed-array/to-locale-string
-core-js/es|stable|actual|full/typed-array/to-reversed
-core-js/es|stable|actual|full/typed-array/to-sorted
-core-js/es|stable|actual|full/typed-array/to-string
-core-js/es|stable|actual|full/typed-array/values
-core-js/es|stable|actual|full/typed-array/with
+core-js/es|stable|actual|full/typed-array/constructors
+core-js/es|stable|actual|full/typed-array/methods
+core-js/es|stable|actual|full/{ int8-array, uint8-array, ..., float64-array }
+core-js/es|stable|actual|full/{ int8-array, uint8-array, ..., float64-array }/constructor
+core-js/es|stable|actual|full/{ typed-array, int8-array, uint8-array, ..., float64-array }/{ at, filter, from, map, ... }
 ```
 
 ## Examples
