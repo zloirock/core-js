@@ -1,6 +1,6 @@
 var _ref;
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/array/at";
 class Foo {
   static items: number[] = [];
 }
-_atMaybeArray(_ref = Foo.items).call(_ref, -1);
+_at(_ref = Foo.items).call(_ref, -1);
