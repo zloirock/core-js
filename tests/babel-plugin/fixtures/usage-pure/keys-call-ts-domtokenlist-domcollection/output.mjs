@@ -1,4 +1,4 @@
-import _keysMaybeDomCollections from "@core-js/pure/actual/dom-collections/instance/keys";
+import _keys from "@core-js/pure/actual/instance/keys";
 function f(tokens: DOMTokenList) {
-  _keysMaybeDomCollections(tokens).call(tokens);
+  _keys(tokens).call(tokens);
 }

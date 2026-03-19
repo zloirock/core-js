@@ -1,6 +1,6 @@
 var _ref;
-import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _includes from "@core-js/pure/actual/array/includes";
 function getData() {
   return [1, 2, 3];
 }
-_includesMaybeArray(_ref = getData()).call(_ref, 1);
+_includes(_ref = getData()).call(_ref, 1);
