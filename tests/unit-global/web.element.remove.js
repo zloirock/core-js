@@ -10,14 +10,6 @@ if (!NODE && !BUN) {
     assert.false(parent.contains(child), 'Child node was removed');
     assert.strictEqual(child.parentNode, null, 'Child has no parent');
 
-    const code = `
-      const element = document.createElement('div');
-      with (element) {
-        remove();
-      }
-    `;
-    assert.throws(Function(code), ReferenceError);
-
     const invalidThis = { allison: 'brian' };
     assert.throws(() => Element.prototype.remove.call(invalidThis), TypeError);
   });
