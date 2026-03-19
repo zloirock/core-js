@@ -1,0 +1,1 @@
+structuredClone({ foo: 1 });
