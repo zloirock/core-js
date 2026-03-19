@@ -8,6 +8,8 @@ var charCodeAt = uncurryThis(''.charCodeAt);
 var exec = uncurryThis(/./.exec);
 var numberToString = uncurryThis(1.1.toString);
 var toUpperCase = uncurryThis(''.toUpperCase);
+var join = uncurryThis([].join);
+var $Array = Array;
 
 var raw = /[\w*+\-./@]/;
 
@@ -22,22 +24,22 @@ var hex = function (code, length) {
 $({ global: true }, {
   escape: function escape(string) {
     var str = toString(string);
-    var result = '';
     var length = str.length;
-    var index = 0;
+    var result = $Array(length);
+    var index;
     var chr, code;
-    while (index < length) {
-      chr = charAt(str, index++);
+    for (index = 0; index < length; index++) {
+      chr = charAt(str, index);
       if (exec(raw, chr)) {
-        result += chr;
+        result[index] = chr;
       } else {
         code = charCodeAt(chr, 0);
         if (code < 256) {
-          result += '%' + toUpperCase(hex(code, 2));
+          result[index] = '%' + toUpperCase(hex(code, 2));
         } else {
-          result += '%u' + toUpperCase(hex(code, 4));
+          result[index] = '%u' + toUpperCase(hex(code, 4));
         }
       }
-    } return result;
+    } return join(result, '');
   }
 });
