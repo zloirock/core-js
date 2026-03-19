@@ -192,10 +192,11 @@ function followTypeAliasChain(node, scope) {
     // accumulate type parameter substitutions for generic aliases
     const declParams = decl.typeParameters?.params;
     const usageArgs = node.typeParameters?.params;
-    if (declParams?.length && usageArgs?.length) {
+    if (declParams?.length) {
       const newSubst = new Map(subst);
-      for (let i = 0; i < declParams.length && i < usageArgs.length; i++) {
-        let arg = usageArgs[i];
+      for (let i = 0; i < declParams.length; i++) {
+        let arg = usageArgs?.[i] ?? declParams[i].default;
+        if (!arg) continue;
         // resolve through existing substitutions for chained generic aliases:
         // type A<T> = B<T>; type B<U> = [U, U]; -> A<string> needs U -> T -> string
         if (subst) {
