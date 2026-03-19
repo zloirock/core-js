@@ -6,8 +6,6 @@ import "core-js/modules/es.array.keys";
 import "core-js/modules/es.number.to-fixed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.typed-array.int32-array";
-import "core-js/modules/es.typed-array.from";
-import "core-js/modules/es.typed-array.of";
 import "core-js/modules/es.typed-array.iterator";
 import "core-js/modules/es.typed-array.at";
 import "core-js/modules/es.typed-array.copy-within";
