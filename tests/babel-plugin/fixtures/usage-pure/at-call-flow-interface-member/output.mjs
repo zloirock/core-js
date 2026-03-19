@@ -1,8 +1,8 @@
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+import _at from "@core-js/pure/actual/string/at";
 interface Config {
   name: string
 }
 function foo(cfg: Config) {
   var _ref;
-  _atMaybeString(_ref = cfg.name).call(_ref, -1);
+  _at(_ref = cfg.name).call(_ref, -1);
 }

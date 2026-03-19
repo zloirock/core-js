@@ -1,6 +1,6 @@
-import _trimMaybeString from "@core-js/pure/actual/string/instance/trim";
-import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
+import _trim from "@core-js/pure/actual/instance/trim";
+import _padStart from "@core-js/pure/actual/instance/pad-start";
 function f(s: string) {
   var _ref;
-  _trimMaybeString(_ref = _padStartMaybeString(s).call(s, 10, "0")).call(_ref);
+  _trim(_ref = _padStart(s).call(s, 10, "0")).call(_ref);
 }

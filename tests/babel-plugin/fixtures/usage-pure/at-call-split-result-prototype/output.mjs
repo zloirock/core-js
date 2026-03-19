@@ -1,5 +1,5 @@
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _at from "@core-js/pure/actual/array/at";
 function f(x: string) {
   var _ref;
-  _atMaybeArray(_ref = x.split(",")).call(_ref, 0);
+  _at(_ref = x.split(",")).call(_ref, 0);
 }

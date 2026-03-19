@@ -1,4 +1,4 @@
-import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
+import _includes from "@core-js/pure/actual/string/includes";
 function f(x: string) {
-  _includesMaybeString(x).call(x, "a");
+  _includes(x).call(x, "a");
 }
