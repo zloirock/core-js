@@ -578,7 +578,6 @@ if (DESCRIPTORS) {
     }
     pattern99 += '\\99'; // Backreference to group 99
     input99 += '8'; // Group 99 captures '8' (98 % 10 = 8), so we expect '8' at the end
-    // eslint-disable-next-line regexp/no-unused-capturing-group -- required for testing
     const re99 = new RegExp(pattern99, 'd');
     const match99 = re99.exec(input99);
     if (match99) {
