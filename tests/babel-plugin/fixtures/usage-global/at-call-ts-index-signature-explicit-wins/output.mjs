@@ -1,3 +1,4 @@
+import "core-js/modules/es.function.name";
 import "core-js/modules/es.string.at";
 const config: {
   name: string;
