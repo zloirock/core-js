@@ -798,6 +798,7 @@ export const staticMethods = {
     entries: { type: 'Array', element: 'Array' },
     freeze: 'Object',
     fromEntries: 'Object',
+    // only `Object` - acceptable assumption
     getOwnPropertyDescriptor: 'Object',
     getOwnPropertyDescriptors: 'Object',
     getOwnPropertyNames: { type: 'Array', element: 'string' },
@@ -839,6 +840,7 @@ export const staticMethods = {
     defineProperty: 'boolean',
     deleteProperty: 'boolean',
     // only `Object` - acceptable assumption
+    getOwnPropertyDescriptor: 'Object',
     getPrototypeOf: 'Object',
     has: 'boolean',
     isExtensible: 'boolean',
