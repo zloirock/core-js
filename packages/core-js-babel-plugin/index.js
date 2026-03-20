@@ -29,7 +29,7 @@ function collectEntryPaths(patterns) {
   const result = new Set();
   for (const pattern of patterns) {
     if (typeof pattern == 'string' && hasOwn(entries, `full/${ pattern }`)) {
-      result.add(pattern);
+      result.add(normalizeEntryPath(pattern));
     }
   }
   return result;
