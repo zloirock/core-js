@@ -1,0 +1,11 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "entry-global",
+        "version": "not-a-version"
+      }
+    ]
+  ]
+}
