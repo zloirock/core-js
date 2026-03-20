@@ -1,3 +1,4 @@
+import "core-js/modules/es.function.name";
 import "core-js/modules/es.string.at";
 declare function getConfig(): unknown;
 const config: {
