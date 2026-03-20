@@ -1,11 +1,13 @@
 # Changelog
 ### Unreleased
+- Added `RegExp` `hasIndices` (`d` flag) polyfill, [#1507](https://github.com/zloirock/core-js/issues/1507)
 - Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
 - Compat data improvements:
   - Updated Electron 42 compat data mapping
 
 ### [3.49.0 - 2026.03.16](https://github.com/zloirock/core-js/releases/tag/v3.49.0)
 - Changes [v3.48.0...v3.49.0](https://github.com/zloirock/core-js/compare/v3.48.0...v3.49.0) (373 commits)
+- Improved performance of `atob`, `btoa`, `Uint8Array.fromHex`, `Uint8Array.prototype.setFromHex`, and `Uint8Array.prototype.toHex`, [#1503](https://github.com/zloirock/core-js/issues/1503), [#1464](https://github.com/zloirock/core-js/issues/1464), [#1510](https://github.com/zloirock/core-js/issues/1510)
 - [`Iterator.range`](https://github.com/tc39/proposal-iterator.range) updated following the actual spec version
   - Throw a `RangeError` on `NaN` `start` / `end` / `step`
   - Allow `null` as `optionOrStep`
