@@ -116,6 +116,7 @@ export default {
     'es.error.to-string',
     'es.aggregate-error.cause',
     'es.number.to-exponential',
+    'es.regexp.has-indices',
     'esnext.array.group-by-to-map',
     'esnext.array.to-reversed',
     'esnext.array.to-sorted',
