@@ -1,3 +1,4 @@
+import "core-js/modules/es.object.freeze";
 Object.freeze(x as {
   a: string;
 });
