@@ -26,17 +26,19 @@ const PRIMITIVE_WRAPPERS = assign(create(null), {
   symbol: 'Symbol',
 });
 
+const PRIMITIVE_HINTS = new Set(keys(PRIMITIVE_WRAPPERS));
+
 const UNBOXED_PRIMITIVES = create(null);
 for (const [primitive, constructor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[constructor] = primitive;
 
 const PRIMITIVES = new Set([
-  ...keys(PRIMITIVE_WRAPPERS),
+  ...PRIMITIVE_HINTS,
   'null',
   'undefined',
 ]);
 
 const TYPE_HINTS = new Set([
-  ...keys(PRIMITIVE_WRAPPERS),
+  ...PRIMITIVE_HINTS,
   'array',
   'asynciterator',
   'date',
@@ -514,8 +516,8 @@ function findTupleElement(objectType, index, scope) {
 
 function isAssignableTo(candidate, target) {
   if (typesEqual(candidate, target)) return true;
-  // any non-primitive is assignable to Object
-  if (!candidate.primitive && target.constructor === 'Object') return true;
+  // any non-primitive is assignable to object / Object
+  if (!candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object')) return true;
   return false;
 }
 
@@ -735,12 +737,14 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     case 'TSNeverKeyword':
     case 'EmptyTypeAnnotation':
       return new $Primitive('never');
-    // TS / Flow object types
+    // TS `object` keyword = any non-primitive, too broad to narrow polyfills
     case 'TSObjectKeyword':
+      return new $Object(null);
+    // TS `{}` without members = any non-nullish (includes primitives) — treat as unknown
     case 'TSTypeLiteral':
     case 'TSMappedType':
     case 'ObjectTypeAnnotation':
-      return new $Object('Object');
+      return null;
     case 'TSArrayType':
     case 'ArrayTypeAnnotation':
       return new $Object('Array', resolveNonNullableAnnotation(node.elementType, scope, depth));
@@ -952,7 +956,7 @@ function foldUnionTypes(types, resolve) {
 
 // fold intersection members: unresolvable or plain Object -> skip, rest -> fold
 function foldIntersectionTypes(types, resolve) {
-  return foldTypes(types, resolve, r => !r || (!r.primitive && r.constructor === 'Object') ? 1 : 2);
+  return foldTypes(types, resolve, r => !r || (!r.primitive && (!r.constructor || r.constructor === 'Object')) ? 1 : 2);
 }
 
 // compute common inner type from tuple elements using a parameterized resolver
@@ -1577,8 +1581,8 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   }
   // function type: (x: T) => R - always Function regardless of type parameters
   if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
-  // mapped type: { [K in keyof T]: V } - always Object
-  if (node.type === 'TSMappedType') return new $Object('Object');
+  // mapped type: { [K in keyof T]: V } - structural, can't derive concrete type
+  if (node.type === 'TSMappedType') return new $Object(null);
   // fallback to regular annotation resolution
   return resolveTypeAnnotation(node, scope, depth);
 }
@@ -2877,6 +2881,7 @@ function isObject(path) {
 
 export {
   TYPE_HINTS,
+  PRIMITIVE_HINTS,
   resolvePropertyObjectType,
   resolveGuardHints,
   toHint,
