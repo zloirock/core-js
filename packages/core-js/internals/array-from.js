@@ -11,13 +11,18 @@ var setArrayLength = require('../internals/array-set-length');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var iteratorClose = require('../internals/iterator-close');
+var checkCorrectnessOfIteration = require('../internals/check-correctness-of-iteration');
 
 var $Array = Array;
+var CORRECT_ITERATION = checkCorrectnessOfIteration(function (iterable) {
+  // eslint-disable-next-line es/no-array-from -- required for testing
+  Array.from(iterable);
+});
 
 // `Array.from` method implementation
 // https://tc39.es/ecma262/#sec-array.from
 // eslint-disable-next-line es/no-array-prototype-from -- fallback included
-module.exports = [].from || function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
+module.exports = (CORRECT_ITERATION && [].from) || function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
   var IS_CONSTRUCTOR = isConstructor(this);
   var argumentsLength = arguments.length;
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
