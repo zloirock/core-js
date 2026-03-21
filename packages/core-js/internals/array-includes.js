@@ -37,6 +37,6 @@ module.exports = {
   polyIndexOf: indexOf,
   // `Array.prototype.indexOf` method
   // https://tc39.es/ecma262/#sec-array.prototype.indexof
-  // eslint-disable-next-line es/no-array-prototype-indexof -- fallback included
-  indexOf: [].indexOf && uncurryThis([].indexOf) || indexOf,
+  // es/no-nonstandard-array-prototype-properties -- fallback included
+  indexOf: [].indexOf && uncurryThis([].indexOf) || indexOf
 };
