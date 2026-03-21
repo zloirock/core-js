@@ -25,8 +25,25 @@ const TYPE_HINTS = new Set([
   'symbol',
 ]);
 
+const VALID_FILTERS = new Set([
+  'min-args',
+  'arg-is-string',
+  'arg-is-object',
+]);
+
 function dict() {
   return Object.create(null);
+}
+
+function validateFilters(filters) {
+  if (!Array.isArray(filters)) throw new Error('filters must be an array');
+  for (const filter of filters) {
+    if (!Array.isArray(filter) || filter.length < 2) throw new Error(`invalid filter: ${ JSON.stringify(filter) }`);
+    const [name, ...args] = filter;
+    if (!VALID_FILTERS.has(name)) throw new Error(`unknown filter: ${ name }`);
+    for (const arg of args) if (typeof arg != 'number') throw new Error(`filter '${ name }' argument must be a number, got ${ typeof arg }`);
+  }
+  return filters;
 }
 
 function unfoldDependencies(data) {
@@ -44,7 +61,7 @@ function unfoldHint(data) {
   const { dependencies, filters, guard } = data;
   if (dependencies || filters || guard) {
     if (dependencies) result.dependencies = unfoldDependencies(dependencies);
-    if (filters) result.filters = filters;
+    if (filters) result.filters = validateFilters(filters);
     if (guard) {
       if (!entries.has(`full/${ guard }`)) throw new Error(`incorrect guard: ${ guard }`);
       result.guard = guard;
