@@ -2,6 +2,7 @@
 var toIndexedObject = require('../internals/to-indexed-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var uncurryThis = require('../internals/function-uncurry-this');
 
 // `Array.prototype.{ indexOf, includes }` methods implementation
 var createMethod = function (IS_INCLUDES) {
@@ -27,8 +28,8 @@ var createMethod = function (IS_INCLUDES) {
 module.exports = {
   // `Array.prototype.includes` method
   // https://tc39.es/ecma262/#sec-array.prototype.includes
-  includes: createMethod(true),
+  includes: [].includes && uncurryThis([].includes) || createMethod(true),
   // `Array.prototype.indexOf` method
   // https://tc39.es/ecma262/#sec-array.prototype.indexof
-  indexOf: createMethod(false)
+  indexOf: [].includes && uncurryThis([].includes) || createMethod(false)
 };
