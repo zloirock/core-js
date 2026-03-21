@@ -15,7 +15,7 @@ var checkCorrectnessOfIteration = require('../internals/check-correctness-of-ite
 
 var $Array = Array;
 var CORRECT_ITERATION = checkCorrectnessOfIteration(function (iterable) {
-  // eslint-disable-next-line es/no-array-from -- required for testing
+  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- required for testing
   Array.from(iterable);
 });
 
