@@ -90,6 +90,7 @@ function unfoldMode(data, kind, modeName, entryName) {
       }
     }
     for (const [key, value] of Object.entries(data)) {
+      if (!TYPE_HINTS.has(key)) throw new Error(`${ entryName }: unknown type hint '${ key }'`);
       if (value) result[key] = unfoldHint(value);
     }
   } else result.common = unfoldHint(data);
