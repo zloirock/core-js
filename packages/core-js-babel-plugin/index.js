@@ -200,6 +200,27 @@ export default defineProvider(({
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
   let skipFile = false;
+  let disabledLines = null;
+
+  const DIRECTIVE = /^\s*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$)/;
+
+  function parseDisableDirectives(comments) {
+    if (!comments) return null;
+    const lines = new Set();
+    for (const comment of comments) {
+      const match = comment.value.match(DIRECTIVE);
+      if (!match) continue;
+      const { kind } = match.groups;
+      if (kind === 'file') return true;
+      if (kind === 'line') lines.add(comment.loc.start.line);
+      else lines.add(comment.loc.end.line + 1); // next-line
+    }
+    return lines.size ? lines : null;
+  }
+
+  function isDisabled(path) {
+    return skipFile || (disabledLines !== null && disabledLines.has(path.node.loc?.start.line));
+  }
 
   const resolve = createMetaResolver({
     global: builtInDefinitions.Globals,
@@ -322,9 +343,12 @@ export default defineProvider(({
     pre() {
       skipFile = !!this.filename && isCoreJSFile(this.filename);
       injectedModules.clear();
+      const directives = skipFile ? null : parseDisableDirectives(this.file.ast.comments);
+      if (directives === true) skipFile = true;
+      disabledLines = directives !== true ? directives : null;
     },
     entryGlobal({ source }, utils, path) {
-      if (skipFile) return;
+      if (isDisabled(path)) return;
       const entry = getCoreJSEntry(source);
       if (entry === null) return;
       if (!path.node.loc && injectedModules.has(entry)) return;
@@ -333,7 +357,7 @@ export default defineProvider(({
       path.remove();
     },
     usageGlobal(meta, utils, path) {
-      if (skipFile) return;
+      if (isDisabled(path)) return true;
       const resolved = resolve(meta);
       if (!resolved || !hasOwn(resolved.desc, 'global')) return;
       let { kind, desc: { global: desc } } = resolved;
@@ -353,7 +377,7 @@ export default defineProvider(({
     },
 
     usagePure(meta, utils, path) {
-      if (skipFile) return;
+      if (isDisabled(path)) return;
       if (skippedNodes.has(path.node)) return;
       if (isInTypeAnnotation(path)) return;
 
@@ -426,7 +450,7 @@ export default defineProvider(({
     visitor: method === 'usage-global' && {
       // import('foo')
       CallExpression(path) {
-        if (skipFile) return;
+        if (isDisabled(path)) return;
         if (path.get('callee').isImport()) {
           const utils = getUtils(path);
           if (isWebpack) {
@@ -439,7 +463,7 @@ export default defineProvider(({
       },
       // (async function () { }).finally(...)
       Function(path) {
-        if (skipFile) return;
+        if (isDisabled(path)) return;
         if (path.node.async) {
           injectModulesForModeEntry('promise/constructor', getUtils(path));
           // async function * () { }
@@ -453,7 +477,7 @@ export default defineProvider(({
       },
       // for-of, [a, b] = c
       'ForOfStatement|ArrayPattern'(path) {
-        if (skipFile) return;
+        if (isDisabled(path)) return;
         injectModulesForModeEntry('symbol/iterator', getUtils(path));
         // for-await-of
         if (path.isForOfStatement() && path.node.await) {
@@ -462,21 +486,21 @@ export default defineProvider(({
       },
       // [...spread]
       SpreadElement(path) {
-        if (skipFile) return;
+        if (isDisabled(path)) return;
         if (!path.parentPath.isObjectExpression()) {
           injectModulesForModeEntry('symbol/iterator', getUtils(path));
         }
       },
       // yield *
       YieldExpression(path) {
-        if (skipFile) return;
+        if (isDisabled(path)) return;
         if (path.node.delegate) {
           injectModulesForModeEntry('symbol/iterator', getUtils(path));
         }
       },
       // using x = ..., await using x = ...
       VariableDeclaration(path) {
-        if (skipFile) return;
+        if (isDisabled(path)) return;
         const { kind } = path.node;
         if (kind === 'using' || kind === 'await using') {
           // babel uses all those polyfills in all cases of `using`
@@ -487,7 +511,7 @@ export default defineProvider(({
       },
       // decorators metadata
       Class(path) {
-        if (skipFile) return;
+        if (isDisabled(path)) return;
         if (path.node.decorators?.length || path.node.body.body.some(el => el.decorators?.length)) {
           injectModulesForModeEntry('symbol/metadata', getUtils(path));
         }
