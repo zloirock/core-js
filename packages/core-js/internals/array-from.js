@@ -16,7 +16,8 @@ var $Array = Array;
 
 // `Array.from` method implementation
 // https://tc39.es/ecma262/#sec-array.from
-module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
+// eslint-disable-next-line es/no-array-prototype-from -- fallback included
+module.exports = [].from || function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
   var IS_CONSTRUCTOR = isConstructor(this);
   var argumentsLength = arguments.length;
   var mapfn = argumentsLength > 1 ? arguments[1] : undefined;
