@@ -31,7 +31,7 @@ SafeArrayIterator.prototype.next = function () {
 
 // `Array.fromAsync` method implementation
 // https://github.com/tc39/proposal-array-from-async
-// eslint-disable-next-line es/no-array-prototype-fromasync -- fallback included
+// eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- fallback included
 module.exports = [].fromAsync || function fromAsync(items /* , mapfn = undefined, thisArg = undefined */) {
   var C = this;
   var argumentsLength = arguments.length;
