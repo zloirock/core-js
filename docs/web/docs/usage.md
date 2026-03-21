@@ -156,6 +156,32 @@ Configuration example:
 | `pkg` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `pkgs` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
 
+### Disable comments
+
+You can use comments to disable polyfill injection for specific lines or entire files, similar to ESLint disable comments:
+
+```ts
+// core-js-disable-file
+```
+Disables polyfill injection for the entire file. Must appear anywhere in the file.
+
+```ts
+arr.includes(x); // core-js-disable-line
+```
+Disables polyfill injection for the current line.
+
+```ts
+// core-js-disable-next-line
+arr.includes(x);
+```
+Disables polyfill injection for the next line.
+
+Both `//` and `/* */` comment styles are supported. You can add a reason after ` -- `:
+```ts
+// core-js-disable-next-line -- custom includes implementation
+arr.includes(x);
+```
+
 ## `@babel/preset-env`
 
 > [!TIP]
