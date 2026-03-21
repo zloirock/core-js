@@ -58,6 +58,7 @@ node_modules/
 /tests/compat/compat-data.js
 /tests/unit-global/index.js
 /tests/unit-pure/index.js
+/tests/e2e-usage-pure/index.js
 /tests/type-definitions/tmp/
 /website/templates/
 /website/dist/
