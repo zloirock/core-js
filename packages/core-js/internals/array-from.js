@@ -15,13 +15,13 @@ var checkCorrectnessOfIteration = require('../internals/check-correctness-of-ite
 
 var $Array = Array;
 var CORRECT_ITERATION = checkCorrectnessOfIteration(function (iterable) {
-  // eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- required for testing
+  // eslint-disable-next-line es/no-array-from -- required for testing
   Array.from(iterable);
 });
 
 // `Array.from` method implementation
 // https://tc39.es/ecma262/#sec-array.from
-// eslint-disable-next-line es/no-nonstandard-array-prototype-properties, es/no-array-from -- safe
+// eslint-disable-next-line es/no-nonstandard-array-prototype-properties -- safe
 module.exports = (CORRECT_ITERATION && [].from) || function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
   var IS_CONSTRUCTOR = isConstructor(this);
   var argumentsLength = arguments.length;
