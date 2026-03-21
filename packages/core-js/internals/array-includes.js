@@ -28,8 +28,10 @@ var createMethod = function (IS_INCLUDES) {
 module.exports = {
   // `Array.prototype.includes` method
   // https://tc39.es/ecma262/#sec-array.prototype.includes
+  // eslint-disable-next-line es/no-array-prototype-includes -- fallback included
   includes: [].includes && uncurryThis([].includes) || createMethod(true),
   // `Array.prototype.indexOf` method
   // https://tc39.es/ecma262/#sec-array.prototype.indexof
-  indexOf: [].includes && uncurryThis([].includes) || createMethod(false)
+  // eslint-disable-next-line es/no-array-prototype-indexof -- fallback included
+  indexOf: [].indexOf && uncurryThis([].indexOf) || createMethod(false)
 };
