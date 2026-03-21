@@ -55,11 +55,16 @@ function unfoldDependencies(data) {
   return dependencies;
 }
 
+const VALID_HINT_KEYS = new Set(['dependencies', 'filters', 'guard']);
+
 function unfoldHint(data) {
   if (!data) return;
   const result = dict();
   const { dependencies, filters, guard } = data;
   if (dependencies || filters || guard) {
+    for (const key of Object.keys(data)) {
+      if (!VALID_HINT_KEYS.has(key)) throw new Error(`unknown hint key: '${ key }'`);
+    }
     if (dependencies) result.dependencies = unfoldDependencies(dependencies);
     if (filters) result.filters = validateFilters(filters);
     if (guard) {
@@ -98,9 +103,10 @@ function unfoldMode(data, kind, modeName, entryName) {
   if (modeName === 'pure' || modeName === 'shared') {
     for (const [key, hint] of Object.entries(result)) {
       if (!hint?.dependencies?.length) continue;
-      const [dep] = hint.dependencies;
-      if (TYPE_HINTS.has(key) && !dep.startsWith('instance/') && !dep.includes('/instance/')) {
-        throw new Error(`${ entryName }: pure instance '${ key }' dependency must use /instance/ path, got '${ dep }'`);
+      if (TYPE_HINTS.has(key)) for (const dep of hint.dependencies) {
+        if (!dep.startsWith('instance/') && !dep.includes('/instance/')) {
+          throw new Error(`${ entryName }: pure instance '${ key }' dependency must use /instance/ path, got '${ dep }'`);
+        }
       }
     }
   }
