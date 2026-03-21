@@ -277,3 +277,29 @@ When `true`, injected `core-js` imports will use absolute filesystem paths inste
 ### `debug`
 
 When `true`, the plugin will log to the console all polyfills that are injected into each file.
+
+## Disable comments
+
+You can use comments to disable polyfill injection for specific lines or entire files, similar to ESLint disable comments:
+
+```js
+// core-js-disable-file
+```
+Disables polyfill injection for the entire file. Can appear anywhere in the file.
+
+```js
+arr.includes(x); // core-js-disable-line
+```
+Disables polyfill injection for the current line.
+
+```js
+// core-js-disable-next-line
+arr.includes(x);
+```
+Disables polyfill injection for the next line.
+
+Both `//` and `/* */` comment styles are supported. You can add a reason after ` -- `:
+```js
+// core-js-disable-next-line -- custom includes implementation
+arr.includes(x);
+```
