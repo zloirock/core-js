@@ -243,11 +243,26 @@ export default defineProvider(({
 
   const modulesForEntryCache = new Map();
 
+  // es. -> esnext. fallback for backward compatibility with older core-js versions
+  // where the module was still a proposal
+  function resolveModule(mod) {
+    if (modulesSetForTargetVersion.has(mod)) return mod;
+    if (mod.startsWith('es.')) {
+      const esnext = `esnext.${ mod.slice(3) }`;
+      if (modulesSetForTargetVersion.has(esnext)) return esnext;
+    }
+    return null;
+  }
+
   function getModulesForEntry(entry) {
     if (entry === '') entry = 'index';
     if (modulesForEntryCache.has(entry)) return modulesForEntryCache.get(entry);
     const allEntryModules = hasOwn(entries, entry) ? entries[entry] : [];
-    const result = allEntryModules.filter(mod => modulesSetForTargetVersion.has(mod) && shouldInjectPolyfill(mod));
+    const result = [];
+    for (const mod of allEntryModules) {
+      const resolved = resolveModule(mod);
+      if (resolved !== null && shouldInjectPolyfill(resolved)) result.push(resolved);
+    }
     modulesForEntryCache.set(entry, result);
     return result;
   }
