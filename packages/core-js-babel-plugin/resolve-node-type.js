@@ -2824,36 +2824,60 @@ function resolveGuardHints(path) {
   // bail if any positive guard resolves to a concrete type (already handled by resolveTypeGuardNarrowing)
   if (guards.some(g => g.positive && resolveGuardType(g))) return null;
 
-  // check for positive typeof guards -> use whitelist approach
-  // whitelist is future-proof: unknown future hints are excluded by default
-  let included = null;
-  for (const guard of guards) {
-    if (!guard.positive) continue;
+  // resolve typeof / typeof-or guard to a set of hints
+  function typeofGuardHints(guard) {
     if (guard.kind === 'typeof') {
-      if (!hasOwn(TYPEOF_HINT_GROUPS, guard.value)) continue;
-      included = intersectHintSets(included, TYPEOF_HINT_GROUPS[guard.value]);
-    } else if (guard.kind === 'typeof-or') {
-      // OR group: union of all typeof groups, then intersect with accumulated whitelist
+      return hasOwn(TYPEOF_HINT_GROUPS, guard.value) ? TYPEOF_HINT_GROUPS[guard.value] : null;
+    }
+    if (guard.kind === 'typeof-or') {
       const union = new Set();
       for (const value of guard.values) {
         if (hasOwn(TYPEOF_HINT_GROUPS, value)) {
           for (const hint of TYPEOF_HINT_GROUPS[value]) union.add(hint);
         }
       }
-      if (union.size) included = intersectHintSets(included, union);
+      return union.size ? union : null;
     }
+    return null;
+  }
+
+  function addHintsToSet(target, guard) {
+    const hints = typeofGuardHints(guard);
+    if (hints) {
+      for (const hint of hints) target.add(hint);
+      return true;
+    }
+    const hint = toHint(resolveGuardType(guard));
+    if (hint) {
+      target.add(hint);
+      return true;
+    }
+    return false;
+  }
+
+  function deleteHintsFromSet(target, guard) {
+    const hints = typeofGuardHints(guard);
+    if (hints) {
+      for (const hint of hints) target.delete(hint);
+      return;
+    }
+    const hint = toHint(resolveGuardType(guard));
+    if (hint) target.delete(hint);
+  }
+
+  // check for positive typeof guards -> use whitelist approach
+  // whitelist is future-proof: unknown future hints are excluded by default
+  let included = null;
+  for (const guard of guards) {
+    if (!guard.positive) continue;
+    const hints = typeofGuardHints(guard);
+    if (hints) included = intersectHintSets(included, hints);
   }
 
   if (included) {
     // subtract negative guards from the whitelist
     for (const guard of guards) {
-      if (guard.positive) continue;
-      if (guard.kind === 'typeof' && hasOwn(TYPEOF_HINT_GROUPS, guard.value)) {
-        for (const hint of TYPEOF_HINT_GROUPS[guard.value]) included.delete(hint);
-      } else {
-        const hint = toHint(resolveGuardType(guard));
-        if (hint) included.delete(hint);
-      }
+      if (!guard.positive) deleteHintsFromSet(included, guard);
     }
     return included.size ? { includedHints: included } : null;
   }
@@ -2861,12 +2885,7 @@ function resolveGuardHints(path) {
   // no positive typeof -> use blacklist approach (conservative: unknown future hints are included)
   const excluded = new Set();
   for (const guard of guards) {
-    if (guard.kind === 'typeof' && !guard.positive && hasOwn(TYPEOF_HINT_GROUPS, guard.value)) {
-      for (const hint of TYPEOF_HINT_GROUPS[guard.value]) excluded.add(hint);
-    } else if (!guard.positive) {
-      const hint = toHint(resolveGuardType(guard));
-      if (hint) excluded.add(hint);
-    }
+    if (!guard.positive) addHintsToSet(excluded, guard);
   }
   return excluded.size ? { excludedHints: excluded } : null;
 }
