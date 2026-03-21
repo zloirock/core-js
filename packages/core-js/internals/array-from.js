@@ -21,7 +21,7 @@ var CORRECT_ITERATION = checkCorrectnessOfIteration(function (iterable) {
 
 // `Array.from` method implementation
 // https://tc39.es/ecma262/#sec-array.from
-// eslint-disable-next-line es/no-nonstandard-array-prototype-properties es/no-array-from -- safe
+// eslint-disable-next-line es/no-nonstandard-array-prototype-properties, es/no-array-from -- safe
 module.exports = (CORRECT_ITERATION && [].from) || function from(arrayLike /* , mapfn = undefined, thisArg = undefined */) {
   var IS_CONSTRUCTOR = isConstructor(this);
   var argumentsLength = arguments.length;
