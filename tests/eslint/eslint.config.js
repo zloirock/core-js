@@ -2255,7 +2255,7 @@ export default [
       'tests/babel-plugin/fixtures/**/*.mjs',
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
-      'tests/unit-@(global|pure)/index.js',
+      'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
       'tests/type-definitions/tmp/**',
       'website/dist/**',
       'website/src/public/*',
@@ -2360,7 +2360,7 @@ export default [
   },
   {
     files: [
-      'tests/@(helpers|unit-@(global|pure)|wpt-url-resources)/**',
+      'tests/@(helpers|unit-@(global|pure)|e2e-usage-pure|wpt-url-resources)/**',
     ],
     languageOptions: {
       sourceType: 'module',
@@ -2381,7 +2381,7 @@ export default [
   },
   {
     files: [
-      'tests/@(helpers|unit-@(global|pure))/**',
+      'tests/@(helpers|unit-@(global|pure)|e2e-usage-pure)/**',
     ],
     languageOptions: {
       globals: globals.qunit,
@@ -2414,7 +2414,7 @@ export default [
   },
   {
     files: [
-      'tests/@(compat|unit-global)/**',
+      'tests/@(compat|unit-global|e2e-usage-pure)/**',
     ],
     languageOptions: {
       globals: globalsESNext,
