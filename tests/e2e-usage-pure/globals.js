@@ -106,3 +106,18 @@ QUnit.test('globals: Symbol', assert => {
   assert.notSame(s, undefined);
   assert.same(s.description, 'test');
 });
+
+QUnit.test('globals: setImmediate / clearImmediate', assert => {
+  assert.isFunction(setImmediate);
+  assert.isFunction(clearImmediate);
+  const async = assert.async();
+  setImmediate(() => {
+    assert.true(true);
+    async();
+  });
+});
+
+QUnit.test('globals: AsyncIterator', assert => {
+  assert.isFunction(AsyncIterator);
+  assert.isFunction(AsyncIterator.from);
+});

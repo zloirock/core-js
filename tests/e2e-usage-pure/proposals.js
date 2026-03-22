@@ -77,3 +77,54 @@ QUnit.test('esnext: WeakSet.from', assert => {
   assert.true(ws.has(obj1));
   assert.true(ws.has(obj2));
 });
+
+QUnit.test('esnext: WeakSet.of', assert => {
+  const obj1 = {};
+  const obj2 = {};
+  const ws = WeakSet.of(obj1, obj2);
+  assert.true(ws.has(obj1));
+});
+
+QUnit.test('esnext: WeakMap.of', assert => {
+  const k1 = {};
+  const wm = WeakMap.of([k1, 42]);
+  assert.same(wm.get(k1), 42);
+});
+
+QUnit.test('esnext: Error.isError', assert => {
+  assert.true(Error.isError(new Error('test')));
+  assert.true(Error.isError(new TypeError('test')));
+  assert.false(Error.isError({}));
+});
+
+QUnit.test('esnext: Symbol.isRegisteredSymbol', assert => {
+  assert.true(Symbol.isRegisteredSymbol(Symbol.for('test')));
+});
+
+QUnit.test('esnext: Symbol.isWellKnownSymbol', assert => {
+  assert.true(Symbol.isWellKnownSymbol(Symbol.iterator));
+});
+
+QUnit.test('esnext: Iterator.range', assert => {
+  assert.deepEqual(Array.from(Iterator.range(0, 5)), [0, 1, 2, 3, 4]);
+});
+
+QUnit.test('esnext: Iterator.zipKeyed', assert => {
+  const result = Iterator.zipKeyed({ a: [1, 2], b: [3, 4] });
+  assert.deepEqual(Array.from(result), [{ a: 1, b: 3 }, { a: 2, b: 4 }]);
+});
+
+QUnit.test('esnext: String.dedent', assert => {
+  assert.isFunction(String.dedent);
+});
+
+QUnit.test('esnext: RegExp.escape', assert => {
+  const escaped = RegExp.escape('a.b');
+  assert.true(new RegExp(escaped).test('a.b'));
+  assert.false(new RegExp(escaped).test('axb'));
+});
+
+QUnit.test('esnext: Object.keysLength', assert => {
+  assert.same(Object.keysLength({ a: 1, b: 2 }), 2);
+  assert.same(Object.keysLength({}), 0);
+});
