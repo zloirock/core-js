@@ -11,7 +11,7 @@ It is shipped as a separate package because we cannot guarantee stable behavior 
 
 # Installation
 ```bash
-npm install --save @core-js/types@4.0.0-alpha.0
+npm install --save @core-js/types@4.0.0-alpha.1
 ```
 
 # Usage
