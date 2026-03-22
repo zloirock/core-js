@@ -1,6 +1,6 @@
-import _trim from "@core-js/pure/actual/instance/trim";
-import _includes from "@core-js/pure/actual/string/includes";
+import _trimMaybeString from "@core-js/pure/actual/string/instance/trim";
+import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 function f(s: string) {
-  const trim = _trim(s);
-  const includes = _includes(s);
+  const trim = _trimMaybeString(s);
+  const includes = _includesMaybeString(s);
 }
