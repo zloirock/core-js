@@ -19,7 +19,7 @@
     "type": "opencollective",
     "url": "https://opencollective.com/core-js"
   },
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "SEE LICENSE IN LICENSE",
   "author": {
     "name": "Denis Pushkarev",
     "email": "zloirock@zloirock.ru",
