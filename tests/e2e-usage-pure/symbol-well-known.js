@@ -29,6 +29,10 @@ QUnit.test('Symbol.asyncIterator exists', assert => {
   assert.notSame(Symbol.asyncIterator, undefined);
 });
 
+QUnit.test('Symbol.metadata exists', assert => {
+  assert.notSame(Symbol.metadata, undefined);
+});
+
 // Symbol.iterator `in` operator — transforms to isIterable() in usage-pure
 QUnit.test('Symbol.iterator in array', assert => {
   assert.true(Symbol.iterator in [1, 2, 3]);
