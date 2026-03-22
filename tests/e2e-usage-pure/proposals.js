@@ -114,6 +114,26 @@ QUnit.test('esnext: Iterator.zipKeyed', assert => {
   assert.deepEqual(Array.from(result), [{ a: 1, b: 3 }, { a: 2, b: 4 }]);
 });
 
+QUnit.test('esnext: Promise.allKeyed', assert => {
+  const async = assert.async();
+  Promise.allKeyed({ a: Promise.resolve(1), b: Promise.resolve(2) }).then(result => {
+    assert.same(result.a, 1);
+    assert.same(result.b, 2);
+    async();
+  });
+});
+
+QUnit.test('esnext: Promise.allSettledKeyed', assert => {
+  const async = assert.async();
+  Promise.allSettledKeyed({ a: Promise.resolve(1), b: Promise.reject(2) }).then(result => {
+    assert.same(result.a.status, 'fulfilled');
+    assert.same(result.a.value, 1);
+    assert.same(result.b.status, 'rejected');
+    assert.same(result.b.reason, 2);
+    async();
+  });
+});
+
 QUnit.test('esnext: String.dedent', assert => {
   assert.isFunction(String.dedent);
 });
