@@ -43,6 +43,19 @@ QUnit.test('Iterator#map', assert => {
     assert.same(returnCount, 0, '.return() on exhausted iterator does not call underlying return');
   }
 
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it3 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => map.call(it3, () => { throw new Error('test'); }).next(), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
+
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => map.call({ next: null }, () => { /* empty */ }).next(), TypeError);
 });
