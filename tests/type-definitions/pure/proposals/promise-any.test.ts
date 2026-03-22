@@ -1,4 +1,5 @@
 import promiseAny from '@core-js/pure/full/promise/any';
+import promiseRace from '@core-js/pure/full/promise/race';
 import promiseResolve from '@core-js/pure/full/promise/resolve';
 import { assertCoreJSPromiseLike } from '../../helpers/helpers.pure.js';
 
@@ -43,3 +44,16 @@ promiseAny([1, 2], 3);
 
 // @ts-expect-error
 promiseAny(justNumbers, 'extra');
+
+// Promise.race with Iterable
+const race1 = promiseRace([promiseResolve(1), promiseResolve('foo')] as const);
+assertCoreJSPromiseLike<string | number>(race1);
+const race2 = promiseRace(setOfStrings);
+assertCoreJSPromiseLike<string>(race2);
+const race3 = promiseRace(justNumbers);
+assertCoreJSPromiseLike<number>(race3);
+
+// @ts-expect-error
+promiseRace();
+// @ts-expect-error
+promiseRace(123);
