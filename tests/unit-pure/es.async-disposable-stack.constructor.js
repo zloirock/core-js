@@ -183,6 +183,47 @@ QUnit.test('AsyncDisposableStack#3', assert => {
   });
 });
 
+QUnit.test('AsyncDisposableStack - deep SuppressedError nesting', assert => {
+  const stack = new AsyncDisposableStack();
+
+  stack.defer(() => { throw new Error('C'); });
+  stack.defer(() => { throw new Error('B'); });
+  stack.defer(() => { throw new Error('A'); });
+
+  return stack.disposeAsync().then(() => {
+    assert.avoid();
+  }, error => {
+    assert.true(error instanceof SuppressedError, 'outermost is SuppressedError');
+    assert.same(error.error.message, 'C', 'outermost error');
+    assert.true(error.suppressed instanceof SuppressedError, 'nested SuppressedError');
+    assert.same(error.suppressed.error.message, 'B', 'nested error');
+    assert.same(error.suppressed.suppressed.message, 'A', 'innermost error');
+  });
+});
+
+QUnit.test('AsyncDisposableStack#use - null, undefined, no-dispose', assert => {
+  const stack1 = new AsyncDisposableStack();
+  assert.same(stack1.use(null), null, 'use(null) returns null');
+  assert.same(stack1.use(undefined), undefined, 'use(undefined) returns undefined');
+
+  return stack1.disposeAsync().then(it => {
+    assert.same(it, undefined, 'dispose after use(null/undefined) works');
+    const stack2 = new AsyncDisposableStack();
+    assert.throws(() => stack2.use({}), TypeError, 'use({}) throws TypeError');
+  });
+});
+
+QUnit.test('AsyncDisposableStack - operations on disposed stack', assert => {
+  const stack = new AsyncDisposableStack();
+
+  return stack.disposeAsync().then(() => {
+    assert.throws(() => stack.use({ [Symbol.asyncDispose]() { /* empty */ } }), ReferenceError, 'use on disposed');
+    assert.throws(() => stack.adopt({}, () => { /* empty */ }), ReferenceError, 'adopt on disposed');
+    assert.throws(() => stack.defer(() => { /* empty */ }), ReferenceError, 'defer on disposed');
+    assert.throws(() => stack.move(), ReferenceError, 'move on disposed');
+  });
+});
+
 // https://github.com/tc39/proposal-explicit-resource-management/issues/256
 QUnit.test('AsyncDisposableStack#256', assert => {
   const resume = assert.async();
