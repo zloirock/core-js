@@ -1,4 +1,4 @@
-import _filter from "@core-js/pure/actual/instance/filter";
+import _filterMaybeArray from "@core-js/pure/actual/array/instance/filter";
 function f(x: number[]) {
-  _filter(x).call(x, Boolean);
+  _filterMaybeArray(x).call(x, Boolean);
 }
