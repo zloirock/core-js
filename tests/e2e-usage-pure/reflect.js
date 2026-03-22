@@ -47,3 +47,18 @@ QUnit.test('Reflect.isExtensible / preventExtensions', assert => {
   Reflect.preventExtensions(obj);
   assert.false(Reflect.isExtensible(obj));
 });
+
+QUnit.test('Reflect.getOwnPropertyDescriptor', assert => {
+  const obj = { x: 42 };
+  const desc = Reflect.getOwnPropertyDescriptor(obj, 'x');
+  assert.same(desc.value, 42);
+  assert.true(desc.writable);
+});
+
+QUnit.test('Reflect.ownKeys', assert => {
+  const s = Symbol('s');
+  const obj = { a: 1, [s]: 2 };
+  const keys = Reflect.ownKeys(obj);
+  assert.true(keys.includes('a'));
+  assert.true(keys.includes(s));
+});
