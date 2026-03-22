@@ -29,4 +29,30 @@ QUnit.test('Iterator#some', assert => {
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => some.call(it, {}), TypeError);
   assert.true(it.closed, 'some closes iterator on validation error');
+
+  // .return() called on early exit (predicate returns true)
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    some.call(it2, value => value === 2);
+    assert.same(returnCount, 1, '.return() called when predicate returns true');
+  }
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it3 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => some.call(it3, () => { throw new Error('test'); }), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
 });
