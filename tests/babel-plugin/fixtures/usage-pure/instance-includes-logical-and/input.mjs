@@ -1,0 +1,1 @@
+arr && arr.includes(x);
