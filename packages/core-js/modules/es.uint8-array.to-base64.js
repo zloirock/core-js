@@ -1,4 +1,5 @@
 'use strict';
+/* eslint-disable no-useless-assignment -- false positive for [index++] syntax */
 var $ = require('../internals/export');
 var globalThis = require('../internals/global-this');
 var uncurryThis = require('../internals/function-uncurry-this');
@@ -14,6 +15,8 @@ var base64UrlAlphabet = base64Map.i2cUrl;
 var charAt = uncurryThis(''.charAt);
 
 var Uint8Array = globalThis.Uint8Array;
+var $Array = globalThis.Array;
+var join = uncurryThis([].join);
 
 var INCORRECT_BEHAVIOR_OR_DOESNT_EXISTS = !Uint8Array || !Uint8Array.prototype.toBase64 || !function () {
   try {
@@ -34,9 +37,10 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
     var omitPadding = !!options && !!options.omitPadding;
     notDetached(this.buffer);
 
-    var result = '';
     var i = 0;
     var length = array.length;
+    var result = $Array(omitPadding ? (length / 3 << 2) + (length % 3 ? length % 3 + 1 : 0) : (length + 2) / 3 << 2);
+    var written = 0;
     var triplet;
 
     var at = function (shift) {
@@ -45,16 +49,27 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
 
     for (; i + 2 < length; i += 3) {
       triplet = (array[i] << 16) + (array[i + 1] << 8) + array[i + 2];
-      result += at(3) + at(2) + at(1) + at(0);
+      result[written++] = at(3);
+      result[written++] = at(2);
+      result[written++] = at(1);
+      result[written++] = at(0);
     }
     if (i + 2 === length) {
       triplet = (array[i] << 16) + (array[i + 1] << 8);
-      result += at(3) + at(2) + at(1) + (omitPadding ? '' : '=');
+      result[written++] = at(3);
+      result[written++] = at(2);
+      result[written++] = at(1);
+      if (!omitPadding) result[written++] = '=';
     } else if (i + 1 === length) {
       triplet = array[i] << 16;
-      result += at(3) + at(2) + (omitPadding ? '' : '==');
+      result[written++] = at(3);
+      result[written++] = at(2);
+      if (!omitPadding) {
+        result[written++] = '=';
+        result[written++] = '=';
+      }
     }
 
-    return result;
+    return join(result, '');
   }
 });
