@@ -1,11 +1,11 @@
 # Usage
 ## Installation
 ```sh
-npm install --save core-js@4.0.0-alpha.0
+npm install --save core-js@4.0.0-alpha.1
 // version without global namespace pollution
-npm install --save @core-js/pure@4.0.0-alpha.0
+npm install --save @core-js/pure@4.0.0-alpha.1
 // bundled global version
-npm install --save @core-js/bundle@4.0.0-alpha.0
+npm install --save @core-js/bundle@4.0.0-alpha.1
 ```
 
 ## Entry points
