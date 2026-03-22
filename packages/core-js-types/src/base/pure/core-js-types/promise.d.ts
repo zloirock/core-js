@@ -98,6 +98,13 @@ declare namespace CoreJS {
      * @returns A new Promise.
      */
     race<T extends readonly unknown[] | []>(values: T): CoreJSPromise<Awaited<T[number]>>;
+    /**
+     * Creates a Promise that is resolved or rejected when any of the provided Promises are resolved
+     * or rejected.
+     * @param values - An iterable of Promises.
+     * @returns A new Promise.
+     */
+    race<T>(values: Iterable<T | PromiseLike<T>>): CoreJSPromise<Awaited<T>>;
 
     /**
      * Creates a new rejected promise for the provided reason.

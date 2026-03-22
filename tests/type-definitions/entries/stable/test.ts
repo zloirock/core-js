@@ -20,3 +20,24 @@ Promise.allKeyed({
   a: Promise.resolve(1),
   b: Promise.resolve('string'),
 });
+
+// web
+const ex = new DOMException('message', 'SyntaxError');
+queueMicrotask(() => {});
+setImmediate(() => {});
+
+// @ts-expect-error
+DOMException();
+// @ts-expect-error
+queueMicrotask();
+// @ts-expect-error
+queueMicrotask('not a function');
+
+// annex-b
+declare const obj: Object;
+const proto: object | null = obj.__proto__;
+obj.__defineGetter__('x', () => 42);
+obj.__defineSetter__('x', (v: number) => {});
+
+// @ts-expect-error
+obj.__defineGetter__();
