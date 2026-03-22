@@ -2132,12 +2132,8 @@ const packagesPackageJSON = {
   'package-json/require-bugs': ERROR,
   // requires the `description` property to be present
   'package-json/require-description': ERROR,
-  // requires the `engines` property to be present
-  // TODO: core-js@4
-  // 'package-json/require-engines': ERROR,
   // requires the `exports` property to be present
-  // TODO: core-js@4
-  // 'package-json/require-exports': ERROR,
+  'package-json/require-exports': ERROR,
   // requires the `funding` property to be present
   'package-json/require-funding': ERROR,
   // requires the `homepage` property to be present
@@ -2150,9 +2146,6 @@ const packagesPackageJSON = {
   'package-json/require-repository': ERROR,
   // requires the `sideEffects` property to be present
   'package-json/require-sideEffects': ERROR,
-  // requires the `types` property to be present
-  // TODO: core-js@4
-  // 'package-json/require-types': ERROR,
   // requires the `version` property to be present
   'package-json/require-version': ERROR,
   // enforce that package names are valid npm package names
