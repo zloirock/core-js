@@ -2,6 +2,7 @@
 var toIndexedObject = require('../internals/to-indexed-object');
 var toAbsoluteIndex = require('../internals/to-absolute-index');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
+var uncurryThis = require('../internals/function-uncurry-this');
 
 // `Array.prototype.{ indexOf, includes }` methods implementation
 var createMethod = function (IS_INCLUDES) {
@@ -24,11 +25,18 @@ var createMethod = function (IS_INCLUDES) {
   };
 };
 
+var includes = createMethod(true);
+var indexOf = createMethod(false);
+
 module.exports = {
+  polyIncludes: includes,
   // `Array.prototype.includes` method
   // https://tc39.es/ecma262/#sec-array.prototype.includes
-  includes: createMethod(true),
+  // eslint-disable-next-line es/no-array-prototype-includes -- fallback included
+  includes: [].includes && uncurryThis([].includes) || includes,
+  polyIndexOf: indexOf,
   // `Array.prototype.indexOf` method
   // https://tc39.es/ecma262/#sec-array.prototype.indexof
-  indexOf: createMethod(false)
+  // eslint-disable-next-line es/no-array-prototype-indexof -- fallback included
+  indexOf: [].indexOf && uncurryThis([].indexOf) || indexOf
 };
