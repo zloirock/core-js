@@ -18,3 +18,21 @@ Promise.allKeyed({
   a: Promise.resolve(1),
   b: Promise.resolve('string'),
 });
+
+// web
+const ex = new DOMException('message', 'SyntaxError');
+queueMicrotask(() => {});
+setImmediate(() => {});
+
+// @ts-expect-error
+DOMException();
+// @ts-expect-error
+queueMicrotask();
+
+// annex-b
+declare const obj: Object;
+const proto: object | null = obj.__proto__;
+obj.__defineGetter__('x', () => 42);
+
+// @ts-expect-error
+obj.__defineGetter__();
