@@ -8,7 +8,7 @@ interface AsyncIteratorConstructor {
    * @param iterable - An `AsyncIterable`, `Iterable`, or `AsyncIterator` to convert to an `AsyncIterator`
    * @returns A new `AsyncIterator` instance
    */
-  from<T>(iterable: AsyncIterable<T> | Iterable<T> | AsyncIterator<T>): AsyncIteratorObject<T, undefined, unknown>;
+  from<T>(iterable: AsyncIterable<T> | Iterable<T> | AsyncIterator<T> | Iterator<T>): AsyncIteratorObject<T, undefined, unknown>;
 }
 
 declare var AsyncIterator: AsyncIteratorConstructor;
