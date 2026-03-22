@@ -50,3 +50,28 @@ QUnit.test('Number.EPSILON', assert => {
   assert.true(Number.EPSILON > 0);
   assert.true(Number.EPSILON < 1);
 });
+
+QUnit.test('Number.MIN_SAFE_INTEGER', assert => {
+  assert.same(typeof Number.MIN_SAFE_INTEGER, 'number');
+  assert.true(Number.MIN_SAFE_INTEGER < 0);
+});
+
+QUnit.test('Math.acosh', assert => {
+  assert.same(Math.acosh(1), 0);
+});
+
+QUnit.test('Math.imul', assert => {
+  assert.same(Math.imul(2, 3), 6);
+});
+
+QUnit.test('Math.log10', assert => {
+  assert.same(Math.log10(100), 2);
+});
+
+QUnit.test('Math.cosh', assert => {
+  assert.same(Math.cosh(0), 1);
+});
+
+QUnit.test('Math.tanh', assert => {
+  assert.same(Math.tanh(0), 0);
+});
