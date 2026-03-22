@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added `RegExp` `hasIndices` (`d` flag) polyfill, [#1507](https://github.com/zloirock/core-js/issues/1507)
 - Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
 - Compat data improvements:
   - Updated Electron 42 compat data mapping

@@ -276,6 +276,7 @@ for (PATH of ['core-js-pure', 'core-js']) {
     ok(typeof load(NS, 'regexp/search') == 'function');
     ok(typeof load(NS, 'regexp/split') == 'function');
     ok(typeof load(NS, 'regexp/dot-all') == 'function');
+    ok(typeof load(NS, 'regexp/has-indices') == 'function');
     ok(typeof load(NS, 'regexp/sticky') == 'function');
     ok(typeof load(NS, 'regexp/test') == 'function');
     load(NS, 'regexp');
