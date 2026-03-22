@@ -1052,9 +1052,11 @@ function isGlobalThis(path) {
   while (current = current.parentPath) {
     // non-arrow function rebinds `this` - not global
     if (current.isFunction() && !current.isArrowFunctionExpression()) return false;
+    // class body rebinds `this` for property initializers and static blocks
+    if (current.isClassBody()) return false;
     if (current.isProgram()) return true;
   }
-  return true;
+  return false;
 }
 
 function isGlobalProxy(objectPath) {
@@ -2391,11 +2393,11 @@ function isTypeofVar(node, varName) {
 }
 
 // extract the property name from a global proxy member expression node (e.g. globalThis.Array -> 'Array')
+// note: ThisExpression is intentionally excluded because without a path we cannot verify
+// that `this` refers to the global object (it could be inside a method or regular function)
 function resolveGlobalPropertyName(node) {
   if (node.type !== 'MemberExpression' || node.computed) return null;
-  const isProxy = (node.object.type === 'Identifier' && POSSIBLE_GLOBAL_PROXIES.has(node.object.name))
-    || node.object.type === 'ThisExpression';
-  if (!isProxy) return null;
+  if (!(node.object.type === 'Identifier' && POSSIBLE_GLOBAL_PROXIES.has(node.object.name))) return null;
   return node.property.type === 'Identifier' ? node.property.name : null;
 }
 
