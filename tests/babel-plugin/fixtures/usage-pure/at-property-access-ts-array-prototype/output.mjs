@@ -1,4 +1,4 @@
-import _at from "@core-js/pure/actual/array/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 function f(x: string[]) {
-  const fn = _at(x);
+  const fn = _atMaybeArray(x);
 }

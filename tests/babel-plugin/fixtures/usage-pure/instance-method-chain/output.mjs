@@ -1,5 +1,5 @@
 import _includes from "@core-js/pure/actual/instance/includes";
-import _flat from "@core-js/pure/actual/instance/flat";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 _includes(foo).apply(bar, [1, 2]);
-_flat(foo).call(bar);
-const fn = _flat(foo).bind(bar);
+_flatMaybeArray(foo).call(bar);
+const fn = _flatMaybeArray(foo).bind(bar);

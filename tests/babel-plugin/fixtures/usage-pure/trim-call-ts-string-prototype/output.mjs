@@ -1,4 +1,4 @@
-import _trim from "@core-js/pure/actual/instance/trim";
+import _trimMaybeString from "@core-js/pure/actual/string/instance/trim";
 function f(x: string) {
-  _trim(x).call(x);
+  _trimMaybeString(x).call(x);
 }
