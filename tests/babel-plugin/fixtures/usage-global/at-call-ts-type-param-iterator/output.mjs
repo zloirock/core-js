@@ -18,6 +18,10 @@ import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.string.bold";
+import "core-js/modules/esnext.iterator.chunks";
+import "core-js/modules/esnext.iterator.includes";
+import "core-js/modules/esnext.iterator.join";
+import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 function first<T>(it: Iterator<T>): T {
   return it.next().value;
