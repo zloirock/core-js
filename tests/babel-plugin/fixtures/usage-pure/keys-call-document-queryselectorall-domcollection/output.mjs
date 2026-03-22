@@ -1,3 +1,3 @@
 var _ref;
-import _keys from "@core-js/pure/actual/instance/keys";
-_keys(_ref = document.querySelectorAll('div')).call(_ref);
+import _keysMaybeDomCollections from "@core-js/pure/actual/dom-collections/instance/keys";
+_keysMaybeDomCollections(_ref = document.querySelectorAll('div')).call(_ref);
