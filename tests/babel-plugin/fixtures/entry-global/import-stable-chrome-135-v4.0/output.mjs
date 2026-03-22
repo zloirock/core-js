@@ -4,6 +4,8 @@ import "core-js/modules/es.async-iterator.async-dispose";
 import "core-js/modules/es.disposable-stack.constructor";
 import "core-js/modules/es.iterator.concat";
 import "core-js/modules/es.iterator.dispose";
+import "core-js/modules/es.iterator.zip";
+import "core-js/modules/es.iterator.zip-keyed";
 import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.math.sum-precise";

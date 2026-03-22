@@ -1,4 +1,4 @@
-import _values from "@core-js/pure/actual/instance/values";
+import _valuesMaybeDomCollections from "@core-js/pure/actual/dom-collections/instance/values";
 function f(col: HTMLCollection) {
-  _values(col).call(col);
+  _valuesMaybeDomCollections(col).call(col);
 }
