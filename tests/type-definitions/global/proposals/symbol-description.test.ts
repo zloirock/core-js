@@ -16,4 +16,4 @@ const n: number = sym1.description;
 sym2.description();
 
 // @ts-expect-error
-s.description = 123;
+sym1.description = 123;

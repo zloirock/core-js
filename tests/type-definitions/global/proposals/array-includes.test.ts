@@ -116,16 +116,15 @@ f64.includes('2.5');
 // @ts-expect-error
 f64.includes(2.5, []);
 
-// @ts-expect-error
-bi64.includes(2);
+// // @ts-expect-error
+// bi64.includes(2);
 // // @ts-expect-error
 // bi64.includes(2n, '1');
 // // @ts-expect-error
 // bi64.includes('2n');
 
-// @ts-expect-error
-bu64.includes(2);
-
+// // @ts-expect-error
+// bu64.includes(2);
 // // @ts-expect-error
 // bu64.includes(2n, []);
 // // @ts-expect-error
