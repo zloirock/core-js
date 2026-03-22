@@ -19,6 +19,7 @@ require('../modules/web.url-search-params');
 require('../modules/web.url-search-params.delete');
 require('../modules/web.url-search-params.has');
 require('../modules/web.url-search-params.size');
+require('../modules/web.element.remove');
 var path = require('../internals/path');
 
 module.exports = path;
