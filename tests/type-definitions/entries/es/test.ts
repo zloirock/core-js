@@ -20,3 +20,11 @@ Promise.allKeyed({
   a: Promise.resolve(1),
   b: Promise.resolve('string'),
 });
+
+// annex-b (included in es)
+declare const obj: Object;
+const proto: object | null = obj.__proto__;
+obj.__defineGetter__('x', () => 42);
+
+// @ts-expect-error
+obj.__defineGetter__();

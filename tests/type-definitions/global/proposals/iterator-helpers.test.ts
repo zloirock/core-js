@@ -115,3 +115,13 @@ const findString: string | number | undefined = itNumStr.find((v): v is string =
 
 // @ts-expect-error
 it.find();
+
+const fromIt: Iterator<number> = Iterator.from(it);
+const fromIterable: Iterator<number> = Iterator.from([1, 2, 3]);
+const fromSet: Iterator<number> = Iterator.from(new Set([1, 2, 3]));
+const fromStr: Iterator<string> = Iterator.from('abc');
+
+// @ts-expect-error
+Iterator.from();
+// @ts-expect-error
+Iterator.from(123);
