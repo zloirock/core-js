@@ -1570,9 +1570,14 @@ function substituteTypeParams(node, typeParamMap, scope, depth) {
   }
   // T["key"] or T[number] - resolve indexed access, substituting type params in the object type
   if (node.type === 'TSIndexedAccessType') {
-    // if objectType references a type parameter, resolve through its constraint
+    // if objectType references a type parameter, try the substituted type first, then fall back to constraint
     const objParamName = typeRefName(node.objectType);
     if (objParamName && typeParamMap.has(objParamName)) {
+      // T[number] - extract element type from the substituted type directly
+      if (node.indexType?.type === 'TSNumberKeyword') {
+        const inner = resolveInnerType(typeParamMap.get(objParamName));
+        if (inner) return inner;
+      }
       const paramInfo = findTypeParameter(objParamName, scope);
       if (paramInfo?.constraint) {
         const syntheticNode = { type: 'TSIndexedAccessType', objectType: paramInfo.constraint, indexType: node.indexType };
