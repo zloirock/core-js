@@ -5,7 +5,7 @@
     "url": "https://github.com/zloirock/core-js.git"
   },
   "homepage": "https://core-js.io",
-  "license": "SEE LICENSE IN LICENSE.md",
+  "license": "SEE LICENSE IN LICENSE",
   "author": {
     "name": "Denis Pushkarev",
     "email": "zloirock@zloirock.ru",
