@@ -14,7 +14,7 @@ declare namespace CoreJS {
      * @param iterable - An `AsyncIterable`, `Iterable`, or `AsyncIterator` to convert to an `AsyncIterator`
      * @returns A new `AsyncIterator` instance
      */
-    from<T>(iterable: CoreJSAsyncIterable<T> | Iterable<T> | CoreJSAsyncIterator<T>): CoreJSAsyncIteratorObject<T, undefined, unknown>;
+    from<T>(iterable: CoreJSAsyncIterable<T> | Iterable<T> | CoreJSAsyncIterator<T> | Iterator<T>): CoreJSAsyncIteratorObject<T, undefined, unknown>;
   }
 
   export interface CoreJSAsyncIterator<T, TReturn = undefined, TNext = undefined> {
