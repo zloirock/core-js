@@ -30,4 +30,17 @@ QUnit.test('Iterator#reduce', assert => {
   assert.throws(() => reduce.call(it, {}, 1), TypeError);
   assert.true(it.closed, 'reduce closes iterator on validation error');
   assert.returns(() => reduce.call(createIterator([]), () => false, undefined), undefined, 'correct result on undefined initial parameter');
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => reduce.call(it2, () => { throw new Error('test'); }, 0), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
 });
