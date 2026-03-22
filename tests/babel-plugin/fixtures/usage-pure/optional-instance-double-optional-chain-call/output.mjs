@@ -1,3 +1,3 @@
 var _ref;
-import _flat from "@core-js/pure/actual/instance/flat";
-(_ref = foo?.bar) == null ? void 0 : _flat(_ref).call(_ref).valueOf();
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+(_ref = foo?.bar) == null ? void 0 : _flatMaybeArray(_ref).call(_ref).valueOf();
