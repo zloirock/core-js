@@ -45,6 +45,7 @@ declare namespace CoreJS {
   }
 
   export interface CoreJSURLConstructor {
+    readonly prototype: CoreJSURL;
     new(url: string | CoreJSURL, base?: string): CoreJSURL;
 
     /** [MDN Reference](https://developer.mozilla.org/docs/Web/API/URL/canParse_static) */
