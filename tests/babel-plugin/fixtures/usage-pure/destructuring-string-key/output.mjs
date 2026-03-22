@@ -1,2 +1,2 @@
-import _trim from "@core-js/pure/actual/instance/trim";
-const foo = _trim(str);
+import _trimMaybeString from "@core-js/pure/actual/string/instance/trim";
+const foo = _trimMaybeString(str);

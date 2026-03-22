@@ -1,6 +1,6 @@
 var _ref;
-import _at from "@core-js/pure/actual/string/at";
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 function getStr(): string {
   return '';
 }
-_at(_ref = getStr()).call(_ref, -1);
+_atMaybeString(_ref = getStr()).call(_ref, -1);
