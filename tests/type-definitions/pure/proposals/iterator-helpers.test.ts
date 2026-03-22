@@ -61,6 +61,7 @@ assertCoreJSIteratorLike<string>(flatMapped2);
 // @ts-expect-error
 iteratorFlatMap();
 
+const noInit: number = iteratorReduce(it, (a, b, c) => a + b + c);
 const sum1: number = iteratorReduce(it, (a, b, c) => a + b + c, 0);
 const sum2: number = iteratorReduce(it, (a, b, c) => a + b + c, 0);
 const strReduce: string = iteratorReduce(
