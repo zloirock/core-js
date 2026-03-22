@@ -88,6 +88,7 @@ const AsyncIteratorPrototypeMethods = [
 ];
 
 const IteratorPrototypeMethods = [
+  'es.iterator.chunks',
   'es.iterator.dispose',
   'es.iterator.drop',
   'es.iterator.every',
@@ -95,15 +96,14 @@ const IteratorPrototypeMethods = [
   'es.iterator.find',
   'es.iterator.flat-map',
   'es.iterator.for-each',
+  'es.iterator.includes',
+  'es.iterator.join',
   'es.iterator.map',
   'es.iterator.reduce',
   'es.iterator.some',
   'es.iterator.take',
   'es.iterator.to-array',
-  'esnext.iterator.chunks',
-  'esnext.iterator.includes',
-  'esnext.iterator.join',
-  'esnext.iterator.windows',
+  'es.iterator.windows',
   'esnext.iterator.to-async',
 ];
 
