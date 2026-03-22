@@ -56,13 +56,23 @@ function addEntryTypes(tsVersion, template, options) {
 
 async function buildType(entry, options) {
   let {
-    entryFromNamespace,
-    subset = entryFromNamespace ?? 'full',
+    entryFromNamespace = 'full',
+    subset = entryFromNamespace,
     typeDummy = false,
     globalType = true,
     noPure = false,
-    template, templateStable, templateActual, templateFull, filter, modules, enforceEntryCreation,
-    customType, tsVersion, proposal, types, ownEntryPoint,
+    template,
+    templateStable = template,
+    templateActual = templateStable,
+    templateFull = templateActual,
+    filter,
+    modules,
+    enforceEntryCreation,
+    customType,
+    tsVersion,
+    proposal,
+    types,
+    ownEntryPoint,
   } = options;
 
   let typesFilter = null;
@@ -73,14 +83,14 @@ async function buildType(entry, options) {
       break;
     case 'stable':
       filter ??= StableSet;
-      template = templateStable ?? template;
+      template = templateStable;
       break;
     case 'actual':
       filter ??= ActualSet;
-      template = templateActual ?? templateStable ?? template;
+      template = templateActual;
       break;
     case 'full':
-      template = templateFull ?? templateActual ?? templateStable ?? template;
+      template = templateFull;
       break;
   }
 
