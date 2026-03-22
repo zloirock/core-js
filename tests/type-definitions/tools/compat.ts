@@ -88,9 +88,9 @@ compat.compat({ modules: 123 });
 // @ts-expect-error
 compat.compat({ inverse: 'incorrect' });
 // @ts-expect-error
-compat({ exclude: 123 });
+compat.compat({ exclude: 123 });
 // @ts-expect-error
-compat({ targets: 123 });
+compat.compat({ targets: 123 });
 
 compat2();
 compat2({});

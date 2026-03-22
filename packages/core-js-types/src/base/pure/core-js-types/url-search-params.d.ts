@@ -57,7 +57,7 @@ declare namespace CoreJS {
   }
 
   export interface CoreJSURLSearchParamsConstructor {
-    prototype: CoreJSURLSearchParams;
+    readonly prototype: CoreJSURLSearchParams;
     new(init?: string[][] | Record<string, string> | string | CoreJSURLSearchParams): CoreJSURLSearchParams;
   }
 
