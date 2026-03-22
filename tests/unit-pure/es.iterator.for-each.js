@@ -33,4 +33,17 @@ QUnit.test('Iterator#forEach', assert => {
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => forEach.call(it, {}), TypeError);
   assert.true(it.closed, 'forEach closes iterator on validation error');
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => forEach.call(it2, () => { throw new Error('test'); }), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
 });
