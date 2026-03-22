@@ -1,7 +1,7 @@
-import _at from "@core-js/pure/actual/array/at";
-import _includes from "@core-js/pure/actual/array/includes";
-import _findIndex from "@core-js/pure/actual/instance/find-index";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
+import _findIndexMaybeArray from "@core-js/pure/actual/array/instance/find-index";
 const _ref = [1, 2, 3];
-export const at = _at(_ref);
-export const includes = _includes(_ref);
-export const findIndex = _findIndex(_ref);
+export const at = _atMaybeArray(_ref);
+export const includes = _includesMaybeArray(_ref);
+export const findIndex = _findIndexMaybeArray(_ref);

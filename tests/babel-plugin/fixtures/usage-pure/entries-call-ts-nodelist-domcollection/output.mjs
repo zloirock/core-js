@@ -1,4 +1,4 @@
-import _entries from "@core-js/pure/actual/instance/entries";
+import _entriesMaybeDomCollections from "@core-js/pure/actual/dom-collections/instance/entries";
 function f(list: NodeList) {
-  _entries(list).call(list);
+  _entriesMaybeDomCollections(list).call(list);
 }
