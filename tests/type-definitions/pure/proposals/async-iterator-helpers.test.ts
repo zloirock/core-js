@@ -28,6 +28,8 @@ declare const itn: Iterator<number>;
 
 from(aiton);
 from(ilb);
+from(is);
+from(itn);
 
 // @ts-expect-error
 from(123);

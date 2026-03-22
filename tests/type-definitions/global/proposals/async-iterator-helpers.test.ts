@@ -51,6 +51,8 @@ AsyncIterator.from(ilb);
 AsyncIterator.from(ailb);
 AsyncIterator.from(aio);
 AsyncIterator.from(ait);
+AsyncIterator.from(is);
+AsyncIterator.from(itn);
 
 // @ts-expect-error
 AsyncIterator.from(123);
