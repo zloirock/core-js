@@ -23,6 +23,21 @@ QUnit.test('Iterator#drop', assert => {
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => drop.call(it, NaN), RangeError, 'NaN');
   assert.true(it.closed, 'drop closes iterator on validation error');
+  // .return() on wrapper propagates to underlying iterator
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    const dropped = drop.call(it2, 1);
+    dropped.next();
+    dropped.return();
+    assert.same(returnCount, 1, '.return() on dropped iterator propagates to underlying');
+  }
+
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => drop.call({ next: null }, 0).next(), TypeError);
 });
