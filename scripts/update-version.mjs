@@ -21,7 +21,8 @@ const README_COMPAT = 'packages/core-js-compat/README.md';
 const README_TYPES = 'packages/core-js-types/README.md';
 const SHARED = 'packages/core-js/internals/shared-store.js';
 const BUILDER_CONFIG = 'packages/core-js-builder/config.js';
-const USAGE = 'docs/web/docs/usage.md';
+const DOCS_USAGE = 'docs/web/docs/usage.md';
+const DOCS_TYPES = 'docs/web/docs/usage.md';
 const NOW = new Date();
 const CURRENT_YEAR = NOW.getFullYear();
 
@@ -36,7 +37,7 @@ const readmeCompat = await readFile(README_COMPAT, 'utf8');
 await writeFile(README_COMPAT, readmeCompat.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const readmeTypes = await readFile(README_TYPES, 'utf8');
-await writeFile(README_TYPES, readmeTypes.replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
+await writeFile(README_TYPES, readmeTypes.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const shared = await readFile(SHARED, 'utf8');
 await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
@@ -44,8 +45,11 @@ await writeFile(SHARED, shared.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(
 const builderConfig = await readFile(BUILDER_CONFIG, 'utf8');
 await writeFile(BUILDER_CONFIG, builderConfig.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(OLD_YEAR, CURRENT_YEAR));
 
-const usage = await readFile(USAGE, 'utf8');
-await writeFile(USAGE, usage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
+const docsUsage = await readFile(DOCS_USAGE, 'utf8');
+await writeFile(DOCS_USAGE, docsUsage.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
+
+const docsTypes = await readFile(DOCS_TYPES, 'utf8');
+await writeFile(DOCS_TYPES, docsTypes.replaceAll(PREV_VERSION, NEW_VERSION).replaceAll(PREV_VERSION_MINOR, NEW_VERSION_MINOR));
 
 const packages = await Promise.all((await glob('packages/*/package?(.tpl).json')).map(async path => {
   const pkg = await readJson(path, 'utf8');
