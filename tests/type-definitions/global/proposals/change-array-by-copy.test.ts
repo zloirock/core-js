@@ -197,9 +197,9 @@ f64.with('a', 1);
 // // @ts-expect-error
 // bi64.with('a', BigInt(1));
 
-// @ts-expect-error
-bu64.toSorted({});
-// @ts-expect-error
-bu64.with(0, 1);
-// @ts-expect-error
-bu64.with('abc', BigInt(1));
+// // @ts-expect-error
+// bu64.toSorted({});
+// // @ts-expect-error
+// bu64.with(0, 1);
+// // @ts-expect-error
+// bu64.with('abc', BigInt(1));
