@@ -335,7 +335,11 @@ function findTypeParameter(name, scope) {
   while (currentScope) {
     const params = currentScope.block.typeParameters?.params;
     if (params) for (const param of params) {
-      if (param.name === name) return { constraint: param.constraint ?? param.bound, scope: currentScope };
+      if (param.name === name) return {
+        constraint: param.constraint ?? param.bound,
+        default: param.default,
+        scope: currentScope,
+      };
     }
     currentScope = currentScope.parent;
   }
@@ -376,10 +380,11 @@ function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
   // type parameters shadow type declarations with the same name
   const typeParam = findTypeParameter(name, scope);
   if (typeParam) {
-    if (!typeParam.constraint) return null;
+    const annotation = typeParam.constraint ?? typeParam.default;
+    if (!annotation) return null;
     return typeParamMap
-      ? substituteTypeParams(typeParam.constraint, typeParamMap, typeParam.scope, depth + 1)
-      : resolveTypeAnnotation(typeParam.constraint, typeParam.scope, depth + 1);
+      ? substituteTypeParams(annotation, typeParamMap, typeParam.scope, depth + 1)
+      : resolveTypeAnnotation(annotation, typeParam.scope, depth + 1);
   }
   const declaration = findTypeDeclaration(name, scope);
   if (!declaration) return null;
@@ -1507,11 +1512,12 @@ function buildTypeParamMap(typeParamNames, fnPath, callPath) {
       if (elementType) typeParamMap.set(elementParamName, elementType);
     }
   }
-  // phase 2: constraint fallback for unresolved type params
+  // phase 2: constraint / default fallback for unresolved type params
   for (const typeParam of fnPath.node.typeParameters.params) {
     if (typeParamMap.has(typeParam.name)) continue;
-    if (typeParam.constraint) {
-      const resolved = resolveTypeAnnotation(typeParam.constraint, fnPath.scope);
+    const annotation = typeParam.constraint ?? typeParam.default;
+    if (annotation) {
+      const resolved = resolveTypeAnnotation(annotation, fnPath.scope);
       if (resolved) typeParamMap.set(typeParam.name, resolved);
     }
   }
