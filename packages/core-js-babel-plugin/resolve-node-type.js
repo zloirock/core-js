@@ -87,10 +87,10 @@ function $Primitive(type) {
 
 $Primitive.prototype.primitive = true;
 
-function $Object(constructor, inner) {
+function $Object(constructor, inner = null) {
   this.type = 'object';
   this.constructor = constructor;
-  this.inner = inner ?? null;
+  this.inner = inner;
 }
 
 $Object.prototype.primitive = false;
