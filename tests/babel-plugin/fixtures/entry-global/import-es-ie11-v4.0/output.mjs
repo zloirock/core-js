@@ -138,6 +138,8 @@ import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
+import "core-js/modules/es.iterator.zip";
+import "core-js/modules/es.iterator.zip-keyed";
 import "core-js/modules/es.json.is-raw-json";
 import "core-js/modules/es.json.parse";
 import "core-js/modules/es.json.raw-json";
