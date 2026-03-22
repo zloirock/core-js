@@ -4,6 +4,7 @@ import "core-js/modules/es.array.includes";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.string.includes";
+import "core-js/modules/esnext.iterator.includes";
 const includesStr = "includes";
 const findStr = "find";
 arr[includesStr]();
