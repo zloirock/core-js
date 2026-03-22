@@ -161,6 +161,14 @@ declare namespace CoreJS {
     find<S extends T>(predicate: (value: T, index: number) => value is S): S | undefined;
     find(predicate: (value: T, index: number) => unknown): T | undefined;
 
+    /**
+     * Determines whether this iterator includes a certain element,
+     * returning `true` or `false` as appropriate.
+     * @param searchElement - The element to search for.
+     * @param skippedElements - Number of elements to skip before beginning the search. Defaults to 0.
+     */
+    includes(searchElement: T, skippedElements?: number): boolean;
+
     join(separator?: unknown): string;
   }
 
