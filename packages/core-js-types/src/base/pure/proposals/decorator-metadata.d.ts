@@ -1,4 +1,5 @@
 /// <reference types="./symbol" />
+/// <reference types="../core-js-types/decorator-metadata-object" />
 
 // Motivation: Symbol is replaced with our own
 
@@ -10,6 +11,6 @@ declare namespace CoreJS {
   var CoreJSFunction: CoreJSFunction;
 
   export interface CoreJSFunction extends Function {
-    [CoreJS.CoreJSSymbol.metadata]: Record<PropertyKey, unknown> & object | null;
+    [CoreJS.CoreJSSymbol.metadata]: CoreJS.CoreJSDecoratorMetadataObject | null;
   }
 }
