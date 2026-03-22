@@ -1,4 +1,4 @@
 var _ref;
-import _map from "@core-js/pure/actual/instance/map";
-import _flat from "@core-js/pure/actual/instance/flat";
-_map(_ref = _flat(foo).call(foo)).call(_ref, x => x);
+import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
+import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+_mapMaybeArray(_ref = _flatMaybeArray(foo).call(foo)).call(_ref, x => x);

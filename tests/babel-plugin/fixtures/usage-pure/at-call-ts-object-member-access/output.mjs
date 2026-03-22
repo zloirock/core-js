@@ -1,6 +1,6 @@
 var _ref;
-import _at from "@core-js/pure/actual/array/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 const obj = {
   items: [1, 2, 3]
 };
-_at(_ref = obj.items).call(_ref, -1);
+_atMaybeArray(_ref = obj.items).call(_ref, -1);
