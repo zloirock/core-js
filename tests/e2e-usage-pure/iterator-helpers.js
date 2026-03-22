@@ -53,6 +53,33 @@ QUnit.test('Iterator.from + Iterator#toArray', assert => {
   assert.deepEqual(Iterator.from([1, 2, 3]).toArray(), [1, 2, 3]);
 });
 
+QUnit.test('Iterator.from + Iterator#includes', assert => {
+  assert.true(Iterator.from([1, 2, 3]).includes(2));
+  assert.false(Iterator.from([1, 2, 3]).includes(4));
+});
+
+QUnit.test('Iterator.from + Iterator#join', assert => {
+  assert.same(Iterator.from([1, 2, 3]).join('-'), '1-2-3');
+  // eslint-disable-next-line unicorn/require-array-join-separator -- testing
+  assert.same(Iterator.from([1, 2, 3]).join(), '1,2,3');
+});
+
+QUnit.test('Iterator.from + Iterator#chunks', assert => {
+  assert.deepEqual(Array.from(Iterator.from([1, 2, 3, 4, 5]).chunks(2)), [[1, 2], [3, 4], [5]]);
+});
+
+QUnit.test('Iterator.from + Iterator#windows', assert => {
+  assert.deepEqual(Array.from(Iterator.from([1, 2, 3, 4]).windows(2)), [[1, 2], [2, 3], [3, 4]]);
+});
+
+QUnit.test('Iterator.from + Iterator#toAsync', assert => {
+  const async = assert.async();
+  Iterator.from([1, 2, 3]).toAsync().toArray().then(arr => {
+    assert.deepEqual(arr, [1, 2, 3]);
+    async();
+  });
+});
+
 QUnit.test('Iterator.concat', assert => {
   assert.deepEqual(Array.from(Iterator.concat([1, 2], [3, 4])), [1, 2, 3, 4]);
 });
