@@ -372,6 +372,27 @@ function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
   return extended ? localMap : typeParamMap;
 }
 
+// build a type parameter map from default values for a type reference without explicit type arguments
+// e.g. for `Container` referencing `interface Container<T = number[]>`, returns Map { T -> $Object('Array', ...) }
+function buildDefaultTypeParamMap(annotation, scope) {
+  const name = typeRefName(annotation);
+  if (!name || annotation.typeParameters?.params?.length) return null;
+  const declaration = findTypeDeclaration(name, scope);
+  if (!declaration) return null;
+  const declParams = declaration.typeParameters?.params;
+  if (!declParams?.length) return null;
+  let map = null;
+  for (const param of declParams) {
+    if (!param.default) continue;
+    const resolved = resolveTypeAnnotation(param.default, scope);
+    if (resolved) {
+      if (!map) map = new Map();
+      map.set(param.name, resolved);
+    }
+  }
+  return map;
+}
+
 // resolve a user-defined type alias or interface, optionally substituting type parameters
 // typeParamMap: when provided (from generic function substitution or parent type args), propagates substitutions
 // when null, type arguments at usage site (e.g. Foo<string>) are resolved and propagated automatically
@@ -1806,10 +1827,16 @@ function resolveTypedMember(objectPath, name, callPath) {
     }
   }
   if (!annotation) return null;
+  // lazily resolve default type parameter map for generic types used without explicit type arguments
+  let defaultMap;
+  const resolve = p => {
+    if (defaultMap === undefined) defaultMap = buildDefaultTypeParamMap(annotation, scope);
+    return defaultMap ? substituteTypeParams(p, defaultMap, scope, MAX_DEPTH) : resolveTypeAnnotation(p, scope);
+  };
   // property access (not a call): delegate to findTypeMember
   if (!callPath) {
     const memberType = findTypeMember(annotation, name, scope);
-    return memberType ? resolveTypeAnnotation(memberType, scope) : null;
+    return memberType ? resolve(memberType) : null;
   }
   // method call: merge return types from all matching overloads via commonType
   const members = getTypeMembers(annotation, scope);
@@ -1819,7 +1846,7 @@ function resolveTypedMember(objectPath, name, callPath) {
     if (!keyMatchesName(member.key, name)) continue;
     const returnAnnotation = memberCallReturnAnnotation(member);
     if (!returnAnnotation) continue;
-    const resolved = resolveTypeAnnotation(returnAnnotation, scope);
+    const resolved = resolve(returnAnnotation);
     if (!resolved) return null;
     result = commonType(result, resolved);
     if (!result) return null;
@@ -2272,8 +2299,13 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
 }
 
 function resolveAnnotatedMember(annotation, keyName, scope) {
-  const memberType = findTypeMember(unwrapTypeAnnotation(annotation), keyName, scope);
-  return memberType ? resolveTypeAnnotation(memberType, scope) : null;
+  const unwrapped = unwrapTypeAnnotation(annotation);
+  const memberType = findTypeMember(unwrapped, keyName, scope);
+  if (!memberType) return null;
+  const defaultMap = buildDefaultTypeParamMap(unwrapped, scope);
+  return defaultMap
+    ? substituteTypeParams(memberType, defaultMap, scope, MAX_DEPTH)
+    : resolveTypeAnnotation(memberType, scope);
 }
 
 // recursively unwrap Promise<T> annotation to T for for-await-of element types
