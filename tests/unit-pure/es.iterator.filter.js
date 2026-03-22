@@ -30,6 +30,34 @@ QUnit.test('Iterator#filter', assert => {
   const it = createIterator([1], { return() { this.closed = true; } });
   assert.throws(() => filter.call(it, {}), TypeError);
   assert.true(it.closed, 'filter closes iterator on validation error');
+  // .return() on wrapper propagates to underlying iterator
+  {
+    let returnCount = 0;
+    const it2 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    const filtered = filter.call(it2, x => x);
+    filtered.next();
+    filtered.return();
+    assert.same(returnCount, 1, '.return() on filtered iterator propagates to underlying');
+  }
+
+  // .return() called when callback throws during iteration
+  {
+    let returnCount = 0;
+    const it3 = createIterator([1, 2, 3], {
+      return() {
+        returnCount++;
+        return { done: true, value: undefined };
+      },
+    });
+    assert.throws(() => filter.call(it3, () => { throw new Error('test'); }).next(), Error);
+    assert.same(returnCount, 1, '.return() called when callback throws');
+  }
+
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => filter.call({ next: null }, () => { /* empty */ }).next(), TypeError);
 });
