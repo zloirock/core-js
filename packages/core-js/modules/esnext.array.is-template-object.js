@@ -1,12 +1,13 @@
+// @types: proposals/array-is-template-object
 'use strict';
 var $ = require('../internals/export');
-var isArray = require('../internals/is-array');
 
+var isArray = Array.isArray;
 // eslint-disable-next-line es/no-object-isfrozen -- safe
 var isFrozen = Object.isFrozen;
 
 var isFrozenStringArray = function (array, allowUndefined) {
-  if (!isFrozen || !isArray(array) || !isFrozen(array)) return false;
+  if (!isArray(array) || !isFrozen(array)) return false;
   var index = 0;
   var length = array.length;
   var element;
@@ -25,5 +26,5 @@ $({ target: 'Array', stat: true, sham: true, forced: true }, {
     if (!isFrozenStringArray(value, true)) return false;
     var raw = value.raw;
     return isFrozenStringArray(raw, false) && raw.length === value.length;
-  }
+  },
 });

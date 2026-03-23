@@ -1,7 +1,9 @@
-'use strict';
-const browserslist = require('browserslist');
-const { compare, has } = require('./helpers');
-const external = require('./external');
+import browserslist from 'browserslist';
+import { compare } from './helpers.js';
+import external from './external.json' with { type: 'json' };
+
+const { entries, hasOwn } = Object;
+const { isArray } = Array;
 
 const aliases = new Map([
   ['and_chr', 'chrome-android'],
@@ -10,7 +12,6 @@ const aliases = new Map([
   ['ios_saf', 'ios'],
   ['oculus', 'quest'],
   ['op_mob', 'opera-android'],
-  // TODO: Remove from `core-js@4`
   ['opera_mobile', 'opera-android'],
   ['react', 'react-native'],
   ['reactnative', 'react-native'],
@@ -32,7 +33,6 @@ const validTargets = new Set([
   'node',
   'opera',
   'opera-android',
-  'phantom',
   'quest',
   'react-native',
   'rhino',
@@ -41,30 +41,30 @@ const validTargets = new Set([
 ]);
 
 const toLowerKeys = function (object) {
-  return Object.entries(object).reduce((accumulator, [key, value]) => {
+  return entries(object).reduce((accumulator, [key, value]) => {
     accumulator[key.toLowerCase()] = value;
     return accumulator;
   }, {});
 };
 
-module.exports = function (targets) {
-  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || Array.isArray(targets))
+export default function (targets) {
+  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || isArray(targets))
     ? { browsers: targets } : toLowerKeys(targets);
 
-  const list = Object.entries(rest);
+  const list = entries(rest);
 
   const normalizedESModules = esmodules === 'intersect' ? 'intersect' : !!esmodules;
 
   if (browsers && normalizedESModules !== true) {
-    if (typeof browsers == 'string' || Array.isArray(browsers)) {
+    if (typeof browsers == 'string' || isArray(browsers)) {
       list.push(...browserslist(browsers).map(it => it.split(' ')));
     } else {
-      list.push(...Object.entries(browsers));
+      list.push(...entries(browsers));
     }
   }
 
   if (normalizedESModules === true) {
-    list.push(...Object.entries(external.modules));
+    list.push(...entries(external.modules));
   }
 
   if (node) {
@@ -72,7 +72,7 @@ module.exports = function (targets) {
   }
 
   const normalized = list.map(([engine, version]) => {
-    if (has(browserslist.aliases, engine)) {
+    if (hasOwn(browserslist.aliases, engine)) {
       engine = browserslist.aliases[engine];
     }
     if (aliases.has(engine)) {
@@ -96,7 +96,7 @@ module.exports = function (targets) {
   if (normalizedESModules === 'intersect') {
     const modulesData = external.modules;
     for (const [engine, version] of reduced) {
-      if (has(modulesData, engine)) {
+      if (hasOwn(modulesData, engine)) {
         if (compare(modulesData[engine], '>', version)) {
           reduced.set(engine, modulesData[engine]);
         }
@@ -107,4 +107,4 @@ module.exports = function (targets) {
   }
 
   return reduced;
-};
+}

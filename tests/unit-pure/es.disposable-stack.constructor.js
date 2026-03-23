@@ -1,8 +1,6 @@
-import { STRICT } from '../helpers/constants.js';
-
-import Symbol from 'core-js-pure/es/symbol';
-import DisposableStack from 'core-js-pure/es/disposable-stack';
-import SuppressedError from 'core-js-pure/es/suppressed-error';
+import Symbol from '@core-js/pure/es/symbol';
+import DisposableStack from '@core-js/pure/es/disposable-stack';
+import SuppressedError from '@core-js/pure/es/suppressed-error';
 
 QUnit.test('DisposableStack constructor', assert => {
   assert.isFunction(DisposableStack);
@@ -57,7 +55,7 @@ QUnit.test('DisposableStack#adopt', assert => {
 
   assert.same(stack.adopt(resource, function (arg) {
     result += '1';
-    if (STRICT) assert.same(this, undefined);
+    assert.same(this, undefined);
     assert.same(arguments.length, 1);
     assert.same(arg, resource);
   }), resource);
@@ -77,7 +75,7 @@ QUnit.test('DisposableStack#defer', assert => {
 
   assert.same(stack.defer(function () {
     result += '1';
-    if (STRICT) assert.same(this, undefined);
+    assert.same(this, undefined);
     assert.same(arguments.length, 0);
   }), undefined);
 
@@ -173,4 +171,41 @@ QUnit.test('DisposableStack', assert => {
   assert.true(error3 instanceof SuppressedError);
   assert.same(error3.error.message, '5');
   assert.same(error3.suppressed.message, '3');
+
+  let result4 = '';
+  const stack4 = new DisposableStack();
+  let error4;
+
+  stack4.defer(() => { throw new Error('C'); });
+  stack4.defer(() => { throw new Error('B'); });
+  stack4.defer(() => { throw new Error('A'); });
+  stack4.defer(() => result4 += '1');
+
+  try {
+    stack4.dispose();
+  } catch (error4$) {
+    error4 = error4$;
+  }
+
+  assert.same(result4, '1');
+  assert.true(error4 instanceof SuppressedError, 'outermost is SuppressedError');
+  assert.same(error4.error.message, 'C', 'outermost error');
+  assert.true(error4.suppressed instanceof SuppressedError, 'nested SuppressedError');
+  assert.same(error4.suppressed.error.message, 'B', 'nested error');
+  assert.same(error4.suppressed.suppressed.message, 'A', 'innermost error');
+
+  const stack5 = new DisposableStack();
+  assert.same(stack5.use(null), null, 'use(null) returns null');
+  assert.same(stack5.use(undefined), undefined, 'use(undefined) returns undefined');
+  assert.same(stack5.dispose(), undefined, 'dispose after use(null/undefined) works');
+
+  const stack6 = new DisposableStack();
+  assert.throws(() => stack6.use({}), TypeError, 'use({}) throws TypeError');
+
+  const stack7 = new DisposableStack();
+  stack7.dispose();
+  assert.throws(() => stack7.use({ [Symbol.dispose]() { /* empty */ } }), ReferenceError, 'use on disposed');
+  assert.throws(() => stack7.adopt({}, () => { /* empty */ }), ReferenceError, 'adopt on disposed');
+  assert.throws(() => stack7.defer(() => { /* empty */ }), ReferenceError, 'defer on disposed');
+  assert.throws(() => stack7.move(), ReferenceError, 'move on disposed');
 });

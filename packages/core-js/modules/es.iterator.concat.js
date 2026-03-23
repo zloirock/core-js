@@ -1,3 +1,4 @@
+// @types: proposals/iterator-sequencing
 'use strict';
 var $ = require('../internals/export');
 var call = require('../internals/function-call');
@@ -36,6 +37,7 @@ var IteratorProxy = createIteratorProxy(function () {
 
 // `Iterator.concat` method
 // https://tc39.es/ecma262/#sec-iterator.concat
+// @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
   concat: function concat() {
     var length = arguments.length;
@@ -44,14 +46,14 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       var item = anObject(arguments[index]);
       iterables[index] = {
         iterable: item,
-        method: aCallable(getIteratorMethod(item))
+        method: aCallable(getIteratorMethod(item)),
       };
     }
     return new IteratorProxy({
       iterables: iterables,
       nextIterableIndex: 0,
       iterator: null,
-      next: null
+      next: null,
     });
-  }
+  },
 });

@@ -1,7 +1,6 @@
-import { CORRECT_PROTOTYPE_GETTER } from '../helpers/constants.js';
+import getPrototypeOf from '@core-js/pure/es/object/get-prototype-of';
 
-import create from 'core-js-pure/es/object/create';
-import getPrototypeOf from 'core-js-pure/es/object/get-prototype-of';
+const { create } = Object;
 
 QUnit.test('Object.getPrototypeOf', assert => {
   assert.isFunction(getPrototypeOf);
@@ -28,8 +27,4 @@ QUnit.test('Object.getPrototypeOf', assert => {
   assert.throws(() => getPrototypeOf(null), TypeError, 'throws on null');
   assert.throws(() => getPrototypeOf(undefined), TypeError, 'throws on undefined');
   assert.same(getPrototypeOf('foo'), String.prototype);
-});
-
-QUnit.test('Object.getPrototypeOf.sham flag', assert => {
-  assert.same(getPrototypeOf.sham, CORRECT_PROTOTYPE_GETTER ? undefined : true);
 });

@@ -1,18 +1,11 @@
-'use strict';
-const { compare, intersection, semver } = require('./helpers');
-const modulesByVersions = require('./modules-by-versions');
-const modules = require('./modules');
+import { compare, intersection, normalizeCoreJSVersion } from './helpers.js';
+import modulesByVersions from './modules-by-versions.json' with { type: 'json' };
+import allModules from './modules.json' with { type: 'json' };
 
-module.exports = function (raw) {
-  const corejs = semver(raw);
-  if (corejs.major !== 3) {
-    throw new RangeError('This version of `core-js-compat` works only with `core-js@3`.');
-  }
-  const result = [];
-  for (const version of Object.keys(modulesByVersions)) {
-    if (compare(version, '<=', corejs)) {
-      result.push(...modulesByVersions[version]);
-    }
-  }
-  return intersection(result, modules);
-};
+export default function (raw) {
+  const corejs = normalizeCoreJSVersion(raw);
+  const result = Object.entries(modulesByVersions).flatMap(([version, modules]) => {
+    return compare(version, '<=', corejs) ? modules : [];
+  });
+  return intersection(result, allModules);
+}

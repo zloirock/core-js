@@ -1,4 +1,4 @@
-import type compat from "core-js-compat";
+import type compat from "@core-js/compat";
 
 type Format = 'bundle' | 'esm' | 'cjs';
 
@@ -22,10 +22,12 @@ type Options = Pick<CompatOptions, "exclude" | "modules" | "targets"> & {
   format?: Format,
   /** optional target filename, if it's missed a file will not be created */
   filename?: string,
+  /** minify the output in the case of format: bundle, `true` by default */
+  minify?: boolean,
   /** shows summary for the bundle, disabled by default */
   summary?: Summary,
 };
 
-declare function builder(options?: Options): Promise<string>;
+declare function builder(options?: Options): Promise<{ script: string }>;
 
-export = builder;
+export default builder;

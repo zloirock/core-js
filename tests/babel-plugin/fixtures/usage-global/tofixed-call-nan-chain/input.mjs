@@ -1,0 +1,1 @@
+NaN.toFixed(2);
