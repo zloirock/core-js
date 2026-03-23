@@ -21,10 +21,10 @@ const ES_TARGETS = [
   'es6',
 ];
 
-const DEFAULT_TYPE_SCRIPT_VERSION = '5.9';
+const DEFAULT_TYPE_SCRIPT_VERSION = '6.0';
 
 const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
-  '6.0.1-rc',
+  '5.9',
   '5.8',
   '5.7',
   '5.6',
@@ -33,7 +33,7 @@ const TYPE_SCRIPT_VERSIONS = [DEFAULT_TYPE_SCRIPT_VERSION, ...ALL_TESTS ? [
   // '5.3',
   // '5.2',
 ] : CI_TESTS ? [
-  '6.0.0-beta',
+  '5.9',
   '5.6',
 ] : [
   // empty
