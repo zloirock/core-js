@@ -5,6 +5,7 @@ import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.promise.reject";
 import "core-js/modules/es.promise.resolve";
 import "core-js/modules/es.array.filter";
+import "core-js/modules/es.array.species";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.filter";
 import "core-js/modules/esnext.async-iterator.constructor";
