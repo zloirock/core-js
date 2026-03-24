@@ -3,7 +3,7 @@ var isConstructor = require('../internals/is-constructor');
 var isObject = require('../internals/is-object');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 
-// dependency: es.array.species
+// @dependency: es.array.species
 var SPECIES = wellKnownSymbol('species');
 var $Array = Array;
 var isArray = $Array.isArray;
