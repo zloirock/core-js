@@ -51,6 +51,7 @@ deepEqual(compat({
     'es.reflect.set': { firefox: '27' },
     'es.reflect.set-prototype-of': { firefox: '27' },
     'es.reflect.to-string-tag': { firefox: '27' },
+    'es.array.iterator': { firefox: '27' },
     'es.array.at': { firefox: '27' },
     'es.array.iterator': { firefox: '27' },
     'es.math.cbrt': { firefox: '27' },
