@@ -5,11 +5,11 @@ var lengthOfArrayLike = require('../internals/length-of-array-like');
 var toObject = require('../internals/to-object');
 var createProperty = require('../internals/create-property');
 var MapHelpers = require('../internals/map-helpers');
-var iterate = require('../internals/map-iterate');
 
 var Map = MapHelpers.Map;
 var mapHas = MapHelpers.has;
 var mapSet = MapHelpers.set;
+var mapForEach = MapHelpers.forEach;
 
 // `Array.prototype.uniqueBy` method
 // https://github.com/tc39/proposal-array-unique
@@ -28,7 +28,7 @@ module.exports = function uniqueBy(resolver) {
     if (!mapHas(map, key)) mapSet(map, key, item);
   }
   index = 0;
-  iterate(map, function (value) {
+  mapForEach(map, function (value) {
     createProperty(result, index++, value);
   });
   return result;
