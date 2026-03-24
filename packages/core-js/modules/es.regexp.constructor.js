@@ -16,7 +16,6 @@ var defineBuiltIn = require('../internals/define-built-in');
 var fails = require('../internals/fails');
 var hasOwn = require('../internals/has-own-property');
 var enforceInternalState = require('../internals/internal-state').enforce;
-var setSpecies = require('../internals/set-species');
 var wellKnownSymbol = require('../internals/well-known-symbol');
 var UNSUPPORTED_DOT_ALL = require('../internals/regexp-unsupported-dot-all');
 var UNSUPPORTED_NCG = require('../internals/regexp-unsupported-ncg');
@@ -206,6 +205,3 @@ if (FORCED) {
   RegExpWrapper.prototype = RegExpPrototype;
   defineBuiltIn(globalThis, 'RegExp', RegExpWrapper, { constructor: true });
 }
-
-// https://tc39.es/ecma262/#sec-get-regexp-@@species
-setSpecies('RegExp');
