@@ -23,7 +23,7 @@ module.exports = function from(source /* , mapfn, thisArg */) {
   var mapping = mapfn !== undefined;
   if (mapping) aCallable(mapfn);
   var O = toObject(source);
-  // @dependency: es.string.iterator
+  // es.string.iterator dependency declared in es.typed-array.from since it's not required for constructors
   var iteratorMethod = getIteratorMethod(O);
   var i, length, result, thisIsBigIntArray, value, step, iterator, next;
   if (iteratorMethod !== undefined && !isArrayIteratorMethod(iteratorMethod)) {

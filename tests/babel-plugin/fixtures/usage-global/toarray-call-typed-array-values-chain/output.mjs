@@ -4,7 +4,6 @@ import "core-js/modules/es.array.entries";
 import "core-js/modules/es.array.keys";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.to-array";
-import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.typed-array.uint8-array";
 import "core-js/modules/es.typed-array.iterator";
 import "core-js/modules/es.typed-array.at";
