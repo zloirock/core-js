@@ -42,5 +42,4 @@ import "core-js/modules/es.uint8-array.set-from-base64";
 import "core-js/modules/es.uint8-array.set-from-hex";
 import "core-js/modules/es.uint8-array.to-base64";
 import "core-js/modules/es.uint8-array.to-hex";
-import "core-js/modules/web.dom-collections.iterator";
 Object.freeze(Float32Array.from(arr));

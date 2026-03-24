@@ -42,7 +42,6 @@ import "core-js/modules/es.uint8-array.set-from-base64";
 import "core-js/modules/es.uint8-array.set-from-hex";
 import "core-js/modules/es.uint8-array.to-base64";
 import "core-js/modules/es.uint8-array.to-hex";
-import "core-js/modules/web.dom-collections.iterator";
 function foo(x: Uint8Array) {
   x.at(-1);
 }

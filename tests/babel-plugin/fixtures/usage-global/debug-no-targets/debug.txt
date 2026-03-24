@@ -5,7 +5,5 @@ Using targets: {}
 Using polyfills with `usage-global` method:
 The core-js@4 polyfill added the following polyfills:
   es.object.to-string {}
-  es.array.iterator {}
   es.array.from {}
   es.string.iterator {}
-  web.dom-collections.iterator {}

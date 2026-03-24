@@ -1,4 +1,5 @@
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.math.log2";
 import "core-js/modules/es.math.acosh";
 import "core-js/modules/es.math.asinh";

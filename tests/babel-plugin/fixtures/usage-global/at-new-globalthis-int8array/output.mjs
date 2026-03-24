@@ -39,5 +39,4 @@ import "core-js/modules/es.typed-array.to-string";
 import "core-js/modules/es.typed-array.to-string-tag";
 import "core-js/modules/es.typed-array.values";
 import "core-js/modules/es.typed-array.with";
-import "core-js/modules/web.dom-collections.iterator";
 new globalThis.Int8Array(10).at(-1);

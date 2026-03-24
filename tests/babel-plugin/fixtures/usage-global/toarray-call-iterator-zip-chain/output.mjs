@@ -13,7 +13,6 @@ import "core-js/modules/es.iterator.reduce";
 import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
-import "core-js/modules/es.string.iterator";
 import "core-js/modules/esnext.iterator.zip";
 import "core-js/modules/web.dom-collections.iterator";
 Iterator.zip([iter1, iter2]).toArray();

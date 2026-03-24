@@ -27,6 +27,7 @@ deepEqual(compat({
     'es.reflect.set',
     'es.reflect.set-prototype-of',
     'es.reflect.to-string-tag',
+    'es.array.iterator',
     'es.array.at',
     'es.math.clz32',
     'es.math.expm1',
@@ -49,6 +50,7 @@ deepEqual(compat({
     'es.reflect.set': { firefox: '27' },
     'es.reflect.set-prototype-of': { firefox: '27' },
     'es.reflect.to-string-tag': { firefox: '27' },
+    'es.array.iterator': { firefox: '27' },
     'es.array.at': { firefox: '27' },
     'es.math.clz32': { firefox: '27' },
     'es.math.expm1': { firefox: '27' },
@@ -111,6 +113,7 @@ deepEqual(compat({
 }), {
   list: [
     'es.object.to-string',
+    'es.array.iterator',
     'es.math.acosh',
     'es.math.clz32',
     'es.math.expm1',
@@ -121,6 +124,7 @@ deepEqual(compat({
   ],
   targets: {
     'es.object.to-string': { chrome: '40', firefox: '27' },
+    'es.array.iterator': { chrome: '40', firefox: '27' },
     'es.math.acosh': { chrome: '40' },
     'es.math.clz32': { firefox: '27' },
     'es.math.expm1': { firefox: '27' },
