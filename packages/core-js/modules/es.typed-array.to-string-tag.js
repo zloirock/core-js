@@ -10,6 +10,7 @@ var TypedArrayPrototype = TypedArrayCore.TypedArrayPrototype;
 var getTypedArrayMetadata = TypedArrayCore.getTypedArrayMetadata;
 
 if (!hasOwn(TypedArrayPrototype, TO_STRING_TAG)) {
+  // @dependency: es.object.to-string
   defineBuiltInAccessor(TypedArrayPrototype, TO_STRING_TAG, {
     configurable: true,
     get: function () {
