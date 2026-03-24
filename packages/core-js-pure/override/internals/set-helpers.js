@@ -11,5 +11,6 @@ module.exports = {
   add: caller('add', 1),
   has: caller('has', 1),
   remove: caller('delete', 1),
+  forEach: caller('forEach', 1),
   proto: SetPrototype,
 };

@@ -20,6 +20,6 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
     if (size(O) > otherRec.size) return false;
     return iterate(O, function (e) {
       if (!otherRec.includes(e)) return false;
-    }, true) !== false;
+    }) !== false;
   },
 });
