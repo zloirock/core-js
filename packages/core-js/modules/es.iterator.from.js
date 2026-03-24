@@ -29,6 +29,9 @@ var IteratorProxy = createIteratorProxy(function () {
 // @dependency: es.iterator.constructor
 $({ target: 'Iterator', stat: true, forced: FORCED }, {
   from: function from(O) {
+    // @dependency: es.array.iterator
+    // @dependency: es.string.iterator
+    // @dependency: web.dom-collections.iterator
     var iteratorRecord = getIteratorFlattenable(typeof O == 'string' ? toObject(O) : O, true);
     return isPrototypeOf(IteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator

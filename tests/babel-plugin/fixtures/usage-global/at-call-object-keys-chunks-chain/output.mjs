@@ -6,6 +6,4 @@ import "core-js/modules/es.array.values";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.find";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";
 Object.keys(x).values().chunks(2).find(fn).at(0).includes('a');

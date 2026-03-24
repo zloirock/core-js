@@ -6,7 +6,6 @@ import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.filter";
 import "core-js/modules/es.string.from-code-point";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.url.constructor";
 import "core-js/modules/web.url.to-json";
 import "core-js/modules/web.url-search-params.constructor";

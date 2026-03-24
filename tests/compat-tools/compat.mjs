@@ -34,7 +34,6 @@ deepEqual(compat({
     'es.math.f16round',
     'es.math.sum-precise',
     'es.math.to-string-tag',
-    'es.string.iterator',
   ],
   targets: {
     'es.object.to-string': { firefox: '27' },
@@ -58,7 +57,6 @@ deepEqual(compat({
     'es.math.f16round': { firefox: '27' },
     'es.math.sum-precise': { firefox: '27' },
     'es.math.to-string-tag': { firefox: '27' },
-    'es.string.iterator': { firefox: '27' },
   },
 }, 'basic');
 
@@ -123,7 +121,6 @@ deepEqual(compat({
     'es.math.hypot',
     'es.math.sum-precise',
     'es.math.to-string-tag',
-    'es.string.iterator',
   ],
   targets: {
     'es.object.to-string': { chrome: '40', firefox: '27' },
@@ -135,7 +132,6 @@ deepEqual(compat({
     'es.math.hypot': { chrome: '40' },
     'es.math.sum-precise': { chrome: '40', firefox: '27' },
     'es.math.to-string-tag': { chrome: '40', firefox: '27' },
-    'es.string.iterator': { chrome: '40', firefox: '27' },
   },
 }, 'some targets');
 
