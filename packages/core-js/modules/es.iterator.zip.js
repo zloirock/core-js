@@ -41,6 +41,8 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       }
       if (!done) {
         try {
+          // @dependency: es.array.iterator
+          // @dependency: web.dom-collections.iterator
           iter = getIteratorFlattenable(next, false);
         } catch (error) {
           return iteratorCloseAll(concat([inputIter], iters), THROW, error);
