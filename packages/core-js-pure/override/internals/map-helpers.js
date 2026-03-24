@@ -11,5 +11,6 @@ module.exports = {
   get: caller('get', 1),
   has: caller('has', 1),
   remove: caller('delete', 1),
+  forEach: caller('forEach', 2),
   proto: Map.prototype,
 };
