@@ -4,6 +4,7 @@
 - Improved performance of `es.escape`
 - Improved the way of inner iterators cleaning in iterator helpers
 - Added `RegExp` `hasIndices` (`d` flag) polyfill, [#1507](https://github.com/zloirock/core-js/issues/1507)
+- Improved the way of inner iterators cleaning in iterator helpers
 - Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
 - Compat data improvements:
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8) compat data mapping
