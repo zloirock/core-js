@@ -1298,8 +1298,7 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
       && RegExp(re2) !== re2
       && String(RegExp(re1, 'i')) === '/a/i'
       && new RegExp('a', 'y') // just check that it doesn't throw
-      && RegExp('.', 's').exec('\n')
-      && RegExp[Symbol.species];
+      && RegExp('.', 's').exec('\n');
   }],
   'es.regexp.escape': function () {
     return RegExp.escape('ab\uD840\uDC2A') === '\\x61b\uD840\uDC2A';
@@ -1358,6 +1357,9 @@ function iteratorHelperThrowsErrorOnInvalidIterator(methodName, argument) {
     var result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
 
     return result === expected && calls === expected;
+  },
+  'es.regexp.species': function () {
+    return RegExp[Symbol.species] === RegExp;
   },
   'es.regexp.sticky': function () {
     return new RegExp('a', 'y').sticky === true;

@@ -72,6 +72,7 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
         if (res.done) return res.value;
       }
 
+      // @dependency: es.regexp.species
       var C = speciesConstructor(rx, RegExp);
       var flags = toString(getRegExpFlags(rx));
       var unicodeMatching = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
