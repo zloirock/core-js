@@ -9,5 +9,6 @@ module.exports = {
   add: uncurryThis(SetPrototype.add),
   has: uncurryThis(SetPrototype.has),
   remove: uncurryThis(SetPrototype.delete),
+  forEach: uncurryThis(SetPrototype.forEach),
   proto: SetPrototype,
 };

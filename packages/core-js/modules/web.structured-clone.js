@@ -26,8 +26,6 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
-var mapIterate = require('../internals/map-iterate');
-var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
 var isDetached = require('../internals/array-buffer-is-detached');
 var ENVIRONMENT = require('../internals/environment');
@@ -54,10 +52,12 @@ var mapHas = MapHelpers.has;
 var mapGet = MapHelpers.get;
 var mapSet = MapHelpers.set;
 var mapRemove = MapHelpers.remove;
+var mapForEach = MapHelpers.forEach;
 var Set = SetHelpers.Set;
 var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
 var setRemove = SetHelpers.remove;
+var setForEach = SetHelpers.forEach;
 var objectKeys = $Object.keys;
 var push = uncurryThis([].push);
 var arrayBufferTransfer = globalThis.ArrayBuffer && uncurryThis(globalThis.ArrayBuffer.prototype.transfer);
@@ -533,20 +533,20 @@ var replaceReferences = function (map, replacements, clone) {
   var replace = function (value) {
     return mapHas(replacements, value) ? mapGet(replacements, value) : value;
   };
-  mapIterate(map, function (cloned, original) {
+  mapForEach(map, function (cloned, original) {
     if (original === SHARED_OBJECTS) return;
     var type = classof(cloned);
     var entries, keys, key, value, j;
     if (type === 'Map') {
       entries = [];
-      mapIterate(cloned, function (v, k) {
+      mapForEach(cloned, function (v, k) {
         push(entries, [replace(k), replace(v)]);
         mapRemove(cloned, k);
       });
       for (j = 0; j < entries.length; j++) mapSet(cloned, entries[j][0], entries[j][1]);
     } else if (type === 'Set') {
       entries = [];
-      setIterate(cloned, function (v) {
+      setForEach(cloned, function (v) {
         push(entries, replace(v));
         setRemove(cloned, v);
       });
