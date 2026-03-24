@@ -41,6 +41,8 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       value = iterables[key];
       if (value !== undefined) {
         push(keys, key);
+        // @dependency: es.array.iterator
+        // @dependency: web.dom-collections.iterator
         push(iters, getIteratorFlattenable(value, false));
       }
     } catch (error) {
