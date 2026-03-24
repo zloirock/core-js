@@ -2,7 +2,6 @@
 var bind = require('../internals/function-bind-context');
 var toObject = require('../internals/to-object');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
-var arraySpeciesCreate = require('../internals/array-species-create');
 var createProperty = require('../internals/create-property');
 
 // `Array.prototype.{ map, filter, find, findIndex, filterReject }` methods implementation
@@ -12,7 +11,7 @@ var createMethod = function (TYPE) {
   var IS_FIND_INDEX = TYPE === 6;
   var IS_FILTER_REJECT = TYPE === 7;
   var NO_HOLES = TYPE === 5 || IS_FIND_INDEX;
-  return function ($this, callbackfn, that) {
+  return function ($this, callbackfn, that, arraySpeciesCreate) {
     var O = toObject($this);
     var length = lengthOfArrayLike(O);
     var boundFunction = bind(callbackfn, that);
