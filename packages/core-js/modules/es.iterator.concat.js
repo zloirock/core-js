@@ -46,6 +46,9 @@ $({ target: 'Iterator', stat: true, forced: IS_PURE }, {
       var item = anObject(arguments[index]);
       iterables[index] = {
         iterable: item,
+        // @dependency: es.array.iterator
+        // @dependency: es.string.iterator
+        // @dependency: web.dom-collections.iterator
         method: aCallable(getIteratorMethod(item)),
       };
     }
