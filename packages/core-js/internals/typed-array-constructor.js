@@ -24,7 +24,7 @@ var isArrayBuffer = function (it) {
   return isPrototypeOf(ArrayBufferPrototype, it) || (klass = classof(it)) === 'ArrayBuffer' || klass === 'SharedArrayBuffer';
 };
 
-// dependency: es.typed-array.to-string-tag
+// @dependency: es.typed-array.to-string-tag
 module.exports = function (TYPE, wrapper, CLAMPED) {
   var BYTES = TYPE.match(/\d+/)[0] / 8;
   var CONSTRUCTOR_NAME = TYPE + (CLAMPED ? 'Clamped' : '') + 'Array';
