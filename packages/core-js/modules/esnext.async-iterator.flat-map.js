@@ -40,6 +40,8 @@ var AsyncIteratorProxy = createAsyncIteratorProxy(function (Promise) {
 
                 var handler = function (mapped) {
                   try {
+                    // @dependency: es.array.iterator
+                    // @dependency: web.dom-collections.iterator
                     state.inner = getAsyncIteratorFlattenable(mapped);
                     innerLoop();
                   } catch (error4) { ifAbruptCloseAsyncIterator(error4); }
