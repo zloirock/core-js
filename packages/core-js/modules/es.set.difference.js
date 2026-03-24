@@ -6,13 +6,13 @@ var SetHelpers = require('../internals/set-helpers');
 var clone = require('../internals/set-clone');
 var size = require('../internals/set-size');
 var getSetRecord = require('../internals/get-set-record');
-var iterateSet = require('../internals/set-iterate');
 var iterateSimple = require('../internals/iterate-simple');
 var fails = require('../internals/fails');
 var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');
 
 var has = SetHelpers.has;
 var remove = SetHelpers.remove;
+var forEach = SetHelpers.forEach;
 
 var SET_LIKE_INCORRECT_BEHAVIOR = !setMethodAcceptSetLike('difference', function (result) {
   return result.size === 0;
@@ -46,7 +46,7 @@ $({ target: 'Set', proto: true, real: true, forced: FORCED }, {
     var O = aSet(this);
     var otherRec = getSetRecord(other);
     var result = clone(O);
-    if (size(result) <= otherRec.size) iterateSet(result, function (e) {
+    if (size(result) <= otherRec.size) forEach(result, function (e) {
       if (otherRec.includes(e)) remove(result, e);
     });
     else iterateSimple(otherRec.getIterator(), function (e) {
