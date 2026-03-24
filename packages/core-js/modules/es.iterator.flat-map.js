@@ -49,6 +49,8 @@ var IteratorProxy = createIteratorProxy(function () {
 
     var value = result.value;
     try {
+      // @dependency: es.array.iterator
+      // @dependency: web.dom-collections.iterator
       this.inner = getIteratorFlattenable(mapper(value, this.counter++), false);
     } catch (error) { iteratorClose(iterator, 'throw', error); }
   }
