@@ -50,6 +50,8 @@ var IteratorProxy = createIteratorProxy(function () {
     if (this.done = !!result.done) return;
 
     try {
+      // @dependency: es.array.iterator
+      // @dependency: web.dom-collections.iterator
       this.inner = getIteratorFlattenable(mapper(result.value, this.counter++), false);
     } catch (error) { iteratorClose(iterator, 'throw', error); }
   }
