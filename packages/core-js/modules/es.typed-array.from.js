@@ -2,6 +2,7 @@
 var TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS = require('../internals/typed-array-constructors-require-wrappers');
 var ITERATOR_RESULT_WEBKIT_BUG = require('../internals/iterator-result-webkit-bug');
 var exportTypedArrayStatic = require('../internals/export-typed-array-static');
+// @dependency: es.string.iterator
 var typedArrayFrom = require('../internals/typed-array-from');
 
 var FORCED = TYPED_ARRAY_CONSTRUCTORS_REQUIRE_WRAPPERS || ITERATOR_RESULT_WEBKIT_BUG;
