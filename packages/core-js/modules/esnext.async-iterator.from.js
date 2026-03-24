@@ -12,6 +12,9 @@ var WrapAsyncIterator = require('../internals/async-iterator-wrap');
 // @dependency: esnext.async-iterator.constructor
 $({ target: 'AsyncIterator', stat: true, forced: true }, {
   from: function from(O) {
+    // @dependency: es.array.iterator
+    // @dependency: es.string.iterator
+    // @dependency: web.dom-collections.iterator
     var iteratorRecord = getAsyncIteratorFlattenable(typeof O == 'string' ? toObject(O) : O);
     return isPrototypeOf(AsyncIteratorPrototype, iteratorRecord.iterator)
       ? iteratorRecord.iterator
