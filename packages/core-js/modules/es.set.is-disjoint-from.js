@@ -22,7 +22,7 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
     var otherRec = getSetRecord(other);
     if (size(O) <= otherRec.size) return iterateSet(O, function (e) {
       if (otherRec.includes(e)) return false;
-    }, true) !== false;
+    }) !== false;
     var iterator = otherRec.getIterator();
     return iterateSimple(iterator, function (e) {
       if (has(O, e)) return iteratorClose(iterator.iterator, 'normal', false);
