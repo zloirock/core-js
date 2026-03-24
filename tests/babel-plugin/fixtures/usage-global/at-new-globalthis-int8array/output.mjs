@@ -3,7 +3,6 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.entries";
 import "core-js/modules/es.array.keys";
 import "core-js/modules/es.global-this";
-import "core-js/modules/es.string.iterator";
 import "core-js/modules/es.typed-array.int8-array";
 import "core-js/modules/es.typed-array.iterator";
 import "core-js/modules/es.typed-array.at";
