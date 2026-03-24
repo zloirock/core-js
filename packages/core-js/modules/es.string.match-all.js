@@ -69,6 +69,7 @@ var $RegExpStringIterator = createIteratorConstructor(function RegExpStringItera
 var $matchAll = function (string) {
   var R = anObject(this);
   var S = toString(string);
+  // @dependency: es.regexp.species
   var C = speciesConstructor(R, RegExp);
   var flags = toString(getRegExpFlags(R));
   var matcher = new C(C === RegExp ? R.source : R, flags);
