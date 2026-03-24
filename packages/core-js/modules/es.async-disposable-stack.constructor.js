@@ -125,6 +125,7 @@ defineBuiltInAccessor(AsyncDisposableStackPrototype, 'disposed', {
 });
 
 defineBuiltIn(AsyncDisposableStackPrototype, ASYNC_DISPOSE, AsyncDisposableStackPrototype.disposeAsync, { name: 'disposeAsync' });
+// @dependency: es.object.to-string
 defineBuiltIn(AsyncDisposableStackPrototype, TO_STRING_TAG, ASYNC_DISPOSABLE_STACK, { nonWritable: true });
 
 // https://github.com/tc39/proposal-explicit-resource-management/issues/256
