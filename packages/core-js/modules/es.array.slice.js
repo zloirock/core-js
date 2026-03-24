@@ -35,6 +35,7 @@ $({ target: 'Array', proto: true, forced: !HAS_SPECIES_SUPPORT }, {
       if (isConstructor(Constructor) && (Constructor === $Array || isArray(Constructor.prototype))) {
         Constructor = undefined;
       } else if (isObject(Constructor)) {
+        // @dependency: es.array.species
         Constructor = Constructor[SPECIES];
         if (Constructor === null) Constructor = undefined;
       }
