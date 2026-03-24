@@ -1,5 +1,6 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.array.slice";
+import "core-js/modules/es.array.species";
 import "core-js/modules/es.string.at";
 import "core-js/modules/es.string.sub";
 class Store {
