@@ -6,13 +6,13 @@ var aSet = require('../internals/a-set');
 var SetHelpers = require('../internals/set-helpers');
 var size = require('../internals/set-size');
 var getSetRecord = require('../internals/get-set-record');
-var iterateSet = require('../internals/set-iterate');
 var iterateSimple = require('../internals/iterate-simple');
 var setMethodAcceptSetLike = require('../internals/set-method-accept-set-like');
 
 var Set = SetHelpers.Set;
 var add = SetHelpers.add;
 var has = SetHelpers.has;
+var forEach = SetHelpers.forEach;
 
 var INCORRECT = !setMethodAcceptSetLike('intersection', function (result) {
   return result.size === 2 && result.has(1) && result.has(2);
@@ -34,7 +34,7 @@ $({ target: 'Set', proto: true, real: true, forced: INCORRECT }, {
         if (has(O, e)) add(result, e);
       });
     } else {
-      iterateSet(O, function (e) {
+      forEach(O, function (e) {
         if (otherRec.includes(e)) add(result, e);
       });
     }
