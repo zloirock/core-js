@@ -7,6 +7,7 @@ var aTypedArray = require('../internals/a-typed-array');
 var getTypedArrayConstructor = require('../internals/get-typed-array-constructor');
 var arrayFromConstructorAndList = require('../internals/array-from-constructor-and-list');
 
+// @dependency: es.typed-array.sort
 var sort = uncurryThis(Int8Array.prototype.sort);
 
 // `%TypedArray%.prototype.toSorted` method
