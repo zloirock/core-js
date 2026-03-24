@@ -24,7 +24,6 @@ var validateArgumentsLength = require('../internals/validate-arguments-length');
 var getRegExpFlags = require('../internals/regexp-get-flags');
 var MapHelpers = require('../internals/map-helpers');
 var SetHelpers = require('../internals/set-helpers');
-var setIterate = require('../internals/set-iterate');
 var detachTransferable = require('../internals/detach-transferable');
 var ERROR_STACK_INSTALLABLE = require('../internals/error-stack-installable');
 var PROPER_STRUCTURED_CLONE_TRANSFER = require('../internals/structured-clone-proper-transfer');
@@ -51,6 +50,7 @@ var mapSet = MapHelpers.set;
 var Set = SetHelpers.Set;
 var setAdd = SetHelpers.add;
 var setHas = SetHelpers.has;
+var setForEach = SetHelpers.forEach;
 var objectKeys = $Object.keys;
 var push = uncurryThis([].push);
 var thisBooleanValue = uncurryThis(true.valueOf);
@@ -505,7 +505,7 @@ var tryToTransfer = function (rawTransfer, map) {
 };
 
 var detachBuffers = function (buffers) {
-  setIterate(buffers, function (buffer) {
+  setForEach(buffers, function (buffer) {
     if (PROPER_STRUCTURED_CLONE_TRANSFER) {
       nativeStructuredClone(buffer, { transfer: [buffer] });
     } else if (isCallable(buffer.transfer)) {
