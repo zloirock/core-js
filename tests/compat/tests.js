@@ -1228,8 +1228,7 @@ GLOBAL.tests = {
       && RegExp(re2) !== re2
       && String(RegExp(re1, 'i')) === '/a/i'
       && new RegExp('a', 'y') // just check that it doesn't throw
-      && RegExp('.', 's').exec('\n')
-      && RegExp[Symbol.species];
+      && RegExp('.', 's').exec('\n');
   }],
   'es.regexp.escape': function () {
     return RegExp.escape('ab') === '\\x61b';
@@ -1288,6 +1287,9 @@ GLOBAL.tests = {
     var result = Object.getOwnPropertyDescriptor(RegExp.prototype, 'flags').get.call(O);
 
     return result === expected && calls === expected;
+  },
+  'es.regexp.species': function () {
+    return RegExp[Symbol.species] === RegExp;
   },
   'es.regexp.sticky': function () {
     return new RegExp('a', 'y').sticky === true;

@@ -1608,6 +1608,13 @@ export const data = {
     hermes: '0.4',
     safari: '11.1',
   },
+  'es.regexp.species': {
+    chrome: '51',
+    edge: '13',
+    firefox: '49',
+    rhino: '1.7.13',
+    safari: '10.0',
+  },
   'es.regexp.sticky': {
     chrome: '49',
     edge: '13',

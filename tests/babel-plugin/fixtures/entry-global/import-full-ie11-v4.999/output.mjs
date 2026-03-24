@@ -184,6 +184,7 @@ import "core-js/modules/es.regexp.escape";
 import "core-js/modules/es.regexp.dot-all";
 import "core-js/modules/es.regexp.exec";
 import "core-js/modules/es.regexp.flags";
+import "core-js/modules/es.regexp.species";
 import "core-js/modules/es.regexp.sticky";
 import "core-js/modules/es.regexp.test";
 import "core-js/modules/es.regexp.to-string";
