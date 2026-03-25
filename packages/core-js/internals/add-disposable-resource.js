@@ -50,7 +50,7 @@ var createDisposableResource = function (V, hint, method) {
 module.exports = function (disposable, V, hint, method) {
   var resource;
   if (arguments.length < 4) {
-    // When `V`` is either `null` or `undefined` and hint is `async-dispose`,
+    // When `V` is either `null` or `undefined` and hint is `async-dispose`,
     // we record that the resource was evaluated to ensure we will still perform an `Await` when resources are later disposed.
     if (isNullOrUndefined(V) && hint === 'sync-dispose') return;
     resource = createDisposableResource(V, hint);
