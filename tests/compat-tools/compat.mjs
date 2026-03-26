@@ -53,7 +53,6 @@ deepEqual(compat({
     'es.reflect.to-string-tag': { firefox: '27' },
     'es.array.iterator': { firefox: '27' },
     'es.array.at': { firefox: '27' },
-    'es.array.iterator': { firefox: '27' },
     'es.math.cbrt': { firefox: '27' },
     'es.math.clz32': { firefox: '27' },
     'es.math.expm1': { firefox: '27' },
