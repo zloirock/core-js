@@ -1,15 +1,15 @@
 {
-  "name": "@core-js/babel-plugin",
+  "name": "@core-js/polyfill-provider",
   "version": "4.0.0-alpha.1",
   "publishConfig": {
     "access": "public"
   },
   "type": "module",
-  "description": "core-js babel plugin",
+  "description": "core-js polyfill provider - shared logic for polyfill injection plugins",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zloirock/core-js.git",
-    "directory": "packages/core-js-babel-plugin"
+    "directory": "packages/core-js-polyfill-provider"
   },
   "homepage": "https://core-js.io",
   "bugs": {
@@ -27,20 +27,14 @@
   },
   "sideEffects": false,
   "main": "index.js",
-  "types": "index.d.ts",
   "exports": {
-    ".": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
-    },
-    "./index.js": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
-    }
+    ".": "./index.js",
+    "./index.js": "./index.js",
+    "./resolve-node-type": "./resolve-node-type.js",
+    "./resolve-node-type.js": "./resolve-node-type.js"
   },
   "dependencies": {
-    "@babel/helper-define-polyfill-provider": "^0.6.8",
-    "@core-js/polyfill-provider": "4.0.0-alpha.1"
+    "@core-js/compat": "4.0.0-alpha.1"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

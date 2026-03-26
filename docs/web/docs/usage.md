@@ -73,9 +73,11 @@ Array(10)::fill(0).map((a, b) => b * b)::findIndex(it => it && !(it % 8)); // =>
 > [!WARNING]
 > The bind operator is an early-stage ECMAScript proposal and usage of this syntax can be dangerous.
 
-## Babel
+## Automatic polyfill injection
 
-`core-js` is integrated with `babel` and is the base for polyfilling-related `babel` features. The recommended way is [`@core-js/babel-plugin`](#corejs-babel-plugin).
+`core-js` provides plugins for automatic polyfill injection that analyze your code and add only the polyfills needed for your target environments:
+- [`@core-js/babel-plugin`](#corejs-babel-plugin) - for projects using Babel
+- [`@core-js/unplugin`](#corejs-unplugin) - for Vite, Webpack, Rollup, Rolldown, esbuild, and Rspack (no Babel required)
 
 ## `@core-js/babel-plugin`
 
@@ -103,7 +105,7 @@ import 'core-js/modules/es.regexp.escape';
 ```
 It works for all entry points of global version of `core-js` and their combinations.
 
-- `method: 'usage-global'` automatically adds to the top of each file import of polyfills for features used in this file and not supported by target environments — no manual imports required. So, for example,
+- `method: 'usage-global'` automatically adds to the top of each file import of polyfills for features used in this file and not supported by target environments - no manual imports required. So, for example,
 ```ts
 const p = Promise.allSettled([f1, f2]);
 'test'.at(-1);
@@ -151,10 +153,19 @@ Configuration example:
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
 | `version` | `string` | `'4.0'` | Used `core-js` version. It's recommended to specify the used minor version like `'4.1'`. Special values: `'node_modules'` reads the version from the installed `core-js` package, `'package.json'` reads the version range from the project's `package.json` dependencies |
-| `targets` | `string` \| `object` | all browsers | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
+| `targets` | `string` \| `object` | from browserslist config | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
-| `pkg` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
-| `pkgs` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
+| `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
+| `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
+| `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills by name or pattern |
+| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills by name or pattern |
+| `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
+| `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
+| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from `sourceType` |
+| `configPath` | `string` | `'.'` | Directory to search for a browserslist config |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Ignore browserslist config files |
+| `absoluteImports` | `boolean` \| `string` | `false` | Use absolute paths for injected imports |
+| `debug` | `boolean` | `false` | Print injected polyfills to console |
 
 ### Disable comments
 
@@ -181,6 +192,94 @@ Both `//` and `/* */` comment styles are supported. You can add a reason after `
 // core-js-disable-next-line -- custom includes implementation
 arr.includes(x);
 ```
+
+## `@core-js/unplugin`
+
+[`@core-js/unplugin`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-unplugin) is a universal plugin for automatic injection of `core-js` polyfills that works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, and **Rspack** via [unplugin](https://github.com/unjs/unplugin). An alternative to `@core-js/babel-plugin` for projects that don't use Babel.
+
+It supports the same three methods (`entry-global`, `usage-global`, `usage-pure`), the same options, and the same disable comments as `@core-js/babel-plugin`. Uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for fast parsing with native TypeScript support.
+
+```sh
+npm install @core-js/unplugin
+```
+
+### Vite
+```ts
+// vite.config.js
+import coreJS from '@core-js/unplugin/vite';
+
+export default {
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: '4.0',
+    targets: { chrome: 80 },
+  })],
+};
+```
+
+### Webpack
+```ts
+// webpack.config.js
+const coreJS = require('@core-js/unplugin/webpack');
+
+module.exports = {
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: '4.0',
+    targets: { chrome: 80 },
+  })],
+};
+```
+
+### Rollup / Rolldown
+```ts
+import coreJS from '@core-js/unplugin/rollup'; // or '@core-js/unplugin/rolldown'
+
+export default {
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: '4.0',
+    targets: { chrome: 80 },
+  })],
+};
+```
+
+### esbuild
+```ts
+import * as esbuild from 'esbuild';
+import coreJS from '@core-js/unplugin/esbuild';
+
+await esbuild.build({
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: '4.0',
+    targets: { chrome: 80 },
+  })],
+});
+```
+
+### `@core-js/unplugin` options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
+| `version` | `string` | `'4.0'` | Used `core-js` version |
+| `targets` | `string` \| `string[]` \| `object` | all engines | Browserslist targets |
+| `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
+| `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths |
+| `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
+| `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills |
+| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills |
+| `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
+| `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
+| `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type |
+| `configPath` | `string` | `undefined` | Directory to search for a browserslist config |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Ignore browserslist config files |
+| `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
+| `debug` | `boolean` | `false` | Print debug output |
+
+> [!NOTE]
+> `@core-js/unplugin` does not support Flow syntax (oxc-parser limitation).
 
 ## `@babel/preset-env`
 
