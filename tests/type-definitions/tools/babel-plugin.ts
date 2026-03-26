@@ -44,6 +44,8 @@ plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: true }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: false }, '/path');
 plugin({}, { method: 'usage-global', shippedProposals: true }, '/path');
 plugin({}, { method: 'usage-global', shippedProposals: false }, '/path');
+plugin({}, { method: 'usage-global', importStyle: 'import' }, '/path');
+plugin({}, { method: 'usage-global', importStyle: 'require' }, '/path');
 
 // all options combined
 plugin({}, {
@@ -66,6 +68,7 @@ plugin({}, {
   configPath: '.',
   ignoreBrowserslistConfig: false,
   shippedProposals: true,
+  importStyle: 'import',
 }, '/path');
 
 // all targets
@@ -127,3 +130,5 @@ plugin({}, { method: 'usage-global', configPath: true }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: 'yes' }, '/path');
 // @ts-expect-error — shippedProposals must be a boolean
 plugin({}, { method: 'usage-global', shippedProposals: 'yes' }, '/path');
+// @ts-expect-error — importStyle must be 'import' or 'require'
+plugin({}, { method: 'usage-global', importStyle: 'esm' }, '/path');

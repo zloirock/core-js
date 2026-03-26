@@ -58,7 +58,6 @@ deepEqual(compat({
     'es.reflect.to-string-tag': { firefox: '27' },
     'es.array.iterator': { firefox: '27' },
     'es.array.at': { firefox: '27' },
-    'es.array.iterator': { firefox: '27' },
     'es.math.acosh': { firefox: '27' },
     'es.math.asinh': { firefox: '27' },
     'es.math.atanh': { firefox: '27' },
