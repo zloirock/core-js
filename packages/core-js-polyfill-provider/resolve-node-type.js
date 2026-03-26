@@ -78,6 +78,8 @@ const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'AsyncGenerator',
 ]);
 
+/* eslint-disable @stylistic/indent, max-statements -- factory wraps ~2900 lines of type inference engine */
+function createResolveNodeType(babelNodeType, t) {
 function $Primitive(type) {
   this.type = type;
   this.constructor = null;
@@ -101,8 +103,8 @@ function primitiveTypeOf(type) {
 }
 
 function literalKeyValue(node) {
-  if (node?.type === 'StringLiteral') return node.value;
-  if (node?.type === 'NumericLiteral') return String(node.value);
+  if (babelNodeType(node) === 'StringLiteral') return node.value;
+  if (babelNodeType(node) === 'NumericLiteral') return String(node.value);
   return null;
 }
 
@@ -116,7 +118,7 @@ function keyMatchesName(key, name) {
 }
 
 function isMemberLike(path) {
-  return path.isMemberExpression() || path.isOptionalMemberExpression();
+  return t.isMemberExpression(path.node) || t.isOptionalMemberExpression(path.node);
 }
 
 // resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
@@ -134,7 +136,8 @@ function resolveRuntimeExpression(path) {
       || type === 'TSNonNullExpression'
       || type === 'TSInstantiationExpression'
       || type === 'TypeCastExpression'
-      || type === 'ParenthesizedExpression') {
+      || type === 'ParenthesizedExpression'
+      || type === 'ChainExpression') {
       path = path.get('expression');
     } else break;
   }
@@ -193,7 +196,7 @@ function followTypeAliasChain(node, scope) {
     if (!isTypeAlias(decl)) break;
     // accumulate type parameter substitutions for generic aliases
     const declParams = decl.typeParameters?.params;
-    const usageArgs = node.typeParameters?.params;
+    const usageArgs = getTypeArgs(node)?.params;
     if (declParams?.length) {
       const newSubst = new Map(subst);
       for (let i = 0; i < declParams.length; i++) {
@@ -205,7 +208,7 @@ function followTypeAliasChain(node, scope) {
           const argName = typeRefName(arg);
           if (argName && subst.has(argName)) arg = subst.get(argName);
         }
-        newSubst.set(declParams[i].name, arg);
+        newSubst.set(typeParamName(declParams[i]), arg);
       }
       subst = newSubst;
     }
@@ -231,7 +234,7 @@ function constantBindingPath(name, scope) {
 function resolveTypeofBinding(name, scope) {
   const bindingPath = constantBindingPath(name, scope);
   if (!bindingPath) return null;
-  if (bindingPath.isVariableDeclarator()) {
+  if (t.isVariableDeclarator(bindingPath.node)) {
     const annotation = bindingPath.node.id?.typeAnnotation;
     if (annotation) return resolveTypeAnnotation(annotation, scope);
     const init = bindingPath.get('init');
@@ -240,7 +243,7 @@ function resolveTypeofBinding(name, scope) {
     const annotation = findBindingAnnotation(bindingPath);
     if (annotation) return resolveTypeAnnotation(annotation, scope);
   }
-  if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return new $Object('Function');
+  if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return new $Object('Function');
   return null;
 }
 
@@ -248,18 +251,18 @@ function resolveTypeofBinding(name, scope) {
 function resolveTypeofQualifiedMember(objectName, memberName, scope) {
   const bindingPath = constantBindingPath(objectName, scope);
   if (!bindingPath) return null;
-  if (bindingPath.isVariableDeclarator()) {
+  if (t.isVariableDeclarator(bindingPath.node)) {
     const init = bindingPath.get('init');
     if (init.node) {
       const resolved = resolveRuntimeExpression(init);
-      if (resolved.isObjectExpression()) {
+      if (t.isObjectExpression(resolved.node)) {
         const result = resolveObjectMember(resolved, memberName);
         if (result) return result;
       }
-      if (resolved.isClass()) return resolveClassMember(resolved, memberName, true);
+      if (t.isClass(resolved.node)) return resolveClassMember(resolved, memberName, true);
     }
   }
-  if (bindingPath.isClassDeclaration()) return resolveClassMember(bindingPath, memberName, true);
+  if (t.isClassDeclaration(bindingPath.node)) return resolveClassMember(bindingPath, memberName, true);
   const annotation = findBindingAnnotation(bindingPath);
   if (annotation) return resolveAnnotatedMember(annotation, memberName, scope);
   return null;
@@ -281,14 +284,14 @@ function resolveTypeQuery(node, scope) {
 // string enum -> $Primitive('string'), numeric enum -> $Primitive('number'), mixed/empty -> null
 function resolveEnumMemberKind(initializer) {
   if (!initializer) return 'number'; // implicit numeric
-  const { type } = initializer;
-  if (type === 'StringLiteral') return 'string';
-  if (type === 'NumericLiteral' || type === 'UnaryExpression') return 'number';
+  if (babelNodeType(initializer) === 'StringLiteral') return 'string';
+  if (babelNodeType(initializer) === 'NumericLiteral' || initializer.type === 'UnaryExpression') return 'number';
   return null; // template literal, expression, etc.
 }
 
 function resolveEnumType(declaration) {
-  const { members } = declaration;
+  // ESTree (oxc-parser): members under body.members; Babel: directly on declaration
+  const members = declaration.members ?? declaration.body?.members;
   if (!members?.length) return null;
   let kind = null;
   for (const member of members) {
@@ -321,7 +324,11 @@ function findTypeDeclaration(name, scope) {
   if (!scope) return null;
   let currentScope = scope;
   while (currentScope) {
-    const { block } = currentScope;
+    const block = currentScope.block ?? currentScope.path?.node;
+    if (!block) {
+      currentScope = currentScope.parent;
+      continue;
+    }
     const body = block.type === 'Program' ? block.body : block.body?.body;
     const result = findInStatements(name, body);
     if (result) return result;
@@ -330,12 +337,22 @@ function findTypeDeclaration(name, scope) {
   return null;
 }
 
+// ESTree (oxc-parser): TSTypeParameter.name is Identifier node; Babel: it's a string
+function typeParamName(param) {
+  return typeof param.name === 'string' ? param.name : param.name?.name;
+}
+
+// ESTree (oxc-parser TS-ESTree): uses typeArguments; Babel: uses typeParameters
+function getTypeArgs(node) {
+  return node?.typeParameters ?? node?.typeArguments;
+}
+
 function findTypeParameter(name, scope) {
   let currentScope = scope;
   while (currentScope) {
-    const params = currentScope.block.typeParameters?.params;
+    const params = (currentScope.block ?? currentScope.path?.node)?.typeParameters?.params;
     if (params) for (const param of params) {
-      if (param.name === name) return {
+      if (typeParamName(param) === name) return {
         constraint: param.constraint ?? param.bound,
         default: param.default,
         scope: currentScope,
@@ -355,7 +372,7 @@ function resolveKnownConstructor(name) {
 // e.g. for `type Foo<T> = Array<T>` used as `Foo<string>`, maps { T: $Primitive('string') }
 function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
   const declParams = decl.typeParameters?.params;
-  const callArgs = node?.typeParameters?.params;
+  const callArgs = getTypeArgs(node)?.params;
   if (!declParams?.length || !callArgs?.length) return typeParamMap;
   const base = typeParamMap || new Map();
   const localMap = new Map(base);
@@ -365,7 +382,7 @@ function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
       ? substituteTypeParams(callArgs[i], typeParamMap, scope, depth + 1)
       : resolveTypeAnnotation(callArgs[i], scope, depth + 1);
     if (resolved) {
-      localMap.set(declParams[i].name, resolved);
+      localMap.set(typeParamName(declParams[i]), resolved);
       extended = true;
     }
   }
@@ -376,7 +393,7 @@ function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
 // e.g. for `Container` referencing `interface Container<T = number[]>`, returns Map { T -> $Object('Array', ...) }
 function buildDefaultTypeParamMap(annotation, scope) {
   const name = typeRefName(annotation);
-  if (!name || annotation.typeParameters?.params?.length) return null;
+  if (!name || getTypeArgs(annotation)?.params?.length) return null;
   const declaration = findTypeDeclaration(name, scope);
   if (!declaration) return null;
   const declParams = declaration.typeParameters?.params;
@@ -387,7 +404,7 @@ function buildDefaultTypeParamMap(annotation, scope) {
     const resolved = resolveTypeAnnotation(param.default, scope);
     if (resolved) {
       if (!map) map = new Map();
-      map.set(param.name, resolved);
+      map.set(typeParamName(param), resolved);
     }
   }
   return map;
@@ -457,7 +474,7 @@ function getTypeMembers(objectType, scope, depth = 0) {
     for (const parent of parents) {
       const expr = extendsId(parent);
       const parentRef = expr.type === 'Identifier'
-        ? { type: 'TSTypeReference', typeName: expr, typeParameters: parent.typeParameters }
+        ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
         : expr;
       const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
       if (parentMembers) for (const m of parentMembers) all.push(m);
@@ -531,7 +548,7 @@ function findTupleElement(objectType, index, scope) {
   // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number
   const element = index < elements.length ? elements[index]
     // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
-    : isTupleRestElement(elements[elements.length - 1]) ? elements[elements.length - 1] : null;
+    : isTupleRestElement(elements.at(-1)) ? elements.at(-1) : null;
   if (!element) return null;
   const memberNode = isTupleRestElement(element)
     ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
@@ -566,7 +583,7 @@ function resolveExtractExclude(first, second, scope, depth, keep) {
     result = commonType(result, resolved);
     if (!result) return null;
   }
-  // all members excluded → never (not null/unknown)
+  // all members excluded -> never (not null/unknown)
   if (!anyKept) return new $Primitive('never');
   return result;
 }
@@ -574,23 +591,24 @@ function resolveExtractExclude(first, second, scope, depth, keep) {
 // resolve a member of an object/class binding to its runtime value path
 function resolveMemberValuePath(bindingPath, name) {
   let containerPath;
-  if (bindingPath.isVariableDeclarator()) {
+  if (t.isVariableDeclarator(bindingPath.node)) {
     containerPath = resolveRuntimeExpression(bindingPath.get('init'));
-  } else if (bindingPath.isClassDeclaration()) {
+  } else if (t.isClassDeclaration(bindingPath.node)) {
     containerPath = bindingPath;
   }
   if (!containerPath?.node) return null;
-  if (containerPath.isObjectExpression()) {
+  if (t.isObjectExpression(containerPath.node)) {
     const property = findObjectMember(containerPath, name);
     if (!property) return null;
-    if (property.isObjectProperty()) return resolveRuntimeExpression(property.get('value'));
-    if (property.isObjectMethod()) return property;
+    if (t.isObjectProperty(property.node)) return resolveRuntimeExpression(property.get('value'));
+    // ESTree Property{method:true} wraps FunctionExpression in .value
+    if (t.isObjectMethod(property.node)) return property.get('value')?.node ? property.get('value') : property;
   }
-  if (containerPath.isClass()) {
+  if (t.isClass(containerPath.node)) {
     const member = findClassMember(containerPath, name, true);
     if (!member) return null;
-    if (member.isClassMethod()) return member;
-    if (member.isClassProperty() || member.isClassAccessorProperty()) {
+    if (t.isClassMethod(member.node)) return member.get('value')?.node ? member.get('value') : member;
+    if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
       const value = member.get('value');
       return value.node ? resolveRuntimeExpression(value) : null;
     }
@@ -611,8 +629,8 @@ function resolveTypeQueryBinding(param, scope) {
   if (exprName?.type !== 'Identifier') return null;
   const bindingPath = constantBindingPath(exprName.name, scope);
   if (!bindingPath) return null;
-  if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return bindingPath;
-  if (bindingPath.isVariableDeclarator()) {
+  if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return bindingPath;
+  if (t.isVariableDeclarator(bindingPath.node)) {
     const init = bindingPath.get('init');
     return init.node ? resolveRuntimeExpression(init) : null;
   }
@@ -621,7 +639,7 @@ function resolveTypeQueryBinding(param, scope) {
 
 function resolveReturnTypeFromTypeQuery(param, scope) {
   const resolved = resolveTypeQueryBinding(param, scope);
-  return resolved?.isFunction() ? resolveReturnType(resolved) : null;
+  return t.isFunction(resolved?.node) ? resolveReturnType(resolved) : null;
 }
 
 // resolve inner type from the first type parameter for container types
@@ -630,7 +648,7 @@ function resolveReturnTypeFromTypeQuery(param, scope) {
 // e.g. Promise<number[]> -> $Object('Promise', $Object('Array', ...))
 function resolveKnownContainerType(name, base, node, innerResolver) {
   if (!base) return null;
-  const params = node.typeParameters?.params;
+  const params = getTypeArgs(node)?.params;
   if (params?.[0] && (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise')) {
     const inner = innerResolver(params[0]);
     if (inner && !isNullableOrNever(inner)) return new $Object(base.constructor, inner);
@@ -688,37 +706,44 @@ function resolveNamedType(name, node, scope, depth) {
     // well-known utility types - transparent wrappers resolving type parameter
     // Flow: $Exact
     case 'NoInfer':
-    case '$Exact':
-      return node.typeParameters?.params[0] ? resolveTypeAnnotation(node.typeParameters.params[0], scope, depth + 1) : null;
+    case '$Exact': {
+      const arg = getTypeArgs(node)?.params[0];
+      return arg ? resolveTypeAnnotation(arg, scope, depth + 1) : null;
+    }
     // well-known utility types - resolve type parameter, strip nullable/never
     // Flow: $NonMaybeType
     case 'NonNullable':
-    case '$NonMaybeType':
-      return node.typeParameters?.params[0] ? resolveNonNullableAnnotation(node.typeParameters.params[0], scope, depth) : null;
+    case '$NonMaybeType': {
+      const arg = getTypeArgs(node)?.params[0];
+      return arg ? resolveNonNullableAnnotation(arg, scope, depth) : null;
+    }
     case 'Awaited': {
-      const param = node.typeParameters?.params[0];
+      const param = getTypeArgs(node)?.params[0];
       if (!param) return null;
       return unwrapPromise(resolveTypeAnnotation(param, scope, depth + 1));
     }
     // well-known utility types - resolve via function return type
-    case 'ReturnType':
-      return node.typeParameters?.params[0] ? resolveReturnTypeFromTypeQuery(node.typeParameters.params[0], scope) : null;
+    case 'ReturnType': {
+      const arg = getTypeArgs(node)?.params[0];
+      return arg ? resolveReturnTypeFromTypeQuery(arg, scope) : null;
+    }
     case 'InstanceType': {
-      const param = node.typeParameters?.params[0];
+      const param = getTypeArgs(node)?.params[0];
       if (!param) return null;
       const resolved = resolveTypeQueryBinding(param, scope);
-      if (resolved?.isClass()) return resolveClassInheritance(resolved) || new $Object('Object');
+      if (t.isClass(resolved?.node)) return resolveClassInheritance(resolved) || new $Object('Object');
       return null;
     }
     case 'Extract':
     case 'Exclude': {
-      const params = node.typeParameters?.params;
+      const params = getTypeArgs(node)?.params;
       return params?.length >= 2 ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract') : null;
     }
     // Flow $ReadOnlyArray<T> -> Array with inner type (equivalent to ReadonlyArray<T>)
     case '$ReadOnlyArray': {
-      const inner = node.typeParameters?.params[0]
-        ? resolveNonNullableAnnotation(node.typeParameters.params[0], scope, depth) : null;
+      const typeArgs = getTypeArgs(node);
+      const inner = typeArgs?.params[0]
+        ? resolveNonNullableAnnotation(typeArgs.params[0], scope, depth) : null;
       return new $Object('Array', inner);
     }
     // Flow utility types (conservative: unknown)
@@ -736,7 +761,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
   if (depth > MAX_DEPTH) return null;
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
-  switch (node.type) {
+  switch (babelNodeType(node)) {
     // TS primitive keywords
     case 'TSStringKeyword':
     case 'StringTypeAnnotation':
@@ -766,7 +791,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     // TS `object` keyword = any non-primitive, too broad to narrow polyfills
     case 'TSObjectKeyword':
       return new $Object(null);
-    // TS `{}` without members = any non-nullish (includes primitives) — treat as unknown
+    // TS `{}` without members = any non-nullish (includes primitives) - treat as unknown
     case 'TSTypeLiteral':
     case 'TSMappedType':
     case 'ObjectTypeAnnotation':
@@ -843,7 +868,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
     }
     // TS literal types: 'hello', 42, true, etc.
     case 'TSLiteralType':
-      if (node.literal) switch (node.literal.type) {
+      if (node.literal) switch (babelNodeType(node.literal)) {
         case 'StringLiteral':
         case 'TemplateLiteral':
           return new $Primitive('string');
@@ -854,7 +879,7 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
         case 'BigIntLiteral':
           return new $Primitive('bigint');
         case 'UnaryExpression':
-          return new $Primitive(node.literal.argument?.type === 'BigIntLiteral' ? 'bigint' : 'number');
+          return new $Primitive(babelNodeType(node.literal.argument) === 'BigIntLiteral' ? 'bigint' : 'number');
       }
       return null;
     // Flow literal types: 'hello', 42, true
@@ -882,8 +907,8 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
       if (node.indexType?.type !== 'TSLiteralType') return null;
       const { literal } = node.indexType;
       let member;
-      if (literal?.type === 'StringLiteral') member = findTypeMember(node.objectType, literal.value, scope);
-      else if (literal?.type === 'NumericLiteral') member = findTupleElement(node.objectType, literal.value, scope);
+      if (babelNodeType(literal) === 'StringLiteral') member = findTypeMember(node.objectType, literal.value, scope);
+      else if (babelNodeType(literal) === 'NumericLiteral') member = findTupleElement(node.objectType, literal.value, scope);
       return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
     }
   }
@@ -892,11 +917,12 @@ function resolveTypeAnnotation(node, scope, depth = 0) {
 
 function resolvePath(path) {
   let depth = MAX_DEPTH;
-  while (depth-- && path.isIdentifier()) {
-    const binding = path.scope.getBinding(path.node.name);
-    if (!binding || !binding.constant) break;
+  while (depth-- && t.isIdentifier(path.node)) {
+    if (!path.scope) break;
+    const binding = path.scope?.getBinding(path.node.name);
+    if (!binding || binding.constantViolations?.length) break;
     const { path: bindingPath } = binding;
-    if (bindingPath.isVariableDeclarator()) {
+    if (t.isVariableDeclarator(bindingPath.node)) {
       // don't follow destructured bindings - the init is the whole collection, not the individual element
       const { id } = bindingPath.node;
       if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') break;
@@ -906,7 +932,7 @@ function resolvePath(path) {
         continue;
       }
     }
-    if (bindingPath.isFunctionDeclaration() || bindingPath.isClassDeclaration()) return bindingPath;
+    if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return bindingPath;
     break;
   }
   return path;
@@ -1035,7 +1061,7 @@ function resolveDesugarDefaultTernary(path) {
 
 function isVoidZero(node) {
   return node.type === 'UnaryExpression' && node.operator === 'void'
-    && node.argument.type === 'NumericLiteral' && node.argument.value === 0;
+    && babelNodeType(node.argument) === 'NumericLiteral' && node.argument.value === 0;
 }
 
 function resolveBinaryOperatorType(operator, leftPath, rightPath) {
@@ -1077,29 +1103,29 @@ function isGlobalThis(path) {
   let current = path;
   while (current = current.parentPath) {
     // non-arrow function rebinds `this` - not global
-    if (current.isFunction() && !current.isArrowFunctionExpression()) return false;
+    if (t.isFunction(current.node) && !t.isArrowFunctionExpression(current.node)) return false;
     // class body rebinds `this` for property initializers and static blocks
-    if (current.isClassBody()) return false;
-    if (current.isProgram()) return true;
+    if (t.isClassBody(current.node)) return false;
+    if (t.isProgram(current.node)) return true;
   }
   return false;
 }
 
 function isGlobalProxy(objectPath) {
-  if (objectPath.isIdentifier()) {
-    return POSSIBLE_GLOBAL_PROXIES.has(objectPath.node.name) && !objectPath.scope.getBinding(objectPath.node.name);
+  if (t.isIdentifier(objectPath.node)) {
+    return POSSIBLE_GLOBAL_PROXIES.has(objectPath.node.name) && !objectPath.scope?.getBinding(objectPath.node.name);
   }
   // top-level `this` (not inside any non-arrow function or class) is a global proxy
-  return objectPath.isThisExpression() && isGlobalThis(objectPath);
+  return t.isThisExpression(objectPath.node) && isGlobalThis(objectPath);
 }
 
 function resolveGlobalName(path) {
-  if (path.isIdentifier() && !path.scope.getBinding(path.node.name)) return path.node.name;
+  if (t.isIdentifier(path.node) && !path.scope?.getBinding(path.node.name)) return path.node.name;
   if (!isMemberLike(path) || path.node.computed) return null;
   const object = path.get('object');
   if (!isGlobalProxy(object)) return null;
   const property = path.get('property');
-  return property.isIdentifier() ? property.node.name : null;
+  return t.isIdentifier(property.node) ? property.node.name : null;
 }
 
 function resolveClassInheritance(classPath) {
@@ -1111,7 +1137,7 @@ function resolveClassInheritance(classPath) {
     const name = resolveGlobalName(superPath);
     if (name) return resolveKnownConstructor(name);
     current = resolveRuntimeExpression(superPath);
-    if (!current.isClass()) return null;
+    if (!t.isClass(current.node)) return null;
   }
   return null;
 }
@@ -1123,7 +1149,7 @@ function generatorTypeParams(annotation, scope) {
   const { node: ref, subst } = followTypeAliasChain(annotation, scope);
   const refName = typeRefName(ref);
   if (refName !== 'Generator' && refName !== 'AsyncGenerator') return null;
-  const params = ref.typeParameters?.params;
+  const params = getTypeArgs(ref)?.params;
   if (!params?.length) return null;
   if (!subst) return params;
   return params.map(p => applyAliasSubst(p, subst));
@@ -1141,9 +1167,9 @@ function resolveGeneratorTypeParam(exprPath, paramIndex) {
   }
   // call expression: resolve callee function's return type annotation
   const resolved = resolveRuntimeExpression(exprPath);
-  if (resolved.isCallExpression() || resolved.isNewExpression()) {
+  if (t.isCallExpression(resolved.node) || t.isNewExpression(resolved.node)) {
     const callee = resolveRuntimeExpression(resolved.get('callee'));
-    if (callee.isFunction() && callee.node.returnType) {
+    if (t.isFunction(callee.node) && callee.node.returnType) {
       const params = generatorTypeParams(unwrapTypeAnnotation(callee.node.returnType), callee.scope);
       if (params?.[paramIndex]) return resolveTypeAnnotation(params[paramIndex], callee.scope);
     }
@@ -1154,7 +1180,10 @@ function resolveGeneratorTypeParam(exprPath, paramIndex) {
 function resolveNodeTypeExpression(path) {
   path = resolvePath(path);
 
-  switch (path.node.type) {
+  switch (babelNodeType(path.node)) {
+    // ESTree wraps optional chains in ChainExpression, preserves parentheses - unwrap
+    case 'ChainExpression':
+      return resolveNodeType(path.get('expression'));
     case 'Identifier':
       return resolveKnownGlobalReference(path);
     case 'NullLiteral':
@@ -1193,7 +1222,7 @@ function resolveNodeTypeExpression(path) {
       }
       {
         const resolved = resolveRuntimeExpression(callee);
-        if (resolved.isClass()) return resolveClassInheritance(resolved) || new $Object('Object');
+        if (t.isClass(resolved.node)) return resolveClassInheritance(resolved) || new $Object('Object');
       }
       return new $Object(null);
     }
@@ -1215,7 +1244,7 @@ function resolveNodeTypeExpression(path) {
         // known global function: parseInt(), parseFloat(), etc.
         if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
       }
-      if (callee.isImport()) return new $Object('Promise');
+      if (t.isImport(callee.node)) return new $Object('Promise');
       return resolveCallReturnType(callee);
     }
     // tagged templates are semantically calls: String.raw`foo` ≡ String.raw(…)
@@ -1260,7 +1289,7 @@ function resolveNodeTypeExpression(path) {
       }
     case 'SequenceExpression': {
       const expressions = path.get('expressions');
-      if (expressions.length) return resolveNodeType(expressions[expressions.length - 1]);
+      if (expressions.length) return resolveNodeType(expressions.at(-1));
       return null;
     }
     case 'AssignmentExpression':
@@ -1305,7 +1334,7 @@ function resolveNodeTypeExpression(path) {
       if (annotationInfo) {
         const annotation = unwrapTypeAnnotation(annotationInfo.annotation);
         if (annotation && typeRefName(annotation) === 'Promise') {
-          const inner = annotation.typeParameters?.params[0];
+          const inner = getTypeArgs(annotation)?.params[0];
           if (inner) return resolveTypeAnnotation(inner, annotationInfo.scope);
         }
       }
@@ -1352,9 +1381,9 @@ function resolveBodyExpr(path, fnPath, callPath) {
   if (type) return type;
   if (!callPath) return null;
   const resolved = resolvePath(path);
-  if (!resolved.isIdentifier()) return null;
-  const binding = resolved.scope.getBinding(resolved.node.name);
-  if (!binding || !binding.constant) return null;
+  if (!t.isIdentifier(resolved.node)) return null;
+  const binding = resolved.scope?.getBinding(resolved.node.name);
+  if (!binding || binding.constantViolations?.length) return null;
   return resolveParamType(binding, fnPath, callPath);
 }
 
@@ -1375,7 +1404,7 @@ function collectReturnPaths(blockPath) {
   const getChildren = (path, key) => Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
   const collect = path => {
     if (!path.node || FUNCTION_NODE_TYPES.has(path.node.type)) return [];
-    if (path.isReturnStatement()) return [path];
+    if (t.isReturnStatement(path.node)) return [path];
     const { node } = path;
     // TryStatement: if finally has returns, they override try/catch returns
     if (node.type === 'TryStatement') {
@@ -1402,7 +1431,7 @@ function collectReturnPaths(blockPath) {
 function resolveBodyReturnType(fnPath, callPath) {
   const body = fnPath.get('body');
   // arrow with expression body: () => [1, 2, 3]
-  if (!body.isBlockStatement()) return resolveBodyExpr(body, fnPath, callPath);
+  if (!t.isBlockStatement(body.node)) return resolveBodyExpr(body, fnPath, callPath);
   // block body: collect return statements, skip nested functions
   let result = null;
   for (const returnPath of collectReturnPaths(body)) {
@@ -1424,12 +1453,12 @@ function hasTypeParamReference(node, typeParamNames, depth) {
   if (depth > MAX_DEPTH) return false;
   node = unwrapTypeAnnotation(node);
   if (!node) return false;
-  switch (node.type) {
+  switch (babelNodeType(node)) {
     case 'TSTypeReference':
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
       if (name && typeParamNames.has(name)) return true;
-      const params = node.typeParameters?.params;
+      const params = getTypeArgs(node)?.params;
       if (params) for (const param of params) {
         if (hasTypeParamReference(param, typeParamNames, depth + 1)) return true;
       }
@@ -1489,7 +1518,7 @@ function innerTypeParamName(annotation, refName) {
   }
   // Container<T>: Set<T>, Promise<T>, Iterator<T>, Array<T>, ReadonlyArray<T>, etc.
   if (refName && (SINGLE_ELEMENT_COLLECTIONS.has(refName) || refName === 'Promise')) {
-    const typeArgs = annotation.typeParameters?.params;
+    const typeArgs = getTypeArgs(annotation)?.params;
     if (typeArgs?.length >= 1) return typeRefName(typeArgs[0]);
   }
   return null;
@@ -1499,12 +1528,12 @@ function innerTypeParamName(annotation, refName) {
 function buildTypeParamMap(typeParamNames, fnPath, callPath) {
   const typeParamMap = new Map();
   // phase 0: explicit type arguments at call site: foo<string>(...)
-  const callTypeArgs = callPath.node.typeParameters?.params;
+  const callTypeArgs = getTypeArgs(callPath.node)?.params;
   if (callTypeArgs) {
     const fnTypeParams = fnPath.node.typeParameters?.params;
     if (!fnTypeParams) return typeParamMap;
     for (let i = 0; i < fnTypeParams.length && i < callTypeArgs.length; i++) {
-      const { name } = fnTypeParams[i];
+      const name = typeParamName(fnTypeParams[i]);
       if (!typeParamMap.has(name)) {
         const resolved = resolveTypeAnnotation(callTypeArgs[i], callPath.scope);
         if (resolved) typeParamMap.set(name, resolved);
@@ -1631,7 +1660,7 @@ function resolveReturnType(fnPath, callPath) {
     // substitute generic type parameters from call site into the yield type
     if (!inner && params?.[0] && callPath && fnPath.node.typeParameters?.params?.length) {
       const typeParamNames = new Set();
-      for (const p of fnPath.node.typeParameters.params) typeParamNames.add(p.name);
+      for (const p of fnPath.node.typeParameters.params) typeParamNames.add(typeParamName(p));
       if (hasTypeParamReference(params[0], typeParamNames, 0)) {
         const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
         if (typeParamMap.size > 0) inner = substituteTypeParams(params[0], typeParamMap, fnPath.scope, 0);
@@ -1644,7 +1673,7 @@ function resolveReturnType(fnPath, callPath) {
   if (returnType && callPath && typeParameters?.params?.length) {
     const returnAnnotation = unwrapTypeAnnotation(returnType);
     const typeParamNames = new Set();
-    for (const p of typeParameters.params) typeParamNames.add(p.name);
+    for (const p of typeParameters.params) typeParamNames.add(typeParamName(p));
     if (hasTypeParamReference(returnAnnotation, typeParamNames, 0)) {
       const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
       if (typeParamMap.size > 0) {
@@ -1680,27 +1709,31 @@ function resolveThisClass(path) {
   let current = path;
   while (current = current.parentPath) {
     // direct child of ClassBody - this is a class member
-    if (current.parentPath?.isClassBody()) {
+    if (t.isClassBody(current.parentPath?.node)) {
       const classPath = current.parentPath.parentPath;
-      if (classPath?.isClass()) return { classPath, isStatic: !!current.node.static };
+      if (t.isClass(classPath?.node)) return { classPath, isStatic: !!current.node.static };
       return null;
     }
-    // non-arrow function rebinds `this`
-    if (current.isFunction() && !current.isArrowFunctionExpression()) return null;
+    // non-arrow function rebinds `this` - but skip ESTree MethodDefinition's wrapper FunctionExpression
+    if (t.isFunction(current.node) && !t.isArrowFunctionExpression(current.node)) {
+      // ESTree: MethodDefinition wraps body in FunctionExpression - don't stop here
+      if (current.parentPath?.node?.type === 'MethodDefinition' || current.parentPath?.node?.type === 'Property') continue;
+      return null;
+    }
   }
   return null;
 }
 
 function resolveClassContext(objectPath) {
   // Foo.staticProp - object is the class itself
-  if (objectPath.isClass()) return { classPath: objectPath, isStatic: true };
+  if (t.isClass(objectPath.node)) return { classPath: objectPath, isStatic: true };
   // new Foo().prop - object is a class instance
-  if (objectPath.isNewExpression()) {
+  if (t.isNewExpression(objectPath.node)) {
     const classPath = resolveRuntimeExpression(objectPath.get('callee'));
-    if (classPath.isClass()) return { classPath, isStatic: false };
+    if (t.isClass(classPath.node)) return { classPath, isStatic: false };
   }
   // this.prop inside a class member
-  if (objectPath.isThisExpression()) return resolveThisClass(objectPath);
+  if (t.isThisExpression(objectPath.node)) return resolveThisClass(objectPath);
   return null;
 }
 
@@ -1716,7 +1749,7 @@ function findClassMember(classPath, name, isStatic, depth = 0) {
   const superClass = classPath.get('superClass');
   if (superClass.node) {
     const resolved = resolveRuntimeExpression(superClass);
-    if (resolved.isClass()) return findClassMember(resolved, name, isStatic, depth + 1);
+    if (t.isClass(resolved.node)) return findClassMember(resolved, name, isStatic, depth + 1);
   }
   return null;
 }
@@ -1725,7 +1758,7 @@ function findClassMember(classPath, name, isStatic, depth = 0) {
 // returns a path (not a type) - useful for resolving getter calls like property calls
 function resolveBodyReturnValue(fnPath) {
   const body = fnPath.get('body');
-  if (!body.isBlockStatement()) return resolveRuntimeExpression(body);
+  if (!t.isBlockStatement(body.node)) return resolveRuntimeExpression(body);
   let result = null;
   for (const returnPath of collectReturnPaths(body)) {
     const arg = returnPath.get('argument');
@@ -1740,26 +1773,28 @@ function resolveClassMember(classPath, name, isStatic, callPath) {
   const member = findClassMember(classPath, name, isStatic);
   if (!member) return null;
   // method call: foo.bar()
+  // ESTree MethodDefinition wraps FunctionExpression in .value - unwrap for return type resolution
+  const methodFn = t.isClassMethod(member.node) ? (member.get('value')?.node ? member.get('value') : member) : null;
   if (callPath) {
-    if (member.isClassMethod()) {
-      if (member.node.kind !== 'get') return resolveReturnType(member, callPath);
+    if (methodFn) {
+      if (member.node.kind !== 'get') return resolveReturnType(methodFn, callPath);
       // getter call: resolve like property - get the returned value, if callable -> call it
-      const value = resolveBodyReturnValue(member);
-      if (value?.isFunction()) return resolveReturnType(value, callPath);
-    } else if (member.isClassProperty() || member.isClassAccessorProperty()) {
+      const value = resolveBodyReturnValue(methodFn);
+      if (t.isFunction(value?.node)) return resolveReturnType(value, callPath);
+    } else if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
       const value = resolveRuntimeExpression(member.get('value'));
-      if (value.node && value.isFunction()) return resolveReturnType(value, callPath);
+      if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath);
     }
     return null;
   }
   // property access: foo.bar
-  if (member.isClassProperty() || member.isClassAccessorProperty()) {
+  if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
     if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation, member.scope);
     const value = member.get('value');
     return value.node ? resolveNodeType(value) : null;
   }
   // method: getter returns its return type, regular method returns Function
-  if (member.isClassMethod()) return member.node.kind === 'get' ? resolveReturnType(member) : new $Object('Function');
+  if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn) : new $Object('Function');
   return null;
 }
 
@@ -1767,7 +1802,7 @@ function findObjectMember(objectPath, name) {
   const properties = objectPath.get('properties');
   for (let i = properties.length - 1; i >= 0; i--) {
     const prop = properties[i];
-    if (prop.isSpreadElement()) return null;
+    if (t.isSpreadElement(prop.node)) return null;
     if (!prop.node.computed && prop.node.kind !== 'set' && keyMatchesName(prop.node.key, name)) return prop;
   }
   return null;
@@ -1777,31 +1812,35 @@ function resolveObjectMember(objectPath, name, callPath) {
   const prop = findObjectMember(objectPath, name);
   if (!prop) return null;
   // method call: obj.foo()
+  // ESTree Property{method:true} wraps FunctionExpression in .value - unwrap for return type resolution
+  const propFn = t.isObjectMethod(prop.node) ? (prop.get('value')?.node ? prop.get('value') : prop) : null;
   if (callPath) {
-    if (prop.isObjectMethod()) {
-      if (prop.node.kind !== 'get') return resolveReturnType(prop, callPath);
+    if (propFn) {
+      if (prop.node.kind !== 'get') return resolveReturnType(propFn, callPath);
       // getter call: resolve like property - get the returned value, if callable -> call it
-      const value = resolveBodyReturnValue(prop);
-      if (value?.isFunction()) return resolveReturnType(value, callPath);
-    } else if (prop.isObjectProperty()) {
+      const value = resolveBodyReturnValue(propFn);
+      if (t.isFunction(value?.node)) return resolveReturnType(value, callPath);
+    } else if (t.isObjectProperty(prop.node)) {
       const value = resolveRuntimeExpression(prop.get('value'));
-      if (value.node && value.isFunction()) return resolveReturnType(value, callPath);
+      if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath);
     }
     return null;
   }
   // property access: obj.foo
-  if (prop.isObjectProperty()) return resolveNodeType(prop.get('value'));
+  if (t.isObjectProperty(prop.node)) return resolveNodeType(prop.get('value'));
   // method: getter returns its return type, regular method returns Function
-  if (prop.isObjectMethod()) return prop.node.kind === 'get' ? resolveReturnType(prop) : new $Object('Function');
+  if (propFn) return prop.node.kind === 'get' ? resolveReturnType(propFn) : new $Object('Function');
   return null;
 }
 
 // extract the return type annotation from a method/property call signature
 function memberCallReturnAnnotation(member) {
-  if (member.type === 'TSMethodSignature') return member.typeAnnotation;
+  // Babel: TSMethodSignature.typeAnnotation; ESTree: TSMethodSignature.returnType
+  if (member.type === 'TSMethodSignature') return member.typeAnnotation ?? member.returnType;
   if (member.type === 'TSPropertySignature') {
     const fnType = unwrapTypeAnnotation(member.typeAnnotation);
-    if (fnType?.type === 'TSFunctionType') return fnType.typeAnnotation;
+    // Babel: TSFunctionType.typeAnnotation; ESTree: TSFunctionType.returnType
+    if (fnType?.type === 'TSFunctionType') return fnType.typeAnnotation ?? fnType.returnType;
   }
   // Flow: ObjectTypeProperty with FunctionTypeAnnotation value
   if (member.type === 'ObjectTypeProperty') {
@@ -1813,17 +1852,22 @@ function memberCallReturnAnnotation(member) {
 
 function resolveTypedMember(objectPath, name, callPath) {
   let annotation, scope;
-  if (objectPath.isIdentifier()) {
-    const binding = objectPath.scope.getBinding(objectPath.node.name);
+  if (t.isIdentifier(objectPath.node)) {
+    const binding = objectPath.scope?.getBinding(objectPath.node.name);
     if (!binding) return null;
     annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
     scope = binding.path.scope;
   } else {
-    const { type } = objectPath.node;
+    // Unwrap ParenthesizedExpression/ChainExpression to find type annotation
+    let exprPath = objectPath;
+    while (exprPath.node?.type === 'ParenthesizedExpression' || exprPath.node?.type === 'ChainExpression') {
+      exprPath = exprPath.get('expression');
+    }
+    const { type } = exprPath.node;
     if (type === 'TSAsExpression' || type === 'TSTypeAssertion'
       || type === 'TSSatisfiesExpression' || type === 'TypeCastExpression') {
-      annotation = unwrapTypeAnnotation(objectPath.node.typeAnnotation);
-      scope = objectPath.scope;
+      annotation = unwrapTypeAnnotation(exprPath.node.typeAnnotation);
+      scope = exprPath.scope;
     }
   }
   if (!annotation) return null;
@@ -1859,7 +1903,7 @@ function resolveFromMemberExpression(path, callPath) {
   if (!name) return null;
   const originalObjectPath = path.get('object');
   const objectPath = resolveRuntimeExpression(originalObjectPath);
-  if (objectPath.isObjectExpression()) {
+  if (t.isObjectExpression(objectPath.node)) {
     const result = resolveObjectMember(objectPath, name, callPath);
     if (result) return result;
   }
@@ -1877,11 +1921,11 @@ function resolveFromMemberExpression(path, callPath) {
 function resolveArrayIndexAccess(path) {
   if (!path.node.computed) return null;
   const resolvedProp = resolveRuntimeExpression(path.get('property'));
-  if (resolvedProp.node?.type !== 'NumericLiteral') return null;
+  if (babelNodeType(resolvedProp.node) !== 'NumericLiteral') return null;
   const index = resolvedProp.node.value;
   if (!Number.isInteger(index) || index < 0) return null;
   const objectPath = resolveRuntimeExpression(path.get('object'));
-  if (!objectPath.isArrayExpression()) return null;
+  if (!t.isArrayExpression(objectPath.node)) return null;
   return resolveArrayLiteralElement(objectPath, index);
 }
 
@@ -1991,7 +2035,7 @@ function resolveCallReturnType(callee) {
   if (isMemberLike(callee)) return resolveMemberCallType(callee, callee.parentPath);
   // direct call: foo() - or IIFE: (() => expr)()
   const resolved = resolveRuntimeExpression(callee);
-  if (resolved.isFunction()) return resolveReturnType(resolved, callee.parentPath);
+  if (t.isFunction(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
   // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
   if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
   return null;
@@ -2002,7 +2046,7 @@ function resolveCallReturnType(callee) {
 // e.g. const { foo } = obj -> findDestructuredKeyName(pattern, 'foo') -> 'foo'
 function findDestructuredKeyName(objectPattern, name) {
   for (const prop of objectPattern.properties) {
-    if (prop.type !== 'ObjectProperty') continue;
+    if (babelNodeType(prop) !== 'ObjectProperty') continue;
     const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
     if (value?.type === 'Identifier' && value.name === name) return getKeyName(prop.key);
   }
@@ -2018,8 +2062,8 @@ function resolveDestructuringDefault(pattern, varName, bindingPath) {
   const children = patternPath.get(pattern.properties ? 'properties' : 'elements');
   for (const child of children) {
     if (!child.node) continue;
-    const valuePath = child.node.type === 'ObjectProperty' ? child.get('value') : child;
-    if (!valuePath.isAssignmentPattern()) continue;
+    const valuePath = babelNodeType(child.node) === 'ObjectProperty' ? child.get('value') : child;
+    if (!t.isAssignmentPattern(valuePath.node)) continue;
     if (valuePath.node.left?.type === 'Identifier' && valuePath.node.left.name === varName) {
       return resolveNodeType(valuePath.get('right'));
     }
@@ -2038,7 +2082,7 @@ function resolveElementType(node, scope, depth) {
   if (depth > MAX_DEPTH) return null;
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
-  switch (node.type) {
+  switch (babelNodeType(node)) {
     // string[] -> element type
     case 'TSArrayType':
     case 'ArrayTypeAnnotation':
@@ -2056,7 +2100,7 @@ function resolveElementType(node, scope, depth) {
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
       if (!name) return null;
-      const params = node.typeParameters?.params;
+      const params = getTypeArgs(node)?.params;
       if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return params?.[0] ? resolveTypeAnnotation(params[0], scope, depth + 1) : null;
       if (name === 'Map' || name === 'ReadonlyMap') return new $Object('Array');
       return resolveUserTypeElement(name, scope, depth, resolveElementType);
@@ -2101,7 +2145,7 @@ function resolveUserTypeElement(name, scope, depth, resolver) {
   for (const parent of decl.extends) {
     const expr = extendsId(parent);
     if (expr.type !== 'Identifier') continue;
-    const parentRef = { type: 'TSTypeReference', typeName: expr, typeParameters: parent.typeParameters };
+    const parentRef = { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) };
     const result = resolver(parentRef, scope, depth + 1);
     if (result) return result;
   }
@@ -2113,7 +2157,7 @@ function extractElementAnnotation(node, scope, depth) {
   if (depth > MAX_DEPTH) return null;
   node = unwrapTypeAnnotation(node);
   if (!node) return null;
-  switch (node.type) {
+  switch (babelNodeType(node)) {
     case 'TSArrayType':
     case 'ArrayTypeAnnotation':
       return node.elementType;
@@ -2121,7 +2165,7 @@ function extractElementAnnotation(node, scope, depth) {
     case 'GenericTypeAnnotation': {
       const name = typeRefName(node);
       if (!name) return null;
-      if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return node.typeParameters?.params[0] ?? null;
+      if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return getTypeArgs(node)?.params[0] ?? null;
       return resolveUserTypeElement(name, scope, depth, extractElementAnnotation);
     }
     case 'TSTypeOperator':
@@ -2163,6 +2207,8 @@ function resolveArrayPatternBinding(arrayPattern, varName, annotation, scope) {
 // find the raw type annotation of an expression (follows bindings and const chains)
 function findExpressionAnnotation(path, depth = 0) {
   if (depth > MAX_DEPTH) return null;
+  // ESTree preserves ParenthesizedExpression - unwrap
+  if (path.node.type === 'ParenthesizedExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
   if (path.node.type === 'TSAsExpression' || path.node.type === 'TSSatisfiesExpression'
     || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
     return { annotation: path.node.typeAnnotation, scope: path.scope };
@@ -2170,12 +2216,12 @@ function findExpressionAnnotation(path, depth = 0) {
   if (path.node.type === 'TSNonNullExpression' || path.node.type === 'TSInstantiationExpression') {
     return findExpressionAnnotation(path.get('expression'), depth + 1);
   }
-  if (path.isIdentifier()) {
-    const binding = path.scope.getBinding(path.node.name);
+  if (t.isIdentifier(path.node)) {
+    const binding = path.scope?.getBinding(path.node.name);
     if (!binding) return null;
     const annotation = findBindingAnnotation(binding.path);
     if (annotation) return { annotation, scope: binding.path.scope };
-    if (binding.constant && binding.path.isVariableDeclarator()) {
+    if (!binding.constantViolations?.length && t.isVariableDeclarator(binding.path.node)) {
       const init = binding.path.get('init');
       if (init.node) return findExpressionAnnotation(init, depth + 1);
     }
@@ -2186,9 +2232,9 @@ function findExpressionAnnotation(path, depth = 0) {
 // traverse from a binding to its enclosing for-in/for-of statement (if any)
 // binding must be a VariableDeclarator without init, declared in the loop header
 function findForLoopParent(bindingPath) {
-  if (!bindingPath?.isVariableDeclarator() || bindingPath.node.init) return null;
+  if (!t.isVariableDeclarator(bindingPath?.node) || bindingPath.node.init) return null;
   const declarationPath = bindingPath.parentPath;
-  if (!declarationPath?.isVariableDeclaration()) return null;
+  if (!t.isVariableDeclaration(declarationPath?.node)) return null;
   const forPath = declarationPath.parentPath;
   if (!forPath || forPath.node.left !== declarationPath.node) return null;
   return forPath;
@@ -2217,7 +2263,7 @@ function resolveArrayLiteralElement(arrayPath, index) {
     if (elements[i]?.type === 'SpreadElement') return null;
   }
   if (!elements[index]) return null; // hole
-  return resolveNodeType(arrayPath.get(`elements.${ index }`));
+  return resolveNodeType(arrayPath.get('elements')[index]);
 }
 
 // resolve common element type from an ArrayExpression if all elements share the same type
@@ -2229,7 +2275,7 @@ function resolveArrayLiteralCommonType(arrayPath) {
   for (let i = 0; i < elements.length; i++) {
     // bail on holes and spreads - can't determine element types
     if (!elements[i] || elements[i].type === 'SpreadElement') return null;
-    const resolved = resolveNodeType(arrayPath.get(`elements.${ i }`));
+    const resolved = resolveNodeType(arrayPath.get('elements')[i]);
     if (!resolved) return null;
     common = commonType(common, resolved);
     if (!common) return null; // mixed types
@@ -2248,7 +2294,7 @@ function findBindingAnnotation(bindingPath) {
   return node.typeAnnotation
     || node.id?.typeAnnotation
     || node.param?.typeAnnotation
-    || (bindingPath.isAssignmentPattern() && node.left?.typeAnnotation);
+    || (t.isAssignmentPattern(bindingPath.node) && node.left?.typeAnnotation);
 }
 
 // resolve array destructuring from any annotation source: pattern, init, or for-of iterable
@@ -2261,7 +2307,7 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
     if (result) return result;
   }
   // annotation on the init expression: const [a] = typedArr
-  if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
+  if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
     const initInfo = findExpressionAnnotation(bindingPath.get('init'));
     if (initInfo) {
       const initResult = resolveArrayPatternBinding(arrayPattern, varName, initInfo.annotation, initInfo.scope);
@@ -2273,7 +2319,7 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
     const inner = resolveInnerType(initType);
     if (inner) return inner;
     // array literal -> resolve element by index: const [a, b] = ['hello', 42]
-    if (initPath.isArrayExpression()) {
+    if (t.isArrayExpression(initPath.node)) {
       const index = findPatternIndex(arrayPattern, varName);
       if (index >= 0) {
         const elemType = resolveArrayLiteralElement(initPath, index);
@@ -2289,7 +2335,7 @@ function resolveArrayBinding(arrayPattern, varName, bindingPath) {
   }
   // runtime: for (const [a] of 'hello') or for (const [k, v] of urlParams.entries())
   const forOfPath = findForLoopParent(bindingPath);
-  if (forOfPath?.isForOfStatement()) {
+  if (t.isForOfStatement(forOfPath?.node)) {
     // resolve for-of element, then unwrap one more level for array destructuring
     const inner = resolveInnerType(resolveForOfResolvedElement(forOfPath));
     if (inner) return inner;
@@ -2313,7 +2359,7 @@ function resolveAnnotatedMember(annotation, keyName, scope) {
 function unwrapPromiseAnnotation(node) {
   let result = unwrapTypeAnnotation(node);
   while ((result?.type === 'TSTypeReference' || result?.type === 'GenericTypeAnnotation') && typeRefName(result) === 'Promise') {
-    const inner = result.typeParameters?.params[0];
+    const inner = getTypeArgs(result)?.params[0];
     if (!inner) break;
     const unwrapped = unwrapTypeAnnotation(inner);
     if (!unwrapped) break;
@@ -2325,7 +2371,7 @@ function unwrapPromiseAnnotation(node) {
 // resolve the raw element annotation of a for-of iterable from its type annotation
 function resolveForOfElementAnnotation(path) {
   const forOfPath = findForLoopParent(path);
-  if (!forOfPath?.isForOfStatement()) return null;
+  if (!t.isForOfStatement(forOfPath?.node)) return null;
   const annotationInfo = findExpressionAnnotation(forOfPath.get('right'));
   if (!annotationInfo) return null;
   let elemAnnotation = extractElementAnnotation(annotationInfo.annotation, annotationInfo.scope, 0);
@@ -2358,10 +2404,10 @@ function resolveObjectBinding(objectPattern, varName, bindingPath) {
   const keyName = findDestructuredKeyName(objectPattern, varName);
   if (!keyName) return null;
   // resolve from init expression: runtime object literal or annotated variable
-  if (bindingPath.isVariableDeclarator() && bindingPath.node.init) {
+  if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
     const initPath = resolveRuntimeExpression(bindingPath.get('init'));
     // const { name } = { name: 'alice' }
-    if (initPath.isObjectExpression()) {
+    if (t.isObjectExpression(initPath.node)) {
       const result = resolveObjectMember(initPath, keyName);
       if (result) return result;
     }
@@ -2387,8 +2433,8 @@ function findBindingPattern(node, type) {
 }
 
 function resolveBindingType(path) {
-  if (!path.isIdentifier()) return null;
-  const binding = path.scope.getBinding(path.node.name);
+  if (!t.isIdentifier(path.node)) return null;
+  const binding = path.scope?.getBinding(path.node.name);
   if (!binding) return null;
   const { path: bindingPath } = binding;
   const { name } = path.node;
@@ -2408,9 +2454,14 @@ function resolveBindingType(path) {
   const forLoopParent = findForLoopParent(bindingPath);
   if (forLoopParent) {
     // for-in: iteration variable is always a string per ECMAScript spec
-    if (forLoopParent.isForInStatement()) return new $Primitive('string');
+    if (t.isForInStatement(forLoopParent.node)) return new $Primitive('string');
     // for-of / for-await-of: infer element type from the iterable
-    if (forLoopParent.isForOfStatement()) return resolveForOfResolvedElement(forLoopParent);
+    if (t.isForOfStatement(forLoopParent.node)) return resolveForOfResolvedElement(forLoopParent);
+  }
+  // fallback: resolve init expression for const bindings when resolvePath exhausted its depth limit
+  // (e.g., const v1 = [1]; const v2 = v1; ... const v16 = v15; v16.at(-1))
+  if (t.isVariableDeclarator(node) && node.init && !binding.constantViolations?.length) {
+    return resolveNodeType(bindingPath.get('init'));
   }
   return null;
 }
@@ -2431,8 +2482,9 @@ function matchesGuard(resolved, guard) {
 }
 
 function isTypeofVar(node, varName) {
-  return node?.type === 'UnaryExpression' && node.operator === 'typeof'
-    && node.argument?.type === 'Identifier' && node.argument.name === varName;
+  if (node?.type !== 'UnaryExpression' || node.operator !== 'typeof') return false;
+  const arg = unwrapParens(node.argument);
+  return arg?.type === 'Identifier' && arg.name === varName;
 }
 
 // extract the property name from a global proxy member expression node (e.g. globalThis.Array -> 'Array')
@@ -2453,9 +2505,12 @@ function guardFromHint(hint, negated) {
 function parseTypeGuard(testNode, varName) {
   let negated = false;
   let test = testNode;
+  // ESTree (oxc-parser) preserves ParenthesizedExpression - unwrap
+  while (test.type === 'ParenthesizedExpression') test = test.expression;
   if (test.type === 'UnaryExpression' && test.operator === '!') {
     negated = true;
     test = test.argument;
+    while (test.type === 'ParenthesizedExpression') test = test.expression;
   }
   if (test.type === 'BinaryExpression') {
     const { operator, left, right } = test;
@@ -2465,7 +2520,7 @@ function parseTypeGuard(testNode, varName) {
       // normalize: typeof may be on either side
       const [typeofSide, literalSide] = left.type === 'UnaryExpression' ? [left, right] : [right, left];
       if (isTypeofVar(typeofSide, varName)) {
-        if (literalSide.type === 'StringLiteral') return { kind: 'typeof', value: literalSide.value, negated };
+        if (babelNodeType(literalSide) === 'StringLiteral') return { kind: 'typeof', value: literalSide.value, negated };
         // template literal with no expressions: `object` === typeof x
         if (literalSide.type === 'TemplateLiteral' && literalSide.expressions.length === 0) {
           return { kind: 'typeof', value: literalSide.quasis[0].value.cooked, negated };
@@ -2526,11 +2581,16 @@ function canFallThrough($case) {
 
 // flatten a && b && c when condition is true, or a || b || c when condition is false
 // only flattens the matching operator; mixed operators stay as opaque nodes
+function unwrapParens(node) {
+  while (node?.type === 'ParenthesizedExpression') node = node.expression;
+  return node;
+}
+
 function flattenCondition(node, operator) {
   const result = [];
-  const stack = [node];
+  const stack = [unwrapParens(node)];
   while (stack.length) {
-    const current = stack.pop();
+    const current = unwrapParens(stack.pop());
     if (current.type === 'LogicalExpression' && current.operator === operator) {
       stack.push(current.right, current.left);
     } else {
@@ -2545,6 +2605,7 @@ function flattenCondition(node, operator) {
 function parseTypeofOrGuard(node, varName, conditionTrue) {
   const operator = conditionTrue ? '||' : '&&';
   const expectNegated = !conditionTrue;
+  node = unwrapParens(node);
   if (node.type !== 'LogicalExpression' || node.operator !== operator) return null;
   const parts = flattenCondition(node, operator);
   const values = new Set();
@@ -2575,12 +2636,12 @@ function findConditionalGuards(current, varName) {
   const parent = current.parentPath;
   if (!parent) return [];
   let conditionTrue, testNode;
-  if (parent.isIfStatement() || parent.isConditionalExpression()) {
+  if (t.isIfStatement(parent.node) || t.isConditionalExpression(parent.node)) {
     const { key } = current;
     if (key !== 'consequent' && key !== 'alternate') return [];
     conditionTrue = key === 'consequent';
     testNode = parent.node.test;
-  } else if (parent.isLogicalExpression() && current.key === 'right') {
+  } else if (t.isLogicalExpression(parent.node) && current.key === 'right') {
     const { operator } = parent.node;
     if (operator !== '&&' && operator !== '||') return [];
     conditionTrue = operator === '&&';
@@ -2592,12 +2653,12 @@ function findConditionalGuards(current, varName) {
 // resolve a string value from a case test: StringLiteral directly or constant Identifier binding
 function caseTestStringValue(test, scope) {
   if (!test) return null;
-  if (test.type === 'StringLiteral') return test.value;
+  if (babelNodeType(test) === 'StringLiteral') return test.value;
   if (test.type === 'Identifier') {
     const bindingPath = constantBindingPath(test.name, scope);
-    if (bindingPath?.isVariableDeclarator()) {
+    if (t.isVariableDeclarator(bindingPath?.node)) {
       const { init } = bindingPath.node;
-      if (init?.type === 'StringLiteral') return init.value;
+      if (babelNodeType(init) === 'StringLiteral') return init.value;
     }
   }
   return null;
@@ -2605,10 +2666,10 @@ function caseTestStringValue(test, scope) {
 
 // switch (typeof x) { case 'string': ... ; default: ... }
 function findSwitchCaseGuards(current, varName) {
-  if (!current.parentPath?.isSwitchCase()) return [];
+  if (!t.isSwitchCase(current.parentPath?.node)) return [];
   const switchCase = current.parentPath;
   const switchStmt = switchCase.parentPath;
-  if (!switchStmt?.isSwitchStatement()) return [];
+  if (!t.isSwitchStatement(switchStmt?.node)) return [];
   if (!isTypeofVar(switchStmt.node.discriminant, varName)) return [];
   const { cases } = switchStmt.node;
   const { scope } = switchCase;
@@ -2645,7 +2706,7 @@ function findSwitchCaseGuards(current, varName) {
 // if (...) return; -> false (consequent exits, condition was true -> narrowed type is !condition)
 // if (...) {} else return; -> true (alternate exits, condition was true -> narrowed type is condition)
 function resolveExitCondition(sibling) {
-  if (!sibling.isIfStatement()) return null;
+  if (!t.isIfStatement(sibling.node)) return null;
   if (blockAlwaysExits(sibling.get('consequent'))) return false;
   if (sibling.node.alternate && blockAlwaysExits(sibling.get('alternate'))) return true;
   return null;
@@ -2666,8 +2727,8 @@ function findPrecedingExitGuards(siblings, index, varName) {
 function getStatementSiblings(current) {
   if (typeof current.key !== 'number') return null;
   const parent = current.parentPath;
-  if (current.listKey === 'body' && (parent.isBlockStatement() || parent.isProgram())) return parent.get('body');
-  if (current.listKey === 'consequent' && parent.isSwitchCase()) return parent.get('consequent');
+  if (current.listKey === 'body' && (t.isBlockStatement(parent.node) || t.isProgram(parent.node))) return parent.get('body');
+  if (current.listKey === 'consequent' && t.isSwitchCase(parent.node)) return parent.get('consequent');
   return null;
 }
 
@@ -2679,7 +2740,7 @@ function findEarlyExitGuards(current, varName) {
 // collect ALL type guards along the AST path for cumulative narrowing
 function findEnclosingTypeGuards(path, varName) {
   const guards = [];
-  for (let current = path.parentPath; current && !current.isFunction(); current = current.parentPath) {
+  for (let current = path.parentPath; current && !t.isFunction(current.node); current = current.parentPath) {
     guards.push(
       ...findConditionalGuards(current, varName),
       ...findSwitchCaseGuards(current, varName),
@@ -2728,7 +2789,7 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
   const isBefore = v => v.node.start === null || v.node.start === undefined
     || usageStart === null || usageStart === undefined || v.node.start < usageStart;
   const violatesBefore = scope => constantViolations.some(v => isDescendant(v, scope) && isBefore(v));
-  for (let current = usagePath, parent; (parent = current.parentPath) && !parent.isFunction(); current = parent) {
+  for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
     if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
     if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent)) return true;
     if (findEarlyExitGuards(current, varName).length) {
@@ -2751,15 +2812,15 @@ function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
 const guardsCache = new WeakMap();
 
 function findGuardsForBinding(path) {
-  if (!path.isIdentifier()) return null;
+  if (!t.isIdentifier(path.node)) return null;
   const { node } = path;
   if (guardsCache.has(node)) return guardsCache.get(node);
   const { name } = node;
-  const binding = path.scope.getBinding(name);
+  const binding = path.scope?.getBinding(name);
   let result = null;
   if (binding) {
     const guards = findEnclosingTypeGuards(path, name);
-    if (guards && (binding.constant || !hasMutationAfterGuards(binding, path, name))) {
+    if (guards && (!binding.constantViolations?.length || !hasMutationAfterGuards(binding, path, name))) {
       result = { binding, guards };
     }
   }
@@ -2797,7 +2858,7 @@ function resolveNodeType(path) {
   let result = resolveNodeTypeExpression(path);
   if (!result) {
     result = resolveBindingType(path) || resolveTypeGuardNarrowing(path);
-  } else if (!result.inner && path.isIdentifier()) {
+  } else if (!result.inner && t.isIdentifier(path.node)) {
     // when runtime resolution determined the outer type but not the inner type (e.g. `new Set()` -> Set),
     // check if a type annotation provides a richer type with the same outer but known inner
     // (e.g. `const s: Set<string> = new Set()` -> Set<string>)
@@ -2817,20 +2878,20 @@ function resolveNodeType(path) {
 // member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj)
 function resolvePropertyObjectType(path) {
   if (isMemberLike(path)) return resolveNodeType(path.get('object'));
-  if (!path.isObjectProperty()) return null;
+  if (!t.isObjectProperty(path.node)) return null;
   const objectPattern = path.parentPath;
-  if (!objectPattern?.isObjectPattern()) return null;
+  if (!t.isObjectPattern(objectPattern?.node)) return null;
   if (objectPattern.node.typeAnnotation) {
     return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
   }
   const parent = objectPattern.parentPath;
   // assignment or variable destructuring - resolve the right-hand side
-  const initPath = parent?.isAssignmentExpression() ? parent.get('right')
-    : parent?.isVariableDeclarator() ? parent.get('init') : null;
+  const initPath = t.isAssignmentExpression(parent?.node) ? parent.get('right')
+    : t.isVariableDeclarator(parent?.node) ? parent.get('init') : null;
   if (initPath?.node) return resolveNodeType(initPath);
   // for-of / for-await-of destructuring - resolve the iterable element type
-  const forOfPath = parent?.isForOfStatement() ? parent : findForLoopParent(parent);
-  if (!forOfPath?.isForOfStatement()) return null;
+  const forOfPath = t.isForOfStatement(parent?.node) ? parent : findForLoopParent(parent);
+  if (!t.isForOfStatement(forOfPath?.node)) return null;
   return resolveForOfResolvedElement(forOfPath);
 }
 
@@ -2943,12 +3004,8 @@ function isObject(path) {
   return resolveNodeType(path)?.primitive === false;
 }
 
-export {
-  TYPE_HINTS,
-  PRIMITIVE_HINTS,
-  resolvePropertyObjectType,
-  resolveGuardHints,
-  toHint,
-  isString,
-  isObject,
-};
+return { resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject };
+} // end createResolveNodeType
+/* eslint-enable @stylistic/indent, max-statements -- end factory */
+
+export { createResolveNodeType, TYPE_HINTS, PRIMITIVE_HINTS };
