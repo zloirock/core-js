@@ -5,6 +5,4 @@ import "core-js/modules/es.array.values";
 import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.string.includes";
-import "core-js/modules/es.string.iterator";
-import "core-js/modules/web.dom-collections.iterator";
 'a,b'.split(',').values().toArray().at(0).includes('a');
