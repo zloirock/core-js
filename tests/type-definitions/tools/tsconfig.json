@@ -3,6 +3,7 @@
   "include": [
     "./babel-plugin.ts",
     "./builder.ts",
-    "./compat.ts"
+    "./compat.ts",
+    "./unplugin.ts"
   ]
 }

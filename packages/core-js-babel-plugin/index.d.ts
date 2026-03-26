@@ -33,6 +33,8 @@ type Options = Pick<CompatOptions, "targets"> & {
   ignoreBrowserslistConfig?: boolean,
   /** treat proposals that have been shipped in browsers as stable features */
   shippedProposals?: boolean,
+  /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from sourceType */
+  importStyle?: 'import' | 'require',
 };
 
 declare function plugin(api: object, options: Options, dirname: string): { name: string, visitor: object };

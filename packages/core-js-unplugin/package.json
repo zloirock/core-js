@@ -1,0 +1,72 @@
+{
+  "name": "@core-js/unplugin",
+  "version": "4.0.0-alpha.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "description": "core-js unplugin - universal polyfill plugin for Vite, Rolldown, Webpack, esbuild, Rspack",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zloirock/core-js.git",
+    "directory": "packages/core-js-unplugin"
+  },
+  "homepage": "https://core-js.io",
+  "bugs": {
+    "url": "https://github.com/zloirock/core-js/issues"
+  },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
+  "sideEffects": false,
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./vite": {
+      "types": "./vite.d.ts",
+      "default": "./vite.js"
+    },
+    "./webpack": {
+      "types": "./webpack.d.ts",
+      "default": "./webpack.js"
+    },
+    "./rollup": {
+      "types": "./rollup.d.ts",
+      "default": "./rollup.js"
+    },
+    "./esbuild": {
+      "types": "./esbuild.d.ts",
+      "default": "./esbuild.js"
+    },
+    "./rspack": {
+      "types": "./rspack.d.ts",
+      "default": "./rspack.js"
+    },
+    "./rolldown": {
+      "types": "./rolldown.d.ts",
+      "default": "./rolldown.js"
+    }
+  },
+  "dependencies": {
+    "@core-js/polyfill-provider": "4.0.0-alpha.1",
+    "@core-js/compat": "4.0.0-alpha.1",
+    "estree-toolkit": "^1.7.13",
+    "magic-string": "^0.30.21",
+    "oxc-parser": "^0.121.0",
+    "unplugin": "^3.0.0"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

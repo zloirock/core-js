@@ -15,7 +15,6 @@ require('../../modules/es.iterator.some');
 require('../../modules/es.iterator.take');
 require('../../modules/es.iterator.to-array');
 require('../../modules/es.iterator.zip');
-require('../../modules/es.string.iterator');
 require('../../modules/web.dom-collections.iterator');
 
 var getBuiltInStaticMethod = require('../../internals/get-built-in-static-method');

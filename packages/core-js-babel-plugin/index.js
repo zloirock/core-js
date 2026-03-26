@@ -1,146 +1,22 @@
 import defineProvider from '@babel/helper-define-polyfill-provider';
-import entries from '@core-js/compat/entries' with { type: 'json' };
-import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import compatData from '@core-js/compat/data' with { type: 'json' };
-import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
-import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
 import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
-import createASTHelpers from './ast-helpers.js';
 import {
   TYPE_HINTS,
-  resolvePropertyObjectType,
-  resolveGuardHints,
-  toHint,
-  isString,
-  isObject,
-} from './resolve-node-type.js';
+  isCoreJSFile,
+  getDependencies,
+  descHasTypeHints,
+  resolveHint,
+  pureImportName,
+  parseDisableDirectives,
+  createPolyfillContext,
+  validateImportStyle,
+  resolveImportStyle,
+} from '@core-js/polyfill-provider';
+import createASTHelpers from './ast-helpers.js';
+import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 
 const { hasOwn } = Object;
-
-// array/instance/at and array/prototype/at -> array/at
-function normalizeEntryPath(entry) {
-  return entry
-    .replace('/instance/', '/')
-    .replace('/prototype/', '/');
-}
-
-function collectEntryPaths(patterns) {
-  if (!Array.isArray(patterns)) return new Set();
-  const result = new Set();
-  for (const pattern of patterns) {
-    if (typeof pattern == 'string' && hasOwn(entries, `full/${ pattern }`)) {
-      result.add(normalizeEntryPath(pattern));
-    }
-  }
-  return result;
-}
-
-function removeEntryPaths(patterns) {
-  if (!Array.isArray(patterns)) return patterns;
-  const filtered = patterns.filter(p => typeof p != 'string' || !hasOwn(entries, `full/${ p }`));
-  return filtered.length ? filtered : undefined;
-}
-
-// skip core-js internals and bundles — polyfilling their own code creates circular dependencies
-const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:internals|modules)[/\\]/;
-const CORE_JS_BUNDLE = /[/\\](?:core-js-bundle|@core-js[/\\]bundle)[/\\]/;
-
-function isCoreJSFile(filename) {
-  return CORE_JS_INTERNAL_FILE.test(filename) || CORE_JS_BUNDLE.test(filename);
-}
-
-function normalizeImportPath(path) {
-  return typeof path != 'string' ? null : path
-    .replaceAll('\\', '/')
-    .replace(/(?:\/(?:index)?)?(?:\.js)?$/i, '')
-    .toLowerCase();
-}
-
-function getDependencies(desc) {
-  if (typeof desc === 'string') return [desc];
-  if (Array.isArray(desc)) return desc;
-  return desc?.dependencies;
-}
-
-function descHasTypeHints(desc) {
-  for (const hint of TYPE_HINTS) if (hasOwn(desc, hint)) return true;
-  return false;
-}
-
-function resolveHint(desc, meta) {
-  const { placement, object, excludedHints, includedHints } = meta;
-  const hint = object === null || object === undefined ? null : String(object).toLowerCase();
-
-  if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
-    if (hasOwn(desc, hint)) return desc[hint];
-    if (hasOwn(desc, 'rest')) return desc.rest;
-    return descHasTypeHints(desc) ? null : hasOwn(desc, 'common') ? desc.common : null;
-  }
-
-  // when hints are filtered by type guards, skip common and use type-specific entries
-  if (!excludedHints && !includedHints && hasOwn(desc, 'common')) return desc.common;
-
-  // merge type hint dependencies, skipping filtered hints
-  const hintDescs = [];
-  for (const $hint of TYPE_HINTS) {
-    if (excludedHints?.has($hint)) continue;
-    if (includedHints && !includedHints.has($hint)) continue;
-    if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
-  }
-  // with whitelist: include rest only if some included hint has no explicit desc entry
-  // with blacklist or no filter: always include rest (conservative)
-  if (hasOwn(desc, 'rest') && (!includedHints || [...includedHints].some($hint => !hasOwn(desc, $hint)))) {
-    hintDescs.push(desc.rest);
-  }
-
-  if (hintDescs.length === 1) return hintDescs[0];
-
-  if (hintDescs.length > 1) {
-    const dependencies = [...new Set(hintDescs.flatMap(d => getDependencies(d) ?? []))];
-    return dependencies.length ? { dependencies } : null;
-  }
-
-  return null;
-}
-
-function enhanceMeta(meta, path, desc) {
-  if (!meta) return meta;
-  if (meta.object !== null && meta.object !== undefined
-    && meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
-  const hint = toHint(resolvePropertyObjectType(path));
-  if (hint) {
-    if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
-    return descHasTypeHints(desc) ? null : meta;
-  }
-  // no type resolved — check for type guards to include/exclude specific hints (MemberExpression only)
-  if ((path.isMemberExpression() || path.isOptionalMemberExpression()) && descHasTypeHints(desc)) {
-    const hints = resolveGuardHints(path.get('object'));
-    if (hints) return { ...meta, ...hints };
-  }
-  return meta;
-}
-
-function pureImportName(kind, name, importEntry) {
-  if (kind !== 'instance') return name;
-  const match = importEntry.match(/^(?<type>[^/]+)\/instance\//);
-  return match ? `${ name }Maybe${ match.groups.type.replace(/(?:^|-)(?<char>\w)/g, (_, char) => char.toUpperCase()) }` : name;
-}
-
-function canTransformDestructuring(path) {
-  const objectPattern = path.parentPath;
-  const destructParent = objectPattern?.parentPath;
-  if (destructParent?.isVariableDeclarator()) {
-    // for-in/for-of: value comes from iteration, not from init - can't polyfill
-    if (!destructParent.node.init) return false;
-    // insertBefore in for-loop init wraps in IIFE, breaking variable scope
-    if (objectPattern.node.properties.length > 1 && destructParent.parentPath?.parentPath?.isForStatement()) return false;
-  } else if (destructParent?.isAssignmentExpression()) {
-    if (!destructParent.parentPath?.isExpressionStatement()) return false;
-  } else {
-    return false;
-  }
-  return true;
-}
 
 export default defineProvider(({
   babel,
@@ -156,32 +32,81 @@ export default defineProvider(({
     mode = 'actual',
     version = '4.0',
     shippedProposals = false,
+    importStyle: importStyleOption,
     include,
     exclude,
   } = options;
 
-  if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
-  if (!['es', 'stable', 'actual', 'full'].includes(mode)) throw new TypeError('Incorrect plugin mode');
-  if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
+  validateImportStyle(importStyleOption);
 
-  // for usage-pure: extract entry-path patterns from include/exclude
-  const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();
-  const excludeEntries = method === 'usage-pure' ? collectEntryPaths(exclude) : new Set();
-  if (includeEntries.size) options.include = removeEntryPaths(include);
-  if (excludeEntries.size) options.exclude = removeEntryPaths(exclude);
+  const {
+    mode: resolvedMode,
+    pkg: resolvedPkg,
+    getModulesForEntry,
+    getCoreJSEntry,
+    isEntryNeeded,
+    filteredInclude,
+    filteredExclude,
+  } = createPolyfillContext({
+    method,
+    mode,
+    version,
+    package: pkg,
+    additionalPackages,
+    include,
+    exclude,
+    shippedProposals,
+    shouldInjectPolyfill,
+    validate: false, // Babel provider handles its own include/exclude validation
+  });
 
-  if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
-  if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
-  if (additionalPackages !== null && additionalPackages !== undefined && !Array.isArray(additionalPackages)) {
-    throw new TypeError('`additionalPackages` should be an array');
+  mode = resolvedMode;
+  pkg = resolvedPkg;
+
+  // update options for the provider if entry paths were extracted
+  if (filteredInclude !== include) options.include = filteredInclude;
+  if (filteredExclude !== exclude) options.exclude = filteredExclude;
+
+  const { types: t } = babel;
+  const {
+    resolvePropertyObjectType,
+    resolveGuardHints,
+    toHint,
+    isString,
+    isObject,
+  } = createResolveNodeType(node => node?.type, t);
+
+  function enhanceMeta(meta, path, desc) {
+    if (!meta) return meta;
+    if (meta.object !== null && meta.object !== undefined
+      && meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
+    const hint = toHint(resolvePropertyObjectType(path));
+    if (hint) {
+      if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
+      return descHasTypeHints(desc) ? null : meta;
+    }
+    // no type resolved - check for type guards to include/exclude specific hints (MemberExpression only)
+    if ((path.isMemberExpression() || path.isOptionalMemberExpression()) && descHasTypeHints(desc)) {
+      const hints = resolveGuardHints(path.get('object'));
+      if (hints) return { ...meta, ...hints };
+    }
+    return meta;
   }
-  if (additionalPackages && additionalPackages.some($pkg => typeof $pkg != 'string')) {
-    throw new TypeError('Incorrect additional package name');
+
+  function canTransformDestructuring(path) {
+    const objectPattern = path.parentPath;
+    const destructParent = objectPattern?.parentPath;
+    if (destructParent?.isVariableDeclarator()) {
+      if (!destructParent.node.init) return false;
+      if (objectPattern.node.properties.length > 1 && destructParent.parentPath?.parentPath?.isForStatement()) return false;
+    } else if (destructParent?.isAssignmentExpression()) {
+      if (!destructParent.parentPath?.isExpressionStatement()) return false;
+    } else {
+      return false;
+    }
+    return true;
   }
 
-  version = normalizeCoreJSVersion(version);
-
-  const t = babel.types;
   const {
     isCallee,
     isInTypeAnnotation,
@@ -193,30 +118,13 @@ export default defineProvider(({
   } = createASTHelpers(t);
   const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
 
-  const packages = additionalPackages ? [pkg, ...additionalPackages] : [pkg];
-
-  const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
-  const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const injectedModules = new Set();
   const skippedNodes = new WeakSet();
   let skipFile = false;
   let disabledLines = null;
-
-  const DIRECTIVE = /^\s*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$)/;
-
-  function parseDisableDirectives(comments) {
-    if (!comments) return null;
-    const lines = new Set();
-    for (const comment of comments) {
-      const match = comment.value.match(DIRECTIVE);
-      if (!match) continue;
-      const { kind } = match.groups;
-      if (kind === 'file') return true;
-      if (kind === 'line') lines.add(comment.loc.start.line);
-      else lines.add(comment.loc.end.line + 1); // next-line
-    }
-    return lines.size ? lines : null;
-  }
+  let importStyle = 'import';
+  let programPath = null;
+  const pureImportCache = new Map();
 
   function isDisabled(path) {
     return skipFile || (disabledLines !== null && disabledLines.has(path.node.loc?.start.line));
@@ -228,45 +136,6 @@ export default defineProvider(({
     instance: builtInDefinitions.InstanceProperties,
   });
 
-  function getCoreJSEntry(source) {
-    source = normalizeImportPath(source);
-    if (source === null) return null;
-    for (const $pkg of packages) {
-      if (source === $pkg) return '';
-      if (source.startsWith(`${ $pkg }/`)) {
-        const entry = source.slice($pkg.length + 1);
-        if (hasOwn(entries, entry)) return entry;
-      }
-    }
-    return null;
-  }
-
-  const modulesForEntryCache = new Map();
-
-  // es. -> esnext. fallback for backward compatibility with older core-js versions
-  // where the module was still a proposal
-  function resolveModule(mod) {
-    if (modulesSetForTargetVersion.has(mod)) return mod;
-    if (mod.startsWith('es.')) {
-      const esnext = `esnext.${ mod.slice(3) }`;
-      if (modulesSetForTargetVersion.has(esnext)) return esnext;
-    }
-    return null;
-  }
-
-  function getModulesForEntry(entry) {
-    if (entry === '') entry = 'index';
-    if (modulesForEntryCache.has(entry)) return modulesForEntryCache.get(entry);
-    const allEntryModules = hasOwn(entries, entry) ? entries[entry] : [];
-    const result = [];
-    for (const mod of allEntryModules) {
-      const resolved = resolveModule(mod);
-      if (resolved !== null && shouldInjectPolyfill(resolved)) result.push(resolved);
-    }
-    modulesForEntryCache.set(entry, result);
-    return result;
-  }
-
   function injectModulesForModeEntry(entry, utils) {
     return injectModulesForEntry(`${ mode }/${ entry }`, utils);
   }
@@ -277,10 +146,27 @@ export default defineProvider(({
     }
   }
 
+  function makeGlobalImportNode(source) {
+    return importStyle === 'require'
+      ? t.expressionStatement(t.callExpression(t.identifier('require'), [t.stringLiteral(source)]))
+      : t.importDeclaration([], t.stringLiteral(source));
+  }
+
+  function makeDefaultImportNode(id, source) {
+    return importStyle === 'require'
+      ? t.variableDeclaration('var', [t.variableDeclarator(id, t.callExpression(t.identifier('require'), [t.stringLiteral(source)]))])
+      : t.importDeclaration([t.importDefaultSpecifier(id)], t.stringLiteral(source));
+  }
+
   function injectModule(moduleName, utils) {
     const moduleEntry = `modules/${ moduleName }`;
     if (injectedModules.has(moduleEntry)) return;
-    utils.injectGlobalImport(`${ pkg }/${ moduleEntry }`, moduleName);
+    const source = `${ pkg }/${ moduleEntry }`;
+    if (importStyleOption) {
+      programPath.unshiftContainer('body', makeGlobalImportNode(source));
+    } else {
+      utils.injectGlobalImport(source, moduleName);
+    }
     injectedModules.add(moduleEntry);
     debug(moduleName);
   }
@@ -310,16 +196,16 @@ export default defineProvider(({
     return !!filters?.some(([name, ...args]) => filter(name, args, path));
   }
 
-  function isEntryNeeded(entry) {
-    const normalized = normalizeEntryPath(entry);
-    if (excludeEntries.has(entry) || excludeEntries.has(normalized)) return false;
-    if (includeEntries.has(entry) || includeEntries.has(normalized)) return true;
-    const modeEntry = `${ mode }/${ entry }`;
-    return entriesSetForTargetVersion.has(modeEntry) && !!getModulesForEntry(modeEntry).length;
-  }
-
   function injectPureImport(entry, hint, utils) {
-    return utils.injectDefaultImport(`${ pkg }/${ mode }/${ entry }`, hint);
+    const source = `${ pkg }/${ mode }/${ entry }`;
+    if (importStyleOption) {
+      if (pureImportCache.has(source)) return t.cloneNode(pureImportCache.get(source));
+      const id = programPath.scope.generateUidIdentifier(hint);
+      programPath.unshiftContainer('body', makeDefaultImportNode(id, source));
+      pureImportCache.set(source, id);
+      return t.cloneNode(id);
+    }
+    return utils.injectDefaultImport(source, hint);
   }
 
   function resolvePureEntry(kind, desc, meta, path) {
@@ -358,6 +244,9 @@ export default defineProvider(({
     pre() {
       skipFile = !!this.filename && isCoreJSFile(this.filename);
       injectedModules.clear();
+      pureImportCache.clear();
+      programPath = this.file.path;
+      importStyle = resolveImportStyle(importStyleOption, this.file.opts.sourceType);
       const directives = skipFile ? null : parseDisableDirectives(this.file.ast.comments);
       if (directives === true) skipFile = true;
       disabledLines = directives !== true ? directives : null;
