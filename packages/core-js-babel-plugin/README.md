@@ -45,7 +45,7 @@ It works for all entry points of global version of `core-js` and their combinati
 
 ### `usage-global`
 
-Automatically adds to the top of each file import of polyfills for features used in this file and not supported by target environments — no manual imports required. So, for example,
+Automatically adds to the top of each file import of polyfills for features used in this file and not supported by target environments - no manual imports required. So, for example,
 ```js
 const p = Promise.allSettled([f1, f2]);
 'test'.at(-1);
@@ -115,6 +115,7 @@ Array.from(items);
 | `configPath` | `string` | `'.'` | Directory to search for a browserslist config file |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Ignore browserslist config files, use only explicit `targets` |
 | `absoluteImports` | `boolean` \| `string` | `false` | Use absolute paths for injected imports |
+| `importStyle` | `string` | auto | Import style for injected polyfills: `'import'` or `'require'`, auto-detected from `sourceType` if not set |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
 
 ### `version`
@@ -124,8 +125,8 @@ The `core-js` version installed in your project. The plugin uses this to determi
 It's recommended to specify the minor version (e.g., `'4.1'`) rather than just the major version (`'4.0'`), so that the plugin can use polyfills added in minor releases.
 
 Special values:
-- `'node_modules'` — reads the version from the installed `core-js` package (`core-js/package.json`)
-- `'package.json'` — reads the version range from the project's `package.json` `dependencies`, `devDependencies`, or `peerDependencies`
+- `'node_modules'` - reads the version from the installed `core-js` package (`core-js/package.json`)
+- `'package.json'` - reads the version range from the project's `package.json` `dependencies`, `devDependencies`, or `peerDependencies`
 
 ```json
 {
@@ -171,10 +172,10 @@ Additional package names to recognize as `core-js` entry points in `entry-global
 ### `mode`
 
 Controls which features are available:
-- `'es'` — stable ECMAScript only
-- `'stable'` — stable ECMAScript + web standards
-- `'actual'` — stable + Stage 3 proposals (default)
-- `'full'` — all features including early-stage proposals
+- `'es'` - stable ECMAScript only
+- `'stable'` - stable ECMAScript + web standards
+- `'actual'` - stable + Stage 3 proposals (default)
+- `'full'` - all features including early-stage proposals
 
 ```json
 {
@@ -268,11 +269,25 @@ Directory path to search for a browserslist config file. Useful in monorepos whe
 
 ### `ignoreBrowserslistConfig`
 
-When `true`, the plugin will not read any browserslist config files. Only the explicitly provided `targets` will be used. If no `targets` are provided either, the target is assumed to be all engines — all polyfills will be injected.
+When `true`, the plugin will not read any browserslist config files. Only the explicitly provided `targets` will be used. If no `targets` are provided either, the target is assumed to be all engines - all polyfills will be injected.
 
 ### `absoluteImports`
 
 When `true`, injected `core-js` imports will use absolute filesystem paths instead of package names. When a string, it will be used as the base path. This can be useful in monorepos to ensure that all files resolve to the same `core-js` installation.
+
+### `importStyle`
+
+Controls the syntax of injected polyfill imports: `'import'` for ESM `import` statements, `'require'` for CJS `require()` calls. When not set, auto-detected from the file's `sourceType` - `'script'` files get `require()`, `'module'` files get `import`.
+
+```json
+{
+  "plugins": [["@core-js", {
+    "method": "usage-global",
+    "version": "4.0",
+    "importStyle": "require"
+  }]]
+}
+```
 
 ### `debug`
 

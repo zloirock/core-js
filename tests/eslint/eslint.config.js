@@ -2331,6 +2331,8 @@ export default [
     files: [
       '**/*.mjs',
       'packages/core-js-babel-plugin/**',
+      'packages/core-js-polyfill-provider/**',
+      'packages/core-js-unplugin/**',
       'packages/core-js-builder/**',
       'packages/core-js-compat/**',
       'tests/eslint/**',

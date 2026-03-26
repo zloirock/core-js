@@ -38,6 +38,8 @@ node_modules/
 /packages/core-js-compat/known-built-in-return-types.json
 /packages/core-js-compat/modules.json
 /packages/core-js-compat/modules-by-versions.json
+/packages/core-js-polyfill-provider/LICENSE
+/packages/core-js-unplugin/LICENSE
 /packages/core-js-pure/actual/
 /packages/core-js-pure/es/
 /packages/core-js-pure/full/
