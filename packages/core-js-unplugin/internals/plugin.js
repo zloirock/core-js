@@ -31,7 +31,6 @@ export default function createPlugin(options) {
   const {
     method,
     targets,
-    // eslint-disable-next-line no-unused-vars -- reserved for future use
     debug: debugOpt = false,
     bundler,
     importStyle: importStyleOption,
@@ -107,15 +106,28 @@ export default function createPlugin(options) {
     throw new Error('.include and .exclude are not supported when using the .shouldInjectPolyfill function.');
   }
 
+  // Resolve targets: explicit targets, or browserslist config from configPath
+  const effectiveTargets = (() => {
+    if (targets) return targets;
+    if (restOptions.ignoreBrowserslistConfig) return null;
+    if (restOptions.configPath) {
+      try {
+        const require = createRequire(import.meta.url);
+        const browserslist = require('browserslist');
+        return browserslist(undefined, { path: restOptions.configPath });
+      } catch { return null; }
+    }
+    return null;
+  })();
+  const parsedTargets = effectiveTargets ? targetsParser(effectiveTargets) : null;
+
   // Build shouldInjectPolyfill from targets + include/exclude + user callback
   const shouldInjectPolyfill = (() => {
     const { include, exclude, shouldInjectPolyfill: userCallback } = restOptions;
-    // Build include/exclude matchers
     const matchers = patterns => {
       if (!patterns) return null;
       return (Array.isArray(patterns) ? patterns : [patterns]).map(p => {
         if (typeof p === 'string') {
-          // Wildcard patterns: . treated as regex dot (any char), * as .* (like babel provider)
           if (p.includes('*')) {
             const re = new RegExp(`^${ p.replaceAll('*', '.*') }$`);
             return mod => re.test(mod);
@@ -129,28 +141,9 @@ export default function createPlugin(options) {
     const includeMatchers = matchers(include);
     const excludeMatchers = matchers(exclude);
 
-    // Resolve targets: explicit targets, or browserslist config from configPath
-    const effectiveTargets = (() => {
-      if (targets) return targets;
-      if (restOptions.ignoreBrowserslistConfig) return null;
-      if (restOptions.configPath) {
-        try {
-          // browserslist is a peer dependency, load dynamically
-          const require = createRequire(import.meta.url);
-          const browserslist = require('browserslist');
-          return browserslist(undefined, { path: restOptions.configPath });
-        } catch { return null; }
-      }
-      return null;
-    })();
-    const parsedTargets = effectiveTargets ? targetsParser(effectiveTargets) : null;
-
     const defaultShouldInject = mod => {
-      // Exclude takes priority
       if (excludeMatchers?.some(m => m(mod))) return false;
-      // Force-include overrides target check
       if (includeMatchers?.some(m => m(mod))) return true;
-      // Target-based filtering
       if (parsedTargets) {
         const requirements = compatData[mod];
         if (!requirements) return true;
@@ -162,7 +155,6 @@ export default function createPlugin(options) {
       return true;
     };
 
-    // User callback receives (moduleName, defaultDecision) - same API as babel provider
     if (typeof userCallback === 'function') return mod => userCallback(mod, defaultShouldInject(mod));
     return defaultShouldInject;
   })();
@@ -175,6 +167,50 @@ export default function createPlugin(options) {
     method,
     shouldInjectPolyfill,
   });
+
+  // Debug: build targets display string and helper for per-module target info
+  const debugTargetsStr = parsedTargets
+    ? JSON.stringify(Object.fromEntries([...parsedTargets].map(([e, v]) => [e, String(v)])), null, 2)
+    : '{}';
+
+  function getUnsupportedTargets(moduleName) {
+    if (!parsedTargets) return {};
+    const requirements = compatData[moduleName];
+    if (!requirements) return Object.fromEntries(parsedTargets.map(([e, v]) => [e, String(v)]));
+    const unsupported = {};
+    for (const [engine, version] of parsedTargets) {
+      if (!hasOwn(requirements, engine) || compare(version, '<', requirements[engine])) {
+        unsupported[engine] = String(version);
+      }
+    }
+    return unsupported;
+  }
+
+  function formatTargets(obj) {
+    const pairs = Object.entries(obj);
+    if (!pairs.length) return '{}';
+    return `{ ${ pairs.map(([k, v]) => `"${ k }":"${ v }"`).join(', ') } }`;
+  }
+
+  function formatDebug(modules, pureEntries, { entryFound = true } = {}) {
+    const items = method === 'usage-pure' ? [...pureEntries] : [...modules];
+    const polyfillLines = items.map(item => method === 'usage-pure'
+      ? `  ${ item }`
+      : `  ${ item } ${ formatTargets(getUnsupportedTargets(item)) }`);
+
+    let result;
+    if (method === 'entry-global' && !entryFound) {
+      result = 'The entry point for the core-js@4 polyfill has not been found.';
+    } else if (items.length === 0) {
+      const scope = method === 'entry-global' ? 'your targets' : 'your code and targets';
+      result = `Based on ${ scope }, the core-js@4 polyfill did not add any polyfill.`;
+    } else {
+      const verb = method === 'entry-global' ? 'entry has been replaced with' : 'added';
+      result = `The core-js@4 polyfill ${ verb } the following polyfills:\n${ polyfillLines.join('\n') }`;
+    }
+
+    return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ debugTargetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }`;
+  }
 
   const resolve = createMetaResolver({
     global: builtInDefinitions.Globals,
@@ -250,23 +286,30 @@ export default function createPlugin(options) {
         injectModulesForEntry(`${ mode }/${ entry }`);
       }
 
-      function finalize() {
+      function finalize(debugOptions) {
         injector.flush();
         const result = ms.toString();
+        if (debugOpt) {
+          const allModules = new Set([...injectedModules, ...injector.globalModules]);
+          const modePrefix = `${ mode }/`;
+          const pureEntries = [...injector.pureImports.keys()].map(k => k.startsWith(modePrefix) ? k.slice(modePrefix.length) : k);
+          // eslint-disable-next-line no-console -- debug output requested by user
+          console.log(formatDebug(allModules, pureEntries, debugOptions));
+        }
         if (result === code) return null;
         return { code: result, map: ms.generateMap({ hires: true }) };
       }
 
       // ── entry-global mode ──
       if (method === 'entry-global') {
-        detectEntries(ast, {
+        const entryFound = detectEntries(ast, {
           getCoreJSEntry,
           getModulesForEntry,
           isDisabled,
           injector,
           ms,
         });
-        return finalize();
+        return finalize({ entryFound });
       }
 
       function enhanceMeta(meta, path, desc) {
