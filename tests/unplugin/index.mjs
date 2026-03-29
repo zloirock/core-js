@@ -109,6 +109,7 @@ async function runFixture(directory) {
   }
 
   const outputFile = join(directory, 'output.mjs');
+  const debugFile = join(directory, 'debug.txt');
   if (!await exists(outputFile)) {
     skipped++;
     return;
@@ -116,6 +117,11 @@ async function runFixture(directory) {
 
   try {
     const plugin = createPlugin(pluginOptions);
+    // Capture console.log for debug output comparison
+    const logs = [];
+    const origLog = console.log;
+    console.log = (...a) => logs.push(a.map(String).join(' '));
+
     // Try .tsx first (supports JSX + TS), fallback to .ts if parse fails
     // (angle bracket type assertions like <T>x conflict with JSX in .tsx)
     const testId = fixtureFilename || 'input.tsx';
@@ -123,6 +129,7 @@ async function runFixture(directory) {
     if (result === null && source.includes('<') && !source.includes('jsx') && !source.includes('/>')) {
       result = plugin.transform(source, fixtureFilename || 'input.ts');
     }
+    console.log = origLog;
     const actual = normalizeOutput(result?.code ?? source);
     const expected = normalizeOutput(await readFile(outputFile, UTF8));
 
@@ -136,10 +143,20 @@ async function runFixture(directory) {
     const actualImports = extractImports(actual);
     const expectedImports = extractImports(expected);
 
+    // Check debug output if debug.txt exists
+    async function checkDebug() {
+      if (!await exists(debugFile)) return true;
+      const expectedDebug = normalizeOutput(await readFile(debugFile, UTF8));
+      const actualDebug = logs.length ? normalizeOutput(logs.join('\n')) : '';
+      if (actualDebug === expectedDebug) return true;
+      echo(red(`${ cyan(label(directory)) } failed: debug output mismatch`));
+      echo(`  expected: ${ expectedDebug.split('\n').at(-1) }`);
+      echo(`  actual:   ${ actualDebug.split('\n').at(-1) || '(empty)' }`);
+      failed++;
+      return false;
+    }
+
     if (pluginOptions.method === 'usage-pure') {
-      // For pure mode, compare: (1) same import set, (2) no original global references remain
-      // The code body differs (magic-string vs Babel codegen), so we only check imports
-      // and verify that expected pure import bindings are used in the output
       const expectedBindings = expected.split('\n')
         .filter(line => line.startsWith('import '))
         .map(line => line.match(/^import (?<binding>\S+)/)?.groups.binding)
@@ -147,6 +164,7 @@ async function runFixture(directory) {
       const allBindingsUsed = expectedBindings.every(b => actual.includes(b));
 
       if (actualImports === expectedImports && allBindingsUsed) {
+        if (!await checkDebug()) return;
         pass(directory);
       } else {
         failed++;
@@ -161,6 +179,7 @@ async function runFixture(directory) {
         if (unusedBindings.length) echo`  ${ yellow('unused bindings:') } ${ unusedBindings.join(', ') }`;
       }
     } else if (actualImports === expectedImports) {
+      if (!await checkDebug()) return;
       pass(directory);
     } else {
       failed++;
