@@ -41,4 +41,5 @@ export default function detectEntries(ast, { getCoreJSEntry, getModulesForEntry,
     else if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
     ms.remove(node.start, end);
   }
+  return toRemove.length > 0;
 }
