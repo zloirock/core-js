@@ -27,6 +27,65 @@ import { createUsageVisitors, createSyntaxVisitors, POSSIBLE_GLOBAL_OBJECTS } fr
 
 const { hasOwn } = Object;
 
+// ESTree-to-Babel node type predicates for resolve-node-type
+// resolve-node-type uses Babel naming (ObjectProperty, OptionalMemberExpression, etc.)
+// but oxc-parser produces ESTree nodes (Property, MemberExpression with optional flag, etc.)
+const estreeTypes = {
+  isIdentifier: (n, opts) => n?.type === 'Identifier' && (!opts?.name || n.name === opts.name),
+  isMemberExpression: n => n?.type === 'MemberExpression' && !n.optional,
+  isOptionalMemberExpression: n => n?.type === 'MemberExpression' && n.optional === true,
+  isCallExpression: (n, opts) => n?.type === 'CallExpression' && !n.optional && (!opts?.callee || n.callee === opts.callee),
+  isOptionalCallExpression: (n, opts) => n?.type === 'CallExpression' && n.optional === true && (!opts?.callee || n.callee === opts.callee),
+  isObjectProperty: n => n?.type === 'Property' && !n.method && n.kind === 'init',
+  isObjectMethod: n => n?.type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'),
+  isObjectExpression: n => n?.type === 'ObjectExpression',
+  isObjectPattern: n => n?.type === 'ObjectPattern',
+  isArrayExpression: n => n?.type === 'ArrayExpression',
+  isClassMethod: n => n?.type === 'MethodDefinition',
+  isClassProperty: n => n?.type === 'PropertyDefinition',
+  isClassAccessorProperty: n => n?.type === 'AccessorProperty',
+  isClassBody: n => n?.type === 'ClassBody',
+  isClassDeclaration: n => n?.type === 'ClassDeclaration',
+  isClass: n => n?.type === 'ClassDeclaration' || n?.type === 'ClassExpression',
+  isFunction: n => {
+    const type = n?.type;
+    return type === 'FunctionDeclaration'
+      || type === 'FunctionExpression'
+      || type === 'ArrowFunctionExpression'
+      || type === 'TSDeclareFunction'
+      || (type === 'Property' && n.method)
+      || type === 'MethodDefinition';
+  },
+  isFunctionDeclaration: n => n?.type === 'FunctionDeclaration' || n?.type === 'TSDeclareFunction',
+  isArrowFunctionExpression: n => n?.type === 'ArrowFunctionExpression',
+  isVariableDeclarator: n => n?.type === 'VariableDeclarator',
+  isVariableDeclaration: n => n?.type === 'VariableDeclaration',
+  isAssignmentExpression: n => n?.type === 'AssignmentExpression',
+  isAssignmentPattern: n => n?.type === 'AssignmentPattern',
+  isBlockStatement: n => n?.type === 'BlockStatement',
+  isReturnStatement: n => n?.type === 'ReturnStatement',
+  isIfStatement: n => n?.type === 'IfStatement',
+  isSwitchStatement: n => n?.type === 'SwitchStatement',
+  isSwitchCase: n => n?.type === 'SwitchCase',
+  isForOfStatement: n => n?.type === 'ForOfStatement',
+  isForInStatement: n => n?.type === 'ForInStatement',
+  isNewExpression: n => n?.type === 'NewExpression',
+  isThisExpression: n => n?.type === 'ThisExpression',
+  isConditionalExpression: n => n?.type === 'ConditionalExpression',
+  isLogicalExpression: n => n?.type === 'LogicalExpression',
+  isSpreadElement: n => n?.type === 'SpreadElement',
+  isProgram: n => n?.type === 'Program',
+  isImport: n => n?.type === 'ImportExpression',
+};
+
+const {
+  resolvePropertyObjectType,
+  resolveGuardHints,
+  toHint,
+  isString,
+  isObject,
+} = createResolveNodeType(babelNodeType, estreeTypes);
+
 export default function createPlugin(options) {
   const {
     method,
@@ -40,63 +99,6 @@ export default function createPlugin(options) {
   validateImportStyle(importStyleOption);
 
   const isWebpack = bundler === 'webpack' || bundler === 'rspack';
-
-  // Create resolve-node-type instance for ESTree AST (oxc-parser)
-  const {
-    resolvePropertyObjectType,
-    resolveGuardHints,
-    toHint,
-    isString,
-    isObject,
-  } = createResolveNodeType(babelNodeType, {
-    isIdentifier: (n, opts) => n?.type === 'Identifier' && (!opts?.name || n.name === opts.name),
-    isMemberExpression: n => n?.type === 'MemberExpression' && !n.optional,
-    isOptionalMemberExpression: n => n?.type === 'MemberExpression' && n.optional === true,
-    isCallExpression: (n, opts) => n?.type === 'CallExpression' && !n.optional && (!opts?.callee || n.callee === opts.callee),
-    isOptionalCallExpression(n, opts) {
-      return n?.type === 'CallExpression' && n.optional === true && (!opts?.callee || n.callee === opts.callee);
-    },
-    isObjectProperty: n => n?.type === 'Property' && !n.method && n.kind === 'init',
-    isObjectMethod: n => n?.type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'),
-    isObjectExpression: n => n?.type === 'ObjectExpression',
-    isObjectPattern: n => n?.type === 'ObjectPattern',
-    isArrayExpression: n => n?.type === 'ArrayExpression',
-    isClassMethod: n => n?.type === 'MethodDefinition',
-    isClassProperty: n => n?.type === 'PropertyDefinition',
-    isClassAccessorProperty: n => n?.type === 'AccessorProperty',
-    isClassBody: n => n?.type === 'ClassBody',
-    isClassDeclaration: n => n?.type === 'ClassDeclaration',
-    isClass: n => n?.type === 'ClassDeclaration' || n?.type === 'ClassExpression',
-    isFunction: n => {
-      const type = n?.type;
-      return type === 'FunctionDeclaration'
-        || type === 'FunctionExpression'
-        || type === 'ArrowFunctionExpression'
-        || type === 'TSDeclareFunction'
-        || (type === 'Property' && n.method)
-        || type === 'MethodDefinition';
-    },
-    isFunctionDeclaration: n => n?.type === 'FunctionDeclaration' || n?.type === 'TSDeclareFunction',
-    isArrowFunctionExpression: n => n?.type === 'ArrowFunctionExpression',
-    isVariableDeclarator: n => n?.type === 'VariableDeclarator',
-    isVariableDeclaration: n => n?.type === 'VariableDeclaration',
-    isAssignmentExpression: n => n?.type === 'AssignmentExpression',
-    isAssignmentPattern: n => n?.type === 'AssignmentPattern',
-    isBlockStatement: n => n?.type === 'BlockStatement',
-    isReturnStatement: n => n?.type === 'ReturnStatement',
-    isIfStatement: n => n?.type === 'IfStatement',
-    isSwitchStatement: n => n?.type === 'SwitchStatement',
-    isSwitchCase: n => n?.type === 'SwitchCase',
-    isForOfStatement: n => n?.type === 'ForOfStatement',
-    isForInStatement: n => n?.type === 'ForInStatement',
-    isNewExpression: n => n?.type === 'NewExpression',
-    isThisExpression: n => n?.type === 'ThisExpression',
-    isConditionalExpression: n => n?.type === 'ConditionalExpression',
-    isLogicalExpression: n => n?.type === 'LogicalExpression',
-    isSpreadElement: n => n?.type === 'SpreadElement',
-    isProgram: n => n?.type === 'Program',
-    isImport: n => n?.type === 'ImportExpression',
-  });
 
   // Validate shouldInjectPolyfill
   if (restOptions.shouldInjectPolyfill !== undefined && typeof restOptions.shouldInjectPolyfill !== 'function') {
@@ -119,6 +121,7 @@ export default function createPlugin(options) {
     }
     return null;
   })();
+
   const parsedTargets = effectiveTargets ? targetsParser(effectiveTargets) : null;
 
   // Build shouldInjectPolyfill from targets + include/exclude + user callback
@@ -300,7 +303,7 @@ export default function createPlugin(options) {
         return { code: result, map: ms.generateMap({ hires: true }) };
       }
 
-      // ── entry-global mode ──
+      // entry-global mode
       if (method === 'entry-global') {
         const entryFound = detectEntries(ast, {
           getCoreJSEntry,
@@ -355,7 +358,7 @@ export default function createPlugin(options) {
         return !!filters?.some(([name, ...args]) => filter(name, args, path));
       }
 
-      // ── usage-global mode ──
+      // usage-global mode
       if (method === 'usage-global') {
         const usageCallback = (meta, path) => {
           if (isDisabled(path.node)) return;
@@ -412,7 +415,7 @@ export default function createPlugin(options) {
         return finalize();
       }
 
-      // ── usage-pure mode ──
+      // usage-pure mode
       if (method === 'usage-pure') {
         let uidCounter = 0;
         const skippedNodes = new WeakSet();
