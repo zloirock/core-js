@@ -1247,6 +1247,9 @@ function createResolveNodeType(babelNodeType, t) {
         if (t.isImport(callee.node)) return new $Object('Promise');
         return resolveCallReturnType(callee);
       }
+      // ESTree: import('foo') is ImportExpression (not CallExpression with Import callee)
+      case 'ImportExpression':
+        return new $Object('Promise');
       // tagged templates are semantically calls: String.raw`foo` ≡ String.raw(…)
       case 'TaggedTemplateExpression':
         return resolveCallReturnType(path.get('tag'));
@@ -1387,15 +1390,6 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveParamType(binding, fnPath, callPath);
   }
 
-  const FUNCTION_NODE_TYPES = new Set([
-    'FunctionDeclaration',
-    'FunctionExpression',
-    'ArrowFunctionExpression',
-    'ObjectMethod',
-    'ClassMethod',
-    'ClassPrivateMethod',
-  ]);
-
   // collect return statement paths from a block body, skipping nested functions
   // per JS spec, `return` in `finally` always overrides `return` in the try/catch
   // of the same TryStatement - this is handled per-TryStatement, not globally,
@@ -1403,7 +1397,7 @@ function createResolveNodeType(babelNodeType, t) {
   function collectReturnPaths(blockPath) {
     const getChildren = (path, key) => Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
     const collect = path => {
-      if (!path.node || FUNCTION_NODE_TYPES.has(path.node.type)) return [];
+      if (!path.node || t.isFunction(path.node)) return [];
       if (t.isReturnStatement(path.node)) return [path];
       const { node } = path;
       // TryStatement: if finally has returns, they override try/catch returns
@@ -1564,11 +1558,12 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // phase 2: constraint / default fallback for unresolved type params
     for (const typeParam of fnPath.node.typeParameters.params) {
-      if (typeParamMap.has(typeParam.name)) continue;
+      const name = typeParamName(typeParam);
+      if (typeParamMap.has(name)) continue;
       const annotation = typeParam.constraint ?? typeParam.default;
       if (annotation) {
         const resolved = resolveTypeAnnotation(annotation, fnPath.scope);
-        if (resolved) typeParamMap.set(typeParam.name, resolved);
+        if (resolved) typeParamMap.set(name, resolved);
       }
     }
     return typeParamMap;
