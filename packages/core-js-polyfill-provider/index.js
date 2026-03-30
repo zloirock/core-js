@@ -400,9 +400,10 @@ function createPolyfillResolver({
     },
 
     // Resolve usage-global meta to dependency entries
+    // Returns: dependencies array (found), null (found but filtered/empty), undefined (not found)
     resolveUsage(meta, path) {
       const resolved = resolve(meta);
-      if (!resolved || !hasOwn(resolved.desc, 'global')) return null;
+      if (!resolved || !hasOwn(resolved.desc, 'global')) return;
       let { kind, desc: { global: desc } } = resolved;
       if (kind === 'instance') {
         const enhanced = enhanceMeta(meta, path, desc);
