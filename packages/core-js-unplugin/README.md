@@ -48,26 +48,10 @@ module.exports = {
 };
 ```
 
-### Rollup
-
+### Rolldown / Rollup
 ```js
-// rollup.config.js
-import coreJS from '@core-js/unplugin/rollup';
-
-export default {
-  plugins: [coreJS({
-    method: 'usage-global',
-    version: '4.0',
-    targets: { chrome: 80 },
-  })],
-};
-```
-
-### Rolldown
-
-```js
-// rolldown.config.js
-import coreJS from '@core-js/unplugin/rolldown';
+// rolldown.config.js / rollup.config.js
+import coreJS from '@core-js/unplugin/rolldown'; // or '@core-js/unplugin/rollup'
 
 export default {
   plugins: [coreJS({
