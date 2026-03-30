@@ -35,23 +35,35 @@ function isReferenced(node, parent, parentKey) {
 }
 
 // Resolve object name from a member expression's object part
+// Resolve a bound identifier to its global name, or null if it's a local/imported value
+function resolveBindingToGlobal(name, scope) {
+  const binding = scope.getBinding(name);
+  const bindingType = binding?.path?.node?.type;
+  // import X from '...', import { X } from '...', import * as X from '...'
+  if (bindingType === 'ImportSpecifier' || bindingType === 'ImportDefaultSpecifier'
+    || bindingType === 'ImportNamespaceSpecifier') return null;
+  // const X = <expr> - follow if init is a bare identifier (alias), skip if init is a call/complex expression
+  if (bindingType === 'VariableDeclarator') {
+    const { init } = binding.path.node;
+    if (binding.constantViolations?.length) return null;
+    if (init?.type === 'Identifier' && !scope.hasBinding(init.name)) return init.name;
+    if (init) return null;
+  }
+  // Param/binding with same name as known global - treat as potential global
+  // Matches babel provider behavior: function test(JSON) { JSON.stringify(...) } still polyfills
+  return isStaticPlacement(name) ? name : null;
+}
+
+function isImportBinding(name, scope) {
+  if (!scope?.hasBinding(name)) return false;
+  const bindingType = scope.getBinding(name)?.path?.node?.type;
+  return bindingType === 'ImportSpecifier' || bindingType === 'ImportDefaultSpecifier'
+    || bindingType === 'ImportNamespaceSpecifier';
+}
+
 function resolveObjectName(objectNode, scope) {
   if (objectNode.type === 'Identifier') {
-    if (scope && scope.hasBinding(objectNode.name)) {
-      // Follow const binding to global: const Obj = Object; Obj.assign(...)
-      const binding = scope.getBinding(objectNode.name);
-      if (binding && !binding.constantViolations?.length && binding.path?.node?.type === 'VariableDeclarator') {
-        const { init } = binding.path.node;
-        if (init?.type === 'Identifier' && !scope.hasBinding(init.name)) return init.name;
-      }
-      // Param/binding with same name as known global - treat as potential global
-      // Matches babel provider behavior: function test(JSON) { JSON.stringify(...) } still polyfills
-      // But skip import bindings - `import Array from './x'; Array.from()` should not polyfill
-      const bindingType = binding?.path?.node?.type;
-      if (bindingType !== 'ImportSpecifier' && bindingType !== 'ImportDefaultSpecifier'
-        && bindingType !== 'ImportNamespaceSpecifier' && isStaticPlacement(objectNode.name)) return objectNode.name;
-      return null;
-    }
+    if (scope && scope.hasBinding(objectNode.name)) return resolveBindingToGlobal(objectNode.name, scope);
     return objectNode.name;
   }
   // globalThis.Array, self.Promise - resolve through global proxy chain
@@ -110,13 +122,8 @@ function buildMemberMeta(node, scope) {
     }
   }
   const objectName = resolveObjectName(node.object, scope);
-  // Skip import-bound objects for instance access - they're not global polyfillable
-  if (!objectName && node.object.type === 'Identifier' && scope) {
-    const binding = scope.getBinding(node.object.name);
-    if (binding?.path?.node?.type === 'ImportSpecifier'
-      || binding?.path?.node?.type === 'ImportDefaultSpecifier'
-      || binding?.path?.node?.type === 'ImportNamespaceSpecifier') return null;
-  }
+  // Skip polyfilling on import-bound objects: import arr from './x'; arr.flat() should not polyfill
+  if (!objectName && node.object.type === 'Identifier' && isImportBinding(node.object.name, scope)) return null;
   const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
   return {
     kind: 'property',
@@ -193,27 +200,11 @@ function buildDestructuringMeta(propNode, parentPath) {
     return { kind: 'property', object: null, key, placement: null };
   }
 
-  if (scope && scope.hasBinding(initNode.name)) {
-    // Follow const binding: const bar = Array; const { from } = bar;
-    const binding = scope.getBinding(initNode.name);
-    if (binding && !binding.constantViolations?.length && binding.path?.node?.type === 'VariableDeclarator') {
-      const { init: boundInit } = binding.path.node;
-      if (boundInit?.type === 'Identifier' && !scope.hasBinding(boundInit.name)) {
-        initNode = boundInit;
-      } else return { kind: 'property', object: null, key, placement: null };
-    } else {
-      // Param/binding with same name as known global - treat as potential global
-      if (isStaticPlacement(initNode.name)) return { kind: 'property', object: initNode.name, key, placement: 'static' };
-      return { kind: 'property', object: null, key, placement: null };
-    }
-  }
-
-  return {
-    kind: 'property',
-    object: initNode.name,
-    key,
-    placement: isStaticPlacement(initNode.name),
-  };
+  const resolvedName = scope && scope.hasBinding(initNode.name)
+    ? resolveBindingToGlobal(initNode.name, scope)
+    : initNode.name;
+  if (!resolvedName) return { kind: 'property', object: null, key, placement: null };
+  return { kind: 'property', object: resolvedName, key, placement: isStaticPlacement(resolvedName) };
 }
 
 // Walk TS type annotations to find global type references (Promise, Map, Set, etc.)
