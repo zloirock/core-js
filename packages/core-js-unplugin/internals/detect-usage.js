@@ -1,7 +1,7 @@
 // Detect polyfillable usage patterns (usage-global and usage-pure modes)
 // Replicates @babel/helper-define-polyfill-provider's usage visitor + custom syntax visitors
 
-export const POSSIBLE_GLOBAL_OBJECTS = new Set(['global', 'globalThis', 'self', 'window']);
+import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider';
 
 function isStaticPlacement(objectName) {
   // If the object is a known global proxy or starts with uppercase (constructor), it's static
