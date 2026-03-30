@@ -236,10 +236,6 @@ function walkTypeAnnotationGlobals(annotation, onUsage, path) {
       if (Array.isArray(child)) for (const c of child) stack.push(c);
       else if (child && typeof child === 'object') stack.push(child);
     }
-    // TSTypeParameterInstantiation params
-    if (node.params && node.type === 'TSTypeParameterInstantiation') {
-      for (const p of node.params) stack.push(p);
-    }
   }
 }
 
