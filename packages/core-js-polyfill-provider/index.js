@@ -187,14 +187,14 @@ function validateIncludeExclude(include, exclude, modules) {
   if (moduleInclude?.length) {
     const unused = moduleInclude.filter(p => !patternMatches(p, modules));
     if (unused.length) {
-      errors.push(`  - The following "include" patterns didn't match any polyfill:\n    ${ unused.join('\n    ') }`);
+      errors.push(`  - The following "include" patterns didn't match any polyfill:\n${ unused.map(p => `    ${ p }\n`).join('') }`);
     }
   }
   // Check for unused exclude patterns
   if (moduleExclude?.length) {
     const unused = moduleExclude.filter(p => !patternMatches(p, modules));
     if (unused.length) {
-      errors.push(`  - The following "exclude" patterns didn't match any polyfill:\n    ${ unused.join('\n    ') }`);
+      errors.push(`  - The following "exclude" patterns didn't match any polyfill:\n${ unused.map(p => `    ${ p }\n`).join('') }`);
     }
   }
   // Check for duplicate patterns (in both include and exclude)
@@ -204,11 +204,11 @@ function validateIncludeExclude(include, exclude, modules) {
       return moduleExclude.includes(p);
     });
     if (duplicates.length) {
-      errors.push(`  - The following polyfills were matched both by "include" and "exclude" patterns:\n    ${ duplicates.join('\n    ') }`);
+      errors.push(`  - The following polyfills were matched both by "include" and "exclude" patterns:\n${ duplicates.map(p => `    ${ p }\n`).join('') }`);
     }
   }
   if (errors.length) {
-    throw new Error(`Error while validating the "core-js@4" provider options:\n${ errors.join('\n') }`);
+    throw new Error(`Error while validating the "core-js@4" provider options:\n${ errors.join('') }`);
   }
 }
 
