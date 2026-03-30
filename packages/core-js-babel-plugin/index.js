@@ -1,25 +1,18 @@
 import defineProvider from '@babel/helper-define-polyfill-provider';
 import compatData from '@core-js/compat/data' with { type: 'json' };
-import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
 import {
-  TYPE_HINTS,
   isCoreJSFile,
-  getDependencies,
-  descHasTypeHints,
-  resolveHint,
-  pureImportName,
   parseDisableDirectives,
-  createPolyfillContext,
+  createPolyfillResolver,
   validateImportStyle,
   resolveImportStyle,
 } from '@core-js/polyfill-provider';
 import createASTHelpers from './ast-helpers.js';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 
-const { hasOwn } = Object;
-
 export default defineProvider(({
   babel,
+  // eslint-disable-next-line no-unused-vars -- provided by defineProvider but resolution is now in createPolyfillResolver
   createMetaResolver,
   debug,
   getUtils,
@@ -39,34 +32,6 @@ export default defineProvider(({
 
   validateImportStyle(importStyleOption);
 
-  const {
-    mode: resolvedMode,
-    pkg: resolvedPkg,
-    getModulesForEntry,
-    getCoreJSEntry,
-    isEntryNeeded,
-    filteredInclude,
-    filteredExclude,
-  } = createPolyfillContext({
-    method,
-    mode,
-    version,
-    package: pkg,
-    additionalPackages,
-    include,
-    exclude,
-    shippedProposals,
-    shouldInjectPolyfill,
-    validate: false, // Babel provider handles its own include/exclude validation
-  });
-
-  mode = resolvedMode;
-  pkg = resolvedPkg;
-
-  // update options for the provider if entry paths were extracted
-  if (filteredInclude !== include) options.include = filteredInclude;
-  if (filteredExclude !== exclude) options.exclude = filteredExclude;
-
   const { types: t } = babel;
   const {
     resolvePropertyObjectType,
@@ -75,37 +40,6 @@ export default defineProvider(({
     isString,
     isObject,
   } = createResolveNodeType(node => node?.type, t);
-
-  function enhanceMeta(meta, path, desc) {
-    if (!meta) return meta;
-    if (meta.object !== null && meta.object !== undefined
-      && meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
-    const hint = toHint(resolvePropertyObjectType(path));
-    if (hint) {
-      if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
-      return descHasTypeHints(desc) ? null : meta;
-    }
-    // no type resolved - check for type guards to include/exclude specific hints (MemberExpression only)
-    if ((path.isMemberExpression() || path.isOptionalMemberExpression()) && descHasTypeHints(desc)) {
-      const hints = resolveGuardHints(path.get('object'));
-      if (hints) return { ...meta, ...hints };
-    }
-    return meta;
-  }
-
-  function canTransformDestructuring(path) {
-    const objectPattern = path.parentPath;
-    const destructParent = objectPattern?.parentPath;
-    if (destructParent?.isVariableDeclarator()) {
-      if (!destructParent.node.init) return false;
-      if (objectPattern.node.properties.length > 1 && destructParent.parentPath?.parentPath?.isForStatement()) return false;
-    } else if (destructParent?.isAssignmentExpression()) {
-      if (!destructParent.parentPath?.isExpressionStatement()) return false;
-    } else {
-      return false;
-    }
-    return true;
-  }
 
   const {
     isCallee,
@@ -116,6 +50,23 @@ export default defineProvider(({
     resolveDestructuringObject,
     handleDestructuredProperty,
   } = createASTHelpers(t);
+
+  const resolver = createPolyfillResolver({
+    method, mode, version, package: pkg, additionalPackages,
+    include, exclude, shippedProposals, shouldInjectPolyfill,
+    validate: false,
+    resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject,
+    isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
+    isCallee,
+    isSpreadElement: node => t.isSpreadElement(node),
+  });
+
+  ({ mode, pkg } = resolver);
+
+  // update options for the provider if entry paths were extracted
+  if (resolver.filteredInclude !== include) options.include = resolver.filteredInclude;
+  if (resolver.filteredExclude !== exclude) options.exclude = resolver.filteredExclude;
+
   const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
 
   const injectedModules = new Set();
@@ -130,18 +81,12 @@ export default defineProvider(({
     return skipFile || (disabledLines !== null && disabledLines.has(path.node.loc?.start.line));
   }
 
-  const resolve = createMetaResolver({
-    global: builtInDefinitions.Globals,
-    static: builtInDefinitions.StaticProperties,
-    instance: builtInDefinitions.InstanceProperties,
-  });
-
   function injectModulesForModeEntry(entry, utils) {
     return injectModulesForEntry(`${ mode }/${ entry }`, utils);
   }
 
   function injectModulesForEntry(entry, utils) {
-    for (const moduleName of getModulesForEntry(entry)) {
+    for (const moduleName of resolver.getModulesForEntry(entry)) {
       injectModule(moduleName, utils);
     }
   }
@@ -171,31 +116,6 @@ export default defineProvider(({
     debug(moduleName);
   }
 
-  function filter(name, args, path) {
-    const { node, parent } = path;
-    if (!isCallee(node, parent)) return false;
-    switch (name) {
-      case 'min-args': {
-        const [length] = args;
-        if (parent.arguments.length >= length) return false;
-        return parent.arguments.every(arg => !t.isSpreadElement(arg));
-      }
-      case 'arg-is-string':
-      case 'arg-is-object': {
-        const [index] = args;
-        if (parent.arguments.length < index + 1) return false;
-        if (parent.arguments.slice(0, index).some(arg => t.isSpreadElement(arg))) return false;
-        const arg = path.parentPath.get('arguments')[index];
-        return name === 'arg-is-string' ? isString(arg) : isObject(arg);
-      }
-    }
-    return false;
-  }
-
-  function applyFilters(filters, path) {
-    return !!filters?.some(([name, ...args]) => filter(name, args, path));
-  }
-
   function injectPureImport(entry, hint, utils) {
     const source = `${ pkg }/${ mode }/${ entry }`;
     if (importStyleOption) {
@@ -208,34 +128,34 @@ export default defineProvider(({
     return utils.injectDefaultImport(source, hint);
   }
 
-  function resolvePureEntry(kind, desc, meta, path) {
-    let target = desc;
-    if (kind === 'instance') {
-      target = resolveHint(desc, meta);
-      if (target === null) return null;
-    }
-    if (applyFilters(target.filters, path)) return null;
-    const dependencies = getDependencies(target);
-    if (!dependencies?.length) return null;
-    const [entry] = dependencies;
-    if (!isEntryNeeded(entry) && !(target.guard && isEntryNeeded(target.guard))) return null;
-    return entry;
-  }
-
   function handleSymbolIterator(path, utils) {
     const { parent, node } = path;
     if (node.computed) skippedNodes.add(node.property);
     const isCall = t.isCallExpression(parent, { callee: node })
       || t.isOptionalCallExpression(parent, { callee: node });
     if (isCall && parent.arguments.length === 0 && !parent.optional) {
-      if (!isEntryNeeded('get-iterator')) return;
+      if (!resolver.isEntryNeeded('get-iterator')) return;
       replaceCallWithSimple(path, injectPureImport('get-iterator', 'getIterator', utils));
       debug('get-iterator');
     } else {
-      if (!isEntryNeeded('get-iterator-method')) return;
+      if (!resolver.isEntryNeeded('get-iterator-method')) return;
       replaceInstanceLike(path, injectPureImport('get-iterator-method', 'getIteratorMethod', utils));
       debug('get-iterator-method');
     }
+  }
+
+  function canTransformDestructuring(path) {
+    const objectPattern = path.parentPath;
+    const destructParent = objectPattern?.parentPath;
+    if (destructParent?.isVariableDeclarator()) {
+      if (!destructParent.node.init) return false;
+      if (objectPattern.node.properties.length > 1 && destructParent.parentPath?.parentPath?.isForStatement()) return false;
+    } else if (destructParent?.isAssignmentExpression()) {
+      if (!destructParent.parentPath?.isExpressionStatement()) return false;
+    } else {
+      return false;
+    }
+    return true;
   }
 
   return {
@@ -253,30 +173,19 @@ export default defineProvider(({
     },
     entryGlobal({ source }, utils, path) {
       if (isDisabled(path)) return;
-      const entry = getCoreJSEntry(source);
-      if (entry === null) return;
-      if (!path.node.loc && injectedModules.has(entry)) return;
+      const result = resolver.resolveEntry(source);
+      if (!result) return;
+      if (!path.node.loc && injectedModules.has(result.entry)) return;
       debug();
-      injectModulesForEntry(entry, utils);
+      for (const mod of result.modules) injectModule(mod, utils);
       path.remove();
     },
+    // eslint-disable-next-line sonarjs/no-invariant-returns -- return true tells provider to skip object
     usageGlobal(meta, utils, path) {
       if (isDisabled(path)) return true;
-      const resolved = resolve(meta);
-      if (!resolved || !hasOwn(resolved.desc, 'global')) return;
-      let { kind, desc: { global: desc } } = resolved;
-      if (kind === 'instance') {
-        const enhanced = enhanceMeta(meta, path, desc);
-        if (enhanced === null) return true;
-        desc = resolveHint(desc, enhanced);
-        if (desc === null) return true;
-      }
-      const dependencies = getDependencies(desc);
-      if (!dependencies?.length) return true;
-      if (applyFilters(desc.filters, path)) return true;
-      for (const entry of dependencies) {
-        injectModulesForModeEntry(entry, utils);
-      }
+      const deps = resolver.resolveUsage(meta, path);
+      if (!deps) return true;
+      for (const entry of deps) injectModulesForModeEntry(entry, utils);
       return true;
     },
 
@@ -286,7 +195,7 @@ export default defineProvider(({
       if (isInTypeAnnotation(path)) return;
 
       if (meta.kind === 'in') {
-        if (meta.key === 'Symbol.iterator' && isEntryNeeded('is-iterable')) {
+        if (meta.key === 'Symbol.iterator' && resolver.isEntryNeeded('is-iterable')) {
           path.replaceWith(t.callExpression(injectPureImport('is-iterable', 'isIterable', utils), [path.node.right]));
           debug('is-iterable');
         }
@@ -312,20 +221,11 @@ export default defineProvider(({
         }
       }
 
-      const resolved = resolve(meta);
-      if (!resolved || !hasOwn(resolved.desc, 'pure')) return;
+      const result = resolver.resolvePure(meta, path);
+      if (!result) return;
+      debug(result.entry);
 
-      const { kind, desc: { pure: desc } } = resolved;
-      let effectiveMeta = meta;
-      if (kind === 'instance') {
-        effectiveMeta = enhanceMeta(meta, path, desc);
-        if (effectiveMeta === null) return;
-      }
-      const importEntry = resolvePureEntry(kind, desc, effectiveMeta, path);
-      if (!importEntry) return;
-      debug(importEntry);
-
-      const hintName = pureImportName(kind, resolved.name, importEntry);
+      const { entry, kind, hintName } = result;
 
       if (path.isObjectProperty()) {
         if (!canTransformDestructuring(path)) return;
@@ -334,13 +234,13 @@ export default defineProvider(({
         if (kind === 'instance') {
           const objectNode = resolveDestructuringObject(path);
           if (!objectNode) return;
-          value = t.callExpression(injectPureImport(importEntry, hintName, utils), [t.cloneNode(objectNode)]);
+          value = t.callExpression(injectPureImport(entry, hintName, utils), [t.cloneNode(objectNode)]);
         } else {
-          value = injectPureImport(importEntry, hintName, utils);
+          value = injectPureImport(entry, hintName, utils);
         }
         handleDestructuredProperty(path, value);
       } else {
-        const id = injectPureImport(importEntry, hintName, utils);
+        const id = injectPureImport(entry, hintName, utils);
         if (kind === 'instance') {
           replaceInstanceLike(path, id);
         } else {
