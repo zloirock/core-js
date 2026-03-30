@@ -48,7 +48,7 @@ const estreeTypes = {
       || type === 'FunctionExpression'
       || type === 'ArrowFunctionExpression'
       || type === 'TSDeclareFunction'
-      || (type === 'Property' && n.method)
+      || (type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'))
       || type === 'MethodDefinition';
   },
   isFunctionDeclaration: n => n?.type === 'FunctionDeclaration' || n?.type === 'TSDeclareFunction',
