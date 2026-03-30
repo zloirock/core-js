@@ -90,11 +90,12 @@ function buildMemberMeta(node, scope) {
   if (node.computed) {
     const resolved = resolveComputedKey(node.property, scope);
     if (!resolved) return null;
+    const objectName = resolveObjectName(node.object, scope);
     return {
       kind: 'property',
-      object: resolveObjectName(node.object, scope),
+      object: objectName,
       key: resolved,
-      placement: resolveObjectName(node.object, scope) ? isStaticPlacement(resolveObjectName(node.object, scope)) : 'prototype',
+      placement: objectName ? isStaticPlacement(objectName) : 'prototype',
     };
   }
   const key = node.property.name || node.property.value;
@@ -191,8 +192,6 @@ function buildDestructuringMeta(propNode, parentPath) {
     }
     return { kind: 'property', object: null, key, placement: null };
   }
-  // Non-identifier init (array literal, string literal, call expression, etc.)
-  if (initNode.type !== 'Identifier') return { kind: 'property', object: null, key, placement: null };
 
   if (scope && scope.hasBinding(initNode.name)) {
     // Follow const binding: const bar = Array; const { from } = bar;
