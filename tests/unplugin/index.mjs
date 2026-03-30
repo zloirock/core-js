@@ -89,15 +89,14 @@ async function runFixture(directory) {
       failed++;
     } catch (error) {
       // Strip Babel-specific wrapping from expected message for comparison
-      // e.g., '[BABEL] unknown file: Incorrect plugin mode (While processing: "...")' → 'Incorrect plugin mode'
+      // '[BABEL] unknown file: ...\n (While processing: "...")' → core error message
       const actualMsg = error.message;
       const strippedExpected = expectedError
         .replace(/^\[BABEL\] [^:]+: /, '')
-        .replace(/ \(While processing:.*$/, '')
-        .split('\n')[0]
+        .replace(/\n? ?\(While processing:.*\)$/s, '')
         .trim();
-      if (actualMsg.includes(strippedExpected) || strippedExpected.includes(actualMsg)) {
-        passed++;
+      if (actualMsg.trim() === strippedExpected) {
+        pass(directory);
       } else {
         echo(red(`${ cyan(label(directory)) } failed: wrong error`));
         echo(`  expected: ${ strippedExpected }`);
