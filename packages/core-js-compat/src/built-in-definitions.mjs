@@ -133,16 +133,13 @@ export const StaticProperties = {
   Object: {
     assign: 'object/assign',
     create: {
-      global: 'object/create',
       pure: { dependencies: 'object/create', guard: 'symbol/constructor' },
     },
     defineProperties: {
-      global: 'object/define-properties',
       pure: { dependencies: 'object/define-properties', guard: 'symbol/constructor' },
     },
     defineProperty: {
-      global: 'object/define-property',
-      pure: { dependencies: 'object/define-property', guard: 'symbol/constructor' },
+      pure: { dependencies: 'object/define-property', guard: 'symbol/constructor', filters: [['arg-is-string', 1]] },
     },
     entries: 'object/entries',
     freeze: { dependencies: 'object/freeze', filters: [['arg-is-object', 0]] },
