@@ -231,9 +231,10 @@ module.exports = {
 };
 ```
 
-### Rollup / Rolldown
+### Rolldown / Rollup
 ```ts
-import coreJS from '@core-js/unplugin/rollup'; // or '@core-js/unplugin/rolldown'
+// rolldown.config.js / rollup.config.js
+import coreJS from '@core-js/unplugin/rolldown'; // or '@core-js/unplugin/rollup'
 
 export default {
   plugins: [coreJS({
@@ -256,6 +257,20 @@ await esbuild.build({
     targets: { chrome: 80 },
   })],
 });
+```
+
+### Rspack
+```ts
+// rspack.config.js
+const coreJS = require('@core-js/unplugin/rspack');
+
+module.exports = {
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: '4.0',
+    targets: { chrome: 80 },
+  })],
+};
 ```
 
 ### `@core-js/unplugin` options
