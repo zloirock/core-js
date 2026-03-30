@@ -1,26 +1,40 @@
 import entries from '@core-js/compat/entries' with { type: 'json' };
+import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
+import { TYPE_HINTS } from './resolve-node-type.js';
 
 const { hasOwn } = Object;
 
-const TYPE_HINTS = new Set([
-  'array',
-  'asynciterator',
-  'bigint',
-  'boolean',
-  'date',
-  'domcollection',
-  'function',
-  'iterator',
-  'number',
-  'object',
-  'promise',
-  'regexp',
-  'string',
-  'symbol',
+const POSSIBLE_GLOBAL_OBJECTS = new Set([
+  'global',
+  'globalThis',
+  'self',
+  'window',
 ]);
+
+function createMetaResolver({ global: globals, static: statics, instance }) {
+  return function resolve(meta) {
+    if (meta.kind === 'global') {
+      if (!hasOwn(globals, meta.name)) return undefined;
+      return { kind: 'global', desc: globals[meta.name], name: meta.name };
+    }
+    if (meta.kind === 'property' || meta.kind === 'in') {
+      const { placement, object, key } = meta;
+      if (placement === 'static' && POSSIBLE_GLOBAL_OBJECTS.has(object) && hasOwn(globals, key)) {
+        return { kind: 'global', desc: globals[key], name: key };
+      }
+      if (placement === 'static' && hasOwn(statics, object) && hasOwn(statics[object], key)) {
+        return { kind: 'static', desc: statics[object][key], name: `${ object }$${ key }` };
+      }
+      if (!hasOwn(instance, key)) return undefined;
+      const desc = instance[key];
+      if (desc) return { kind: 'instance', desc, name: key };
+    }
+    return undefined;
+  };
+}
 
 // array/instance/at and array/prototype/at -> array/at
 function normalizeEntryPath(entry) {
@@ -295,6 +309,142 @@ function createPolyfillContext({
   };
 }
 
+// High-level polyfill resolver — encapsulates the "what to polyfill" logic.
+// Plugins handle "how to inject" (Babel AST manipulation vs magic-string).
+function createPolyfillResolver({
+  // polyfill context options
+  method, mode, version, package: pkg, additionalPackages,
+  include, exclude, shippedProposals, shouldInjectPolyfill, validate,
+  // AST type inference callbacks (from createResolveNodeType)
+  resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject,
+  // AST predicates — minimal set needed by resolution logic
+  isMemberLike, // (path) => bool — is MemberExpression or OptionalMemberExpression
+  isCallee, // (node, parent) => bool — is node the callee of a call/new
+  isSpreadElement, // (node) => bool
+}) {
+  const ctx = createPolyfillContext({
+    method, mode, version, package: pkg, additionalPackages,
+    include, exclude, shippedProposals, shouldInjectPolyfill, validate,
+  });
+
+  const resolve = createMetaResolver({
+    global: builtInDefinitions.Globals,
+    static: builtInDefinitions.StaticProperties,
+    instance: builtInDefinitions.InstanceProperties,
+  });
+
+  function enhanceMeta(meta, path, desc) {
+    if (!meta) return meta;
+    if (meta.object !== null && meta.object !== undefined
+      && meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
+    const hint = toHint(resolvePropertyObjectType(path));
+    if (hint) {
+      if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
+      return descHasTypeHints(desc) ? null : meta;
+    }
+    if (isMemberLike(path) && descHasTypeHints(desc)) {
+      const hints = resolveGuardHints(path.get('object'));
+      if (hints) return { ...meta, ...hints };
+    }
+    return meta;
+  }
+
+  function filter(name, args, path) {
+    const { node } = path;
+    const parent = path.parentPath?.node ?? path.parent;
+    if (!isCallee(node, parent)) return false;
+    switch (name) {
+      case 'min-args': {
+        const [length] = args;
+        if (parent.arguments.length >= length) return false;
+        return parent.arguments.every(arg => !isSpreadElement(arg));
+      }
+      case 'arg-is-string':
+      case 'arg-is-object': {
+        const [index] = args;
+        if (parent.arguments.length < index + 1) return false;
+        if (parent.arguments.slice(0, index).some(arg => isSpreadElement(arg))) return false;
+        const arg = path.parentPath.get('arguments')[index];
+        return name === 'arg-is-string' ? isString(arg) : isObject(arg);
+      }
+    }
+    return false;
+  }
+
+  function applyFilters(filters, path) {
+    return !!filters?.some(([name, ...args]) => filter(name, args, path));
+  }
+
+  function resolvePureEntry(kind, desc, meta, path) {
+    let target = desc;
+    if (kind === 'instance') {
+      target = resolveHint(desc, meta);
+      if (target === null) return null;
+    }
+    if (applyFilters(target.filters, path)) return null;
+    const dependencies = getDependencies(target);
+    if (!dependencies?.length) return null;
+    const [entry] = dependencies;
+    if (!ctx.isEntryNeeded(entry) && !(target.guard && ctx.isEntryNeeded(target.guard))) return null;
+    return entry;
+  }
+
+  return {
+    ...ctx,
+
+    // Resolve entry import to module list
+    resolveEntry(source) {
+      const entry = ctx.getCoreJSEntry(source);
+      if (entry === null) return null;
+      return { entry, modules: ctx.getModulesForEntry(entry) };
+    },
+
+    // Resolve usage-global meta to dependency entries
+    resolveUsage(meta, path) {
+      const resolved = resolve(meta);
+      if (!resolved || !hasOwn(resolved.desc, 'global')) return null;
+      let { kind, desc: { global: desc } } = resolved;
+      if (kind === 'instance') {
+        const enhanced = enhanceMeta(meta, path, desc);
+        if (!enhanced) return null;
+        desc = resolveHint(desc, enhanced);
+        if (!desc) return null;
+      }
+      const dependencies = getDependencies(desc);
+      if (!dependencies?.length) return null;
+      if (applyFilters(desc.filters, path)) return null;
+      return dependencies;
+    },
+
+    // Resolve usage-pure meta to import entry
+    resolvePure(meta, path) {
+      const resolved = resolve(meta);
+      if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
+      const { kind, desc: { pure: desc } } = resolved;
+      let effectiveMeta = meta;
+      if (kind === 'instance') {
+        effectiveMeta = enhanceMeta(meta, path, desc);
+        if (!effectiveMeta) return null;
+      }
+      const entry = resolvePureEntry(kind, desc, effectiveMeta, path);
+      if (!entry) return null;
+      return {
+        entry,
+        kind,
+        name: resolved.name,
+        hintName: pureImportName(kind, resolved.name, entry),
+        rawName: resolved.name,
+      };
+    },
+
+    // Expose for direct access
+    resolve,
+    enhanceMeta,
+    applyFilters,
+    resolvePureEntry,
+  };
+}
+
 function validateImportStyle(importStyle) {
   if (importStyle !== undefined && importStyle !== 'import' && importStyle !== 'require') {
     throw new TypeError("`importStyle` should be 'import' or 'require'");
@@ -306,19 +456,11 @@ function resolveImportStyle(importStyle, sourceType) {
 }
 
 export {
-  TYPE_HINTS,
-  normalizeEntryPath,
-  normalizeImportPath,
+  POSSIBLE_GLOBAL_OBJECTS,
   isCoreJSFile,
-  getDependencies,
-  descHasTypeHints,
-  collectEntryPaths,
-  removeEntryPaths,
-  resolveHint,
   pureImportName,
-  DIRECTIVE,
   parseDisableDirectives,
-  createPolyfillContext,
+  createPolyfillResolver,
   validateImportStyle,
   resolveImportStyle,
 };
