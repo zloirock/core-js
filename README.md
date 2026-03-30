@@ -243,10 +243,10 @@ import "core-js/stable/set";
 // only stable ES features required for `Set`:
 import "core-js/es/set";
 // the same without global namespace pollution:
-import Set from "@core-js/pure/full/set";
-import Set from "@core-js/pure/actual/set";
-import Set from "@core-js/pure/stable/set";
-import Set from "@core-js/pure/es/set";
+import Set from '@core-js/pure/full/set';
+import Set from '@core-js/pure/actual/set';
+import Set from '@core-js/pure/stable/set';
+import Set from '@core-js/pure/es/set';
 
 // if you want to polyfill just the required methods:
 import "core-js/full/set/intersection";
