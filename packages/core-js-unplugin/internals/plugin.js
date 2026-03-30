@@ -15,63 +15,12 @@ import {
   resolveImportStyle,
 } from '@core-js/polyfill-provider';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
-import { babelNodeType } from './estree-compat.js';
+import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import detectEntries from './detect-entry.js';
 import { createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
 const { hasOwn } = Object;
-
-// ESTree-to-Babel node type predicates for resolve-node-type
-// resolve-node-type uses Babel naming (ObjectProperty, OptionalMemberExpression, etc.)
-// but oxc-parser produces ESTree nodes (Property, MemberExpression with optional flag, etc.)
-const estreeTypes = {
-  isIdentifier: (n, opts) => n?.type === 'Identifier' && (!opts?.name || n.name === opts.name),
-  isMemberExpression: n => n?.type === 'MemberExpression' && !n.optional,
-  isOptionalMemberExpression: n => n?.type === 'MemberExpression' && n.optional === true,
-  isCallExpression: (n, opts) => n?.type === 'CallExpression' && !n.optional && (!opts?.callee || n.callee === opts.callee),
-  isOptionalCallExpression: (n, opts) => n?.type === 'CallExpression' && n.optional === true && (!opts?.callee || n.callee === opts.callee),
-  isObjectProperty: n => n?.type === 'Property' && !n.method && n.kind === 'init',
-  isObjectMethod: n => n?.type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'),
-  isObjectExpression: n => n?.type === 'ObjectExpression',
-  isObjectPattern: n => n?.type === 'ObjectPattern',
-  isArrayExpression: n => n?.type === 'ArrayExpression',
-  isClassMethod: n => n?.type === 'MethodDefinition',
-  isClassProperty: n => n?.type === 'PropertyDefinition',
-  isClassAccessorProperty: n => n?.type === 'AccessorProperty',
-  isClassBody: n => n?.type === 'ClassBody',
-  isClassDeclaration: n => n?.type === 'ClassDeclaration',
-  isClass: n => n?.type === 'ClassDeclaration' || n?.type === 'ClassExpression',
-  isFunction: n => {
-    const type = n?.type;
-    return type === 'FunctionDeclaration'
-      || type === 'FunctionExpression'
-      || type === 'ArrowFunctionExpression'
-      || type === 'TSDeclareFunction'
-      || (type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'))
-      || type === 'MethodDefinition';
-  },
-  isFunctionDeclaration: n => n?.type === 'FunctionDeclaration' || n?.type === 'TSDeclareFunction',
-  isArrowFunctionExpression: n => n?.type === 'ArrowFunctionExpression',
-  isVariableDeclarator: n => n?.type === 'VariableDeclarator',
-  isVariableDeclaration: n => n?.type === 'VariableDeclaration',
-  isAssignmentExpression: n => n?.type === 'AssignmentExpression',
-  isAssignmentPattern: n => n?.type === 'AssignmentPattern',
-  isBlockStatement: n => n?.type === 'BlockStatement',
-  isReturnStatement: n => n?.type === 'ReturnStatement',
-  isIfStatement: n => n?.type === 'IfStatement',
-  isSwitchStatement: n => n?.type === 'SwitchStatement',
-  isSwitchCase: n => n?.type === 'SwitchCase',
-  isForOfStatement: n => n?.type === 'ForOfStatement',
-  isForInStatement: n => n?.type === 'ForInStatement',
-  isNewExpression: n => n?.type === 'NewExpression',
-  isThisExpression: n => n?.type === 'ThisExpression',
-  isConditionalExpression: n => n?.type === 'ConditionalExpression',
-  isLogicalExpression: n => n?.type === 'LogicalExpression',
-  isSpreadElement: n => n?.type === 'SpreadElement',
-  isProgram: n => n?.type === 'Program',
-  isImport: n => n?.type === 'ImportExpression',
-};
 
 const {
   resolvePropertyObjectType,
@@ -79,7 +28,7 @@ const {
   toHint,
   isString,
   isObject,
-} = createResolveNodeType(babelNodeType, estreeTypes);
+} = createResolveNodeType(nodeType, types);
 
 export default function createPlugin(options) {
   const {
@@ -95,15 +44,7 @@ export default function createPlugin(options) {
 
   const isWebpack = bundler === 'webpack' || bundler === 'rspack';
 
-  // Validate shouldInjectPolyfill
-  if (restOptions.shouldInjectPolyfill !== undefined && typeof restOptions.shouldInjectPolyfill !== 'function') {
-    throw new Error(`.shouldInjectPolyfill must be a function, or undefined (received ${ restOptions.shouldInjectPolyfill })`);
-  }
-  if (typeof restOptions.shouldInjectPolyfill === 'function' && (restOptions.include || restOptions.exclude)) {
-    throw new Error('.include and .exclude are not supported when using the .shouldInjectPolyfill function.');
-  }
-
-  // Resolve targets: explicit targets, or browserslist config from configPath
+  // Resolve targets: explicit option, or browserslist config from configPath
   const effectiveTargets = (() => {
     if (targets) return targets;
     if (restOptions.ignoreBrowserslistConfig) return null;
@@ -116,6 +57,14 @@ export default function createPlugin(options) {
     }
     return null;
   })();
+
+  // Validate shouldInjectPolyfill option
+  if (restOptions.shouldInjectPolyfill !== undefined && typeof restOptions.shouldInjectPolyfill !== 'function') {
+    throw new Error(`.shouldInjectPolyfill must be a function, or undefined (received ${ restOptions.shouldInjectPolyfill })`);
+  }
+  if (typeof restOptions.shouldInjectPolyfill === 'function' && (restOptions.include || restOptions.exclude)) {
+    throw new Error('.include and .exclude are not supported when using the .shouldInjectPolyfill function.');
+  }
 
   const parsedTargets = effectiveTargets ? targetsParser(effectiveTargets) : null;
 
@@ -138,7 +87,6 @@ export default function createPlugin(options) {
     };
     const includeMatchers = matchers(include);
     const excludeMatchers = matchers(exclude);
-
     const defaultShouldInject = mod => {
       if (excludeMatchers?.some(m => m(mod))) return false;
       if (includeMatchers?.some(m => m(mod))) return true;
@@ -152,7 +100,6 @@ export default function createPlugin(options) {
       }
       return true;
     };
-
     if (typeof userCallback === 'function') return mod => userCallback(mod, defaultShouldInject(mod));
     return defaultShouldInject;
   })();
