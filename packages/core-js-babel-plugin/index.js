@@ -180,10 +180,12 @@ export default defineProvider(({
       for (const mod of result.modules) injectModule(mod, utils);
       path.remove();
     },
-    // eslint-disable-next-line sonarjs/no-invariant-returns -- return true tells provider to skip object
     usageGlobal(meta, utils, path) {
       if (isDisabled(path)) return true;
       const deps = resolver.resolveUsage(meta, path);
+      // undefined = not found (let provider continue traversing object)
+      if (deps === undefined) return;
+      // null = found but filtered/empty (skip object traversal)
       if (!deps) return true;
       for (const entry of deps) injectModulesForModeEntry(entry, utils);
       return true;
