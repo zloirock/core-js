@@ -2,28 +2,23 @@ import { createRequire } from 'node:module';
 import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
-import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
 import {
-  TYPE_HINTS,
+  POSSIBLE_GLOBAL_OBJECTS,
   isCoreJSFile,
-  getDependencies,
-  descHasTypeHints,
-  resolveHint,
-  parseDisableDirectives,
-  createPolyfillContext,
   pureImportName,
+  parseDisableDirectives,
+  createPolyfillResolver,
   validateImportStyle,
   resolveImportStyle,
 } from '@core-js/polyfill-provider';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { babelNodeType } from './estree-compat.js';
-import createMetaResolver from './meta-resolver.js';
 import ImportInjector from './import-injector.js';
 import detectEntries from './detect-entry.js';
-import { createUsageVisitors, createSyntaxVisitors, POSSIBLE_GLOBAL_OBJECTS } from './detect-usage.js';
+import { createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
 const { hasOwn } = Object;
 
@@ -162,14 +157,17 @@ export default function createPlugin(options) {
     return defaultShouldInject;
   })();
 
-  const {
-    mode, pkg,
-    getModulesForEntry, getCoreJSEntry, isEntryNeeded,
-  } = createPolyfillContext({
+  const resolver = createPolyfillResolver({
     ...restOptions,
     method,
     shouldInjectPolyfill,
+    resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject,
+    isMemberLike: path => path.node?.type === 'MemberExpression',
+    isCallee: (node, parent) => parent && parent.callee === node,
+    isSpreadElement: node => node?.type === 'SpreadElement',
   });
+
+  const { mode, pkg, getModulesForEntry, getCoreJSEntry, isEntryNeeded } = resolver;
 
   // Debug: build targets display string and helper for per-module target info
   const debugTargetsStr = parsedTargets
@@ -214,12 +212,6 @@ export default function createPlugin(options) {
 
     return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ debugTargetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }`;
   }
-
-  const resolve = createMetaResolver({
-    global: builtInDefinitions.Globals,
-    static: builtInDefinitions.StaticProperties,
-    instance: builtInDefinitions.InstanceProperties,
-  });
 
   return {
     name: 'core-js-unplugin',
@@ -315,73 +307,17 @@ export default function createPlugin(options) {
         return finalize({ entryFound });
       }
 
-      function enhanceMeta(meta, path, desc) {
-        if (!meta) return meta;
-        if (meta.object !== null && meta.object !== undefined
-          && meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
-        const hint = toHint(resolvePropertyObjectType(path));
-        if (hint) {
-          if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
-          return descHasTypeHints(desc) ? null : meta;
-        }
-        const { type } = path.node;
-        if ((type === 'MemberExpression') && descHasTypeHints(desc)) {
-          const hints = resolveGuardHints(path.get('object'));
-          if (hints) return { ...meta, ...hints };
-        }
-        return meta;
-      }
-
-      function filter(name, args, path) {
-        const { node } = path;
-        const parent = path.parentPath?.node;
-        if (!parent || parent.callee !== node) return false;
-        switch (name) {
-          case 'min-args': {
-            const [length] = args;
-            if (parent.arguments.length >= length) return false;
-            return parent.arguments.every(arg => arg.type !== 'SpreadElement');
-          }
-          case 'arg-is-string':
-          case 'arg-is-object': {
-            const [index] = args;
-            if (parent.arguments.length < index + 1) return false;
-            if (parent.arguments.slice(0, index).some(arg => arg.type === 'SpreadElement')) return false;
-            const argPath = path.parentPath.get('arguments')[index];
-            return name === 'arg-is-string' ? isString(argPath) : isObject(argPath);
-          }
-        }
-        return false;
-      }
-
-      function applyFilters(filters, path) {
-        return !!filters?.some(([name, ...args]) => filter(name, args, path));
-      }
-
       // usage-global mode
       if (method === 'usage-global') {
         const usageCallback = (meta, path) => {
           if (isDisabled(path.node)) return;
-          // Symbol.iterator in obj -> inject symbol/iterator modules
           if (meta.kind === 'in' && meta.key === 'Symbol.iterator') {
             injectModulesForModeEntry('symbol/iterator');
             return;
           }
-          const resolved = resolve(meta);
-          if (!hasOwn(resolved?.desc ?? {}, 'global')) return;
-          let { kind, desc: { global: desc } } = resolved;
-          if (kind === 'instance') {
-            const enhanced = enhanceMeta(meta, path, desc);
-            if (enhanced === null) return;
-            desc = resolveHint(desc, enhanced);
-            if (desc === null) return;
-          }
-          const dependencies = getDependencies(desc);
-          if (!dependencies?.length) return;
-          if (applyFilters(desc.filters, path)) return;
-          for (const entry of dependencies) {
-            injectModulesForModeEntry(entry);
-          }
+          const deps = resolver.resolveUsage(meta, path);
+          if (!deps) return;
+          for (const entry of deps) injectModulesForModeEntry(entry);
         };
 
         const usageVisitors = createUsageVisitors(usageCallback);
@@ -430,19 +366,7 @@ export default function createPlugin(options) {
         }
         function nodeSrc(n) { return code.slice(n.start, n.end); }
 
-        function resolvePureEntry(kind, desc, meta, metaPath) {
-          let target = desc;
-          if (kind === 'instance') {
-            target = resolveHint(desc, meta);
-            if (target === null) return null;
-          }
-          if (applyFilters(target.filters, metaPath)) return null;
-          const dependencies = getDependencies(target);
-          if (!dependencies?.length) return null;
-          const [entry] = dependencies;
-          if (!isEntryNeeded(entry) && !(target.guard && isEntryNeeded(target.guard))) return null;
-          return entry;
-        }
+        const { resolvePureEntry, resolve, enhanceMeta } = resolver;
 
         function handleSymbolIteratorPure(meta, node, parent) {
           const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
@@ -616,8 +540,7 @@ export default function createPlugin(options) {
           }
           const importEntry = resolvePureEntry(kind, desc, effectiveMeta, metaPath);
           if (!importEntry) return;
-          const hintName = kind === 'static' ? `${ meta.object }.${ meta.key }` : resolved.name;
-          const binding = injector.addPureImport(importEntry, pureImportName(kind, hintName, importEntry));
+          const binding = injector.addPureImport(importEntry, pureImportName(kind, resolved.name, importEntry));
 
           const objectPattern = metaPath.parent;
           const localName = propNode.value?.type === 'Identifier' ? propNode.value.name : propNode.key?.name;
@@ -731,7 +654,7 @@ export default function createPlugin(options) {
               const symbolProp = meta.key.slice(7); // e.g., 'hasInstance'
               const entry = `symbol/${ symbolProp.replaceAll(/[A-Z]/g, c => `-${ c.toLowerCase() }`) }`;
               if (isEntryNeeded(entry)) {
-                const binding = injector.addPureImport(entry, meta.key);
+                const binding = injector.addPureImport(entry, meta.key.replace('.', '$'));
                 addTransform(node.left.start, node.left.end, binding);
               }
             }
@@ -777,8 +700,7 @@ export default function createPlugin(options) {
           const importEntry = resolvePureEntry(kind, desc, effectiveMeta, metaPath);
           if (!importEntry) return;
           // Build hint matching Babel convention: statics -> 'Array.from', globals -> 'Promise', instances -> via pureImportName
-          const hintName = kind === 'static' ? `${ meta.object }.${ meta.key }` : resolved.name;
-          const binding = injector.addPureImport(importEntry, pureImportName(kind, hintName, importEntry));
+          const binding = injector.addPureImport(importEntry, pureImportName(kind, resolved.name, importEntry));
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent);
