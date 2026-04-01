@@ -1,0 +1,1 @@
+Symbol.dispose in obj;
