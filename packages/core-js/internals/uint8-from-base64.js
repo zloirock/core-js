@@ -7,7 +7,6 @@ var hasOwn = require('../internals/has-own-property');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
 var notDetached = require('../internals/array-buffer-not-detached');
-var $floor = Math.floor;
 
 var base64Alphabet = base64Map.c2i;
 var base64UrlAlphabet = base64Map.c2iUrl;
@@ -16,6 +15,7 @@ var SyntaxError = globalThis.SyntaxError;
 var TypeError = globalThis.TypeError;
 var $Array = globalThis.Array;
 var at = uncurryThis(''.charAt);
+var $floor = Math.floor;
 
 var skipAsciiWhitespace = function (string, index) {
   var length = string.length;
