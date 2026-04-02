@@ -17,6 +17,7 @@ QUnit.test('Object.assign', assert => {
   let string = assign('qwe', { q: 1 });
   assert.same(typeof string, 'object');
   assert.same(String(string), 'qwe');
+  // eslint-disable-next-line es/no-nonstandard-string-prototype-properties -- testing
   assert.same(string.q, 1);
   assert.same(assign({}, { valueOf: 42 }).valueOf, 42, 'IE enum keys bug');
   if (DESCRIPTORS) {

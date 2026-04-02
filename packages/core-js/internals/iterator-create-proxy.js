@@ -10,6 +10,7 @@ var IteratorPrototype = require('../internals/iterators-core').IteratorPrototype
 var createIterResultObject = require('../internals/create-iter-result-object');
 var iteratorClose = require('../internals/iterator-close');
 var iteratorCloseAll = require('../internals/iterator-close-all');
+var cleanupState = require('../internals/iterator-cleanup-state');
 
 var TO_STRING_TAG = wellKnownSymbol('toStringTag');
 var ITERATOR_HELPER = 'IteratorHelper';
@@ -31,29 +32,34 @@ var createIteratorProxyPrototype = function (IS_ITERATOR) {
       if (state.done) return createIterResultObject(undefined, true);
       try {
         var result = state.nextHandler();
+        if (state.done) cleanupState(state);
         return state.returnHandlerResult ? result : createIterResultObject(result, state.done);
       } catch (error) {
         state.done = true;
+        cleanupState(state);
         throw error;
       }
     },
     'return': function () {
       var state = getInternalState(this);
       var iterator = state.iterator;
+      var inner = state.inner;
+      var openIters = state.openIters;
       var done = state.done;
       state.done = true;
       if (IS_ITERATOR) {
         var returnMethod = getMethod(iterator, 'return');
         return returnMethod ? call(returnMethod, iterator) : createIterResultObject(undefined, true);
       }
+      cleanupState(state);
       if (done) return createIterResultObject(undefined, true);
-      if (state.inner) try {
-        iteratorClose(state.inner.iterator, NORMAL);
+      if (inner) try {
+        iteratorClose(inner.iterator, NORMAL);
       } catch (error) {
         return iteratorClose(iterator, THROW, error);
       }
-      if (state.openIters) try {
-        iteratorCloseAll(state.openIters, NORMAL);
+      if (openIters) try {
+        iteratorCloseAll(openIters, NORMAL);
       } catch (error) {
         if (iterator) return iteratorClose(iterator, THROW, error);
         throw error;

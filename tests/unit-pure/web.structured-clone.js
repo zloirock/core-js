@@ -460,6 +460,41 @@ QUnit.module('structuredClone', () => {
     );
   });
 
+  // Circular references
+  QUnit.test('circular references', assert => {
+    const obj = { a: 1 };
+    obj.self = obj;
+    const clone = structuredClone(obj);
+    assert.notSame(obj, clone, 'clone should have different reference');
+    assert.same(clone.a, 1, 'primitive property preserved');
+    assert.same(clone.self, clone, 'circular reference preserved');
+    assert.notSame(clone.self, obj, 'circular reference points to clone, not original');
+
+    const arr = [1, 2];
+    arr.push(arr);
+    const arrClone = structuredClone(arr);
+    assert.notSame(arr, arrClone, 'array clone different reference');
+    assert.same(arrClone[0], 1, 'array element preserved');
+    assert.same(arrClone[2], arrClone, 'array circular reference preserved');
+
+    // Multiple references to same object should be deduplicated
+    const shared = { x: 1 };
+    const multi = { a: shared, b: shared };
+    const multiClone = structuredClone(multi);
+    assert.notSame(multi.a, multiClone.a, 'shared object cloned');
+    assert.same(multiClone.a, multiClone.b, 'multiple references deduplicated');
+  });
+
+  // Transfer
+  if (typeof Uint8Array == 'function') QUnit.test('transfer', assert => {
+    const buffer = new ArrayBuffer(4);
+    new Uint8Array(buffer).set([1, 2, 3, 4]);
+    const clone = structuredClone(buffer, { transfer: [buffer] });
+    assert.arrayEqual(new Uint8Array(clone), [1, 2, 3, 4], 'transferred data preserved');
+    assert.same(buffer.byteLength, 0, 'source buffer detached');
+    assert.same(clone.byteLength, 4, 'clone buffer has correct length');
+  });
+
   // Non-serializable types
   QUnit.test('Non-serializable types', assert => {
     const nons = [
