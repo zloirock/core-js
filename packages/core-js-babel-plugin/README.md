@@ -104,7 +104,7 @@ Array.from(items);
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
 | `version` | `string` | `'4.0'` | Used `core-js` version, it's recommended to specify the used minor version like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
-| `targets` | `string` \| `object` | from browserslist config / all engines | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) |
+| `targets` | `string` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
@@ -112,9 +112,9 @@ Array.from(items);
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills by module name, entry path (for pure version), or pattern |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
 | `shippedProposals` | `boolean` | `false` | Treat proposals that have been shipped in browsers as stable features |
-| `configPath` | `string` | `'.'` | Directory to search for a browserslist config file |
-| `ignoreBrowserslistConfig` | `boolean` | `false` | Ignore browserslist config files, use only explicit `targets` |
-| `absoluteImports` | `boolean` \| `string` | `false` | Use absolute paths for injected imports |
+| `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config, only explicit `targets` |
+| `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `importStyle` | `string` | auto | Import style for injected polyfills: `'import'` or `'require'`, auto-detected from `sourceType` if not set |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
 
@@ -190,7 +190,7 @@ Controls which features are available:
 
 ### `targets`
 
-When `targets` is not specified, the plugin reads targets from your browserslist config (`.browserslistrc`, `browserslist` field in `package.json`, or `BROWSERSLIST` env variable). You can control where to look for the config with `configPath`, or disable config discovery with `ignoreBrowserslistConfig`.
+When `targets` is not specified, the plugin looks for a browserslist config in the project (`.browserslistrc`, `browserslist` field in `package.json`, or `BROWSERSLIST` env variable). If a config file is found, its targets are used; otherwise all engines are assumed and all polyfills will be injected. In Babel, targets can also be resolved automatically via `@babel/preset-env`. Use `configPath` to specify a custom config directory, or `ignoreBrowserslistConfig` to disable config auto-detection.
 
 ```json
 {
@@ -255,7 +255,7 @@ When `true` and `mode` is `'es'` or `'stable'`, upgrades the effective mode to `
 
 ### `configPath`
 
-Directory path to search for a browserslist config file. Useful in monorepos where the config is not in the project root.
+Directory path to search for a browserslist config file. By default, the config is auto-detected from the project root. Useful in monorepos where the config is not in the project root.
 
 ```json
 {
@@ -269,11 +269,11 @@ Directory path to search for a browserslist config file. Useful in monorepos whe
 
 ### `ignoreBrowserslistConfig`
 
-When `true`, the plugin will not read any browserslist config files. Only the explicitly provided `targets` will be used. If no `targets` are provided either, the target is assumed to be all engines - all polyfills will be injected.
+When `true`, the plugin will not read any browserslist config files. Only the explicitly provided `targets` will be used. If no `targets` are provided either, the target is assumed to be all engines — all polyfills will be injected.
 
 ### `absoluteImports`
 
-When `true`, injected `core-js` imports will use absolute filesystem paths instead of package names. When a string, it will be used as the base path. This can be useful in monorepos to ensure that all files resolve to the same `core-js` installation.
+When `true`, injected `core-js` imports will use absolute filesystem paths instead of package names. This can be useful in monorepos to ensure that all files resolve to the same `core-js` installation.
 
 ### `importStyle`
 

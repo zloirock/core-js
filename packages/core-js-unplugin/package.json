@@ -60,7 +60,6 @@
   },
   "dependencies": {
     "@core-js/polyfill-provider": "4.0.0-alpha.1",
-    "@core-js/compat": "4.0.0-alpha.1",
     "estree-toolkit": "^1.7.14",
     "magic-string": "^1.1.0",
     "oxc-parser": "^0.143.0",
