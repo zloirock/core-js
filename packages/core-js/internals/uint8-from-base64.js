@@ -7,6 +7,7 @@ var hasOwn = require('../internals/has-own-property');
 var base64Map = require('../internals/base64-map');
 var getAlphabetOption = require('../internals/get-alphabet-option');
 var notDetached = require('../internals/array-buffer-not-detached');
+var $floor = Math.floor;
 
 var base64Alphabet = base64Map.c2i;
 var base64UrlAlphabet = base64Map.c2iUrl;
@@ -83,7 +84,7 @@ module.exports = function (string, options, into, maxLength) {
   if (into) notDetached(into.buffer);
 
   var stringLength = string.length;
-  var bytes = into || $Array(stringLength * 3 / 4);
+  var bytes = into || $Array($floor(stringLength * 3 / 4));
   var written = 0;
   var read = 0;
   var chunk = '';
