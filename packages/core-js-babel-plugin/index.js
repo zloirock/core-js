@@ -1,48 +1,37 @@
-import defineProvider from '@babel/helper-define-polyfill-provider';
-import compatData from '@core-js/compat/data' with { type: 'json' };
-import {
-  isCoreJSFile,
-  parseDisableDirectives,
-  createPolyfillResolver,
-  validateImportStyle,
-  resolveImportStyle,
-} from '@core-js/polyfill-provider';
-import createASTHelpers from './ast-helpers.js';
+import { isCoreJSFile, parseDisableDirectives, mergeVisitors } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
+import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
+import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
+import {
+  canTransformDestructuring as sharedCanTransformDestructuring,
+  resolveSymbolIteratorEntry,
+  resolveSymbolInEntry,
+} from '@core-js/polyfill-provider/detect-usage';
+import createASTHelpers from './internals/babel-compat.js';
+import ImportInjector from './internals/import-injector.js';
+import { createUsageVisitors, createSyntaxVisitors } from './internals/detect-usage.js';
+import createEntryVisitors from './internals/detect-entry.js';
 
-export default defineProvider(({
-  babel,
-  // eslint-disable-next-line no-unused-vars -- provided by defineProvider but resolution is now in createPolyfillResolver
-  createMetaResolver,
-  debug,
-  getUtils,
-  method,
-  shouldInjectPolyfill,
-}, options) => {
-  let {
-    package: pkg,
-    additionalPackages,
-    mode = 'actual',
-    version = '4.0',
-    shippedProposals = false,
-    importStyle: importStyleOption,
-    include,
-    exclude,
-  } = options;
+export default function plugin(api, options) {
+  const { types: t, caller } = api;
 
-  validateImportStyle(importStyleOption);
+  const typeResolvers = createResolveNodeType(node => node?.type, t);
+  const { resolvePropertyObjectType, toHint } = typeResolvers;
 
-  const { types: t } = babel;
+  const { resolver, debugOutput } = createPolyfillResolver(options, {
+    typeResolvers,
+    isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
+    isCallee: (node, parent) => t.isCallExpression(parent, { callee: node })
+      || t.isOptionalCallExpression(parent, { callee: node })
+      || t.isNewExpression(parent, { callee: node }),
+    isSpreadElement: node => t.isSpreadElement(node),
+    getBabelTargets: typeof api.targets === 'function' ? () => api.targets() : null,
+  });
+
+  const { method, absoluteImports = false, importStyle: importStyleOption } = options;
+  const { mode, pkg, getModulesForEntry, isEntryNeeded, getCoreJSEntry, resolveUsage, resolvePureOrGlobalFallback } = resolver;
+
   const {
-    resolvePropertyObjectType,
-    resolveGuardHints,
-    toHint,
-    isString,
-    isObject,
-  } = createResolveNodeType(node => node?.type, t);
-
-  const {
-    isCallee,
     isInTypeAnnotation,
     normalizeOptionalChain,
     replaceInstanceLike,
@@ -51,277 +40,206 @@ export default defineProvider(({
     handleDestructuredProperty,
   } = createASTHelpers(t);
 
-  const resolver = createPolyfillResolver({
-    method, mode, version, package: pkg, additionalPackages,
-    include, exclude, shippedProposals, shouldInjectPolyfill,
-    validate: false,
-    resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject,
-    isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
-    isCallee,
-    isSpreadElement: node => t.isSpreadElement(node),
-  });
+  const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
-  ({ mode, pkg } = resolver);
-
-  // update options for the provider if entry paths were extracted
-  if (resolver.filteredInclude !== include) options.include = resolver.filteredInclude;
-  if (resolver.filteredExclude !== exclude) options.exclude = resolver.filteredExclude;
-
-  const isWebpack = babel.caller(caller => caller?.name === 'babel-loader');
-
-  const injectedModules = new Set();
-  const skippedNodes = new WeakSet();
-  let skipFile = false;
-  let disabledLines = null;
-  let importStyle = 'import';
-  let programPath = null;
-  const pureImportCache = new Map();
-
-  function isDisabled(path) {
-    return skipFile || (disabledLines !== null && disabledLines.has(path.node.loc?.start.line));
-  }
-
-  function injectModulesForModeEntry(entry, utils) {
-    return injectModulesForEntry(`${ mode }/${ entry }`, utils);
-  }
-
-  function injectModulesForEntry(entry, utils) {
-    for (const moduleName of resolver.getModulesForEntry(entry)) {
-      injectModule(moduleName, utils);
-    }
-  }
-
-  function makeGlobalImportNode(source) {
-    return importStyle === 'require'
-      ? t.expressionStatement(t.callExpression(t.identifier('require'), [t.stringLiteral(source)]))
-      : t.importDeclaration([], t.stringLiteral(source));
-  }
-
-  function makeDefaultImportNode(id, source) {
-    return importStyle === 'require'
-      ? t.variableDeclaration('var', [t.variableDeclarator(id, t.callExpression(t.identifier('require'), [t.stringLiteral(source)]))])
-      : t.importDeclaration([t.importDefaultSpecifier(id)], t.stringLiteral(source));
-  }
-
-  function injectModule(moduleName, utils) {
-    const moduleEntry = `modules/${ moduleName }`;
-    if (injectedModules.has(moduleEntry)) return;
-    const source = `${ pkg }/${ moduleEntry }`;
-    if (importStyleOption) {
-      programPath.unshiftContainer('body', makeGlobalImportNode(source));
-    } else {
-      utils.injectGlobalImport(source, moduleName);
-    }
-    injectedModules.add(moduleEntry);
-    debug(moduleName);
-  }
-
-  function injectPureImport(entry, hint, utils) {
-    const source = `${ pkg }/${ mode }/${ entry }`;
-    if (importStyleOption) {
-      if (pureImportCache.has(source)) return t.cloneNode(pureImportCache.get(source));
-      const id = programPath.scope.generateUidIdentifier(hint);
-      programPath.unshiftContainer('body', makeDefaultImportNode(id, source));
-      pureImportCache.set(source, id);
-      return t.cloneNode(id);
-    }
-    return utils.injectDefaultImport(source, hint);
-  }
-
-  function handleSymbolIterator(path, utils) {
-    const { parent, node } = path;
-    if (node.computed) skippedNodes.add(node.property);
-    const isCall = t.isCallExpression(parent, { callee: node })
-      || t.isOptionalCallExpression(parent, { callee: node });
-    if (isCall && parent.arguments.length === 0 && !parent.optional) {
-      if (!resolver.isEntryNeeded('get-iterator')) return;
-      replaceCallWithSimple(path, injectPureImport('get-iterator', 'getIterator', utils));
-      debug('get-iterator');
-    } else {
-      if (!resolver.isEntryNeeded('get-iterator-method')) return;
-      replaceInstanceLike(path, injectPureImport('get-iterator-method', 'getIteratorMethod', utils));
-      debug('get-iterator-method');
-    }
-  }
-
-  function canTransformDestructuring(path) {
-    const objectPattern = path.parentPath;
-    const destructParent = objectPattern?.parentPath;
-    if (destructParent?.isVariableDeclarator()) {
-      if (!destructParent.node.init) return false;
-      if (objectPattern.node.properties.length > 1 && destructParent.parentPath?.parentPath?.isForStatement()) return false;
-    } else if (destructParent?.isAssignmentExpression()) {
-      if (!destructParent.parentPath?.isExpressionStatement()) return false;
-    } else {
-      return false;
-    }
-    return true;
-  }
+  let injector, importStyle;
 
   return {
     name: 'core-js@4',
-    polyfills: compatData,
-    pre() {
-      skipFile = !!this.filename && isCoreJSFile(this.filename);
-      injectedModules.clear();
-      pureImportCache.clear();
-      programPath = this.file.path;
-      importStyle = resolveImportStyle(importStyleOption, this.file.opts.sourceType);
-      const directives = skipFile ? null : parseDisableDirectives(this.file.ast.comments);
-      if (directives === true) skipFile = true;
-      disabledLines = directives !== true ? directives : null;
-    },
-    entryGlobal({ source }, utils, path) {
-      if (isDisabled(path)) return;
-      const result = resolver.resolveEntry(source);
-      if (!result) return;
-      if (!path.node.loc && injectedModules.has(result.entry)) return;
-      debug();
-      for (const mod of result.modules) injectModule(mod, utils);
-      path.remove();
-    },
-    usageGlobal(meta, utils, path) {
-      if (isDisabled(path)) return true;
-      const deps = resolver.resolveUsage(meta, path);
-      // undefined = not found (let provider continue traversing object)
-      if (deps === undefined) return;
-      // null = found but filtered/empty (skip object traversal)
-      if (!deps) return true;
-      for (const entry of deps) injectModulesForModeEntry(entry, utils);
-      return true;
-    },
+    visitor: (() => {
+      const skippedNodes = new WeakSet();
+      let skipFile, disabledLines;
 
-    usagePure(meta, utils, path) {
-      if (isDisabled(path)) return;
-      if (skippedNodes.has(path.node)) return;
-      if (isInTypeAnnotation(path)) return;
-
-      if (meta.kind === 'in') {
-        if (meta.key === 'Symbol.iterator' && resolver.isEntryNeeded('is-iterable')) {
-          path.replaceWith(t.callExpression(injectPureImport('is-iterable', 'isIterable', utils), [path.node.right]));
-          debug('is-iterable');
-        }
-        return;
+      function isDisabled(node) {
+        return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
       }
 
-      // can't polyfill delete expressions
-      if (path.parentPath.isUnaryExpression({ operator: 'delete' })) return;
+      const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
+        mode,
+        getModulesForEntry,
+        debugOutput,
+        injectGlobal: moduleName => injector.addGlobalImport(moduleName),
+      });
 
-      if (meta.kind === 'property') {
-        if (path.isObjectProperty()) {
-          // destructuring: const { from } = Array
-          if (!t.isIdentifier(path.node.value)) return;
-          // can't extract property when rest element is present - would change rest semantics
-          if (path.parentPath.node.properties.some(p => t.isRestElement(p))) return;
-        } else {
-          if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
-          if (!path.isReferenced()) return;
-          if (path.parentPath.isUpdateExpression()) return;
-          if (t.isSuper(path.node.object)) return;
-
-          if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path, utils);
-        }
+      function injectPureImport(entry, hint) {
+        debugOutput?.add(entry);
+        return injector.addPureImport(entry, hint);
       }
 
-      const result = resolver.resolvePure(meta, path);
-      if (!result) return;
-      debug(result.entry);
-
-      const { entry, kind, hintName } = result;
-
-      if (path.isObjectProperty()) {
-        if (!canTransformDestructuring(path)) return;
-
-        let value;
-        if (kind === 'instance') {
-          const objectNode = resolveDestructuringObject(path);
-          if (!objectNode) return;
-          value = t.callExpression(injectPureImport(entry, hintName, utils), [t.cloneNode(objectNode)]);
-        } else {
-          value = injectPureImport(entry, hintName, utils);
-        }
-        handleDestructuredProperty(path, value);
-      } else {
-        const id = injectPureImport(entry, hintName, utils);
-        if (kind === 'instance') {
-          replaceInstanceLike(path, id);
-        } else {
-          const chainStart = path.node.optional;
-          path.replaceWith(id);
-          normalizeOptionalChain(path, !chainStart);
-        }
+      function handleSymbolIterator(path) {
+        if (path.node.computed) skippedNodes.add(path.node.property);
+        const entry = resolveSymbolIteratorEntry(path.node, path.parent);
+        if (!isEntryNeeded(entry)) return;
+        const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
+        const id = injectPureImport(entry, hint);
+        if (entry === 'get-iterator') replaceCallWithSimple(path, id);
+        else replaceInstanceLike(path, id);
       }
-    },
 
-    visitor: method === 'usage-global' && {
-      // import('foo')
-      CallExpression(path) {
-        if (isDisabled(path)) return;
-        if (path.get('callee').isImport()) {
-          const utils = getUtils(path);
-          if (isWebpack) {
-            // Webpack uses `Promise.all` to handle dynamic import.
-            injectModulesForModeEntry('promise/all', utils);
+      function canTransformDestructuring(path) {
+        const objectPattern = path.parentPath;
+        const parent = objectPattern?.parentPath;
+        if (!sharedCanTransformDestructuring({
+          parentType: parent?.node?.type,
+          parentInit: parent?.node?.init,
+          grandParentType: parent?.parentPath?.parentPath?.node?.type,
+          patternProperties: objectPattern?.node?.properties,
+        })) return false;
+        if (parent?.isAssignmentExpression() && !parent.parentPath?.isExpressionStatement()) return false;
+        return true;
+      }
+
+      const usageGlobalCallback = createUsageGlobalCallback({
+        resolveUsage,
+        injectModulesForModeEntry,
+        isDisabled,
+      });
+
+      function usagePureCallback(meta, path) {
+        if (isDisabled(path.node)) return;
+        if (skippedNodes.has(path.node)) return;
+        if (isInTypeAnnotation(path)) return;
+
+        if (meta.kind === 'in') {
+          const symbolIn = resolveSymbolInEntry(meta.key);
+          if (symbolIn && isEntryNeeded(symbolIn.entry)) {
+            const id = injectPureImport(symbolIn.entry, symbolIn.hint);
+            if (meta.key === 'Symbol.iterator') {
+              path.replaceWith(t.callExpression(id, [path.node.right]));
+            } else {
+              path.get('left').replaceWith(id);
+            }
+          }
+          return;
+        }
+
+        if (path.parentPath.isUnaryExpression({ operator: 'delete' })) return;
+
+        if (meta.kind === 'property') {
+          if (path.isObjectProperty()) {
+            if (!t.isIdentifier(path.node.value)) return;
           } else {
-            injectModulesForModeEntry('promise/constructor', utils);
+            if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
+            if (!path.isReferenced()) return;
+            if (path.parentPath.isUpdateExpression()) return;
+            if (t.isSuper(path.node.object)) return;
+            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
           }
         }
-      },
-      // (async function () { }).finally(...)
-      Function(path) {
-        if (isDisabled(path)) return;
-        if (path.node.async) {
-          injectModulesForModeEntry('promise/constructor', getUtils(path));
-          // async function * () { }
-          if (path.node.generator) {
-            injectModulesForEntry('modules/es.symbol.async-iterator', getUtils(path));
+
+        const { result, fallback } = resolvePureOrGlobalFallback(meta, path);
+        if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())) {
+          const id = injectPureImport(fallback.entry, fallback.hintName);
+          path.get('object').replaceWith(id);
+          normalizeOptionalChain(path, true);
+          return;
+        }
+        if (!result) return;
+
+        const { entry, kind, hintName } = result;
+
+        if (path.isObjectProperty()) {
+          if (!canTransformDestructuring(path)) return;
+          let value;
+          if (kind === 'instance') {
+            const objectNode = resolveDestructuringObject(path, toHint(resolvePropertyObjectType(path)));
+            if (!objectNode) return;
+            value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
+          } else {
+            value = injectPureImport(entry, hintName);
           }
-        // function * () { }
-        } else if (path.node.generator) {
-          injectModulesForEntry('modules/es.symbol.iterator', getUtils(path));
+          handleDestructuredProperty(path, value);
+        } else {
+          const id = injectPureImport(entry, hintName);
+          if (kind === 'instance') {
+            replaceInstanceLike(path, id);
+          } else {
+            const chainStart = path.node.optional;
+            path.replaceWith(id);
+            normalizeOptionalChain(path, !chainStart);
+          }
         }
-      },
-      // for-of, [a, b] = c
-      'ForOfStatement|ArrayPattern'(path) {
-        if (isDisabled(path)) return;
-        injectModulesForModeEntry('symbol/iterator', getUtils(path));
-        // for-await-of
-        if (path.isForOfStatement() && path.node.await) {
-          injectModulesForModeEntry('symbol/async-iterator', getUtils(path));
-        }
-      },
-      // [...spread]
-      SpreadElement(path) {
-        if (isDisabled(path)) return;
-        if (!path.parentPath.isObjectExpression()) {
-          injectModulesForModeEntry('symbol/iterator', getUtils(path));
-        }
-      },
-      // yield *
-      YieldExpression(path) {
-        if (isDisabled(path)) return;
-        if (path.node.delegate) {
-          injectModulesForModeEntry('symbol/iterator', getUtils(path));
-        }
-      },
-      // using x = ..., await using x = ...
-      VariableDeclaration(path) {
-        if (isDisabled(path)) return;
-        const { kind } = path.node;
-        if (kind === 'using' || kind === 'await using') {
-          // babel uses all those polyfills in all cases of `using`
-          injectModulesForModeEntry('symbol/async-dispose', getUtils(path));
-          injectModulesForModeEntry('symbol/dispose', getUtils(path));
-          injectModulesForModeEntry('suppressed-error', getUtils(path));
-        }
-      },
-      // decorators metadata
-      Class(path) {
-        if (isDisabled(path)) return;
-        if (path.node.decorators?.length || path.node.body.body.some(el => el.decorators?.length)) {
-          injectModulesForModeEntry('symbol/metadata', getUtils(path));
-        }
-      },
+      }
+
+      function entryGlobalCallback(source, path) {
+        if (isDisabled(path.node)) return;
+        if (!path.node.loc) return;
+        debugOutput?.markEntryFound();
+        const entry = getCoreJSEntry(source);
+        if (entry === null) return;
+        injectModulesForEntry(entry);
+        path.remove();
+      }
+
+      const usageCallback = method === 'usage-pure' ? usagePureCallback : usageGlobalCallback;
+      const helperVisitors = method !== 'entry-global' ? createUsageVisitors({
+        onUsage: usageCallback, suppressProxyGlobals: method === 'usage-pure', walkAnnotations: false,
+      }) : null;
+
+      const programVisitor = {
+        enter(path) {
+          skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+          importStyle = importStyleOption ?? (path.node.sourceType === 'script' ? 'require' : 'import');
+          injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
+          const { comments } = path.hub.file.ast;
+          const directives = skipFile ? null : parseDisableDirectives(comments);
+          if (directives === true) skipFile = true;
+          disabledLines = directives !== true ? directives : null;
+        },
+        exit(path) {
+          if (helperVisitors) {
+            for (const childPath of path.get('body')) {
+              if (!childPath.node.loc) childPath.traverse(helperVisitors);
+            }
+          }
+          outputDebug();
+          injector?.flush();
+        },
+      };
+
+      // entry-global mode
+      if (method === 'entry-global') {
+        const entryVisitors = createEntryVisitors(entryGlobalCallback);
+        return {
+          Program: {
+            enter(path) {
+              programVisitor.enter(path);
+              if (entryVisitors.Program) entryVisitors.Program(path);
+            },
+            exit() { outputDebug(); injector?.flush(); },
+          },
+          ImportDeclaration: entryVisitors.ImportDeclaration,
+        };
+      }
+
+      const usageVisitors = createUsageVisitors({
+        onUsage: usageCallback,
+        suppressProxyGlobals: method === 'usage-pure',
+        walkAnnotations: method !== 'usage-pure',
+      });
+
+      // usage-global mode
+      if (method === 'usage-global') {
+        const syntaxVisitors = createSyntaxVisitors({
+          injectModulesForModeEntry,
+          injectModulesForEntry,
+          isDisabled,
+          isWebpack,
+        });
+        return { Program: programVisitor, ...mergeVisitors(usageVisitors, syntaxVisitors) };
+      }
+
+      // usage-pure mode
+      return { Program: programVisitor, ...usageVisitors };
+    })(),
+    post() {
+      if (!injector) return;
+      // when CJS transform runs after core-js plugin, newly inserted import declarations
+      // may not get converted. Detect this and switch to require style for safety flush.
+      if (importStyle === 'import' && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
+        injector.importStyle = 'require';
+      }
+      injector.flush();
     },
   };
-});
+}
