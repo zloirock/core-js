@@ -1,13 +1,8 @@
-export default function (t) {
-  function isCallee(callee, parent) {
-    return t.isCallExpression(parent, { callee })
-      || t.isOptionalCallExpression(parent, { callee })
-      || t.isNewExpression(parent, { callee });
-  }
+import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage';
 
+export default function (t) {
   function isInTypeAnnotation(path) {
-    return !!path.findParent(p => t.isTSType(p.node) || t.isFlowType(p.node)
-      || p.node.type === 'TSTypeAnnotation' || p.node.type === 'TypeAnnotation');
+    return !!path.findParent(p => isTypeAnnotationNodeType(p.node.type));
   }
 
   function memoize(node, scope) {
@@ -106,7 +101,7 @@ export default function (t) {
     replaceAndWrap(path.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
   }
 
-  function resolveDestructuringObject(path) {
+  function resolveDestructuringObject(path, resolvedType) {
     const parent = path.parentPath.parentPath;
     const initKey = parent.isVariableDeclarator() ? 'init'
       : parent.isAssignmentExpression() ? 'right' : null;
@@ -119,7 +114,10 @@ export default function (t) {
       parent.parentPath.insertBefore(t.variableDeclaration('const', [
         t.variableDeclarator(ref, objectNode),
       ]));
-      parent.node[initKey] = t.cloneNode(ref);
+      const cloned = t.cloneNode(ref);
+      // store resolved type for subsequent destructured properties to resolve type hints
+      if (resolvedType) cloned.coreJSResolvedType = resolvedType;
+      parent.node[initKey] = cloned;
       return ref;
     }
     return objectNode;
@@ -163,7 +161,6 @@ export default function (t) {
   }
 
   return {
-    isCallee,
     isInTypeAnnotation,
     normalizeOptionalChain,
     replaceInstanceLike,

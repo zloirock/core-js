@@ -114,7 +114,7 @@ Like `usage-global`, but replaces usage of standard library features with import
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
 | `version` | `string` | `'4.0'` | Used `core-js` version |
-| `targets` | `string` \| `string[]` \| `object` | all engines | Browserslist query or an object of minimum environment versions |
+| `targets` | `string` \| `string[]` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
@@ -122,8 +122,8 @@ Like `usage-global`, but replaces usage of standard library features with import
 | `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
 | `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
-| `configPath` | `string` | `undefined` | Directory to search for a browserslist config |
-| `ignoreBrowserslistConfig` | `boolean` | `false` | Ignore browserslist config files |
+| `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type if not set |
 | `debug` | `boolean` | `false` | Print debug output |
