@@ -16,7 +16,7 @@ type Summary = {
 
 type CompatOptions = Exclude<Parameters<typeof compat.compat>[0], undefined>;
 
-type Options = Pick<CompatOptions, "exclude" | "modules" | "targets"> & {
+type Options = Pick<CompatOptions, "exclude" | "modules" | "targets" | "configPath" | "ignoreBrowserslistConfig"> & {
   /** output format, 'bundle' by default, can be 'cjs' or 'esm', and in this case
    *  the result will not be bundled and will contain imports of required modules */
   format?: Format,
