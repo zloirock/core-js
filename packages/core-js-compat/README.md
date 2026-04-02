@@ -19,6 +19,9 @@ const {
   targets,                    // object with targets for each module
 } = compat({
   targets: '> 1%',            // browserslist query or object of minimum environment versions to support, see below
+  // when `targets` is not specified, project browserslist config is used if present
+  configPath: './packages/app', // directory to search for browserslist config (for monorepos)
+  ignoreBrowserslistConfig: false, // set to `true` to ignore browserslist config
   modules: [                  // optional list / filter of modules - regex, string or an array of them:
     'actual',                 // - an entry point
     'esnext.array.unique-by', // - a module name
