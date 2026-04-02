@@ -31,7 +31,17 @@
     ".": "./index.js",
     "./index.js": "./index.js",
     "./resolve-node-type": "./resolve-node-type.js",
-    "./resolve-node-type.js": "./resolve-node-type.js"
+    "./resolve-node-type.js": "./resolve-node-type.js",
+    "./plugin-options": "./plugin-options.js",
+    "./plugin-options.js": "./plugin-options.js",
+    "./detect-usage": "./detect-usage.js",
+    "./detect-usage.js": "./detect-usage.js",
+    "./detect-syntax": "./detect-syntax.js",
+    "./detect-syntax.js": "./detect-syntax.js",
+    "./helpers": "./helpers.js",
+    "./helpers.js": "./helpers.js",
+    "./resolver": "./resolver.js",
+    "./resolver.js": "./resolver.js"
   },
   "dependencies": {
     "@core-js/compat": "4.0.0-alpha.1"

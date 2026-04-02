@@ -38,7 +38,6 @@ plugin({}, { method: 'usage-global', shouldInjectPolyfill: (name, shouldInject) 
 plugin({}, { method: 'usage-global', shouldInjectPolyfill: (_name: string, _default: boolean) => true }, '/path');
 plugin({}, { method: 'usage-global', absoluteImports: true }, '/path');
 plugin({}, { method: 'usage-global', absoluteImports: false }, '/path');
-plugin({}, { method: 'usage-global', absoluteImports: '/absolute/path' }, '/path');
 plugin({}, { method: 'usage-global', configPath: '.' }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: true }, '/path');
 plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: false }, '/path');
@@ -66,7 +65,6 @@ plugin({}, {
   shouldInjectPolyfill: (name, shouldInject) => shouldInject,
   absoluteImports: false,
   configPath: '.',
-  ignoreBrowserslistConfig: false,
   shippedProposals: true,
   importStyle: 'import',
 }, '/path');
@@ -122,12 +120,14 @@ plugin({}, { method: 'usage-global', include: 'es.array.push' }, '/path');
 plugin({}, { method: 'usage-global', exclude: 123 }, '/path');
 // @ts-expect-error — shouldInjectPolyfill must be a function
 plugin({}, { method: 'usage-global', shouldInjectPolyfill: true }, '/path');
-// @ts-expect-error — absoluteImports must be boolean or string
+// @ts-expect-error — absoluteImports must be a boolean
 plugin({}, { method: 'usage-global', absoluteImports: 123 }, '/path');
+// @ts-expect-error — absoluteImports must be a boolean
+plugin({}, { method: 'usage-global', absoluteImports: '/absolute/path' }, '/path');
 // @ts-expect-error — configPath must be a string
-plugin({}, { method: 'usage-global', configPath: true }, '/path');
-// @ts-expect-error — ignoreBrowserslistConfig must be a boolean
-plugin({}, { method: 'usage-global', ignoreBrowserslistConfig: 'yes' }, '/path');
+plugin({}, { method: 'usage-global', configPath: 123 }, '/path');
+// @ts-expect-error — configPath must be a string
+plugin({}, { method: 'usage-global', configPath: 123 }, '/path');
 // @ts-expect-error — shippedProposals must be a boolean
 plugin({}, { method: 'usage-global', shippedProposals: 'yes' }, '/path');
 // @ts-expect-error — importStyle must be 'import' or 'require'

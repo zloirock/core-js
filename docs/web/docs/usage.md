@@ -153,7 +153,7 @@ Configuration example:
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
 | `version` | `string` | `'4.0'` | Used `core-js` version. It's recommended to specify the used minor version like `'4.1'`. Special values: `'node_modules'` reads the version from the installed `core-js` package, `'package.json'` reads the version range from the project's `package.json` dependencies |
-| `targets` | `string` \| `object` | from browserslist config | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
+| `targets` | `string` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
@@ -162,9 +162,9 @@ Configuration example:
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
 | `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from `sourceType` |
-| `configPath` | `string` | `'.'` | Directory to search for a browserslist config |
-| `ignoreBrowserslistConfig` | `boolean` | `false` | Ignore browserslist config files |
-| `absoluteImports` | `boolean` \| `string` | `false` | Use absolute paths for injected imports |
+| `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
+| `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
 
 ### Disable comments
@@ -279,7 +279,7 @@ module.exports = {
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
 | `version` | `string` | `'4.0'` | Used `core-js` version |
-| `targets` | `string` \| `string[]` \| `object` | all engines | Browserslist targets |
+| `targets` | `string` \| `string[]` \| `object` | from project browserslist config if present | Browserslist targets |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
@@ -288,8 +288,8 @@ module.exports = {
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
 | `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type |
-| `configPath` | `string` | `undefined` | Directory to search for a browserslist config |
-| `ignoreBrowserslistConfig` | `boolean` | `false` | Ignore browserslist config files |
+| `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
+| `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `debug` | `boolean` | `false` | Print debug output |
 
