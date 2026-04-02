@@ -56,11 +56,16 @@ export default function ({
   modules = null,
   exclude = [],
   targets = null,
+  configPath,
+  ignoreBrowserslistConfig,
   version = null,
   inverse = false,
   __external: external = false,
 } = {}) {
-  const parsedTargets = targets ? targetsParser(targets) : null;
+  const parsed = targets
+    ? targetsParser(targets)
+    : targetsParser({ configPath, ignoreBrowserslistConfig });
+  const parsedTargets = parsed.size ? parsed : null;
 
   const result = {
     list: [],

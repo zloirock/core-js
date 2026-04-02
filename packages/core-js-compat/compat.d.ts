@@ -22,6 +22,10 @@ type CompatOptions = {
   exclude?: Modules,
   /** optional browserslist or `@core-js/compat` format query */
   targets?: Targets | BrowserslistQuery,
+  /** directory to search for browserslist config (for monorepos) */
+  configPath?: string,
+  /** do not use browserslist config, only explicit `targets` */
+  ignoreBrowserslistConfig?: boolean,
   /** used `core-js` version, by default the latest */
   version?: string,
   /** inverse of the result, shows modules that are NOT required for the target environment */
