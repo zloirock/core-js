@@ -48,4 +48,27 @@ QUnit.test('Iterator#flatMap', assert => {
   assert.true(it.closed, 'flatMap closes iterator on validation error');
   // https://issues.chromium.org/issues/336839115
   assert.throws(() => flatMap.call({ next: null }, () => { /* empty */ }).next(), TypeError);
+
+  // closing inner iterator when outer return() is called
+  let innerClosed = false;
+  const outerIter = flatMap.call(createIterator([1, 2, 3]), () => createIterator([10, 20], {
+    return() {
+      innerClosed = true;
+      return { value: undefined, done: true };
+    },
+  }));
+  outerIter.next();
+  outerIter.return();
+  assert.true(innerClosed, 'inner iterator closed when outer return() is called');
+
+  // source iterator closed on mapper error during execution
+  const closableSource = createIterator([1, 2, 3], {
+    return() {
+      closableSource.closed = true;
+      return { value: undefined, done: true };
+    },
+  });
+  const errorIter = flatMap.call(closableSource, () => { throw 42; });
+  assert.throws(() => errorIter.next(), 'mapper error propagates');
+  assert.true(closableSource.closed, 'source iterator closed on mapper error during execution');
 });
