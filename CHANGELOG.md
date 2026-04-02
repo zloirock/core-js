@@ -4,6 +4,7 @@
 - Improved performance of `es.escape`
 - Improved the way of inner iterators cleaning in iterator helpers
 - Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
+- Fix `URL#toJSON` when `URL#toString` is reassigned after core-js is imported
 - Compat data improvements:
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8) compat data mapping
   - Updated Electron 42 compat data mapping
