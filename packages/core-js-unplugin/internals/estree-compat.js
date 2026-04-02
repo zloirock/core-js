@@ -11,7 +11,7 @@ export function nodeType(node) {
     if (node.value === null) return 'NullLiteral';
   }
   // ESTree Property -> Babel ObjectProperty / ObjectMethod
-  // Getters/setters in ESTree have method:false but kind:'get'/'set' - in Babel they're ObjectMethod
+  // getters/setters in ESTree have method: false but kind: get / set - in Babel they're ObjectMethod
   if (type === 'Property') return node.method || node.kind === 'get' || node.kind === 'set' ? 'ObjectMethod' : 'ObjectProperty';
   // ESTree MethodDefinition -> Babel ClassMethod
   if (type === 'MethodDefinition') return 'ClassMethod';
@@ -29,7 +29,6 @@ export const types = {
   isMemberExpression: n => n?.type === 'MemberExpression' && !n.optional,
   isOptionalMemberExpression: n => n?.type === 'MemberExpression' && n.optional === true,
   isCallExpression: (n, opts) => n?.type === 'CallExpression' && !n.optional && (!opts?.callee || n.callee === opts.callee),
-  isOptionalCallExpression: (n, opts) => n?.type === 'CallExpression' && n.optional === true && (!opts?.callee || n.callee === opts.callee),
   isObjectProperty: n => n?.type === 'Property' && !n.method && n.kind === 'init',
   isObjectMethod: n => n?.type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'),
   isObjectExpression: n => n?.type === 'ObjectExpression',
