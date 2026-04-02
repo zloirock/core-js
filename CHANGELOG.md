@@ -1,5 +1,7 @@
 # Changelog
 ### Unreleased
+- Improved performance of `Uint8Array` base64 methods
+- Improved performance of `es.escape`
 - Improved the way of inner iterators cleaning in iterator helpers
 - Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
 - Compat data improvements:
