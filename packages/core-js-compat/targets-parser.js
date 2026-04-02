@@ -50,8 +50,9 @@ function toLowerKeys(object) {
 }
 
 export default function (targets) {
-  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || isArray(targets))
-    ? { browsers: targets } : toLowerKeys(targets);
+  if (typeof targets != 'object' || isArray(targets)) targets = { browsers: targets };
+  const { configPath, ignoreBrowserslistConfig, ...targetsWithoutConfig } = targets;
+  const { browsers, esmodules, node, ...rest } = toLowerKeys(targetsWithoutConfig);
 
   const list = entries(rest);
 
@@ -62,6 +63,12 @@ export default function (targets) {
       list.push(...browserslist(browsers, { mobileToDesktop: true }).map(it => it.split(' ')));
     } else {
       list.push(...entries(browsers));
+    }
+  } else if (!list.length && !node && !normalizedESModules && !ignoreBrowserslistConfig) {
+    // No explicit targets — use project browserslist config if present (not defaults)
+    const path = configPath || '.';
+    if (browserslist.findConfig(path)) {
+      list.push(...browserslist(undefined, { path }).map(it => it.split(' ')));
     }
   }
 
