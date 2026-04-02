@@ -39,7 +39,7 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
 
     var i = 0;
     var length = array.length;
-    var result = $Array(omitPadding ? (length / 3 << 2) + (length % 3 ? length % 3 + 1 : 0) : (length + 2) / 3 << 2);
+    var result = $Array(omitPadding ? (length / 3 * 4) + (length % 3 ? length % 3 + 1 : 0) : (length + 2) / 3 * 4);
     var written = 0;
     var triplet;
 
