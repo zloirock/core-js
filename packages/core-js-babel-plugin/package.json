@@ -39,8 +39,6 @@
     }
   },
   "dependencies": {
-    "@babel/helper-define-polyfill-provider": "^0.6.8",
-    "@core-js/compat": "4.0.0-alpha.1",
     "@core-js/polyfill-provider": "4.0.0-alpha.1"
   },
   "engines": {

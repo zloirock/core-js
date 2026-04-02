@@ -77,9 +77,7 @@ export default async function ({
       // rolldown helpers / wrappers contain es2015 syntax
       let syntax = ModernSyntax;
 
-      if (targets) {
-        syntax = compat({ targets, modules: syntax, __external: true }).list;
-      }
+      syntax = compat({ targets, configPath, ignoreBrowserslistConfig, modules: syntax, __external: true }).list;
 
       if (syntax.length) Object.assign(SWCOptions, {
         env: {

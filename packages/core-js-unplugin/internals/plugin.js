@@ -1,206 +1,57 @@
-import { createRequire } from 'node:module';
 import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
-import compatData from '@core-js/compat/data' with { type: 'json' };
-import targetsParser from '@core-js/compat/targets-parser';
-import { compare } from '@core-js/compat/helpers';
-import {
-  POSSIBLE_GLOBAL_OBJECTS,
-  isCoreJSFile,
-  pureImportName,
-  parseDisableDirectives,
-  createPolyfillResolver,
-  validateImportStyle,
-  resolveImportStyle,
-} from '@core-js/polyfill-provider';
+import { buildOffsetToLine, isCoreJSFile, parseDisableDirectives, mergeVisitors } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
+import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
+import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
+import TransformQueue from './transform-queue.js';
 import detectEntries from './detect-entry.js';
+import {
+  canTransformDestructuring as sharedCanTransformDestructuring,
+  resolveSymbolIteratorEntry,
+  resolveSymbolInEntry,
+  isTypeAnnotationNodeType,
+} from '@core-js/polyfill-provider/detect-usage';
 import { createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
-const { hasOwn } = Object;
-
-const {
-  resolvePropertyObjectType,
-  resolveGuardHints,
-  toHint,
-  isString,
-  isObject,
-} = createResolveNodeType(nodeType, types);
+const typeResolvers = createResolveNodeType(nodeType, types);
 
 export default function createPlugin(options) {
-  const {
-    method,
-    targets,
-    debug: debugOpt = false,
-    bundler,
-    importStyle: importStyleOption,
-    ...restOptions
-  } = options;
-
-  validateImportStyle(importStyleOption);
-
-  const isWebpack = bundler === 'webpack' || bundler === 'rspack';
-
-  // Resolve targets: explicit option, or browserslist config from configPath
-  const effectiveTargets = (() => {
-    if (targets) return targets;
-    if (restOptions.ignoreBrowserslistConfig) return null;
-    if (restOptions.configPath) {
-      try {
-        const require = createRequire(import.meta.url);
-        const browserslist = require('browserslist');
-        return browserslist(undefined, { path: restOptions.configPath });
-      } catch { return null; }
-    }
-    return null;
-  })();
-
-  // Validate shouldInjectPolyfill option
-  if (restOptions.shouldInjectPolyfill !== undefined && typeof restOptions.shouldInjectPolyfill !== 'function') {
-    throw new Error(`.shouldInjectPolyfill must be a function, or undefined (received ${ restOptions.shouldInjectPolyfill })`);
-  }
-  if (typeof restOptions.shouldInjectPolyfill === 'function' && (restOptions.include || restOptions.exclude)) {
-    throw new Error('.include and .exclude are not supported when using the .shouldInjectPolyfill function.');
-  }
-
-  const parsedTargets = effectiveTargets ? targetsParser(effectiveTargets) : null;
-
-  // Build shouldInjectPolyfill from targets + include/exclude + user callback
-  const shouldInjectPolyfill = (() => {
-    const { include, exclude, shouldInjectPolyfill: userCallback } = restOptions;
-    const matchers = patterns => {
-      if (!patterns) return null;
-      return (Array.isArray(patterns) ? patterns : [patterns]).map(p => {
-        if (typeof p === 'string') {
-          if (p.includes('*')) {
-            const re = new RegExp(`^${ p.replaceAll('*', '.*') }$`);
-            return mod => re.test(mod);
-          }
-          return mod => mod === p;
-        }
-        if (p instanceof RegExp) return mod => p.test(mod);
-        return () => false;
-      });
-    };
-    const includeMatchers = matchers(include);
-    const excludeMatchers = matchers(exclude);
-    const defaultShouldInject = mod => {
-      if (excludeMatchers?.some(m => m(mod))) return false;
-      if (includeMatchers?.some(m => m(mod))) return true;
-      if (parsedTargets) {
-        const requirements = compatData[mod];
-        if (!requirements) return true;
-        for (const [engine, version] of parsedTargets) {
-          if (!hasOwn(requirements, engine) || compare(version, '<', requirements[engine])) return true;
-        }
-        return false;
-      }
-      return true;
-    };
-    if (typeof userCallback === 'function') return mod => userCallback(mod, defaultShouldInject(mod));
-    return defaultShouldInject;
-  })();
-
-  const resolver = createPolyfillResolver({
-    ...restOptions,
-    method,
-    shouldInjectPolyfill,
-    resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject,
+  const { resolver, debugOutput } = createPolyfillResolver(options, {
+    typeResolvers,
     isMemberLike: path => path.node?.type === 'MemberExpression',
     isCallee: (node, parent) => parent && parent.callee === node,
     isSpreadElement: node => node?.type === 'SpreadElement',
   });
 
-  const { mode, pkg, getModulesForEntry, getCoreJSEntry, isEntryNeeded } = resolver;
-
-  // Debug: build targets display string and helper for per-module target info
-  const debugTargetsStr = parsedTargets
-    ? JSON.stringify(Object.fromEntries([...parsedTargets].map(([e, v]) => [e, String(v)])), null, 2)
-    : '{}';
-
-  function getUnsupportedTargets(moduleName) {
-    if (!parsedTargets) return {};
-    const requirements = compatData[moduleName];
-    if (!requirements) return Object.fromEntries(parsedTargets.map(([e, v]) => [e, String(v)]));
-    const unsupported = {};
-    for (const [engine, version] of parsedTargets) {
-      if (!hasOwn(requirements, engine) || compare(version, '<', requirements[engine])) {
-        unsupported[engine] = String(version);
-      }
-    }
-    return unsupported;
-  }
-
-  function formatTargets(obj) {
-    const pairs = Object.entries(obj);
-    if (!pairs.length) return '{}';
-    return `{ ${ pairs.map(([k, v]) => `"${ k }":"${ v }"`).join(', ') } }`;
-  }
-
-  function formatDebug(modules, pureEntries, { entryFound = true } = {}) {
-    const items = method === 'usage-pure' ? [...pureEntries] : [...modules];
-    const polyfillLines = items.map(item => method === 'usage-pure'
-      ? `  ${ item }`
-      : `  ${ item } ${ formatTargets(getUnsupportedTargets(item)) }`);
-
-    let result;
-    if (method === 'entry-global' && !entryFound) {
-      result = 'The entry point for the core-js@4 polyfill has not been found.';
-    } else if (items.length === 0) {
-      const scope = method === 'entry-global' ? 'your targets' : 'your code and targets';
-      result = `Based on ${ scope }, the core-js@4 polyfill did not add any polyfill.`;
-    } else {
-      const verb = method === 'entry-global' ? 'entry has been replaced with' : 'added';
-      result = `The core-js@4 polyfill ${ verb } the following polyfills:\n${ polyfillLines.join('\n') }`;
-    }
-
-    return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ debugTargetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }`;
-  }
+  const { method, absoluteImports, importStyle: importStyleOption, bundler } = options;
+  const {
+    mode, pkg, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
+    resolveUsage, resolvePure, resolvePureOrGlobalFallback,
+  } = resolver;
+  const isWebpack = bundler === 'webpack' || bundler === 'rspack';
 
   return {
     name: 'core-js-unplugin',
 
-    // eslint-disable-next-line max-statements -- long method with mode-specific branches
     transform(code, id) {
       if (isCoreJSFile(id)) return null;
 
-      // Parse with oxc-parser (sync is the only available API)
+      // parse with oxc-parser (sync is the only available API)
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
       const { program: ast, comments, errors } = parseSync(id, code, { sourceType: 'module' });
       if (errors?.length) return null;
 
-      // Resolve importStyle: explicit option > sourceType auto-detection > 'import' default
-      const importStyle = resolveImportStyle(importStyleOption, ast.sourceType);
+      const importStyle = importStyleOption ?? 'import';
 
-      // Check disable directives
-      const directives = parseDisableDirectives(comments, code);
+      // check disable directives
+      const offsetToLine = buildOffsetToLine(code);
+      const directives = parseDisableDirectives(comments, offsetToLine);
       if (directives === true) return null; // entire file disabled
       const disabledLines = directives;
-
-      // Precompute line start offsets for O(log n) offset-to-line lookup
-      // Only built when disable directives are present
-      let lineStarts;
-      if (disabledLines) {
-        lineStarts = [0]; // line 1 starts at offset 0
-        for (let i = 0; i < code.length; i++) {
-          if (code[i] === '\n') lineStarts.push(i + 1);
-        }
-      }
-
-      function offsetToLine(offset) {
-        // Binary search in lineStarts
-        let lo = 0;
-        let hi = lineStarts.length - 1;
-        while (lo < hi) {
-          const mid = (lo + hi + 1) >> 1;
-          if (lineStarts[mid] <= offset) lo = mid;
-          else hi = mid - 1;
-        }
-        return lo + 1; // 1-based
-      }
 
       function isDisabled(node) {
         if (!disabledLines) return false;
@@ -209,127 +60,74 @@ export default function createPlugin(options) {
       }
 
       const ms = new MagicString(code);
-      const injector = new ImportInjector(ms, pkg, mode, restOptions.absoluteImports, importStyle);
-      const injectedModules = new Set();
+      const injector = new ImportInjector({ ms, pkg, mode, absoluteImports, importStyle });
 
-      function injectModule(moduleName) {
-        if (injectedModules.has(moduleName)) return;
-        injectedModules.add(moduleName);
-        injector.addGlobalImport(moduleName);
+      const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
+        mode,
+        getModulesForEntry,
+        debugOutput,
+        injectGlobal: moduleName => injector.addGlobalImport(moduleName),
+      });
+
+      function injectPureImport(entry, hint) {
+        debugOutput?.add(entry);
+        return injector.addPureImport(entry, hint);
       }
 
-      function injectModulesForEntry(entry) {
-        for (const moduleName of getModulesForEntry(entry)) {
-          injectModule(moduleName);
-        }
-      }
-
-      function injectModulesForModeEntry(entry) {
-        injectModulesForEntry(`${ mode }/${ entry }`);
-      }
-
-      function finalize(debugOptions) {
+      function finalize() {
         injector.flush();
-        const result = ms.toString();
-        if (debugOpt) {
-          const allModules = new Set([...injectedModules, ...injector.globalModules]);
-          const modePrefix = `${ mode }/`;
-          const pureEntries = [...injector.pureImports.keys()].map(k => k.startsWith(modePrefix) ? k.slice(modePrefix.length) : k);
-          // eslint-disable-next-line no-console -- debug output requested by user
-          console.log(formatDebug(allModules, pureEntries, debugOptions));
-        }
-        if (result === code) return null;
-        return { code: result, map: ms.generateMap({ hires: true }) };
+        outputDebug();
+        if (ms.hasChanged()) return { code: ms.toString(), map: ms.generateMap({ hires: true }) };
+        return null;
       }
 
       // entry-global mode
       if (method === 'entry-global') {
         const entryFound = detectEntries(ast, {
           getCoreJSEntry,
-          getModulesForEntry,
+          injectModulesForEntry,
           isDisabled,
-          injector,
           ms,
         });
-        return finalize({ entryFound });
+        if (entryFound) debugOutput?.markEntryFound();
+        return finalize();
       }
 
       // usage-global mode
       if (method === 'usage-global') {
-        const usageCallback = (meta, path) => {
-          if (isDisabled(path.node)) return;
-          if (meta.kind === 'in' && meta.key === 'Symbol.iterator') {
-            injectModulesForModeEntry('symbol/iterator');
-            return;
-          }
-          const deps = resolver.resolveUsage(meta, path);
-          if (!deps) return;
-          for (const entry of deps) injectModulesForModeEntry(entry);
-        };
-
-        const usageVisitors = createUsageVisitors(usageCallback);
-        const syntaxVisitors = createSyntaxVisitors(
-          injectModulesForModeEntry,
-          injectModulesForEntry,
-          null, // getUtils not needed
+        const usageGlobalCallback = createUsageGlobalCallback({
+          resolveUsage, injectModulesForModeEntry,
           isDisabled,
-          { isWebpack },
-        );
+        });
 
-        // Merge visitors - combine handlers for same node type
-        const mergedVisitors = {
+        const usageVisitors = createUsageVisitors({ onUsage: usageGlobalCallback });
+        const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
+
+        traverse(ast, mergeVisitors({
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
           ...usageVisitors,
-        };
-        for (const [key, handler] of Object.entries(syntaxVisitors)) {
-          if (mergedVisitors[key]) {
-            const usageHandler = mergedVisitors[key];
-            mergedVisitors[key] = path => {
-              usageHandler(path);
-              handler(path);
-            };
-          } else {
-            mergedVisitors[key] = handler;
-          }
-        }
-        traverse(ast, mergedVisitors);
+        }, syntaxVisitors));
 
         return finalize();
       }
 
       // usage-pure mode
       if (method === 'usage-pure') {
-        let uidCounter = 0;
         const skippedNodes = new WeakSet();
+        const transforms = new TransformQueue(code, ms);
 
-        function genUid() {
-          let name = `_ref${ uidCounter++ || '' }`;
-          while (injector.rootScope?.hasBinding(name) || injector.usedNames.has(name)) {
-            name = `_ref${ uidCounter++ }`;
-          }
-          injector.addRef(name);
-          return name;
-        }
+        function genUid() { return injector.generateRef(); }
         function nodeSrc(n) { return code.slice(n.start, n.end); }
 
-        const { resolvePureEntry, resolve, enhanceMeta } = resolver;
-
-        function handleSymbolIteratorPure(meta, node, parent) {
+        function handleSymbolIterator(meta, node, parent) {
+          const entry = resolveSymbolIteratorEntry(node, parent);
+          if (!isEntryNeeded(entry)) return;
           const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
           const isZeroArgCall = isCallParent && parent.arguments.length === 0;
-          // foo[Symbol.iterator]() -> getIterator (non-optional, zero args)
-          // foo?.[Symbol.iterator]() -> getIterator with null check
-          // foo[Symbol.iterator]?.() -> getIteratorMethod (optional call = uncertain)
-          // foo[Symbol.iterator](arg) -> getIteratorMethod
-          // foo[Symbol.iterator] -> getIteratorMethod (property access, no call)
-          const useGetIterator = isZeroArgCall && !parent.optional;
-          // Detect optional chain on the object: foo?.[Symbol.iterator]()
           const hasNullCheck = node.optional || (isCallParent && containsOptional(node));
-          const entry = useGetIterator ? 'get-iterator' : 'get-iterator-method';
-          if (!isEntryNeeded(entry)) return;
           const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
-          const binding = injector.addPureImport(entry, hint);
+          const binding = injectPureImport(entry, hint);
           const objectText = nodeSrc(node.object);
           if (isZeroArgCall) {
             let replacement;
@@ -342,15 +140,15 @@ export default function createPlugin(options) {
             } else {
               replacement = `${ binding }(${ objectText })`;
             }
-            addTransform(parent.start, parent.end, replacement);
+            transforms.add(parent.start, parent.end, replacement);
             skippedNodes.add(parent);
           } else if (isCallParent && parent.arguments.length > 0) {
             // foo[Symbol.iterator](args) -> _getIteratorMethod(foo)?.call(foo, args)
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-            addTransform(parent.start, parent.end, `${ binding }(${ objectText })${ parent.optional ? '?.' : '.' }call(${ objectText }, ${ argsSrc })`);
+            transforms.add(parent.start, parent.end, `${ binding }(${ objectText })${ parent.optional ? '?.' : '.' }call(${ objectText }, ${ argsSrc })`);
             skippedNodes.add(parent);
           } else {
-            addTransform(node.start, node.end, `${ binding }(${ objectText })`);
+            transforms.add(node.start, node.end, `${ binding }(${ objectText })`);
           }
           if (node.property) skippedNodes.add(node.property);
         }
@@ -364,68 +162,10 @@ export default function createPlugin(options) {
           return false;
         }
 
-        // Deferred transform queue - collected during traversal, applied after
-        // For chained method calls, inner transforms are composed into outer ones
-        const pendingTransforms = [];
-
-        function addTransform(start, end, content) {
-          pendingTransforms.push({ start, end, content });
-        }
-
-        function applyTransforms() {
-          // Sort innermost first: smaller ranges before larger, right-to-left for same-level
-          pendingTransforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
-
-          // Build a map of range -> replacement for composing nested transforms
-          // When an outer transform's content references original source that has an inner transform,
-          // substitute the inner transform's replacement into the outer
-          const transformMap = new Map(); // key: "start:end", value: replacement content
-
-          for (const t of pendingTransforms) {
-            // Check if this transform's content contains any inner transform's original range
-            let { content } = t;
-            for (const [key, innerContent] of transformMap) {
-              const [innerStart, innerEnd] = key.split(':').map(Number);
-              if (innerStart >= t.start && innerEnd <= t.end) {
-                // Inner transform is contained - substitute its replacement into our content
-                const originalInner = code.slice(innerStart, innerEnd);
-                content = content.replaceAll(originalInner, innerContent);
-              }
-            }
-            transformMap.set(`${ t.start }:${ t.end }`, content);
-          }
-
-          // Apply from right to left (largest start first) to preserve positions
-          const sorted = [...transformMap.entries()].sort((a, b) => {
-            const [aStart] = a[0].split(':').map(Number);
-            const [bStart] = b[0].split(':').map(Number);
-            return bStart - aStart;
-          });
-
-          const applied = new Set();
-          for (const [key, content] of sorted) {
-            const [start, end] = key.split(':').map(Number);
-            // Skip if contained within an already-applied wider range
-            let skip = false;
-            for (const appliedKey of applied) {
-              const [aStart, aEnd] = appliedKey.split(':').map(Number);
-              if (aStart <= start && aEnd >= end && appliedKey !== key) {
-                skip = true;
-                break;
-              }
-            }
-            if (skip) continue;
-            try {
-              ms.overwrite(start, end, content);
-              applied.add(key);
-            } catch { /* skip conflicting */ }
-          }
-        }
-
         function replaceInstance(binding, node, parent) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
           if (!isCall) {
-            addTransform(node.start, node.end, `${ binding }(${ nodeSrc(node.object) })`);
+            transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.object) })`);
             return;
           }
           const objectSrc = nodeSrc(node.object);
@@ -433,38 +173,31 @@ export default function createPlugin(options) {
           const argsPart = argsSrc ? `, ${ argsSrc }` : '';
           if (node.object.type !== 'Identifier') {
             const ref = genUid();
-            addTransform(parent.start, parent.end, `(${ ref } = ${ objectSrc }, ${ binding }(${ ref }).call(${ ref }${ argsPart }))`);
+            transforms.add(parent.start, parent.end, `(${ ref } = ${ objectSrc }, ${ binding }(${ ref }).call(${ ref }${ argsPart }))`);
           } else {
-            addTransform(parent.start, parent.end, `${ binding }(${ objectSrc }).call(${ objectSrc }${ argsPart })`);
+            transforms.add(parent.start, parent.end, `${ binding }(${ objectSrc }).call(${ objectSrc }${ argsPart })`);
           }
           skippedNodes.add(parent);
         }
 
-        // Deferred destructuring: collect polyfilled properties per ObjectPattern
+        // deferred destructuring: collect polyfilled properties per ObjectPattern
         const destructuringMap = new Map(); // key: ObjectPattern node -> [{propNode, localName, binding, kind, initSrc}]
 
-        // Check if destructuring pattern can be transformed (mirrors canTransformDestructuring in babel plugin)
         function canTransformDestructuring(metaPath) {
           const objectPattern = metaPath.parent;
           if (!objectPattern) return false;
-          // Skip if rest element present - extracting a property changes rest semantics
-          if (objectPattern.properties?.some(p => p.type === 'RestElement')) return false;
           const declaratorPath = metaPath.parentPath?.parentPath;
           if (!declaratorPath?.node) return false;
-          // Skip nested patterns: { foo: { filter } } - declarator is a Property, not VariableDeclarator/AssignmentExpression
           if (declaratorPath.node.type === 'Property') return false;
-          const declNode = declaratorPath.parentPath?.node;
-          if (!declNode) return false;
-          // VariableDeclaration: skip for-in/for-of (no init), skip multi-property in for-loop
-          if (declNode.type === 'VariableDeclaration') {
-            const grandParent = declaratorPath.parentPath?.parentPath?.node;
-            if (grandParent?.type === 'ForInStatement' || grandParent?.type === 'ForOfStatement') return false;
-            if (grandParent?.type === 'ForStatement' && objectPattern.properties?.length > 1) return false;
-          }
-          // AssignmentExpression: skip nested/non-ExpressionStatement
+          if (!sharedCanTransformDestructuring({
+            parentType: declaratorPath.node.type,
+            parentInit: declaratorPath.node.init,
+            grandParentType: declaratorPath.parentPath?.parentPath?.node?.type,
+            patternProperties: objectPattern.properties,
+          })) return false;
+          // ESTree-specific: assignment must be inside ExpressionStatement (unwrap ParenthesizedExpression)
           if (declaratorPath.node.type === 'AssignmentExpression') {
             let exprParent = declaratorPath.parentPath;
-            // Unwrap ParenthesizedExpression: ({ from } = Array)
             while (exprParent?.node?.type === 'ParenthesizedExpression') exprParent = exprParent.parentPath;
             if (exprParent?.node?.type !== 'ExpressionStatement') return false;
           }
@@ -473,37 +206,30 @@ export default function createPlugin(options) {
 
         function handleDestructuringPure(meta, metaPath, propNode) {
           if (!canTransformDestructuring(metaPath)) return;
-          // Skip properties with default values
+          // skip properties with default values
           if (propNode.value?.type === 'AssignmentPattern') return;
-          // Skip nested patterns
+          // skip nested patterns
           if (propNode.value?.type === 'ObjectPattern' || propNode.value?.type === 'ArrayPattern') return;
-          const resolved = resolve(meta);
-          if (!resolved || !hasOwn(resolved.desc ?? {}, 'pure')) return;
-          const { kind, desc: { pure: desc } } = resolved;
-          let effectiveMeta = meta;
-          if (kind === 'instance') {
-            effectiveMeta = enhanceMeta(meta, metaPath, desc);
-            if (effectiveMeta === null) return;
-          }
-          const importEntry = resolvePureEntry(kind, desc, effectiveMeta, metaPath);
-          if (!importEntry) return;
-          const binding = injector.addPureImport(importEntry, pureImportName(kind, resolved.name, importEntry));
+          const pureResult = resolvePure(meta, metaPath);
+          if (!pureResult) return;
+          const { entry: importEntry, kind, hintName } = pureResult;
+          const binding = injectPureImport(importEntry, hintName);
 
           const objectPattern = metaPath.parent;
           const localName = propNode.value?.type === 'Identifier' ? propNode.value.name : propNode.key?.name;
           if (!localName) return;
 
-          // Find statement path:
+          // find statement path:
           // VariableDeclaration: Property -> ObjectPattern -> VariableDeclarator -> VariableDeclaration
-          // Assignment: Property -> ObjectPattern -> AssignmentExpression -> ExpressionStatement
+          // assignment: Property -> ObjectPattern -> AssignmentExpression -> ExpressionStatement
           const declaratorPath = metaPath.parentPath?.parentPath;
           const isAssignment = declaratorPath?.node?.type === 'AssignmentExpression';
           let declPath = declaratorPath?.parentPath;
-          // Unwrap ParenthesizedExpression for assignment: ({ from } = Array) -> ExpressionStatement
+          // unwrap ParenthesizedExpression for assignment: ({ from } = Array) -> ExpressionStatement
           if (isAssignment) {
             while (declPath?.node?.type === 'ParenthesizedExpression') declPath = declPath.parentPath;
           }
-          // Get init source for instance methods
+          // get init source for instance methods
           const initNode = isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
           const initSrc = initNode ? nodeSrc(initNode) : null;
 
@@ -529,7 +255,7 @@ export default function createPlugin(options) {
             const polyfillKeys = new Set(entries.map(e => e.propNode));
             const remaining = allProps.filter(p => !polyfillKeys.has(p));
 
-            // Determine if we need to memoize init (for instance methods with non-identifier init)
+            // determine if we need to memoize init (for instance methods with non-identifier init)
             const hasInstance = entries.some(e => e.kind === 'instance');
             const needsMemo = hasInstance && !initIsIdent && entries.length > 1;
             let objRef = initSrc;
@@ -537,7 +263,7 @@ export default function createPlugin(options) {
               objRef = genUid();
             }
 
-            // Build extracted declarations
+            // build extracted declarations
             const declKeyword = isAssignment ? '' : 'const ';
             const extracted = entries.map(e => e.kind === 'instance' && initSrc
               ? `${ declKeyword }${ e.localName } = ${ e.binding }(${ objRef })`
@@ -546,46 +272,29 @@ export default function createPlugin(options) {
             const memoPrefix = needsMemo && initSrc ? `const ${ objRef } = ${ initSrc };\n` : '';
             const extractedStr = `${ extracted.join(';\n') };\n`;
 
+            const stmtNode = declPath.node;
             if (remaining.length === 0) {
-              // All properties polyfilled -> replace entire statement
-              const stmtNode = declPath.node;
-              addTransform(stmtNode.start, stmtNode.end, memoPrefix + extractedStr.trimEnd());
+              // all properties polyfilled -> replace entire statement
+              transforms.add(stmtNode.start, stmtNode.end, memoPrefix + extractedStr.trimEnd());
             } else {
-              // Some properties remain -> prepend extracted, remove polyfilled props from pattern
-              // This is hard with magic-string. Approximate: prepend declarations before statement
-              addTransform(declPath.node.start, declPath.node.start, memoPrefix + extractedStr);
-              // Remove the polyfilled properties from the source
-              for (const entry of entries) {
-                const prop = entry.propNode;
-                if (code[prop.end] === ',') {
-                  // Remove property + trailing comma + optional space
-                  const end = code[prop.end + 1] === ' ' ? prop.end + 2 : prop.end + 1;
-                  addTransform(prop.start, end, '');
-                } else {
-                  // Last property - find preceding comma
-                  let commaPos = prop.start - 1;
-                  while (commaPos > 0 && code[commaPos] !== ',') commaPos--;
-                  if (code[commaPos] === ',') addTransform(commaPos, prop.end, '');
-                  else addTransform(prop.start, prop.end, '');
-                }
-              }
+              // some properties remain -> replace entire statement with extracted + rebuilt destructuring
+              const remainingProps = remaining.map(p => nodeSrc(p)).join(', ');
+              const rebuilt = isAssignment
+                ? `({ ${ remainingProps } } = ${ objRef })`
+                : `${ stmtNode.kind } { ${ remainingProps } } = ${ objRef }`;
+              transforms.add(stmtNode.start, stmtNode.end, memoPrefix + extractedStr + rebuilt);
             }
           }
         }
 
-        // Check if a path is inside a TS type annotation (type aliases, interfaces, etc.)
         function isInTypeAnnotation(path) {
-          let current = path;
-          while (current) {
-            const type = current.node?.type;
-            if (type === 'TSTypeAliasDeclaration' || type === 'TSInterfaceDeclaration'
-              || type === 'TSTypeAnnotation' || type === 'TSTypeReference') return true;
-            current = current.parentPath;
+          for (let current = path.parentPath; current; current = current.parentPath) {
+            if (isTypeAnnotationNodeType(current.node?.type)) return true;
           }
           return false;
         }
 
-        const pureCallback = (meta, metaPath) => {
+        const usagePureCallback = (meta, metaPath) => {
           if (isDisabled(metaPath.node)) return;
           if (skippedNodes.has(metaPath.node)) return;
           if (isInTypeAnnotation(metaPath)) return;
@@ -593,23 +302,19 @@ export default function createPlugin(options) {
           const parent = metaPath.parentPath?.node;
 
           if (meta.kind === 'in') {
-            if (meta.key === 'Symbol.iterator' && isEntryNeeded('is-iterable')) {
-              const binding = injector.addPureImport('is-iterable', 'isIterable');
-              addTransform(node.start, node.end, `${ binding }(${ nodeSrc(node.right) })`);
-            } else if (meta.key?.startsWith('Symbol.')) {
-              // Symbol.hasInstance in obj -> _Symbol$hasInstance in obj
-              const symbolProp = meta.key.slice(7); // e.g., 'hasInstance'
-              const entry = `symbol/${ symbolProp.replaceAll(/[A-Z]/g, c => `-${ c.toLowerCase() }`) }`;
-              if (isEntryNeeded(entry)) {
-                const binding = injector.addPureImport(entry, meta.key.replace('.', '$'));
-                addTransform(node.left.start, node.left.end, binding);
+            const symbolIn = resolveSymbolInEntry(meta.key);
+            if (symbolIn && isEntryNeeded(symbolIn.entry)) {
+              const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
+              if (meta.key === 'Symbol.iterator') {
+                transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.right) })`);
+              } else {
+                transforms.add(node.left.start, node.left.end, binding);
               }
             }
             return;
           }
 
           if (parent?.type === 'UnaryExpression' && parent.operator === 'delete') return;
-          if (meta.kind !== 'property' && meta.kind !== 'global') return;
 
           if (meta.kind === 'property') {
             if (node.type === 'Property' && metaPath.parent?.type === 'ObjectPattern') {
@@ -619,56 +324,39 @@ export default function createPlugin(options) {
             if (parent?.type === 'UpdateExpression') return;
             if (node.object?.type === 'Super') return;
             if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-            if (meta.key === 'Symbol.iterator') return handleSymbolIteratorPure(meta, node, parent);
+            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent);
           }
 
-          let resolved = resolve(meta);
-          // Unresolved static property on a known global (e.g., Symbol.prototype) - fall back to global polyfill
-          // But not for global proxy objects (globalThis, self, window, global) - those are handled differently
-          if (!resolved && meta.kind === 'property' && meta.placement === 'static' && meta.object
-            && !POSSIBLE_GLOBAL_OBJECTS.has(meta.object) && node.type === 'MemberExpression') {
-            resolved = resolve({ kind: 'global', name: meta.object });
-            if (resolved && hasOwn(resolved.desc ?? {}, 'pure')) {
-              const fallbackEntry = resolvePureEntry(resolved.kind, resolved.desc.pure, { kind: 'global', name: meta.object }, metaPath);
-              if (fallbackEntry) {
-                const binding = injector.addPureImport(fallbackEntry, meta.object);
-                addTransform(node.object.start, node.object.end, binding);
-              }
-              return;
-            }
+          const { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
+          if (fallback && node.type === 'MemberExpression') {
+            const binding = injectPureImport(fallback.entry, fallback.hintName);
+            transforms.add(node.object.start, node.object.end, binding);
+            return;
           }
-          if (!resolved || !hasOwn(resolved.desc ?? {}, 'pure')) return;
-          const { kind, desc: { pure: desc } } = resolved;
-          let effectiveMeta = meta;
-          if (kind === 'instance') {
-            effectiveMeta = enhanceMeta(meta, metaPath, desc);
-            if (effectiveMeta === null) return;
-          }
-          const importEntry = resolvePureEntry(kind, desc, effectiveMeta, metaPath);
-          if (!importEntry) return;
-          // Build hint matching Babel convention: statics -> 'Array.from', globals -> 'Promise', instances -> via pureImportName
-          const binding = injector.addPureImport(importEntry, pureImportName(kind, resolved.name, importEntry));
+          if (!pureResult) return;
+          const { entry: importEntry, kind, hintName } = pureResult;
+          const binding = injectPureImport(importEntry, hintName);
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-            // Remove optional call operator `?.` when replacing global/static callee
+            // remove optional call operator `?.` when replacing global/static callee
             // globalThis.Map?.() -> _Map() - the `?.` between callee and `(` should be removed
             const { end } = node;
             const optionalEnd = parent?.type === 'CallExpression' && parent.optional
               && parent.callee === node && code[end] === '?' && code[end + 1] === '.'
               ? end + 2 : end;
-            addTransform(node.start, optionalEnd, binding);
+            transforms.add(node.start, optionalEnd, binding);
           }
         };
 
         traverse(ast, {
           $: { scope: true },
           Program(path) { injector.rootScope = path.scope; },
-          ...createUsageVisitors(pureCallback, { suppressProxyGlobals: true, walkAnnotations: false }),
+          ...createUsageVisitors({ onUsage: usagePureCallback, suppressProxyGlobals: true, walkAnnotations: false }),
         });
         applyDestructuringTransforms();
-        applyTransforms();
+        transforms.apply();
         return finalize();
       }
 
