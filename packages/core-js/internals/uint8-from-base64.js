@@ -13,7 +13,9 @@ var base64UrlAlphabet = base64Map.c2iUrl;
 
 var SyntaxError = globalThis.SyntaxError;
 var TypeError = globalThis.TypeError;
+var $Array = globalThis.Array;
 var at = uncurryThis(''.charAt);
+var floor = Math.floor;
 
 var skipAsciiWhitespace = function (string, index) {
   var length = string.length;
@@ -82,7 +84,7 @@ module.exports = function (string, options, into, maxLength) {
   if (into) notDetached(into.buffer);
 
   var stringLength = string.length;
-  var bytes = into || [];
+  var bytes = into || $Array(floor(stringLength * 3 / 4));
   var written = 0;
   var read = 0;
   var chunk = '';
@@ -152,6 +154,6 @@ module.exports = function (string, options, into, maxLength) {
       }
     }
   }
-
+  if (!into) bytes.length = written;
   return { bytes: bytes, read: read, written: written };
 };

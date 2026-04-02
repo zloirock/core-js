@@ -589,6 +589,8 @@ const base = {
   'unicorn/consistent-empty-array-spread': ERROR,
   // enforce consistent style for element existence checks with `indexOf()`, `lastIndexOf()`, `findIndex()`, and `findLastIndex()`
   'unicorn/consistent-existence-index-check': ERROR,
+  // enforce consistent style for escaping ${ in template literals
+  'unicorn/consistent-template-literal-escape': ERROR,
   // enforce correct `Error` subclassing
   'unicorn/custom-error-definition': ERROR,
   // enforce passing a message value when throwing a built-in error
@@ -656,6 +658,8 @@ const base = {
   'unicorn/no-useless-error-capture-stack-trace': ERROR,
   // forbid useless fallback when spreading in object literals
   'unicorn/no-useless-fallback-in-spread': ERROR,
+  // disallow unnecessary `.toArray()` on iterators
+  'unicorn/no-useless-iterator-to-array': ERROR,
   // disallow useless array length check
   'unicorn/no-useless-length-check': ERROR,
   // disallow returning / yielding `Promise.{ resolve, reject }` in async functions or promise callbacks
@@ -722,6 +726,8 @@ const base = {
   'unicorn/prefer-optional-catch-binding': ERROR,
   // prefer `Response.json()` over `new Response(JSON.stringify())`
   'unicorn/prefer-response-static-json': ERROR,
+  // prefer simple conditions first in logical expressions
+  'unicorn/prefer-simple-condition-first': ERROR,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': ERROR,
   // prefer using `Set#size` instead of `Array#length`

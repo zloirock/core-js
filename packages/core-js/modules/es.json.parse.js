@@ -38,7 +38,7 @@ var OBJECT = 1;
 
 var $parse = function (source, reviver) {
   source = toString(source);
-  var context = new Context(source, 0, '');
+  var context = new Context(source, 0);
   var root = context.parse();
   var value = root.value;
   var endIndex = context.skip(IS_WHITESPACE, root.end);
