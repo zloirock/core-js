@@ -34,6 +34,8 @@ export default async function ({
   modules = null,
   exclude = [],
   targets = null,
+  configPath,
+  ignoreBrowserslistConfig,
   format = 'bundle',
   minify = true,
   filename = null,
@@ -50,7 +52,7 @@ export default async function ({
   let script = banner;
   let code = '\n';
 
-  const { list, targets: compatTargets } = compat({ targets, modules, exclude });
+  const { list, targets: compatTargets } = compat({ targets, configPath, ignoreBrowserslistConfig, modules, exclude });
 
   if (list.length) {
     if (format === 'bundle') {
