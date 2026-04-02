@@ -3003,4 +3003,4 @@ function createResolveNodeType(babelNodeType, t) {
 }
 /* eslint-enable max-statements -- end factory */
 
-export { createResolveNodeType, TYPE_HINTS, PRIMITIVE_HINTS };
+export { createResolveNodeType, TYPE_HINTS };
