@@ -1,4 +1,4 @@
-import { createIterable, createSetLike } from '../helpers/helpers.js';
+import { createIterable, createIterator, createSetLike } from '../helpers/helpers.js';
 
 import from from 'core-js-pure/es/array/from';
 // TODO: use /es/ in core-js@4
@@ -60,6 +60,18 @@ QUnit.test('Set#intersection', assert => {
   })), [1, 3], 'Set.prototype.intersection re-checks SetDataHas after has()');
 
   assert.throws(() => new Set([1, 2, 3]).intersection(), TypeError);
+
+  assert.throws(() => new Set([1, 2, 3]).intersection({
+    size: NaN,
+    has() { return true; },
+    keys() { return createIterator([]); },
+  }), TypeError, 'NaN size throws TypeError');
+
+  assert.throws(() => new Set([1, 2, 3]).intersection({
+    size: 4,
+    has() { throw new TypeError('has error'); },
+    keys() { return createIterator([]); },
+  }), TypeError, 'has() error propagates');
 
   assert.throws(() => intersection.call({}, [1, 2, 3]), TypeError);
   assert.throws(() => intersection.call(undefined, [1, 2, 3]), TypeError);

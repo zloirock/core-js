@@ -11,6 +11,7 @@ var getBuiltIn = require('../internals/get-built-in');
 var getMethod = require('../internals/get-method');
 var AsyncIteratorPrototype = require('../internals/async-iterator-prototype');
 var createIterResultObject = require('../internals/create-iter-result-object');
+var cleanupState = require('../internals/iterator-cleanup-state');
 
 var Promise = getBuiltIn('Promise');
 
@@ -46,8 +47,18 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       });
       var handlerError = handlerCompletion.error;
       var value = handlerCompletion.value;
-      if (handlerError) state.done = true;
-      return handlerError ? Promise.reject(value) : Promise.resolve(value);
+      if (handlerError) {
+        state.done = true;
+        if (IS_GENERATOR) cleanupState(state);
+        return Promise.reject(value);
+      }
+      return IS_GENERATOR ? Promise.resolve(value).then(function (result) {
+        if (state.done) cleanupState(state);
+        return result;
+      }, function (error) {
+        cleanupState(state);
+        throw error;
+      }) : Promise.resolve(value);
     },
     'return': function () {
       var stateCompletion = getStateOrEarlyExit(this);
@@ -56,6 +67,7 @@ var createAsyncIteratorProxyPrototype = function (IS_ITERATOR) {
       state.done = true;
       var iterator = state.iterator;
       var inner = state.inner;
+      if (IS_GENERATOR) cleanupState(state);
       var returnMethod, result;
       var closeOuterIterator = function () {
         var completion = perform(function () {

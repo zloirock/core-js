@@ -589,6 +589,8 @@ const base = {
   'unicorn/consistent-empty-array-spread': ERROR,
   // enforce consistent style for element existence checks with `indexOf()`, `lastIndexOf()`, `findIndex()`, and `findLastIndex()`
   'unicorn/consistent-existence-index-check': ERROR,
+  // enforce consistent style for escaping ${ in template literals
+  'unicorn/consistent-template-literal-escape': ERROR,
   // enforce correct `Error` subclassing
   'unicorn/custom-error-definition': ERROR,
   // enforce passing a message value when throwing a built-in error
@@ -656,6 +658,8 @@ const base = {
   'unicorn/no-useless-error-capture-stack-trace': ERROR,
   // forbid useless fallback when spreading in object literals
   'unicorn/no-useless-fallback-in-spread': ERROR,
+  // disallow unnecessary `.toArray()` on iterators
+  'unicorn/no-useless-iterator-to-array': ERROR,
   // disallow useless array length check
   'unicorn/no-useless-length-check': ERROR,
   // disallow returning / yielding `Promise.{ resolve, reject }` in async functions or promise callbacks
@@ -722,6 +726,8 @@ const base = {
   'unicorn/prefer-optional-catch-binding': ERROR,
   // prefer `Response.json()` over `new Response(JSON.stringify())`
   'unicorn/prefer-response-static-json': ERROR,
+  // prefer simple conditions first in logical expressions
+  'unicorn/prefer-simple-condition-first': ERROR,
   // prefer using `structuredClone` to create a deep clone
   'unicorn/prefer-structured-clone': ERROR,
   // prefer using `Set#size` instead of `Array#length`
@@ -1231,6 +1237,24 @@ const forbidNonStandardBuiltIns = {
     'sham', // non-standard flag
   ] }],
   'es/no-nonstandard-symbol-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-duration-properties': ERROR,
+  'es/no-nonstandard-temporal-duration-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-instant-properties': ERROR,
+  'es/no-nonstandard-temporal-instant-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-now-properties': ERROR,
+  'es/no-nonstandard-temporal-plaindate-properties': ERROR,
+  'es/no-nonstandard-temporal-plaindate-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-plaindatetime-properties': ERROR,
+  'es/no-nonstandard-temporal-plaindatetime-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-plainmonthday-properties': ERROR,
+  'es/no-nonstandard-temporal-plainmonthday-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-plaintime-properties': ERROR,
+  'es/no-nonstandard-temporal-plaintime-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-plainyearmonth-properties': ERROR,
+  'es/no-nonstandard-temporal-plainyearmonth-prototype-properties': ERROR,
+  'es/no-nonstandard-temporal-properties': ERROR,
+  'es/no-nonstandard-temporal-zoneddatetime-properties': ERROR,
+  'es/no-nonstandard-temporal-zoneddatetime-prototype-properties': ERROR,
   'es/no-nonstandard-typed-array-properties': ERROR,
   'es/no-nonstandard-typed-array-prototype-properties': ERROR,
   'es/no-nonstandard-weakmap-properties': ERROR,
@@ -1675,6 +1699,7 @@ const forbidES2025BuiltIns = {
 const forbidES2026BuiltIns = {
   'es/no-array-fromasync': ERROR,
   'es/no-asyncdisposablestack': ERROR,
+  'es/no-date-prototype-totemporalinstant': ERROR,
   'es/no-error-iserror': ERROR,
   'es/no-iterator-concat': ERROR,
   'es/no-json-israwjson': ERROR,
@@ -1686,6 +1711,7 @@ const forbidES2026BuiltIns = {
   'es/no-suppressederror': ERROR,
   'es/no-symbol-asyncdispose': ERROR,
   'es/no-symbol-dispose': ERROR,
+  'es/no-temporal': ERROR,
   'es/no-uint8array-frombase64': ERROR,
   'es/no-uint8array-fromhex': ERROR,
   'es/no-uint8array-prototype-setfrombase64': ERROR,
