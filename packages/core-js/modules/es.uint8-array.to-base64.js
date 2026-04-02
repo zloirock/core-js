@@ -11,6 +11,8 @@ var getAlphabetOption = require('../internals/get-alphabet-option');
 
 var base64Alphabet = base64Map.i2c;
 var base64UrlAlphabet = base64Map.i2cUrl;
+var $floor = Math.floor;
+var $ceil = Math.ceil;
 
 var charAt = uncurryThis(''.charAt);
 
@@ -39,7 +41,7 @@ if (Uint8Array) $({ target: 'Uint8Array', proto: true, forced: INCORRECT_BEHAVIO
 
     var i = 0;
     var length = array.length;
-    var result = $Array(omitPadding ? (length / 3 * 4) + (length % 3 ? length % 3 + 1 : 0) : (length + 2) / 3 * 4);
+    var result = $Array(omitPadding ? $floor(length / 3) * 4 + (length % 3 ? length % 3 + 1 : 0) : $ceil(length / 3) * 4);
     var written = 0;
     var triplet;
 
