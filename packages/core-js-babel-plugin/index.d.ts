@@ -26,10 +26,10 @@ type Options = Pick<CompatOptions, "targets"> & {
   /** custom function to decide whether to inject a polyfill */
   shouldInjectPolyfill?: (name: string, defaultShouldInject: boolean) => boolean,
   /** use absolute imports for injected polyfills */
-  absoluteImports?: boolean | string,
-  /** browserslist config path */
+  absoluteImports?: boolean,
+  /** directory to search for browserslist config (for monorepos) */
   configPath?: string,
-  /** ignore browserslist config files */
+  /** do not use browserslist config, only explicit `targets` */
   ignoreBrowserslistConfig?: boolean,
   /** treat proposals that have been shipped in browsers as stable features */
   shippedProposals?: boolean,
