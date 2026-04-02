@@ -62,9 +62,7 @@ export default function ({
   inverse = false,
   __external: external = false,
 } = {}) {
-  const parsed = targets
-    ? targetsParser(targets)
-    : targetsParser({ configPath, ignoreBrowserslistConfig });
+  const parsed = targetsParser(targets ?? { configPath, ignoreBrowserslistConfig });
   const parsedTargets = parsed.size ? parsed : null;
 
   const result = {
