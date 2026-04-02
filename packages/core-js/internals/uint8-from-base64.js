@@ -83,7 +83,7 @@ module.exports = function (string, options, into, maxLength) {
   if (into) notDetached(into.buffer);
 
   var stringLength = string.length;
-  var bytes = into || $Array(stringLength * 3 >> 2);
+  var bytes = into || $Array(stringLength * 3 / 4);
   var written = 0;
   var read = 0;
   var chunk = '';
