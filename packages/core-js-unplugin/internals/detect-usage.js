@@ -14,10 +14,9 @@ function isReferenced(node, parent, parentKey) {
   if (!parent) return true;
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
   if (parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) return false;
-  if ((parent.type === 'FunctionDeclaration' || parent.type === 'ClassDeclaration'
-    || parent.type === 'VariableDeclarator') && parentKey === 'id') return false;
   if ((parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression'
-    || parent.type === 'ArrowFunctionExpression') && parentKey === 'params') return false;
+    || parent.type === 'ClassDeclaration' || parent.type === 'ClassExpression'
+    || parent.type === 'VariableDeclarator') && parentKey === 'id') return false;
   // class member keys: class { Promise() {} }, class { Map = 42 }, class accessor Set {}
   if ((parent.type === 'MethodDefinition' || parent.type === 'PropertyDefinition'
     || parent.type === 'AccessorProperty') && parentKey === 'key' && !parent.computed) return false;
@@ -130,6 +129,9 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     Identifier(path) {
       const { node, parent, key: parentKey } = path;
       if (!isReferenced(node, parent, parentKey)) return;
+      // re-export: export { Promise } from 'foo' — local is not a reference when source is present
+      if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
+        && path.parentPath?.parentPath?.node?.source) return;
       if (path.scope?.hasBinding(node.name)) return;
       if (handledObjects.has(node)) return;
       if (suppressProxyGlobals && parent?.type === 'MemberExpression' && parentKey === 'object') {
