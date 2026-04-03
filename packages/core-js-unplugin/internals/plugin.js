@@ -292,26 +292,26 @@ export default function createPlugin(options) {
               objRef = genUid();
             }
 
-            // build extracted declarations
-            const declKeyword = isAssignment ? '' : 'const ';
-            const extracted = entries.map(e => e.kind === 'instance' && initSrc
-              ? `${ declKeyword }${ e.localName } = ${ e.binding }(${ objRef })`
-              : `${ declKeyword }${ e.localName } = ${ e.binding }`);
-
+            // detect export: `export const { from } = Array` — replace the ExportNamedDeclaration, not just the VariableDeclaration
+            const isExport = !isAssignment && declPath.parentPath?.node?.type === 'ExportNamedDeclaration';
+            const replaceNode = isExport ? declPath.parentPath.node : declPath.node;
+            const exportPrefix = isExport ? 'export ' : '';
+            const declKeyword = isAssignment ? '' : `${ declPath.node.kind } `;
             const memoPrefix = needsMemo && initSrc ? `const ${ objRef } = ${ initSrc };\n` : '';
-            const extractedStr = `${ extracted.join(';\n') };\n`;
 
-            const stmtNode = declPath.node;
+            // build extracted declarations — preserve original kind (const/let/var) and export
+            const extracted = entries.map(e => e.kind === 'instance' && initSrc
+              ? `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }(${ objRef })`
+              : `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }`);
+
             if (remaining.length === 0) {
-              // all properties polyfilled -> replace entire statement
-              transforms.add(stmtNode.start, stmtNode.end, memoPrefix + extractedStr.trimEnd());
+              transforms.add(replaceNode.start, replaceNode.end, memoPrefix + extracted.join(';\n'));
             } else {
-              // some properties remain -> replace entire statement with extracted + rebuilt destructuring
               const remainingProps = remaining.map(p => nodeSrc(p)).join(', ');
               const rebuilt = isAssignment
                 ? `({ ${ remainingProps } } = ${ objRef })`
-                : `${ stmtNode.kind } { ${ remainingProps } } = ${ objRef }`;
-              transforms.add(stmtNode.start, stmtNode.end, memoPrefix + extractedStr + rebuilt);
+                : `${ exportPrefix }${ declPath.node.kind } { ${ remainingProps } } = ${ objRef }`;
+              transforms.add(replaceNode.start, replaceNode.end, `${ memoPrefix + extracted.join(';\n') };\n${ rebuilt }`);
             }
           }
         }
