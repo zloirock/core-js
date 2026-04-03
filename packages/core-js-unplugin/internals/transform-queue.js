@@ -27,7 +27,11 @@ export default class TransformQueue {
 
     for (const { start, end, content: raw } of this.#transforms) {
       let content = raw;
-      for (const inner of composed) {
+      // iterate in reverse (largest inner transforms first) so that a containing
+      // middle transform is substituted before its own children — prevents early
+      // inner substitution from breaking the match for the middle's original text
+      for (let i = composed.length - 1; i >= 0; i--) {
+        const inner = composed[i];
         if (inner.start >= start && inner.end <= end) {
           content = content.replaceAll(this.#code.slice(inner.start, inner.end), inner.content);
         }

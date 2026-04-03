@@ -104,7 +104,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
   }
 
   function handleBinaryExpression(path) {
-    const meta = handleBinaryIn(path.node, handledObjects, suppressProxyGlobals);
+    const meta = handleBinaryIn(path.node, path.scope, babelAdapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
 
