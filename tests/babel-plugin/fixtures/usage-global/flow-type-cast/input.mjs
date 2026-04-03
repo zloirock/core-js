@@ -1,0 +1,2 @@
+// @flow
+(Promise.resolve(): any);
