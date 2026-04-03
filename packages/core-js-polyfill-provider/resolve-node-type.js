@@ -14,7 +14,7 @@ const {
 
 const { assign, create, entries, hasOwn, keys } = Object;
 
-const MAX_DEPTH = 15;
+const MAX_DEPTH = 30;
 
 const POSSIBLE_GLOBAL_PROXIES = new Set(globalProxies);
 
