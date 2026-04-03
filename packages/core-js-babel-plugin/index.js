@@ -18,7 +18,7 @@ export default function plugin(api, options) {
   const typeResolvers = createResolveNodeType(node => node?.type, t);
   const { resolvePropertyObjectType, toHint } = typeResolvers;
 
-  const { resolver, debugOutput } = createPolyfillResolver(options, {
+  const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
     isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
     isCallee: (node, parent) => t.isCallExpression(parent, { callee: node })
@@ -42,13 +42,14 @@ export default function plugin(api, options) {
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
-  let injector, importStyle;
+  let injector, importStyle, debugOutput;
 
   return {
     name: 'core-js@4',
     visitor: (() => {
       const skippedNodes = new WeakSet();
-      let skipFile, disabledLines;
+      let skipFile,
+          disabledLines = null;
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
@@ -57,7 +58,7 @@ export default function plugin(api, options) {
       const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
         mode,
         getModulesForEntry,
-        debugOutput,
+        getDebugOutput() { return debugOutput; },
         injectGlobal: moduleName => injector.addGlobalImport(moduleName),
       });
 
@@ -181,6 +182,7 @@ export default function plugin(api, options) {
           skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
           importStyle = importStyleOption ?? (path.node.sourceType === 'script' ? 'require' : 'import');
           injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
+          debugOutput = createDebugOutput?.() ?? null;
           const { comments } = path.hub.file.ast;
           const directives = skipFile ? null : parseDisableDirectives(comments);
           if (directives === true) skipFile = true;

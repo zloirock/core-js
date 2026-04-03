@@ -3,7 +3,7 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import { POSSIBLE_GLOBAL_OBJECTS } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, toStatelessRegExp } from './helpers.js';
 
 const { hasOwn } = Object;
 
@@ -55,7 +55,7 @@ function normalizeImportPath(path) {
 }
 
 function patternToRegExp(pattern) {
-  if (pattern instanceof RegExp) return pattern;
+  if (pattern instanceof RegExp) return toStatelessRegExp(pattern);
   try {
     return new RegExp(`^${ pattern }$`);
   } catch {
