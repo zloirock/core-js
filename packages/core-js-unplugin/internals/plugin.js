@@ -21,7 +21,7 @@ import { createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 const typeResolvers = createResolveNodeType(nodeType, types);
 
 export default function createPlugin(options) {
-  const { resolver, debugOutput } = createPolyfillResolver(options, {
+  const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
     isMemberLike: path => path.node?.type === 'MemberExpression',
     isCallee: (node, parent) => parent && parent.callee === node
@@ -64,10 +64,12 @@ export default function createPlugin(options) {
       const ms = new MagicString(code);
       const injector = new ImportInjector({ ms, pkg, mode, absoluteImports, importStyle });
 
+      const debugOutput = createDebugOutput?.() ?? null;
+
       const { injectModulesForEntry, injectModulesForModeEntry, outputDebug } = createModuleInjectors({
         mode,
         getModulesForEntry,
-        debugOutput,
+        getDebugOutput() { return debugOutput; },
         injectGlobal: moduleName => injector.addGlobalImport(moduleName),
       });
 
@@ -152,7 +154,12 @@ export default function createPlugin(options) {
           } else if (isCallParent && parent.arguments.length > 0) {
             // foo[Symbol.iterator](args) -> _getIteratorMethod(foo).call(foo, args)
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-            transforms.add(parent.start, parent.end, `${ memoPrefix }${ binding }(${ objRef })${ parent.optional ? '?.' : '.' }call(${ objRef }, ${ argsSrc })${ memoSuffix }`);
+            const optCall = parent.optional ? '?.' : '.';
+            const callExpr = `${ binding }(${ objRef })${ optCall }call(${ objRef }, ${ argsSrc })`;
+            const replacement = hasNullCheck
+              ? `${ memoPrefix }${ objRef } == null ? void 0 : ${ callExpr }${ memoSuffix }`
+              : `${ memoPrefix }${ callExpr }${ memoSuffix }`;
+            transforms.add(parent.start, parent.end, replacement);
             skippedNodes.add(parent);
           } else {
             transforms.add(node.start, node.end, `${ binding }(${ objectText })`);
@@ -277,42 +284,55 @@ export default function createPlugin(options) {
         }
 
         function applyDestructuringTransforms() {
+          // group by declPath node to handle multiple destructurings in the same VariableDeclaration
+          const byStatement = new Map();
           for (const [, info] of destructuringMap) {
-            const { entries, allProps, declPath, declaratorPath, initSrc, initIsIdent, isAssignment } = info;
-            if (!declPath?.node || !declaratorPath?.node) continue;
+            if (!info.declPath?.node || !info.declaratorPath?.node) continue;
+            const key = info.declPath.node;
+            if (!byStatement.has(key)) byStatement.set(key, []);
+            byStatement.get(key).push(info);
+          }
 
-            const polyfillKeys = new Set(entries.map(e => e.propNode));
-            const remaining = allProps.filter(p => !polyfillKeys.has(p));
-
-            // determine if we need to memoize init (for instance methods with non-identifier init)
-            const hasInstance = entries.some(e => e.kind === 'instance');
-            const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0);
-            let objRef = initSrc;
-            if (needsMemo && initSrc) {
-              objRef = genUid();
-            }
-
-            // detect export: `export const { from } = Array` — replace the ExportNamedDeclaration, not just the VariableDeclaration
+          for (const [, infos] of byStatement) {
+            const [{ declPath, isAssignment }] = infos;
             const isExport = !isAssignment && declPath.parentPath?.node?.type === 'ExportNamedDeclaration';
             const replaceNode = isExport ? declPath.parentPath.node : declPath.node;
             const exportPrefix = isExport ? 'export ' : '';
             const declKeyword = isAssignment ? '' : `${ declPath.node.kind } `;
-            const memoPrefix = needsMemo && initSrc ? `const ${ objRef } = ${ initSrc };\n` : '';
+            const polyfilledDeclarators = new Set(infos.map(i => i.declaratorPath.node));
+            const parts = [];
 
-            // build extracted declarations — preserve original kind (const/let/var) and export
-            const extracted = entries.map(e => e.kind === 'instance' && initSrc
-              ? `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }(${ objRef })`
-              : `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }`);
+            for (const info of infos) {
+              const { entries, allProps, initSrc, initIsIdent } = info;
+              const polyfillKeys = new Set(entries.map(e => e.propNode));
+              const remaining = allProps.filter(p => !polyfillKeys.has(p));
+              const hasInstance = entries.some(e => e.kind === 'instance');
+              const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0);
+              let objRef = initSrc;
+              if (needsMemo && initSrc) {
+                objRef = genUid();
+                parts.push(`const ${ objRef } = ${ initSrc }`);
+              }
 
-            if (remaining.length === 0) {
-              transforms.add(replaceNode.start, replaceNode.end, memoPrefix + extracted.join(';\n'));
-            } else {
-              const remainingProps = remaining.map(p => nodeSrc(p)).join(', ');
-              const rebuilt = isAssignment
-                ? `({ ${ remainingProps } } = ${ objRef })`
-                : `${ exportPrefix }${ declPath.node.kind } { ${ remainingProps } } = ${ objRef }`;
-              transforms.add(replaceNode.start, replaceNode.end, `${ memoPrefix + extracted.join(';\n') };\n${ rebuilt }`);
+              for (const e of entries) {
+                parts.push(e.kind === 'instance' && initSrc
+                  ? `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }(${ objRef })`
+                  : `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }`);
+              }
+              if (remaining.length > 0) {
+                parts.push(isAssignment
+                  ? `({ ${ remaining.map(p => nodeSrc(p)).join(', ') } } = ${ objRef })`
+                  : `${ exportPrefix }${ declKeyword }{ ${ remaining.map(p => nodeSrc(p)).join(', ') } } = ${ objRef }`);
+              }
             }
+
+            // preserve non-destructured declarators: `const { from } = Array, y = 5`
+            if (!isAssignment && declPath.node.declarations?.length > polyfilledDeclarators.size) {
+              const others = declPath.node.declarations.filter(d => !polyfilledDeclarators.has(d)).map(d => nodeSrc(d));
+              if (others.length) parts.push(`${ exportPrefix }${ declKeyword }${ others.join(', ') }`);
+            }
+
+            transforms.add(replaceNode.start, replaceNode.end, parts.join(';\n'));
           }
         }
 
@@ -343,7 +363,9 @@ export default function createPlugin(options) {
             return;
           }
 
-          if (parent?.type === 'UnaryExpression' && parent.operator === 'delete') return;
+          // unwrap ChainExpression for delete check: delete obj?.prop -> UnaryExpression -> ChainExpression -> MemberExpression
+          const deleteParent = parent?.type === 'ChainExpression' ? metaPath.parentPath?.parentPath?.node : parent;
+          if (deleteParent?.type === 'UnaryExpression' && deleteParent.operator === 'delete') return;
 
           if (meta.kind === 'property') {
             if (node.type === 'Property' && metaPath.parent?.type === 'ObjectPattern') {

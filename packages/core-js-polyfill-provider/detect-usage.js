@@ -9,6 +9,8 @@
 //   getStringValue(node)            -> string | null
 import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from './helpers.js';
 
+const MAX_KEY_DEPTH = 10;
+
 function isStaticPlacement(name) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return 'static';
   if (name[0] >= 'A' && name[0] <= 'Z') return 'static';
@@ -57,7 +59,7 @@ function resolveObjectName(objectNode, scope, adapter) {
 }
 
 export function resolveKey(node, computed, scope, adapter, depth = 0) {
-  if (depth > 10) return null;
+  if (depth > MAX_KEY_DEPTH) return null;
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
   // template literal without interpolation: `at` -> 'at'
@@ -78,12 +80,12 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
     const right = resolveKey(node.right, true, scope, adapter, depth + 1);
     if (left !== null && right !== null) return left + right;
   }
-  // Symbol.X computed access
-  if (computed && node.type === 'MemberExpression' && !node.computed
+  // Symbol.X computed access — Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
+  if (computed && node.type === 'MemberExpression'
     && node.object.type === 'Identifier' && node.object.name === 'Symbol'
-    && node.property.type === 'Identifier'
     && !adapter.hasBinding(scope, 'Symbol')) {
-    return `Symbol.${ node.property.name }`;
+    const name = resolveKey(node.property, node.computed, scope, adapter, depth + 1);
+    if (name) return `Symbol.${ name }`;
   }
   return null;
 }
@@ -123,7 +125,7 @@ function buildMemberMeta(node, scope, adapter) {
 // process a MemberExpression node: resolve Symbol.X computed key or build member meta
 // returns meta or null. Handles handledObjects marking.
 export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals) {
-  const symbolKey = resolveComputedSymbolKey(node);
+  const symbolKey = resolveComputedSymbolKey(node, scope, adapter);
   if (symbolKey) {
     if (adapter.hasBinding(scope, 'Symbol')) return null;
     handledObjects.add(node.property.object);
@@ -167,15 +169,15 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, suppressPro
   return null;
 }
 
-// check if a MemberExpression node is a computed Symbol.X access (e.g. foo[Symbol.iterator])
-function resolveComputedSymbolKey(node) {
+// check if a MemberExpression node is a computed Symbol.X access
+// handles dot (foo[Symbol.iterator]), bracket (foo[Symbol['iterator']]),
+// and variable (foo[Symbol[key]] where const key = 'iterator')
+function resolveComputedSymbolKey(node, scope, adapter) {
   if (!node.computed) return null;
   const prop = node.property;
-  if (prop?.type === 'MemberExpression' && prop.object?.type === 'Identifier'
-    && prop.object.name === 'Symbol' && prop.property?.type === 'Identifier') {
-    return `Symbol.${ prop.property.name }`;
-  }
-  return null;
+  if (prop?.type !== 'MemberExpression' || prop.object?.type !== 'Identifier' || prop.object.name !== 'Symbol') return null;
+  const name = resolveKey(prop.property, prop.computed, scope, adapter);
+  return name ? `Symbol.${ name }` : null;
 }
 
 // mark handled objects after processing a MemberExpression meta.
@@ -240,15 +242,15 @@ export function isTypeAnnotationNodeType(type) {
   if (type === 'TypeAnnotation' || type === 'TSTypeAnnotation') return true;
   // TS types (except expression wrappers that contain runtime values)
   if (type.startsWith('TS')) {
-    return type !== 'TSAsExpression' && type !== 'TSSatisfiesExpression'
-      && type !== 'TSNonNullExpression' && type !== 'TSInstantiationExpression'
+    return type !== 'TSAsExpression'
+      && type !== 'TSSatisfiesExpression'
+      && type !== 'TSNonNullExpression'
+      && type !== 'TSInstantiationExpression'
       && type !== 'TSTypeAssertion';
   }
-  // Flow types
-  if (type.startsWith('Flow') || type.startsWith('Type')
-    || type === 'InterfaceDeclaration' || type === 'DeclareVariable'
-    || type === 'DeclareFunction' || type === 'DeclareClass'
-    || type === 'DeclareModule') return true;
+  // Flow types (except TypeCastExpression which wraps runtime values, like TSAsExpression)
+  if (type.startsWith('Flow') || (type.startsWith('Type') && type !== 'TypeCastExpression')
+    || type === 'InterfaceDeclaration' || type.startsWith('Declare')) return true;
   return false;
 }
 
