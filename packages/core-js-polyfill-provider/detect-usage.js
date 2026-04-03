@@ -56,7 +56,8 @@ function resolveObjectName(objectNode, scope, adapter) {
   return null;
 }
 
-export function resolveKey(node, computed, scope, adapter) {
+export function resolveKey(node, computed, scope, adapter, depth = 0) {
+  if (depth > 10) return null;
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
   // template literal without interpolation: `at` -> 'at'
@@ -68,13 +69,13 @@ export function resolveKey(node, computed, scope, adapter) {
     const binding = adapter.getBinding(scope, node.name);
     if (binding && !binding.constantViolations?.length && binding.node?.type === 'VariableDeclarator') {
       const { init } = binding.node;
-      if (init) return resolveKey(init, true, scope, adapter);
+      if (init) return resolveKey(init, true, scope, adapter, depth + 1);
     }
   }
   // string concatenation: 'a' + 'b'
   if (node.type === 'BinaryExpression' && node.operator === '+') {
-    const left = resolveKey(node.left, true, scope, adapter);
-    const right = resolveKey(node.right, true, scope, adapter);
+    const left = resolveKey(node.left, true, scope, adapter, depth + 1);
+    const right = resolveKey(node.right, true, scope, adapter, depth + 1);
     if (left !== null && right !== null) return left + right;
   }
   // Symbol.X computed access
