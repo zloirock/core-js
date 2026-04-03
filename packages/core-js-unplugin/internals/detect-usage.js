@@ -67,8 +67,9 @@ function buildDestructuringMeta(propNode, parentPath) {
   switch (parent.node.type) {
     case 'VariableDeclarator': initNode = parent.node.init; break;
     case 'AssignmentExpression': initNode = parent.node.right; break;
-    case 'AssignmentPattern': initNode = parent.node.right; break;
-    case 'ForOfStatement': case 'ForInStatement': break;
+    case 'AssignmentPattern':
+    case 'ForOfStatement':
+    case 'ForInStatement':
     case 'Property': break;
     default: {
       // IIFE destructuring: !function ({ entries }) {} (Object)
@@ -142,7 +143,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
       if (meta) onUsage(meta, path);
     },
     BinaryExpression(path) {
-      const meta = handleBinaryIn(path.node, handledObjects, suppressProxyGlobals);
+      const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
       if (meta) onUsage(meta, path);
     },
     Property(path) {

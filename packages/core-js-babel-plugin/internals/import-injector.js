@@ -1,3 +1,4 @@
+import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
 export default class ImportInjector {
@@ -22,14 +23,7 @@ export default class ImportInjector {
   }
 
   #resolvePath(subpath) {
-    const source = `${ this.#pkg }/${ subpath }`;
-    if (!this.#absoluteImports) return source;
-    try {
-      const resolved = import.meta.resolve(source);
-      return resolved.startsWith('file://') ? resolved.slice(7) : resolved;
-    } catch {
-      return source;
-    }
+    return resolveImportPath(this.#pkg, subpath, this.#absoluteImports);
   }
 
   // usage-global / entry-global: collect side-effect module import
