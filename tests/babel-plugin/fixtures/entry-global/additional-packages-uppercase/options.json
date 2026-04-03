@@ -1,0 +1,12 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "entry-global",
+        "version": "4.0",
+        "additionalPackages": ["My-Core-JS"]
+      }
+    ]
+  ]
+}

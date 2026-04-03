@@ -128,7 +128,7 @@ export function createPolyfillContext({
 
   version = normalizeCoreJSVersion(version);
 
-  const packages = additionalPackages ? [pkg, ...additionalPackages] : [pkg];
+  const packages = (additionalPackages ? [pkg, ...additionalPackages] : [pkg]).map(p => p.toLowerCase());
   const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const modulesForEntryCache = new Map();
