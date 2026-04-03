@@ -16,13 +16,16 @@ async function checkPackage(path) {
   const { name = 'root', dependencies, devDependencies } = await fs.readJson(path);
   if (!dependencies && !devDependencies) return;
 
-  const exclude = ignore[name];
+  const exclude = [...ignore[name] || []];
+  for (const dep of [...Object.keys(dependencies || {}), ...Object.keys(devDependencies || {})]) {
+    if (dep.startsWith('@core-js/')) exclude.push(dep);
+  }
 
   const { stdout } = await $({ verbose: false })`updates \
     --json \
     --file ${ path } \
     --timeout 60000 \
-    --exclude ${ Array.isArray(exclude) ? exclude.join(',') : '' } \
+    --exclude ${ exclude.join(',') } \
   `;
 
   const results = JSON.parse(stdout)?.results?.npm;
