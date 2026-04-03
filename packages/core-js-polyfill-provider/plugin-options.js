@@ -122,7 +122,7 @@ export function initPluginOptions({
   const parsedTargets = resolveTargets({ targets, configPath, ignoreBrowserslistConfig, getBabelTargets });
   const shouldInjectPolyfill = buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback });
   const debugOutput = debug ? createDebugOutput({ method: rest.method, parsedTargets }) : null;
-  return { ...rest, include, exclude, shouldInjectPolyfill, debugOutput };
+  return { ...rest, include, exclude, absoluteImports, importStyle, shouldInjectPolyfill, debugOutput };
 }
 
 // create injection helper functions shared by both plugins
