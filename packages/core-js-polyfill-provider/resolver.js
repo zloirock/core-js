@@ -129,7 +129,7 @@ export function createPolyfillResolver(options, {
 
   function resolveUsage(meta, path) {
     const resolved = resolve(meta);
-    if (!resolved || !hasOwn(resolved.desc, 'global')) return;
+    if (!resolved || !hasOwn(resolved.desc, 'global')) return null;
     let { kind, desc: { global: desc } } = resolved;
     if (kind === 'instance') {
       const enhanced = enhanceMeta(meta, path, desc);
