@@ -14,6 +14,7 @@ import {
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isTypeAnnotationNodeType,
+  findProxyGlobal,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
@@ -23,7 +24,8 @@ export default function createPlugin(options) {
   const { resolver, debugOutput } = createPolyfillResolver(options, {
     typeResolvers,
     isMemberLike: path => path.node?.type === 'MemberExpression',
-    isCallee: (node, parent) => parent && parent.callee === node,
+    isCallee: (node, parent) => parent && parent.callee === node
+      && (parent.type === 'CallExpression' || parent.type === 'NewExpression'),
     isSpreadElement: node => node?.type === 'SpreadElement',
   });
 
@@ -129,28 +131,35 @@ export default function createPlugin(options) {
           const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
           const binding = injectPureImport(entry, hint);
           const objectText = nodeSrc(node.object);
+          // memoize non-Identifier objects to avoid double evaluation in null-check / .call patterns
+          const needsMemo = node.object.type !== 'Identifier' && (hasNullCheck || (isCallParent && parent.arguments.length > 0));
+          const objRef = needsMemo ? genUid() : objectText;
+          const memoPrefix = needsMemo ? `(${ objRef } = ${ objectText }, ` : '';
+          const memoSuffix = needsMemo ? ')' : '';
           if (isZeroArgCall) {
             let replacement;
             if (hasNullCheck && parent.optional) {
               // foo?.[Symbol.iterator]?.() -> foo == null ? void 0 : _getIteratorMethod(foo)?.call(foo)
-              replacement = `${ objectText } == null ? void 0 : ${ binding }(${ objectText })?.call(${ objectText })`;
+              replacement = `${ memoPrefix }${ objRef } == null ? void 0 : ${ binding }(${ objRef })?.call(${ objRef })${ memoSuffix }`;
             } else if (hasNullCheck) {
               // foo?.[Symbol.iterator]() -> foo == null ? void 0 : _getIterator(foo)
-              replacement = `${ objectText } == null ? void 0 : ${ binding }(${ objectText })`;
+              replacement = `${ memoPrefix }${ objRef } == null ? void 0 : ${ binding }(${ objRef })${ memoSuffix }`;
             } else {
               replacement = `${ binding }(${ objectText })`;
             }
             transforms.add(parent.start, parent.end, replacement);
             skippedNodes.add(parent);
           } else if (isCallParent && parent.arguments.length > 0) {
-            // foo[Symbol.iterator](args) -> _getIteratorMethod(foo)?.call(foo, args)
+            // foo[Symbol.iterator](args) -> _getIteratorMethod(foo).call(foo, args)
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-            transforms.add(parent.start, parent.end, `${ binding }(${ objectText })${ parent.optional ? '?.' : '.' }call(${ objectText }, ${ argsSrc })`);
+            transforms.add(parent.start, parent.end, `${ memoPrefix }${ binding }(${ objRef })${ parent.optional ? '?.' : '.' }call(${ objRef }, ${ argsSrc })${ memoSuffix }`);
             skippedNodes.add(parent);
           } else {
             transforms.add(node.start, node.end, `${ binding }(${ objectText })`);
           }
           if (node.property) skippedNodes.add(node.property);
+          const proxyGlobal = findProxyGlobal(node);
+          if (proxyGlobal) skippedNodes.add(proxyGlobal);
         }
 
         function containsOptional(node) {
@@ -162,22 +171,42 @@ export default function createPlugin(options) {
           return false;
         }
 
+        // memoize object source when it's not a simple identifier (avoids double evaluation)
+        function memoObject(node) {
+          const objectSrc = nodeSrc(node.object);
+          if (node.object.type === 'Identifier') return { ref: objectSrc, prefix: '', suffix: '' };
+          const ref = genUid();
+          return { ref, prefix: `(${ ref } = ${ objectSrc }, `, suffix: ')' };
+        }
+
         function replaceInstance(binding, node, parent) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
+          const hasOptional = node.optional || containsOptional(node);
           if (!isCall) {
-            transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.object) })`);
-            return;
-          }
-          const objectSrc = nodeSrc(node.object);
-          const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-          const argsPart = argsSrc ? `, ${ argsSrc }` : '';
-          if (node.object.type !== 'Identifier') {
-            const ref = genUid();
-            transforms.add(parent.start, parent.end, `(${ ref } = ${ objectSrc }, ${ binding }(${ ref }).call(${ ref }${ argsPart }))`);
+            if (hasOptional) {
+              const { ref, prefix, suffix } = memoObject(node);
+              transforms.add(node.start, node.end, `${ prefix }${ ref } == null ? void 0 : ${ binding }(${ ref })${ suffix }`);
+            } else {
+              transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.object) })`);
+            }
           } else {
-            transforms.add(parent.start, parent.end, `${ binding }(${ objectSrc }).call(${ objectSrc }${ argsPart })`);
+            const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
+            const argsPart = argsSrc ? `, ${ argsSrc }` : '';
+            if (hasOptional) {
+              const { ref, prefix, suffix } = memoObject(node);
+              const optCall = parent.optional ? '?.' : '.';
+              transforms.add(parent.start, parent.end, `${ prefix }${ ref } == null ? void 0 : ${ binding }(${ ref })${ optCall }call(${ ref }${ argsPart })${ suffix }`);
+            } else if (node.object.type !== 'Identifier') {
+              const { ref, prefix, suffix } = memoObject(node);
+              transforms.add(parent.start, parent.end, `${ prefix }${ binding }(${ ref }).call(${ ref }${ argsPart })${ suffix }`);
+            } else {
+              const objectSrc = nodeSrc(node.object);
+              transforms.add(parent.start, parent.end, `${ binding }(${ objectSrc }).call(${ objectSrc }${ argsPart })`);
+            }
+            skippedNodes.add(parent);
           }
-          skippedNodes.add(parent);
+          const proxyGlobal = findProxyGlobal(node);
+          if (proxyGlobal) skippedNodes.add(proxyGlobal);
         }
 
         // deferred destructuring: collect polyfilled properties per ObjectPattern
@@ -257,7 +286,7 @@ export default function createPlugin(options) {
 
             // determine if we need to memoize init (for instance methods with non-identifier init)
             const hasInstance = entries.some(e => e.kind === 'instance');
-            const needsMemo = hasInstance && !initIsIdent && entries.length > 1;
+            const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0);
             let objRef = initSrc;
             if (needsMemo && initSrc) {
               objRef = genUid();
@@ -329,6 +358,8 @@ export default function createPlugin(options) {
 
           const { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
           if (fallback && node.type === 'MemberExpression') {
+            const proxyGlobal = findProxyGlobal(node);
+            if (proxyGlobal) skippedNodes.add(proxyGlobal);
             const binding = injectPureImport(fallback.entry, fallback.hintName);
             transforms.add(node.object.start, node.object.end, binding);
             return;
@@ -336,6 +367,13 @@ export default function createPlugin(options) {
           if (!pureResult) return;
           const { entry: importEntry, kind, hintName } = pureResult;
           const binding = injectPureImport(importEntry, hintName);
+
+          // when polyfilling a MemberExpression, mark proxy global (globalThis, self, etc.)
+          // as skipped to prevent the Identifier visitor from adding an unused import
+          if (node.type === 'MemberExpression') {
+            const proxyGlobal = findProxyGlobal(node);
+            if (proxyGlobal) skippedNodes.add(proxyGlobal);
+          }
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent);

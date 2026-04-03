@@ -1,3 +1,16 @@
+import { fileURLToPath } from 'node:url';
+
+export function resolveImportPath(pkg, subpath, absoluteImports) {
+  const source = `${ pkg }/${ subpath }`;
+  if (!absoluteImports) return source;
+  try {
+    const resolved = import.meta.resolve(source);
+    return resolved.startsWith('file:') ? fileURLToPath(resolved).replaceAll('\\', '/') : resolved;
+  } catch {
+    return source;
+  }
+}
+
 export const POSSIBLE_GLOBAL_OBJECTS = new Set([
   'global',
   'globalThis',
