@@ -9,7 +9,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 
-// check if an identifier is referenced (not a declaration or property key)
+// check if an identifier is referenced (not a declaration, property key, or export alias)
 function isReferenced(node, parent, parentKey) {
   if (!parent) return true;
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
@@ -18,9 +18,14 @@ function isReferenced(node, parent, parentKey) {
     || parent.type === 'VariableDeclarator') && parentKey === 'id') return false;
   if ((parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression'
     || parent.type === 'ArrowFunctionExpression') && parentKey === 'params') return false;
+  // class member keys: class { Promise() {} }, class { Map = 42 }, class accessor Set {}
+  if ((parent.type === 'MethodDefinition' || parent.type === 'PropertyDefinition'
+    || parent.type === 'AccessorProperty') && parentKey === 'key' && !parent.computed) return false;
   if (parent.type === 'LabeledStatement' && parentKey === 'label') return false;
   if (parent.type === 'ImportSpecifier' || parent.type === 'ImportDefaultSpecifier'
     || parent.type === 'ImportNamespaceSpecifier') return false;
+  // export { foo as Promise } — 'exported' is just the alias name, not a reference
+  if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   return true;
