@@ -1,3 +1,4 @@
+import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
 export default class ImportInjector {
@@ -60,13 +61,7 @@ export default class ImportInjector {
   }
 
   #resolvePath(subpath) {
-    if (!this.#absoluteImports) return `${ this.#pkg }/${ subpath }`;
-    try {
-      const resolved = import.meta.resolve(`${ this.#pkg }/${ subpath }`);
-      return resolved.startsWith('file://') ? resolved.slice(7) : resolved;
-    } catch {
-      return `${ this.#pkg }/${ subpath }`;
-    }
+    return resolveImportPath(this.#pkg, subpath, this.#absoluteImports);
   }
 
   // apply all collected imports at the top of the file

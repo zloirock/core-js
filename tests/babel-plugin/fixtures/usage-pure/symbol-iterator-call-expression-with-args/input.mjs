@@ -1,0 +1,1 @@
+getObj()[Symbol.iterator](arg);
