@@ -65,7 +65,7 @@ export function createPolyfillResolver(options, {
   const {
     method, mode, version, package: pkg, additionalPackages,
     include, exclude, shippedProposals,
-    shouldInjectPolyfill, debugOutput,
+    shouldInjectPolyfill, createDebugOutput,
   } = initPluginOptions(options, { getBabelTargets });
   const ctx = createPolyfillContext({
     method, mode, version, package: pkg, additionalPackages, include, exclude, shippedProposals, shouldInjectPolyfill,
@@ -178,6 +178,6 @@ export function createPolyfillResolver(options, {
 
   return {
     resolver: { ...ctx, resolveUsage, resolvePure, resolvePureOrGlobalFallback },
-    debugOutput,
+    createDebugOutput,
   };
 }
