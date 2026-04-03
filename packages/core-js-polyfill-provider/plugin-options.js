@@ -1,7 +1,7 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { symbolKeyToEntry } from './helpers.js';
+import { symbolKeyToEntry, toStatelessRegExp } from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
@@ -10,7 +10,7 @@ const polyfillOrder = new Map(keys(compatData).map((k, i) => [k, i]));
 
 // sort module names by canonical compat data order
 export function sortByPolyfillOrder(modules) {
-  return [...modules].sort((a, b) => (polyfillOrder.get(a) ?? Infinity) - (polyfillOrder.get(b) ?? Infinity));
+  return [...modules].sort((a, b) => (polyfillOrder.get(a) ?? Infinity) - (polyfillOrder.get(b) ?? Infinity) || 0);
 }
 
 function validateImportStyle(importStyle) {
@@ -62,12 +62,16 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
     return (Array.isArray(patterns) ? patterns : [patterns]).map(p => {
       if (typeof p === 'string') {
         if (p.includes('*')) {
-          const re = new RegExp(`^${ p.replaceAll('*', '.*') }$`);
-          return mod => re.test(mod);
+          try {
+            const re = new RegExp(`^${ p.replaceAll('*', '.*') }$`);
+            return mod => re.test(mod);
+          } catch {
+            return () => false;
+          }
         }
         return mod => mod === p;
       }
-      if (p instanceof RegExp) return mod => p.test(mod);
+      if (p instanceof RegExp) return mod => toStatelessRegExp(p).test(mod);
       return () => false;
     });
   };
@@ -121,15 +125,16 @@ export function initPluginOptions({
   validatePluginOptions({ absoluteImports, shouldInjectPolyfill: userCallback, include, exclude });
   const parsedTargets = resolveTargets({ targets, configPath, ignoreBrowserslistConfig, getBabelTargets });
   const shouldInjectPolyfill = buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback });
-  const debugOutput = debug ? createDebugOutput({ method: rest.method, parsedTargets }) : null;
-  return { ...rest, include, exclude, absoluteImports, importStyle, shouldInjectPolyfill, debugOutput };
+  const createDebugOutput = debug ? createDebugOutputFactory({ method: rest.method, parsedTargets }) : null;
+  return { ...rest, include, exclude, absoluteImports, importStyle, shouldInjectPolyfill, createDebugOutput };
 }
 
 // create injection helper functions shared by both plugins
-export function createModuleInjectors({ mode, getModulesForEntry, debugOutput, injectGlobal }) {
+// getDebugOutput returns the per-file debug collector (or null if debug is off)
+export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput, injectGlobal }) {
   function injectModule(moduleName) {
     injectGlobal(moduleName);
-    debugOutput?.add(moduleName);
+    getDebugOutput()?.add(moduleName);
   }
 
   function injectModulesForEntry(entry) {
@@ -141,6 +146,7 @@ export function createModuleInjectors({ mode, getModulesForEntry, debugOutput, i
   }
 
   function outputDebug() {
+    const debugOutput = getDebugOutput();
     if (!debugOutput) return;
     // eslint-disable-next-line no-console -- debug output
     console.log(debugOutput.format());
@@ -163,37 +169,42 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
   };
 }
 
-function createDebugOutput({ method, parsedTargets }) {
-  const modules = new Set();
+// returns a factory: each call creates an isolated per-file debug collector
+// safe for concurrent transforms (e.g. Vite parallel file processing)
+function createDebugOutputFactory({ method, parsedTargets }) {
   const targetsStr = parsedTargets
     ? JSON.stringify(fromEntries([...parsedTargets].map(([e, v]) => [e, String(v)])), null, 2)
     : '{}';
-  let entryFound = false;
 
-  return {
-    add(mod) {
-      modules.add(mod);
-    },
-    markEntryFound() {
-      entryFound = true;
-    },
-    format() {
-      const items = [...modules];
-      let result;
-      if (method === 'entry-global' && !entryFound) {
-        result = 'The entry point for the core-js@4 polyfill has not been found.';
-      } else if (items.length === 0) {
-        const scope = method === 'entry-global' ? 'your targets' : 'your code and targets';
-        result = `Based on ${ scope }, the core-js@4 polyfill did not add any polyfill.`;
-      } else {
-        const verb = method === 'entry-global' ? 'entry has been replaced with' : 'added';
-        const polyfillLines = items.map(mod => method === 'usage-pure'
-          ? `  ${ mod }`
-          : `  ${ mod } ${ formatTargets(getUnsupportedTargets(mod, parsedTargets)) }`);
-        result = `The core-js@4 polyfill ${ verb } the following polyfills:\n${ polyfillLines.join('\n') }`;
-      }
-      return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ targetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }`;
-    },
+  return function createFileDebugOutput() {
+    const modules = new Set();
+    let entryFound = false;
+
+    return {
+      add(mod) {
+        modules.add(mod);
+      },
+      markEntryFound() {
+        entryFound = true;
+      },
+      format() {
+        const items = [...modules];
+        let result;
+        if (method === 'entry-global' && !entryFound) {
+          result = 'The entry point for the core-js@4 polyfill has not been found.';
+        } else if (items.length === 0) {
+          const scope = method === 'entry-global' ? 'your targets' : 'your code and targets';
+          result = `Based on ${ scope }, the core-js@4 polyfill did not add any polyfill.`;
+        } else {
+          const verb = method === 'entry-global' ? 'entry has been replaced with' : 'added';
+          const polyfillLines = items.map(mod => method === 'usage-pure'
+            ? `  ${ mod }`
+            : `  ${ mod } ${ formatTargets(getUnsupportedTargets(mod, parsedTargets)) }`);
+          result = `The core-js@4 polyfill ${ verb } the following polyfills:\n${ polyfillLines.join('\n') }`;
+        }
+        return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ targetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }`;
+      },
+    };
   };
 }
 

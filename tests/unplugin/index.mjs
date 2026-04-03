@@ -72,7 +72,7 @@ async function runFixture(directory) {
     // babel caller API: source-script (CJS require output)
     dirName === 'source-script'
     // Flow syntax: oxc-parser doesn't support Flow
-    || dirName.includes('-flow-')
+    || dirName.includes('-flow-') || dirName.startsWith('flow-')
     // babel-specific: requires @babel/plugin-transform-modules-commonjs
     || dirName === 'cjs-transform-export'
   ) {
