@@ -49,6 +49,7 @@ function resolveObjectName(objectNode, scope, adapter) {
     && !objectNode.computed
     && objectNode.object.type === 'Identifier'
     && POSSIBLE_GLOBAL_OBJECTS.has(objectNode.object.name)
+    && !adapter.hasBinding(scope, objectNode.object.name)
     && objectNode.property.type === 'Identifier') {
     return objectNode.property.name;
   }
@@ -123,7 +124,8 @@ function buildMemberMeta(node, scope, adapter) {
 export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   const symbolKey = resolveComputedSymbolKey(node);
   if (symbolKey) {
-    if (!adapter.hasBinding(scope, 'Symbol')) handledObjects.add(node.property.object);
+    if (adapter.hasBinding(scope, 'Symbol')) return null;
+    handledObjects.add(node.property.object);
     return { kind: 'property', object: null, key: symbolKey, placement: 'prototype' };
   }
   const meta = buildMemberMeta(node, scope, adapter);
@@ -149,11 +151,12 @@ export function resolveSymbolIteratorEntry(node, parent) {
 
 // build meta from BinaryExpression with 'in' operator (Symbol.X in obj)
 // returns meta object or null. Also marks handled objects if suppressProxyGlobals is false.
-export function handleBinaryIn(node, handledObjects, suppressProxyGlobals) {
+export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   if (node.operator !== 'in') return null;
   if (node.left.type === 'MemberExpression'
     && node.left.object?.type === 'Identifier' && node.left.object.name === 'Symbol'
-    && node.left.property?.type === 'Identifier') {
+    && node.left.property?.type === 'Identifier'
+    && !adapter.hasBinding(scope, 'Symbol')) {
     if (!suppressProxyGlobals) {
       handledObjects.add(node.left);
       handledObjects.add(node.left.object);
@@ -177,17 +180,24 @@ function resolveComputedSymbolKey(node) {
 // mark handled objects after processing a MemberExpression meta.
 // suppresses duplicate Identifier visitor firing for the object part.
 function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
-  if (node.object.type === 'Identifier'
-    && (suppressProxyGlobals || !POSSIBLE_GLOBAL_OBJECTS.has(node.object.name))) {
+  if (node.object.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(node.object.name)) {
     handledObjects.add(node.object);
   }
   if (suppressProxyGlobals
     && (node.object.type === 'MemberExpression' || node.object.type === 'OptionalMemberExpression')
     && node.object.object?.type === 'Identifier'
     && POSSIBLE_GLOBAL_OBJECTS.has(node.object.object.name)) {
+    // mark intermediate MemberExpression (e.g. globalThis.Object) to prevent double-processing,
+    // but NOT the proxy global itself — it may need its own polyfill when the outer expression is not polyfilled
     handledObjects.add(node.object);
-    handledObjects.add(node.object.object);
   }
+}
+
+// find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain
+export function findProxyGlobal(node) {
+  let obj = node;
+  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') obj = obj.object;
+  return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
 }
 
 // build meta for destructuring given the resolved init node and key
@@ -250,10 +260,13 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     if (!node || typeof node !== 'object') continue;
     if (node.type === 'TSTypeReference' && node.typeName?.type === 'Identifier') {
       onGlobal(node.typeName.name);
+    } else if (node.type === 'GenericTypeAnnotation' && node.id?.type === 'Identifier') {
+      onGlobal(node.id.name);
     }
     for (const key of ['typeAnnotation', 'types', 'elementType', 'objectType', 'indexType',
       'checkType', 'extendsType', 'trueType', 'falseType', 'constraint', 'default',
-      'typeArguments', 'typeParameters', 'returnType', 'params']) {
+      'typeArguments', 'typeParameters', 'returnType', 'params',
+      'value', 'argument', 'impltype', 'supertype']) {
       const child = node[key];
       if (Array.isArray(child)) for (const c of child) stack.push(c);
       else if (child && typeof child === 'object') stack.push(child);
