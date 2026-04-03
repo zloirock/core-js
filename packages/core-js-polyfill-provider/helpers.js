@@ -1,5 +1,10 @@
 import { fileURLToPath } from 'node:url';
 
+// strip g/y flags from RegExp to prevent lastIndex state between calls
+export function toStatelessRegExp(re) {
+  return re.global || re.sticky ? new RegExp(re.source, re.flags.replaceAll(/[gy]/g, '')) : re;
+}
+
 export function resolveImportPath(pkg, subpath, absoluteImports) {
   const source = `${ pkg }/${ subpath }`;
   if (!absoluteImports) return source;
@@ -54,13 +59,15 @@ const DIRECTIVE = /^\s*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$
 export function mergeVisitors(base, extra) {
   const merged = { ...base };
   for (const [key, handler] of Object.entries(extra)) {
-    if (merged[key]) {
+    if (typeof merged[key] === 'function' && typeof handler === 'function') {
       const existing = merged[key];
       merged[key] = function (path) {
         existing.call(this, path);
         handler.call(this, path);
       };
-    } else merged[key] = handler;
+    } else if (!(key in merged)) {
+      merged[key] = handler;
+    }
   }
   return merged;
 }
@@ -74,7 +81,7 @@ export function parseDisableDirectives(comments, offsetToLine) {
     const { kind } = match.groups;
     if (kind === 'file') return true;
     const startLine = comment.loc ? comment.loc.start.line : offsetToLine(comment.start);
-    const endLine = comment.loc ? comment.loc.end.line : startLine;
+    const endLine = comment.loc ? comment.loc.end.line : offsetToLine(comment.end - 1);
     if (kind === 'line') lines.add(startLine);
     else lines.add(endLine + 1); // next-line
   }
