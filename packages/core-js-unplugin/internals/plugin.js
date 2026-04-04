@@ -81,7 +81,7 @@ export default function createPlugin(options) {
       function finalize() {
         injector.flush();
         outputDebug();
-        if (ms.hasChanged()) return { code: ms.toString(), map: ms.generateMap({ hires: true }) };
+        if (ms.hasChanged()) return { code: ms.toString(), map: ms.generateMap({ hires: 'boundary' }) };
         return null;
       }
 
