@@ -128,8 +128,16 @@ export default function (t) {
     const objectPattern = prop.parentPath;
     const parent = objectPattern.parentPath;
 
-    prop.remove();
-    const isEmpty = objectPattern.node.properties.length === 0;
+    // rest element present: keep property in pattern with renamed value to preserve rest semantics
+    // const { from, ...rest } = Array -> const from = _from; const { from: _, ...rest } = Array
+    const hasRest = objectPattern.node.properties.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
+    if (hasRest) {
+      prop.get('value').replaceWith(prop.scope.generateUidIdentifier('unused'));
+      prop.node.shorthand = false;
+    } else {
+      prop.remove();
+    }
+    const isEmpty = !hasRest && objectPattern.node.properties.length === 0;
 
     if (parent.isVariableDeclarator()) {
       const declaration = parent.parentPath;
