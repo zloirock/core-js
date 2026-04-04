@@ -23,7 +23,7 @@ function isReferenced(node, parent, parentKey) {
   if (parent.type === 'LabeledStatement' && parentKey === 'label') return false;
   if (parent.type === 'ImportSpecifier' || parent.type === 'ImportDefaultSpecifier'
     || parent.type === 'ImportNamespaceSpecifier') return false;
-  // export { foo as Promise } — 'exported' is just the alias name, not a reference
+  // export { foo as Promise } - 'exported' is just the alias name, not a reference
   if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
@@ -129,7 +129,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     Identifier(path) {
       const { node, parent, key: parentKey } = path;
       if (!isReferenced(node, parent, parentKey)) return;
-      // re-export: export { Promise } from 'foo' — local is not a reference when source is present
+      // re-export: export { Promise } from 'foo' - local is not a reference when source is present
       if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
         && path.parentPath?.parentPath?.node?.source) return;
       if (path.scope?.hasBinding(node.name)) return;
