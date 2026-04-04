@@ -22,7 +22,7 @@ jobs:
           ref: ${{ steps.extract_branch.outputs.branch }}
 
       - name: Copy runner file to remote server
-        uses: garygrossgarten/github-action-scp@0.9.0
+        uses: garygrossgarten/github-action-scp@0.10.0
         with:
           local: website/scripts/runner.mjs
           remote: /var/www/core-js/runner.mjs
@@ -31,7 +31,7 @@ jobs:
           privateKey: ${{ secrets.CI_SSH_KEY }}
 
       - name: Copy runner wrapper file to remote server
-        uses: garygrossgarten/github-action-scp@0.9.0
+        uses: garygrossgarten/github-action-scp@0.10.0
         with:
           local: website/scripts/runner.sh
           remote: /var/www/core-js/runner.sh
@@ -40,7 +40,7 @@ jobs:
           privateKey: ${{ secrets.CI_SSH_KEY }}
 
       - name: Copy runner helpers file to remote server
-        uses: garygrossgarten/github-action-scp@0.9.0
+        uses: garygrossgarten/github-action-scp@0.10.0
         with:
           local: website/scripts/helpers.mjs
           remote: /var/www/core-js/helpers.mjs
@@ -49,7 +49,7 @@ jobs:
           privateKey: ${{ secrets.CI_SSH_KEY }}
 
       - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.9.1
+        uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.CI_SSH_KEY }}
 
