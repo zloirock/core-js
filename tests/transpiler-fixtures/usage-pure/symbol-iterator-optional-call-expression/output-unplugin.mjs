@@ -1,3 +1,3 @@
 var _ref;
 import _getIterator from "@core-js/pure/actual/get-iterator";
-_getIterator(_ref = getObj()) == null ? void 0 : _getIterator(_ref);
+_ref = getObj(), _ref == null ? void 0 : _getIterator(_ref);
