@@ -190,7 +190,8 @@ export default function createPlugin(options) {
         function replaceInstance(binding, node, parent) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
           const hasOptional = node.optional || containsOptional(node);
-          const ref = memoRef(node);
+          // memoize only when object is used more than once (call needs .call(obj), optional needs null-check + result)
+          const ref = (isCall || hasOptional) ? memoRef(node) : null;
           const obj = ref || nodeSrc(node.object);
           if (!isCall) {
             if (hasOptional) {
