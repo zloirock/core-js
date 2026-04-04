@@ -269,7 +269,7 @@ Directory path to search for a browserslist config file. By default, the config 
 
 ### `ignoreBrowserslistConfig`
 
-When `true`, the plugin will not read any browserslist config files. Only the explicitly provided `targets` will be used. If no `targets` are provided either, the target is assumed to be all engines — all polyfills will be injected.
+When `true`, the plugin will not read any browserslist config files. Only the explicitly provided `targets` will be used. If no `targets` are provided either, the target is assumed to be all engines - all polyfills will be injected.
 
 ### `absoluteImports`
 
