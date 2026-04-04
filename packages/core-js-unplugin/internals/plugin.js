@@ -133,32 +133,30 @@ export default function createPlugin(options) {
           const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
           const binding = injectPureImport(entry, hint);
           const objectText = nodeSrc(node.object);
-          // memoize non-Identifier objects to avoid double evaluation in null-check / .call patterns
-          const needsMemo = node.object.type !== 'Identifier' && (hasNullCheck || (isCallParent && parent.arguments.length > 0));
-          const objRef = needsMemo ? genUid() : objectText;
-          const memoPrefix = needsMemo ? `(${ objRef } = ${ objectText }, ` : '';
-          const memoSuffix = needsMemo ? ')' : '';
+          const ref = memoRef(node);
+          const obj = ref || objectText;
+          const objAssign = objectArg(node, ref);
           if (isZeroArgCall) {
             let replacement;
             if (hasNullCheck && parent.optional) {
-              // foo?.[Symbol.iterator]?.() -> foo == null ? void 0 : _getIteratorMethod(foo)?.call(foo)
-              replacement = `${ memoPrefix }${ objRef } == null ? void 0 : ${ binding }(${ objRef })?.call(${ objRef })${ memoSuffix }`;
+              // foo?.[Symbol.iterator]?.() -> _getIteratorMethod(_ref = foo) == null ? void 0 : _getIteratorMethod(_ref)?.call(_ref)
+              replacement = `${ binding }(${ objAssign }) == null ? void 0 : ${ binding }(${ obj })?.call(${ obj })`;
             } else if (hasNullCheck) {
-              // foo?.[Symbol.iterator]() -> foo == null ? void 0 : _getIterator(foo)
-              replacement = `${ memoPrefix }${ objRef } == null ? void 0 : ${ binding }(${ objRef })${ memoSuffix }`;
+              // foo?.[Symbol.iterator]() -> _getIterator(_ref = foo) == null ? void 0 : _getIterator(_ref)
+              replacement = `${ binding }(${ objAssign }) == null ? void 0 : ${ binding }(${ obj })`;
             } else {
               replacement = `${ binding }(${ objectText })`;
             }
             transforms.add(parent.start, parent.end, replacement);
             skippedNodes.add(parent);
           } else if (isCallParent && parent.arguments.length > 0) {
-            // foo[Symbol.iterator](args) -> _getIteratorMethod(foo).call(foo, args)
+            // foo[Symbol.iterator](args) -> _getIteratorMethod(_ref = foo).call(_ref, args)
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
             const optCall = parent.optional ? '?.' : '.';
-            const callExpr = `${ binding }(${ objRef })${ optCall }call(${ objRef }, ${ argsSrc })`;
+            const callExpr = `${ binding }(${ obj })${ optCall }call(${ obj }, ${ argsSrc })`;
             const replacement = hasNullCheck
-              ? `${ memoPrefix }${ objRef } == null ? void 0 : ${ callExpr }${ memoSuffix }`
-              : `${ memoPrefix }${ callExpr }${ memoSuffix }`;
+              ? `${ binding }(${ objAssign }) == null ? void 0 : ${ callExpr }`
+              : `${ binding }(${ objAssign }).call(${ obj }, ${ argsSrc })`;
             transforms.add(parent.start, parent.end, replacement);
             skippedNodes.add(parent);
           } else {
@@ -178,37 +176,36 @@ export default function createPlugin(options) {
           return false;
         }
 
-        // memoize object source when it's not a simple identifier (avoids double evaluation)
-        function memoObject(node) {
-          const objectSrc = nodeSrc(node.object);
-          if (node.object.type === 'Identifier') return { ref: objectSrc, prefix: '', suffix: '' };
-          const ref = genUid();
-          return { ref, prefix: `(${ ref } = ${ objectSrc }, `, suffix: ')' };
+        // memoize non-Identifier object: inline assignment as function argument (matches Babel style)
+        // _binding(_ref = obj).call(_ref, args) instead of (_ref = obj, _binding(_ref).call(_ref, args))
+        function memoRef(node) {
+          if (node.object.type === 'Identifier') return null;
+          return genUid();
+        }
+
+        function objectArg(node, ref) {
+          return ref ? `${ ref } = ${ nodeSrc(node.object) }` : nodeSrc(node.object);
         }
 
         function replaceInstance(binding, node, parent) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
           const hasOptional = node.optional || containsOptional(node);
+          const ref = memoRef(node);
+          const obj = ref || nodeSrc(node.object);
           if (!isCall) {
             if (hasOptional) {
-              const { ref, prefix, suffix } = memoObject(node);
-              transforms.add(node.start, node.end, `${ prefix }${ ref } == null ? void 0 : ${ binding }(${ ref })${ suffix }`);
+              transforms.add(node.start, node.end, `${ binding }(${ objectArg(node, ref) }) == null ? void 0 : ${ binding }(${ obj })`);
             } else {
-              transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.object) })`);
+              transforms.add(node.start, node.end, `${ binding }(${ objectArg(node, ref) })`);
             }
           } else {
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
             const argsPart = argsSrc ? `, ${ argsSrc }` : '';
             if (hasOptional) {
-              const { ref, prefix, suffix } = memoObject(node);
               const optCall = parent.optional ? '?.' : '.';
-              transforms.add(parent.start, parent.end, `${ prefix }${ ref } == null ? void 0 : ${ binding }(${ ref })${ optCall }call(${ ref }${ argsPart })${ suffix }`);
-            } else if (node.object.type !== 'Identifier') {
-              const { ref, prefix, suffix } = memoObject(node);
-              transforms.add(parent.start, parent.end, `${ prefix }${ binding }(${ ref }).call(${ ref }${ argsPart })${ suffix }`);
+              transforms.add(parent.start, parent.end, `${ binding }(${ objectArg(node, ref) }) == null ? void 0 : ${ binding }(${ obj })${ optCall }call(${ obj }${ argsPart })`);
             } else {
-              const objectSrc = nodeSrc(node.object);
-              transforms.add(parent.start, parent.end, `${ binding }(${ objectSrc }).call(${ objectSrc }${ argsPart })`);
+              transforms.add(parent.start, parent.end, `${ binding }(${ objectArg(node, ref) }).call(${ obj }${ argsPart })`);
             }
             skippedNodes.add(parent);
           }
