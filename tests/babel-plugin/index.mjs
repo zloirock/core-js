@@ -113,7 +113,7 @@ async function walkFixtures(directory) {
   }
 }
 
-await walkFixtures(args.length ? `./fixtures/${ args[0] }` : './fixtures');
+await walkFixtures(args.length ? `../transpiler-fixtures/${ args[0] }` : '../transpiler-fixtures');
 
 echo(`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`);
 
