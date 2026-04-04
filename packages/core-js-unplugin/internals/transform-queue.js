@@ -9,7 +9,7 @@ function isContained(ranges, start, end) {
     if (r.start > start) hi = mid - 1;
     else lo = mid + 1;
   }
-  // check neighbor — binary search by start may miss a range that starts before
+  // check neighbor - binary search by start may miss a range that starts before
   return lo > 0 && ranges[lo - 1].start <= start && ranges[lo - 1].end >= end;
 }
 
@@ -46,7 +46,7 @@ export default class TransformQueue {
     const { length } = this.#transforms;
     if (!length) return;
 
-    // fast path: no nesting — skip O(n²) composition, apply right-to-left
+    // fast path: no nesting - skip O(n²) composition, apply right-to-left
     if (!this.#hasNesting()) {
       this.#transforms.sort((a, b) => b.start - a.start);
       for (const t of this.#transforms) this.#ms.overwrite(t.start, t.end, t.content);
