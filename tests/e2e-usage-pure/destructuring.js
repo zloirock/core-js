@@ -40,12 +40,19 @@ QUnit.test('destructuring: const { ownKeys } = Reflect', assert => {
   assert.deepEqual(ownKeys({ a: 1 }), ['a']);
 });
 
-// rest element — plugin skips transformation (would change rest semantics)
-QUnit.test('destructuring: rest element preserves behavior', assert => {
-  const obj = { from: Array.from, of: Array.of, custom: 1 };
-  const { from, ...rest } = obj;
+// rest element - polyfill extracted, rest semantics preserved (from excluded from rest)
+QUnit.test('destructuring: rest element with polyfilled property', assert => {
+  const { from, ...rest } = Array;
   assert.deepEqual(from([1, 2]), [1, 2]);
-  assert.same(rest.custom, 1);
+  assert.false('from' in rest);
+});
+
+QUnit.test('destructuring: rest element with multiple polyfilled properties', assert => {
+  const { assign, keys, ...rest } = Object;
+  assert.deepEqual(assign({}, { a: 1 }), { a: 1 });
+  assert.deepEqual(keys({ x: 1 }), ['x']);
+  assert.false('assign' in rest);
+  assert.false('keys' in rest);
 });
 
 // assignment destructuring (not declaration)
