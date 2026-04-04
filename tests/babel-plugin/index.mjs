@@ -18,12 +18,18 @@ function normalizeOutput(code) {
   return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }
 
+const fixturesDir = '../transpiler-fixtures';
+
 let passed = 0;
 let failed = 0;
 
+function label(directory) {
+  return path.relative(fixturesDir, directory);
+}
+
 function pass(directory) {
   passed++;
-  echo`${ cyan(directory) } ${ green('passed') }`;
+  echo`${ cyan(label(directory)) } ${ green('passed') }`;
 }
 
 async function runFixture(directory) {
@@ -65,38 +71,38 @@ async function runFixture(directory) {
       if (content !== null) await writeFile(file, content, UTF8);
       else await rm(file, { force: true });
     }
-    return echo`${ cyan(directory) } ${ yellow('created') }`;
+    return echo`${ cyan(label(directory)) } ${ yellow('created') }`;
   }
 
   if (await exists(staleFile)) {
     failed++;
-    return echo(red(`${ cyan(directory) } failed: ${ error ? 'unexpected error' : 'expected an error but transform succeeded' }`));
+    return echo(red(`${ cyan(label(directory)) } failed: ${ error ? 'unexpected error' : 'expected an error but transform succeeded' }`));
   }
 
   if (!await exists(actualFile)) {
     for (const [file, content] of expected) {
       if (content !== null) await writeFile(file, content, UTF8);
     }
-    return echo`${ cyan(actualFile) } ${ yellow('created') }`;
+    return echo`${ cyan(label(directory)) } ${ yellow('created') }`;
   }
 
   for (const [file, content] of expected) {
     if (content === null) {
       if (await exists(file)) {
         failed++;
-        return echo(red(`${ cyan(directory) } failed: unexpected ${ cyan(file) }`));
+        return echo(red(`${ cyan(label(directory)) } failed: unexpected ${ cyan(file) }`));
       }
       continue;
     }
     if (!await exists(file)) {
       failed++;
-      return echo(red(`${ cyan(directory) } failed: ${ cyan(file) } is missing`));
+      return echo(red(`${ cyan(label(directory)) } failed: ${ cyan(file) } is missing`));
     }
     try {
       strictEqual(content, String(await readFile(file, UTF8)));
     } catch (equalError) {
       failed++;
-      echo(red(`${ cyan(directory) } failed:`));
+      echo(red(`${ cyan(label(directory)) } failed:`));
       return echo(equalError.message);
     }
   }
@@ -113,7 +119,7 @@ async function walkFixtures(directory) {
   }
 }
 
-await walkFixtures(args.length ? `../transpiler-fixtures/${ args[0] }` : '../transpiler-fixtures');
+await walkFixtures(args.length ? `${ fixturesDir }/${ args[0] }` : fixturesDir);
 
 echo(`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`);
 
