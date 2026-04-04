@@ -12,8 +12,8 @@ Babel plugin for automatic injection of [`core-js`](https://core-js.io) polyfill
 
 The plugin supports three injection methods: `entry-global`, `usage-global`, and `usage-pure`.
 
-> [!IMPORTANT]
-> You should specify the used minor `core-js` version, like `version: '4.1'`, instead of `version: '4'`.
+> [!TIP]
+> By default, the plugin auto-detects the installed `core-js` version (`version: 'node_modules'`). You can also specify it explicitly — the minor component is required, e.g. `version: '4.1'` (not `'4'`).
 
 ### `entry-global`
 
@@ -37,7 +37,7 @@ It works for all entry points of global version of `core-js` and their combinati
 {
   "plugins": [["@core-js", {
     "method": "entry-global",
-    "version": "4.0",
+    "version": "node_modules",
     "targets": { "chrome": 135 }
   }]]
 }
@@ -66,7 +66,7 @@ const p = Promise.allSettled([f1, f2]);
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "targets": { "ie": 11 }
   }]]
 }
@@ -92,7 +92,7 @@ Array.from(items);
 {
   "plugins": [["@core-js", {
     "method": "usage-pure",
-    "version": "4.0",
+    "version": "node_modules",
     "targets": { "ie": 11 }
   }]]
 }
@@ -103,7 +103,7 @@ Array.from(items);
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'4.0'` | Used `core-js` version, it's recommended to specify the used minor version like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
+| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from installed `core-js` by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
 | `targets` | `string` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/master/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
@@ -122,17 +122,17 @@ Array.from(items);
 
 The `core-js` version installed in your project. The plugin uses this to determine which polyfill modules and entry points are available.
 
-It's recommended to specify the minor version (e.g., `'4.1'`) rather than just the major version (`'4.0'`), so that the plugin can use polyfills added in minor releases.
+By default, the version is auto-detected from the installed `core-js` package (`'node_modules'`). You can also specify it explicitly as a semver string with the minor component, e.g. `'4.1'` (not `'4'`).
 
 Special values:
-- `'node_modules'` - reads the version from the installed `core-js` package (`core-js/package.json`)
+- `'node_modules'` (default) - reads the version from the installed `core-js` package (`core-js/package.json`)
 - `'package.json'` - reads the version range from the project's `package.json` `dependencies`, `devDependencies`, or `peerDependencies`
 
 ```json
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.1",
+    "version": "node_modules",
     "targets": { "ie": 11 }
   }]]
 }
@@ -148,7 +148,7 @@ Override this if you use a custom package name:
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "package": "my-core-js-version"
   }]]
 }
@@ -162,7 +162,7 @@ Additional package names to recognize as `core-js` entry points in `entry-global
 {
   "plugins": [["@core-js", {
     "method": "entry-global",
-    "version": "4.0",
+    "version": "node_modules",
     "package": "my-core-js-version",
     "additionalPackages": ["core-js"]
   }]]
@@ -181,7 +181,7 @@ Controls which features are available:
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "mode": "stable",
     "targets": { "firefox": 100, "safari": "15.4" }
   }]]
@@ -196,7 +196,7 @@ When `targets` is not specified, the plugin looks for a browserslist config in t
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "targets": { "chrome": 100, "firefox": 115, "safari": "16.4" }
   }]]
 }
@@ -210,7 +210,7 @@ Force include or exclude specific polyfills regardless of target environment. Ac
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "targets": { "chrome": 135 },
     "include": ["es.array.at"],
     "exclude": ["es.string.at"]
@@ -222,7 +222,7 @@ Force include or exclude specific polyfills regardless of target environment. Ac
 {
   "plugins": [["@core-js", {
     "method": "usage-pure",
-    "version": "4.0",
+    "version": "node_modules",
     "targets": { "chrome": 135 },
     "include": ["array/at"],
     "exclude": ["string/at"]
@@ -239,7 +239,7 @@ A callback that gives full control over which polyfills are injected. It receive
 module.exports = {
   plugins: [['@core-js', {
     method: 'usage-global',
-    version: '4.0',
+    version: 'node_modules',
     shouldInjectPolyfill(name, shouldInject) {
       // exclude object polyfills, keep everything else as-is
       if (name.startsWith('es.object.')) return false;
@@ -261,7 +261,7 @@ Directory path to search for a browserslist config file. By default, the config 
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "configPath": "./packages/my-app"
   }]]
 }
@@ -283,7 +283,7 @@ Controls the syntax of injected polyfill imports: `'import'` for ESM `import` st
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "importStyle": "require"
   }]]
 }
