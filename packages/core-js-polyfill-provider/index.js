@@ -170,12 +170,20 @@ export function createPolyfillContext({
     return null;
   }
 
+  const isEntryNeededCache = new Map();
+
   function isEntryNeeded(entry) {
+    if (isEntryNeededCache.has(entry)) return isEntryNeededCache.get(entry);
     const normalized = normalizeEntryPath(entry);
-    if (excludeEntries.has(entry) || excludeEntries.has(normalized)) return false;
-    if (includeEntries.has(entry) || includeEntries.has(normalized)) return true;
-    const modeEntry = `${ mode }/${ entry }`;
-    return entriesSetForTargetVersion.has(modeEntry) && !!getModulesForEntry(modeEntry).length;
+    let result;
+    if (excludeEntries.has(entry) || excludeEntries.has(normalized)) result = false;
+    else if (includeEntries.has(entry) || includeEntries.has(normalized)) result = true;
+    else {
+      const modeEntry = `${ mode }/${ entry }`;
+      result = entriesSetForTargetVersion.has(modeEntry) && !!getModulesForEntry(modeEntry).length;
+    }
+    isEntryNeededCache.set(entry, result);
+    return result;
   }
 
   return {
