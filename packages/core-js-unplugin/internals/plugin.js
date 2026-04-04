@@ -5,18 +5,20 @@ import { buildOffsetToLine, isCoreJSFile, parseDisableDirectives, mergeVisitors 
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
-import { nodeType, types } from './estree-compat.js';
-import ImportInjector from './import-injector.js';
-import TransformQueue from './transform-queue.js';
-import detectEntries from './detect-entry.js';
+import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isTypeAnnotationNodeType,
+  isPolyfillableOptional,
   findProxyGlobal,
 } from '@core-js/polyfill-provider/detect-usage';
-import { createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
+import { nodeType, types } from './estree-compat.js';
+import ImportInjector from './import-injector.js';
+import TransformQueue from './transform-queue.js';
+import detectEntries from './detect-entry.js';
+import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
 const typeResolvers = createResolveNodeType(nodeType, types);
 
@@ -124,29 +126,105 @@ export default function createPlugin(options) {
         function genUid() { return injector.generateRef(); }
         function nodeSrc(n) { return code.slice(n.start, n.end); }
 
+        // check if a MemberExpression property is polyfillable (would produce its own inner transform)
+        function hasPolyfillableProperty(memberNode) {
+          const key = !memberNode.computed && memberNode.property?.type === 'Identifier' && memberNode.property.name;
+          if (!key) return false;
+          if (resolveBuiltIn({ kind: 'property', object: null, key, placement: null })) return true;
+          const { object } = memberNode;
+          if (object?.type === 'Identifier') {
+            const resolved = resolveBuiltIn({ kind: 'property', object: object.name, key, placement: 'static' });
+            if (resolved?.kind === 'static' || resolved?.kind === 'global') return true;
+          }
+          return false;
+        }
+
+        // walk the chain to find the first non-polyfillable optional
+        // returns: root source for null-check (or null), and whether ?. -> . deoptionalization is safe
+        function findChainRoot(node) {
+          if (node.optional) {
+            if (isPolyfillableOptional(node, null, estreeAdapter, resolveBuiltIn)) return { root: null };
+            return { root: nodeSrc(node.object), canDeopt: true };
+          }
+          let current = node.object || node.callee;
+          let canDeopt = true;
+          while (current && typeof current === 'object') {
+            if (current.type === 'MemberExpression' && hasPolyfillableProperty(current)) canDeopt = false;
+            if (current.optional) {
+              if (isPolyfillableOptional(current, null, estreeAdapter, resolveBuiltIn)) return { root: null };
+              return { root: nodeSrc(current.object), canDeopt };
+            }
+            current = current.object || current.callee;
+          }
+          return { root: null };
+        }
+
+        // build the replacement text for an instance method or Symbol.iterator transform
+        function buildReplacement(binding, objectSrc, opts) {
+          const { isCall, isNonIdent, optionalRoot, canDeopt, optionalCall, args } = opts;
+          let bodyObj = objectSrc;
+          let guard = '';
+          let guardRef = null;
+
+          if (optionalRoot) {
+            if (canDeopt) bodyObj = bodyObj.replaceAll('?.', '.');
+            if (/^[$a-z_][\w$]*$/i.test(optionalRoot)) {
+              guard = `${ optionalRoot } == null ? void 0 : `;
+            } else {
+              guardRef = genUid();
+              guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
+              const rootInBody = canDeopt ? optionalRoot.replaceAll('?.', '.') : optionalRoot;
+              bodyObj = guardRef + bodyObj.slice(rootInBody.length);
+            }
+          }
+
+          if (!isCall) return `${ guard }${ binding }(${ bodyObj })`;
+
+          const ref = isNonIdent && bodyObj !== guardRef ? genUid() : null;
+          const obj = ref || bodyObj;
+          const firstArg = ref ? `${ ref } = ${ bodyObj }` : bodyObj;
+          const dot = optionalCall ? '?.' : '.';
+          const argsPart = args ? `, ${ args }` : '';
+          return `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
+        }
+
+        // wrap ternary guard in () when followed by ?. continuation (like Babel)
+        // ensures (guard)?.next() instead of guard ? void 0 : body?.next()
+        function wrapIfContinuation(replacement, end) {
+          return replacement.includes('void 0') && code[end] === '?' && code[end + 1] === '.'
+            ? `(${ replacement })` : replacement;
+        }
+
+        // resolve optional root + skip redundant guard when nested inside an outer transform
+        function resolveOptionalRoot(node, parent, isCall) {
+          let { root, canDeopt } = findChainRoot(node);
+          if (root) {
+            const start = isCall ? parent.start : node.start;
+            const end = isCall ? parent.end : node.end;
+            if (transforms.containsRange(start, end)) root = null;
+          }
+          return { optionalRoot: root, canDeopt };
+        }
+
         function handleSymbolIterator(meta, node, parent) {
           const entry = resolveSymbolIteratorEntry(node, parent);
           if (!isEntryNeeded(entry)) return;
           const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
-          const hasNullCheck = node.optional || (isCallParent && containsOptional(node));
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
+          const objectSrc = nodeSrc(node.object);
+          const isNonIdent = node.object.type !== 'Identifier';
+          const { optionalRoot, canDeopt } = resolveOptionalRoot(node, parent, isCallParent);
 
-          // property access only: foo[Symbol.iterator] → _getIteratorMethod(foo)
           if (!isCallParent) {
-            transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.object) })`);
+            const replacement = buildReplacement(binding, objectSrc, { isCall: false, isNonIdent, optionalRoot, canDeopt });
+            transforms.add(node.start, node.end, wrapIfContinuation(replacement, node.end));
           } else {
-            const { obj, assign, check } = buildMemo(node, hasNullCheck || parent.arguments.length > 0);
+            const needsCall = parent.arguments.length > 0 || parent.optional;
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-            const dot = parent.optional ? '?.' : '.';
-
-            // zero-arg non-optional → simple call; otherwise → .call()
-            const call = parent.arguments.length === 0 && !parent.optional
-              ? `${ binding }(${ obj })`
-              : `${ binding }(${ obj })${ dot }call(${ obj }${ argsSrc ? `, ${ argsSrc }` : '' })`;
-
-            transforms.add(parent.start, parent.end, hasNullCheck
-              ? `${ check } == null ? void 0 : ${ call }`
-              : call.replace(`${ binding }(${ obj })`, `${ binding }(${ assign })`));
+            const replacement = buildReplacement(binding, objectSrc, {
+              isCall: needsCall, isNonIdent, optionalRoot, canDeopt, optionalCall: parent.optional, args: argsSrc,
+            });
+            transforms.add(parent.start, parent.end, wrapIfContinuation(replacement, parent.end));
             skippedNodes.add(parent);
           }
           if (node.property) skippedNodes.add(node.property);
@@ -154,44 +232,20 @@ export default function createPlugin(options) {
           if (proxyGlobal) skippedNodes.add(proxyGlobal);
         }
 
-        function containsOptional(node) {
-          if (!node || typeof node !== 'object') return false;
-          if (node.optional) return true;
-          if (node.type === 'MemberExpression' || node.type === 'CallExpression') {
-            return containsOptional(node.object || node.callee);
-          }
-          return false;
-        }
-
-        // build memoization context for a MemberExpression's object
-        // ref is created when object is non-Identifier and used more than once
-        function buildMemo(node, needsMemo) {
-          const src = nodeSrc(node.object);
-          const ref = needsMemo && node.object.type !== 'Identifier' ? genUid() : null;
-          const obj = ref || src;
-          const assign = ref ? `${ ref } = ${ src }` : src; // inline: _binding(_ref = src)
-          const check = ref ? `(${ assign })` : obj;        // null-check: (_ref = src) == null
-          return { src, obj, assign, check };
-        }
-
         function replaceInstance(binding, node, parent) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
-          const hasOptional = node.optional || containsOptional(node);
-          const { obj, assign, check } = buildMemo(node, isCall || hasOptional);
+          const objectSrc = nodeSrc(node.object);
+          const isNonIdent = node.object.type !== 'Identifier';
+          const { optionalRoot, canDeopt } = resolveOptionalRoot(node, parent, isCall);
+          const argsSrc = isCall ? parent.arguments.map(a => nodeSrc(a)).join(', ') : null;
+          const start = isCall ? parent.start : node.start;
+          const end = isCall ? parent.end : node.end;
 
-          if (!isCall) {
-            transforms.add(node.start, node.end, hasOptional
-              ? `${ check } == null ? void 0 : ${ binding }(${ obj })`
-              : `${ binding }(${ obj })`);
-          } else {
-            const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-            const argsPart = argsSrc ? `, ${ argsSrc }` : '';
-            const dot = parent.optional ? '?.' : '.';
-            transforms.add(parent.start, parent.end, hasOptional
-              ? `${ check } == null ? void 0 : ${ binding }(${ obj })${ dot }call(${ obj }${ argsPart })`
-              : `${ binding }(${ assign }).call(${ obj }${ argsPart })`);
-            skippedNodes.add(parent);
-          }
+          const replacement = buildReplacement(binding, objectSrc, {
+            isCall, isNonIdent, optionalRoot, canDeopt, optionalCall: isCall && parent.optional, args: argsSrc,
+          });
+          transforms.add(start, end, wrapIfContinuation(replacement, end));
+          if (isCall) skippedNodes.add(parent);
           const proxyGlobal = findProxyGlobal(node);
           if (proxyGlobal) skippedNodes.add(proxyGlobal);
         }
