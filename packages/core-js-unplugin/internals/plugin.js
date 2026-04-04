@@ -305,9 +305,10 @@ export default function createPlugin(options) {
             for (const info of infos) {
               const { entries, allProps, initSrc, initIsIdent } = info;
               const polyfillKeys = new Set(entries.map(e => e.propNode));
+              const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
               const remaining = allProps.filter(p => !polyfillKeys.has(p));
               const hasInstance = entries.some(e => e.kind === 'instance');
-              const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0);
+              const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0 || hasRest);
               let objRef = initSrc;
               if (needsMemo && initSrc) {
                 objRef = genUid();
@@ -319,10 +320,15 @@ export default function createPlugin(options) {
                   ? `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }(${ objRef })`
                   : `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }`);
               }
-              if (remaining.length > 0) {
+              // rebuild remaining pattern - when rest is present, keep polyfilled props with renamed values
+              // const { from, ...rest } = Array -> const { from: _unused, ...rest } = Array
+              const rebuiltProps = hasRest
+                ? allProps.map(p => polyfillKeys.has(p) ? `${ nodeSrc(p.key) }: ${ injector.generateUnusedName() }` : nodeSrc(p))
+                : remaining.map(p => nodeSrc(p));
+              if (rebuiltProps.length > 0) {
                 parts.push(isAssignment
-                  ? `({ ${ remaining.map(p => nodeSrc(p)).join(', ') } } = ${ objRef })`
-                  : `${ exportPrefix }${ declKeyword }{ ${ remaining.map(p => nodeSrc(p)).join(', ') } } = ${ objRef }`);
+                  ? `({ ${ rebuiltProps.join(', ') } } = ${ objRef })`
+                  : `${ exportPrefix }${ declKeyword }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`);
               }
             }
 

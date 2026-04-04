@@ -49,7 +49,7 @@ export default class ImportInjector {
     this.#refs.push(name);
   }
 
-  // generate a unique ref name
+  // generate a unique ref name (declared via `var` in header)
   generateRef() {
     let counter = this.#refs.length;
     let name = `_ref${ counter || '' }`;
@@ -57,6 +57,17 @@ export default class ImportInjector {
       name = `_ref${ ++counter }`;
     }
     this.addRef(name);
+    return name;
+  }
+
+  // generate a unique name without declaring it (for unused destructuring bindings)
+  generateUnusedName() {
+    let counter = this.#usedNames.size;
+    let name = `_unused${ counter || '' }`;
+    while (this.#usedNames.has(name) || this.#rootScope?.hasBinding(name)) {
+      name = `_unused${ ++counter }`;
+    }
+    this.#usedNames.add(name);
     return name;
   }
 
