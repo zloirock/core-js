@@ -287,6 +287,19 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   }
 }
 
+// check if an optional MemberExpression will be polyfilled as a static/global
+// (the replacement consumes the `?.` token, making null-checks on it unnecessary)
+// uses the polyfill resolver to distinguish polyfillable globals (Array, Promise)
+// from user code (foo, MyClass) - scope adapter is used for binding check
+export function isPolyfillableOptional(node, scope, adapter, resolve) {
+  const obj = node.object;
+  if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name)) return false;
+  if (resolve({ kind: 'global', name: obj.name })) return true;
+  const key = !node.computed && node.property?.type === 'Identifier' && node.property.name;
+  const resolved = key && resolve({ kind: 'property', object: obj.name, key, placement: 'static' });
+  return resolved?.kind === 'static' || resolved?.kind === 'global';
+}
+
 // extract entry source from an AST node (ImportDeclaration or require() ExpressionStatement)
 // returns source string or null if not an entry pattern
 export function getEntrySource(node, adapter) {
