@@ -34,7 +34,7 @@ function extractImports(code) {
 }
 
 function label(directory) {
-  return `fixtures/${ path.relative(fixturesDir, directory) }`;
+  return path.relative(fixturesDir, directory);
 }
 
 function fail(directory, ...lines) {
