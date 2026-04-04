@@ -56,9 +56,12 @@ export default function (t) {
     return topPath;
   }
 
-  function extractCheck(path) {
+  function extractCheck(path, skipOptional) {
     const { node } = path;
-    if (node.optional) return memoize(node.object, path.scope);
+    if (node.optional) {
+      if (skipOptional?.(node, path.scope)) return [null, node.object];
+      return memoize(node.object, path.scope);
+    }
     if (!path.isOptionalMemberExpression()) return [null, node.object];
     let chainStart = null;
     let current = path.get('object');
@@ -71,8 +74,13 @@ export default function (t) {
     }
     if (!chainStart) return [null, node.object];
     const key = chainStart.isOptionalMemberExpression() ? 'object' : 'callee';
-    const [check, ref] = memoize(chainStart.node[key], path.scope);
-    chainStart.node[key] = t.cloneNode(ref);
+    // skip null-check when the optional is on a polyfillable expression (replacement consumes `?.`)
+    let check = null;
+    if (!skipOptional?.(chainStart.node, path.scope)) {
+      let ref;
+      [check, ref] = memoize(chainStart.node[key], path.scope);
+      chainStart.node[key] = t.cloneNode(ref);
+    }
     deoptionalizeNode(chainStart);
     for (let p = chainStart.parentPath; p !== path; p = p.parentPath) {
       if (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) deoptionalizeNode(p);
@@ -86,18 +94,18 @@ export default function (t) {
     if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
   }
 
-  function replaceInstanceLike(path, id) {
+  function replaceInstanceLike(path, id, skipOptional) {
     const { node, parent } = path;
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent)) && parent.callee === node;
-    const [check, object] = extractCheck(path);
+    const [check, object] = extractCheck(path, skipOptional);
     const result = isCall
       ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
       : t.callExpression(id, [t.cloneNode(object)]);
     replaceAndWrap(isCall ? path.parentPath : path, result, check);
   }
 
-  function replaceCallWithSimple(path, id) {
-    const [check, object] = extractCheck(path);
+  function replaceCallWithSimple(path, id, skipOptional) {
+    const [check, object] = extractCheck(path, skipOptional);
     replaceAndWrap(path.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
   }
 
