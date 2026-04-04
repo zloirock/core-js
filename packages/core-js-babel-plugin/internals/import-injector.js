@@ -47,7 +47,7 @@ export default class ImportInjector {
   flush() {
     const t = this.#t;
 
-    for (let round = 0; round < 10; round++) {
+    while (true) {
       let newGlobals = [...this.#globalImports].filter(s => !this.#flushedGlobals.has(s));
       const newPure = [...this.#pureImports].filter(([s]) => !this.#flushedPure.has(s));
       if (!newGlobals.length && !newPure.length) break;
