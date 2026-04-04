@@ -389,22 +389,25 @@ function createResolveNodeType(babelNodeType, t) {
     return extended ? localMap : typeParamMap;
   }
 
-  // build a type parameter map from default values for a type reference without explicit type arguments
+  // build a type parameter map from explicit type arguments and/or default values
+  // e.g. for `Container<string>` referencing `interface Container<T>`, returns Map { T -> $Primitive('string') }
   // e.g. for `Container` referencing `interface Container<T = number[]>`, returns Map { T -> $Object('Array', ...) }
   function buildDefaultTypeParamMap(annotation, scope) {
     const name = typeRefName(annotation);
-    if (!name || getTypeArgs(annotation)?.params?.length) return null;
+    if (!name) return null;
     const declaration = findTypeDeclaration(name, scope);
     if (!declaration) return null;
     const declParams = declaration.typeParameters?.params;
     if (!declParams?.length) return null;
+    const callArgs = getTypeArgs(annotation)?.params;
     let map = null;
-    for (const param of declParams) {
-      if (!param.default) continue;
-      const resolved = resolveTypeAnnotation(param.default, scope);
+    for (let i = 0; i < declParams.length; i++) {
+      const arg = callArgs?.[i] ?? declParams[i].default;
+      if (!arg) continue;
+      const resolved = resolveTypeAnnotation(arg, scope);
       if (resolved) {
         if (!map) map = new Map();
-        map.set(typeParamName(param), resolved);
+        map.set(typeParamName(declParams[i]), resolved);
       }
     }
     return map;
@@ -1870,7 +1873,7 @@ function createResolveNodeType(babelNodeType, t) {
     let defaultMap;
     const resolve = p => {
       if (defaultMap === undefined) defaultMap = buildDefaultTypeParamMap(annotation, scope);
-      return defaultMap ? substituteTypeParams(p, defaultMap, scope, MAX_DEPTH) : resolveTypeAnnotation(p, scope);
+      return defaultMap ? substituteTypeParams(p, defaultMap, scope, 0) : resolveTypeAnnotation(p, scope);
     };
     // property access (not a call): delegate to findTypeMember
     if (!callPath) {
@@ -2345,7 +2348,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (!memberType) return null;
     const defaultMap = buildDefaultTypeParamMap(unwrapped, scope);
     return defaultMap
-      ? substituteTypeParams(memberType, defaultMap, scope, MAX_DEPTH)
+      ? substituteTypeParams(memberType, defaultMap, scope, 0)
       : resolveTypeAnnotation(memberType, scope);
   }
 
