@@ -66,16 +66,16 @@ export default class ImportInjector {
 
   // apply all collected imports at the top of the file
   flush() {
-    let header = '';
-    if (this.#refs.length) header += `var ${ this.#refs.join(', ') };\n`;
+    const lines = [];
+    if (this.#refs.length) lines.push(`var ${ this.#refs.join(', ') };`);
     const sortedGlobals = sortByPolyfillOrder([...this.#globalImports]);
     if (this.#importStyle === 'require') {
-      for (const mod of sortedGlobals) header += `require("${ this.#resolvePath(`modules/${ mod }`) }");\n`;
-      for (const [entry, name] of this.#pureImports) header += `var ${ name } = require("${ this.#resolvePath(entry) }");\n`;
+      for (const mod of sortedGlobals) lines.push(`require("${ this.#resolvePath(`modules/${ mod }`) }");`);
+      for (const [entry, name] of this.#pureImports) lines.push(`var ${ name } = require("${ this.#resolvePath(entry) }");`);
     } else {
-      for (const mod of sortedGlobals) header += `import "${ this.#resolvePath(`modules/${ mod }`) }";\n`;
-      for (const [entry, name] of this.#pureImports) header += `import ${ name } from "${ this.#resolvePath(entry) }";\n`;
+      for (const mod of sortedGlobals) lines.push(`import "${ this.#resolvePath(`modules/${ mod }`) }";`);
+      for (const [entry, name] of this.#pureImports) lines.push(`import ${ name } from "${ this.#resolvePath(entry) }";`);
     }
-    if (header) this.#ms.prepend(header);
+    if (lines.length) this.#ms.prepend(`${ lines.join('\n') }\n`);
   }
 }
