@@ -71,12 +71,16 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
         }
         return mod => mod === p;
       }
-      if (p instanceof RegExp) return mod => toStatelessRegExp(p).test(mod);
+      if (p instanceof RegExp) {
+        const re = toStatelessRegExp(p);
+        return mod => re.test(mod);
+      }
       return () => false;
     });
   };
   const includeMatchers = matchers(include);
   const excludeMatchers = matchers(exclude);
+  const cache = new Map();
   const defaultShouldInject = mod => {
     if (excludeMatchers?.some(m => m(mod))) return false;
     if (includeMatchers?.some(m => m(mod))) return true;
@@ -90,8 +94,15 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
     }
     return true;
   };
-  if (typeof userCallback === 'function') return mod => userCallback(mod, defaultShouldInject(mod));
-  return defaultShouldInject;
+  const resolve = typeof userCallback === 'function'
+    ? mod => userCallback(mod, defaultShouldInject(mod))
+    : defaultShouldInject;
+  return mod => {
+    if (cache.has(mod)) return cache.get(mod);
+    const result = resolve(mod);
+    cache.set(mod, result);
+    return result;
+  };
 }
 
 function getUnsupportedTargets(moduleName, parsedTargets) {
