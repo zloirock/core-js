@@ -1706,7 +1706,7 @@ function createResolveNodeType(babelNodeType, t) {
       // direct child of ClassBody - this is a class member
       if (t.isClassBody(current.parentPath?.node)) {
         const classPath = current.parentPath.parentPath;
-        if (t.isClass(classPath?.node)) return { classPath, isStatic: !!current.node.static };
+        if (t.isClass(classPath?.node)) return { classPath, isStatic: !!current.node.static || current.node.type === 'StaticBlock' };
         return null;
       }
       // non-arrow function rebinds `this` - but skip ESTree MethodDefinition's wrapper FunctionExpression
