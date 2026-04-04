@@ -59,14 +59,17 @@ const DIRECTIVE = /^\s*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$
 export function mergeVisitors(base, extra) {
   const merged = { ...base };
   for (const [key, handler] of Object.entries(extra)) {
-    if (typeof merged[key] === 'function' && typeof handler === 'function') {
+    if (!(key in merged)) {
+      merged[key] = handler;
+    } else if (typeof merged[key] === 'function' && typeof handler === 'function') {
       const existing = merged[key];
       merged[key] = function (path) {
         existing.call(this, path);
         handler.call(this, path);
       };
-    } else if (!(key in merged)) {
-      merged[key] = handler;
+    } else if (typeof merged[key] === 'object' && merged[key] !== null
+      && typeof handler === 'object' && handler !== null) {
+      merged[key] = { ...merged[key], ...handler };
     }
   }
   return merged;
