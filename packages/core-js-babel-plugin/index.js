@@ -110,6 +110,10 @@ export default function plugin(api, options) {
             } else {
               path.get('left').replaceWith(id);
             }
+          } else if (meta.object) {
+            // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
+            const resolved = resolvePureOrGlobalFallback(meta, path);
+            if (resolved.result) path.replaceWith(t.booleanLiteral(true));
           }
           return;
         }
