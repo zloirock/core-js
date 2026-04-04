@@ -6,10 +6,12 @@ import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
+  isPolyfillableOptional,
 } from '@core-js/polyfill-provider/detect-usage';
+import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
-import { createUsageVisitors, createSyntaxVisitors } from './internals/detect-usage.js';
+import { babelAdapter, createUsageVisitors, createSyntaxVisitors } from './internals/detect-usage.js';
 import createEntryVisitors from './internals/detect-entry.js';
 
 export default function plugin(api, options) {
@@ -39,6 +41,8 @@ export default function plugin(api, options) {
     resolveDestructuringObject,
     handleDestructuredProperty,
   } = createASTHelpers(t);
+
+  const skipPolyfillableOptional = (node, scope) => isPolyfillableOptional(node, scope, babelAdapter, resolveBuiltIn);
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
@@ -73,8 +77,8 @@ export default function plugin(api, options) {
         if (!isEntryNeeded(entry)) return;
         const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
         const id = injectPureImport(entry, hint);
-        if (entry === 'get-iterator') replaceCallWithSimple(path, id);
-        else replaceInstanceLike(path, id);
+        if (entry === 'get-iterator') replaceCallWithSimple(path, id, skipPolyfillableOptional);
+        else replaceInstanceLike(path, id, skipPolyfillableOptional);
       }
 
       function canTransformDestructuring(path) {
@@ -157,7 +161,7 @@ export default function plugin(api, options) {
         } else {
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
-            replaceInstanceLike(path, id);
+            replaceInstanceLike(path, id, skipPolyfillableOptional);
           } else {
             const chainStart = path.node.optional;
             path.replaceWith(id);
