@@ -41,6 +41,11 @@ export default class TransformQueue {
     this.#transforms.push({ start, end, content });
   }
 
+  // check if [start, end] is strictly contained within an already-queued transform
+  containsRange(start, end) {
+    return this.#transforms.some(t => t.start <= start && t.end >= end && (t.start !== start || t.end !== end));
+  }
+
   // compose nested transforms and apply to magic-string
   apply() {
     const { length } = this.#transforms;
