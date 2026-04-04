@@ -128,39 +128,40 @@ export default function createPlugin(options) {
           const entry = resolveSymbolIteratorEntry(node, parent);
           if (!isEntryNeeded(entry)) return;
           const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
-          const isZeroArgCall = isCallParent && parent.arguments.length === 0;
           const hasNullCheck = node.optional || (isCallParent && containsOptional(node));
-          const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
-          const binding = injectPureImport(entry, hint);
-          const objectText = nodeSrc(node.object);
-          const ref = memoRef(node);
-          const obj = ref || objectText;
-          const objAssign = objectArg(node, ref);
-          if (isZeroArgCall) {
-            let replacement;
-            if (hasNullCheck && parent.optional) {
-              // foo?.[Symbol.iterator]?.() -> _getIteratorMethod(_ref = foo) == null ? void 0 : _getIteratorMethod(_ref)?.call(_ref)
-              replacement = `${ binding }(${ objAssign }) == null ? void 0 : ${ binding }(${ obj })?.call(${ obj })`;
-            } else if (hasNullCheck) {
-              // foo?.[Symbol.iterator]() -> _getIterator(_ref = foo) == null ? void 0 : _getIterator(_ref)
-              replacement = `${ binding }(${ objAssign }) == null ? void 0 : ${ binding }(${ obj })`;
-            } else {
-              replacement = `${ binding }(${ objectText })`;
-            }
-            transforms.add(parent.start, parent.end, replacement);
-            skippedNodes.add(parent);
-          } else if (isCallParent && parent.arguments.length > 0) {
-            // foo[Symbol.iterator](args) -> _getIteratorMethod(_ref = foo).call(_ref, args)
-            const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-            const optCall = parent.optional ? '?.' : '.';
-            const callExpr = `${ binding }(${ obj })${ optCall }call(${ obj }, ${ argsSrc })`;
-            const replacement = hasNullCheck
-              ? `${ binding }(${ objAssign }) == null ? void 0 : ${ callExpr }`
-              : `${ binding }(${ objAssign }).call(${ obj }, ${ argsSrc })`;
-            transforms.add(parent.start, parent.end, replacement);
-            skippedNodes.add(parent);
+          const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
+          const objectSrc = nodeSrc(node.object);
+
+          // property access only: foo[Symbol.iterator] → _getIteratorMethod(foo)
+          if (!isCallParent) {
+            transforms.add(node.start, node.end, `${ binding }(${ objectSrc })`);
           } else {
-            transforms.add(node.start, node.end, `${ binding }(${ objectText })`);
+            // memo needed when object is non-Identifier and used more than once
+            const needsMemo = node.object.type !== 'Identifier' && (hasNullCheck || parent.arguments.length > 0);
+            const ref = needsMemo ? genUid() : null;
+            const obj = ref || objectSrc;
+            const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
+            const dot = parent.optional ? '?.' : '.';
+
+            // build call: _binding(obj) for zero-arg, _binding(obj).call(obj, args) for with-args
+            const call = parent.arguments.length === 0 && !parent.optional
+              ? `${ binding }(${ obj })`
+              : `${ binding }(${ obj })${ dot }call(${ obj }${ argsSrc ? `, ${ argsSrc }` : '' })`;
+
+            let replacement;
+            if (hasNullCheck) {
+              // null-check on the object: _ref = src, _ref == null ? void 0 : call(_ref)
+              const prefix = ref ? `${ ref } = ${ objectSrc }, ` : '';
+              replacement = `${ prefix }${ obj } == null ? void 0 : ${ call }`;
+            } else if (ref) {
+              // inline assignment: _binding(_ref = src).call(_ref, args)
+              replacement = call.replace(`${ binding }(${ ref })`, `${ binding }(${ ref } = ${ objectSrc })`);
+            } else {
+              replacement = call;
+            }
+
+            transforms.add(parent.start, parent.end, replacement);
+            skippedNodes.add(parent);
           }
           if (node.property) skippedNodes.add(node.property);
           const proxyGlobal = findProxyGlobal(node);
