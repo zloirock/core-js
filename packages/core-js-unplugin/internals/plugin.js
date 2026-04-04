@@ -338,7 +338,7 @@ export default function createPlugin(options) {
               if (others.length) parts.push(`${ exportPrefix }${ declKeyword }${ others.join(', ') }`);
             }
 
-            transforms.add(replaceNode.start, replaceNode.end, parts.join(';\n'));
+            transforms.add(replaceNode.start, replaceNode.end, `${ parts.join(';\n') };`);
           }
         }
 
