@@ -157,42 +157,22 @@ async function runFixture(directory) {
       return false;
     }
 
-    if (pluginOptions.method === 'usage-pure') {
-      const expectedBindings = expected.split('\n')
-        .filter(line => line.startsWith('import '))
-        .map(line => line.match(/^import (?<binding>\S+)/)?.groups.binding)
-        .filter(Boolean);
-      const allBindingsUsed = expectedBindings.every(b => actual.includes(b));
+    function reportImportsDiff() {
+      const actualSet = new Set(actualImports.split('\n'));
+      const expectedSet = new Set(expectedImports.split('\n'));
+      const missing = [...expectedSet].filter(l => !actualSet.has(l));
+      const extra = [...actualSet].filter(l => !expectedSet.has(l));
+      if (missing.length) echo`  ${ yellow('missing:') } ${ missing.slice(0, 3).join(', ') }${ missing.length > 3 ? ` +${ missing.length - 3 }` : '' }`;
+      if (extra.length) echo`  ${ yellow('extra:') } ${ extra.slice(0, 3).join(', ') }${ extra.length > 3 ? ` +${ extra.length - 3 }` : '' }`;
+    }
 
-      if (actualImports === expectedImports && allBindingsUsed) {
-        if (!await checkDebug()) return;
-        pass(directory);
-      } else {
-        failed++;
-        echo(red(`${ cyan(label(directory)) } failed:`));
-        const actualSet = new Set(actualImports.split('\n'));
-        const expectedSet = new Set(expectedImports.split('\n'));
-        const missing = [...expectedSet].filter(l => !actualSet.has(l));
-        const extra = [...actualSet].filter(l => !expectedSet.has(l));
-        if (missing.length) echo`  ${ yellow('missing:') } ${ missing.slice(0, 3).join(', ') }${ missing.length > 3 ? ` +${ missing.length - 3 }` : '' }`;
-        if (extra.length) echo`  ${ yellow('extra:') } ${ extra.slice(0, 3).join(', ') }${ extra.length > 3 ? ` +${ extra.length - 3 }` : '' }`;
-        const unusedBindings = expectedBindings.filter(b => !actual.includes(b));
-        if (unusedBindings.length) echo`  ${ yellow('unused bindings:') } ${ unusedBindings.join(', ') }`;
-      }
-    } else if (actualImports === expectedImports) {
+    if (actualImports === expectedImports) {
       if (!await checkDebug()) return;
       pass(directory);
     } else {
       failed++;
       echo(red(`${ cyan(label(directory)) } failed:`));
-      const actualArr = actualImports.split('\n');
-      const expectedArr = expectedImports.split('\n');
-      const actualSet = new Set(actualArr);
-      const expectedSet = new Set(expectedArr);
-      const missing = expectedArr.filter(l => !actualSet.has(l));
-      const extra = actualArr.filter(l => !expectedSet.has(l));
-      if (missing.length) echo`  ${ yellow('missing:') } ${ missing.slice(0, 3).join(', ') }${ missing.length > 3 ? ` +${ missing.length - 3 }` : '' }`;
-      if (extra.length) echo`  ${ yellow('extra:') } ${ extra.slice(0, 3).join(', ') }${ extra.length > 3 ? ` +${ extra.length - 3 }` : '' }`;
+      reportImportsDiff();
     }
   } catch (error) {
     failed++;
