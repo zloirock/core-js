@@ -418,10 +418,12 @@ export default function createPlugin(options) {
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
             // remove optional call operator `?.` when replacing global/static callee
             // globalThis.Map?.() -> _Map() - the `?.` between callee and `(` should be removed
-            const { end } = node;
-            const optionalEnd = parent?.type === 'CallExpression' && parent.optional
-              && parent.callee === node && code[end] === '?' && code[end + 1] === '.'
-              ? end + 2 : end;
+            let optionalEnd = node.end;
+            if (parent?.type === 'CallExpression' && parent.optional && parent.callee === node) {
+              let pos = node.end;
+              while (pos < code.length && code[pos] !== '?' && code[pos] !== '(') pos++;
+              if (code[pos] === '?' && code[pos + 1] === '.') optionalEnd = pos + 2;
+            }
             transforms.add(node.start, optionalEnd, binding);
           }
         };
