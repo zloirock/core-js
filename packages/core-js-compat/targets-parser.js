@@ -63,7 +63,7 @@ export default function (targets) {
       list.push(...entries(browsers));
     }
   } else if (!list.length && !node && !normalizedESModules && !ignoreBrowserslistConfig) {
-    // No explicit targets — use project browserslist config if present (not defaults)
+    // No explicit targets - use project browserslist config if present (not defaults)
     const path = configPath || '.';
     if (browserslist.findConfig(path)) {
       list.push(...browserslist(undefined, { path }).map(it => it.split(' ')));
