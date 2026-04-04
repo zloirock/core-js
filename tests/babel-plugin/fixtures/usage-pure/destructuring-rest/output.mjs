@@ -1,4 +1,6 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+const from = _Array$from;
 const {
-  from,
+  from: _unused,
   ...rest
 } = Array;
