@@ -158,13 +158,15 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, suppressPro
   if (node.operator !== 'in') return null;
   if (node.left.type === 'MemberExpression'
     && node.left.object?.type === 'Identifier' && node.left.object.name === 'Symbol'
-    && node.left.property?.type === 'Identifier'
     && !adapter.hasBinding(scope, 'Symbol')) {
-    if (!suppressProxyGlobals) {
-      handledObjects.add(node.left);
-      handledObjects.add(node.left.object);
+    const name = resolveKey(node.left.property, node.left.computed, scope, adapter);
+    if (name) {
+      if (!suppressProxyGlobals) {
+        handledObjects.add(node.left);
+        handledObjects.add(node.left.object);
+      }
+      return { kind: 'in', key: `Symbol.${ name }`, object: null, placement: null };
     }
-    return { kind: 'in', key: `Symbol.${ node.left.property.name }`, object: null, placement: null };
   }
   return null;
 }
