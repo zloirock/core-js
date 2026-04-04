@@ -46,16 +46,29 @@ function normalizeCoreJSVersion(raw) {
 
   let requiredMinorComponent = true;
 
-  if (raw === 'node_modules') {
-    raw = require('core-js/package.json').version;
-  } else if (raw === 'package.json') {
-    requiredMinorComponent = false;
-    // eslint-disable-next-line import/no-dynamic-require -- ok
-    const { dependencies, devDependencies, peerDependencies } = require(`${ process.cwd() }/package.json`);
+  if (raw === 'package.json') {
+    let pkg;
+    try {
+      // eslint-disable-next-line import/no-dynamic-require -- ok
+      pkg = require(`${ process.cwd() }/package.json`);
+    } catch {
+      throw new TypeError('`package.json` not found in the current working directory');
+    }
+    const { dependencies, devDependencies, peerDependencies } = pkg;
     raw = dependencies?.['core-js'] ?? devDependencies?.['core-js'] ?? peerDependencies?.['core-js'];
     if (raw === undefined) {
       throw new TypeError('`core-js` is not specified in your `package.json`');
     }
+    // semver range like `^4.1.0` - the regex extracts the base version;
+    // wildcard-only range like `*` or `x` - fall back to installed version
+    if (SEMVER.test(raw)) requiredMinorComponent = false;
+    else raw = 'node_modules';
+  }
+
+  if (raw === 'node_modules') try {
+    raw = require('core-js/package.json').version;
+  } catch {
+    throw new TypeError('`core-js` is not installed - install it or specify the version explicitly');
   }
 
   const version = semver(raw, requiredMinorComponent);
