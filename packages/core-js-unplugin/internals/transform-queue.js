@@ -78,10 +78,8 @@ export default class TransformQueue {
     const applied = []; // sorted by start ascending
     for (const t of composed) {
       if (isContained(applied, t.start, t.end)) continue;
-      try {
-        this.#ms.overwrite(t.start, t.end, t.content);
-        insertSorted(applied, t);
-      } catch { /* skip conflicting */ }
+      this.#ms.overwrite(t.start, t.end, t.content);
+      insertSorted(applied, t);
     }
   }
 
