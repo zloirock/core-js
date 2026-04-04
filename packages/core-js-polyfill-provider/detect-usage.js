@@ -152,10 +152,12 @@ export function resolveSymbolIteratorEntry(node, parent) {
   return isCall && parent.arguments.length === 0 && !parent.optional ? 'get-iterator' : 'get-iterator-method';
 }
 
-// build meta from BinaryExpression with 'in' operator (Symbol.X in obj)
+// build meta from BinaryExpression with 'in' operator
+// handles Symbol.X in obj, 'key' in Constructor, 'key' in globalThis
 // returns meta object or null. Also marks handled objects if suppressProxyGlobals is false.
 export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   if (node.operator !== 'in') return null;
+  // Symbol.X in obj - well-known symbol protocol check
   if (node.left.type === 'MemberExpression'
     && node.left.object?.type === 'Identifier' && node.left.object.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
@@ -166,6 +168,15 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, suppressPro
         handledObjects.add(node.left.object);
       }
       return { kind: 'in', key: `Symbol.${ name }`, object: null, placement: null };
+    }
+  }
+  // 'key' in Object - string key in static/global object
+  const key = resolveKey(node.left, true, scope, adapter);
+  if (key) {
+    const objectName = resolveObjectName(node.right, scope, adapter);
+    if (objectName) {
+      const placement = isStaticPlacement(objectName);
+      if (placement) return { kind: 'in', key, object: objectName, placement };
     }
   }
   return null;
