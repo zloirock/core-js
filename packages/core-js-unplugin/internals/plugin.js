@@ -365,6 +365,16 @@ export default function createPlugin(options) {
               } else {
                 transforms.add(node.left.start, node.left.end, binding);
               }
+            } else if (meta.object) {
+              // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
+              const resolved = resolvePureOrGlobalFallback(meta, metaPath);
+              if (resolved.result) {
+                transforms.add(node.start, node.end, 'true');
+                // prevent child visitors from adding unused imports for the replaced expression
+                skippedNodes.add(node.right);
+                const proxyGlobal = findProxyGlobal(node.right);
+                if (proxyGlobal) skippedNodes.add(proxyGlobal);
+              }
             }
             return;
           }
