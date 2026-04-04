@@ -80,7 +80,7 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
     const right = resolveKey(node.right, true, scope, adapter, depth + 1);
     if (left !== null && right !== null) return left + right;
   }
-  // Symbol.X computed access — Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
+  // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
   if (computed && node.type === 'MemberExpression'
     && node.object.type === 'Identifier' && node.object.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
@@ -191,7 +191,7 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
     && node.object.object?.type === 'Identifier'
     && POSSIBLE_GLOBAL_OBJECTS.has(node.object.object.name)) {
     // mark intermediate MemberExpression (e.g. globalThis.Object) to prevent double-processing,
-    // but NOT the proxy global itself — it may need its own polyfill when the outer expression is not polyfilled
+    // but NOT the proxy global itself - it may need its own polyfill when the outer expression is not polyfilled
     handledObjects.add(node.object);
   }
 }
@@ -223,16 +223,13 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
 // patternProperties: array of ObjectPattern.properties
 // returns false if transformation would break semantics
 export function canTransformDestructuring({ parentType, parentInit, grandParentType, patternProperties }) {
-  // rest element present - extracting a property changes rest semantics
-  if (patternProperties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return false;
   if (parentType === 'VariableDeclarator') {
     if (!parentInit) return false; // for-of/for-in - no init
     if (grandParentType === 'ForInStatement' || grandParentType === 'ForOfStatement') return false;
     if (grandParentType === 'ForStatement' && patternProperties?.length > 1) return false;
     return true;
   }
-  if (parentType === 'AssignmentExpression') return true;
-  return false;
+  return parentType === 'AssignmentExpression';
 }
 
 // check if a node type is a TS/Flow type annotation context
