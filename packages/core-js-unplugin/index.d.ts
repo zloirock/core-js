@@ -7,7 +7,7 @@ type Targets = string | string[] | Record<string, string | number | boolean | st
 interface Options {
   /** polyfilling method: 'entry-global', 'usage-global' or 'usage-pure' */
   method: Method;
-  /** used `core-js` version, by default '4.0' */
+  /** used `core-js` version, by default 'node_modules' (auto-detected from installed core-js). When specified explicitly, the minor component is required, e.g. '4.1' */
   version?: string;
   /** entry point layer: 'es', 'stable', 'actual', or 'full', by default 'actual' */
   mode?: Mode;
