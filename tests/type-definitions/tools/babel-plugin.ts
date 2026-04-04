@@ -11,6 +11,8 @@ plugin({}, { method: 'usage-pure' }, '/path');
 plugin({}, { method: 'entry-global' }, '/path');
 
 plugin({}, { method: 'usage-global', version: '4.0' }, '/path');
+plugin({}, { method: 'usage-global', version: 'node_modules' }, '/path');
+plugin({}, { method: 'usage-global', version: 'package.json' }, '/path');
 plugin({}, { method: 'usage-global', mode: 'actual' }, '/path');
 plugin({}, { method: 'usage-global', mode: 'es' }, '/path');
 plugin({}, { method: 'usage-global', mode: 'stable' }, '/path');

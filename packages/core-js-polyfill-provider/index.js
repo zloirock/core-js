@@ -107,7 +107,7 @@ function validateIncludeExclude(include, exclude, modules) {
 }
 
 export function createPolyfillContext({
-  method, mode = 'actual', version = '4.0', package: pkg, additionalPackages,
+  method, mode = 'actual', version = 'node_modules', package: pkg, additionalPackages,
   include, exclude, shippedProposals = false, shouldInjectPolyfill,
 }) {
   if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
