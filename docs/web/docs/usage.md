@@ -141,7 +141,7 @@ Configuration example:
 {
   "plugins": [["@core-js", {
     "method": "usage-global",
-    "version": "4.0",
+    "version": "node_modules",
     "targets": { "ie": 11 }
   }]]
 }
@@ -152,7 +152,7 @@ Configuration example:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'4.0'` | Used `core-js` version. It's recommended to specify the used minor version like `'4.1'`. Special values: `'node_modules'` reads the version from the installed `core-js` package, `'package.json'` reads the version range from the project's `package.json` dependencies |
+| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from installed `core-js` by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'` reads the version from the installed `core-js` package, `'package.json'` reads the version range from the project's `package.json` dependencies |
 | `targets` | `string` \| `object` | from project browserslist config if present | Browserslist query or an object of minimum environment versions, same as [`@core-js/compat`](https://github.com/zloirock/core-js/tree/v4/packages/core-js-compat) |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
@@ -211,7 +211,7 @@ import coreJS from '@core-js/unplugin/vite';
 export default {
   plugins: [coreJS({
     method: 'usage-global',
-    version: '4.0',
+    version: 'node_modules',
     targets: { chrome: 80 },
   })],
 };
@@ -225,7 +225,7 @@ const coreJS = require('@core-js/unplugin/webpack');
 module.exports = {
   plugins: [coreJS({
     method: 'usage-global',
-    version: '4.0',
+    version: 'node_modules',
     targets: { chrome: 80 },
   })],
 };
@@ -239,7 +239,7 @@ import coreJS from '@core-js/unplugin/rolldown'; // or '@core-js/unplugin/rollup
 export default {
   plugins: [coreJS({
     method: 'usage-global',
-    version: '4.0',
+    version: 'node_modules',
     targets: { chrome: 80 },
   })],
 };
@@ -253,7 +253,7 @@ import coreJS from '@core-js/unplugin/esbuild';
 await esbuild.build({
   plugins: [coreJS({
     method: 'usage-global',
-    version: '4.0',
+    version: 'node_modules',
     targets: { chrome: 80 },
   })],
 });
@@ -267,7 +267,7 @@ const coreJS = require('@core-js/unplugin/rspack');
 module.exports = {
   plugins: [coreJS({
     method: 'usage-global',
-    version: '4.0',
+    version: 'node_modules',
     targets: { chrome: 80 },
   })],
 };
@@ -278,7 +278,7 @@ module.exports = {
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `method` | `string` | **required** | `'entry-global'`, `'usage-global'`, or `'usage-pure'` |
-| `version` | `string` | `'4.0'` | Used `core-js` version |
+| `version` | `string` | `'node_modules'` | Used `core-js` version, auto-detected from installed `core-js` by default. Can be a semver string with minor component like `'4.1'`. Special values: `'node_modules'`, `'package.json'` |
 | `targets` | `string` \| `string[]` \| `object` | from project browserslist config if present | Browserslist targets |
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths |
@@ -365,7 +365,7 @@ import 'core-js/modules/es.array.of';
 var array = Array.of(1, 2, 3);
 ```
 
-By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by the `proposals` option, as `corejs: { version: '4.0', proposals: true }`.
+By default, `@babel/preset-env` with `useBuiltIns: 'usage'` option only polyfills stable features, but you can enable polyfilling of proposals by the `proposals` option, as `corejs: { version: 'node_modules', proposals: true }`.
 
 > [!IMPORTANT]
 > In the case of `useBuiltIns: 'usage'`, you should not add `core-js` imports by yourself, they will be added automatically.
