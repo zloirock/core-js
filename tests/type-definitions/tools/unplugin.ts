@@ -27,6 +27,8 @@ vite({ method: 'usage-pure' });
 vite({ method: 'entry-global' });
 
 vite({ method: 'usage-global', version: '4.0' });
+vite({ method: 'usage-global', version: 'node_modules' });
+vite({ method: 'usage-global', version: 'package.json' });
 vite({ method: 'usage-global', mode: 'actual' });
 vite({ method: 'usage-global', mode: 'es' });
 vite({ method: 'usage-global', mode: 'stable' });
