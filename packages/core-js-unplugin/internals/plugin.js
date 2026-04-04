@@ -322,8 +322,11 @@ export default function createPlugin(options) {
               }
               // rebuild remaining pattern - when rest is present, keep polyfilled props with renamed values
               // const { from, ...rest } = Array -> const { from: _unused, ...rest } = Array
+              function propKeySource(p) {
+                return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
+              }
               const rebuiltProps = hasRest
-                ? allProps.map(p => polyfillKeys.has(p) ? `${ nodeSrc(p.key) }: ${ injector.generateUnusedName() }` : nodeSrc(p))
+                ? allProps.map(p => polyfillKeys.has(p) ? `${ propKeySource(p) }: ${ injector.generateUnusedName() }` : nodeSrc(p))
                 : remaining.map(p => nodeSrc(p));
               if (rebuiltProps.length > 0) {
                 parts.push(isAssignment
