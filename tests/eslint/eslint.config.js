@@ -2245,7 +2245,7 @@ export default [
       'packages/core-js-bundle/!(package.json)',
       'packages/core-js-compat/!(package).json',
       'packages/core-js-pure/override/**',
-      'tests/babel-plugin/fixtures/**/*.mjs',
+      'tests/transpiler-fixtures/**/*.mjs',
       'tests/**/bundles/**',
       'tests/compat/compat-data.js',
       'tests/@(unit-@(global|pure)|e2e-usage-pure)/index.js',
