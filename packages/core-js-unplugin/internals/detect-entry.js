@@ -17,8 +17,8 @@ export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEnt
 
   for (const node of toRemove) {
     let { end } = node;
-    if (ms.original[end] === '\n') end++;
-    else if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
+    if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
+    else if (ms.original[end] === '\n' || ms.original[end] === '\r') end++;
     ms.remove(node.start, end);
   }
   return toRemove.length > 0;

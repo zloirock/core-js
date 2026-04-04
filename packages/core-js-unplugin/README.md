@@ -150,7 +150,6 @@ Both `//` and `/* */` styles are supported. A reason can be added after ` -- `.
 ## Differences from `@core-js/babel-plugin`
 
 - **No Babel required** - uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for parsing
-- **TypeScript support** - parses TypeScript natively, uses type annotations for smarter polyfill decisions
 - **Universal** - works with any bundler via unplugin
 - **No Flow support** - oxc-parser does not support Flow syntax
 - **Same data** - uses the same `@core-js/compat` data and `@core-js/polyfill-provider` logic
