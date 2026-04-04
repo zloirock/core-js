@@ -130,37 +130,23 @@ export default function createPlugin(options) {
           const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
           const hasNullCheck = node.optional || (isCallParent && containsOptional(node));
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
-          const objectSrc = nodeSrc(node.object);
 
           // property access only: foo[Symbol.iterator] → _getIteratorMethod(foo)
           if (!isCallParent) {
-            transforms.add(node.start, node.end, `${ binding }(${ objectSrc })`);
+            transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.object) })`);
           } else {
-            // memo needed when object is non-Identifier and used more than once
-            const needsMemo = node.object.type !== 'Identifier' && (hasNullCheck || parent.arguments.length > 0);
-            const ref = needsMemo ? genUid() : null;
-            const obj = ref || objectSrc;
+            const { obj, assign, check } = buildMemo(node, hasNullCheck || parent.arguments.length > 0);
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
             const dot = parent.optional ? '?.' : '.';
 
-            // build call: _binding(obj) for zero-arg, _binding(obj).call(obj, args) for with-args
+            // zero-arg non-optional → simple call; otherwise → .call()
             const call = parent.arguments.length === 0 && !parent.optional
               ? `${ binding }(${ obj })`
               : `${ binding }(${ obj })${ dot }call(${ obj }${ argsSrc ? `, ${ argsSrc }` : '' })`;
 
-            let replacement;
-            if (hasNullCheck) {
-              // null-check on the object: _ref = src, _ref == null ? void 0 : call(_ref)
-              const prefix = ref ? `${ ref } = ${ objectSrc }, ` : '';
-              replacement = `${ prefix }${ obj } == null ? void 0 : ${ call }`;
-            } else if (ref) {
-              // inline assignment: _binding(_ref = src).call(_ref, args)
-              replacement = call.replace(`${ binding }(${ ref })`, `${ binding }(${ ref } = ${ objectSrc })`);
-            } else {
-              replacement = call;
-            }
-
-            transforms.add(parent.start, parent.end, replacement);
+            transforms.add(parent.start, parent.end, hasNullCheck
+              ? `${ check } == null ? void 0 : ${ call }`
+              : call.replace(`${ binding }(${ obj })`, `${ binding }(${ assign })`));
             skippedNodes.add(parent);
           }
           if (node.property) skippedNodes.add(node.property);
@@ -177,38 +163,33 @@ export default function createPlugin(options) {
           return false;
         }
 
-        // memoize non-Identifier object: inline assignment as function argument (matches Babel style)
-        // _binding(_ref = obj).call(_ref, args) instead of (_ref = obj, _binding(_ref).call(_ref, args))
-        function memoRef(node) {
-          if (node.object.type === 'Identifier') return null;
-          return genUid();
-        }
-
-        function objectArg(node, ref) {
-          return ref ? `${ ref } = ${ nodeSrc(node.object) }` : nodeSrc(node.object);
+        // build memoization context for a MemberExpression's object
+        // ref is created when object is non-Identifier and used more than once
+        function buildMemo(node, needsMemo) {
+          const src = nodeSrc(node.object);
+          const ref = needsMemo && node.object.type !== 'Identifier' ? genUid() : null;
+          const obj = ref || src;
+          const assign = ref ? `${ ref } = ${ src }` : src; // inline: _binding(_ref = src)
+          const check = ref ? `(${ assign })` : obj;        // null-check: (_ref = src) == null
+          return { src, obj, assign, check };
         }
 
         function replaceInstance(binding, node, parent) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
           const hasOptional = node.optional || containsOptional(node);
-          // memoize only when object is used more than once (call needs .call(obj), optional needs null-check + result)
-          const ref = (isCall || hasOptional) ? memoRef(node) : null;
-          const obj = ref || nodeSrc(node.object);
+          const { obj, assign, check } = buildMemo(node, isCall || hasOptional);
+
           if (!isCall) {
-            if (hasOptional) {
-              transforms.add(node.start, node.end, `${ binding }(${ objectArg(node, ref) }) == null ? void 0 : ${ binding }(${ obj })`);
-            } else {
-              transforms.add(node.start, node.end, `${ binding }(${ objectArg(node, ref) })`);
-            }
+            transforms.add(node.start, node.end, hasOptional
+              ? `${ check } == null ? void 0 : ${ binding }(${ obj })`
+              : `${ binding }(${ obj })`);
           } else {
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
             const argsPart = argsSrc ? `, ${ argsSrc }` : '';
-            if (hasOptional) {
-              const optCall = parent.optional ? '?.' : '.';
-              transforms.add(parent.start, parent.end, `${ binding }(${ objectArg(node, ref) }) == null ? void 0 : ${ binding }(${ obj })${ optCall }call(${ obj }${ argsPart })`);
-            } else {
-              transforms.add(parent.start, parent.end, `${ binding }(${ objectArg(node, ref) }).call(${ obj }${ argsPart })`);
-            }
+            const dot = parent.optional ? '?.' : '.';
+            transforms.add(parent.start, parent.end, hasOptional
+              ? `${ check } == null ? void 0 : ${ binding }(${ obj })${ dot }call(${ obj }${ argsPart })`
+              : `${ binding }(${ assign }).call(${ obj }${ argsPart })`);
             skippedNodes.add(parent);
           }
           const proxyGlobal = findProxyGlobal(node);
