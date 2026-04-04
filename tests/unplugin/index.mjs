@@ -1,61 +1,93 @@
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 
-const { readdir, readFile, readJson } = fs;
+const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
 const { join } = path;
 const { cyan, green, red, yellow } = chalk;
 
+const { OVERWRITE } = process.env;
 const UTF8 = { encoding: 'utf8' };
 const ROOT = path.resolve('../..').replaceAll('\\', '/');
 
 // eslint-disable-next-line promise/prefer-await-to-then -- ok
 const exists = file => fs.access(file).then(() => true, () => false);
 
-function normalizeOutput(code) {
-  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>').trim();
-}
-
-const fixturesDir = path.resolve('../../tests/babel-plugin/fixtures');
+const fixturesDir = path.resolve('../transpiler-fixtures');
 
 let passed = 0;
 let failed = 0;
 let skipped = 0;
 
+function normalize(code) {
+  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>').trim();
+}
+
+// strip "use strict" and var declarations for cross-plugin comparison:
+// Babel adds "use strict" and hoists vars to function scope; unplugin prepends vars at file top
+function stripBoilerplate(code) {
+  return code.split('\n')
+    .filter(l => !/^\s*["']use strict["']/.test(l) && !/^\s*var /.test(l))
+    .join('\n').trim();
+}
+
+function extractImports(code) {
+  return code.split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+}
+
 function label(directory) {
   return `fixtures/${ path.relative(fixturesDir, directory) }`;
 }
 
-function pass(directory) {
-  passed++;
-  echo`${ cyan(label(directory)) } ${ green('passed') }`;
+function fail(directory, ...lines) {
+  failed++;
+  echo(red(`${ cyan(label(directory)) } failed${ lines.length ? ':' : '' }`));
+  for (const line of lines) echo`  ${ line }`;
 }
 
-// Map babel plugin options to unplugin options
+function reportDiff(actual, expected) {
+  const al = actual.split('\n');
+  const el = expected.split('\n');
+  for (let i = 0; i < Math.max(al.length, el.length); i++) {
+    if (al[i] !== el[i]) {
+      return `${ yellow(`line ${ i + 1 }:`) }\n    expected: ${ el[i] ?? '(missing)' }\n    actual:   ${ al[i] ?? '(missing)' }`;
+    }
+  }
+}
+
 function mapOptions(babelOptions) {
-  const plugins = babelOptions.plugins || [];
-  for (const plugin of plugins) {
+  for (const plugin of babelOptions.plugins || []) {
     if (Array.isArray(plugin) && plugin[0] === '@core-js') {
       const opts = { ...plugin[1] };
-      // Map babel top-level targets to plugin option
       if (!opts.targets && babelOptions.targets) opts.targets = babelOptions.targets;
-      // Map babel caller to bundler name
-      const callerName = babelOptions.caller?.name;
-      if (callerName === 'babel-loader') opts.bundler = 'webpack';
+      if (babelOptions.caller?.name === 'babel-loader') opts.bundler = 'webpack';
       return opts;
     }
   }
   return null;
 }
 
+async function loadOptions(directory) {
+  for (const file of ['options.json', 'options.mjs']) {
+    const full = join(directory, file);
+    if (!await exists(full)) continue;
+    return file.endsWith('.json') ? readJson(full, UTF8) : (await import(full)).default;
+  }
+  return null;
+}
+
+const SKIP_DIRS = new Set([
+  'source-script',
+  'cjs-transform-export',
+]);
+
 async function runFixture(directory) {
-  const source = await readFile(join(directory, 'input.mjs'), UTF8);
-  const jsonFile = join(directory, 'options.json');
-  const mjsFile = join(directory, 'options.mjs');
-  let babelOptions;
-  if (await exists(jsonFile)) {
-    babelOptions = await readJson(jsonFile, UTF8);
-  } else if (await exists(mjsFile)) {
-    babelOptions = (await import(mjsFile)).default;
-  } else {
+  const dirName = path.basename(directory);
+  if (SKIP_DIRS.has(dirName) || dirName.includes('-flow-') || dirName.startsWith('flow-')) {
+    skipped++;
+    return;
+  }
+
+  const babelOptions = await loadOptions(directory);
+  if (!babelOptions) {
     skipped++;
     return;
   }
@@ -64,130 +96,101 @@ async function runFixture(directory) {
     skipped++;
     return;
   }
-  const fixtureFilename = babelOptions.filename;
 
-  // Skip fixtures that test babel-specific or not-yet-implemented behavior
-  const dirName = path.basename(directory);
-  if (
-    // babel caller API: source-script (CJS require output)
-    dirName === 'source-script'
-    // Flow syntax: oxc-parser doesn't support Flow
-    || dirName.includes('-flow-') || dirName.startsWith('flow-')
-    // babel-specific: requires @babel/plugin-transform-modules-commonjs
-    || dirName === 'cjs-transform-export'
-  ) {
-    skipped++;
-    return;
-  }
-
-  // Validation error fixtures: expect createPlugin or transform to throw
+  // error fixtures
   const errorFile = join(directory, 'error.txt');
   if (await exists(errorFile)) {
-    const expectedError = (await readFile(errorFile, UTF8)).trim();
+    const expected = (await readFile(errorFile, UTF8)).trim()
+      .replace(/^\[BABEL\] [^:]+: /, '')
+      .replace(/\n? ?\(While processing:.*\)$/s, '')
+      .trim();
     try {
-      const plugin = createPlugin(pluginOptions);
-      plugin.transform('x;', 'test.js');
-      echo(red(`${ cyan(label(directory)) } failed: expected error but none thrown`));
-      failed++;
+      createPlugin(pluginOptions).transform('x;', 'test.js');
+      fail(directory, 'expected error but none thrown');
     } catch (error) {
-      // Strip Babel-specific wrapping from expected message for comparison
-      // '[BABEL] unknown file: ...\n (While processing: "...")' → core error message
-      const actualMsg = error.message;
-      const strippedExpected = expectedError
-        .replace(/^\[BABEL\] [^:]+: /, '')
-        .replace(/\n? ?\(While processing:.*\)$/s, '')
-        .trim();
-      if (actualMsg.trim() === strippedExpected) {
-        pass(directory);
+      if (error.message.trim() === expected) {
+        passed++;
+        echo`${ cyan(label(directory)) } ${ green('passed') }`;
       } else {
-        echo(red(`${ cyan(label(directory)) } failed: wrong error`));
-        echo(`  expected: ${ strippedExpected }`);
-        echo(`  actual:   ${ actualMsg }`);
-        failed++;
+        fail(directory, `expected: ${ expected }`, `actual:   ${ error.message.trim() }`);
       }
     }
     return;
   }
 
   const outputFile = join(directory, 'output.mjs');
-  const debugFile = join(directory, 'debug.txt');
   if (!await exists(outputFile)) {
     skipped++;
     return;
   }
 
   try {
+    const source = await readFile(join(directory, 'input.mjs'), UTF8);
     const plugin = createPlugin(pluginOptions);
-    // Capture console.log for debug output comparison
     const logs = [];
     const origLog = console.log;
     console.log = (...a) => logs.push(a.map(String).join(' '));
-
-    // Try .tsx first (supports JSX + TS), fallback to .ts if parse fails
-    // (angle bracket type assertions like <T>x conflict with JSX in .tsx)
-    const testId = fixtureFilename || 'input.tsx';
+    const testId = babelOptions.filename || 'input.tsx';
     let result = plugin.transform(source, testId);
     if (result === null && source.includes('<') && !source.includes('jsx') && !source.includes('/>')) {
-      result = plugin.transform(source, fixtureFilename || 'input.ts');
+      result = plugin.transform(source, babelOptions.filename || 'input.ts');
     }
     console.log = origLog;
-    const actual = normalizeOutput(result?.code ?? source);
-    const expected = normalizeOutput(await readFile(outputFile, UTF8));
 
-    // For entry-global/usage-global: unplugin preserves original source (magic-string), Babel regenerates.
-    // Compare only injected imports, not code body.
-    // For usage-pure: compare import lines AND verify key replacement patterns.
-    const extractImports = code => code.split('\n')
-      .filter(line => line.startsWith('import '))
-      .sort()
-      .join('\n');
-    const actualImports = extractImports(actual);
-    const expectedImports = extractImports(expected);
+    const actual = normalize(result?.code ?? source);
+    const babelOutput = normalize(await readFile(outputFile, UTF8));
 
-    // Check debug output if debug.txt exists
-    async function checkDebug() {
-      if (!await exists(debugFile)) return true;
-      const expectedDebug = normalizeOutput(await readFile(debugFile, UTF8));
-      const actualDebug = logs.length ? normalizeOutput(logs.join('\n')) : '';
-      if (actualDebug === expectedDebug) return true;
-      echo(red(`${ cyan(label(directory)) } failed: debug output mismatch`));
-      echo(`  expected: ${ expectedDebug.split('\n').at(-1) }`);
-      echo(`  actual:   ${ actualDebug.split('\n').at(-1) || '(empty)' }`);
-      failed++;
-      return false;
+    // debug output
+    const debugFile = join(directory, 'debug.txt');
+    if (await exists(debugFile)) {
+      const expectedDebug = normalize(await readFile(debugFile, UTF8));
+      const actualDebug = logs.length ? normalize(logs.join('\n')) : '';
+      if (actualDebug !== expectedDebug) {
+        return fail(directory, `debug mismatch: ${ actualDebug.split('\n').at(-1) || '(empty)' }`);
+      }
     }
 
-    function reportImportsDiff() {
-      const actualSet = new Set(actualImports.split('\n'));
-      const expectedSet = new Set(expectedImports.split('\n'));
-      const missing = [...expectedSet].filter(l => !actualSet.has(l));
-      const extra = [...actualSet].filter(l => !expectedSet.has(l));
-      if (missing.length) echo`  ${ yellow('missing:') } ${ missing.slice(0, 3).join(', ') }${ missing.length > 3 ? ` +${ missing.length - 3 }` : '' }`;
-      if (extra.length) echo`  ${ yellow('extra:') } ${ extra.slice(0, 3).join(', ') }${ extra.length > 3 ? ` +${ extra.length - 3 }` : '' }`;
+    // entry-global / usage-global: body is preserved, compare imports only
+    if (pluginOptions.method !== 'usage-pure') {
+      const actualImports = extractImports(actual);
+      const expectedImports = extractImports(babelOutput);
+      if (actualImports === expectedImports) {
+        passed++;
+        echo`${ cyan(label(directory)) } ${ green('passed') }`;
+      } else {
+        fail(directory, reportDiff(actualImports, expectedImports));
+      }
+      return;
     }
 
-    if (actualImports === expectedImports) {
-      if (!await checkDebug()) return;
-      pass(directory);
+    // usage-pure: full output comparison
+    const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
+    const hasUnpluginOutput = await exists(unpluginOutputFile);
+
+    if (OVERWRITE) {
+      if (stripBoilerplate(actual) === stripBoilerplate(babelOutput)) await rm(unpluginOutputFile, { force: true });
+      else await writeFile(unpluginOutputFile, actual, UTF8);
+      return echo`${ cyan(label(directory)) } ${ yellow('written') }`;
+    }
+
+    const expected = hasUnpluginOutput ? normalize(await readFile(unpluginOutputFile, UTF8)) : stripBoilerplate(babelOutput);
+    const comparable = hasUnpluginOutput ? actual : stripBoilerplate(actual);
+
+    if (comparable === expected) {
+      passed++;
+      echo`${ cyan(label(directory)) } ${ green('passed') }`;
     } else {
-      failed++;
-      echo(red(`${ cyan(label(directory)) } failed:`));
-      reportImportsDiff();
+      fail(directory, reportDiff(comparable, expected));
     }
   } catch (error) {
-    failed++;
-    echo(red(`${ cyan(label(directory)) } failed: ${ error.message }`));
+    fail(directory, error.message);
   }
 }
 
 for (const mode of ['entry-global', 'usage-global', 'usage-pure']) {
-  const modeDir = join(fixturesDir, mode);
-  const fixtures = (await readdir(modeDir)).sort();
-  for (const fixture of fixtures) {
-    const dir = join(modeDir, fixture);
-    if ((await fs.stat(dir)).isDirectory()) {
-      await runFixture(dir);
-    }
+  for (const name of (await readdir(join(fixturesDir, mode))).sort()) {
+    const dir = join(fixturesDir, mode, name);
+    if ((await stat(dir)).isDirectory()) await runFixture(dir);
   }
 }
 
