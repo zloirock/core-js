@@ -151,7 +151,7 @@ export default function createPlugin(options) {
         function findChainRoot(node) {
           if (node.optional) {
             if (isPolyfillableOptional(node, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-            return { root: nodeSrc(node.object), canDeopt: true };
+            return { root: unwrapParens(node.object), canDeopt: true };
           }
           let current = node.object || node.callee;
           let canDeopt = true;
@@ -159,7 +159,7 @@ export default function createPlugin(options) {
             if (current.type === 'MemberExpression' && hasPolyfillableProperty(current)) canDeopt = false;
             if (current.optional) {
               if (isPolyfillableOptional(current, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-              return { root: nodeSrc(current.object), canDeopt };
+              return { root: unwrapParens(current.object), canDeopt };
             }
             current = current.object || current.callee;
           }
