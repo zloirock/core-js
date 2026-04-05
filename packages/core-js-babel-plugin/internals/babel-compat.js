@@ -21,12 +21,14 @@ export default function (t) {
 
   function buildMethodCall(id, object, scope, args, optionalCall) {
     const [assign, ref] = memoize(object, scope);
+    // clone args: originals may belong to a parent being replaced (stale Babel path containers)
+    const callArgs = [t.cloneNode(ref), ...args.map(a => t.cloneNode(a))];
     const callMember = optionalCall
       ? t.optionalMemberExpression(t.callExpression(id, [assign]), t.identifier('call'), false, true)
       : t.memberExpression(t.callExpression(id, [assign]), t.identifier('call'));
     return optionalCall
-      ? t.optionalCallExpression(callMember, [t.cloneNode(ref), ...args], false)
-      : t.callExpression(callMember, [t.cloneNode(ref), ...args]);
+      ? t.optionalCallExpression(callMember, callArgs, false)
+      : t.callExpression(callMember, callArgs);
   }
 
   function deoptionalizeNode(path) {

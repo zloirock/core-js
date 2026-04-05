@@ -103,6 +103,8 @@ export default function plugin(api, options) {
       function usagePureCallback(meta, path) {
         if (isDisabled(path.node)) return;
         if (skippedNodes.has(path.node)) return;
+        // skip nodes with stale parent path (consumed by outer optional chain replacement)
+        if (path.parentPath && !path.parentPath.container) return;
         if (isInTypeAnnotation(path)) return;
 
         if (meta.kind === 'in') {
