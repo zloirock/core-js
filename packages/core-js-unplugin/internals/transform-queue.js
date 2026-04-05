@@ -53,6 +53,7 @@ export default class TransformQueue {
   #code;
   #ms;
   #transforms = [];
+  #sorted = []; // sorted by start ascending, for O(log n) containsRange
 
   constructor(code, ms) {
     this.#code = code;
@@ -61,11 +62,12 @@ export default class TransformQueue {
 
   add(start, end, content) {
     this.#transforms.push({ start, end, content });
+    insertSorted(this.#sorted, { start, end });
   }
 
-  // check if [start, end] is strictly contained within an already-queued transform
+  // O(log n) check if [start, end] is strictly contained within an already-queued transform
   containsRange(start, end) {
-    return this.#transforms.some(t => t.start <= start && t.end >= end && (t.start !== start || t.end !== end));
+    return isStrictlyContained(this.#sorted, start, end);
   }
 
   // compose nested transforms and apply to magic-string
