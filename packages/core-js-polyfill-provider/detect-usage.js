@@ -279,7 +279,8 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     for (const key of ['typeAnnotation', 'types', 'elementType', 'objectType', 'indexType',
       'checkType', 'extendsType', 'trueType', 'falseType', 'constraint', 'default',
       'typeArguments', 'typeParameters', 'returnType', 'params',
-      'value', 'argument', 'impltype', 'supertype']) {
+      'value', 'argument', 'impltype', 'supertype',
+      'nameType', 'typeParameter', 'members', 'body']) {
       const child = node[key];
       if (Array.isArray(child)) for (const c of child) stack.push(c);
       else if (child && typeof child === 'object') stack.push(child);
