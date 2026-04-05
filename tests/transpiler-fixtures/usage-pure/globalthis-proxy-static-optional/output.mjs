@@ -1,2 +1,5 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-delete _globalThis?.Promise;
+_globalThis.Object.keys({
+  a: 1,
+  b: 2
+});
