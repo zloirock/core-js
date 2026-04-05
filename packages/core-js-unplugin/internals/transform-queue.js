@@ -1,16 +1,20 @@
-// binary search: is [start, end] contained within any range in the sorted array?
-function isContained(ranges, start, end) {
+// binary search: is [start, end] strictly contained within any range in the sorted array?
+// (equal ranges are not considered contained — both transforms must be applied)
+function isStrictlyContained(ranges, start, end) {
   let lo = 0;
   let hi = ranges.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
     const r = ranges[mid];
-    if (r.start <= start && r.end >= end) return true;
+    if (r.start <= start && r.end >= end && (r.start < start || r.end > end)) return true;
     if (r.start > start) hi = mid - 1;
     else lo = mid + 1;
   }
-  // check neighbor - binary search by start may miss a range that starts before
-  return lo > 0 && ranges[lo - 1].start <= start && ranges[lo - 1].end >= end;
+  if (lo > 0) {
+    const r = ranges[lo - 1];
+    return r.start <= start && r.end >= end && (r.start < start || r.end > end);
+  }
+  return false;
 }
 
 // insert into sorted array maintaining start-ascending order
@@ -82,7 +86,7 @@ export default class TransformQueue {
     // skip transforms contained within already-applied wider ranges
     const applied = []; // sorted by start ascending
     for (const t of composed) {
-      if (isContained(applied, t.start, t.end)) continue;
+      if (isStrictlyContained(applied, t.start, t.end)) continue;
       this.#ms.overwrite(t.start, t.end, t.content);
       insertSorted(applied, t);
     }
