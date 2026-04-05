@@ -1,7 +1,0 @@
-var _ref, _ref1;
-import _at from "@core-js/pure/actual/instance/at";
-import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-_at(foo).call(foo, -1);
-_atMaybeArray(_ref = []).call(_ref, -1);
-_atMaybeString(_ref1 = 'str').call(_ref1, -1);
