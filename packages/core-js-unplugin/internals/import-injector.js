@@ -56,12 +56,13 @@ export default class ImportInjector {
     return name;
   }
 
-  // generate a unique ref name (declared via `var` in header)
-  // numbering matches Babel's generateUid: _ref, _ref2, _ref3... (no _ref1)
-  generateRef() {
+  // generate a unique _ref name; numbering matches Babel: _ref, _ref2, _ref3... (no _ref1)
+  // hoisted=true (default): declared via `var` in the file header
+  // hoisted=false: name only, for destructuring `const` memoization
+  generateRef(hoisted = true) {
     const n = this.#refs.length;
     const name = this.#uniqueName('_ref', n === 0 ? null : n + 1, 2);
-    this.#refs.push(name);
+    if (hoisted) this.#refs.push(name);
     return name;
   }
 
