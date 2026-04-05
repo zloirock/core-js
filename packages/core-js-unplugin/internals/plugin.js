@@ -53,9 +53,8 @@ export default function createPlugin(options) {
 
       // check disable directives
       const offsetToLine = buildOffsetToLine(code);
-      const directives = parseDisableDirectives(comments, offsetToLine);
-      if (directives === true) return null; // entire file disabled
-      const disabledLines = directives;
+      const disabledLines = parseDisableDirectives(comments, offsetToLine);
+      if (disabledLines === true) return null; // entire file disabled
 
       function isDisabled(node) {
         if (!disabledLines) return false;
@@ -196,6 +195,20 @@ export default function createPlugin(options) {
           return `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
         }
 
+        // position past optional `?.` token after pos, skipping whitespace; returns pos unchanged if not found
+        // keepDot=true: consume only `?` (non-computed member: obj?.prop -> obj.prop)
+        // keepDot=false: consume `?.` (computed member or call: obj?.[x] -> obj[x], fn?.() -> fn())
+        function afterOptional(pos, keepDot) {
+          let p = pos;
+          while (p < code.length && (code[p] === ' ' || code[p] === '\t')) p++;
+          return code[p] === '?' && code[p + 1] === '.' ? (keepDot ? p + 1 : p + 2) : pos;
+        }
+
+        function skipProxyGlobal(node) {
+          const proxy = findProxyGlobal(node);
+          if (proxy) skippedNodes.add(proxy);
+        }
+
         // wrap ternary guard in () when followed by ?. continuation (like Babel)
         // ensures (guard)?.next() instead of guard ? void 0 : body?.next()
         function wrapIfContinuation(replacement, end) {
@@ -210,7 +223,7 @@ export default function createPlugin(options) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
             if (transforms.containsRange(start, end)) {
-              // outer transform already guards the root — skip guard but still deoptionalize
+              // outer transform already guards the root - skip guard but still deoptionalize
               root = null;
               canDeopt = true;
             }
@@ -240,8 +253,7 @@ export default function createPlugin(options) {
             skippedNodes.add(parent);
           }
           if (node.property) skippedNodes.add(node.property);
-          const proxyGlobal = findProxyGlobal(node);
-          if (proxyGlobal) skippedNodes.add(proxyGlobal);
+          skipProxyGlobal(node);
         }
 
         function replaceInstance(binding, node, parent) {
@@ -258,8 +270,7 @@ export default function createPlugin(options) {
           });
           transforms.add(start, end, wrapIfContinuation(replacement, end));
           if (isCall) skippedNodes.add(parent);
-          const proxyGlobal = findProxyGlobal(node);
-          if (proxyGlobal) skippedNodes.add(proxyGlobal);
+          skipProxyGlobal(node);
         }
 
         // deferred destructuring: collect polyfilled properties per ObjectPattern
@@ -428,8 +439,7 @@ export default function createPlugin(options) {
                 transforms.add(node.start, node.end, 'true');
                 // prevent child visitors from adding unused imports for the replaced expression
                 skippedNodes.add(node.right);
-                const proxyGlobal = findProxyGlobal(node.right);
-                if (proxyGlobal) skippedNodes.add(proxyGlobal);
+                skipProxyGlobal(node.right);
               }
             }
             return;
@@ -452,35 +462,35 @@ export default function createPlugin(options) {
 
           const { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
           if (fallback && node.type === 'MemberExpression') {
-            const proxyGlobal = findProxyGlobal(node);
-            if (proxyGlobal) skippedNodes.add(proxyGlobal);
+            skipProxyGlobal(node);
             const binding = injectPureImport(fallback.entry, fallback.hintName);
-            transforms.add(node.object.start, node.object.end, binding);
+            // deoptionalize: globalThis?.foo -> _globalThis.foo (polyfill import is always defined)
+            const end = node.optional ? afterOptional(node.object.end, !node.computed) : node.object.end;
+            transforms.add(node.object.start, end, binding);
             return;
           }
           if (!pureResult) return;
           const { entry: importEntry, kind, hintName } = pureResult;
           const binding = injectPureImport(importEntry, hintName);
 
-          // when polyfilling a MemberExpression, mark proxy global (globalThis, self, etc.)
-          // as skipped to prevent the Identifier visitor from adding an unused import
-          if (node.type === 'MemberExpression') {
-            const proxyGlobal = findProxyGlobal(node);
-            if (proxyGlobal) skippedNodes.add(proxyGlobal);
-          }
+          // mark proxy global (globalThis, self, etc.) as skipped to prevent
+          // the Identifier visitor from adding an unused import
+          if (node.type === 'MemberExpression') skipProxyGlobal(node);
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-            // remove optional call operator `?.` when replacing global/static callee
-            // globalThis.Map?.() -> _Map() - the `?.` between callee and `(` should be removed
-            let optionalEnd = node.end;
-            if (parent?.type === 'CallExpression' && parent.optional && parent.callee === node) {
-              let pos = node.end;
-              while (pos < code.length && code[pos] !== '?' && code[pos] !== '(') pos++;
-              if (code[pos] === '?' && code[pos + 1] === '.') optionalEnd = pos + 2;
+            // deoptionalize `?.` when replacing global/static callee:
+            // - optional call on non-optional member: Map?.() / globalThis.Map?.() -> _Map()
+            //   but NOT globalThis?.Map?.() -> _Map?.() (preserve user's optional call intent)
+            // - optional member parent: globalThis?.X -> _globalThis.X
+            let { end } = node;
+            if (parent?.type === 'CallExpression' && parent.optional && parent.callee === node && !node.optional) {
+              end = afterOptional(node.end, false);
+            } else if (parent?.type === 'MemberExpression' && parent.optional && parent.object === node) {
+              end = afterOptional(node.end, !parent.computed);
             }
-            transforms.add(node.start, optionalEnd, binding);
+            transforms.add(node.start, end, binding);
           }
         };
 
