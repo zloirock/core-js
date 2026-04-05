@@ -1,0 +1,2 @@
+let from;
+({ from = [] } = Array);
