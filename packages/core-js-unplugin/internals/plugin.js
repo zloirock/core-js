@@ -173,14 +173,15 @@ export default function createPlugin(options) {
           let guard = '';
           let guardRef = null;
 
+          if (canDeopt) bodyObj = bodyObj.replaceAll('?.', '.');
+
           if (optionalRoot) {
-            if (canDeopt) bodyObj = bodyObj.replaceAll('?.', '.');
             if (/^[$a-z_][\w$]*$/i.test(optionalRoot)) {
               guard = `${ optionalRoot } == null ? void 0 : `;
             } else {
               guardRef = genUid();
               guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
-              const rootInBody = canDeopt ? optionalRoot.replaceAll('?.', '.') : optionalRoot;
+              const rootInBody = optionalRoot.replaceAll('?.', '.');
               bodyObj = guardRef + bodyObj.slice(rootInBody.length);
             }
           }
@@ -208,7 +209,11 @@ export default function createPlugin(options) {
           if (root) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
-            if (transforms.containsRange(start, end)) root = null;
+            if (transforms.containsRange(start, end)) {
+              // outer transform already guards the root — skip guard but still deoptionalize
+              root = null;
+              canDeopt = true;
+            }
           }
           return { optionalRoot: root, canDeopt };
         }
