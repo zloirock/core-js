@@ -46,7 +46,7 @@ function collapseWhitespace(code) {
 // strip Babel-specific boilerplate + collapse whitespace for cross-plugin comparison
 function stripBoilerplate(code) {
   return collapseWhitespace(code.split('\n')
-    .filter(l => !/^\s*["']use strict["']/.test(l) && !/^\s*var /.test(l))
+    .filter(l => !/^\s*["']use strict["']/.test(l))
     .join('\n'));
 }
 
