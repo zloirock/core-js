@@ -43,33 +43,31 @@ export default class ImportInjector {
     return name;
   }
 
-  // reserve a ref name (for destructuring memoization)
-  addRef(name) {
+  // find a unique name: prefix + optional suffix number, skipping taken names
+  // minSuffix: smallest number to try on collision (Babel skips _ref1 -> minSuffix=2)
+  #uniqueName(prefix, startSuffix, minSuffix = 1) {
+    let counter = startSuffix;
+    let name = counter === null ? prefix : `${ prefix }${ counter }`;
+    while (this.#usedNames.has(name) || this.#rootScope?.hasBinding(name)) {
+      counter = Math.max((counter ?? 0) + 1, minSuffix);
+      name = `${ prefix }${ counter }`;
+    }
     this.#usedNames.add(name);
-    this.#refs.push(name);
+    return name;
   }
 
   // generate a unique ref name (declared via `var` in header)
-  // numbering: _ref, _ref2, _ref3... (matches Babel's generateUid scheme)
+  // numbering matches Babel's generateUid: _ref, _ref2, _ref3... (no _ref1)
   generateRef() {
-    let counter = this.#refs.length === 0 ? 0 : this.#refs.length + 1;
-    let name = counter === 0 ? '_ref' : `_ref${ counter }`;
-    while (this.#usedNames.has(name) || this.#rootScope?.hasBinding(name)) {
-      name = `_ref${ ++counter }`;
-    }
-    this.addRef(name);
+    const n = this.#refs.length;
+    const name = this.#uniqueName('_ref', n === 0 ? null : n + 1, 2);
+    this.#refs.push(name);
     return name;
   }
 
   // generate a unique name without declaring it (for unused destructuring bindings)
   generateUnusedName() {
-    let counter = this.#usedNames.size;
-    let name = `_unused${ counter || '' }`;
-    while (this.#usedNames.has(name) || this.#rootScope?.hasBinding(name)) {
-      name = `_unused${ ++counter }`;
-    }
-    this.#usedNames.add(name);
-    return name;
+    return this.#uniqueName('_unused', this.#usedNames.size || null);
   }
 
   #resolvePath(subpath) {
