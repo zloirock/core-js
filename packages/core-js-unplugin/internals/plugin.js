@@ -125,6 +125,13 @@ export default function createPlugin(options) {
 
         function genUid() { return injector.generateRef(); }
         function nodeSrc(n) { return code.slice(n.start, n.end); }
+        // strip ESTree ParenthesizedExpression wrapper when inner expression doesn't require parens
+        function unwrapParens(node) {
+          if (node.type === 'ParenthesizedExpression' && node.expression.type !== 'SequenceExpression') {
+            return nodeSrc(node.expression);
+          }
+          return nodeSrc(node);
+        }
 
         // check if a MemberExpression property is polyfillable (would produce its own inner transform)
         function hasPolyfillableProperty(memberNode) {
@@ -211,7 +218,7 @@ export default function createPlugin(options) {
           if (!isEntryNeeded(entry)) return;
           const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
-          const objectSrc = nodeSrc(node.object);
+          const objectSrc = unwrapParens(node.object);
           const isNonIdent = node.object.type !== 'Identifier';
           const { optionalRoot, canDeopt } = resolveOptionalRoot(node, parent, isCallParent);
 
@@ -234,7 +241,7 @@ export default function createPlugin(options) {
 
         function replaceInstance(binding, node, parent) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
-          const objectSrc = nodeSrc(node.object);
+          const objectSrc = unwrapParens(node.object);
           const isNonIdent = node.object.type !== 'Identifier';
           const { optionalRoot, canDeopt } = resolveOptionalRoot(node, parent, isCall);
           const argsSrc = isCall ? parent.arguments.map(a => nodeSrc(a)).join(', ') : null;
