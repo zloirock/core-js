@@ -126,7 +126,7 @@ export default function plugin(api, options) {
 
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
-            if (!t.isIdentifier(path.node.value)) return;
+            if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)) return;
           } else {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             if (!path.isReferenced()) return;
