@@ -13,7 +13,7 @@ Babel plugin for automatic injection of [`core-js`](https://core-js.io) polyfill
 The plugin supports three injection methods: `entry-global`, `usage-global`, and `usage-pure`.
 
 > [!TIP]
-> By default, the plugin auto-detects the installed `core-js` version (`version: 'node_modules'`). You can also specify it explicitly — the minor component is required, e.g. `version: '4.1'` (not `'4'`).
+> By default, the plugin auto-detects the installed `core-js` version (`version: 'node_modules'`). You can also specify it explicitly - the minor component is required, e.g. `version: '4.1'` (not `'4'`).
 
 ### `entry-global`
 
