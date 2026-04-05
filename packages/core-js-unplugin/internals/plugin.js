@@ -123,34 +123,52 @@ export default function createPlugin(options) {
         const transforms = new TransformQueue(code, ms);
 
         // per-callback mutable state + deferred collections
-        // scopeBodyStart: enclosing function body position (-1 = file scope)
-        // set by setScope() before each callback, read by genRef()
+        // setScope() runs before each callback; genRef() reads the current scope
         const state = {
-          scopeBodyStart: -1,
+          scope: -1, // enclosing block body position (-1 = file scope)
+          arrow: null, // innermost arrow expression body node needing block conversion
           scopedVars: new Map(), // bodyStart -> [var names]
+          arrowVars: new Map(), // arrow body node -> [var names]
           destructuring: new Map(), // ObjectPattern node -> destructuring info
           setScope(metaPath) {
-            this.scopeBodyStart = -1;
+            this.scope = -1;
+            this.arrow = null;
             for (let p = metaPath.parentPath; p; p = p.parentPath) {
               const { type, body } = p.node;
-              if ((type === 'FunctionDeclaration' || type === 'FunctionExpression'
-                || type === 'ArrowFunctionExpression') && body?.type === 'BlockStatement') {
-                this.scopeBodyStart = body.start;
+              if (type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') {
+                if (!this.arrow) this.arrow = body;
+              } else if (body?.type === 'BlockStatement' && (type === 'FunctionDeclaration'
+                || type === 'FunctionExpression' || type === 'ArrowFunctionExpression')) {
+                this.scope = body.start;
                 return;
               }
             }
           },
           genRef() {
-            const { scopeBodyStart } = this;
-            const isFileScope = scopeBodyStart === -1;
-            const name = injector.generateRef(isFileScope);
-            if (!isFileScope) {
-              if (!this.scopedVars.has(scopeBodyStart)) this.scopedVars.set(scopeBodyStart, []);
-              this.scopedVars.get(scopeBodyStart).push(name);
+            const { arrow, scope } = this;
+            // arrow expression body: var goes into a new block wrapping the body
+            if (arrow) {
+              const name = injector.generateRef(false);
+              if (!this.arrowVars.has(arrow)) this.arrowVars.set(arrow, []);
+              this.arrowVars.get(arrow).push(name);
+              return name;
+            }
+            // block body: var inserted at body start; file scope: hoisted via injector.flush
+            const name = injector.generateRef(scope === -1);
+            if (scope !== -1) {
+              if (!this.scopedVars.has(scope)) this.scopedVars.set(scope, []);
+              this.scopedVars.get(scope).push(name);
             }
             return name;
           },
-          flushVars() {
+          applyTransforms(queue) {
+            // wrap arrow expression bodies: () => expr -> () => { var _ref; return expr; }
+            for (const [body, names] of this.arrowVars) {
+              queue.add(body.start, body.end,
+                `{ var ${ names.join(', ') }; return ${ code.slice(body.start, body.end) }; }`);
+            }
+            queue.apply();
+            // insert var declarations at each function body start
             for (const [bodyStart, names] of this.scopedVars) {
               ms.appendRight(bodyStart + 1, `\nvar ${ names.join(', ') };`);
             }
@@ -538,8 +556,7 @@ export default function createPlugin(options) {
           ...createUsageVisitors({ onUsage: usagePureCallback, suppressProxyGlobals: true, walkAnnotations: false }),
         });
         applyDestructuringTransforms();
-        transforms.apply();
-        state.flushVars();
+        state.applyTransforms(transforms);
         return finalize();
       }
 
