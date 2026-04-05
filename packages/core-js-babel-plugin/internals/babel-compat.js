@@ -132,7 +132,20 @@ export default function (t) {
   }
 
   function handleDestructuredProperty(prop, value) {
-    const localBinding = t.cloneNode(prop.node.value);
+    const propValue = prop.node.value;
+    // default value: { from = [] } = Array -> from = _from === void 0 ? [] : _from
+    // instance calls need temp ref to avoid double evaluation
+    let localBinding;
+    if (t.isAssignmentPattern(propValue)) {
+      localBinding = t.cloneNode(propValue.left);
+      const needsTemp = t.isCallExpression(value);
+      const ref = needsTemp ? prop.scope.generateDeclaredUidIdentifier('ref') : value;
+      const test = t.binaryExpression('===', needsTemp ? t.assignmentExpression('=', ref, value) : ref,
+        t.unaryExpression('void', t.numericLiteral(0)));
+      value = t.conditionalExpression(test, t.cloneNode(propValue.right), t.cloneNode(ref));
+    } else {
+      localBinding = t.cloneNode(propValue);
+    }
     const objectPattern = prop.parentPath;
     const parent = objectPattern.parentPath;
 
