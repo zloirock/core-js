@@ -1,1 +1,0 @@
-for (const { at, flat } of arr) {}
