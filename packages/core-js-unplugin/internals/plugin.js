@@ -342,11 +342,19 @@ export default function createPlugin(options) {
           for (const [, infos] of byStatement) {
             const [{ declPath, isAssignment }] = infos;
             const isExport = !isAssignment && declPath.parentPath?.node?.type === 'ExportNamedDeclaration';
+            const isForInit = !isAssignment && declPath.parentPath?.node?.type === 'ForStatement';
             const replaceNode = isExport ? declPath.parentPath.node : declPath.node;
-            const exportPrefix = isExport ? 'export ' : '';
-            const declKeyword = isAssignment ? '' : `${ declPath.node.kind } `;
+            const prefix = isExport ? 'export ' : '';
+            const keyword = isAssignment ? '' : `${ declPath.node.kind } `;
+            // for-init: single comma-separated declaration; otherwise: separate statements
+            const stmtPrefix = isForInit ? '' : `${ prefix }${ keyword }`;
+            const memoPrefix = isForInit ? '' : 'const ';
             const polyfilledDeclarators = new Set(infos.map(i => i.declaratorPath.node));
             const parts = [];
+
+            function propKeySource(p) {
+              return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
+            }
 
             for (const info of infos) {
               const { entries, allProps, initSrc, initIsIdent } = info;
@@ -358,36 +366,35 @@ export default function createPlugin(options) {
               let objRef = initSrc;
               if (needsMemo && initSrc) {
                 objRef = injector.generateRef(false);
-                parts.push(`const ${ objRef } = ${ initSrc }`);
+                parts.push(`${ memoPrefix }${ objRef } = ${ initSrc }`);
               }
 
               for (const e of entries) {
                 parts.push(e.kind === 'instance' && initSrc
-                  ? `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }(${ objRef })`
-                  : `${ exportPrefix }${ declKeyword }${ e.localName } = ${ e.binding }`);
+                  ? `${ stmtPrefix }${ e.localName } = ${ e.binding }(${ objRef })`
+                  : `${ stmtPrefix }${ e.localName } = ${ e.binding }`);
               }
-              // rebuild remaining pattern - when rest is present, keep polyfilled props with renamed values
-              // const { from, ...rest } = Array -> const { from: _unused, ...rest } = Array
-              function propKeySource(p) {
-                return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
-              }
+
               const rebuiltProps = hasRest
                 ? allProps.map(p => polyfillKeys.has(p) ? `${ propKeySource(p) }: ${ injector.generateUnusedName() }` : nodeSrc(p))
                 : remaining.map(p => nodeSrc(p));
               if (rebuiltProps.length > 0) {
                 parts.push(isAssignment
                   ? `({ ${ rebuiltProps.join(', ') } } = ${ objRef })`
-                  : `${ exportPrefix }${ declKeyword }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`);
+                  : `${ stmtPrefix }{ ${ rebuiltProps.join(', ') } } = ${ objRef }`);
               }
             }
 
-            // preserve non-destructured declarators: `const { from } = Array, y = 5`
             if (!isAssignment && declPath.node.declarations?.length > polyfilledDeclarators.size) {
               const others = declPath.node.declarations.filter(d => !polyfilledDeclarators.has(d)).map(d => nodeSrc(d));
-              if (others.length) parts.push(`${ exportPrefix }${ declKeyword }${ others.join(', ') }`);
+              if (others.length) parts.push(`${ stmtPrefix }${ others.join(', ') }`);
             }
 
-            transforms.add(replaceNode.start, replaceNode.end, `${ parts.join(';\n') };`);
+            if (isForInit) {
+              transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
+            } else {
+              transforms.add(replaceNode.start, replaceNode.end, `${ parts.join(';\n') };`);
+            }
           }
         }
 
