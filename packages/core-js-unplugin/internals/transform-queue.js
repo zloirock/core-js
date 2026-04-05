@@ -1,5 +1,5 @@
 // binary search: is [start, end] strictly contained within any range in the sorted array?
-// (equal ranges are not considered contained — both transforms must be applied)
+// (equal ranges are not considered contained - both transforms must be applied)
 function isStrictlyContained(ranges, start, end) {
   let lo = 0;
   let hi = ranges.length - 1;
@@ -27,6 +27,24 @@ function insertSorted(ranges, t) {
     else hi = mid;
   }
   ranges.splice(lo, 0, t);
+}
+
+// count how many times `needle` appears in `haystack` before `targetOffset`
+function occurrencesBeforeOffset(haystack, needle, targetOffset) {
+  let count = 0;
+  for (let pos = haystack.indexOf(needle); pos !== -1 && pos < targetOffset;
+    pos = haystack.indexOf(needle, pos + 1)) count++;
+  return count;
+}
+
+// replace the `n`-th (0-based) occurrence of `needle` in `str`; return `str` unchanged if not found
+function replaceNthOccurrence(str, needle, replacement, n) {
+  let idx = -1;
+  for (let i = 0; i <= n; i++) {
+    idx = str.indexOf(needle, idx + 1);
+    if (idx === -1) return str;
+  }
+  return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
 // deferred transform queue for usage-pure mode
@@ -69,13 +87,22 @@ export default class TransformQueue {
     const composed = [];
     for (const { start, end, content: raw } of this.#transforms) {
       let content = raw;
-      // iterate in reverse (largest inner transforms first) so that a containing
-      // middle transform is substituted before its own children
+      // collect inner transforms sorted: largest first (middle transforms already contain
+      // their own inners' substitutions), same size right-to-left (preserves occurrence indices)
+      const inners = [];
       for (let i = composed.length - 1; i >= 0; i--) {
         const inner = composed[i];
-        if (inner.start >= start && inner.end <= end) {
-          content = content.replaceAll(this.#code.slice(inner.start, inner.end), inner.content);
-        }
+        if (inner.start >= start && inner.end <= end) inners.push(inner);
+      }
+      inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
+
+      // substitute each inner's composed content at the correct occurrence
+      // (position-aware, not replaceAll — preserves string literals with matching text)
+      const originalSlice = this.#code.slice(start, end);
+      for (const inner of inners) {
+        const needle = this.#code.slice(inner.start, inner.end);
+        const nth = occurrencesBeforeOffset(originalSlice, needle, inner.start - start);
+        content = replaceNthOccurrence(content, needle, inner.content, nth);
       }
       composed.push({ start, end, content });
     }
