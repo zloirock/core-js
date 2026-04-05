@@ -357,7 +357,7 @@ export default function createPlugin(options) {
               const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0 || hasRest);
               let objRef = initSrc;
               if (needsMemo && initSrc) {
-                objRef = genUid();
+                objRef = injector.generateRef(false);
                 parts.push(`const ${ objRef } = ${ initSrc }`);
               }
 
