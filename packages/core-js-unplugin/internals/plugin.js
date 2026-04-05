@@ -122,8 +122,45 @@ export default function createPlugin(options) {
         const skippedNodes = new WeakSet();
         const transforms = new TransformQueue(code, ms);
 
-        function genUid() { return injector.generateRef(); }
-        function nodeSrc(n) { return code.slice(n.start, n.end); }
+        // per-callback mutable state + deferred collections
+        // scopeBodyStart: enclosing function body position (-1 = file scope)
+        // set by setScope() before each callback, read by genRef()
+        const state = {
+          scopeBodyStart: -1,
+          scopedVars: new Map(), // bodyStart -> [var names]
+          destructuring: new Map(), // ObjectPattern node -> destructuring info
+          setScope(metaPath) {
+            this.scopeBodyStart = -1;
+            for (let p = metaPath.parentPath; p; p = p.parentPath) {
+              const { type, body } = p.node;
+              if ((type === 'FunctionDeclaration' || type === 'FunctionExpression'
+                || type === 'ArrowFunctionExpression') && body?.type === 'BlockStatement') {
+                this.scopeBodyStart = body.start;
+                return;
+              }
+            }
+          },
+          genRef() {
+            const { scopeBodyStart } = this;
+            const isFileScope = scopeBodyStart === -1;
+            const name = injector.generateRef(isFileScope);
+            if (!isFileScope) {
+              if (!this.scopedVars.has(scopeBodyStart)) this.scopedVars.set(scopeBodyStart, []);
+              this.scopedVars.get(scopeBodyStart).push(name);
+            }
+            return name;
+          },
+          flushVars() {
+            for (const [bodyStart, names] of this.scopedVars) {
+              ms.appendRight(bodyStart + 1, `\nvar ${ names.join(', ') };`);
+            }
+          },
+        };
+
+        function nodeSrc(n) {
+          return code.slice(n.start, n.end);
+        }
+
         // strip ESTree ParenthesizedExpression wrapper when inner expression doesn't require parens
         function unwrapParens(node) {
           if (node.type === 'ParenthesizedExpression' && node.expression.type !== 'SequenceExpression') {
@@ -178,7 +215,7 @@ export default function createPlugin(options) {
             if (/^[$a-z_][\w$]*$/i.test(optionalRoot)) {
               guard = `${ optionalRoot } == null ? void 0 : `;
             } else {
-              guardRef = genUid();
+              guardRef = state.genRef();
               guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
               const rootInBody = optionalRoot.replaceAll('?.', '.');
               bodyObj = guardRef + bodyObj.slice(rootInBody.length);
@@ -187,7 +224,7 @@ export default function createPlugin(options) {
 
           if (!isCall) return `${ guard }${ binding }(${ bodyObj })`;
 
-          const ref = isNonIdent && bodyObj !== guardRef ? genUid() : null;
+          const ref = isNonIdent && bodyObj !== guardRef ? state.genRef() : null;
           const obj = ref || bodyObj;
           const firstArg = ref ? `${ ref } = ${ bodyObj }` : bodyObj;
           const dot = optionalCall ? '?.' : '.';
@@ -274,7 +311,7 @@ export default function createPlugin(options) {
         }
 
         // deferred destructuring: collect polyfilled properties per ObjectPattern
-        const destructuringMap = new Map(); // key: ObjectPattern node -> [{propNode, localName, binding, kind, initSrc}]
+        // state.destructuring: key: ObjectPattern node -> [{propNode, localName, binding, kind, initSrc}]
 
         function canTransformDestructuring(metaPath) {
           const objectPattern = metaPath.parent;
@@ -326,8 +363,8 @@ export default function createPlugin(options) {
           const initNode = isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
           const initSrc = initNode ? nodeSrc(initNode) : null;
 
-          if (!destructuringMap.has(objectPattern)) {
-            destructuringMap.set(objectPattern, {
+          if (!state.destructuring.has(objectPattern)) {
+            state.destructuring.set(objectPattern, {
               entries: [],
               allProps: objectPattern.properties || [],
               declPath,
@@ -337,13 +374,13 @@ export default function createPlugin(options) {
               initIsIdent: initNode?.type === 'Identifier',
             });
           }
-          destructuringMap.get(objectPattern).entries.push({ propNode, localName, binding, kind });
+          state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind });
         }
 
         function applyDestructuringTransforms() {
           // group by declPath node to handle multiple destructurings in the same VariableDeclaration
           const byStatement = new Map();
-          for (const [, info] of destructuringMap) {
+          for (const [, info] of state.destructuring) {
             if (!info.declPath?.node || !info.declaratorPath?.node) continue;
             const key = info.declPath.node;
             if (!byStatement.has(key)) byStatement.set(key, []);
@@ -420,6 +457,7 @@ export default function createPlugin(options) {
           if (isDisabled(metaPath.node)) return;
           if (skippedNodes.has(metaPath.node)) return;
           if (isInTypeAnnotation(metaPath)) return;
+          state.setScope(metaPath);
           const { node } = metaPath;
           const parent = metaPath.parentPath?.node;
 
@@ -501,6 +539,7 @@ export default function createPlugin(options) {
         });
         applyDestructuringTransforms();
         transforms.apply();
+        state.flushVars();
         return finalize();
       }
 
