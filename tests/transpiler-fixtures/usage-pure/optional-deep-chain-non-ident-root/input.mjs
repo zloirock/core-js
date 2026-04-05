@@ -1,0 +1,1 @@
+getObj()?.bar.flat();
