@@ -201,11 +201,14 @@ export default function createPlugin(options) {
         }
 
         // walk the chain to find the first non-polyfillable optional
-        // returns: root source for null-check (or null), and whether ?. -> . deoptionalization is safe
+        // root: unwrapped source for guard; rootRaw: full source for body slicing
         function findChainRoot(node) {
+          function rootResult(objectNode, deopt) {
+            return { root: unwrapParens(objectNode), rootRaw: nodeSrc(objectNode), canDeopt: deopt };
+          }
           if (node.optional) {
             if (isPolyfillableOptional(node, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-            return { root: unwrapParens(node.object), canDeopt: true };
+            return rootResult(node.object, true);
           }
           let current = node.object || node.callee;
           let canDeopt = true;
@@ -213,7 +216,7 @@ export default function createPlugin(options) {
             if (current.type === 'MemberExpression' && hasPolyfillableProperty(current)) canDeopt = false;
             if (current.optional) {
               if (isPolyfillableOptional(current, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-              return { root: unwrapParens(current.object), canDeopt };
+              return rootResult(current.object, canDeopt);
             }
             current = current.object || current.callee;
           }
@@ -222,7 +225,7 @@ export default function createPlugin(options) {
 
         // build the replacement text for an instance method or Symbol.iterator transform
         function buildReplacement(binding, objectSrc, opts) {
-          const { isCall, isNonIdent, optionalRoot, canDeopt, optionalCall, args } = opts;
+          const { isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, optionalCall, args } = opts;
           let bodyObj = objectSrc;
           let guard = '';
           let guardRef = null;
@@ -235,8 +238,7 @@ export default function createPlugin(options) {
             } else {
               guardRef = state.genRef();
               guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
-              const rootInBody = deoptionalize(optionalRoot);
-              bodyObj = guardRef + bodyObj.slice(rootInBody.length);
+              bodyObj = guardRef + bodyObj.slice(deoptionalize(rootRaw).length);
             }
           }
 
@@ -250,29 +252,81 @@ export default function createPlugin(options) {
           return `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
         }
 
-        // replace `?.` outside string literals: `?.prop` → `.prop`, `?.[x]` / `?.()` → `[x]` / `()`
+        // replace `?.` outside literals: `?.prop` -> `.prop`, `?.[x]` / `?.()` -> `[x]` / `()`
+        // handles string/template literals (with nesting), and regex literals
         function deoptionalize(src) {
           let result = '';
+          // track whether `/` starts a regex (after operator, open paren/bracket, or start)
+          let prevToken = '';
           for (let i = 0; i < src.length; i++) {
             const ch = src[i];
-            if (ch === '"' || ch === "'" || ch === '`') {
-              result += ch;
+            if (ch === '"' || ch === "'") {
+              const start = i;
               for (i++; i < src.length; i++) {
-                result += src[i];
-                if (src[i] === '\\') {
-                  i++;
-                  result += src[i] ?? '';
-                } else if (src[i] === ch) break;
+                if (src[i] === '\\') i++;
+                else if (src[i] === ch) break;
               }
+              result += src.slice(start, i + 1);
+              prevToken = ')'; // string acts like a value - next `/` is division
+            } else if (ch === '`') {
+              const tmpl = skipTemplate(i);
+              result += tmpl.text;
+              i = tmpl.end;
+              prevToken = ')';
+            } else if (ch === '/' && isRegexContext(prevToken)) {
+              const start = i;
+              for (i++; i < src.length; i++) {
+                if (src[i] === '\\') i++;
+                else if (src[i] === '/') break;
+              }
+              // skip flags
+              while (i + 1 < src.length && /[gimsuy]/.test(src[i + 1])) i++;
+              result += src.slice(start, i + 1);
+              prevToken = ')';
             } else if (ch === '?' && src[i + 1] === '.') {
               i++; // consume `?.`
               const next = src[i + 1];
-              if (next !== '[' && next !== '(') result += '.'; // keep `.` for non-computed
+              if (next !== '[' && next !== '(') result += '.';
+              prevToken = '.';
             } else {
               result += ch;
+              if (!/\s/.test(ch)) prevToken = ch;
             }
           }
           return result;
+
+          function isRegexContext(prev) {
+            // `/` is regex after operators, open parens/brackets, comma, semicolon, start, or keywords-like tokens
+            return !prev || '=!<>+-*/%&|^~({[,;:?'.includes(prev);
+          }
+
+          function skipTemplate(start) {
+            let text = src[start]; // opening backtick
+            let depth = 1;
+            let j = start + 1;
+            while (j < src.length && depth > 0) {
+              if (src[j] === '\\') {
+                text += src[j] + (src[j + 1] ?? '');
+                j += 2;
+              } else if (src[j] === '$' && src[j + 1] === '{') {
+                text += '${';
+                j += 2;
+                depth++;
+              } else if (src[j] === '}' && depth > 1) {
+                text += '}';
+                j++;
+                depth--;
+              } else if (src[j] === '`' && depth === 1) {
+                text += '`';
+                j++;
+                depth--;
+              } else {
+                text += src[j];
+                j++;
+              }
+            }
+            return { text, end: j - 1 };
+          }
         }
 
         // position past optional `?.` token after pos, skipping whitespace; returns pos unchanged if not found
@@ -298,7 +352,7 @@ export default function createPlugin(options) {
 
         // resolve optional root + skip redundant guard when nested inside an outer transform
         function resolveOptionalRoot(node, parent, isCall) {
-          let { root, canDeopt } = findChainRoot(node);
+          let { root, rootRaw, canDeopt } = findChainRoot(node);
           if (root) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
@@ -308,7 +362,7 @@ export default function createPlugin(options) {
               canDeopt = true;
             }
           }
-          return { optionalRoot: root, canDeopt };
+          return { optionalRoot: root, rootRaw, canDeopt };
         }
 
         function handleSymbolIterator(meta, node, parent) {
@@ -318,16 +372,16 @@ export default function createPlugin(options) {
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = node.object.type !== 'Identifier';
-          const { optionalRoot, canDeopt } = resolveOptionalRoot(node, parent, isCallParent);
+          const { optionalRoot, rootRaw, canDeopt } = resolveOptionalRoot(node, parent, isCallParent);
 
           if (!isCallParent) {
-            const replacement = buildReplacement(binding, objectSrc, { isCall: false, isNonIdent, optionalRoot, canDeopt });
+            const replacement = buildReplacement(binding, objectSrc, { isCall: false, isNonIdent, optionalRoot, rootRaw, canDeopt });
             transforms.add(node.start, node.end, wrapIfContinuation(replacement, node.end));
           } else {
             const needsCall = parent.arguments.length > 0 || parent.optional;
             const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
             const replacement = buildReplacement(binding, objectSrc, {
-              isCall: needsCall, isNonIdent, optionalRoot, canDeopt, optionalCall: parent.optional, args: argsSrc,
+              isCall: needsCall, isNonIdent, optionalRoot, rootRaw, canDeopt, optionalCall: parent.optional, args: argsSrc,
             });
             transforms.add(parent.start, parent.end, wrapIfContinuation(replacement, parent.end));
             skippedNodes.add(parent);
@@ -340,13 +394,13 @@ export default function createPlugin(options) {
           const isCall = parent?.type === 'CallExpression' && parent.callee === node;
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = node.object.type !== 'Identifier';
-          const { optionalRoot, canDeopt } = resolveOptionalRoot(node, parent, isCall);
+          const { optionalRoot, rootRaw, canDeopt } = resolveOptionalRoot(node, parent, isCall);
           const argsSrc = isCall ? parent.arguments.map(a => nodeSrc(a)).join(', ') : null;
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
 
           const replacement = buildReplacement(binding, objectSrc, {
-            isCall, isNonIdent, optionalRoot, canDeopt, optionalCall: isCall && parent.optional, args: argsSrc,
+            isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, optionalCall: isCall && parent.optional, args: argsSrc,
           });
           transforms.add(start, end, wrapIfContinuation(replacement, end));
           if (isCall) skippedNodes.add(parent);
