@@ -1,18 +1,19 @@
-// binary search: is [start, end] strictly contained within any range in the sorted array?
-// (equal ranges are not considered contained - both transforms must be applied)
+// is [start, end] strictly contained within any range in the start-sorted array?
+// (equal ranges are not considered contained — both transforms must be applied)
+// uses binary search to find the rightmost range with r.start <= start, then scans left
 function isStrictlyContained(ranges, start, end) {
+  // binary search: find rightmost index where r.start <= start
   let lo = 0;
   let hi = ranges.length - 1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const r = ranges[mid];
-    if (r.start <= start && r.end >= end && (r.start < start || r.end > end)) return true;
-    if (r.start > start) hi = mid - 1;
-    else lo = mid + 1;
+    if (ranges[mid].start <= start) lo = mid + 1;
+    else hi = mid - 1;
   }
-  if (lo > 0) {
-    const r = ranges[lo - 1];
-    return r.start <= start && r.end >= end && (r.start < start || r.end > end);
+  // scan all candidates with r.start <= start (they're at indices 0..lo-1)
+  for (let i = lo - 1; i >= 0; i--) {
+    const r = ranges[i];
+    if (r.end >= end && (r.start < start || r.end > end)) return true;
   }
   return false;
 }
