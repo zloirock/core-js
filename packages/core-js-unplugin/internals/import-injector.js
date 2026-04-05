@@ -66,8 +66,9 @@ export default class ImportInjector {
   }
 
   // generate a unique name without declaring it (for unused destructuring bindings)
+  // numbering matches Babel: _unused, _unused2, _unused3... (no _unused1)
   generateUnusedName() {
-    return this.#uniqueName('_unused', this.#usedNames.size || null);
+    return this.#uniqueName('_unused', null, 2);
   }
 
   #resolvePath(subpath) {
