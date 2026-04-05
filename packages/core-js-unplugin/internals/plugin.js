@@ -227,7 +227,7 @@ export default function createPlugin(options) {
           let guard = '';
           let guardRef = null;
 
-          if (canDeopt) bodyObj = bodyObj.replaceAll('?.', '.');
+          if (canDeopt) bodyObj = deoptionalize(bodyObj);
 
           if (optionalRoot) {
             if (/^[$a-z_][\w$]*$/i.test(optionalRoot)) {
@@ -235,7 +235,7 @@ export default function createPlugin(options) {
             } else {
               guardRef = state.genRef();
               guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
-              const rootInBody = optionalRoot.replaceAll('?.', '.');
+              const rootInBody = deoptionalize(optionalRoot);
               bodyObj = guardRef + bodyObj.slice(rootInBody.length);
             }
           }
@@ -248,6 +248,31 @@ export default function createPlugin(options) {
           const dot = optionalCall ? '?.' : '.';
           const argsPart = args ? `, ${ args }` : '';
           return `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
+        }
+
+        // replace `?.` outside string literals: `?.prop` → `.prop`, `?.[x]` / `?.()` → `[x]` / `()`
+        function deoptionalize(src) {
+          let result = '';
+          for (let i = 0; i < src.length; i++) {
+            const ch = src[i];
+            if (ch === '"' || ch === "'" || ch === '`') {
+              result += ch;
+              for (i++; i < src.length; i++) {
+                result += src[i];
+                if (src[i] === '\\') {
+                  i++;
+                  result += src[i] ?? '';
+                } else if (src[i] === ch) break;
+              }
+            } else if (ch === '?' && src[i + 1] === '.') {
+              i++; // consume `?.`
+              const next = src[i + 1];
+              if (next !== '[' && next !== '(') result += '.'; // keep `.` for non-computed
+            } else {
+              result += ch;
+            }
+          }
+          return result;
         }
 
         // position past optional `?.` token after pos, skipping whitespace; returns pos unchanged if not found
