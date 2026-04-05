@@ -1,4 +1,3 @@
-var _ref;
 import _trimMaybeString from "@core-js/pure/actual/string/instance/trim";
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 const x = 'world';
