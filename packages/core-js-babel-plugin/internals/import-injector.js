@@ -71,9 +71,7 @@ export default class ImportInjector {
           ])
           : t.importDeclaration([t.importDefaultSpecifier(t.cloneNode(id))], t.stringLiteral(resolved)));
       }
-      for (let i = nodes.length - 1; i >= 0; i--) {
-        this.#programPath.unshiftContainer('body', nodes[i]);
-      }
+      this.#programPath.unshiftContainer('body', nodes);
     }
   }
 }
