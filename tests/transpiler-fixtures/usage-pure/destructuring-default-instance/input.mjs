@@ -1,0 +1,1 @@
+const { at = fallback } = getObj();
