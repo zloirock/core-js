@@ -1,1 +1,0 @@
-const { from, foo } = Array;
