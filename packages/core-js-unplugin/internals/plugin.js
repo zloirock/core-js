@@ -144,8 +144,8 @@ export default function createPlugin(options) {
               }
             }
           },
-          genRef() {
-            const { arrow, scope } = this;
+          genRef(overrides) {
+            const { arrow, scope } = overrides || this;
             // arrow expression body: var goes into a new block wrapping the body
             if (arrow) {
               const name = injector.generateRef(false);
@@ -280,7 +280,7 @@ export default function createPlugin(options) {
         // keepDot=false: consume `?.` (computed member or call: obj?.[x] -> obj[x], fn?.() -> fn())
         function afterOptional(pos, keepDot) {
           let p = pos;
-          while (p < code.length && (code[p] === ' ' || code[p] === '\t')) p++;
+          while (p < code.length && code[p] !== '?' && code[p] !== '.' && code[p] !== '[' && code[p] !== '(') p++;
           return code[p] === '?' && code[p + 1] === '.' ? (keepDot ? p + 1 : p + 2) : pos;
         }
 
@@ -479,9 +479,7 @@ export default function createPlugin(options) {
                   // instance calls: inline assignment (_ref = call()) to avoid double evaluation
                   let ref = null;
                   if (isInstance) {
-                    // restore scope from collection time so genRef() declares var in the right scope
-                    Object.assign(state, scopeSnapshot);
-                    ref = state.genRef();
+                    ref = state.genRef(scopeSnapshot);
                   }
                   const test = ref ? `(${ ref } = ${ valueSrc })` : valueSrc;
                   parts.push(`${ stmtPrefix }${ e.localName } = ${ test } === void 0 ? ${ e.defaultSrc } : ${ ref || valueSrc }`);
