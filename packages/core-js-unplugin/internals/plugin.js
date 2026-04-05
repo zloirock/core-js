@@ -354,17 +354,27 @@ export default function createPlugin(options) {
 
         function handleDestructuringPure(meta, metaPath, propNode) {
           if (!canTransformDestructuring(metaPath)) return;
-          // skip properties with default values
-          if (propNode.value?.type === 'AssignmentPattern') return;
-          // skip nested patterns
-          if (propNode.value?.type === 'ObjectPattern' || propNode.value?.type === 'ArrayPattern') return;
+          const { value } = propNode;
+          // skip nested patterns (recursive expansion is too complex for text-based transforms)
+          if (value?.type === 'ObjectPattern' || value?.type === 'ArrayPattern') return;
+          // default values with non-identifier target can't be extracted
+          if (value?.type === 'AssignmentPattern' && value.left?.type !== 'Identifier') return;
           const pureResult = resolvePure(meta, metaPath);
           if (!pureResult) return;
           const { entry: importEntry, kind, hintName } = pureResult;
           const binding = injectPureImport(importEntry, hintName);
 
           const objectPattern = metaPath.parent;
-          const localName = propNode.value?.type === 'Identifier' ? propNode.value.name : propNode.key?.name;
+          // { from = [] }: localName = "from", defaultSrc = "[]"
+          // { from }: localName = "from", defaultSrc = null
+          let defaultSrc = null;
+          let localName;
+          if (value?.type === 'AssignmentPattern') {
+            localName = value.left.name;
+            defaultSrc = nodeSrc(value.right);
+          } else {
+            localName = value?.type === 'Identifier' ? value.name : propNode.key?.name;
+          }
           if (!localName) return;
 
           // find statement path:
@@ -390,9 +400,10 @@ export default function createPlugin(options) {
               isAssignment,
               initSrc,
               initIsIdent: initNode?.type === 'Identifier',
+              scopeSnapshot: { scope: state.scope, arrow: state.arrow },
             });
           }
-          state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind });
+          state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
         }
 
         function applyDestructuringTransforms() {
@@ -423,7 +434,7 @@ export default function createPlugin(options) {
             }
 
             for (const info of infos) {
-              const { entries, allProps, initSrc, initIsIdent } = info;
+              const { entries, allProps, initSrc, initIsIdent, scopeSnapshot } = info;
               const polyfillKeys = new Set(entries.map(e => e.propNode));
               const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
               const remaining = allProps.filter(p => !polyfillKeys.has(p));
@@ -436,9 +447,22 @@ export default function createPlugin(options) {
               }
 
               for (const e of entries) {
-                parts.push(e.kind === 'instance' && initSrc
-                  ? `${ stmtPrefix }${ e.localName } = ${ e.binding }(${ objRef })`
-                  : `${ stmtPrefix }${ e.localName } = ${ e.binding }`);
+                const isInstance = e.kind === 'instance' && initSrc;
+                const valueSrc = isInstance ? `${ e.binding }(${ objRef })` : e.binding;
+                if (e.defaultSrc) {
+                  // default: localName = value === void 0 ? default : value
+                  // instance calls: inline assignment (_ref = call()) to avoid double evaluation
+                  let ref = null;
+                  if (isInstance) {
+                    // restore scope from collection time so genRef() declares var in the right scope
+                    Object.assign(state, scopeSnapshot);
+                    ref = state.genRef();
+                  }
+                  const test = ref ? `(${ ref } = ${ valueSrc })` : valueSrc;
+                  parts.push(`${ stmtPrefix }${ e.localName } = ${ test } === void 0 ? ${ e.defaultSrc } : ${ ref || valueSrc }`);
+                } else {
+                  parts.push(`${ stmtPrefix }${ e.localName } = ${ valueSrc }`);
+                }
               }
 
               const rebuiltProps = hasRest
