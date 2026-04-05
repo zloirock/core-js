@@ -50,9 +50,10 @@ export default class ImportInjector {
   }
 
   // generate a unique ref name (declared via `var` in header)
+  // numbering: _ref, _ref2, _ref3... (matches Babel's generateUid scheme)
   generateRef() {
-    let counter = this.#refs.length;
-    let name = `_ref${ counter || '' }`;
+    let counter = this.#refs.length === 0 ? 0 : this.#refs.length + 1;
+    let name = counter === 0 ? '_ref' : `_ref${ counter }`;
     while (this.#usedNames.has(name) || this.#rootScope?.hasBinding(name)) {
       name = `_ref${ ++counter }`;
     }
