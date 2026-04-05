@@ -55,21 +55,26 @@ export function buildOffsetToLine(code) {
 
 const DIRECTIVE = /^\s*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$)/;
 
-// merge two visitor objects - combine handlers for same node type
+// merge two visitor objects — combine handlers for same node type
+// supports function (shorthand for enter), { enter, exit }, and mixed formats
 export function mergeVisitors(base, extra) {
+  const toObject = v => typeof v === 'function' ? { enter: v } : v;
+  const chain = (f, g) => function (path) {
+    f.call(this, path);
+    g.call(this, path);
+  };
   const merged = { ...base };
   for (const [key, handler] of Object.entries(extra)) {
     if (!(key in merged)) {
       merged[key] = handler;
-    } else if (typeof merged[key] === 'function' && typeof handler === 'function') {
-      const existing = merged[key];
-      merged[key] = function (path) {
-        existing.call(this, path);
-        handler.call(this, path);
-      };
-    } else if (typeof merged[key] === 'object' && merged[key] !== null
-      && typeof handler === 'object' && handler !== null) {
-      merged[key] = { ...merged[key], ...handler };
+    } else {
+      const a = toObject(merged[key]);
+      const b = toObject(handler);
+      merged[key] = {};
+      for (const phase of ['enter', 'exit']) {
+        if (a[phase] && b[phase]) merged[key][phase] = chain(a[phase], b[phase]);
+        else if (a[phase] || b[phase]) merged[key][phase] = a[phase] || b[phase];
+      }
     }
   }
   return merged;
