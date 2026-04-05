@@ -1,7 +1,7 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage';
 import { estreeAdapter } from './detect-usage.js';
 
-// вetect and transform core-js entry imports (entry-global mode)
+// detect and transform core-js entry imports (entry-global mode)
 export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
   const toRemove = [];
 
