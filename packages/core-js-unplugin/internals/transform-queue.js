@@ -48,26 +48,46 @@ function replaceNthOccurrence(str, needle, replacement, n) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
+// substitute inner transform's content into outer content
+// tries exact needle first, then deoptionalized fallback (?. → .) for chains modified by buildReplacement
+function substituteInner(content, needle, replacement, nth) {
+  const result = replaceNthOccurrence(content, needle, replacement, nth);
+  if (result !== content || !needle.includes('?.')) return result;
+  const deopNeedle = needle.replaceAll('?.', '.');
+  const idx = content.indexOf(deopNeedle);
+  return idx !== -1 ? content.slice(0, idx) + replacement + content.slice(idx + deopNeedle.length) : content;
+}
+
 // deferred transform queue for usage-pure mode
 // collects text replacements during traversal, composes nested transforms, applies after traversal
 export default class TransformQueue {
   #code;
   #ms;
   #transforms = [];
-  #sorted = []; // sorted by start ascending, for O(log n) containsRange
+  #sorted = null; // lazily built sorted snapshot for containsRange
 
   constructor(code, ms) {
     this.#code = code;
     this.#ms = ms;
   }
 
-  add(start, end, content) {
-    this.#transforms.push({ start, end, content });
-    insertSorted(this.#sorted, { start, end });
+  add(start, end, content, guardedRoot) {
+    this.#transforms.push({ start, end, content, guardedRoot });
+    this.#sorted = null; // invalidate
   }
 
-  // O(log n) check if [start, end] is strictly contained within an already-queued transform
+  // check if a containing transform already guards the given root identifier
+  hasGuardFor(start, end, root) {
+    if (!root) return false;
+    return this.#transforms.some(t => t.guardedRoot === root
+      && t.start <= start && t.end >= end && (t.start < start || t.end > end));
+  }
+
+  // check if [start, end] is strictly contained within an already-queued transform
   containsRange(start, end) {
+    if (!this.#sorted) {
+      this.#sorted = [...this.#transforms].sort((a, b) => a.start - b.start);
+    }
     return isStrictlyContained(this.#sorted, start, end);
   }
 
@@ -100,12 +120,13 @@ export default class TransformQueue {
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 
       // substitute each inner's composed content at the correct occurrence
-      // (position-aware, not replaceAll — preserves string literals with matching text)
+      // position-aware (not replaceAll) to preserve string literals with matching text
+      // also tries deoptionalized needle (?. -> .) since buildReplacement may have stripped ?.
       const originalSlice = this.#code.slice(start, end);
       for (const inner of inners) {
         const needle = this.#code.slice(inner.start, inner.end);
         const nth = occurrencesBeforeOffset(originalSlice, needle, inner.start - start);
-        content = replaceNthOccurrence(content, needle, inner.content, nth);
+        content = substituteInner(content, needle, inner.content, nth);
       }
       composed.push({ start, end, content });
     }
