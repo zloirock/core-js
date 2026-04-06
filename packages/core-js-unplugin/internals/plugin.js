@@ -187,6 +187,23 @@ export default function createPlugin(options) {
           return nodeSrc(node);
         }
 
+        // strip `?.` at known absolute positions within a source slice
+        // positions are absolute offsets in the original source; baseOffset maps to slice start
+        function stripOptionalDots(src, baseOffset, positions) {
+          if (!positions?.length) return src;
+          let result = '';
+          let prev = 0;
+          for (const absPos of positions) {
+            const rel = absPos - baseOffset;
+            if (rel < 0 || rel >= src.length) continue;
+            result += src.slice(prev, rel);
+            // ?.[  or ?.(  → skip both ? and . ;  ?.prop → skip ? only (keep .)
+            const afterDot = src[rel + 2];
+            prev = (afterDot === '[' || afterDot === '(') ? rel + 2 : rel + 1;
+          }
+          return result + src.slice(prev);
+        }
+
         // check if a MemberExpression property is polyfillable (would produce its own inner transform)
         function hasPolyfillableProperty(memberNode) {
           const key = !memberNode.computed && memberNode.property?.type === 'Identifier' && memberNode.property.name;
@@ -201,16 +218,24 @@ export default function createPlugin(options) {
         }
 
         // walk the chain to find the first non-polyfillable optional
-        // root: unwrapped source for guard; rootRaw: full source for body slicing
         function findChainRoot(node) {
-          function rootResult(objectNode, deopt) {
-            return { root: unwrapParens(objectNode), rootRaw: nodeSrc(objectNode), canDeopt: deopt };
+          // collect `?.` positions from polyfill node down to rootNode (for stripping)
+          function collectDeoptPositions(rootNode) {
+            const positions = [];
+            let cur = node.object || node.callee;
+            while (cur && typeof cur === 'object') {
+              if (cur.optional) positions.push(cur.object?.end ?? cur.callee?.end);
+              if (cur === rootNode) break;
+              cur = cur.object || cur.callee;
+            }
+            return positions;
           }
           if (node.optional) {
-            // polyfillable global/static optional (Array?.from, globalThis?.Map): import is always
-            // defined, no null-check needed. Instance optional (arr?.flat): object may be null.
             if (isPolyfillableOptional(node, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-            return rootResult(node.object, true);
+            return {
+              root: unwrapParens(node.object), rootRaw: nodeSrc(node.object),
+              canDeopt: true, deoptPositions: collectDeoptPositions(node),
+            };
           }
           let current = node.object || node.callee;
           let canDeopt = true;
@@ -218,7 +243,10 @@ export default function createPlugin(options) {
             if (current.type === 'MemberExpression' && hasPolyfillableProperty(current)) canDeopt = false;
             if (current.optional) {
               if (isPolyfillableOptional(current, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-              return rootResult(current.object, canDeopt);
+              return {
+                root: unwrapParens(current.object), rootRaw: nodeSrc(current.object),
+                canDeopt, deoptPositions: collectDeoptPositions(current),
+              };
             }
             current = current.object || current.callee;
           }
@@ -227,12 +255,14 @@ export default function createPlugin(options) {
 
         // build the replacement text for an instance method or Symbol.iterator transform
         function buildReplacement(binding, objectSrc, opts) {
-          const { isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, optionalCall, args } = opts;
+          const { isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, deoptPositions, optionalCall, args, objectStart } = opts;
           let bodyObj = objectSrc;
           let guard = '';
           let guardRef = null;
 
-          if (canDeopt) bodyObj = deoptionalize(bodyObj);
+          if (canDeopt && deoptPositions?.length) {
+            bodyObj = stripOptionalDots(objectSrc, objectStart ?? 0, deoptPositions);
+          }
 
           if (optionalRoot) {
             if (/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)) {
@@ -240,7 +270,8 @@ export default function createPlugin(options) {
             } else {
               guardRef = state.genRef();
               guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
-              bodyObj = guardRef + bodyObj.slice(deoptionalize(rootRaw).length);
+              const rootLen = stripOptionalDots(rootRaw, objectStart ?? 0, deoptPositions).length;
+              bodyObj = guardRef + bodyObj.slice(rootLen);
             }
           }
 
@@ -256,83 +287,6 @@ export default function createPlugin(options) {
             result = `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
           }
           return result;
-        }
-
-        // replace `?.` outside literals: `?.prop` -> `.prop`, `?.[x]` / `?.()` -> `[x]` / `()`
-        // handles string/template literals (with nesting), and regex literals
-        function deoptionalize(src) {
-          let result = '';
-          // track whether `/` starts a regex (after operator, open paren/bracket, or start)
-          let prevToken = '';
-          for (let i = 0; i < src.length; i++) {
-            const ch = src[i];
-            if (ch === '"' || ch === "'") {
-              const start = i;
-              for (i++; i < src.length; i++) {
-                if (src[i] === '\\') i++;
-                else if (src[i] === ch) break;
-              }
-              result += src.slice(start, i + 1);
-              prevToken = ')'; // string acts like a value - next `/` is division
-            } else if (ch === '`') {
-              const tmpl = skipTemplate(i);
-              result += tmpl.text;
-              i = tmpl.end;
-              prevToken = ')';
-            } else if (ch === '/' && isRegexContext(prevToken)) {
-              const start = i;
-              for (i++; i < src.length; i++) {
-                if (src[i] === '\\') i++;
-                else if (src[i] === '/') break;
-              }
-              // skip flags
-              while (i + 1 < src.length && /[dgimsuvy]/.test(src[i + 1])) i++;
-              result += src.slice(start, i + 1);
-              prevToken = ')';
-            } else if (ch === '?' && src[i + 1] === '.') {
-              i++; // consume `?.`
-              const next = src[i + 1];
-              if (next !== '[' && next !== '(') result += '.';
-              prevToken = '.';
-            } else {
-              result += ch;
-              if (!/\s/.test(ch)) prevToken = ch;
-            }
-          }
-          return result;
-
-          function isRegexContext(prev) {
-            // `/` is regex after operators, open parens/brackets, comma, semicolon, start, or keywords-like tokens
-            return !prev || '=!<>+-*/%&|^~({[,;:?'.includes(prev);
-          }
-
-          function skipTemplate(start) {
-            let text = src[start]; // opening backtick
-            let depth = 1;
-            let j = start + 1;
-            while (j < src.length && depth > 0) {
-              if (src[j] === '\\') {
-                text += src[j] + (src[j + 1] ?? '');
-                j += 2;
-              } else if (src[j] === '$' && src[j + 1] === '{') {
-                text += '${';
-                j += 2;
-                depth++;
-              } else if (src[j] === '}' && depth > 1) {
-                text += '}';
-                j++;
-                depth--;
-              } else if (src[j] === '`' && depth === 1) {
-                text += '`';
-                j++;
-                depth--;
-              } else {
-                text += src[j];
-                j++;
-              }
-            }
-            return { text, end: j - 1 };
-          }
         }
 
         // position past optional `?.` token after pos, skipping whitespace and comments
@@ -370,18 +324,16 @@ export default function createPlugin(options) {
 
         // resolve optional root + skip redundant guard when nested inside an outer transform
         function resolveOptionalRoot(node, parent, isCall) {
-          let { root, rootRaw, canDeopt } = findChainRoot(node);
+          let { root, rootRaw, canDeopt, deoptPositions } = findChainRoot(node);
           if (root) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
-            // non-optional: outer already guards → suppress
-            // optional: suppress only if outer guards the SAME root
             if (node.optional ? transforms.hasGuardFor(start, end, root) : transforms.containsRange(start, end)) {
               root = null;
               canDeopt = true;
             }
           }
-          return { optionalRoot: root, rootRaw, canDeopt };
+          return { optionalRoot: root, rootRaw, canDeopt, deoptPositions };
         }
 
         // does guard ternary need () to preserve correct precedence?
@@ -400,14 +352,15 @@ export default function createPlugin(options) {
         function addInstanceTransform(binding, node, parent, metaPath, isCall, opts) {
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = node.object.type !== 'Identifier';
-          const { optionalRoot, rootRaw, canDeopt } = resolveOptionalRoot(node, parent, isCall);
+          const { optionalRoot, rootRaw, canDeopt, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
           const argsSrc = isCall ? parent.arguments.map(a => nodeSrc(a)).join(', ') : null;
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
 
           let replacement = buildReplacement(binding, objectSrc, {
-            isCall, isNonIdent, optionalRoot, rootRaw, canDeopt,
-            optionalCall: isCall && parent.optional, args: argsSrc, ...opts,
+            isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, deoptPositions,
+            optionalCall: isCall && parent.optional, args: argsSrc,
+            objectStart: node.object.start, ...opts,
           });
           if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
             replacement = `(${ replacement })`;
