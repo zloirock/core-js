@@ -91,6 +91,16 @@ export default class TransformQueue {
     return isStrictlyContained(this.#sorted, start, end);
   }
 
+  // remove a queued transform by exact range and return its content, or null if not found
+  extractContent(start, end) {
+    const idx = this.#transforms.findIndex(t => t.start === start && t.end === end);
+    if (idx === -1) return null;
+    const { content } = this.#transforms[idx];
+    this.#transforms.splice(idx, 1);
+    this.#sorted = null;
+    return content;
+  }
+
   // compose nested transforms and apply to magic-string
   apply() {
     const { length } = this.#transforms;
