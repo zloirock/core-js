@@ -38,7 +38,10 @@ export default function (t) {
     delete path.node.optional;
   }
 
-  function normalizeOptionalChain(path, all) {
+  // strip Optional{Member,Call}Expression wrappers above a replaced node.
+  // stripFirstOptional: also deoptionalize the first user-written ?. in the chain
+  // (used when the replacement is always defined, e.g., polyfill imports)
+  function normalizeOptionalChain(path, stripFirstOptional) {
     let { parentPath } = path;
     if (parentPath.isOptionalMemberExpression()) {
       if (path.key !== 'object') return null;
@@ -49,7 +52,7 @@ export default function (t) {
     let seenOptional = false;
     const isOptional = p => p.isOptionalMemberExpression() || p.isOptionalCallExpression();
     // eslint-disable-next-line no-unmodified-loop-condition -- safe
-    while (isOptional(parentPath) && (!parentPath.node.optional || all && !seenOptional)) {
+    while (isOptional(parentPath) && (!parentPath.node.optional || stripFirstOptional && !seenOptional)) {
       if (parentPath.node.optional) seenOptional = true;
       topPath = parentPath;
       deoptionalizeNode(parentPath);
@@ -193,6 +196,7 @@ export default function (t) {
 
   return {
     isInTypeAnnotation,
+    deoptionalizeNode,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceCallWithSimple,
