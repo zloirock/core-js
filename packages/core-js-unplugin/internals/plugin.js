@@ -8,7 +8,6 @@ import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyf
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
-  resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isTypeAnnotationNodeType,
   isPolyfillableOptional,
@@ -468,6 +467,8 @@ export default function createPlugin(options) {
               isAssignment,
               initSrc,
               initIsIdent: initNode?.type === 'Identifier',
+              initStart: initNode?.start,
+              initEnd: initNode?.end,
               scopeSnapshot: { scope: state.scope, arrow: state.arrow },
             });
           }
@@ -502,16 +503,22 @@ export default function createPlugin(options) {
             }
 
             for (const info of infos) {
-              const { entries, allProps, initSrc, initIsIdent, scopeSnapshot } = info;
+              const { entries, allProps, initSrc, initIsIdent, initStart, initEnd, scopeSnapshot } = info;
+              // if the init has a queued transform (e.g. Promise -> _Promise), extract it:
+              // use the polyfilled name directly and remove the inner transform to prevent
+              // composition from corrupting bindings that contain the original as substring
+              // (e.g. Promise inside _Promise$resolve -> __Promise$resolve)
+              const initTransformed = (initStart !== undefined && initEnd !== undefined
+                ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
               const polyfillKeys = new Set(entries.map(e => e.propNode));
               const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
               const remaining = allProps.filter(p => !polyfillKeys.has(p));
               const hasInstance = entries.some(e => e.kind === 'instance');
               const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0 || hasRest);
-              let objRef = initSrc;
-              if (needsMemo && initSrc) {
+              let objRef = initTransformed;
+              if (needsMemo && initTransformed) {
                 objRef = injector.generateRef(false);
-                parts.push(`${ memoPrefix }${ objRef } = ${ initSrc }`);
+                parts.push(`${ memoPrefix }${ objRef } = ${ initTransformed }`);
               }
 
               for (const e of entries) {
