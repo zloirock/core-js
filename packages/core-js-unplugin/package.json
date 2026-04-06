@@ -56,6 +56,18 @@
     "./rolldown": {
       "types": "./rolldown.d.ts",
       "default": "./rolldown.js"
+    },
+    "./farm": {
+      "types": "./farm.d.ts",
+      "default": "./farm.js"
+    },
+    "./unloader": {
+      "types": "./unloader.d.ts",
+      "default": "./unloader.js"
+    },
+    "./bun": {
+      "types": "./bun.d.ts",
+      "default": "./bun.js"
     }
   },
   "dependencies": {
