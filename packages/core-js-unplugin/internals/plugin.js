@@ -348,7 +348,7 @@ export default function createPlugin(options) {
         // build replacement, wrap guard if needed, add to transform queue
         function addInstanceTransform(binding, node, parent, metaPath, isCall, opts) {
           const objectSrc = unwrapParens(node.object);
-          const isNonIdent = node.object.type !== 'Identifier';
+          const isNonIdent = unwrapNode(node.object).type !== 'Identifier';
           const { optionalRoot, rootRaw, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
           const argsSrc = isCall ? parent.arguments.map(a => nodeSrc(a)).join(', ') : null;
           const start = isCall ? parent.start : node.start;
@@ -367,10 +367,23 @@ export default function createPlugin(options) {
           skipProxyGlobal(node);
         }
 
+        // unwrap ESTree-specific wrapper nodes to reach the inner expression
+        function unwrapNode(n) {
+          while (n?.type === 'ParenthesizedExpression' || n?.type === 'ChainExpression') n = n.expression;
+          return n;
+        }
+
+        // check if parent is a call/new expression with node as callee
+        function isCallee(node, parent) {
+          if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
+          return unwrapNode(parent.callee) === node;
+        }
+
         function handleSymbolIterator(meta, node, parent, metaPath) {
-          const entry = resolveSymbolIteratorEntry(node, parent);
+          const isCallParent = isCallee(node, parent);
+          const entry = isCallParent && parent.arguments.length === 0 && !parent.optional
+            ? 'get-iterator' : 'get-iterator-method';
           if (!isEntryNeeded(entry)) return;
-          const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
           addInstanceTransform(binding, node, parent, metaPath, isCallParent, {
             isCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
@@ -379,7 +392,7 @@ export default function createPlugin(options) {
         }
 
         function replaceInstance(binding, node, parent, metaPath) {
-          const isCall = parent?.type === 'CallExpression' && parent.callee === node;
+          const isCall = isCallee(node, parent);
           addInstanceTransform(binding, node, parent, metaPath, isCall, {});
         }
 
@@ -554,7 +567,13 @@ export default function createPlugin(options) {
           if (isInTypeAnnotation(metaPath)) return;
           state.setScope(metaPath);
           const { node } = metaPath;
-          const parent = metaPath.parentPath?.node;
+          // unwrap ParenthesizedExpression and ChainExpression to reach the semantic parent
+          // oxc-parser preserves parens as AST nodes (Babel strips them);
+          // ChainExpression is an ESTree wrapper with no semantic meaning for our purposes
+          let { parentPath } = metaPath;
+          while (parentPath?.node?.type === 'ParenthesizedExpression'
+            || parentPath?.node?.type === 'ChainExpression') parentPath = parentPath.parentPath;
+          const parent = parentPath?.node;
 
           if (meta.kind === 'in') {
             const symbolIn = resolveSymbolInEntry(meta.key);
@@ -578,9 +597,8 @@ export default function createPlugin(options) {
             return;
           }
 
-          // unwrap ChainExpression for delete check: delete obj?.prop -> UnaryExpression -> ChainExpression -> MemberExpression
-          const deleteParent = parent?.type === 'ChainExpression' ? metaPath.parentPath?.parentPath?.node : parent;
-          if (deleteParent?.type === 'UnaryExpression' && deleteParent.operator === 'delete') return;
+          // delete check (ChainExpression and ParenthesizedExpression already unwrapped above)
+          if (parent?.type === 'UnaryExpression' && parent.operator === 'delete') return;
 
           if (meta.kind === 'property') {
             if (node.type === 'Property' && metaPath.parent?.type === 'ObjectPattern') {
@@ -618,7 +636,7 @@ export default function createPlugin(options) {
             //   but NOT globalThis?.Map?.() -> _Map?.() (preserve user's optional call intent)
             // - optional member parent: globalThis?.X -> _globalThis.X
             let { end } = node;
-            if (parent?.type === 'CallExpression' && parent.optional && parent.callee === node && !node.optional) {
+            if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent) && !node.optional) {
               end = afterOptional(node.end, false);
             } else if (parent?.type === 'MemberExpression' && parent.optional && parent.object === node) {
               end = afterOptional(node.end, !parent.computed);
