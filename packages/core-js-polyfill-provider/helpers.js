@@ -40,7 +40,9 @@ export function isCoreJSFile(filename) {
 
 export function buildOffsetToLine(code) {
   const lineStarts = [0];
-  for (let i = 0; i < code.length; i++) if (code[i] === '\n') lineStarts.push(i + 1);
+  for (let i = 0; i < code.length; i++) {
+    if (code[i] === '\n' || (code[i] === '\r' && code[i + 1] !== '\n')) lineStarts.push(i + 1);
+  }
   return offset => {
     let lo = 0;
     let hi = lineStarts.length - 1;
