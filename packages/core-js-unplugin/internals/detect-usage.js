@@ -22,7 +22,9 @@ function isReferenced(node, parent, parentKey, grandParentType) {
     || parent.type === 'VariableDeclarator') && parentKey === 'id') return false;
   if ((parent.type === 'MethodDefinition' || parent.type === 'PropertyDefinition'
     || parent.type === 'AccessorProperty') && parentKey === 'key' && !parent.computed) return false;
-  if (parent.type === 'LabeledStatement' && parentKey === 'label') return false;
+  if ((parent.type === 'LabeledStatement' || parent.type === 'BreakStatement'
+    || parent.type === 'ContinueStatement') && parentKey === 'label') return false;
+  if (parent.type === 'ImportAttribute' && parentKey === 'key') return false;
   if (parent.type === 'ImportSpecifier' || parent.type === 'ImportDefaultSpecifier'
     || parent.type === 'ImportNamespaceSpecifier') return false;
   if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;

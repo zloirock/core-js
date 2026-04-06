@@ -1,0 +1,1 @@
+import data from 'x' with { Promise: 'json' };
