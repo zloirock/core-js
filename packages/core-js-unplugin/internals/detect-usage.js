@@ -10,23 +10,26 @@ import {
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 
 // check if an identifier is referenced (not a declaration, property key, or export alias)
-function isReferenced(node, parent, parentKey) {
+function isReferenced(node, parent, parentKey, grandParentType) {
   if (!parent) return true;
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
+  // Property value inside ObjectPattern is a binding target, not a reference
+  // { Promise } = obj -> Promise is written to, not read; but { x: Promise } in ObjectExpression IS read
+  if (parent.type === 'Property' && parentKey === 'value' && grandParentType === 'ObjectPattern') return false;
   if (parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) return false;
   if ((parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression'
     || parent.type === 'ClassDeclaration' || parent.type === 'ClassExpression'
     || parent.type === 'VariableDeclarator') && parentKey === 'id') return false;
-  // class member keys: class { Promise() {} }, class { Map = 42 }, class accessor Set {}
   if ((parent.type === 'MethodDefinition' || parent.type === 'PropertyDefinition'
     || parent.type === 'AccessorProperty') && parentKey === 'key' && !parent.computed) return false;
   if (parent.type === 'LabeledStatement' && parentKey === 'label') return false;
   if (parent.type === 'ImportSpecifier' || parent.type === 'ImportDefaultSpecifier'
     || parent.type === 'ImportNamespaceSpecifier') return false;
-  // export { foo as Promise } - 'exported' is just the alias name, not a reference
   if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
+  if (parent.type === 'AssignmentExpression' && parentKey === 'left') return false;
+  if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
   return true;
 }
 
@@ -128,7 +131,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     } : {},
     Identifier(path) {
       const { node, parent, key: parentKey } = path;
-      if (!isReferenced(node, parent, parentKey)) return;
+      if (!isReferenced(node, parent, parentKey, path.parentPath?.parent?.type)) return;
       // re-export: export { Promise } from 'foo' - local is not a reference when source is present
       if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
         && path.parentPath?.parentPath?.node?.source) return;
