@@ -49,13 +49,11 @@ function replaceNthOccurrence(str, needle, replacement, n) {
 }
 
 // substitute inner transform's content into outer content
-// tries exact needle first, then deoptionalized fallback (?. → .) for chains modified by buildReplacement
+// tries exact needle first, then deoptionalized fallback (?. -> .) for chains modified by buildReplacement
 function substituteInner(content, needle, replacement, nth) {
   const result = replaceNthOccurrence(content, needle, replacement, nth);
   if (result !== content || !needle.includes('?.')) return result;
-  const deopNeedle = needle.replaceAll('?.', '.');
-  const idx = content.indexOf(deopNeedle);
-  return idx !== -1 ? content.slice(0, idx) + replacement + content.slice(idx + deopNeedle.length) : content;
+  return replaceNthOccurrence(content, needle.replaceAll('?.', '.'), replacement, nth);
 }
 
 // deferred transform queue for usage-pure mode
@@ -141,7 +139,7 @@ export default class TransformQueue {
 
       // substitute each inner's composed content at the correct occurrence
       // position-aware (not replaceAll) to preserve string literals with matching text
-      // also tries deoptionalized needle (?. → .) since buildReplacement may have stripped ?.
+      // also tries deoptionalized needle (?. -> .) since buildReplacement may have stripped ?.
       const originalSlice = this.#code.slice(start, end);
       for (const inner of inners) {
         const needle = this.#code.slice(inner.start, inner.end);
