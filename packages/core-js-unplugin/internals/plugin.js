@@ -150,6 +150,12 @@ export default function createPlugin(options) {
               const { type, body } = p.node;
               if (type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') {
                 if (!this.arrow) this.arrow = body;
+              } else if (type === 'StaticBlock') {
+                // StaticBlock.body is an array (not BlockStatement); find the { position
+                let pos = p.node.start;
+                while (pos < p.node.end && code[pos] !== '{') pos++;
+                this.scope = pos;
+                return;
               } else if (body?.type === 'BlockStatement' && (type === 'FunctionDeclaration'
                 || type === 'FunctionExpression' || type === 'ArrowFunctionExpression')) {
                 this.scope = body.start;
@@ -341,7 +347,9 @@ export default function createPlugin(options) {
           // ternary test position: guard ternary merges with outer ternary
           if (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === end) return true;
           // ?. continuation after this range (top-level only — inner transforms get composed)
-          return code[end] === '?' && code[end + 1] === '.' && !transforms.containsRange(start, end);
+          // skipGap handles whitespace/comments between the expression end and ?.
+          const p = skipGap(code, end);
+          return code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end);
         }
 
         // build replacement, wrap guard if needed, add to transform queue
