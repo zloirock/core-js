@@ -23,6 +23,7 @@ import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './dete
 const typeResolvers = createResolveNodeType(nodeType, types);
 
 // ternary guard needs () only when parent operator has higher precedence than ?:
+// or parent grammar restricts the expression (extends clause expects LeftHandSideExpression)
 const NEEDS_GUARD_PARENS = new Set([
   'BinaryExpression',
   'LogicalExpression',
@@ -31,6 +32,8 @@ const NEEDS_GUARD_PARENS = new Set([
   'UpdateExpression',
   'TaggedTemplateExpression',
   'SpreadElement',
+  'ClassDeclaration',
+  'ClassExpression',
 ]);
 
 export default function createPlugin(options) {
@@ -198,19 +201,48 @@ export default function createPlugin(options) {
           return nodeSrc(node);
         }
 
+        // scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char
+        function skipGap(src, pos) {
+          let p = pos;
+          while (p < src.length) {
+            const ch = src[p];
+            if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+              p++;
+              continue;
+            }
+            if (ch === '/' && src[p + 1] === '/') {
+              while (p < src.length && src[p] !== '\n') p++;
+              continue;
+            }
+            if (ch === '/' && src[p + 1] === '*') {
+              p += 2;
+              while (p < src.length && !(src[p] === '*' && src[p + 1] === '/')) p++;
+              p += 2;
+              continue;
+            }
+            break;
+          }
+          return p;
+        }
+
         // strip `?.` at known absolute positions within a source slice
-        // positions are absolute offsets in the original source; baseOffset maps to slice start
+        // positions are absolute offsets in the original source (object end); baseOffset maps to slice start
+        // scans forward from position to find the `?.` token (skipping whitespace/comments)
         function stripOptionalDots(src, baseOffset, positions) {
           if (!positions?.length) return src;
           let result = '';
           let prev = 0;
           for (const absPos of positions) {
-            const rel = absPos - baseOffset;
+            let rel = absPos - baseOffset;
             if (rel < 0 || rel >= src.length) continue;
+            // skip whitespace/comments between object end and `?.` token
+            rel = skipGap(src, rel);
+            if (rel >= src.length || src[rel] !== '?' || src[rel + 1] !== '.') continue;
             result += src.slice(prev, rel);
-            // ?.[  or ?.(  → skip both ? and . ;  ?.prop → skip ? only (keep .)
-            const afterDot = src[rel + 2];
-            prev = (afterDot === '[' || afterDot === '(') ? rel + 2 : rel + 1;
+            // check whether computed/call follows: scan past `?.` and any whitespace/comments
+            const afterQ = skipGap(src, rel + 2);
+            // ?.[ or ?.( -> skip both ? and . ; ?.prop -> skip ? only (keep .)
+            prev = (src[afterQ] === '[' || src[afterQ] === '(') ? rel + 2 : rel + 1;
           }
           return result + src.slice(prev);
         }
@@ -279,20 +311,7 @@ export default function createPlugin(options) {
         // keepDot=true: consume only `?` (non-computed member: obj?.prop -> obj.prop)
         // keepDot=false: consume `?.` (computed member or call: obj?.[x] -> obj[x], fn?.() -> fn())
         function afterOptional(pos, keepDot) {
-          let p = pos;
-          while (p < code.length) {
-            if (code[p] === '/' && code[p + 1] === '/') {
-              while (p < code.length && code[p] !== '\n') p++;
-            } else if (code[p] === '/' && code[p + 1] === '*') {
-              p += 2;
-              while (p < code.length && !(code[p] === '*' && code[p + 1] === '/')) p++;
-              p += 2;
-            } else if (code[p] === '?' || code[p] === '.' || code[p] === '[' || code[p] === '(') {
-              break;
-            } else {
-              p++;
-            }
-          }
+          const p = skipGap(code, pos);
           return code[p] === '?' && code[p + 1] === '.' ? (keepDot ? p + 1 : p + 2) : pos;
         }
 
