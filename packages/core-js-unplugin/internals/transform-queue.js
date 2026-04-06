@@ -117,39 +117,60 @@ export default class TransformQueue {
     // sort innermost first: smaller ranges before larger, right-to-left for same-level
     this.#transforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
 
+    // phase 1: compose — substitute inner transforms' content into outer transforms
+    // byStart index enables O(log n + k) inner lookup instead of O(n) linear scan
     const composed = [];
+    const byStart = [];
     for (const { start, end, content: raw } of this.#transforms) {
       let content = raw;
-      // collect inner transforms sorted: largest first (middle transforms already contain
-      // their own inners' substitutions), same size right-to-left (preserves occurrence indices)
+
+      // binary search for first candidate with start >= current start
+      let lo = 0;
+      let hi = byStart.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (byStart[mid].start < start) lo = mid + 1;
+        else hi = mid;
+      }
+      // collect inners within [start, end], sort largest first for correct composition order
       const inners = [];
-      for (let i = composed.length - 1; i >= 0; i--) {
-        const inner = composed[i];
-        if (inner.start >= start && inner.end <= end) inners.push(inner);
+      for (let i = lo; i < byStart.length && byStart[i].start <= end; i++) {
+        if (byStart[i].end <= end) inners.push(byStart[i]);
       }
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 
       // substitute each inner's composed content at the correct occurrence
       // position-aware (not replaceAll) to preserve string literals with matching text
-      // also tries deoptionalized needle (?. -> .) since buildReplacement may have stripped ?.
+      // also tries deoptionalized needle (?. → .) since buildReplacement may have stripped ?.
       const originalSlice = this.#code.slice(start, end);
       for (const inner of inners) {
         const needle = this.#code.slice(inner.start, inner.end);
         const nth = occurrencesBeforeOffset(originalSlice, needle, inner.start - start);
         content = substituteInner(content, needle, inner.content, nth);
       }
-      composed.push({ start, end, content });
+
+      // equal-range dedup: when an inner has the same [start, end] (e.g., arrow body wrapper
+      // covering the same range as the polyfill inside), update the existing entry in-place
+      // rather than creating a duplicate — the current content is the composed version
+      const dup = inners.find(inner => inner.start === start && inner.end === end);
+      if (dup) {
+        dup.content = content;
+      } else {
+        const entry = { start, end, content };
+        composed.push(entry);
+        insertSorted(byStart, entry);
+      }
     }
 
-    // apply outermost first: sort by descending range size, then descending start
-    composed.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
-
-    // skip transforms contained within already-applied wider ranges
-    const applied = []; // sorted by start ascending
+    // phase 2: apply outermost transforms only
+    // sort by start ascending, end descending; sweep tracking maxEnd to skip contained ranges
+    composed.sort((a, b) => a.start - b.start || b.end - a.end);
+    let maxEnd = -1;
     for (const t of composed) {
-      if (isStrictlyContained(applied, t.start, t.end)) continue;
-      this.#ms.overwrite(t.start, t.end, t.content);
-      insertSorted(applied, t);
+      if (t.end > maxEnd) {
+        this.#ms.overwrite(t.start, t.end, t.content);
+        maxEnd = t.end;
+      }
     }
   }
 
