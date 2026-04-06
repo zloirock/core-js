@@ -1,0 +1,1 @@
+new arr[Symbol.iterator]();
