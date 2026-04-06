@@ -40,7 +40,7 @@ export default function createPlugin(options) {
 
   return {
     name: 'core-js-unplugin',
-
+    // eslint-disable-next-line max-statements -- ok
     transform(code, id) {
       if (isCoreJSFile(id)) return null;
 
@@ -207,6 +207,8 @@ export default function createPlugin(options) {
             return { root: unwrapParens(objectNode), rootRaw: nodeSrc(objectNode), canDeopt: deopt };
           }
           if (node.optional) {
+            // polyfillable global/static optional (Array?.from, globalThis?.Map): import is always
+            // defined, no null-check needed. Instance optional (arr?.flat): object may be null.
             if (isPolyfillableOptional(node, null, estreeAdapter, resolveBuiltIn)) return { root: null };
             return rootResult(node.object, true);
           }
@@ -233,7 +235,7 @@ export default function createPlugin(options) {
           if (canDeopt) bodyObj = deoptionalize(bodyObj);
 
           if (optionalRoot) {
-            if (/^[$a-z_][\w$]*$/i.test(optionalRoot)) {
+            if (/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)) {
               guard = `${ optionalRoot } == null ? void 0 : `;
             } else {
               guardRef = state.genRef();
@@ -242,14 +244,18 @@ export default function createPlugin(options) {
             }
           }
 
-          if (!isCall) return `${ guard }${ binding }(${ bodyObj })`;
-
-          const ref = isNonIdent && bodyObj !== guardRef ? state.genRef() : null;
-          const obj = ref || bodyObj;
-          const firstArg = ref ? `${ ref } = ${ bodyObj }` : bodyObj;
-          const dot = optionalCall ? '?.' : '.';
-          const argsPart = args ? `, ${ args }` : '';
-          return `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
+          let result;
+          if (!isCall) {
+            result = `${ guard }${ binding }(${ bodyObj })`;
+          } else {
+            const ref = isNonIdent && bodyObj !== guardRef ? state.genRef() : null;
+            const obj = ref || bodyObj;
+            const firstArg = ref ? `${ ref } = ${ bodyObj }` : bodyObj;
+            const dot = optionalCall ? '?.' : '.';
+            const argsPart = args ? `, ${ args }` : '';
+            result = `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
+          }
+          return result;
         }
 
         // replace `?.` outside literals: `?.prop` -> `.prop`, `?.[x]` / `?.()` -> `[x]` / `()`
@@ -280,7 +286,7 @@ export default function createPlugin(options) {
                 else if (src[i] === '/') break;
               }
               // skip flags
-              while (i + 1 < src.length && /[gimsuy]/.test(src[i + 1])) i++;
+              while (i + 1 < src.length && /[dgimsuvy]/.test(src[i + 1])) i++;
               result += src.slice(start, i + 1);
               prevToken = ')';
             } else if (ch === '?' && src[i + 1] === '.') {
@@ -329,12 +335,24 @@ export default function createPlugin(options) {
           }
         }
 
-        // position past optional `?.` token after pos, skipping whitespace; returns pos unchanged if not found
+        // position past optional `?.` token after pos, skipping whitespace and comments
         // keepDot=true: consume only `?` (non-computed member: obj?.prop -> obj.prop)
         // keepDot=false: consume `?.` (computed member or call: obj?.[x] -> obj[x], fn?.() -> fn())
         function afterOptional(pos, keepDot) {
           let p = pos;
-          while (p < code.length && code[p] !== '?' && code[p] !== '.' && code[p] !== '[' && code[p] !== '(') p++;
+          while (p < code.length) {
+            if (code[p] === '/' && code[p + 1] === '/') {
+              while (p < code.length && code[p] !== '\n') p++;
+            } else if (code[p] === '/' && code[p + 1] === '*') {
+              p += 2;
+              while (p < code.length && !(code[p] === '*' && code[p + 1] === '/')) p++;
+              p += 2;
+            } else if (code[p] === '?' || code[p] === '.' || code[p] === '[' || code[p] === '(') {
+              break;
+            } else {
+              p++;
+            }
+          }
           return code[p] === '?' && code[p + 1] === '.' ? (keepDot ? p + 1 : p + 2) : pos;
         }
 
@@ -343,12 +361,12 @@ export default function createPlugin(options) {
           if (proxy) skippedNodes.add(proxy);
         }
 
-        // wrap ternary guard in () when followed by ?. continuation (like Babel)
-        // ensures (guard)?.next() instead of guard ? void 0 : body?.next()
-        function wrapIfContinuation(replacement, end) {
-          return replacement.includes('void 0') && code[end] === '?' && code[end + 1] === '.'
-            ? `(${ replacement })` : replacement;
-        }
+        // ternary guard needs () only when parent operator has higher precedence than ?:
+        const NEEDS_GUARD_PARENS = new Set([
+          'BinaryExpression', 'LogicalExpression', 'UnaryExpression',
+          'AwaitExpression', 'YieldExpression', 'UpdateExpression',
+          'TaggedTemplateExpression', 'SpreadElement',
+        ]);
 
         // resolve optional root + skip redundant guard when nested inside an outer transform
         function resolveOptionalRoot(node, parent, isCall) {
@@ -356,8 +374,9 @@ export default function createPlugin(options) {
           if (root) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
-            if (transforms.containsRange(start, end)) {
-              // outer transform already guards the root - skip guard but still deoptionalize
+            // non-optional: outer already guards → suppress
+            // optional: suppress only if outer guards the SAME root
+            if (node.optional ? transforms.hasGuardFor(start, end, root) : transforms.containsRange(start, end)) {
               root = null;
               canDeopt = true;
             }
@@ -365,33 +384,18 @@ export default function createPlugin(options) {
           return { optionalRoot: root, rootRaw, canDeopt };
         }
 
-        function handleSymbolIterator(meta, node, parent) {
-          const entry = resolveSymbolIteratorEntry(node, parent);
-          if (!isEntryNeeded(entry)) return;
-          const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
-          const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
-          const objectSrc = unwrapParens(node.object);
-          const isNonIdent = node.object.type !== 'Identifier';
-          const { optionalRoot, rootRaw, canDeopt } = resolveOptionalRoot(node, parent, isCallParent);
-
-          if (!isCallParent) {
-            const replacement = buildReplacement(binding, objectSrc, { isCall: false, isNonIdent, optionalRoot, rootRaw, canDeopt });
-            transforms.add(node.start, node.end, wrapIfContinuation(replacement, node.end));
-          } else {
-            const needsCall = parent.arguments.length > 0 || parent.optional;
-            const argsSrc = parent.arguments.map(a => nodeSrc(a)).join(', ');
-            const replacement = buildReplacement(binding, objectSrc, {
-              isCall: needsCall, isNonIdent, optionalRoot, rootRaw, canDeopt, optionalCall: parent.optional, args: argsSrc,
-            });
-            transforms.add(parent.start, parent.end, wrapIfContinuation(replacement, parent.end));
-            skippedNodes.add(parent);
-          }
-          if (node.property) skippedNodes.add(node.property);
-          skipProxyGlobal(node);
+        // does guard ternary need () to preserve correct precedence?
+        function guardNeedsParens(metaPath, isCall, start, end) {
+          let outer = (isCall ? metaPath.parentPath : metaPath)?.parentPath;
+          if (outer?.node?.type === 'ChainExpression') outer = outer.parentPath;
+          // higher-precedence operator parent
+          if (NEEDS_GUARD_PARENS.has(outer?.node?.type)) return true;
+          // ?. continuation after this range (top-level only — inner transforms get composed)
+          return code[end] === '?' && code[end + 1] === '.' && !transforms.containsRange(start, end);
         }
 
-        function replaceInstance(binding, node, parent) {
-          const isCall = parent?.type === 'CallExpression' && parent.callee === node;
+        // build replacement, wrap guard if needed, add to transform queue
+        function addInstanceTransform(binding, node, parent, metaPath, isCall, opts) {
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = node.object.type !== 'Identifier';
           const { optionalRoot, rootRaw, canDeopt } = resolveOptionalRoot(node, parent, isCall);
@@ -399,12 +403,32 @@ export default function createPlugin(options) {
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
 
-          const replacement = buildReplacement(binding, objectSrc, {
-            isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, optionalCall: isCall && parent.optional, args: argsSrc,
+          let replacement = buildReplacement(binding, objectSrc, {
+            isCall, isNonIdent, optionalRoot, rootRaw, canDeopt,
+            optionalCall: isCall && parent.optional, args: argsSrc, ...opts,
           });
-          transforms.add(start, end, wrapIfContinuation(replacement, end));
+          if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
+            replacement = `(${ replacement })`;
+          }
+          transforms.add(start, end, replacement, optionalRoot);
           if (isCall) skippedNodes.add(parent);
           skipProxyGlobal(node);
+        }
+
+        function handleSymbolIterator(meta, node, parent, metaPath) {
+          const entry = resolveSymbolIteratorEntry(node, parent);
+          if (!isEntryNeeded(entry)) return;
+          const isCallParent = parent?.type === 'CallExpression' && parent.callee === node;
+          const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
+          addInstanceTransform(binding, node, parent, metaPath, isCallParent, {
+            isCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
+          });
+          if (node.property) skippedNodes.add(node.property);
+        }
+
+        function replaceInstance(binding, node, parent, metaPath) {
+          const isCall = parent?.type === 'CallExpression' && parent.callee === node;
+          addInstanceTransform(binding, node, parent, metaPath, isCall, {});
         }
 
         // deferred destructuring: collect polyfilled properties per ObjectPattern
@@ -614,7 +638,7 @@ export default function createPlugin(options) {
             if (parent?.type === 'UpdateExpression') return;
             if (node.object?.type === 'Super') return;
             if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent);
+            if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
           }
 
           const { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
@@ -635,7 +659,7 @@ export default function createPlugin(options) {
           if (node.type === 'MemberExpression') skipProxyGlobal(node);
 
           if (kind === 'instance' && node.type === 'MemberExpression') {
-            replaceInstance(binding, node, parent);
+            replaceInstance(binding, node, parent, metaPath);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
             // deoptionalize `?.` when replacing global/static callee:
             // - optional call on non-optional member: Map?.() / globalThis.Map?.() -> _Map()
