@@ -35,6 +35,7 @@ export default function plugin(api, options) {
 
   const {
     isInTypeAnnotation,
+    deoptionalizeNode,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceCallWithSimple,
@@ -178,9 +179,14 @@ export default function plugin(api, options) {
           if (kind === 'instance') {
             replaceInstanceLike(path, id, skipPolyfillableOptional);
           } else {
-            const chainStart = path.node.optional;
+            const wasOptional = path.node.optional;
             path.replaceWith(id);
-            normalizeOptionalChain(path, !chainStart);
+            normalizeOptionalChain(path, !wasOptional);
+            // the polyfill import is always defined — strip ?. on the direct parent if it
+            // wasn't already handled by normalizeOptionalChain (globalThis?.Map?.() -> _Map())
+            if (wasOptional && path.parentPath?.node?.optional) {
+              deoptionalizeNode(path.parentPath);
+            }
           }
         }
       }
