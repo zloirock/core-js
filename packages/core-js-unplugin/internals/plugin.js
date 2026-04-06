@@ -353,7 +353,9 @@ export default function createPlugin(options) {
         }
 
         // build replacement, wrap guard if needed, add to transform queue
-        function addInstanceTransform(binding, node, parent, metaPath, isCall, opts) {
+        // replacementIsCall overrides isCall for buildReplacement (used by Symbol.iterator:
+        // the parent range is the call, but the replacement is a simple call, not .call())
+        function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = unwrapNode(node.object).type !== 'Identifier';
           const { optionalRoot, rootRaw, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
@@ -362,9 +364,9 @@ export default function createPlugin(options) {
           const end = isCall ? parent.end : node.end;
 
           let replacement = buildReplacement(binding, objectSrc, {
-            isCall, isNonIdent, optionalRoot, rootRaw, deoptPositions,
+            isCall: replacementIsCall, isNonIdent, optionalRoot, rootRaw, deoptPositions,
             optionalCall: isCall && parent.optional, args: argsSrc,
-            objectStart: node.object.start, ...opts,
+            objectStart: node.object.start,
           });
           if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
             replacement = `(${ replacement })`;
@@ -392,15 +394,14 @@ export default function createPlugin(options) {
             ? 'get-iterator' : 'get-iterator-method';
           if (!isEntryNeeded(entry)) return;
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
-          addInstanceTransform(binding, node, parent, metaPath, isCallParent, {
-            isCall: isCallParent && (parent.arguments.length > 0 || parent.optional),
-          });
+          addInstanceTransform(binding, node, parent, metaPath, isCallParent,
+            isCallParent && (parent.arguments.length > 0 || parent.optional));
           if (node.property) skippedNodes.add(node.property);
         }
 
         function replaceInstance(binding, node, parent, metaPath) {
           const isCall = isCallee(node, parent);
-          addInstanceTransform(binding, node, parent, metaPath, isCall, {});
+          addInstanceTransform(binding, node, parent, metaPath, isCall);
         }
 
         // deferred destructuring: collect polyfilled properties per ObjectPattern
@@ -656,12 +657,12 @@ export default function createPlugin(options) {
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent, metaPath);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-            // deoptionalize `?.` when replacing global/static callee:
-            // - optional call on non-optional member: Map?.() / globalThis.Map?.() -> _Map()
-            //   but NOT globalThis?.Map?.() -> _Map?.() (preserve user's optional call intent)
+            // deoptionalize `?.` when replacing global/static callee — the polyfill import is always
+            // defined, so optional chaining on it is redundant:
+            // - optional call: Map?.() / globalThis.Map?.() / globalThis?.Map?.() -> _Map()
             // - optional member parent: globalThis?.X -> _globalThis.X
             let { end } = node;
-            if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent) && !node.optional) {
+            if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent)) {
               end = afterOptional(node.end, false);
             } else if (parent?.type === 'MemberExpression' && parent.optional && parent.object === node) {
               end = afterOptional(node.end, !parent.computed);
