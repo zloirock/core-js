@@ -61,12 +61,16 @@ export default function createPlugin(options) {
     transform(code, id) {
       if (isCoreJSFile(id)) return null;
 
+      // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
+      const isCJSFile = /\.c[jt]s(?:[#?][^#?]*)?$/.test(id);
       // parse with oxc-parser (sync is the only available API)
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-      const { program: ast, comments, errors } = parseSync(id, code, { sourceType: 'module' });
+      const { program: ast, comments, errors } = parseSync(id, code, {
+        sourceType: isCJSFile ? 'script' : 'module',
+      });
       if (errors?.length) return null;
 
-      const importStyle = importStyleOption ?? 'import';
+      const importStyle = importStyleOption ?? (isCJSFile ? 'require' : 'import');
 
       // check disable directives
       const offsetToLine = buildOffsetToLine(code);
@@ -79,7 +83,7 @@ export default function createPlugin(options) {
         return disabledLines.has(offsetToLine(node.start));
       }
 
-      const ms = new MagicString(code);
+      const ms = new MagicString(code, { filename: id });
       const injector = new ImportInjector({ ms, pkg, mode, absoluteImports, importStyle });
 
       const debugOutput = createDebugOutput?.() ?? null;
@@ -99,8 +103,11 @@ export default function createPlugin(options) {
       function finalize() {
         injector.flush();
         outputDebug();
-        if (ms.hasChanged()) return { code: ms.toString(), map: ms.generateMap({ hires: 'boundary' }) };
-        return null;
+        if (!ms.hasChanged()) return null;
+        return {
+          code: ms.toString(),
+          map: ms.generateMap({ source: id, includeContent: true, hires: 'boundary' }),
+        };
       }
 
       // entry-global mode
@@ -286,7 +293,7 @@ export default function createPlugin(options) {
 
         // build the replacement text for an instance method or Symbol.iterator transform
         function buildReplacement(binding, objectSrc, opts) {
-          const { isCall, isNonIdent, optionalRoot, rootRaw, deoptPositions, optionalCall, args, objectStart } = opts;
+          const { isCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions, optionalCall, args, objectStart } = opts;
           const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
           let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
           let guard = '';
@@ -303,7 +310,11 @@ export default function createPlugin(options) {
           }
 
           let result;
-          if (!isCall) {
+          if (isNew) {
+            // new arr.at(0) -> new (_at(arr))(0) — preserve user's `new` on the polyfill callee
+            const argsPart = args || '';
+            result = `${ guard }new (${ binding }(${ bodyObj }))(${ argsPart })`;
+          } else if (!isCall) {
             result = `${ guard }${ binding }(${ bodyObj })`;
           } else {
             const ref = isNonIdent && bodyObj !== guardRef ? state.genRef() : null;
@@ -363,12 +374,16 @@ export default function createPlugin(options) {
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = unwrapNode(node.object).type !== 'Identifier';
           const { optionalRoot, rootRaw, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
-          const argsSrc = isCall ? parent.arguments.map(a => nodeSrc(a)).join(', ') : null;
+          // preserve comments in arguments by slicing original source between arg ranges
+          const argsSrc = isCall && parent.arguments.length
+            ? code.slice(parent.arguments[0].start, parent.arguments.at(-1).end)
+            : null;
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
+          const isNew = parent?.type === 'NewExpression' && isCall;
 
           let replacement = buildReplacement(binding, objectSrc, {
-            isCall: replacementIsCall, isNonIdent, optionalRoot, rootRaw, deoptPositions,
+            isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
             optionalCall: isCall && parent.optional, args: argsSrc,
             objectStart: node.object.start,
           });
@@ -394,7 +409,10 @@ export default function createPlugin(options) {
 
         function handleSymbolIterator(meta, node, parent, metaPath) {
           const isCallParent = isCallee(node, parent);
-          const entry = isCallParent && parent.arguments.length === 0 && !parent.optional
+          // get-iterator returns the materialized iterator; get-iterator-method returns the method.
+          // use get-iterator only for plain CallExpression with no args — never for NewExpression
+          const isPlainCall = isCallParent && parent.type === 'CallExpression';
+          const entry = isPlainCall && parent.arguments.length === 0 && !parent.optional
             ? 'get-iterator' : 'get-iterator-method';
           if (!isEntryNeeded(entry)) return;
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
