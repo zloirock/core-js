@@ -22,6 +22,17 @@ import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './dete
 
 const typeResolvers = createResolveNodeType(nodeType, types);
 
+// ternary guard needs () only when parent operator has higher precedence than ?:
+const NEEDS_GUARD_PARENS = new Set([
+  'BinaryExpression',
+  'LogicalExpression',
+  'UnaryExpression',
+  'AwaitExpression',
+  'UpdateExpression',
+  'TaggedTemplateExpression',
+  'SpreadElement',
+]);
+
 export default function createPlugin(options) {
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
@@ -204,49 +215,28 @@ export default function createPlugin(options) {
           return result + src.slice(prev);
         }
 
-        // check if a MemberExpression property is polyfillable (would produce its own inner transform)
-        function hasPolyfillableProperty(memberNode) {
-          const key = !memberNode.computed && memberNode.property?.type === 'Identifier' && memberNode.property.name;
-          if (!key) return false;
-          if (resolveBuiltIn({ kind: 'property', object: null, key, placement: null })) return true;
-          const { object } = memberNode;
-          if (object?.type === 'Identifier') {
-            const resolved = resolveBuiltIn({ kind: 'property', object: object.name, key, placement: 'static' });
-            if (resolved?.kind === 'static' || resolved?.kind === 'global') return true;
-          }
-          return false;
-        }
-
         // walk the chain to find the first non-polyfillable optional
         function findChainRoot(node) {
-          // collect `?.` positions from polyfill node down to rootNode (for stripping)
-          function collectDeoptPositions(rootNode) {
-            const positions = [];
+          function makeResult(optionalNode) {
+            const rootNode = optionalNode.object || optionalNode.callee;
+            // collect `?.` positions from polyfill node down to optionalNode (for stripping)
+            const deoptPositions = [];
             let cur = node.object || node.callee;
             while (cur && typeof cur === 'object') {
-              if (cur.optional) positions.push(cur.object?.end ?? cur.callee?.end);
-              if (cur === rootNode) break;
+              if (cur.optional) deoptPositions.push(cur.object?.end ?? cur.callee?.end);
+              if (cur === optionalNode) break;
               cur = cur.object || cur.callee;
             }
-            return positions;
+            return { root: unwrapParens(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions };
           }
+          const isPoly = n => isPolyfillableOptional(n, null, estreeAdapter, resolveBuiltIn);
           if (node.optional) {
-            if (isPolyfillableOptional(node, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-            return {
-              root: unwrapParens(node.object), rootRaw: nodeSrc(node.object),
-              canDeopt: true, deoptPositions: collectDeoptPositions(node),
-            };
+            return isPoly(node) ? { root: null } : makeResult(node);
           }
           let current = node.object || node.callee;
-          let canDeopt = true;
           while (current && typeof current === 'object') {
-            if (current.type === 'MemberExpression' && hasPolyfillableProperty(current)) canDeopt = false;
             if (current.optional) {
-              if (isPolyfillableOptional(current, null, estreeAdapter, resolveBuiltIn)) return { root: null };
-              return {
-                root: unwrapParens(current.object), rootRaw: nodeSrc(current.object),
-                canDeopt, deoptPositions: collectDeoptPositions(current),
-              };
+              return isPoly(current) ? { root: null } : makeResult(current);
             }
             current = current.object || current.callee;
           }
@@ -255,14 +245,11 @@ export default function createPlugin(options) {
 
         // build the replacement text for an instance method or Symbol.iterator transform
         function buildReplacement(binding, objectSrc, opts) {
-          const { isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, deoptPositions, optionalCall, args, objectStart } = opts;
-          let bodyObj = objectSrc;
+          const { isCall, isNonIdent, optionalRoot, rootRaw, deoptPositions, optionalCall, args, objectStart } = opts;
+          const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
+          let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
           let guard = '';
           let guardRef = null;
-
-          if (canDeopt && deoptPositions?.length) {
-            bodyObj = stripOptionalDots(objectSrc, objectStart ?? 0, deoptPositions);
-          }
 
           if (optionalRoot) {
             if (/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)) {
@@ -270,8 +257,7 @@ export default function createPlugin(options) {
             } else {
               guardRef = state.genRef();
               guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
-              const rootLen = stripOptionalDots(rootRaw, objectStart ?? 0, deoptPositions).length;
-              bodyObj = guardRef + bodyObj.slice(rootLen);
+              bodyObj = guardRef + bodyObj.slice(strip(rootRaw).length);
             }
           }
 
@@ -315,25 +301,17 @@ export default function createPlugin(options) {
           if (proxy) skippedNodes.add(proxy);
         }
 
-        // ternary guard needs () only when parent operator has higher precedence than ?:
-        const NEEDS_GUARD_PARENS = new Set([
-          'BinaryExpression', 'LogicalExpression', 'UnaryExpression',
-          'AwaitExpression', 'UpdateExpression',
-          'TaggedTemplateExpression', 'SpreadElement',
-        ]);
-
         // resolve optional root + skip redundant guard when nested inside an outer transform
         function resolveOptionalRoot(node, parent, isCall) {
-          let { root, rootRaw, canDeopt, deoptPositions } = findChainRoot(node);
+          let { root, rootRaw, deoptPositions } = findChainRoot(node);
           if (root) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
             if (node.optional ? transforms.hasGuardFor(start, end, root) : transforms.containsRange(start, end)) {
               root = null;
-              canDeopt = true;
             }
           }
-          return { optionalRoot: root, rootRaw, canDeopt, deoptPositions };
+          return { optionalRoot: root, rootRaw, deoptPositions };
         }
 
         // does guard ternary need () to preserve correct precedence?
@@ -352,13 +330,13 @@ export default function createPlugin(options) {
         function addInstanceTransform(binding, node, parent, metaPath, isCall, opts) {
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = node.object.type !== 'Identifier';
-          const { optionalRoot, rootRaw, canDeopt, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
+          const { optionalRoot, rootRaw, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
           const argsSrc = isCall ? parent.arguments.map(a => nodeSrc(a)).join(', ') : null;
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
 
           let replacement = buildReplacement(binding, objectSrc, {
-            isCall, isNonIdent, optionalRoot, rootRaw, canDeopt, deoptPositions,
+            isCall, isNonIdent, optionalRoot, rootRaw, deoptPositions,
             optionalCall: isCall && parent.optional, args: argsSrc,
             objectStart: node.object.start, ...opts,
           });
