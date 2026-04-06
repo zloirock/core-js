@@ -147,6 +147,9 @@ export default function plugin(api, options) {
             if (!path.isReferenced()) return;
             if (path.parentPath.isUpdateExpression()) return;
             if (t.isSuper(path.node.object)) return;
+            // skip instance method used as tagged template tag — replacing callee breaks `this` binding
+            if (meta.placement === 'prototype'
+              && path.parentPath.isTaggedTemplateExpression() && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
           }
         }
