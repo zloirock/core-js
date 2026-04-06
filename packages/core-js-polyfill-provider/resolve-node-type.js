@@ -1399,25 +1399,25 @@ function createResolveNodeType(babelNodeType, t) {
   // so returns outside a try-finally are unaffected
   function collectReturnPaths(blockPath) {
     const getChildren = (path, key) => Array.isArray(path.node[key]) ? path.get(key) : [path.get(key)];
-    const collect = path => {
-      if (!path.node || t.isFunction(path.node)) return [];
+    const collect = (path, depth = 0) => {
+      if (depth > MAX_DEPTH || !path.node || t.isFunction(path.node)) return [];
       if (t.isReturnStatement(path.node)) return [path];
       const { node } = path;
       // TryStatement: if finally has returns, they override try/catch returns
       if (node.type === 'TryStatement') {
-        const finalizerReturns = node.finalizer ? collect(path.get('finalizer')) : [];
+        const finalizerReturns = node.finalizer ? collect(path.get('finalizer'), depth + 1) : [];
         if (finalizerReturns.length) return finalizerReturns;
         const result = [];
-        if (node.block) for (const r of collect(path.get('block'))) result.push(r);
-        if (node.handler) for (const r of collect(path.get('handler'))) result.push(r);
+        if (node.block) for (const r of collect(path.get('block'), depth + 1)) result.push(r);
+        if (node.handler) for (const r of collect(path.get('handler'), depth + 1)) result.push(r);
         return result;
       }
       // recurse into block/control-flow children
       const result = [];
-      if (node.body) for (const p of getChildren(path, 'body')) for (const r of collect(p)) result.push(r);
-      if (node.consequent) for (const p of getChildren(path, 'consequent')) for (const r of collect(p)) result.push(r);
-      if (node.alternate) for (const r of collect(path.get('alternate'))) result.push(r);
-      if (node.cases) for (const p of path.get('cases')) for (const r of collect(p)) result.push(r);
+      if (node.body) for (const p of getChildren(path, 'body')) for (const r of collect(p, depth + 1)) result.push(r);
+      if (node.consequent) for (const p of getChildren(path, 'consequent')) for (const r of collect(p, depth + 1)) result.push(r);
+      if (node.alternate) for (const r of collect(path.get('alternate'), depth + 1)) result.push(r);
+      if (node.cases) for (const p of path.get('cases')) for (const r of collect(p, depth + 1)) result.push(r);
       return result;
     };
     const result = [];
