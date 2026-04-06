@@ -17,6 +17,8 @@ export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEnt
 
   for (const node of toRemove) {
     let { end } = node;
+    // skip trailing whitespace and line ending after the removed statement
+    while (ms.original[end] === ' ' || ms.original[end] === '\t') end++;
     if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
     else if (ms.original[end] === '\n' || ms.original[end] === '\r') end++;
     ms.remove(node.start, end);
