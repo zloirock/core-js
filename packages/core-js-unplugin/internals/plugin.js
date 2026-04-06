@@ -466,15 +466,21 @@ export default function createPlugin(options) {
               declaratorPath,
               isAssignment,
               initSrc,
-              initIsIdent: initNode?.type === 'Identifier',
               initStart: initNode?.start,
               initEnd: initNode?.end,
+              // init identifier name for lazy re-injection when rest/remaining need the polyfilled init
+              initIdentName: initNode?.type === 'Identifier' ? initNode.name : null,
               scopeSnapshot: { scope: state.scope, arrow: state.arrow },
             });
+            // prevent unused global import for init identifier (e.g., _Promise from { resolve } = Promise)
+            // — destructuring replaces properties with direct polyfill imports;
+            // if rest/remaining need the init, applyDestructuringTransforms re-injects it lazily
+            if (initNode) skippedNodes.add(initNode);
           }
           state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
         }
 
+        // eslint-disable-next-line max-statements -- ok
         function applyDestructuringTransforms() {
           // group by declPath node to handle multiple destructurings in the same VariableDeclaration
           const byStatement = new Map();
@@ -503,18 +509,22 @@ export default function createPlugin(options) {
             }
 
             for (const info of infos) {
-              const { entries, allProps, initSrc, initIsIdent, initStart, initEnd, scopeSnapshot } = info;
-              // if the init has a queued transform (e.g. Promise -> _Promise), extract it:
-              // use the polyfilled name directly and remove the inner transform to prevent
-              // composition from corrupting bindings that contain the original as substring
-              // (e.g. Promise inside _Promise$resolve -> __Promise$resolve)
-              const initTransformed = (initStart !== undefined && initEnd !== undefined
+              const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
+              // if the init has a queued transform (e.g. Promise -> _Promise), extract it
+              // to prevent composition corruption (Promise in _Promise$resolve -> __Promise$resolve)
+              let initTransformed = (initStart !== undefined && initEnd !== undefined
                 ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
               const polyfillKeys = new Set(entries.map(e => e.propNode));
               const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
               const remaining = allProps.filter(p => !polyfillKeys.has(p));
               const hasInstance = entries.some(e => e.kind === 'instance');
-              const needsMemo = hasInstance && !initIsIdent && (entries.length > 1 || remaining.length > 0 || hasRest);
+              // if remaining/rest/instance needs init object, ensure it's polyfilled
+              // (init was skipped during collection to prevent unused imports — re-inject lazily)
+              if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && initIdentName) {
+                const initResolved = resolvePure({ kind: 'global', name: initIdentName }, null);
+                if (initResolved) initTransformed = injectPureImport(initResolved.entry, initResolved.hintName);
+              }
+              const needsMemo = hasInstance && !initIdentName && (entries.length > 1 || remaining.length > 0 || hasRest);
               let objRef = initTransformed;
               if (needsMemo && initTransformed) {
                 objRef = injector.generateRef(false);
