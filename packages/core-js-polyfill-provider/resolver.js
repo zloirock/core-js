@@ -89,7 +89,10 @@ export function createPolyfillResolver(options, {
 
   function filter(name, args, path) {
     const { node } = path;
-    const parent = path.parentPath?.node ?? path.parent;
+    // walk through ParenthesizedExpression wrappers (ESTree/oxc-parser preserves them; Babel strips them)
+    let callPath = path.parentPath;
+    while (callPath?.node?.type === 'ParenthesizedExpression') callPath = callPath.parentPath;
+    const parent = callPath?.node ?? path.parent;
     if (!isCallee(node, parent)) return false;
     switch (name) {
       case 'min-args': {
@@ -102,7 +105,7 @@ export function createPolyfillResolver(options, {
         const [index] = args;
         if (parent.arguments.length < index + 1) return false;
         if (parent.arguments.slice(0, index).some(arg => isSpreadElement(arg))) return false;
-        const arg = path.parentPath.get('arguments')[index];
+        const arg = callPath.get('arguments')[index];
         return name === 'arg-is-string' ? isString(arg) : isObject(arg);
       }
     }
