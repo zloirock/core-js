@@ -36,7 +36,7 @@ export function createSyntaxRules({ injectModulesForModeEntry, injectModulesForE
     onVariableDeclaration(node) {
       if (isDisabled(node)) return;
       if (node.kind === 'using' || node.kind === 'await using') {
-        injectModulesForModeEntry('symbol/async-dispose');
+        if (node.kind === 'await using') injectModulesForModeEntry('symbol/async-dispose');
         injectModulesForModeEntry('symbol/dispose');
         injectModulesForModeEntry('suppressed-error');
       }

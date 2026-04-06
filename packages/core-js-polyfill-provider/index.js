@@ -75,35 +75,36 @@ function isModulePattern(pattern) {
   return typeof pattern === 'string' ? pattern.includes('.') || pattern.includes('*') : pattern instanceof RegExp;
 }
 
+function formatError(message, patterns) {
+  return `  - ${ message }:\n${ patterns.map(p => `    ${ p }\n`).join('') }`;
+}
+
+function isEntryPattern(pattern) {
+  return typeof pattern === 'string' && !isModulePattern(pattern);
+}
+
 function validateIncludeExclude(include, exclude, modules) {
   if (!include && !exclude) return;
   const errors = [];
+  for (const [label, patterns] of [['include', include], ['exclude', exclude]]) {
+    if (!patterns?.length) continue;
+    const unusedModules = patterns.filter(isModulePattern).filter(p => !patternMatches(p, modules));
+    if (unusedModules.length) errors.push(formatError(`The following "${ label }" patterns didn't match any polyfill`, unusedModules));
+    const unusedEntries = patterns.filter(isEntryPattern).filter(p => !hasOwn(entries, `full/${ p }`));
+    if (unusedEntries.length) errors.push(formatError(`The following "${ label }" entry paths didn't match any polyfill`, unusedEntries));
+  }
   const moduleInclude = include?.filter(isModulePattern);
   const moduleExclude = exclude?.filter(isModulePattern);
-  if (moduleInclude?.length) {
-    const unused = moduleInclude.filter(p => !patternMatches(p, modules));
-    if (unused.length) {
-      errors.push(`  - The following "include" patterns didn't match any polyfill:\n${ unused.map(p => `    ${ p }\n`).join('') }`);
-    }
-  }
-  if (moduleExclude?.length) {
-    const unused = moduleExclude.filter(p => !patternMatches(p, modules));
-    if (unused.length) {
-      errors.push(`  - The following "exclude" patterns didn't match any polyfill:\n${ unused.map(p => `    ${ p }\n`).join('') }`);
-    }
-  }
   if (moduleInclude?.length && moduleExclude?.length) {
     const duplicates = moduleInclude.filter(p => {
       if (p instanceof RegExp) return moduleExclude.some(e => e instanceof RegExp && e.source === p.source && e.flags === p.flags);
       return moduleExclude.includes(p);
     });
     if (duplicates.length) {
-      errors.push(`  - The following polyfills were matched both by "include" and "exclude" patterns:\n${ duplicates.map(p => `    ${ p }\n`).join('') }`);
+      errors.push(formatError('The following polyfills were matched both by "include" and "exclude" patterns', duplicates));
     }
   }
-  if (errors.length) {
-    throw new Error(`Error while validating the "core-js@4" provider options:\n${ errors.join('') }`);
-  }
+  if (errors.length) throw new Error(`Error while validating the "core-js@4" provider options:\n${ errors.join('') }`);
 }
 
 export function createPolyfillContext({

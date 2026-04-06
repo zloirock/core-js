@@ -39,8 +39,12 @@ export default function createPlugin(options) {
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
     isMemberLike: path => path.node?.type === 'MemberExpression',
-    isCallee: (node, parent) => parent && parent.callee === node
-      && (parent.type === 'CallExpression' || parent.type === 'NewExpression'),
+    isCallee: (node, parent) => {
+      if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
+      let { callee } = parent;
+      while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+      return callee === node;
+    },
     isSpreadElement: node => node?.type === 'SpreadElement',
   });
 
@@ -634,6 +638,9 @@ export default function createPlugin(options) {
             if (parent?.type === 'UpdateExpression') return;
             if (node.object?.type === 'Super') return;
             if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
+            // skip instance method used as tagged template tag — replacing callee breaks `this` binding
+            if (meta.placement === 'prototype'
+              && parent?.type === 'TaggedTemplateExpression' && parent.tag === node) return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
           }
 
