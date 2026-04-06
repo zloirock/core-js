@@ -364,7 +364,7 @@ export default function createPlugin(options) {
         // ternary guard needs () only when parent operator has higher precedence than ?:
         const NEEDS_GUARD_PARENS = new Set([
           'BinaryExpression', 'LogicalExpression', 'UnaryExpression',
-          'AwaitExpression', 'YieldExpression', 'UpdateExpression',
+          'AwaitExpression', 'UpdateExpression',
           'TaggedTemplateExpression', 'SpreadElement',
         ]);
 
@@ -390,6 +390,8 @@ export default function createPlugin(options) {
           if (outer?.node?.type === 'ChainExpression') outer = outer.parentPath;
           // higher-precedence operator parent
           if (NEEDS_GUARD_PARENS.has(outer?.node?.type)) return true;
+          // ternary test position: guard ternary merges with outer ternary
+          if (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === end) return true;
           // ?. continuation after this range (top-level only — inner transforms get composed)
           return code[end] === '?' && code[end + 1] === '.' && !transforms.containsRange(start, end);
         }
