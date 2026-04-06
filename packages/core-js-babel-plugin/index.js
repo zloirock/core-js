@@ -94,6 +94,18 @@ export default function plugin(api, options) {
         return true;
       }
 
+      // after extracting a destructured property, if the pattern is now empty
+      // (all properties polyfilled, no rest), skip the init node to prevent unused
+      // constructor import (e.g., _Promise from { resolve } = Promise)
+      function skipEmptyPatternInit(path) {
+        const objectPattern = path.parentPath;
+        if (objectPattern?.node?.properties?.length > 0) return;
+        const parent = objectPattern.parentPath;
+        const initNode = parent?.isVariableDeclarator() ? parent.node.init
+          : parent?.isAssignmentExpression() ? parent.node.right : null;
+        if (initNode) skippedNodes.add(initNode);
+      }
+
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
         injectModulesForModeEntry,
@@ -160,6 +172,7 @@ export default function plugin(api, options) {
             value = injectPureImport(entry, hintName);
           }
           handleDestructuredProperty(path, value);
+          skipEmptyPatternInit(path);
         } else {
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
