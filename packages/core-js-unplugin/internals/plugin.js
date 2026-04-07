@@ -19,7 +19,20 @@ import TransformQueue from './transform-queue.js';
 import detectEntries from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
-const typeResolvers = createResolveNodeType(nodeType, types);
+// end position of the leading directive prologue ('use strict', etc.) — 0 if none.
+// oxc-parser sets `directive` to a string for directive ExpressionStatements;
+// regular ExpressionStatements have `directive: null` (TSX) or omit the field (JS)
+function directivePrologueEnd(ast) {
+  let end = 0;
+  for (const stmt of ast.body) {
+    if (stmt.type !== 'ExpressionStatement' || typeof stmt.directive !== 'string') break;
+    end = stmt.end;
+  }
+  return end;
+}
+
+// node types that are safe to double-evaluate (no side effects, no temp ref needed)
+const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
 // ternary guard needs () only when parent operator has higher precedence than ?:
 // or parent grammar restricts the expression (extends clause expects LeftHandSideExpression)
@@ -36,6 +49,8 @@ const NEEDS_GUARD_PARENS = new Set([
 ]);
 
 export default function createPlugin(options) {
+  // per-instance type resolvers — guardsCache/resolveCache WeakMaps don't leak across plugin instances
+  const typeResolvers = createResolveNodeType(nodeType, types);
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
     isMemberLike: path => path.node?.type === 'MemberExpression',
@@ -84,7 +99,10 @@ export default function createPlugin(options) {
       }
 
       const ms = new MagicString(code, { filename: id });
-      const injector = new ImportInjector({ ms, pkg, mode, absoluteImports, importStyle });
+      const injector = new ImportInjector({
+        ms, pkg, mode, absoluteImports, importStyle,
+        directiveEnd: directivePrologueEnd(ast),
+      });
 
       const debugOutput = createDebugOutput?.() ?? null;
 
@@ -372,7 +390,7 @@ export default function createPlugin(options) {
         // the parent range is the call, but the replacement is a simple call, not .call())
         function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
           const objectSrc = unwrapParens(node.object);
-          const isNonIdent = unwrapNode(node.object).type !== 'Identifier';
+          const isNonIdent = !NO_REF_NEEDED.has(unwrapNode(node.object).type);
           const { optionalRoot, rootRaw, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
           // preserve comments in arguments by slicing original source between arg ranges
           const argsSrc = isCall && parent.arguments.length
