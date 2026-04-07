@@ -66,7 +66,6 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
   };
   const includeMatchers = matchers(include);
   const excludeMatchers = matchers(exclude);
-  const cache = new Map();
   const defaultShouldInject = mod => {
     if (excludeMatchers?.some(m => m(mod))) return false;
     if (includeMatchers?.some(m => m(mod))) return true;
@@ -80,14 +79,18 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
     }
     return true;
   };
-  const resolve = typeof userCallback === 'function'
-    ? mod => userCallback(mod, defaultShouldInject(mod))
-    : defaultShouldInject;
+  // no cache: a user callback may depend on per-file context and a shared cache would
+  // pin the first answer across every subsequent transform call
+  const hasUserCallback = typeof userCallback === 'function';
   return mod => {
-    if (cache.has(mod)) return cache.get(mod);
-    const result = resolve(mod);
-    cache.set(mod, result);
-    return result;
+    const base = defaultShouldInject(mod);
+    if (!hasUserCallback) return base;
+    try {
+      return userCallback(mod, base);
+    } catch (error) {
+      error.message = `core-js-polyfill-provider: shouldInjectPolyfill(${ JSON.stringify(mod) }) threw: ${ error.message }`;
+      throw error;
+    }
   };
 }
 
