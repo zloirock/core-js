@@ -8,13 +8,26 @@ import {
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 
+// per-file map of polyfill UIDs -> entry source paths, populated by Program.enter
+// allows resolveKey to recognize identifiers that have been replaced in-place by the polyfill
+let activePureImports = null;
+export function setActivePureImports(injector) { activePureImports = injector; }
+
 // Babel scope adapter for shared detect-usage functions
 export const babelAdapter = {
   hasBinding: (scope, name) => !!scope.getBindingIdentifier(name),
   getBinding(scope, name) {
     const b = scope.getBinding(name);
-    if (!b) return null;
-    return { node: b.path.node, constantViolations: b.constantViolations };
+    if (b) {
+      const importSource = b.path.node?.type === 'ImportDefaultSpecifier'
+        ? b.path.parent?.source?.value : null;
+      return { node: b.path.node, constantViolations: b.constantViolations, importSource };
+    }
+    // fallback: identifier may be a polyfill UID whose import declaration hasn't been inserted yet
+    // (the polyfill plugin defers import insertion to Program.exit)
+    const importSource = activePureImports?.pureImportsByName.get(name);
+    if (importSource) return { node: null, constantViolations: null, importSource };
+    return null;
   },
   getBindingNodeType(scope, name) {
     return scope.getBinding(name)?.path.node?.type ?? null;

@@ -5,8 +5,11 @@ export default function (t) {
     return !!path.findParent(p => isTypeAnnotationNodeType(p.node.type));
   }
 
+  // identifiers and `this` are safe to double-evaluate (no side effects, no temp ref needed)
+  const isSafeToReuse = node => t.isIdentifier(node) || t.isThisExpression(node);
+
   function memoize(node, scope) {
-    if (t.isIdentifier(node)) return [t.cloneNode(node), node];
+    if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
     const ref = scope.generateDeclaredUidIdentifier('ref');
     return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
   }

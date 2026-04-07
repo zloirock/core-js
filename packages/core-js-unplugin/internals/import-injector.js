@@ -7,18 +7,20 @@ export default class ImportInjector {
   #mode;
   #absoluteImports;
   #importStyle;
+  #directiveEnd = 0;
   #globalImports = new Set();
   #pureImports = new Map();
   #usedNames = new Set();
   #rootScope = null;
   #refs = [];
 
-  constructor({ ms, pkg, mode, absoluteImports, importStyle }) {
+  constructor({ ms, pkg, mode, absoluteImports, importStyle, directiveEnd = 0 }) {
     this.#ms = ms;
     this.#pkg = pkg;
     this.#mode = mode;
     this.#absoluteImports = absoluteImports;
     this.#importStyle = importStyle;
+    this.#directiveEnd = directiveEnd;
   }
 
   set rootScope(scope) { this.#rootScope = scope; }
@@ -88,6 +90,37 @@ export default class ImportInjector {
       for (const mod of sortedGlobals) lines.push(`import "${ this.#resolvePath(`modules/${ mod }`) }";`);
       for (const [entry, name] of this.#pureImports) lines.push(`import ${ name } from "${ this.#resolvePath(entry) }";`);
     }
-    if (lines.length) this.#ms.prepend(`${ lines.join('\n') }\n`);
+    if (!lines.length) return;
+    const block = `${ lines.join('\n') }\n`;
+    // insert AFTER a leading shebang line (if any) — shebang must remain at offset 0
+    const insertPos = this.#prologueEnd();
+    if (insertPos > 0) this.#ms.appendRight(insertPos, block);
+    else this.#ms.prepend(block);
   }
+
+  // compute end of leading BOM + shebang + directive prologue —
+  // imports must be inserted AFTER all of them to remain valid
+  #prologueEnd() {
+    const src = this.#ms.original;
+    let p = skipBom(src, 0);
+    p = skipShebang(src, p);
+    if (this.#directiveEnd > p) p = skipLineEnd(src, this.#directiveEnd);
+    return p;
+  }
+}
+
+function skipBom(src, pos) {
+  return src.charCodeAt(pos) === 0xFEFF ? pos + 1 : pos;
+}
+
+function skipShebang(src, pos) {
+  if (src[pos] !== '#' || src[pos + 1] !== '!') return pos;
+  const nl = src.indexOf('\n', pos + 2);
+  return nl === -1 ? src.length : nl + 1;
+}
+
+function skipLineEnd(src, pos) {
+  if (src[pos] === '\r' && src[pos + 1] === '\n') return pos + 2;
+  if (src[pos] === '\n' || src[pos] === '\r') return pos + 1;
+  return pos;
 }
