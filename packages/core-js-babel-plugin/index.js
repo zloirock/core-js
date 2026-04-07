@@ -11,7 +11,7 @@ import {
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
-import { babelAdapter, createUsageVisitors, createSyntaxVisitors } from './internals/detect-usage.js';
+import { babelAdapter, createUsageVisitors, createSyntaxVisitors, setActivePureImports } from './internals/detect-usage.js';
 import createEntryVisitors from './internals/detect-entry.js';
 
 export default function plugin(api, options) {
@@ -52,9 +52,9 @@ export default function plugin(api, options) {
   return {
     name: 'core-js@4',
     visitor: (() => {
-      const skippedNodes = new WeakSet();
-      let skipFile,
-          disabledLines = null;
+      let skippedNodes = new WeakSet();
+      let disabledLines = null;
+      let skipFile;
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
@@ -214,6 +214,8 @@ export default function plugin(api, options) {
           skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
           importStyle = importStyleOption ?? (path.node.sourceType === 'script' ? 'require' : 'import');
           injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
+          setActivePureImports(injector);
+          skippedNodes = new WeakSet();
           debugOutput = createDebugOutput?.() ?? null;
           const { comments } = path.hub.file.ast;
           const directives = skipFile ? null : parseDisableDirectives(comments);
