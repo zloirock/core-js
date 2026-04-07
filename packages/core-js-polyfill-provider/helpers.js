@@ -38,6 +38,19 @@ export const POSSIBLE_GLOBAL_OBJECTS = new Set([
   'window',
 ]);
 
+// build a static-method meta from a `class A extends B { static foo() { super.foo() } }` shape.
+// `classNode` is the ClassDeclaration / ClassExpression, `key` is the super property name,
+// `isLocallyBound(name)` returns true when the parent identifier is shadowed by a local binding.
+// returns null when the shape is unsupported (non-identifier extends, shadowed parent, etc.).
+export function buildSuperStaticMeta(classNode, key, isLocallyBound) {
+  if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
+  const { superClass } = classNode;
+  if (superClass?.type !== 'Identifier') return null;
+  const { name } = superClass;
+  if (isLocallyBound(name)) return null;
+  return { kind: 'property', object: name, key, placement: 'static' };
+}
+
 // convert Symbol.X key to kebab-case entry: Symbol.hasInstance -> symbol/has-instance
 export function symbolKeyToEntry(key) {
   if (!key?.startsWith('Symbol.')) return null;
@@ -72,7 +85,7 @@ export function buildOffsetToLine(code) {
 
 const DIRECTIVE = /^\s*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$)/;
 
-// merge two visitor objects — combine handlers for same node type
+// merge two visitor objects - combine handlers for same node type
 // supports function (shorthand for enter), { enter, exit }, and mixed formats
 export function mergeVisitors(base, extra) {
   const toObject = v => typeof v === 'function' ? { enter: v } : v;

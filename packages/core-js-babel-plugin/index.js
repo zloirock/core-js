@@ -1,4 +1,4 @@
-import { isCoreJSFile, parseDisableDirectives, mergeVisitors } from '@core-js/polyfill-provider/helpers';
+import { isCoreJSFile, parseDisableDirectives, mergeVisitors, buildSuperStaticMeta } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
@@ -95,6 +95,42 @@ export default function plugin(api, options) {
         return true;
       }
 
+      // parameter / IIFE destructure: rewrite `function({ from }) { ... }` to
+      // `function({ from = _Array$from }) { ... }` so that on engines without `Array.from`
+      // the destructure default kicks in and provides the polyfill.
+      // only static/global polyfills can fit in a default value - instance methods need
+      // a receiver (`_at(arr).call(arr, 0)` form) and cannot be substituted this way.
+      // requiring `value` to be a plain Identifier rejects both user-supplied defaults
+      // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check.
+      function handleParameterDestructure(prop, kind, entry, hintName) {
+        if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
+        const id = injectPureImport(entry, hintName);
+        prop.get('value').replaceWith(t.assignmentPattern(t.cloneNode(prop.node.value), t.cloneNode(id)));
+        prop.node.shorthand = false;
+      }
+
+      // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
+      // function-parameter destructure path (`function({ from }) {}` form) or the regular
+      // VariableDeclarator / AssignmentExpression destructure path.
+      function handleObjectPropertyResult(prop, kind, entry, hintName) {
+        const objectPattern = prop.parentPath;
+        if (objectPattern?.parentPath?.isFunction()) {
+          handleParameterDestructure(prop, kind, entry, hintName);
+          return;
+        }
+        if (!canTransformDestructuring(prop)) return;
+        let value;
+        if (kind === 'instance') {
+          const objectNode = resolveDestructuringObject(prop, toHint(resolvePropertyObjectType(prop)));
+          if (!objectNode) return;
+          value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
+        } else {
+          value = injectPureImport(entry, hintName);
+        }
+        handleDestructuredProperty(prop, value);
+        skipEmptyPatternInit(prop);
+      }
+
       // after extracting a destructured property, if the pattern is now empty
       // (all properties polyfilled, no rest), skip the init node to prevent unused
       // constructor import (e.g., _Promise from { resolve } = Promise)
@@ -112,6 +148,31 @@ export default function plugin(api, options) {
         injectModulesForModeEntry,
         isDisabled,
       });
+
+      // resolve `super.X` references inside a class method to a static-method meta on the
+      // parent class. Returns null for unsupported cases (computed key, prototype super,
+      // non-identifier extends clause, locally-shadowed parent name, etc.). Currently
+      // static-only - instance super requires rewriting the receiver to `this`.
+      function resolveSuperMember(path) {
+        if (path.node.computed) return null;
+        const key = path.node.property?.name;
+        if (!key) return null;
+        // walk up to the enclosing class method/property; bail if we hit a non-method function
+        let methodPath = null;
+        for (let cur = path.parentPath; cur; cur = cur.parentPath) {
+          if (cur.isClassMethod() || cur.isClassPrivateMethod()
+            || cur.isClassProperty() || cur.isClassPrivateProperty()) {
+            methodPath = cur;
+            break;
+          }
+          if (cur.isFunction()) return null;
+        }
+        if (!methodPath?.node.static) return null;
+        // hasBinding() returns true for tracked globals, so check getBinding() for an actual
+        // local declaration instead
+        return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
+          name => !!path.scope.getBinding(name));
+      }
 
       function usagePureCallback(meta, path) {
         if (isDisabled(path.node)) return;
@@ -146,8 +207,13 @@ export default function plugin(api, options) {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             if (!path.isReferenced()) return;
             if (path.parentPath.isUpdateExpression()) return;
-            if (t.isSuper(path.node.object)) return;
-            // skip instance method used as tagged template tag — replacing callee breaks `this` binding
+            if (t.isSuper(path.node.object)) {
+              // resolve `super.X` to its parent class equivalent - currently static-only
+              const superMeta = resolveSuperMember(path);
+              if (!superMeta) return;
+              meta = superMeta;
+            }
+            // skip instance method used as tagged template tag - replacing callee breaks `this` binding
             if (meta.placement === 'prototype'
               && path.parentPath.isTaggedTemplateExpression() && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
@@ -166,17 +232,7 @@ export default function plugin(api, options) {
         const { entry, kind, hintName } = result;
 
         if (path.isObjectProperty()) {
-          if (!canTransformDestructuring(path)) return;
-          let value;
-          if (kind === 'instance') {
-            const objectNode = resolveDestructuringObject(path, toHint(resolvePropertyObjectType(path)));
-            if (!objectNode) return;
-            value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
-          } else {
-            value = injectPureImport(entry, hintName);
-          }
-          handleDestructuredProperty(path, value);
-          skipEmptyPatternInit(path);
+          handleObjectPropertyResult(path, kind, entry, hintName);
         } else {
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
@@ -185,7 +241,7 @@ export default function plugin(api, options) {
             const wasOptional = path.node.optional;
             path.replaceWith(id);
             normalizeOptionalChain(path, !wasOptional);
-            // the polyfill import is always defined — strip ?. on the direct parent if it
+            // the polyfill import is always defined - strip ?. on the direct parent if it
             // wasn't already handled by normalizeOptionalChain (globalThis?.Map?.() -> _Map())
             if (wasOptional && path.parentPath?.node?.optional) {
               deoptionalizeNode(path.parentPath);
