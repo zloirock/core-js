@@ -47,6 +47,23 @@ const toLowerKeys = function (object) {
   }, {});
 };
 
+// sentinel for "latest version" — higher than any real engine version, so no polyfills are injected
+const LATEST_SENTINEL = '999999';
+// non-numeric per-engine values that mean "latest" (e.g., Safari Technology Preview, generic latest)
+const LATEST_KEYWORDS = new Set(['tp', 'latest']);
+
+function normalizeVersion(engine, version) {
+  const str = String(version);
+  if (LATEST_KEYWORDS.has(str.toLowerCase())) return LATEST_SENTINEL;
+  if (!/^\d/.test(str)) {
+    throw new RangeError(
+      `Invalid version "${ str }" for "${ engine }": expected a numeric version. `
+      + 'Use a browserslist query string (e.g., "last 2 safari versions") for non-numeric values.',
+    );
+  }
+  return str;
+}
+
 export default function (targets) {
   if (typeof targets != 'object' || isArray(targets)) targets = { browsers: targets };
   const { configPath, ignoreBrowserslistConfig, ...targetsWithoutConfig } = targets;
@@ -85,7 +102,7 @@ export default function (targets) {
     if (aliases.has(engine)) {
       engine = aliases.get(engine);
     }
-    return [engine, String(version)];
+    return [engine, normalizeVersion(engine, version)];
   }).filter(([engine]) => {
     return validTargets.has(engine);
   }).sort(([a], [b]) => {
