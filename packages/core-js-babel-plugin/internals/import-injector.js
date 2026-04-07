@@ -35,13 +35,13 @@ export default class ImportInjector {
     this.#globalImports.add(moduleName);
   }
 
-  // usage-pure: register default import, return Babel Identifier node.
+  // usage-pure: register default import, return Babel Identifier node
   // own UID generation: Babel's scope.generateUidIdentifier strips trailing digits from the hint
-  // (`Math$log2` -> `_Math$log`), which produces misleading names for hints with numeric suffixes.
+  // (`Math$log2` -> `_Math$log`), which produces misleading names for hints with numeric suffixes
   // we also publish the chosen name into Babel's `program.references`/`program.uids` so that
   // sibling transforms running afterwards (e.g. plugin-transform-computed-properties) don't
   // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` —
-  // the import declaration isn't inserted yet, so without this it's not visible as a binding.
+  // the import declaration isn't inserted yet, so without this it's not visible as a binding
   addPureImport(entry, hint) {
     const source = `${ this.#mode }/${ entry }`;
     if (this.#pureImports.has(source)) return this.#t.cloneNode(this.#pureImports.get(source));
@@ -59,10 +59,10 @@ export default class ImportInjector {
     return this.#t.cloneNode(id);
   }
 
-  // insert all collected imports sorted by compat data order.
+  // insert all collected imports sorted by compat data order
   // uses flushed sets to track what was already inserted - unshiftContainer may trigger
   // other plugins (e.g. CJS transform) which may cause new polyfill references to be detected,
-  // so flush is called in a loop until no new imports remain.
+  // so flush is called in a loop until no new imports remain
   flush() {
     const t = this.#t;
 
