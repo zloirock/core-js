@@ -1,4 +1,4 @@
-import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
+import { findUniqueName, resolveImportPath } from '@core-js/polyfill-provider/helpers';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
 export default class ImportInjector {
@@ -34,26 +34,14 @@ export default class ImportInjector {
   addPureImport(entry, hint) {
     const key = `${ this.#mode }/${ entry }`;
     if (this.#pureImports.has(key)) return this.#pureImports.get(key);
-    const sanitized = hint.replaceAll('.', '$');
-    let name = `_${ sanitized }`;
-    let counter = 2;
-    while (this.#usedNames.has(name) || this.#rootScope?.hasBinding(name)) {
-      name = `_${ sanitized }${ counter++ }`;
-    }
-    this.#usedNames.add(name);
+    const name = this.#uniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2);
     this.#pureImports.set(key, name);
     return name;
   }
 
-  // find a unique name: prefix + optional suffix number, skipping taken names
-  // minSuffix: smallest number to try on collision (Babel skips _ref1 -> minSuffix=2)
   #uniqueName(prefix, startSuffix, minSuffix = 1) {
-    let counter = startSuffix;
-    let name = counter === null ? prefix : `${ prefix }${ counter }`;
-    while (this.#usedNames.has(name) || this.#rootScope?.hasBinding(name)) {
-      counter = Math.max((counter ?? 0) + 1, minSuffix);
-      name = `${ prefix }${ counter }`;
-    }
+    const name = findUniqueName(prefix, startSuffix, minSuffix,
+      n => this.#usedNames.has(n) || this.#rootScope?.hasBinding(n));
     this.#usedNames.add(name);
     return name;
   }
