@@ -1,0 +1,17 @@
+import "core-js/modules/es.object.assign";
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.promise.all";
+import "core-js/modules/es.array.iterator";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.global-this";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.dom-collections.iterator";
+Array.from(iter);
+Object.assign({}, a);
+Promise.resolve(1);
+Promise.all([1]);
+globalThis.Promise.resolve(2);
