@@ -11,6 +11,14 @@ import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from './helpers.js';
 
 const MAX_KEY_DEPTH = 10;
 
+// strip ESTree ParenthesizedExpression wrappers — Babel doesn't produce these by default,
+// so this is a no-op for Babel input. (Array).from / (Object).assign / ((Promise)).resolve
+// must be treated as if the parens weren't there for static-method resolution.
+function unwrapParens(node) {
+  while (node?.type === 'ParenthesizedExpression') node = node.expression;
+  return node;
+}
+
 function isStaticPlacement(name) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(name)) return 'static';
   if (name[0] >= 'A' && name[0] <= 'Z') return 'static';
@@ -41,21 +49,19 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
 }
 
 function resolveObjectName(objectNode, scope, adapter) {
+  objectNode = unwrapParens(objectNode);
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name)) return resolveBindingToGlobal(objectNode.name, scope, adapter);
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
-  // globalThis.Array, self.Promise, globalThis?.Array
-  if ((objectNode.type === 'MemberExpression' || objectNode.type === 'OptionalMemberExpression')
-    && !objectNode.computed
-    && objectNode.object.type === 'Identifier'
-    && POSSIBLE_GLOBAL_OBJECTS.has(objectNode.object.name)
-    && !adapter.hasBinding(scope, objectNode.object.name)
-    && objectNode.property.type === 'Identifier') {
-    return objectNode.property.name;
-  }
-  return null;
+  // globalThis.Array, self.Promise, globalThis?.Array (paren-wrapped proxy globals also handled)
+  if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
+  if (objectNode.computed || objectNode.property.type !== 'Identifier') return null;
+  const inner = unwrapParens(objectNode.object);
+  if (inner.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(inner.name)) return null;
+  if (adapter.hasBinding(scope, inner.name)) return null;
+  return objectNode.property.name;
 }
 
 export function resolveKey(node, computed, scope, adapter, depth = 0) {
@@ -105,25 +111,23 @@ function isImportBinding(name, scope, adapter) {
 }
 
 function buildMemberMeta(node, scope, adapter) {
-  let key;
-  if (node.computed) {
-    key = resolveKey(node.property, true, scope, adapter);
-  } else {
-    key = node.property.name || node.property.value;
-  }
+  const key = node.computed
+    ? resolveKey(node.property, true, scope, adapter)
+    : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
+  // unwrap ESTree ParenthesizedExpression around the object: (Array).from / ((Array)).from
+  const obj = unwrapParens(node.object);
   // Array.prototype.includes -> instance access on Array
-  if (node.object.type === 'MemberExpression' && !node.object.computed
-    && node.object.property.type === 'Identifier' && node.object.property.name === 'prototype'
-    && node.object.object.type === 'Identifier') {
-    const proto = node.object.object.name;
-    if (!adapter.hasBinding(scope, proto)) {
-      return { kind: 'property', object: proto, key, placement: 'prototype' };
+  if (obj.type === 'MemberExpression' && !obj.computed
+    && obj.property.type === 'Identifier' && obj.property.name === 'prototype') {
+    const proto = unwrapParens(obj.object);
+    if (proto.type === 'Identifier' && !adapter.hasBinding(scope, proto.name)) {
+      return { kind: 'property', object: proto.name, key, placement: 'prototype' };
     }
   }
-  const objectName = resolveObjectName(node.object, scope, adapter);
+  const objectName = resolveObjectName(obj, scope, adapter);
   // skip import-bound objects
-  if (!objectName && node.object.type === 'Identifier' && isImportBinding(node.object.name, scope, adapter)) {
+  if (!objectName && obj.type === 'Identifier' && isImportBinding(obj.name, scope, adapter)) {
     return null;
   }
   const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
@@ -209,23 +213,25 @@ function resolveComputedSymbolKey(node, scope, adapter) {
 // mark handled objects after processing a MemberExpression meta.
 // suppresses duplicate Identifier visitor firing for the object part.
 function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
-  if (node.object.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(node.object.name)) {
-    handledObjects.add(node.object);
+  const obj = unwrapParens(node.object);
+  if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
+    handledObjects.add(obj);
+    return;
   }
-  if (suppressProxyGlobals
-    && (node.object.type === 'MemberExpression' || node.object.type === 'OptionalMemberExpression')
-    && node.object.object?.type === 'Identifier'
-    && POSSIBLE_GLOBAL_OBJECTS.has(node.object.object.name)) {
-    // mark intermediate MemberExpression (e.g. globalThis.Object) to prevent double-processing,
-    // but NOT the proxy global itself - it may need its own polyfill when the outer expression is not polyfilled
-    handledObjects.add(node.object);
+  if (!suppressProxyGlobals) return;
+  if (obj.type !== 'MemberExpression' && obj.type !== 'OptionalMemberExpression') return;
+  // mark intermediate MemberExpression (e.g. globalThis.Object) to prevent double-processing,
+  // but NOT the proxy global itself - it may need its own polyfill when the outer expression is not polyfilled
+  const inner = unwrapParens(obj.object);
+  if (inner?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(inner.name)) {
+    handledObjects.add(obj);
   }
 }
 
 // find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain
 export function findProxyGlobal(node) {
-  let obj = node;
-  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') obj = obj.object;
+  let obj = unwrapParens(node);
+  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') obj = unwrapParens(obj.object);
   return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
 }
 
