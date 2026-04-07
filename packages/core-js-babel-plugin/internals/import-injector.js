@@ -9,6 +9,9 @@ export default class ImportInjector {
   #absoluteImports;
   #globalImports = new Set();
   #pureImports = new Map(); // source -> Identifier node
+  // polyfill identifier names -> entry source paths, lets resolveKey recognize
+  // post-mutation polyfill identifiers (e.g., _Symbol$iterator -> @core-js/.../symbol/iterator)
+  pureImportsByName = new Map();
   #flushedGlobals = new Set();
   #flushedPure = new Set();
   importStyle;
@@ -37,6 +40,7 @@ export default class ImportInjector {
     if (this.#pureImports.has(source)) return this.#t.cloneNode(this.#pureImports.get(source));
     const id = this.#programPath.scope.generateUidIdentifier(hint);
     this.#pureImports.set(source, id);
+    this.pureImportsByName.set(id.name, source);
     return this.#t.cloneNode(id);
   }
 
