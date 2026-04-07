@@ -97,7 +97,7 @@ export function buildOffsetToLine(code) {
 
 // allow leading `*` (with surrounding whitespace) so JSDoc-style block comments work
 // (`comment.value` retains the `*` on continuation lines like ` * core-js-disable-file`).
-// the character class `[\s*]*` keeps the regex linear — `\s*\*?\s*` would backtrack on long
+// the character class `[\s*]*` keeps the regex linear - `\s*\*?\s*` would backtrack on long
 // whitespace runs without a leading `*`.
 const DIRECTIVE = /^[\s*]*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$)/;
 

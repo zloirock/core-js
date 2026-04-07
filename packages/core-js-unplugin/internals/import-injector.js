@@ -87,13 +87,14 @@ export default class ImportInjector {
     }
     if (!lines.length) return;
     const block = `${ lines.join('\n') }\n`;
-    // insert AFTER a leading shebang line (if any) — shebang must remain at offset 0
+    // shebang stays at offset 0; MagicString cannot emit source-map entries for appended
+    // content, so the inserted block remains synthetic in the resulting source map
     const insertPos = this.#prologueEnd();
     if (insertPos > 0) this.#ms.appendRight(insertPos, block);
     else this.#ms.prepend(block);
   }
 
-  // compute end of leading BOM + shebang + directive prologue —
+  // compute end of leading BOM + shebang + directive prologue -
   // imports must be inserted AFTER all of them to remain valid
   #prologueEnd() {
     const src = this.#ms.original;
@@ -114,8 +115,12 @@ function skipShebang(src, pos) {
   return nl === -1 ? src.length : nl + 1;
 }
 
+// advance past trailing horizontal whitespace + the first line ending so insertion lands
+// on the next line - without this, `'use strict' \n` would splice between quote and space
 function skipLineEnd(src, pos) {
-  if (src[pos] === '\r' && src[pos + 1] === '\n') return pos + 2;
-  if (src[pos] === '\n' || src[pos] === '\r') return pos + 1;
-  return pos;
+  let p = pos;
+  while (src[p] === ' ' || src[p] === '\t') p++;
+  if (src[p] === '\r' && src[p + 1] === '\n') return p + 2;
+  if (src[p] === '\n' || src[p] === '\r') return p + 1;
+  return p;
 }

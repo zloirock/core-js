@@ -121,7 +121,7 @@ function createResolveNodeType(babelNodeType, t) {
     return t.isMemberExpression(path.node) || t.isOptionalMemberExpression(path.node);
   }
 
-  // ambient TS / Flow declarations alongside runtime functions/classes — they all carry
+  // ambient TS / Flow declarations alongside runtime functions/classes - they all carry
   // `returnType` / `typeParameters`, so the same code paths work for both
   // splitting into sets keeps the predicates terse and lets us reuse the membership checks
   const AMBIENT_FUNCTION_TYPES = new Set([
@@ -387,7 +387,7 @@ function createResolveNodeType(babelNodeType, t) {
 
   // walk a body looking for a declaration matching `segments`. The leading segments (if any)
   // must each resolve to a TSModuleDeclaration; the final segment matches an interface / type
-  // alias / class / enum. Single-segment lookups also descend into nested namespaces — so
+  // alias / class / enum. Single-segment lookups also descend into nested namespaces - so
   // `Foo` is found regardless of how deeply it's nested
   function findInStatements(segments, statements) {
     if (!Array.isArray(statements) || !segments.length) return null;
@@ -944,7 +944,7 @@ function createResolveNodeType(babelNodeType, t) {
       // TS / Flow named types - only well-known built-ins and utility types
       case 'TSTypeReference':
       case 'GenericTypeAnnotation': {
-        // handle dotted refs (`NS.Data`) — join segments so resolveNamedType /
+        // handle dotted refs (`NS.Data`) - join segments so resolveNamedType /
         // findTypeDeclaration can split them back into a path-walk
         const segments = typeRefSegments(node);
         if (!segments) return null;
@@ -2202,7 +2202,7 @@ function createResolveNodeType(babelNodeType, t) {
     // direct call: foo() / IIFE: (() => expr)() / ambient TSDeclareFunction follow-through
     const resolved = resolveRuntimeExpression(callee);
     if (isFunctionLike(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
-    // indirect call: const fn = obj.method; fn() — resolve through the stored member reference
+    // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
     // identifier callees that didn't resolve to a function-like via the binding chain may still
     // be reachable through an ambient `declare function` not registered in scope.bindings,
