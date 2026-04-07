@@ -95,7 +95,7 @@ function $Object(constructor, inner) {
 
 $Object.prototype.primitive = false;
 
-/* eslint-disable max-statements -- factory of type inference engine */
+// eslint-disable-next-line max-statements -- factory of type inference engine
 function createResolveNodeType(babelNodeType, t) {
   // get the primitive type name, unboxing wrapper objects: $Object('String') -> 'string', $Primitive('number') -> 'number'
   function primitiveTypeOf(type) {
@@ -490,7 +490,25 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  function findTypeMember(objectType, key, scope) {
+  function findTypeMember(objectType, key, scope, depth = 0) {
+    if (!objectType || depth > MAX_DEPTH) return null;
+    // union: getTypeMembers bails on it, so recurse into each branch and fold matches.
+    // a single matching branch is returned as-is; multiple matches are wrapped in a
+    // synthetic union so downstream resolveTypeAnnotation folds them via foldUnionTypes.
+    // lookups across branches are lenient (a member present in only one branch still
+    // wins) - sound enough for polyfill hint inference, which only needs a hint, not a
+    // strictly typeable expression.
+    const { node: aliased } = followTypeAliasChain(objectType, scope);
+    if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
+      const found = [];
+      for (const member of aliased.types) {
+        const memberType = findTypeMember(unwrapTypeAnnotation(member), key, scope, depth + 1);
+        if (memberType) found.push(memberType);
+      }
+      if (!found.length) return null;
+      if (found.length === 1) return found[0];
+      return { type: aliased.type, types: found };
+    }
     const members = getTypeMembers(objectType, scope);
     if (!members) return null;
     let indexSignatureType = null;
@@ -2224,6 +2242,16 @@ function createResolveNodeType(babelNodeType, t) {
         if (init.node) return findExpressionAnnotation(init, depth + 1);
       }
     }
+    // direct call f(): pull the callee's declared return type so `const [a, b] = f()`
+    // can index tuple positions instead of collapsing to the tuple's common element type.
+    // babelNodeType normalizes Babel's OptionalCallExpression and ESTree's `optional: true`.
+    const callType = babelNodeType(path.node);
+    if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
+      const fnPath = resolveRuntimeExpression(path.get('callee'));
+      if (t.isFunction(fnPath.node) && fnPath.node.returnType) {
+        return { annotation: fnPath.node.returnType, scope: fnPath.scope };
+      }
+    }
     return null;
   }
 
@@ -2494,13 +2522,42 @@ function createResolveNodeType(babelNodeType, t) {
     return node.property.type === 'Identifier' ? node.property.name : null;
   }
 
+  // guard shape builders - single point of truth for the guard descriptor literal
+  const typeofGuard = (value, negated) => ({ kind: 'typeof', value, negated });
+  const instanceofGuard = (constructorName, negated) => ({ kind: 'instanceof', constructorName, negated });
+
   // hint convention: lowercase -> typeof guard (primitive), capitalized -> instanceof guard (object)
   function guardFromHint(hint, negated) {
-    if (PRIMITIVES.has(hint.type)) return { kind: 'typeof', value: hint.type, negated };
-    return { kind: 'instanceof', constructorName: hint.type, negated };
+    return PRIMITIVES.has(hint.type) ? typeofGuard(hint.type, negated) : instanceofGuard(hint.type, negated);
   }
 
-  function parseTypeGuard(testNode, varName) {
+  // convert a resolved type back to a typeof / instanceof guard. types that can't be
+  // coerced to a primitive or named constructor are dropped (the guard wouldn't help
+  // polyfill hint inference anyway).
+  function guardFromResolvedType(resolved, negated) {
+    if (!resolved) return null;
+    if (resolved.primitive && PRIMITIVES.has(resolved.type)) return typeofGuard(resolved.type, negated);
+    if (resolved.constructor) return instanceofGuard(resolved.constructor, negated);
+    return null;
+  }
+
+  // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
+  // assigned to a const. turns the `is T` return type into a typeof / instanceof guard so
+  // that user predicates fold through the same narrowing pipeline as built-in guards.
+  function parseUserPredicateGuard(callee, scope, negated) {
+    if (!scope || callee.type !== 'Identifier') return null;
+    const binding = scope.getBinding(callee.name);
+    if (!binding) return null;
+    const declNode = binding.path.node;
+    const fnNode = t.isVariableDeclarator(declNode) ? declNode.init : declNode;
+    if (!fnNode || !t.isFunction(fnNode)) return null;
+    const returnType = unwrapTypeAnnotation(fnNode.returnType);
+    if (returnType?.type !== 'TSTypePredicate') return null;
+    const resolved = resolveTypeAnnotation(returnType.typeAnnotation, binding.path.scope);
+    return guardFromResolvedType(resolved, negated);
+  }
+
+  function parseTypeGuard(testNode, varName, scope) {
     let negated = false;
     let test = testNode;
     // ESTree (oxc-parser) preserves ParenthesizedExpression - unwrap
@@ -2518,17 +2575,17 @@ function createResolveNodeType(babelNodeType, t) {
         // normalize: typeof may be on either side
         const [typeofSide, literalSide] = left.type === 'UnaryExpression' ? [left, right] : [right, left];
         if (isTypeofVar(typeofSide, varName)) {
-          if (babelNodeType(literalSide) === 'StringLiteral') return { kind: 'typeof', value: literalSide.value, negated };
+          if (babelNodeType(literalSide) === 'StringLiteral') return typeofGuard(literalSide.value, negated);
           // template literal with no expressions: `object` === typeof x
           if (literalSide.type === 'TemplateLiteral' && literalSide.expressions.length === 0) {
-            return { kind: 'typeof', value: literalSide.quasis[0].value.cooked, negated };
+            return typeofGuard(literalSide.quasis[0].value.cooked, negated);
           }
         }
       }
       if (operator === 'instanceof'
         && left.type === 'Identifier' && left.name === varName) {
         const constructorName = right.type === 'Identifier' ? right.name : resolveGlobalPropertyName(right);
-        if (constructorName) return { kind: 'instanceof', constructorName, negated };
+        if (constructorName) return instanceofGuard(constructorName, negated);
       }
     }
     if (test.type === 'CallExpression' && test.arguments?.length === 1
@@ -2539,6 +2596,8 @@ function createResolveNodeType(babelNodeType, t) {
         const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, callee.property.name);
         if (hint) return guardFromHint(hint, negated);
       }
+      const userGuard = parseUserPredicateGuard(callee, scope, negated);
+      if (userGuard) return userGuard;
     }
     return null;
   }
@@ -2608,19 +2667,21 @@ function createResolveNodeType(babelNodeType, t) {
     const parts = flattenCondition(node, operator);
     const values = new Set();
     for (const part of parts) {
-      const guard = parseTypeGuard(part, varName);
+      // user predicates are unrelated to typeof - pass null scope to keep this fast
+      const guard = parseTypeGuard(part, varName, null);
       if (!guard || guard.kind !== 'typeof' || guard.negated !== expectNegated) return null;
       values.add(guard.value);
     }
     return values.size >= 2 ? { kind: 'typeof-or', values, negated: expectNegated } : null;
   }
 
-  // extract guards for varName from a condition, applying && / || flattening
-  function parseGuardsFromCondition(testNode, conditionTrue, varName) {
+  // extract guards for varName from a condition, applying && / || flattening.
+  // scope is the lookup scope for resolving user-defined type predicate functions.
+  function parseGuardsFromCondition(testNode, conditionTrue, varName, scope) {
     const parts = flattenCondition(testNode, conditionTrue ? '&&' : '||');
     const guards = [];
     for (const part of parts) {
-      const guard = parseTypeGuard(part, varName) || parseTypeofOrGuard(part, varName, conditionTrue);
+      const guard = parseTypeGuard(part, varName, scope) || parseTypeofOrGuard(part, varName, conditionTrue);
       if (guard) {
         guard.positive = conditionTrue !== guard.negated;
         guards.push(guard);
@@ -2645,7 +2706,7 @@ function createResolveNodeType(babelNodeType, t) {
       conditionTrue = operator === '&&';
       testNode = parent.node.left;
     } else return [];
-    return parseGuardsFromCondition(testNode, conditionTrue, varName);
+    return parseGuardsFromCondition(testNode, conditionTrue, varName, current.scope);
   }
 
   // resolve a string value from a case test: StringLiteral directly or constant Identifier binding
@@ -2716,7 +2777,9 @@ function createResolveNodeType(babelNodeType, t) {
     const guards = [];
     for (let i = index - 1; i >= 0; i--) {
       const conditionTrue = resolveExitCondition(siblings[i]);
-      if (conditionTrue !== null) guards.push(...parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName));
+      if (conditionTrue !== null) {
+        guards.push(...parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName, siblings[i].scope));
+      }
     }
     return guards;
   }
@@ -2795,7 +2858,7 @@ function createResolveNodeType(babelNodeType, t) {
         for (let i = current.key - 1; i >= 0; i--) {
           const conditionTrue = resolveExitCondition(siblings[i]);
           if (conditionTrue === null) continue;
-          if (!parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName).length) continue;
+          if (!parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName, siblings[i].scope).length) continue;
           // check ALL exit guards, not just the nearest - a weaker guard closer to usage
           // does not invalidate mutations that occurred after a stronger guard further away
           for (let j = i + 1; j < current.key; j++) if (violates(siblings[j])) return true;
@@ -2826,21 +2889,39 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
+  // classify a binding's annotation for the guard-based narrowing path:
+  //   'none'   - no annotation; guards produce the type from scratch
+  //   'union'  - union annotation; guards filter its branches (types/subst provided)
+  //   'open'   - unknown/any/object/mixed; guards may refine it to a concrete type
+  //   'closed' - any other annotation; guards can't meaningfully refine it
+  function classifyGuardAnnotation(binding) {
+    const annotation = findBindingAnnotation(binding.path);
+    if (!annotation) return { kind: 'none' };
+    const { scope } = binding.path;
+    const { node: resolved, subst } = followTypeAliasChain(annotation, scope);
+    if (resolved?.type === 'TSUnionType' || resolved?.type === 'UnionTypeAnnotation') {
+      return { kind: 'union', types: resolved.types, subst, scope };
+    }
+    // TS `unknown`/`any`/`object`, Flow `mixed`/`any` are wide-open enough that
+    // typeof / instanceof guards can refine them - `unknown` is the canonical place
+    // users put guards and `object` still accepts Array.isArray() / instanceof
+    if (resolved?.type === 'TSUnknownKeyword' || resolved?.type === 'TSAnyKeyword'
+      || resolved?.type === 'TSObjectKeyword' || resolved?.type === 'AnyTypeAnnotation'
+      || resolved?.type === 'MixedTypeAnnotation') return { kind: 'open' };
+    return { kind: 'closed' };
+  }
+
   function resolveTypeGuardNarrowing(path) {
     const info = findGuardsForBinding(path);
     if (!info) return null;
     const { binding, guards } = info;
-    const annotation = findBindingAnnotation(binding.path);
-    if (annotation) {
-      // narrow union type annotation by guards
-      const { scope } = binding.path;
-      const { node: union, subst } = followTypeAliasChain(annotation, scope);
-      if (union?.type !== 'TSUnionType' && union?.type !== 'UnionTypeAnnotation') return null;
-      const { types } = union;
+    const classification = classifyGuardAnnotation(binding);
+    if (classification.kind === 'union') {
+      const { types, subst, scope } = classification;
       if (!types?.length) return null;
       return narrowByGuards(types.map(member => resolveTypeAnnotation(applyAliasSubst(member, subst), scope)), guards);
     }
-    // no annotation: resolve type directly from positive guards
+    if (classification.kind === 'closed') return null;
     return narrowByGuards(guards.filter(g => g.positive).map(resolveGuardType), guards);
   }
 
@@ -2855,7 +2936,9 @@ function createResolveNodeType(babelNodeType, t) {
     resolveCache.set(node, null);
     let result = resolveNodeTypeExpression(path);
     if (!result) {
-      result = resolveBindingType(path) || resolveTypeGuardNarrowing(path);
+      // guards win over the raw binding type: for open annotations and unannotated
+      // bindings they yield the most specific type, otherwise we fall back.
+      result = resolveTypeGuardNarrowing(path) || resolveBindingType(path);
     } else if (!result.inner && t.isIdentifier(path.node)) {
       // when runtime resolution determined the outer type but not the inner type (e.g. `new Set()` -> Set),
       // check if a type annotation provides a richer type with the same outer but known inner
@@ -2924,7 +3007,9 @@ function createResolveNodeType(babelNodeType, t) {
     const info = findGuardsForBinding(path);
     if (!info) return null;
     const { binding, guards } = info;
-    if (findBindingAnnotation(binding.path)) return null;
+    // only unannotated or open (unknown/any/object/mixed) bindings accept hint-based narrowing
+    const { kind } = classifyGuardAnnotation(binding);
+    if (kind !== 'none' && kind !== 'open') return null;
     // bail if any positive guard resolves to a concrete type (already handled by resolveTypeGuardNarrowing)
     if (guards.some(g => g.positive && resolveGuardType(g))) return null;
 
@@ -3004,6 +3089,5 @@ function createResolveNodeType(babelNodeType, t) {
 
   return { resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject };
 }
-/* eslint-enable max-statements -- end factory */
 
 export { createResolveNodeType, TYPE_HINTS };
