@@ -69,9 +69,17 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
   // computed: const variable - follow to init and resolve recursively
   if (node.type === 'Identifier' && computed) {
     const binding = adapter.getBinding(scope, node.name);
-    if (binding && !binding.constantViolations?.length && binding.node?.type === 'VariableDeclarator') {
-      const { init } = binding.node;
-      if (init) return resolveKey(init, true, scope, adapter, depth + 1);
+    if (binding && !binding.constantViolations?.length) {
+      if (binding.node?.type === 'VariableDeclarator') {
+        const { init } = binding.node;
+        if (init) return resolveKey(init, true, scope, adapter, depth + 1);
+      }
+      // polyfill import binding (e.g., import _Symbol$iterator from '.../symbol/iterator')
+      // — recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
+      if (binding.importSource) {
+        const match = /(?:^|\/)symbol\/(?<name>[\w-]+)$/.exec(binding.importSource);
+        if (match) return `Symbol.${ match.groups.name.replaceAll(/-(?<char>\w)/g, (_, char) => char.toUpperCase()) }`;
+      }
     }
   }
   // string concatenation: 'a' + 'b'
@@ -170,13 +178,18 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, suppressPro
       return { kind: 'in', key: `Symbol.${ name }`, object: null, placement: null };
     }
   }
+  // identifier bound to Symbol.X - resolveKey may return Symbol.X for indirect bindings
+  // (e.g., const k = Symbol.iterator; k in obj — works regardless of object type)
+  const resolvedLeft = resolveKey(node.left, true, scope, adapter);
+  if (resolvedLeft?.startsWith('Symbol.')) {
+    return { kind: 'in', key: resolvedLeft, object: null, placement: null };
+  }
   // 'key' in Object - string key in static/global object
-  const key = resolveKey(node.left, true, scope, adapter);
-  if (key) {
+  if (resolvedLeft) {
     const objectName = resolveObjectName(node.right, scope, adapter);
     if (objectName) {
       const placement = isStaticPlacement(objectName);
-      if (placement) return { kind: 'in', key, object: objectName, placement };
+      if (placement) return { kind: 'in', key: resolvedLeft, object: objectName, placement };
     }
   }
   return null;
