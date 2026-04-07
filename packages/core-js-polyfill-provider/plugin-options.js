@@ -1,7 +1,7 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { symbolKeyToEntry, toStatelessRegExp } from './helpers.js';
+import { symbolKeyToEntry, patternToRegExp } from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
@@ -45,14 +45,14 @@ function validatePluginOptions({ absoluteImports, shouldInjectPolyfill, include,
   validatePatternList('exclude', exclude);
 }
 
-function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, getBabelTargets }) {
+function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets }) {
   if (targets) return targetsParser(targets);
   if (typeof getBabelTargets === 'function') {
     const babelTargets = getBabelTargets();
     if (babelTargets && keys(babelTargets).length) return targetsParser(babelTargets);
   }
-  // Use project browserslist config by default (like @babel/preset-env, autoprefixer, etc.)
-  const parsed = targetsParser({ configPath, ignoreBrowserslistConfig });
+  // use project browserslist config by default (like @babel/preset-env, autoprefixer, etc.)
+  const parsed = targetsParser({ configPath, ignoreBrowserslistConfig, browserslistEnv });
   return parsed.size ? parsed : null;
 }
 
@@ -60,22 +60,8 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
   const matchers = patterns => {
     if (!patterns) return null;
     return (Array.isArray(patterns) ? patterns : [patterns]).map(p => {
-      if (typeof p === 'string') {
-        if (p.includes('*')) {
-          try {
-            const re = new RegExp(`^${ p.replaceAll('*', '.*') }$`);
-            return mod => re.test(mod);
-          } catch {
-            return () => false;
-          }
-        }
-        return mod => mod === p;
-      }
-      if (p instanceof RegExp) {
-        const re = toStatelessRegExp(p);
-        return mod => re.test(mod);
-      }
-      return () => false;
+      const re = patternToRegExp(p);
+      return re ? mod => re.test(mod) : () => false;
     });
   };
   const includeMatchers = matchers(include);
@@ -124,17 +110,17 @@ function formatTargets(obj) {
   return `{ ${ pairs.map(([k, v]) => `${ JSON.stringify(k) }:${ JSON.stringify(v) }`).join(', ') } }`;
 }
 
-// validate user options, resolve targets, build shouldInjectPolyfill and debug output.
-// returns all resolved fields for createPolyfillContext + createPolyfillResolver.
+// validate user options, resolve targets, build shouldInjectPolyfill and debug output
+// returns all resolved fields for createPolyfillContext + createPolyfillResolver
 export function initPluginOptions({
   targets, include, exclude, debug,
   absoluteImports, shouldInjectPolyfill: userCallback,
-  configPath, ignoreBrowserslistConfig, importStyle,
+  configPath, ignoreBrowserslistConfig, browserslistEnv, importStyle,
   ...rest
 }, { getBabelTargets } = {}) {
   validateImportStyle(importStyle);
   validatePluginOptions({ absoluteImports, shouldInjectPolyfill: userCallback, include, exclude });
-  const parsedTargets = resolveTargets({ targets, configPath, ignoreBrowserslistConfig, getBabelTargets });
+  const parsedTargets = resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets });
   const shouldInjectPolyfill = buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback });
   const createDebugOutput = debug ? createDebugOutputFactory({ method: rest.method, parsedTargets }) : null;
   return { ...rest, include, exclude, absoluteImports, importStyle, shouldInjectPolyfill, createDebugOutput };
