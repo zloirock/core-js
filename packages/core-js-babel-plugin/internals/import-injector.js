@@ -1,4 +1,4 @@
-import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
+import { findUniqueName, resolveImportPath } from '@core-js/polyfill-provider/helpers';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
 export default class ImportInjector {
@@ -41,13 +41,9 @@ export default class ImportInjector {
   addPureImport(entry, hint) {
     const source = `${ this.#mode }/${ entry }`;
     if (this.#pureImports.has(source)) return this.#t.cloneNode(this.#pureImports.get(source));
-    const sanitized = hint.replaceAll('.', '$');
     const { scope } = this.#programPath;
-    let name = `_${ sanitized }`;
-    let counter = 2;
-    while (this.#usedNames.has(name) || scope.hasBinding(name)) {
-      name = `_${ sanitized }${ counter++ }`;
-    }
+    const name = findUniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2,
+      n => this.#usedNames.has(n) || scope.hasBinding(n));
     this.#usedNames.add(name);
     const id = this.#t.identifier(name);
     this.#pureImports.set(source, id);
