@@ -122,32 +122,32 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // ambient TS / Flow declarations alongside runtime functions/classes — they all carry
-  // `returnType` / `typeParameters`, so the same code paths work for both. Splitting into
-  // sets keeps the predicates terse and lets us reuse the membership checks.
+  // `returnType` / `typeParameters`, so the same code paths work for both
+  // splitting into sets keeps the predicates terse and lets us reuse the membership checks
   const AMBIENT_FUNCTION_TYPES = new Set([
     'TSDeclareFunction',
     'TSDeclareMethod',
     'DeclareFunction',
     'DeclareMethod',
   ]);
-  
+
   const AMBIENT_FN_OR_CLASS_DECLARATION_TYPES = new Set([
     'TSDeclareFunction',
     'DeclareFunction',
     'DeclareClass',
   ]);
-  
+
   function isFunctionLike(node) {
     return !!node && (t.isFunction(node) || AMBIENT_FUNCTION_TYPES.has(node.type));
   }
-  
+
   function isFunctionOrClassDeclaration(node) {
     return !!node && (t.isFunctionDeclaration(node) || t.isClassDeclaration(node)
       || AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has(node.type));
   }
 
   // Babel does not register ambient `declare function f(): T` declarations in `scope.bindings`,
-  // so a plain `getBinding(name)` lookup misses them. Walk enclosing scopes' bodies to find one.
+  // so a plain `getBinding(name)` lookup misses them. Walk enclosing scopes' bodies to find one
   function findAmbientFunctionPath(name, scope) {
     for (let cur = scope; cur; cur = cur.parent) {
       const bodyPaths = cur.path?.get('body');
@@ -200,9 +200,9 @@ function createResolveNodeType(babelNodeType, t) {
     return node;
   }
 
-  // Decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
+  // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
   // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
-  // reference uses a non-identifier head (e.g. an `import("...").Type` form).
+  // reference uses a non-identifier head (e.g. an `import("...").Type` form)
   function typeRefSegments(node) {
     if (!node) return null;
     const head = node.type === 'TSTypeReference' ? node.typeName
@@ -210,8 +210,8 @@ function createResolveNodeType(babelNodeType, t) {
     return collectQualifiedSegments(head);
   }
 
-  // Walk a possibly-qualified name node into a [first, ..., last] segment list.
-  // Returns null on any non-identifier link in the chain.
+  // walk a possibly-qualified name node into a [first, ..., last] segment list
+  // returns null on any non-identifier link in the chain
   function collectQualifiedSegments(node) {
     if (node?.type === 'Identifier') return [node.name];
     if (node?.type !== 'TSQualifiedName' && node?.type !== 'QualifiedTypeIdentifier') return null;
@@ -376,8 +376,8 @@ function createResolveNodeType(babelNodeType, t) {
       || decl?.type === 'TSEnumDeclaration';
   }
 
-  // Unwrap a top-level statement past `export {Named,Default}Declaration` wrappers, returning
-  // the inner declaration node (or null if there's no `declaration` to unwrap to).
+  // unwrap a top-level statement past `export {Named,Default}Declaration` wrappers, returning
+  // the inner declaration node (or null if there's no `declaration` to unwrap to)
   function unwrapExportedDeclaration(statement) {
     if (statement?.type === 'ExportNamedDeclaration' || statement?.type === 'ExportDefaultDeclaration') {
       return statement.declaration ?? null;
@@ -385,10 +385,10 @@ function createResolveNodeType(babelNodeType, t) {
     return statement;
   }
 
-  // Walk a body looking for a declaration matching `segments`. The leading segments (if any)
+  // walk a body looking for a declaration matching `segments`. The leading segments (if any)
   // must each resolve to a TSModuleDeclaration; the final segment matches an interface / type
   // alias / class / enum. Single-segment lookups also descend into nested namespaces — so
-  // `Foo` is found regardless of how deeply it's nested.
+  // `Foo` is found regardless of how deeply it's nested
   function findInStatements(segments, statements) {
     if (!Array.isArray(statements) || !segments.length) return null;
     const [head, ...rest] = segments;
@@ -591,7 +591,7 @@ function createResolveNodeType(babelNodeType, t) {
     // synthetic union so downstream resolveTypeAnnotation folds them via foldUnionTypes.
     // lookups across branches are lenient (a member present in only one branch still
     // wins) - sound enough for polyfill hint inference, which only needs a hint, not a
-    // strictly typeable expression.
+    // strictly typeable expression
     const { node: aliased } = followTypeAliasChain(objectType, scope);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = [];
@@ -1988,12 +1988,12 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve a method call's return type from a single (non-union) annotation by walking
   // its members and folding the return types of all matching overloads
-  //   1. Skip overloads with unresolvable return types (don't bail the entire merge).
-  //   2. Try lenient `foldUnionTypes` over the resolved set.
+  //   1. Skip overloads with unresolvable return types (don't bail the entire merge)
+  //   2. Try lenient `foldUnionTypes` over the resolved set
   //   3. If that fails (divergent primitives etc.), fall back to the FIRST resolved overload.
   //      Interface signatures are tried in declaration order; TS picks the first matching one,
   //      so falling back to "first" is a reasonable approximation when we can't run full
-  //      argument-type-based overload selection.
+  //      argument-type-based overload selection
   function resolveMemberCallReturnFromAnnotation(annotation, name, scope, resolve, depth) {
     const members = getTypeMembers(annotation, scope, depth);
     if (!members) return null;
@@ -2011,7 +2011,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // union method calls - for `x: A | B` calling `x.foo()`, resolve in each branch
-  // and fold the per-branch return types. mirrors findTypeMember's union handling for properties.
+  // and fold the per-branch return types. mirrors findTypeMember's union handling for properties
   function resolveMemberCallReturn(annotation, name, scope, resolve, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     const { node: aliased } = followTypeAliasChain(annotation, scope);
@@ -2036,7 +2036,7 @@ function createResolveNodeType(babelNodeType, t) {
       annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
       scope = binding.path.scope;
     } else {
-      // Unwrap ParenthesizedExpression/ChainExpression to find type annotation
+      // unwrap ParenthesizedExpression/ChainExpression to find type annotation
       let exprPath = objectPath;
       while (exprPath.node?.type === 'ParenthesizedExpression' || exprPath.node?.type === 'ChainExpression') {
         exprPath = exprPath.get('expression');
@@ -2206,7 +2206,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
     // identifier callees that didn't resolve to a function-like via the binding chain may still
     // be reachable through an ambient `declare function` not registered in scope.bindings,
-    // or a binding whose annotation is a function-type (`declare const f: () => T`).
+    // or a binding whose annotation is a function-type (`declare const f: () => T`)
     if (!t.isIdentifier(callee.node)) return null;
     const ambient = findAmbientFunctionPath(callee.node.name, callee.scope);
     if (ambient) return resolveReturnType(ambient, callee.parentPath);
@@ -2418,8 +2418,8 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     // direct call f(): pull the callee's declared return type so `const [a, b] = f()`
-    // can index tuple positions instead of collapsing to the tuple's common element type.
-    // babelNodeType normalizes Babel's OptionalCallExpression and ESTree's `optional: true`.
+    // can index tuple positions instead of collapsing to the tuple's common element type
+    // babelNodeType normalizes Babel's OptionalCallExpression and ESTree's `optional: true`
     const callType = babelNodeType(path.node);
     if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
       const fnPath = resolveRuntimeExpression(path.get('callee'));

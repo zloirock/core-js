@@ -5,6 +5,15 @@ export const globalProxies = [
   'window',
 ];
 
+// built-in namespace objects
+export const namespaces = [
+  'Atomics',
+  'Intl',
+  'JSON',
+  'Math',
+  'Reflect',
+];
+
 // constructor type mappings
 export const constructors = {
   AggregateError: 'Error',
