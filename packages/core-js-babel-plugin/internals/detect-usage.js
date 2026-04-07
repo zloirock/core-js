@@ -14,8 +14,12 @@ let activePureImports = null;
 export function setActivePureImports(injector) { activePureImports = injector; }
 
 // Babel scope adapter for shared detect-usage functions
+// fallbacks consult `activePureImports` so polyfill UIDs that have replaced original identifiers
+// in-place (before Program.exit flush) are still recognised by `resolveBindingToGlobal`
 export const babelAdapter = {
-  hasBinding: (scope, name) => !!scope.getBindingIdentifier(name),
+  hasBinding(scope, name) {
+    return !!scope.getBindingIdentifier(name) || !!activePureImports?.pureImportsByName.has(name);
+  },
   getBinding(scope, name) {
     const b = scope.getBinding(name);
     if (b) {
@@ -23,10 +27,11 @@ export const babelAdapter = {
         ? b.path.parent?.source?.value : null;
       return { node: b.path.node, constantViolations: b.constantViolations, importSource };
     }
-    // fallback: identifier may be a polyfill UID whose import declaration hasn't been inserted yet
-    // (the polyfill plugin defers import insertion to Program.exit)
     const importSource = activePureImports?.pureImportsByName.get(name);
-    if (importSource) return { node: null, constantViolations: null, importSource };
+    if (importSource) {
+      const polyfillHint = activePureImports.pureImportsHintByName.get(name) ?? null;
+      return { node: null, constantViolations: null, importSource, polyfillHint };
+    }
     return null;
   },
   getBindingNodeType(scope, name) {
@@ -40,13 +45,17 @@ function resolveKey(path, computed) {
   return sharedResolveKey(path.node, computed, path.scope, babelAdapter);
 }
 
+// symbol-keyed per-file reset hook on the visitors object - symbol so babel's visitor
+// enumerator (own string keys only) does not mistake it for a node-type visitor
+export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
+
 // usage detection visitors for Babel AST
 export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, walkAnnotations = true }) {
-  const handledObjects = new WeakSet();
+  let handledObjects = new WeakSet();
 
   function handleIdentifier(path) {
     if (!path.isReferencedIdentifier()) return;
-    // UpdateExpression operand (Map++, --Map) — read+write context, polyfill import is read-only
+    // UpdateExpression operand (Map++, --Map) - read+write context, polyfill import is read-only
     // so the transform would emit `_Map++` which throws TypeError at runtime
     if (path.parentPath.isUpdateExpression()) return;
     const { node } = path;
@@ -147,6 +156,8 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
       handleDestructuring(path);
     },
     BinaryExpression: handleBinaryExpression,
+    // Program.enter calls this to drop per-file WeakSet state
+    [USAGE_VISITORS_RESET]: () => { handledObjects = new WeakSet(); },
   };
 }
 

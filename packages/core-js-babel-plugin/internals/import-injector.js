@@ -10,9 +10,10 @@ export default class ImportInjector {
   #globalImports = new Set();
   #pureImports = new Map(); // source -> Identifier node
   #usedNames = new Set();
-  // polyfill identifier names -> entry source paths, lets resolveKey recognize
-  // post-mutation polyfill identifiers (e.g., _Symbol$iterator -> @core-js/.../symbol/iterator)
+  // polyfill UID -> entry source / original hint, used by `resolveKey` and
+  // `resolveBindingToGlobal` to recognise post-mutation polyfill identifiers
   pureImportsByName = new Map();
+  pureImportsHintByName = new Map();
   #flushedGlobals = new Set();
   #flushedPure = new Set();
   importStyle;
@@ -40,7 +41,7 @@ export default class ImportInjector {
   // (`Math$log2` -> `_Math$log`), which produces misleading names for hints with numeric suffixes
   // we also publish the chosen name into Babel's `program.references`/`program.uids` so that
   // sibling transforms running afterwards (e.g. plugin-transform-computed-properties) don't
-  // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` —
+  // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` -
   // the import declaration isn't inserted yet, so without this it's not visible as a binding
   addPureImport(entry, hint) {
     const source = `${ this.#mode }/${ entry }`;
@@ -56,13 +57,14 @@ export default class ImportInjector {
     const id = this.#t.identifier(name);
     this.#pureImports.set(source, id);
     this.pureImportsByName.set(name, source);
+    this.pureImportsHintByName.set(name, hint);
     return this.#t.cloneNode(id);
   }
 
-  // insert all collected imports sorted by compat data order
-  // uses flushed sets to track what was already inserted - unshiftContainer may trigger
-  // other plugins (e.g. CJS transform) which may cause new polyfill references to be detected,
-  // so flush is called in a loop until no new imports remain
+  // insert all collected imports sorted by compat data order. flush loops because
+  // unshiftContainer may trigger sibling plugins (e.g. CJS transform) that surface new
+  // polyfill references. inserted nodes have no `loc` - stamping one breaks babel's
+  // unshiftContainer (generator skips content with loc outside the body sibling range)
   flush() {
     const t = this.#t;
 
