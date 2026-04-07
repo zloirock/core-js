@@ -97,11 +97,11 @@ export default function plugin(api, options) {
 
       // parameter / IIFE destructure: rewrite `function({ from }) { ... }` to
       // `function({ from = _Array$from }) { ... }` so that on engines without `Array.from`
-      // the destructure default kicks in and provides the polyfill.
+      // the destructure default kicks in and provides the polyfill
       // only static/global polyfills can fit in a default value - instance methods need
-      // a receiver (`_at(arr).call(arr, 0)` form) and cannot be substituted this way.
+      // a receiver (`_at(arr).call(arr, 0)` form) and cannot be substituted this way
       // requiring `value` to be a plain Identifier rejects both user-supplied defaults
-      // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check.
+      // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check
       function handleParameterDestructure(prop, kind, entry, hintName) {
         if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
         const id = injectPureImport(entry, hintName);
@@ -111,7 +111,7 @@ export default function plugin(api, options) {
 
       // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
       // function-parameter destructure path (`function({ from }) {}` form) or the regular
-      // VariableDeclarator / AssignmentExpression destructure path.
+      // VariableDeclarator / AssignmentExpression destructure path
       function handleObjectPropertyResult(prop, kind, entry, hintName) {
         const objectPattern = prop.parentPath;
         if (objectPattern?.parentPath?.isFunction()) {
@@ -327,7 +327,7 @@ export default function plugin(api, options) {
     post() {
       if (!injector) return;
       // when CJS transform runs after core-js plugin, newly inserted import declarations
-      // may not get converted. Detect this and switch to require style for safety flush.
+      // may not get converted. Detect this and switch to require style for safety flush
       if (importStyle === 'import' && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
         injector.importStyle = 'require';
       }

@@ -16,15 +16,26 @@ function descHasTypeHints(desc) {
   return false;
 }
 
+// look up a type-hint variant in `desc`, falling back to `rest`
+// when fallbackToCommon is true, fall back to `common` if `desc` has no type-hinted variants at all
+function lookupByTypeHint(desc, hint, fallbackToCommon) {
+  if (hasOwn(desc, hint)) return desc[hint];
+  if (hasOwn(desc, 'rest')) return desc.rest;
+  if (fallbackToCommon && !descHasTypeHints(desc) && hasOwn(desc, 'common')) return desc.common;
+  return null;
+}
+
 function resolveHint(desc, meta) {
-  const { placement, object, excludedHints, includedHints } = meta;
+  const { placement, object, excludedHints, includedHints, receiverHint } = meta;
   const hint = object === null || object === undefined ? null : String(object).toLowerCase();
 
-  if (placement === 'prototype' && TYPE_HINTS.has(hint)) {
-    if (hasOwn(desc, hint)) return desc[hint];
-    if (hasOwn(desc, 'rest')) return desc.rest;
-    return descHasTypeHints(desc) ? null : hasOwn(desc, 'common') ? desc.common : null;
-  }
+  if (placement === 'prototype' && TYPE_HINTS.has(hint)) return lookupByTypeHint(desc, hint, true);
+
+  // destructure-from-constructor sets `receiverHint` to `function` / `object`. Match the
+  // polyfill variant to that runtime receiver type - methods like `toString`/`name` resolve via
+  // the `function`/`rest` variants, while `Array.prototype`-only methods like `includes` have
+  // no matching variant and we correctly skip them (Array.includes is `undefined` at runtime)
+  if (receiverHint && TYPE_HINTS.has(receiverHint)) return lookupByTypeHint(desc, receiverHint, false);
 
   if (!excludedHints && !includedHints && hasOwn(desc, 'common')) return desc.common;
 
