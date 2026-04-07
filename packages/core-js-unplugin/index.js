@@ -1,9 +1,10 @@
 import { createUnplugin } from 'unplugin';
 import createPlugin from './internals/plugin.js';
 
-// match JS/TS/Flow extensions; strip bundler query/hash suffix (Vite: foo.js?import)
+// match JS/TS extensions; strip bundler query/hash suffix (Vite: foo.js?import)
 // exclude .d.ts declaration files — they contain only types, no runtime code
-const JS_RE = /\.(?:[cm]?[jt]sx?|flow)(?:[#?][^#?]*)?$/;
+// Flow (.flow) is not included — oxc-parser cannot parse Flow syntax
+const JS_RE = /\.[cm]?[jt]sx?(?:[#?][^#?]*)?$/;
 const DTS_RE = /\.d\.[cm]?ts(?:[#?][^#?]*)?$/;
 
 const unplugin = createUnplugin((options, meta) => {
