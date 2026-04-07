@@ -115,6 +115,13 @@ for (const proxy of knownBuiltInReturnTypes.globalProxies) {
   ok(typeof proxy === 'string' && proxy, `globalProxy '${ proxy }' is non-empty string`);
 }
 
+// namespaces
+ok(Array.isArray(knownBuiltInReturnTypes.namespaces), 'namespaces is array');
+for (const ns of knownBuiltInReturnTypes.namespaces) {
+  ok(typeof ns === 'string' && ns, `namespace '${ ns }' is non-empty string`);
+  ok(!(ns in knownBuiltInReturnTypes.constructors), `namespace '${ ns }' is not also listed as a constructor`);
+}
+
 // constructors — structural validation
 function isValidConstructorHint(hint) {
   if (typeof hint !== 'object' || hint === null) return false;
