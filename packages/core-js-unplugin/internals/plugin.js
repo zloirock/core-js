@@ -1,7 +1,13 @@
 import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
-import { buildOffsetToLine, isCoreJSFile, parseDisableDirectives, mergeVisitors } from '@core-js/polyfill-provider/helpers';
+import {
+  buildOffsetToLine,
+  buildSuperStaticMeta,
+  isCoreJSFile,
+  mergeVisitors,
+  parseDisableDirectives,
+} from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
@@ -19,7 +25,7 @@ import TransformQueue from './transform-queue.js';
 import detectEntries from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
-// end position of the leading directive prologue ('use strict', etc.) — 0 if none.
+// end position of the leading directive prologue ('use strict', etc.) - 0 if none.
 // oxc-parser sets `directive` to a string for directive ExpressionStatements;
 // regular ExpressionStatements have `directive: null` (TSX) or omit the field (JS)
 function directivePrologueEnd(ast) {
@@ -29,6 +35,40 @@ function directivePrologueEnd(ast) {
     end = stmt.end;
   }
   return end;
+}
+
+// content-based CJS detection. ESM markers (top-level import/export) override CJS markers.
+// recognised CJS markers: `module.exports = …`, `exports.X = …`, `module.exports.X = …`
+// at top level (the most common transpiler / hand-written CJS shapes).
+const ESM_MARKER_TYPES = new Set([
+  'ExportAllDeclaration',
+  'ExportDefaultDeclaration',
+  'ExportNamedDeclaration',
+  'ImportDeclaration',
+]);
+
+const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name === name;
+
+const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression' && !node.computed
+  && isNamedIdent(node.object, objName) && isNamedIdent(node.property, propName);
+
+function isCommonJSAssignTarget(left) {
+  if (left?.type !== 'MemberExpression' || left.computed) return false;
+  // module.exports = ...      |  exports.X = ...           |  module.exports.X = ...
+  return isStaticMember(left, 'module', 'exports')
+    || isNamedIdent(left.object, 'exports')
+    || isStaticMember(left.object, 'module', 'exports');
+}
+
+function detectCommonJS(ast) {
+  let hasCJS = false;
+  for (const stmt of ast.body) {
+    if (ESM_MARKER_TYPES.has(stmt.type)) return false;
+    if (hasCJS || stmt.type !== 'ExpressionStatement') continue;
+    const { expression } = stmt;
+    if (expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left)) hasCJS = true;
+  }
+  return hasCJS;
 }
 
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
@@ -49,7 +89,7 @@ const NEEDS_GUARD_PARENS = new Set([
 ]);
 
 export default function createPlugin(options) {
-  // per-instance type resolvers — guardsCache/resolveCache WeakMaps don't leak across plugin instances
+  // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across plugin instances
   const typeResolvers = createResolveNodeType(nodeType, types);
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
@@ -76,16 +116,41 @@ export default function createPlugin(options) {
     transform(code, id) {
       if (isCoreJSFile(id)) return null;
 
+      // strip bundler query/hash suffix before passing the id to oxc-parser — oxc infers
+      // the parser language from the extension and would otherwise see e.g. `tsx?import`
+      // and reject the TypeScript syntax silently
+      const queryStart = id.search(/[#?]/);
+      const cleanId = queryStart === -1 ? id : id.slice(0, queryStart);
       // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
-      const isCJSFile = /\.c[jt]s(?:[#?][^#?]*)?$/.test(id);
+      const isCJSFile = /\.c[jt]s$/.test(cleanId);
+      // strip a leading BOM before parsing AND from the MagicString source — oxc rejects
+      // BOM-prefixed shebangs, and offsetting positions by 1 would corrupt every transform.
+      // the BOM is re-prepended to the final output. Reassign `code` so the rest of the
+      // function (TransformQueue, skipGap, slice helpers, ...) uses the BOM-stripped source.
+      const hasBOM = code.charCodeAt(0) === 0xFEFF;
+      // eslint-disable-next-line no-param-reassign -- intentional, see comment above
+      if (hasBOM) code = code.slice(1);
       // parse with oxc-parser (sync is the only available API)
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-      const { program: ast, comments, errors } = parseSync(id, code, {
+      const { program: ast, comments, errors } = parseSync(cleanId, code, {
         sourceType: isCJSFile ? 'script' : 'module',
       });
-      if (errors?.length) return null;
+      const fatalErrors = errors?.filter(e => e.severity === 'Error');
+      if (fatalErrors?.length) {
+        // surface the parse failure rather than silently passing the file through -
+        // bundlers will re-parse and fail, but the warning identifies core-js as the
+        // first thing that saw the issue and helps users locate the source location
+        const [first] = fatalErrors;
+        const message = `[core-js] could not parse ${ id }: ${ first.message }`;
+        if (typeof this?.warn === 'function') this.warn(message);
+        return null;
+      }
 
-      const importStyle = importStyleOption ?? (isCJSFile ? 'require' : 'import');
+      // detect CJS by content for files where extension alone is ambiguous (.js / .ts).
+      // ESM markers (import/export at top level) take precedence — a file with both is ESM
+      // and the user's `module.exports` will fail at runtime, which is the user's bug.
+      const detectedCJS = !isCJSFile && detectCommonJS(ast);
+      const importStyle = importStyleOption ?? ((isCJSFile || detectedCJS) ? 'require' : 'import');
 
       // check disable directives
       const offsetToLine = buildOffsetToLine(code);
@@ -122,8 +187,9 @@ export default function createPlugin(options) {
         injector.flush();
         outputDebug();
         if (!ms.hasChanged()) return null;
+        const out = ms.toString();
         return {
-          code: ms.toString(),
+          code: hasBOM ? `\uFEFF${ out }` : out,
           map: ms.generateMap({ source: id, includeContent: true, hires: 'boundary' }),
         };
       }
@@ -175,17 +241,26 @@ export default function createPlugin(options) {
           setScope(metaPath) {
             this.scope = -1;
             this.arrow = null;
-            for (let p = metaPath.parentPath; p; p = p.parentPath) {
-              const { type, body } = p.node;
+            // walk up; on each step `prev` is the immediate child path of `p`. ES spec:
+            // parameter expressions live in their own scope and CANNOT see `var` declarations
+            // from the function body, so if the polyfill is inside the params (default value,
+            // computed destructuring key, etc.), the enclosing function is skipped and the
+            // `_ref` declaration ends up in the next outer scope.
+            for (let prev = metaPath, p = metaPath.parentPath; p; prev = p, p = p.parentPath) {
+              const { type, body, params } = p.node;
+              if (params?.includes(prev.node)) continue;
               if (type === 'ArrowFunctionExpression' && body?.type !== 'BlockStatement') {
-                if (!this.arrow) this.arrow = body;
-              } else if (type === 'StaticBlock') {
+                this.arrow ??= body;
+                continue;
+              }
+              if (type === 'StaticBlock') {
                 // StaticBlock.body is an array (not BlockStatement); find the { position
                 let pos = p.node.start;
                 while (pos < p.node.end && code[pos] !== '{') pos++;
                 this.scope = pos;
                 return;
-              } else if (body?.type === 'BlockStatement' && (type === 'FunctionDeclaration'
+              }
+              if (body?.type === 'BlockStatement' && (type === 'FunctionDeclaration'
                 || type === 'FunctionExpression' || type === 'ArrowFunctionExpression')) {
                 this.scope = body.start;
                 return;
@@ -322,14 +397,17 @@ export default function createPlugin(options) {
               guard = `${ optionalRoot } == null ? void 0 : `;
             } else {
               guardRef = state.genRef();
-              guard = `(${ guardRef } = ${ optionalRoot }) == null ? void 0 : `;
+              // ASI safety: place `null` first so the replacement starts with the `null`
+              // keyword (not `(`). Otherwise an unterminated previous statement like
+              // `console.log('A')\n(...)?.at(0)` would be parsed as `console.log('A')(...)`.
+              guard = `null == (${ guardRef } = ${ optionalRoot }) ? void 0 : `;
               bodyObj = guardRef + bodyObj.slice(strip(rootRaw).length);
             }
           }
 
           let result;
           if (isNew) {
-            // new arr.at(0) -> new (_at(arr))(0) — preserve user's `new` on the polyfill callee
+            // new arr.at(0) -> new (_at(arr))(0) - preserve user's `new` on the polyfill callee
             const argsPart = args || '';
             result = `${ guard }new (${ binding }(${ bodyObj }))(${ argsPart })`;
           } else if (!isCall) {
@@ -379,7 +457,7 @@ export default function createPlugin(options) {
           if (NEEDS_GUARD_PARENS.has(outer?.node?.type)) return true;
           // ternary test position: guard ternary merges with outer ternary
           if (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === end) return true;
-          // ?. continuation after this range (top-level only — inner transforms get composed)
+          // ?. continuation after this range (top-level only - inner transforms get composed)
           // skipGap handles whitespace/comments between the expression end and ?.
           const p = skipGap(code, end);
           return code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end);
@@ -428,7 +506,7 @@ export default function createPlugin(options) {
         function handleSymbolIterator(meta, node, parent, metaPath) {
           const isCallParent = isCallee(node, parent);
           // get-iterator returns the materialized iterator; get-iterator-method returns the method.
-          // use get-iterator only for plain CallExpression with no args — never for NewExpression
+          // use get-iterator only for plain CallExpression with no args - never for NewExpression
           const isPlainCall = isCallParent && parent.type === 'CallExpression';
           const entry = isPlainCall && parent.arguments.length === 0 && !parent.optional
             ? 'get-iterator' : 'get-iterator-method';
@@ -444,9 +522,33 @@ export default function createPlugin(options) {
           addInstanceTransform(binding, node, parent, metaPath, isCall);
         }
 
+        // resolve `super.X` references inside a class method to a static-method meta on the
+        // parent class. Returns null for unsupported cases (computed key, prototype super,
+        // non-identifier extends clause, locally-shadowed parent name, etc.). Currently
+        // static-only — instance super requires rewriting the receiver to `this`.
+        function resolveSuperMember(node, metaPath) {
+          if (node.computed) return null;
+          const key = node.property?.name;
+          if (!key) return null;
+          // walk up to the enclosing MethodDefinition / PropertyDefinition. ESTree wraps
+          // class method bodies in FunctionExpression, so we walk through it. Nested
+          // FunctionDeclaration would not lexically inherit super (the parser would have
+          // rejected the input as a syntax error), so we don't need to bail explicitly.
+          let methodPath = null;
+          for (let cur = metaPath.parentPath; cur; cur = cur.parentPath) {
+            const ct = cur.node?.type;
+            if (ct === 'MethodDefinition' || ct === 'PropertyDefinition') {
+              methodPath = cur;
+              break;
+            }
+          }
+          if (!methodPath?.node.static) return null;
+          return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
+            name => !!metaPath.scope?.getBinding?.(name));
+        }
+
         // deferred destructuring: collect polyfilled properties per ObjectPattern
         // state.destructuring: key: ObjectPattern node -> [{propNode, localName, binding, kind, initSrc}]
-
         function canTransformDestructuring(metaPath) {
           const objectPattern = metaPath.parent;
           if (!objectPattern) return false;
@@ -468,7 +570,32 @@ export default function createPlugin(options) {
           return true;
         }
 
+        // IIFE / parameter destructure: rewrite `function({ from }) { ... }` to
+        // `function({ from = _Array$from }) { ... }` so that on engines without the built-in
+        // the destructure default kicks in and provides the polyfill.
+        // only static/global polyfills can fit in a default value — instance methods need
+        // a receiver (`_at(arr).call(arr, 0)` form) and cannot be substituted this way.
+        // requiring `value` to be a plain Identifier rejects both user-supplied defaults
+        // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check.
+        function handleParameterDestructurePure(meta, metaPath, propNode) {
+          const { value } = propNode;
+          if (value?.type !== 'Identifier') return;
+          const pureResult = resolvePure(meta, metaPath);
+          if (!pureResult || pureResult.kind === 'instance') return;
+          const binding = injectPureImport(pureResult.entry, pureResult.hintName);
+          // insert ` = <binding>` after the value identifier — pure insertion, not a replacement,
+          // so use ms.appendRight directly rather than the transform queue (which expects overwrites)
+          ms.appendRight(value.end, ` = ${ binding }`);
+        }
+
         function handleDestructuringPure(meta, metaPath, propNode) {
+          // IIFE / parameter destructure: ObjectPattern's parent is a function
+          const patternParentType = metaPath.parentPath?.parentPath?.node?.type;
+          if (patternParentType === 'FunctionDeclaration'
+            || patternParentType === 'FunctionExpression'
+            || patternParentType === 'ArrowFunctionExpression') {
+            return handleParameterDestructurePure(meta, metaPath, propNode);
+          }
           if (!canTransformDestructuring(metaPath)) return;
           const { value } = propNode;
           // skip nested patterns (recursive expansion is too complex for text-based transforms)
@@ -522,7 +649,7 @@ export default function createPlugin(options) {
               scopeSnapshot: { scope: state.scope, arrow: state.arrow },
             });
             // prevent unused global import for init identifier (e.g., _Promise from { resolve } = Promise)
-            // — destructuring replaces properties with direct polyfill imports;
+            // - destructuring replaces properties with direct polyfill imports;
             // if rest/remaining need the init, applyDestructuringTransforms re-injects it lazily
             if (initNode) skippedNodes.add(initNode);
           }
@@ -568,7 +695,7 @@ export default function createPlugin(options) {
               const remaining = allProps.filter(p => !polyfillKeys.has(p));
               const hasInstance = entries.some(e => e.kind === 'instance');
               // if remaining/rest/instance needs init object, ensure it's polyfilled
-              // (init was skipped during collection to prevent unused imports — re-inject lazily)
+              // (init was skipped during collection to prevent unused imports - re-inject lazily)
               if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && initIdentName) {
                 const initResolved = resolvePure({ kind: 'global', name: initIdentName }, null);
                 if (initResolved) initTransformed = injectPureImport(initResolved.entry, initResolved.hintName);
@@ -627,6 +754,28 @@ export default function createPlugin(options) {
           return false;
         }
 
+        function handleInExpression(meta, metaPath) {
+          const { node } = metaPath;
+          const symbolIn = resolveSymbolInEntry(meta.key);
+          if (symbolIn && isEntryNeeded(symbolIn.entry)) {
+            const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
+            if (meta.key === 'Symbol.iterator') {
+              transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.right) })`);
+            } else {
+              transforms.add(node.left.start, node.left.end, binding);
+            }
+          } else if (meta.object) {
+            // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
+            const resolved = resolvePureOrGlobalFallback(meta, metaPath);
+            if (resolved.result) {
+              transforms.add(node.start, node.end, 'true');
+              // prevent child visitors from adding unused imports for the replaced expression
+              skippedNodes.add(node.right);
+              skipProxyGlobal(node.right);
+            }
+          }
+        }
+
         const usagePureCallback = (meta, metaPath) => {
           if (isDisabled(metaPath.node)) return;
           if (skippedNodes.has(metaPath.node)) return;
@@ -641,27 +790,7 @@ export default function createPlugin(options) {
             || parentPath?.node?.type === 'ChainExpression') parentPath = parentPath.parentPath;
           const parent = parentPath?.node;
 
-          if (meta.kind === 'in') {
-            const symbolIn = resolveSymbolInEntry(meta.key);
-            if (symbolIn && isEntryNeeded(symbolIn.entry)) {
-              const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
-              if (meta.key === 'Symbol.iterator') {
-                transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.right) })`);
-              } else {
-                transforms.add(node.left.start, node.left.end, binding);
-              }
-            } else if (meta.object) {
-              // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
-              const resolved = resolvePureOrGlobalFallback(meta, metaPath);
-              if (resolved.result) {
-                transforms.add(node.start, node.end, 'true');
-                // prevent child visitors from adding unused imports for the replaced expression
-                skippedNodes.add(node.right);
-                skipProxyGlobal(node.right);
-              }
-            }
-            return;
-          }
+          if (meta.kind === 'in') return handleInExpression(meta, metaPath);
 
           // delete check (ChainExpression and ParenthesizedExpression already unwrapped above)
           if (parent?.type === 'UnaryExpression' && parent.operator === 'delete') return;
@@ -672,9 +801,13 @@ export default function createPlugin(options) {
             }
             if (node.type !== 'MemberExpression') return;
             if (parent?.type === 'UpdateExpression') return;
-            if (node.object?.type === 'Super') return;
+            if (node.object?.type === 'Super') {
+              const superMeta = resolveSuperMember(node, metaPath);
+              if (!superMeta) return;
+              meta = superMeta;
+            }
             if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-            // skip instance method used as tagged template tag — replacing callee breaks `this` binding
+            // skip instance method used as tagged template tag - replacing callee breaks `this` binding
             if (meta.placement === 'prototype'
               && parent?.type === 'TaggedTemplateExpression' && parent.tag === node) return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
@@ -700,7 +833,7 @@ export default function createPlugin(options) {
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent, metaPath);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-            // deoptionalize `?.` when replacing global/static callee — the polyfill import is always
+            // deoptionalize `?.` when replacing global/static callee - the polyfill import is always
             // defined, so optional chaining on it is redundant:
             // - optional call: Map?.() / globalThis.Map?.() / globalThis?.Map?.() -> _Map()
             // - optional member parent: globalThis?.X -> _globalThis.X
