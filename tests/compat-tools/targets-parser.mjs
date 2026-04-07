@@ -1,4 +1,4 @@
-import { deepEqual } from 'node:assert/strict';
+import { deepEqual, throws } from 'node:assert/strict';
 import targetsParser from '@core-js/compat/targets-parser.js';
 
 deepEqual(targetsParser('ie 11, chrome 56, ios 12.2'), new Map([
@@ -137,5 +137,41 @@ deepEqual(targetsParser({
   ['chrome', '80'],
   ['firefox', '70'],
 ]), 'targets.esmodules: intersect, versions above esmodules minimum unchanged');
+
+// "latest" / Safari Technology Preview keywords map to a sentinel above any real version
+deepEqual(targetsParser({ safari: 'TP' }), new Map([
+  ['safari', '999999'],
+]), 'safari: TP -> latest sentinel');
+
+deepEqual(targetsParser({ safari: 'tp' }), new Map([
+  ['safari', '999999'],
+]), 'safari: tp (lowercase) -> latest sentinel');
+
+deepEqual(targetsParser({ safari: 'latest' }), new Map([
+  ['safari', '999999'],
+]), 'safari: latest -> latest sentinel');
+
+deepEqual(targetsParser({ chrome: 'LATEST' }), new Map([
+  ['chrome', '999999'],
+]), 'chrome: LATEST (uppercase) -> latest sentinel');
+
+deepEqual(targetsParser('safari TP'), new Map([
+  ['safari', '999999'],
+]), 'browserslist query "safari TP" -> latest sentinel');
+
+deepEqual(targetsParser({ safari: 'TP', ie: 11 }), new Map([
+  ['ie', '11'],
+  ['safari', '999999'],
+]), 'mixed: TP coexists with numeric versions');
+
+throws(() => targetsParser({ safari: 'no!' }), {
+  name: 'RangeError',
+  message: /Invalid version "no!" for "safari"/,
+}, 'unknown non-numeric version -> clear error');
+
+throws(() => targetsParser({ chrome: 'beta' }), {
+  name: 'RangeError',
+  message: /Invalid version "beta" for "chrome"/,
+}, 'unknown non-numeric version on different engine -> clear error');
 
 echo(chalk.green('targets parser tested'));
