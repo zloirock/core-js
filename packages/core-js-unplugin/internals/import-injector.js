@@ -25,6 +25,13 @@ export default class ImportInjector {
 
   set rootScope(scope) { this.#rootScope = scope; }
 
+  // seed the in-use name set with bindings from EVERY nested scope, not just the program root
+  // estree-toolkit's program scope only sees direct bindings, so a `var _at` declared
+  // inside a function would otherwise collide with our generated `_at` polyfill UID
+  seedReservedNames(names) {
+    for (const n of names) this.#usedNames.add(n);
+  }
+
   // usage-global / entry-global: collect side-effect module import
   addGlobalImport(moduleName) {
     this.#globalImports.add(moduleName);

@@ -19,7 +19,7 @@ export default function (t) {
   // we also publish the chosen name into Babel's `program.references`/`program.uids` so that
   // sibling transforms running afterwards (e.g. plugin-transform-computed-properties) don't
   // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` -
-  // when declare=false the binding isn't registered, so without this they would collide.
+  // when declare=false the binding isn't registered, so without this they would collide
   const REFS_KEY = Symbol('coreJSRefs');
 
   function generateRef(scope, declare = true) {
@@ -48,7 +48,7 @@ export default function (t) {
     // place `null` first when `check` doesn't start with an identifier-like token (typically
     // an AssignmentExpression `(_ref = X)`). This guarantees ASI safety when the replacement
     // is embedded in raw source and matches the unplugin output. For identifier-like tokens
-    // there is no ASI hazard, so keep the more readable `x == null` form.
+    // there is no ASI hazard, so keep the more readable `x == null` form
     const NULL = t.nullLiteral();
     const test = isLeadingIdentLike(check)
       ? t.binaryExpression('==', check, NULL)
@@ -75,7 +75,7 @@ export default function (t) {
     delete path.node.optional;
   }
 
-  // strip Optional{Member,Call}Expression wrappers above a replaced node.
+  // strip Optional{Member,Call}Expression wrappers above a replaced node
   // stripFirstOptional: also deoptionalize the first user-written ?. in the chain
   // (used when the replacement is always defined, e.g., polyfill imports)
   function normalizeOptionalChain(path, stripFirstOptional) {
