@@ -9,6 +9,7 @@ export default class ImportInjector {
   #absoluteImports;
   #globalImports = new Set();
   #pureImports = new Map(); // source -> Identifier node
+  #usedNames = new Set();
   // polyfill identifier names -> entry source paths, lets resolveKey recognize
   // post-mutation polyfill identifiers (e.g., _Symbol$iterator -> @core-js/.../symbol/iterator)
   pureImportsByName = new Map();
@@ -34,13 +35,23 @@ export default class ImportInjector {
     this.#globalImports.add(moduleName);
   }
 
-  // usage-pure: register default import, return Babel Identifier node
+  // usage-pure: register default import, return Babel Identifier node.
+  // own UID generation: Babel's scope.generateUidIdentifier strips trailing digits from the hint
+  // (`Math$log2` -> `_Math$log`), which produces misleading names for hints with numeric suffixes
   addPureImport(entry, hint) {
     const source = `${ this.#mode }/${ entry }`;
     if (this.#pureImports.has(source)) return this.#t.cloneNode(this.#pureImports.get(source));
-    const id = this.#programPath.scope.generateUidIdentifier(hint);
+    const sanitized = hint.replaceAll('.', '$');
+    const { scope } = this.#programPath;
+    let name = `_${ sanitized }`;
+    let counter = 2;
+    while (this.#usedNames.has(name) || scope.hasBinding(name)) {
+      name = `_${ sanitized }${ counter++ }`;
+    }
+    this.#usedNames.add(name);
+    const id = this.#t.identifier(name);
     this.#pureImports.set(source, id);
-    this.pureImportsByName.set(id.name, source);
+    this.pureImportsByName.set(name, source);
     return this.#t.cloneNode(id);
   }
 
