@@ -47,7 +47,7 @@ const toLowerKeys = function (object) {
   }, {});
 };
 
-// sentinel for "latest version" — higher than any real engine version, so no polyfills are injected
+// sentinel for "latest version" - higher than any real engine version, so no polyfills are injected
 const LATEST_SENTINEL = '999999';
 // non-numeric per-engine values that mean "latest" (e.g., Safari Technology Preview, generic latest)
 const LATEST_KEYWORDS = new Set(['tp', 'latest']);
