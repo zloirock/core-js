@@ -74,6 +74,45 @@ function detectCommonJS(ast) {
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
+// collect every binding name declared anywhere in the AST so the import injector
+// avoids picking a UID that collides with a user-declared identifier in any nested scope
+// `var _at = 1` inside a function should not be shadowed by a top-level `import _at from ...`
+function collectAllBindingNames(ast) {
+  const names = new Set();
+  function addPattern(node) {
+    if (!node) return;
+    switch (node.type) {
+      case 'Identifier': names.add(node.name); break;
+      case 'ObjectPattern':
+        for (const p of node.properties) addPattern(p.type === 'Property' ? p.value : p.argument);
+        break;
+      case 'ArrayPattern': for (const e of node.elements) if (e) addPattern(e); break;
+      case 'AssignmentPattern': addPattern(node.left); break;
+      case 'RestElement': addPattern(node.argument); break;
+    }
+  }
+  const addId = node => { if (node.id) names.add(node.id.name); };
+  const addParams = node => { for (const p of node.params) addPattern(p); };
+  const addFunction = path => {
+    addId(path.node);
+    addParams(path.node);
+  };
+  const addLocal = path => names.add(path.node.local.name);
+  traverse(ast, {
+    VariableDeclarator: path => addPattern(path.node.id),
+    FunctionDeclaration: addFunction,
+    FunctionExpression: addFunction,
+    ArrowFunctionExpression: path => addParams(path.node),
+    ClassDeclaration: path => addId(path.node),
+    ClassExpression: path => addId(path.node),
+    CatchClause: path => addPattern(path.node.param),
+    ImportSpecifier: addLocal,
+    ImportDefaultSpecifier: addLocal,
+    ImportNamespaceSpecifier: addLocal,
+  });
+  return names;
+}
+
 // ternary guard needs () only when parent operator has higher precedence than ?:
 // or parent grammar restricts the expression (extends clause expects LeftHandSideExpression)
 const NEEDS_GUARD_PARENS = new Set([
@@ -128,7 +167,6 @@ export default function createPlugin(options) {
       // the BOM is re-prepended to the final output. Reassign `code` so the rest of the
       // function (TransformQueue, skipGap, slice helpers, ...) uses the BOM-stripped source.
       const hasBOM = code.charCodeAt(0) === 0xFEFF;
-      // eslint-disable-next-line no-param-reassign -- intentional, see comment above
       if (hasBOM) code = code.slice(1);
       // parse with oxc-parser (sync is the only available API)
       // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
@@ -168,6 +206,9 @@ export default function createPlugin(options) {
         ms, pkg, mode, absoluteImports, importStyle,
         directiveEnd: directivePrologueEnd(ast),
       });
+      // seed the injector with every binding name in the file (any nesting level)
+      // so generated UIDs don't shadow user-declared identifiers in nested scopes
+      injector.seedReservedNames(collectAllBindingNames(ast));
 
       const debugOutput = createDebugOutput?.() ?? null;
 
@@ -449,6 +490,21 @@ export default function createPlugin(options) {
           return { optionalRoot: root, rootRaw, deoptPositions };
         }
 
+        // slice the original source between a call expression's parentheses, preserving
+        // every byte (comments, whitespace, even empty arglist content)
+        // returns null if we can't locate the parens for some reason
+        function sliceBetweenParens(callNode) {
+          if (callNode.callee?.end === undefined || callNode.end === undefined) return null;
+          // closing `)` is the last char of the call expression range
+          const closeParen = callNode.end - 1;
+          if (code[closeParen] !== ')') return null;
+          // skip any `?.` between the callee and `(` (OptionalCallExpression: `foo?.()`),
+          // plus whitespace and comments on either side of it
+          const openParen = skipGap(code, afterOptional(callNode.callee.end, false));
+          if (code[openParen] !== '(') return null;
+          return code.slice(openParen + 1, closeParen);
+        }
+
         // does guard ternary need () to preserve correct precedence?
         function guardNeedsParens(metaPath, isCall, start, end) {
           let outer = (isCall ? metaPath.parentPath : metaPath)?.parentPath;
@@ -470,10 +526,11 @@ export default function createPlugin(options) {
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = !NO_REF_NEEDED.has(unwrapNode(node.object).type);
           const { optionalRoot, rootRaw, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
-          // preserve comments in arguments by slicing original source between arg ranges
-          const argsSrc = isCall && parent.arguments.length
-            ? code.slice(parent.arguments[0].start, parent.arguments.at(-1).end)
-            : null;
+          // preserve comments inside the call's parens by slicing from just after the
+          // opening `(` to just before the closing `)`. The previous slice from arg[0].start
+          // to arg[-1].end dropped leading/trailing comments and any comment in an empty
+          // arglist (`arr.flat(/* hint */)`)
+          const argsSrc = isCall ? sliceBetweenParens(parent) : null;
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
           const isNew = parent?.type === 'NewExpression' && isCall;
@@ -505,7 +562,7 @@ export default function createPlugin(options) {
 
         function handleSymbolIterator(meta, node, parent, metaPath) {
           const isCallParent = isCallee(node, parent);
-          // get-iterator returns the materialized iterator; get-iterator-method returns the method.
+          // get-iterator returns the materialized iterator; get-iterator-method returns the method
           // use get-iterator only for plain CallExpression with no args - never for NewExpression
           const isPlainCall = isCallParent && parent.type === 'CallExpression';
           const entry = isPlainCall && parent.arguments.length === 0 && !parent.optional
@@ -525,7 +582,7 @@ export default function createPlugin(options) {
         // resolve `super.X` references inside a class method to a static-method meta on the
         // parent class. Returns null for unsupported cases (computed key, prototype super,
         // non-identifier extends clause, locally-shadowed parent name, etc.). Currently
-        // static-only — instance super requires rewriting the receiver to `this`.
+        // static-only — instance super requires rewriting the receiver to `this`
         function resolveSuperMember(node, metaPath) {
           if (node.computed) return null;
           const key = node.property?.name;
@@ -533,7 +590,7 @@ export default function createPlugin(options) {
           // walk up to the enclosing MethodDefinition / PropertyDefinition. ESTree wraps
           // class method bodies in FunctionExpression, so we walk through it. Nested
           // FunctionDeclaration would not lexically inherit super (the parser would have
-          // rejected the input as a syntax error), so we don't need to bail explicitly.
+          // rejected the input as a syntax error), so we don't need to bail explicitly
           let methodPath = null;
           for (let cur = metaPath.parentPath; cur; cur = cur.parentPath) {
             const ct = cur.node?.type;
@@ -576,7 +633,7 @@ export default function createPlugin(options) {
         // only static/global polyfills can fit in a default value — instance methods need
         // a receiver (`_at(arr).call(arr, 0)` form) and cannot be substituted this way.
         // requiring `value` to be a plain Identifier rejects both user-supplied defaults
-        // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check.
+        // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check
         function handleParameterDestructurePure(meta, metaPath, propNode) {
           const { value } = propNode;
           if (value?.type !== 'Identifier') return;
