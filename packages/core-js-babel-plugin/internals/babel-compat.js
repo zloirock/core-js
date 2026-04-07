@@ -9,21 +9,27 @@ export default function (t) {
   // identifiers and `this` are safe to double-evaluate (no side effects, no temp ref needed)
   const isSafeToReuse = node => t.isIdentifier(node) || t.isThisExpression(node);
 
-  // own UID generator for `_ref` temp variables — bypasses Babel's
+  // own UID generator for `_ref` temp variables - bypasses Babel's
   // scope.generateUidIdentifier which strips trailing digits from the hint, producing wrong
   // numbering (after `_ref9` → `_ref0`, `_ref1` instead of `_ref10`, `_ref11`).
   // declare=true uses scope.push (handles arrow expression body → block conversion correctly);
   // declare=false skips the push for callers that build their own initialized declaration
   // (e.g. destructuring extracts a const). generated names are tracked per file via REFS_KEY
   // so subsequent calls don't reuse a name or collide with one we generated earlier.
+  // we also publish the chosen name into Babel's `program.references`/`program.uids` so that
+  // sibling transforms running afterwards (e.g. plugin-transform-computed-properties) don't
+  // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` -
+  // when declare=false the binding isn't registered, so without this they would collide.
   const REFS_KEY = Symbol('coreJSRefs');
 
   function generateRef(scope, declare = true) {
     const program = scope.getProgramParent();
     const refs = program.path.node[REFS_KEY] ??= new Set();
     const name = findUniqueName('_ref', refs.size === 0 ? null : refs.size + 1, 2,
-      n => refs.has(n) || scope.hasBinding(n));
+      n => refs.has(n) || scope.hasBinding(n) || program.references[n] || program.uids[n]);
     refs.add(name);
+    program.references[name] = true;
+    program.uids[name] = true;
     const id = t.identifier(name);
     if (declare) scope.push({ id });
     return id;
@@ -35,12 +41,19 @@ export default function (t) {
     return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
   }
 
+  // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement)
+  const isLeadingIdentLike = node => t.isIdentifier(node) || t.isThisExpression(node) || t.isSuper(node);
+
   function wrapConditional(check, result) {
-    return t.conditionalExpression(
-      t.binaryExpression('==', check, t.nullLiteral()),
-      t.unaryExpression('void', t.numericLiteral(0)),
-      result,
-    );
+    // place `null` first when `check` doesn't start with an identifier-like token (typically
+    // an AssignmentExpression `(_ref = X)`). This guarantees ASI safety when the replacement
+    // is embedded in raw source and matches the unplugin output. For identifier-like tokens
+    // there is no ASI hazard, so keep the more readable `x == null` form.
+    const NULL = t.nullLiteral();
+    const test = isLeadingIdentLike(check)
+      ? t.binaryExpression('==', check, NULL)
+      : t.binaryExpression('==', NULL, check);
+    return t.conditionalExpression(test, t.unaryExpression('void', t.numericLiteral(0)), result);
   }
 
   function buildMethodCall(id, object, scope, args, optionalCall) {

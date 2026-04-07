@@ -1755,7 +1755,11 @@ function createResolveNodeType(babelNodeType, t) {
 
   function findClassMember(classPath, name, isStatic, depth = 0) {
     if (depth > MAX_DEPTH) return null;
-    for (const member of classPath.get('body').get('body')) {
+    // walk in reverse: in JS, duplicate method names are legal and the runtime uses the last definition
+    // `findObjectMember` does the same; both must agree.
+    const members = classPath.get('body').get('body');
+    for (let i = members.length - 1; i >= 0; i--) {
+      const member = members[i];
       if (member.node.computed) continue;
       if (!keyMatchesName(member.node.key, name)) continue;
       if (!!member.node.static !== isStatic) continue;
