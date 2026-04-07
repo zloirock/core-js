@@ -7,13 +7,23 @@
 //   getBindingNodeType(scope, name) -> string | null
 //   isStringLiteral(node)           -> boolean
 //   getStringValue(node)            -> string | null
+import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from './helpers.js';
+
+// known-built-in-return-types enumerates every built-in identifier core-js knows about.
+// constructors (Array, Map, ...) and global functions (parseInt, fetch, ...) are functions;
+// namespaces (Math, JSON, Reflect, ...) and proxy globals (globalThis, self, ...) are plain objects
+const KNOWN_FUNCTION_GLOBALS = new Set([
+  ...Object.keys(knownBuiltInReturnTypes.constructors),
+  ...Object.keys(knownBuiltInReturnTypes.globalMethods),
+]);
+const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespaces);
 
 const MAX_KEY_DEPTH = 10;
 
 // strip ESTree ParenthesizedExpression wrappers — Babel doesn't produce these by default,
 // so this is a no-op for Babel input. (Array).from / (Object).assign / ((Promise)).resolve
-// must be treated as if the parens weren't there for static-method resolution.
+// must be treated as if the parens weren't there for static-method resolution
 function unwrapParens(node) {
   while (node?.type === 'ParenthesizedExpression') node = node.expression;
   return node;
@@ -135,7 +145,7 @@ function buildMemberMeta(node, scope, adapter) {
 }
 
 // process a MemberExpression node: resolve Symbol.X computed key or build member meta
-// returns meta or null. Handles handledObjects marking.
+// returns meta or null. Handles handledObjects marking
 export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   const symbolKey = resolveComputedSymbolKey(node, scope, adapter);
   if (symbolKey) {
@@ -166,7 +176,7 @@ export function resolveSymbolIteratorEntry(node, parent) {
 
 // build meta from BinaryExpression with 'in' operator
 // handles Symbol.X in obj, 'key' in Constructor, 'key' in globalThis
-// returns meta object or null. Also marks handled objects if suppressProxyGlobals is false.
+// returns meta object or null. Also marks handled objects if suppressProxyGlobals is false
 export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   if (node.operator !== 'in') return null;
   // Symbol.X in obj - well-known symbol protocol check
@@ -210,8 +220,8 @@ function resolveComputedSymbolKey(node, scope, adapter) {
   return name ? `Symbol.${ name }` : null;
 }
 
-// mark handled objects after processing a MemberExpression meta.
-// suppresses duplicate Identifier visitor firing for the object part.
+// mark handled objects after processing a MemberExpression meta
+// suppresses duplicate Identifier visitor firing for the object part
 function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
   const obj = unwrapParens(node.object);
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {
@@ -235,14 +245,31 @@ export function findProxyGlobal(node) {
   return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
 }
 
+// map a destructure source identifier to its runtime receiver type hint
+// unknown identifiers return null so the resolver falls through to its default type-hint fold
+function destructureReceiverHint(objectName) {
+  if (!objectName) return null;
+  if (KNOWN_FUNCTION_GLOBALS.has(objectName)) return 'function';
+  if (KNOWN_NAMESPACE_GLOBALS.has(objectName) || POSSIBLE_GLOBAL_OBJECTS.has(objectName)) return 'object';
+  return null;
+}
+
 // build meta for destructuring given the resolved init node and key
 // both plugins handle parent traversal (finding initNode) themselves, then call this
+// `receiverHint` is set when the destructure source is a known constructor / namespace —
+// it tells resolveHint which polyfill variant to pick: `Array.from` (real static) still
+// matches via the static-lookup path, but `const { includes } = Array` (instance method
+// that doesn't exist on the constructor) is rejected because the `function` receiver hint
+// has no matching variant in the `includes` polyfill descriptor — preserving the runtime
+// semantics where `Array.includes` is `undefined`. Methods inherited from Function/Object
+// prototypes (`name`, `toString`, etc.) still resolve via the `function`/`rest` hints
 export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   if (initNode.type === 'Identifier') {
     const objectName = resolveObjectName(initNode, scope, adapter);
     const placement = objectName ? isStaticPlacement(objectName) : null;
-    return { kind: 'property', object: objectName, key, placement };
+    const receiverHint = placement === 'static' ? destructureReceiverHint(objectName) : null;
+    return { kind: 'property', object: objectName, key, placement, receiverHint };
   }
   if (adapter.isStringLiteral(initNode)) {
     return { kind: 'property', object: 'string', key, placement: 'prototype' };

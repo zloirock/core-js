@@ -5,6 +5,7 @@ import {
   globalProxies,
   instanceMethods,
   instanceProperties,
+  namespaces,
   staticMethods,
   staticProperties,
   staticTypeGuards,
@@ -70,6 +71,7 @@ await fs.writeJson('packages/core-js-compat/known-built-in-return-types.json', {
   instanceProperties: normalizeNested(instanceProperties),
   staticTypeGuards: normalizeNested(staticTypeGuards),
   globalProxies,
+  namespaces,
   constructors: normalizeConstructors(constructors),
 }, { spaces: '  ' });
 
