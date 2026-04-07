@@ -11,7 +11,13 @@ import {
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
-import { babelAdapter, createUsageVisitors, createSyntaxVisitors, setActivePureImports } from './internals/detect-usage.js';
+import {
+  babelAdapter,
+  createSyntaxVisitors,
+  createUsageVisitors,
+  setActivePureImports,
+  USAGE_VISITORS_RESET,
+} from './internals/detect-usage.js';
 import createEntryVisitors from './internals/detect-entry.js';
 
 export default function plugin(api, options) {
@@ -95,13 +101,10 @@ export default function plugin(api, options) {
         return true;
       }
 
-      // parameter / IIFE destructure: rewrite `function({ from }) { ... }` to
-      // `function({ from = _Array$from }) { ... }` so that on engines without `Array.from`
-      // the destructure default kicks in and provides the polyfill
-      // only static/global polyfills can fit in a default value - instance methods need
-      // a receiver (`_at(arr).call(arr, 0)` form) and cannot be substituted this way
-      // requiring `value` to be a plain Identifier rejects both user-supplied defaults
-      // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check
+      // parameter / IIFE destructure: `function({ from }) {}` -> `function({ from = _Array$from }) {}`
+      // only static/global polyfills fit in a default value; instance methods need a receiver
+      // LIMITATION: the default only fires when `arg[key] === undefined`, so a present-but-buggy
+      // native (e.g. `Array.from` failing SAFE_ITERATION_CLOSING) bypasses the polyfill
       function handleParameterDestructure(prop, kind, entry, hintName) {
         if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
         const id = injectPureImport(entry, hintName);
@@ -272,6 +275,7 @@ export default function plugin(api, options) {
           injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
           setActivePureImports(injector);
           skippedNodes = new WeakSet();
+          helperVisitors?.[USAGE_VISITORS_RESET]?.();
           debugOutput = createDebugOutput?.() ?? null;
           const { comments } = path.hub.file.ast;
           const directives = skipFile ? null : parseDisableDirectives(comments);
