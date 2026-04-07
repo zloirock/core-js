@@ -2,8 +2,28 @@ import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usag
 import { findUniqueName } from '@core-js/polyfill-provider/helpers';
 
 export default function (t) {
+  // memoized ancestor walk - cached on parent nodes so descendants share results
+  // (overall O(node count) instead of O(node count * depth))
+  const typeAnnotationCache = new WeakMap();
   function isInTypeAnnotation(path) {
-    return !!path.findParent(p => isTypeAnnotationNodeType(p.node.type));
+    const visited = [];
+    for (let current = path.parentPath; current; current = current.parentPath) {
+      const { node } = current;
+      if (!node) break;
+      if (typeAnnotationCache.has(node)) {
+        const cached = typeAnnotationCache.get(node);
+        for (const n of visited) typeAnnotationCache.set(n, cached);
+        return cached;
+      }
+      if (isTypeAnnotationNodeType(node.type)) {
+        typeAnnotationCache.set(node, true);
+        for (const n of visited) typeAnnotationCache.set(n, true);
+        return true;
+      }
+      visited.push(node);
+    }
+    for (const n of visited) typeAnnotationCache.set(n, false);
+    return false;
   }
 
   // identifiers and `this` are safe to double-evaluate (no side effects, no temp ref needed)
@@ -11,8 +31,8 @@ export default function (t) {
 
   // own UID generator for `_ref` temp variables - bypasses Babel's
   // scope.generateUidIdentifier which strips trailing digits from the hint, producing wrong
-  // numbering (after `_ref9` → `_ref0`, `_ref1` instead of `_ref10`, `_ref11`).
-  // declare=true uses scope.push (handles arrow expression body → block conversion correctly);
+  // numbering (after `_ref9` -> `_ref0`, `_ref1` instead of `_ref10`, `_ref11`).
+  // declare=true uses scope.push (handles arrow expression body -> block conversion correctly);
   // declare=false skips the push for callers that build their own initialized declaration
   // (e.g. destructuring extracts a const). generated names are tracked per file via REFS_KEY
   // so subsequent calls don't reuse a name or collide with one we generated earlier.

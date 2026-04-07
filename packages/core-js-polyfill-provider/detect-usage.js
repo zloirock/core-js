@@ -21,7 +21,7 @@ const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespaces);
 
 const MAX_KEY_DEPTH = 10;
 
-// strip ESTree ParenthesizedExpression wrappers — Babel doesn't produce these by default,
+// strip ESTree ParenthesizedExpression wrappers - Babel doesn't produce these by default,
 // so this is a no-op for Babel input. (Array).from / (Object).assign / ((Promise)).resolve
 // must be treated as if the parens weren't there for static-method resolution
 function unwrapParens(node) {
@@ -47,9 +47,14 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     const { init } = binding.node;
     if (binding.constantViolations?.length) return null;
     if (init?.type === 'Identifier') {
-      // unbound -> global
+      // babel-plugin may have mutated `Symbol` into `_Symbol` in place; the adapter exposes
+      // the original hint so we can translate the polyfill UID back to its source global
+      const initBinding = adapter.getBinding(scope, init.name);
+      if (initBinding?.polyfillHint && /^[A-Z]\w*$/.test(initBinding.polyfillHint)) {
+        return initBinding.polyfillHint;
+      }
+      // unbound -> global; bound -> follow chain
       if (!adapter.hasBinding(scope, init.name)) return init.name;
-      // bound -> follow chain recursively
       return resolveBindingToGlobal(init.name, scope, adapter, seen);
     }
     if (init) return null;
@@ -91,7 +96,7 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
         if (init) return resolveKey(init, true, scope, adapter, depth + 1);
       }
       // polyfill import binding (e.g., import _Symbol$iterator from '.../symbol/iterator')
-      // — recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
+      // - recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
       if (binding.importSource) {
         const match = /(?:^|\/)symbol\/(?<name>[\w-]+)$/.exec(binding.importSource);
         if (match) return `Symbol.${ match.groups.name.replaceAll(/-(?<char>\w)/g, (_, char) => char.toUpperCase()) }`;
@@ -193,7 +198,7 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, suppressPro
     }
   }
   // identifier bound to Symbol.X - resolveKey may return Symbol.X for indirect bindings
-  // (e.g., const k = Symbol.iterator; k in obj — works regardless of object type)
+  // (e.g., const k = Symbol.iterator; k in obj - works regardless of object type)
   const resolvedLeft = resolveKey(node.left, true, scope, adapter);
   if (resolvedLeft?.startsWith('Symbol.')) {
     return { kind: 'in', key: resolvedLeft, object: null, placement: null };
@@ -256,11 +261,11 @@ function destructureReceiverHint(objectName) {
 
 // build meta for destructuring given the resolved init node and key
 // both plugins handle parent traversal (finding initNode) themselves, then call this
-// `receiverHint` is set when the destructure source is a known constructor / namespace —
+// `receiverHint` is set when the destructure source is a known constructor / namespace -
 // it tells resolveHint which polyfill variant to pick: `Array.from` (real static) still
 // matches via the static-lookup path, but `const { includes } = Array` (instance method
 // that doesn't exist on the constructor) is rejected because the `function` receiver hint
-// has no matching variant in the `includes` polyfill descriptor — preserving the runtime
+// has no matching variant in the `includes` polyfill descriptor - preserving the runtime
 // semantics where `Array.includes` is `undefined`. Methods inherited from Function/Object
 // prototypes (`name`, `toString`, etc.) still resolve via the `function`/`rest` hints
 export function buildDestructuringInitMeta(initNode, key, scope, adapter) {

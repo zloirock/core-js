@@ -49,11 +49,18 @@ function resolveHint(desc, meta) {
     hintDescs.push(desc.rest);
   }
 
+  // narrowing must still surface `common` for descriptors with no type-specialised variants
+  // (descriptors that DO have type variants stay strict - the matching types were ruled out)
+  if (!hintDescs.length && includedHints && hasOwn(desc, 'common') && !descHasTypeHints(desc)) return desc.common;
+
   if (hintDescs.length === 1) return hintDescs[0];
 
   if (hintDescs.length > 1) {
     const dependencies = [...new Set(hintDescs.flatMap(d => getDependencies(d) ?? []))];
-    return dependencies.length ? { dependencies } : null;
+    // propagate per-hint filters so a future variant adding `filters` doesn't silently drop them
+    const filters = hintDescs.flatMap(d => (d && typeof d === 'object' && d.filters) || []);
+    if (!dependencies.length) return null;
+    return filters.length ? { dependencies, filters } : { dependencies };
   }
 
   return null;
