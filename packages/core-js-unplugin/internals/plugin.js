@@ -155,14 +155,14 @@ export default function createPlugin(options) {
     transform(code, id) {
       if (isCoreJSFile(id)) return null;
 
-      // strip bundler query/hash suffix before passing the id to oxc-parser — oxc infers
+      // strip bundler query/hash suffix before passing the id to oxc-parser - oxc infers
       // the parser language from the extension and would otherwise see e.g. `tsx?import`
       // and reject the TypeScript syntax silently
       const queryStart = id.search(/[#?]/);
       const cleanId = queryStart === -1 ? id : id.slice(0, queryStart);
       // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
       const isCJSFile = /\.c[jt]s$/.test(cleanId);
-      // strip a leading BOM before parsing AND from the MagicString source — oxc rejects
+      // strip a leading BOM before parsing AND from the MagicString source - oxc rejects
       // BOM-prefixed shebangs, and offsetting positions by 1 would corrupt every transform.
       // the BOM is re-prepended to the final output. Reassign `code` so the rest of the
       // function (TransformQueue, skipGap, slice helpers, ...) uses the BOM-stripped source.
@@ -185,7 +185,7 @@ export default function createPlugin(options) {
       }
 
       // detect CJS by content for files where extension alone is ambiguous (.js / .ts).
-      // ESM markers (import/export at top level) take precedence — a file with both is ESM
+      // ESM markers (import/export at top level) take precedence - a file with both is ESM
       // and the user's `module.exports` will fail at runtime, which is the user's bug.
       const detectedCJS = !isCJSFile && detectCommonJS(ast);
       const importStyle = importStyleOption ?? ((isCJSFile || detectedCJS) ? 'require' : 'import');
@@ -366,8 +366,11 @@ export default function createPlugin(options) {
             }
             if (ch === '/' && src[p + 1] === '*') {
               p += 2;
-              while (p < src.length && !(src[p] === '*' && src[p + 1] === '/')) p++;
-              p += 2;
+              while (p + 1 < src.length && !(src[p] === '*' && src[p + 1] === '/')) p++;
+              // only advance past `*/` if the loop actually found it; otherwise clamp at EOF
+              // so subsequent reads don't run past `src.length` on unterminated block comments
+              if (p + 1 < src.length) p += 2;
+              else return src.length;
               continue;
             }
             break;
@@ -582,7 +585,7 @@ export default function createPlugin(options) {
         // resolve `super.X` references inside a class method to a static-method meta on the
         // parent class. Returns null for unsupported cases (computed key, prototype super,
         // non-identifier extends clause, locally-shadowed parent name, etc.). Currently
-        // static-only — instance super requires rewriting the receiver to `this`
+        // static-only - instance super requires rewriting the receiver to `this`
         function resolveSuperMember(node, metaPath) {
           if (node.computed) return null;
           const key = node.property?.name;
@@ -627,20 +630,17 @@ export default function createPlugin(options) {
           return true;
         }
 
-        // IIFE / parameter destructure: rewrite `function({ from }) { ... }` to
-        // `function({ from = _Array$from }) { ... }` so that on engines without the built-in
-        // the destructure default kicks in and provides the polyfill.
-        // only static/global polyfills can fit in a default value — instance methods need
-        // a receiver (`_at(arr).call(arr, 0)` form) and cannot be substituted this way.
-        // requiring `value` to be a plain Identifier rejects both user-supplied defaults
-        // (AssignmentPattern) and nested patterns (Object/ArrayPattern) in one check
+        // IIFE / parameter destructure: `function({ from }) {}` -> `function({ from = _Array$from }) {}`
+        // only static/global polyfills fit in a default value; instance methods need a receiver
+        // LIMITATION: the default only fires when `arg[key] === undefined`, so a present-but-buggy
+        // native (e.g. `Array.from` failing SAFE_ITERATION_CLOSING) bypasses the polyfill
         function handleParameterDestructurePure(meta, metaPath, propNode) {
           const { value } = propNode;
           if (value?.type !== 'Identifier') return;
           const pureResult = resolvePure(meta, metaPath);
           if (!pureResult || pureResult.kind === 'instance') return;
           const binding = injectPureImport(pureResult.entry, pureResult.hintName);
-          // insert ` = <binding>` after the value identifier — pure insertion, not a replacement,
+          // insert ` = <binding>` after the value identifier - pure insertion, not a replacement,
           // so use ms.appendRight directly rather than the transform queue (which expects overwrites)
           ms.appendRight(value.end, ` = ${ binding }`);
         }
@@ -713,7 +713,6 @@ export default function createPlugin(options) {
           state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
         }
 
-        // eslint-disable-next-line max-statements -- ok
         function applyDestructuringTransforms() {
           // group by declPath node to handle multiple destructurings in the same VariableDeclaration
           const byStatement = new Map();
@@ -734,14 +733,12 @@ export default function createPlugin(options) {
             // for-init: single comma-separated declaration; otherwise: separate statements
             const stmtPrefix = isForInit ? '' : `${ prefix }${ keyword }`;
             const memoPrefix = isForInit ? '' : 'const ';
-            const polyfilledDeclarators = new Set(infos.map(i => i.declaratorPath.node));
-            const parts = [];
 
             function propKeySource(p) {
               return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
             }
 
-            for (const info of infos) {
+            function emitPolyfilled(info, parts) {
               const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
               // if the init has a queued transform (e.g. Promise -> _Promise), extract it
               // to prevent composition corruption (Promise in _Promise$resolve -> __Promise$resolve)
@@ -791,9 +788,25 @@ export default function createPlugin(options) {
               }
             }
 
-            if (!isAssignment && declPath.node.declarations?.length > polyfilledDeclarators.size) {
-              const others = declPath.node.declarations.filter(d => !polyfilledDeclarators.has(d)).map(d => nodeSrc(d));
-              if (others.length) parts.push(`${ stmtPrefix }${ others.join(', ') }`);
+            const parts = [];
+            if (isAssignment || isForInit) {
+              // for-init keeps a single comma-separated declaration so source order survives
+              // mechanically; assignment expressions only ever have one info
+              for (const info of infos) emitPolyfilled(info, parts);
+              if (!isAssignment && declPath.node.declarations?.length > infos.length) {
+                const polyfilledSet = new Set(infos.map(i => i.declaratorPath.node));
+                const others = declPath.node.declarations.filter(d => !polyfilledSet.has(d)).map(d => nodeSrc(d));
+                if (others.length) parts.push(`${ stmtPrefix }${ others.join(', ') }`);
+              }
+            } else {
+              // interleave polyfilled and untouched declarators in source order so side
+              // effects of non-polyfilled initializers stay between the right siblings
+              const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
+              for (const dec of declPath.node.declarations) {
+                const info = polyfilledByDecl.get(dec);
+                if (info) emitPolyfilled(info, parts);
+                else parts.push(`${ stmtPrefix }${ nodeSrc(dec) }`);
+              }
             }
 
             if (isForInit) {
@@ -804,10 +817,27 @@ export default function createPlugin(options) {
           }
         }
 
+        // memoized ancestor walk - cached on parent nodes so descendants share results
+        // (overall O(node count) instead of O(node count * depth))
+        const typeAnnotationCache = new WeakMap();
         function isInTypeAnnotation(path) {
+          const visited = [];
           for (let current = path.parentPath; current; current = current.parentPath) {
-            if (isTypeAnnotationNodeType(current.node?.type)) return true;
+            const { node } = current;
+            if (!node) break;
+            if (typeAnnotationCache.has(node)) {
+              const cached = typeAnnotationCache.get(node);
+              for (const n of visited) typeAnnotationCache.set(n, cached);
+              return cached;
+            }
+            if (isTypeAnnotationNodeType(node.type)) {
+              typeAnnotationCache.set(node, true);
+              for (const n of visited) typeAnnotationCache.set(n, true);
+              return true;
+            }
+            visited.push(node);
           }
+          for (const n of visited) typeAnnotationCache.set(n, false);
           return false;
         }
 
