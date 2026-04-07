@@ -46,6 +46,9 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
 
   function handleIdentifier(path) {
     if (!path.isReferencedIdentifier()) return;
+    // UpdateExpression operand (Map++, --Map) — read+write context, polyfill import is read-only
+    // so the transform would emit `_Map++` which throws TypeError at runtime
+    if (path.parentPath.isUpdateExpression()) return;
     const { node } = path;
     if (path.scope.getBindingIdentifier(node.name)) return;
     if (handledObjects.has(node)) return;
