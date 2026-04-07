@@ -174,6 +174,7 @@ export function createPolyfillContext({
   const isEntryNeededCache = new Map();
 
   function isEntryNeeded(entry) {
+    if (entry === '') entry = 'index';
     if (isEntryNeededCache.has(entry)) return isEntryNeededCache.get(entry);
     const normalized = normalizeEntryPath(entry);
     let result;
