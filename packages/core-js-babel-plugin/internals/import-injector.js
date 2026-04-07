@@ -37,14 +37,22 @@ export default class ImportInjector {
 
   // usage-pure: register default import, return Babel Identifier node.
   // own UID generation: Babel's scope.generateUidIdentifier strips trailing digits from the hint
-  // (`Math$log2` -> `_Math$log`), which produces misleading names for hints with numeric suffixes
+  // (`Math$log2` -> `_Math$log`), which produces misleading names for hints with numeric suffixes.
+  // we also publish the chosen name into Babel's `program.references`/`program.uids` so that
+  // sibling transforms running afterwards (e.g. plugin-transform-computed-properties) don't
+  // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` —
+  // the import declaration isn't inserted yet, so without this it's not visible as a binding.
   addPureImport(entry, hint) {
     const source = `${ this.#mode }/${ entry }`;
     if (this.#pureImports.has(source)) return this.#t.cloneNode(this.#pureImports.get(source));
     const { scope } = this.#programPath;
+    const program = scope.getProgramParent();
     const name = findUniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2,
-      n => this.#usedNames.has(n) || scope.hasBinding(n));
+      n => this.#usedNames.has(n) || scope.hasBinding(n)
+        || program.references[n] || program.uids[n]);
     this.#usedNames.add(name);
+    program.references[name] = true;
+    program.uids[name] = true;
     const id = this.#t.identifier(name);
     this.#pureImports.set(source, id);
     this.pureImportsByName.set(name, source);
