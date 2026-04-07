@@ -66,7 +66,7 @@ function normalizeVersion(engine, version) {
 
 export default function (targets) {
   if (typeof targets != 'object' || isArray(targets)) targets = { browsers: targets };
-  const { configPath, ignoreBrowserslistConfig, ...targetsWithoutConfig } = targets;
+  const { configPath, ignoreBrowserslistConfig, browserslistEnv, ...targetsWithoutConfig } = targets;
   const { browsers, esmodules, node, ...rest } = toLowerKeys(targetsWithoutConfig);
 
   const list = entries(rest);
@@ -75,7 +75,7 @@ export default function (targets) {
 
   if (browsers && normalizedESModules !== true) {
     if (typeof browsers == 'string' || isArray(browsers)) {
-      list.push(...browserslist(browsers).map(it => it.split(' ')));
+      list.push(...browserslist(browsers, { env: browserslistEnv }).map(it => it.split(' ')));
     } else {
       list.push(...entries(browsers));
     }
@@ -83,7 +83,7 @@ export default function (targets) {
     // No explicit targets - use project browserslist config if present (not defaults)
     const path = configPath || '.';
     if (browserslist.findConfig(path)) {
-      list.push(...browserslist(undefined, { path }).map(it => it.split(' ')));
+      list.push(...browserslist(undefined, { path, env: browserslistEnv }).map(it => it.split(' ')));
     }
   }
 
