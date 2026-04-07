@@ -121,6 +121,49 @@ function createResolveNodeType(babelNodeType, t) {
     return t.isMemberExpression(path.node) || t.isOptionalMemberExpression(path.node);
   }
 
+  // ambient TS / Flow declarations alongside runtime functions/classes — they all carry
+  // `returnType` / `typeParameters`, so the same code paths work for both. Splitting into
+  // sets keeps the predicates terse and lets us reuse the membership checks.
+  const AMBIENT_FUNCTION_TYPES = new Set([
+    'TSDeclareFunction',
+    'TSDeclareMethod',
+    'DeclareFunction',
+    'DeclareMethod',
+  ]);
+  
+  const AMBIENT_FN_OR_CLASS_DECLARATION_TYPES = new Set([
+    'TSDeclareFunction',
+    'DeclareFunction',
+    'DeclareClass',
+  ]);
+  
+  function isFunctionLike(node) {
+    return !!node && (t.isFunction(node) || AMBIENT_FUNCTION_TYPES.has(node.type));
+  }
+  
+  function isFunctionOrClassDeclaration(node) {
+    return !!node && (t.isFunctionDeclaration(node) || t.isClassDeclaration(node)
+      || AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has(node.type));
+  }
+
+  // Babel does not register ambient `declare function f(): T` declarations in `scope.bindings`,
+  // so a plain `getBinding(name)` lookup misses them. Walk enclosing scopes' bodies to find one.
+  function findAmbientFunctionPath(name, scope) {
+    for (let cur = scope; cur; cur = cur.parent) {
+      const bodyPaths = cur.path?.get('body');
+      if (!Array.isArray(bodyPaths)) continue;
+      for (const stmtPath of bodyPaths) {
+        const { type } = stmtPath.node ?? {};
+        const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
+          ? stmtPath.get('declaration') : stmtPath;
+        const { node } = declPath;
+        if ((node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction')
+          && node.id?.name === name) return declPath;
+      }
+    }
+    return null;
+  }
+
   // resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
   // iterates: after unwrapping a TS wrapper, the underlying expression may be another variable reference
   // `x as Type`, `x!`, `x satisfies Type`
@@ -157,10 +200,31 @@ function createResolveNodeType(babelNodeType, t) {
     return node;
   }
 
-  function typeRefName(node) {
+  // Decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
+  // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
+  // reference uses a non-identifier head (e.g. an `import("...").Type` form).
+  function typeRefSegments(node) {
     if (!node) return null;
-    const id = node.type === 'TSTypeReference' ? node.typeName : node.type === 'GenericTypeAnnotation' ? node.id : null;
-    return id?.type === 'Identifier' ? id.name : null;
+    const head = node.type === 'TSTypeReference' ? node.typeName
+      : node.type === 'GenericTypeAnnotation' ? node.id : null;
+    return collectQualifiedSegments(head);
+  }
+
+  // Walk a possibly-qualified name node into a [first, ..., last] segment list.
+  // Returns null on any non-identifier link in the chain.
+  function collectQualifiedSegments(node) {
+    if (node?.type === 'Identifier') return [node.name];
+    if (node?.type !== 'TSQualifiedName' && node?.type !== 'QualifiedTypeIdentifier') return null;
+    const left = collectQualifiedSegments(node.left ?? node.qualification);
+    const right = node.right ?? node.id;
+    if (!left || right?.type !== 'Identifier') return null;
+    left.push(right.name);
+    return left;
+  }
+
+  function typeRefName(node) {
+    const segments = typeRefSegments(node);
+    return segments?.length === 1 ? segments[0] : null;
   }
 
   function isTypeAlias(decl) {
@@ -243,7 +307,7 @@ function createResolveNodeType(babelNodeType, t) {
       const annotation = findBindingAnnotation(bindingPath);
       if (annotation) return resolveTypeAnnotation(annotation, scope);
     }
-    if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return new $Object('Function');
+    if (isFunctionOrClassDeclaration(bindingPath.node)) return new $Object('Function');
     return null;
   }
 
@@ -303,17 +367,44 @@ function createResolveNodeType(babelNodeType, t) {
     return kind ? new $Primitive(kind) : null;
   }
 
-  function findInStatements(name, statements) {
-    if (!Array.isArray(statements)) return null;
-    for (let statement of statements) {
-      if ((statement.type === 'ExportNamedDeclaration' || statement.type === 'ExportDefaultDeclaration') && statement.declaration) {
-        statement = statement.declaration;
-      }
-      if (statement.id?.name === name
-        && (isTypeAlias(statement) || isInterfaceDeclaration(statement)
-          || statement.type === 'TSEnumDeclaration')) return statement;
-      if (statement.type === 'TSModuleDeclaration') {
-        const inner = findInStatements(name, statement.body?.body);
+  function isClassLikeDeclaration(decl) {
+    return decl?.type === 'ClassDeclaration' || decl?.type === 'DeclareClass';
+  }
+
+  function isTypeBearingDeclaration(decl) {
+    return isTypeAlias(decl) || isInterfaceDeclaration(decl) || isClassLikeDeclaration(decl)
+      || decl?.type === 'TSEnumDeclaration';
+  }
+
+  // Unwrap a top-level statement past `export {Named,Default}Declaration` wrappers, returning
+  // the inner declaration node (or null if there's no `declaration` to unwrap to).
+  function unwrapExportedDeclaration(statement) {
+    if (statement?.type === 'ExportNamedDeclaration' || statement?.type === 'ExportDefaultDeclaration') {
+      return statement.declaration ?? null;
+    }
+    return statement;
+  }
+
+  // Walk a body looking for a declaration matching `segments`. The leading segments (if any)
+  // must each resolve to a TSModuleDeclaration; the final segment matches an interface / type
+  // alias / class / enum. Single-segment lookups also descend into nested namespaces — so
+  // `Foo` is found regardless of how deeply it's nested.
+  function findInStatements(segments, statements) {
+    if (!Array.isArray(statements) || !segments.length) return null;
+    const [head, ...rest] = segments;
+    for (const statement of statements) {
+      const decl = unwrapExportedDeclaration(statement);
+      if (!decl) continue;
+      if (rest.length === 0) {
+        if (decl.id?.name === head && isTypeBearingDeclaration(decl)) return decl;
+        // single-segment lookup keeps descending into all namespaces (any-level matches)
+        if (decl.type === 'TSModuleDeclaration') {
+          const inner = findInStatements(segments, decl.body?.body);
+          if (inner) return inner;
+        }
+      } else if (decl.type === 'TSModuleDeclaration' && decl.id?.name === head) {
+        // multi-segment lookup only descends into the namespace whose name matches the head
+        const inner = findInStatements(rest, decl.body?.body);
         if (inner) return inner;
       }
     }
@@ -322,17 +413,14 @@ function createResolveNodeType(babelNodeType, t) {
 
   function findTypeDeclaration(name, scope) {
     if (!scope) return null;
-    let currentScope = scope;
-    while (currentScope) {
-      const block = currentScope.block ?? currentScope.path?.node;
-      if (!block) {
-        currentScope = currentScope.parent;
-        continue;
-      }
+    // name may be a dotted path (`NS.Data`) or a pre-split segment array
+    const segments = typeof name === 'string' ? name.split('.') : name;
+    for (let cur = scope; cur; cur = cur.parent) {
+      const block = cur.block ?? cur.path?.node;
+      if (!block) continue;
       const body = block.type === 'Program' ? block.body : block.body?.body;
-      const result = findInStatements(name, body);
+      const result = findInStatements(segments, body);
       if (result) return result;
-      currentScope = currentScope.parent;
     }
     return null;
   }
@@ -393,9 +481,9 @@ function createResolveNodeType(babelNodeType, t) {
   // e.g. for `Container<string>` referencing `interface Container<T>`, returns Map { T -> $Primitive('string') }
   // e.g. for `Container` referencing `interface Container<T = number[]>`, returns Map { T -> $Object('Array', ...) }
   function buildDefaultTypeParamMap(annotation, scope) {
-    const name = typeRefName(annotation);
-    if (!name) return null;
-    const declaration = findTypeDeclaration(name, scope);
+    const segments = typeRefSegments(annotation);
+    if (!segments) return null;
+    const declaration = findTypeDeclaration(segments, scope);
     if (!declaration) return null;
     const declParams = declaration.typeParameters?.params;
     if (!declParams?.length) return null;
@@ -465,8 +553,9 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return all.length ? all : null;
     }
-    const name = typeRefName(objectType);
-    const declaration = name ? findTypeDeclaration(name, scope) : null;
+    // handle dotted refs (`NS.Data`) by passing the segment path through
+    const segments = typeRefSegments(objectType);
+    const declaration = segments ? findTypeDeclaration(segments, scope) : null;
     if (isInterfaceDeclaration(declaration)) {
       // TS: declaration.body.body, Flow: declaration.body.properties
       const own = declaration.body?.body ?? declaration.body?.properties;
@@ -483,6 +572,11 @@ function createResolveNodeType(babelNodeType, t) {
         if (parentMembers) for (const m of parentMembers) all.push(m);
       }
       return all.length ? all : null;
+    }
+    if (isClassLikeDeclaration(declaration)) {
+      // class as type: instance members are non-static class body entries.
+      // findTypeMember handles ClassProperty / ClassMethod / TSDeclareMethod uniformly.
+      return declaration.body?.body?.filter(m => !m?.static) ?? null;
     }
     if (isTypeAlias(declaration)) {
       return getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1);
@@ -513,14 +607,30 @@ function createResolveNodeType(babelNodeType, t) {
     if (!members) return null;
     let indexSignatureType = null;
     for (const member of members) {
-      if (member.type === 'TSPropertySignature' || member.type === 'TSMethodSignature') {
-        if (keyMatchesName(member.key, key)) {
-          return member.type === 'TSMethodSignature' ? { type: 'TSFunctionType' } : member.typeAnnotation;
-        }
-      } else if (member.type === 'ObjectTypeProperty') {
-        if (keyMatchesName(member.key, key)) return member.value;
-      } else if (!indexSignatureType && member.type === 'TSIndexSignature' && member.typeAnnotation) {
-        indexSignatureType = member.typeAnnotation;
+      switch (member.type) {
+        case 'TSPropertySignature':
+        case 'TSMethodSignature':
+          if (keyMatchesName(member.key, key)) {
+            return member.type === 'TSMethodSignature' ? { type: 'TSFunctionType' } : member.typeAnnotation;
+          }
+          break;
+        case 'ObjectTypeProperty':
+          if (keyMatchesName(member.key, key)) return member.value;
+          break;
+        case 'ClassProperty':
+        case 'PropertyDefinition':
+        case 'ClassAccessorProperty':
+          // class body property: typeAnnotation if present, otherwise we can't infer the type
+          if (!member.computed && keyMatchesName(member.key, key)) return member.typeAnnotation ?? null;
+          break;
+        case 'ClassMethod':
+        case 'ClassPrivateMethod':
+        case 'TSDeclareMethod':
+          if (!member.computed && keyMatchesName(member.key, key)) return { type: 'TSFunctionType' };
+          break;
+        case 'TSIndexSignature':
+          if (!indexSignatureType && member.typeAnnotation) indexSignatureType = member.typeAnnotation;
+          break;
       }
     }
     if (indexSignatureType) return indexSignatureType;
@@ -834,9 +944,11 @@ function createResolveNodeType(babelNodeType, t) {
       // TS / Flow named types - only well-known built-ins and utility types
       case 'TSTypeReference':
       case 'GenericTypeAnnotation': {
-        const name = typeRefName(node);
-        if (name) return resolveNamedType(name, node, scope, depth);
-        return null;
+        // handle dotted refs (`NS.Data`) — join segments so resolveNamedType /
+        // findTypeDeclaration can split them back into a path-walk
+        const segments = typeRefSegments(node);
+        if (!segments) return null;
+        return resolveNamedType(segments.join('.'), node, scope, depth);
       }
       // transparent wrappers - unwrap and resolve the inner type
       case 'TSOptionalType':
@@ -953,7 +1065,7 @@ function createResolveNodeType(babelNodeType, t) {
           continue;
         }
       }
-      if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return bindingPath;
+      if (isFunctionOrClassDeclaration(bindingPath.node)) return bindingPath;
       break;
     }
     return path;
@@ -1855,19 +1967,65 @@ function createResolveNodeType(babelNodeType, t) {
 
   // extract the return type annotation from a method/property call signature
   function memberCallReturnAnnotation(member) {
-    // Babel: TSMethodSignature.typeAnnotation; ESTree: TSMethodSignature.returnType
-    if (member.type === 'TSMethodSignature') return member.typeAnnotation ?? member.returnType;
-    if (member.type === 'TSPropertySignature') {
-      const fnType = unwrapTypeAnnotation(member.typeAnnotation);
-      // Babel: TSFunctionType.typeAnnotation; ESTree: TSFunctionType.returnType
-      if (fnType?.type === 'TSFunctionType') return fnType.typeAnnotation ?? fnType.returnType;
-    }
-    // Flow: ObjectTypeProperty with FunctionTypeAnnotation value
-    if (member.type === 'ObjectTypeProperty') {
-      const fnType = unwrapTypeAnnotation(member.value);
-      if (fnType?.type === 'FunctionTypeAnnotation') return fnType.returnType;
+    switch (member.type) {
+      // Babel: TSMethodSignature.typeAnnotation; ESTree: TSMethodSignature.returnType
+      case 'TSMethodSignature':
+        return member.typeAnnotation ?? member.returnType;
+      // class methods and declared methods carry returnType directly
+      case 'ClassMethod':
+      case 'ClassPrivateMethod':
+      case 'TSDeclareMethod':
+        return member.returnType;
+      // property with a function-type annotation: extract its return type
+      case 'TSPropertySignature':
+        return functionTypeReturnAnnotation(unwrapTypeAnnotation(member.typeAnnotation));
+      // Flow: ObjectTypeProperty with FunctionTypeAnnotation value
+      case 'ObjectTypeProperty':
+        return functionTypeReturnAnnotation(unwrapTypeAnnotation(member.value));
     }
     return null;
+  }
+
+  // resolve a method call's return type from a single (non-union) annotation by walking
+  // its members and folding the return types of all matching overloads
+  //   1. Skip overloads with unresolvable return types (don't bail the entire merge).
+  //   2. Try lenient `foldUnionTypes` over the resolved set.
+  //   3. If that fails (divergent primitives etc.), fall back to the FIRST resolved overload.
+  //      Interface signatures are tried in declaration order; TS picks the first matching one,
+  //      so falling back to "first" is a reasonable approximation when we can't run full
+  //      argument-type-based overload selection.
+  function resolveMemberCallReturnFromAnnotation(annotation, name, scope, resolve, depth) {
+    const members = getTypeMembers(annotation, scope, depth);
+    if (!members) return null;
+    const resolvedReturns = [];
+    for (const member of members) {
+      if (!keyMatchesName(member.key, name)) continue;
+      const returnAnnotation = memberCallReturnAnnotation(member);
+      if (!returnAnnotation) continue;
+      const resolved = resolve(returnAnnotation);
+      if (resolved) resolvedReturns.push(resolved);
+    }
+    if (!resolvedReturns.length) return null;
+    if (resolvedReturns.length === 1) return resolvedReturns[0];
+    return foldUnionTypes(resolvedReturns, r => r) ?? resolvedReturns[0];
+  }
+
+  // union method calls - for `x: A | B` calling `x.foo()`, resolve in each branch
+  // and fold the per-branch return types. mirrors findTypeMember's union handling for properties.
+  function resolveMemberCallReturn(annotation, name, scope, resolve, depth = 0) {
+    if (depth > MAX_DEPTH) return null;
+    const { node: aliased } = followTypeAliasChain(annotation, scope);
+    if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
+      let result = null;
+      for (const branch of aliased.types) {
+        const branchResult = resolveMemberCallReturn(unwrapTypeAnnotation(branch), name, scope, resolve, depth + 1);
+        if (!branchResult) return null;
+        result = commonType(result, branchResult);
+        if (!result) return null;
+      }
+      return result;
+    }
+    return resolveMemberCallReturnFromAnnotation(annotation, name, scope, resolve, depth);
   }
 
   function resolveTypedMember(objectPath, name, callPath) {
@@ -1902,20 +2060,8 @@ function createResolveNodeType(babelNodeType, t) {
       const memberType = findTypeMember(annotation, name, scope);
       return memberType ? resolve(memberType) : null;
     }
-    // method call: merge return types from all matching overloads via commonType
-    const members = getTypeMembers(annotation, scope);
-    if (!members) return null;
-    let result = null;
-    for (const member of members) {
-      if (!keyMatchesName(member.key, name)) continue;
-      const returnAnnotation = memberCallReturnAnnotation(member);
-      if (!returnAnnotation) continue;
-      const resolved = resolve(returnAnnotation);
-      if (!resolved) return null;
-      result = commonType(result, resolved);
-      if (!result) return null;
-    }
-    return result;
+    // method call: merge return types across overloads, recursing into union branches
+    return resolveMemberCallReturn(annotation, name, scope, resolve);
   }
 
   function resolveFromMemberExpression(path, callPath) {
@@ -2053,12 +2199,37 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveCallReturnType(callee) {
     // method call: obj.method() or obj?.method()
     if (isMemberLike(callee)) return resolveMemberCallType(callee, callee.parentPath);
-    // direct call: foo() - or IIFE: (() => expr)()
+    // direct call: foo() / IIFE: (() => expr)() / ambient TSDeclareFunction follow-through
     const resolved = resolveRuntimeExpression(callee);
-    if (t.isFunction(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
-    // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
+    if (isFunctionLike(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
+    // indirect call: const fn = obj.method; fn() — resolve through the stored member reference
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
+    // identifier callees that didn't resolve to a function-like via the binding chain may still
+    // be reachable through an ambient `declare function` not registered in scope.bindings,
+    // or a binding whose annotation is a function-type (`declare const f: () => T`).
+    if (!t.isIdentifier(callee.node)) return null;
+    const ambient = findAmbientFunctionPath(callee.node.name, callee.scope);
+    if (ambient) return resolveReturnType(ambient, callee.parentPath);
+    return resolveCallReturnTypeFromAnnotation(callee);
+  }
+
+  // Babel TSFunctionType: `typeAnnotation` (TSTypeAnnotation wrapper)
+  // oxc TSFunctionType / Flow FunctionTypeAnnotation: `returnType` (raw type)
+  function functionTypeReturnAnnotation(node) {
+    if (node?.type === 'TSFunctionType' || node?.type === 'TSConstructorType') {
+      return node.typeAnnotation ?? node.returnType;
+    }
+    if (node?.type === 'FunctionTypeAnnotation') return node.returnType;
     return null;
+  }
+
+  // extract return type from a binding's function-type annotation:
+  //   `declare const f: () => T` / `const f: (x: X) => T = ...` / Flow `(x: X) => T`
+  function resolveCallReturnTypeFromAnnotation(callee) {
+    const info = findExpressionAnnotation(callee);
+    if (!info) return null;
+    const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(info.annotation));
+    return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
 
   // find the original property key name for a destructured variable
@@ -2252,7 +2423,7 @@ function createResolveNodeType(babelNodeType, t) {
     const callType = babelNodeType(path.node);
     if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
       const fnPath = resolveRuntimeExpression(path.get('callee'));
-      if (t.isFunction(fnPath.node) && fnPath.node.returnType) {
+      if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
         return { annotation: fnPath.node.returnType, scope: fnPath.scope };
       }
     }
