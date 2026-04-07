@@ -5,6 +5,21 @@ export function toStatelessRegExp(re) {
   return re.global || re.sticky ? new RegExp(re.source, re.flags.replaceAll(/[gy]/g, '')) : re;
 }
 
+// generate a unique identifier name following Babel's hint-N convention.
+// startSuffix === null means try the bare prefix first; otherwise start with `prefix${startSuffix}`.
+// on collision the suffix is incremented but clamped to minSuffix
+// (pass minSuffix=2 to skip the unused `prefix1` slot, matching Babel's UID generator).
+// isTaken is called for each candidate; return true when the name conflicts.
+export function findUniqueName(prefix, startSuffix, minSuffix, isTaken) {
+  let counter = startSuffix;
+  let name = counter === null ? prefix : `${ prefix }${ counter }`;
+  while (isTaken(name)) {
+    counter = Math.max((counter ?? 0) + 1, minSuffix);
+    name = `${ prefix }${ counter }`;
+  }
+  return name;
+}
+
 export function resolveImportPath(pkg, subpath, absoluteImports) {
   const source = `${ pkg }/${ subpath }`;
   if (!absoluteImports) return source;
