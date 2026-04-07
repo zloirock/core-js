@@ -1,8 +1,8 @@
 // is [start, end] strictly contained within any range in the start-sorted array?
-// (equal ranges are not considered contained — both transforms must be applied)
-// uses binary search to find the rightmost range with r.start <= start, then scans left
-function isStrictlyContained(ranges, start, end) {
-  // binary search: find rightmost index where r.start <= start
+// (equal ranges are not considered contained - both transforms must be applied).
+// binary search + prefix maxEnd resolves in O(log n); falls through to a linear scan only
+// when the max end exactly equals query.end (strictness then reduces to r.start < query.start)
+function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
   let lo = 0;
   let hi = ranges.length - 1;
   while (lo <= hi) {
@@ -10,10 +10,13 @@ function isStrictlyContained(ranges, start, end) {
     if (ranges[mid].start <= start) lo = mid + 1;
     else hi = mid - 1;
   }
-  // scan all candidates with r.start <= start (they're at indices 0..lo-1)
+  if (lo === 0) return false;
+  const maxEnd = prefixMaxEnd[lo - 1];
+  if (maxEnd > end) return true;
+  if (maxEnd < end) return false;
   for (let i = lo - 1; i >= 0; i--) {
     const r = ranges[i];
-    if (r.end >= end && (r.start < start || r.end > end)) return true;
+    if (r.end >= end && r.start < start) return true;
   }
   return false;
 }
@@ -48,8 +51,11 @@ function replaceNthOccurrence(str, needle, replacement, n) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
-// substitute inner transform's content into outer content
-// tries exact needle first, then deoptionalized fallback (?. -> .) for chains modified by buildReplacement
+// substitute inner transform's content into outer content. exact needle first, then a
+// deoptionalized fallback (`?.` -> `.`) for chains rewritten by buildReplacement.
+// nth is counted against the ORIGINAL source slice - works while no synthetic outer text
+// duplicates an inner needle (true for current buildReplacement shapes; needs an offset-based
+// splicer if a future outer ever does)
 function substituteInner(content, needle, replacement, nth) {
   const result = replaceNthOccurrence(content, needle, replacement, nth);
   if (result !== content || !needle.includes('?.')) return result;
@@ -63,6 +69,7 @@ export default class TransformQueue {
   #ms;
   #transforms = [];
   #sorted = null; // lazily built sorted snapshot for containsRange
+  #prefixMaxEnd = null; // running max of sorted[i].end, enables O(log n) containment check
 
   constructor(code, ms) {
     this.#code = code;
@@ -72,6 +79,7 @@ export default class TransformQueue {
   add(start, end, content, guardedRoot) {
     this.#transforms.push({ start, end, content, guardedRoot });
     this.#sorted = null; // invalidate
+    this.#prefixMaxEnd = null;
   }
 
   // check if a containing transform already guards the given root identifier
@@ -85,8 +93,14 @@ export default class TransformQueue {
   containsRange(start, end) {
     if (!this.#sorted) {
       this.#sorted = [...this.#transforms].sort((a, b) => a.start - b.start);
+      this.#prefixMaxEnd = new Array(this.#sorted.length);
+      let running = -1;
+      for (let i = 0; i < this.#sorted.length; i++) {
+        if (this.#sorted[i].end > running) running = this.#sorted[i].end;
+        this.#prefixMaxEnd[i] = running;
+      }
     }
-    return isStrictlyContained(this.#sorted, start, end);
+    return isStrictlyContained(this.#sorted, start, end, this.#prefixMaxEnd);
   }
 
   // remove a queued transform by exact range and return its content, or null if not found
@@ -115,7 +129,7 @@ export default class TransformQueue {
     // sort innermost first: smaller ranges before larger, right-to-left for same-level
     this.#transforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
 
-    // phase 1: compose — substitute inner transforms' content into outer transforms
+    // phase 1: compose - substitute inner transforms' content into outer transforms
     // byStart index enables O(log n + k) inner lookup instead of O(n) linear scan
     const composed = [];
     const byStart = [];
@@ -149,7 +163,7 @@ export default class TransformQueue {
 
       // equal-range dedup: when an inner has the same [start, end] (e.g., arrow body wrapper
       // covering the same range as the polyfill inside), update the existing entry in-place
-      // rather than creating a duplicate — the current content is the composed version
+      // rather than creating a duplicate - the current content is the composed version
       const dup = inners.find(inner => inner.start === start && inner.end === end);
       if (dup) {
         dup.content = content;
