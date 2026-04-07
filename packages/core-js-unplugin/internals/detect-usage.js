@@ -44,7 +44,14 @@ export const estreeAdapter = {
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
-    return { node: b.path.node, constantViolations: b.constantViolations };
+    // when the binding is `import _Symbol$iterator from '.../symbol/iterator'`, expose the
+    // source so resolveKey() can recognise the polyfill UID and infer Symbol.<name> from it
+    // the binding's path is the ImportDefaultSpecifier; its parent is the ImportDeclaration
+    let importSource = null;
+    if (b.path.node?.type === 'ImportDefaultSpecifier') {
+      importSource = b.path.parent?.source?.value ?? b.path.parentPath?.node?.source?.value ?? null;
+    }
+    return { node: b.path.node, constantViolations: b.constantViolations, importSource };
   },
   getBindingNodeType(scope, name) {
     return scope?.getBinding(name)?.path?.node?.type ?? null;
