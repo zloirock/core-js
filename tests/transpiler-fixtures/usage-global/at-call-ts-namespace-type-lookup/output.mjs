@@ -1,5 +1,4 @@
 import "core-js/modules/es.array.at";
-import "core-js/modules/es.string.at";
 namespace Models {
   export type Items = string[];
 }
