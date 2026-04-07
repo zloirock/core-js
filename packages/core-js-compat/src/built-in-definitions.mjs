@@ -10,6 +10,8 @@ const TypedArrayStatic = {
   of: { global: 'typed-array/of' },
 };
 
+const TypedArrayInstance = { global: 'typed-array/methods' };
+
 export const Globals = {
   AggregateError: 'aggregate-error/constructor',
   ArrayBuffer: { global: 'array-buffer/constructor' },
@@ -20,6 +22,9 @@ export const Globals = {
   DisposableStack: 'disposable-stack/constructor',
   Error: ErrorConstructor,
   EvalError: ErrorConstructor,
+  BigInt64Array: TypedArrayInstance,
+  BigUint64Array: TypedArrayInstance,
+  Float16Array: TypedArrayInstance,
   Float32Array: { global: 'float32-array/constructor' },
   Float64Array: { global: 'float64-array/constructor' },
   Int8Array: { global: 'int8-array/constructor' },
@@ -73,8 +78,11 @@ export const StaticProperties = {
   AsyncIterator: {
     from: 'async-iterator/from',
   },
+  BigInt64Array: TypedArrayStatic,
+  BigUint64Array: TypedArrayStatic,
   Error: ErrorStatic,
   EvalError: ErrorStatic,
+  Float16Array: TypedArrayStatic,
   Float32Array: TypedArrayStatic,
   Float64Array: TypedArrayStatic,
   Int8Array: TypedArrayStatic,
