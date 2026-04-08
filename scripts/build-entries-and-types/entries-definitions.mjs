@@ -340,6 +340,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'copyWithin',
+    mutable: true,
   },
   'array/prototype/copy-within': {
     modules: ['es.array.copy-within'],
@@ -374,6 +375,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'fill',
+    mutable: true,
   },
   'array/prototype/fill': {
     modules: ['es.array.fill'],
@@ -665,6 +667,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'push',
+    mutable: true,
   },
   'array/prototype/push': {
     modules: ['es.array.push'],
@@ -716,6 +719,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'reverse',
+    mutable: true,
   },
   'array/prototype/reverse': {
     modules: ['es.array.reverse'],
@@ -750,6 +754,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'sort',
+    mutable: true,
   },
   'array/prototype/sort': {
     modules: ['es.array.sort'],
@@ -767,6 +772,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'splice',
+    mutable: true,
   },
   'array/prototype/splice': {
     modules: ['es.array.splice'],
@@ -837,6 +843,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'unshift',
+    mutable: true,
   },
   'array/prototype/unshift': {
     modules: ['es.array.unshift'],
@@ -1850,6 +1857,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Map',
     name: 'getOrInsert',
+    mutable: true,
   },
   'map/prototype/get-or-insert': {
     modules: ['es.map.get-or-insert'],
@@ -1862,6 +1870,7 @@ export const features = {
     template: $uncurried,
     namespace: 'Map',
     name: 'getOrInsertComputed',
+    mutable: true,
   },
   'map/prototype/get-or-insert-computed': {
     modules: ['es.map.get-or-insert-computed'],
