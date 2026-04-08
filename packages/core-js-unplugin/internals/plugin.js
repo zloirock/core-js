@@ -49,15 +49,27 @@ const ESM_MARKER_TYPES = new Set([
 
 const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name === name;
 
-const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression' && !node.computed
-  && isNamedIdent(node.object, objName) && isNamedIdent(node.property, propName);
+// peel parens / chain expressions / sequence (take last) — CJS shapes like
+// `0, module.exports = {...}` or `(module.exports = ...)` should still match
+function unwrapExpr(node) {
+  while (node) {
+    if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression') node = node.expression;
+    else if (node.type === 'SequenceExpression') node = node.expressions.at(-1);
+    else break;
+  }
+  return node;
+}
 
+const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression' && !node.computed
+  && isNamedIdent(unwrapExpr(node.object), objName) && isNamedIdent(node.property, propName);
+
+// `module.exports = …` | `exports.X = …` | `module.exports.X = …`
 function isCommonJSAssignTarget(left) {
-  if (left?.type !== 'MemberExpression' || left.computed) return false;
-  // module.exports = ...      |  exports.X = ...           |  module.exports.X = ...
-  return isStaticMember(left, 'module', 'exports')
-    || isNamedIdent(left.object, 'exports')
-    || isStaticMember(left.object, 'module', 'exports');
+  const unwrapped = unwrapExpr(left);
+  if (unwrapped?.type !== 'MemberExpression' || unwrapped.computed) return false;
+  if (isStaticMember(unwrapped, 'module', 'exports')) return true;
+  const obj = unwrapExpr(unwrapped.object);
+  return isNamedIdent(obj, 'exports') || isStaticMember(obj, 'module', 'exports');
 }
 
 function detectCommonJS(ast) {
@@ -65,7 +77,7 @@ function detectCommonJS(ast) {
   for (const stmt of ast.body) {
     if (ESM_MARKER_TYPES.has(stmt.type)) return false;
     if (hasCJS || stmt.type !== 'ExpressionStatement') continue;
-    const { expression } = stmt;
+    const expression = unwrapExpr(stmt.expression);
     if (expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left)) hasCJS = true;
   }
   return hasCJS;
