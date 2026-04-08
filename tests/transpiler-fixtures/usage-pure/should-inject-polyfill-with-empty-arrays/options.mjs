@@ -4,7 +4,9 @@ export default {
       method: 'usage-pure',
       version: '4.0',
       targets: { ie: 11 },
-      shouldInjectPolyfill() { throw new Error('boom'); },
+      include: [],
+      exclude: [],
+      shouldInjectPolyfill: (name, defaultInject) => defaultInject,
     }],
   ],
 };
