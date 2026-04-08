@@ -190,9 +190,9 @@ export default function createPlugin(options) {
       const detectedCJS = !isCJSFile && detectCommonJS(ast);
       const importStyle = importStyleOption ?? ((isCJSFile || detectedCJS) ? 'require' : 'import');
 
-      // check disable directives
+      // check disable directives — `disable-file` only counts if it lives above any code
       const offsetToLine = buildOffsetToLine(code);
-      const disabledLines = parseDisableDirectives(comments, offsetToLine);
+      const disabledLines = parseDisableDirectives(comments, offsetToLine, ast.body[0]?.start);
       if (disabledLines === true) return null; // entire file disabled
 
       function isDisabled(node) {
@@ -412,7 +412,7 @@ export default function createPlugin(options) {
               if (cur === optionalNode) break;
               cur = cur.object || cur.callee;
             }
-            return { root: unwrapParens(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions };
+            return { root: unwrapParens(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
           }
           const isPoly = n => isPolyfillableOptional(n, null, estreeAdapter, resolveBuiltIn);
           if (node.optional) {
@@ -482,15 +482,17 @@ export default function createPlugin(options) {
 
         // resolve optional root + skip redundant guard when nested inside an outer transform
         function resolveOptionalRoot(node, parent, isCall) {
-          let { root, rootRaw, deoptPositions } = findChainRoot(node);
+          let { root, rootRaw, deoptPositions, rootNode } = findChainRoot(node);
           if (root) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
-            if (node.optional ? transforms.hasGuardFor(start, end, root) : transforms.containsRange(start, end)) {
+            // dedup against AST node identity, not source text — same `obj` text in two scopes
+            // would otherwise share a guard slot incorrectly
+            if (node.optional ? transforms.hasGuardFor(start, end, rootNode) : transforms.containsRange(start, end)) {
               root = null;
             }
           }
-          return { optionalRoot: root, rootRaw, deoptPositions };
+          return { optionalRoot: root, rootRaw, deoptPositions, rootNode };
         }
 
         // slice the original source between a call expression's parentheses, preserving
@@ -528,7 +530,7 @@ export default function createPlugin(options) {
         function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
           const objectSrc = unwrapParens(node.object);
           const isNonIdent = !NO_REF_NEEDED.has(unwrapNode(node.object).type);
-          const { optionalRoot, rootRaw, deoptPositions } = resolveOptionalRoot(node, parent, isCall);
+          const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall);
           // preserve comments inside the call's parens by slicing from just after the
           // opening `(` to just before the closing `)`. The previous slice from arg[0].start
           // to arg[-1].end dropped leading/trailing comments and any comment in an empty
@@ -546,7 +548,7 @@ export default function createPlugin(options) {
           if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
             replacement = `(${ replacement })`;
           }
-          transforms.add(start, end, replacement, optionalRoot);
+          transforms.add(start, end, replacement, optionalRoot ? rootNode : null);
           if (isCall) skippedNodes.add(parent);
           skipProxyGlobal(node);
         }
