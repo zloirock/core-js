@@ -137,9 +137,9 @@ getEntriesListForTargetVersion('4.0'); // => Array<EntryName>
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
 getModulesListForTargetVersion('4.0'); // => Array<ModuleName>
 
-// built-in definitions - globals, static and instance properties mapped to polyfill modules (used by `@core-js/babel-plugin`):
+// built-in definitions - globals, static and instance members mapped to polyfill modules (used by `@core-js/babel-plugin`):
 import builtInDefinitions from '@core-js/compat/built-in-definitions' with { type: 'json' };
-// => { Globals, StaticProperties, InstanceProperties }
+// => { globals, statics, instance }
 
 // known return types for built-in members (used by `@core-js/babel-plugin` for type inference):
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
