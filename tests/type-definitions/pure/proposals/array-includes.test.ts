@@ -17,3 +17,7 @@ arrayIncludes(1, '2');
 arrayIncludes(2);
 // @ts-expect-error
 arrayIncludes('b', true);
+
+const roArr: ReadonlyArray<number> = [1, 2, 3];
+const roRes: boolean = arrayIncludes(roArr, 2);
+const roRes2: boolean = arrayIncludes(roArr, 2, 1);
