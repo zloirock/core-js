@@ -26,3 +26,7 @@ arrayAt(arr, {});
 arrayAt(arr);
 // @ts-expect-error
 arrayAt(arr, 1, 1);
+
+const roArr: ReadonlyArray<number> = [10, 20, 30];
+const roA1: number | undefined = arrayAt(roArr, 0);
+const roA2: number | undefined = arrayAt(roArr, -1);
