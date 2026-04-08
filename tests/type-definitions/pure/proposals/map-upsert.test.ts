@@ -18,7 +18,3 @@ weakMapGetOrInsertComputed(wmap, { id: 2 }, obj => obj.id === 2);
 
 // @ts-expect-error
 weakMapGetOrInsert(wmap, { id: 1 });
-
-declare const roMap: ReadonlyMap<string, number>;
-const roA: number = mapGetOrInsert(roMap, 'x', 42);
-const roB: number = mapGetOrInsertComputed(roMap, 'y', k => k.length);

@@ -9,8 +9,8 @@ const importModules = ({ modules, level }) => modules.map(module => importModule
 
 const buildCoreJSTypeName = (namespace, name) => `CoreJS.${ namespace }${ name.charAt(0).toUpperCase() + name.slice(1) }`;
 
-const buildSelfForNamespace = (namespace, prefix) => {
-  const ns = getSelfNamespace(namespace);
+const buildSelfForNamespace = (namespace, prefix, mutable) => {
+  const ns = mutable ? namespace : getSelfNamespace(namespace);
   return `${ prefix && missingNamespacesInES6.includes(ns) ? prefix : '' }${ ns }${ getCommonGenericsForNamespace(ns) }`;
 };
 
@@ -162,7 +162,7 @@ export const $uncurried = p => ({
   types: dedent`
     declare module '${ buildModulePath(p) }' {
       type method${ getGenericsForNamespace(p.namespace) } = ${ p.prefix ?? '' }${ p.namespace }${ getCommonGenericsForNamespace(p.namespace) }['${ p.name }'];
-      const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ buildSelfForNamespace(p.namespace, p.prefix) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
+      const resultMethod: ${ getGenericsForNamespace(p.namespace) }(self: ${ buildSelfForNamespace(p.namespace, p.prefix, p.mutable) }, ...args: Parameters<method${ getCommonGenericsForNamespace(p.namespace) }>) => ReturnType<method${ getCommonGenericsForNamespace(p.namespace) }>;
       export = resultMethod;
     }
   `,
@@ -178,7 +178,7 @@ export const $uncurriedWithCustomType = p => ({
   `,
   types: dedent`
     declare module '${ buildModulePath(p) }' {
-      const resultMethod: ${ getCustomGenerics(p.genericsCount) }(self: ${ buildSelfForNamespace(p.namespace, p.prefix) }, ...args: Parameters<${ buildCoreJSTypeName(p.namespace, p.name) }${ getCustomGenerics(p.genericsCount) }>) => ReturnType<${ buildCoreJSTypeName(p.namespace, p.name) }${ getCustomGenerics(p.genericsCount) }>;
+      const resultMethod: ${ getCustomGenerics(p.genericsCount) }(self: ${ buildSelfForNamespace(p.namespace, p.prefix, p.mutable) }, ...args: Parameters<${ buildCoreJSTypeName(p.namespace, p.name) }${ getCustomGenerics(p.genericsCount) }>) => ReturnType<${ buildCoreJSTypeName(p.namespace, p.name) }${ getCustomGenerics(p.genericsCount) }>;
       export = resultMethod;
     }
   `,
