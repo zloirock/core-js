@@ -1,27 +1,12 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage';
+import { walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 import { estreeAdapter } from './detect-usage.js';
 
 // does a binding pattern bind an Identifier named `require` anywhere in its tree?
 function patternBindsRequire(node) {
-  if (!node) return false;
-  switch (node.type) {
-    case 'Identifier': return node.name === 'require';
-    case 'ObjectPattern':
-      for (const p of node.properties) {
-        if (p.type === 'RestElement') {
-          if (patternBindsRequire(p.argument)) return true;
-        } else if (patternBindsRequire(p.value)) return true;
-      }
-      return false;
-    case 'ArrayPattern':
-      for (const el of node.elements) if (patternBindsRequire(el)) return true;
-      return false;
-    case 'AssignmentPattern':
-      return patternBindsRequire(node.left);
-    case 'RestElement':
-      return patternBindsRequire(node.argument);
-  }
-  return false;
+  let found = false;
+  walkPatternIdentifiers(node, id => { if (id.name === 'require') found = true; });
+  return found;
 }
 
 // scan top-level statements for any binding named `require` (var/let/const/function/class/import)
