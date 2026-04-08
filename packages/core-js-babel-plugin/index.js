@@ -178,16 +178,29 @@ export default function plugin(api, options) {
           name => !!path.scope.getBinding(name));
       }
 
-      // does the immediately-enclosing class define an own (non-computed) member named `key`?
-      // used to skip `this.X` polyfilling when the class overrides X
+      // skip `this.X` polyfilling when the enclosing class defines its own instance member X
+      // (static methods always bail — `this` there is the constructor, not an instance)
       function isShadowedByClassOwnMember(path, key) {
         if (typeof key !== 'string') return false;
-        const classBody = path.findParent(p => p.isClassMethod() || p.isClassProperty()
-          || p.isClassPrivateMethod() || p.isClassPrivateProperty())?.parentPath;
+        const enclosingMethod = path.findParent(p => p.isClassMethod() || p.isClassProperty()
+          || p.isClassPrivateMethod() || p.isClassPrivateProperty());
+        if (!enclosingMethod) return false;
+        if (enclosingMethod.node.static) return true;
+        const classBody = enclosingMethod.parentPath;
         if (!classBody?.isClassBody()) return false;
-        return classBody.node.body.some(m => !m.computed
-          && (t.isClassMethod(m) || t.isClassProperty(m))
-          && t.isIdentifier(m.key) && m.key.name === key);
+        return classBody.node.body.some(m => (t.isClassMethod(m) || t.isClassProperty(m))
+          && !m.static && classMemberKeyName(m) === key);
+      }
+
+      // member key as a string for simple shapes (`at`, `'at'`, `` `at` ``); otherwise null
+      function classMemberKeyName(m) {
+        if (!m.key) return null;
+        if (!m.computed && t.isIdentifier(m.key)) return m.key.name;
+        if (t.isStringLiteral(m.key)) return m.key.value;
+        if (t.isTemplateLiteral(m.key) && m.key.expressions.length === 0 && m.key.quasis.length === 1) {
+          return m.key.quasis[0].value.cooked;
+        }
+        return null;
       }
 
       function usagePureCallback(meta, path) {
@@ -304,14 +317,15 @@ export default function plugin(api, options) {
         },
         exit(path) {
           if (helperVisitors) {
-            // re-traverse body children that did not exist on enter — `parseSync`-built
+            // re-traverse body children that did not exist on enter - `parseSync`-built
             // injections carry full `loc`, so the old `!loc` heuristic missed them
             for (const childPath of path.get('body')) {
               if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
             }
           }
-          outputDebug();
+          // flush before debug — flush() may add sibling-plugin re-injections we want logged
           injector?.flush();
+          outputDebug();
         },
       };
 
@@ -324,7 +338,10 @@ export default function plugin(api, options) {
               programVisitor.enter(path);
               if (entryVisitors.Program) entryVisitors.Program(path);
             },
-            exit() { outputDebug(); injector?.flush(); },
+            exit() {
+              injector?.flush();
+              outputDebug();
+            },
           },
           ImportDeclaration: entryVisitors.ImportDeclaration,
         };
@@ -354,7 +371,7 @@ export default function plugin(api, options) {
       if (!injector) return;
       // when CJS transform runs after core-js plugin and converts every original `import` into
       // `require`, the polyfill flush should follow. only flip if the user did not explicitly
-      // request `importStyle: 'import'` — otherwise we'd override their stated intent
+      // request `importStyle: 'import'` - otherwise we'd override their stated intent
       if (importStyleOption === undefined && importStyle === 'import'
         && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
         injector.importStyle = 'require';
