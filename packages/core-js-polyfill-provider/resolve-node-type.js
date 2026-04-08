@@ -312,6 +312,49 @@ function createResolveNodeType(babelNodeType, t) {
     return name && subst.has(name) ? subst.get(name) : node;
   }
 
+  // deep variant of applyAliasSubst: recurses into refs/args/arrays/tuples/unions so
+  // interface-extends args reach inherited members after getTypeMembers flattens them
+  function substSlot(node, slot, subst) {
+    const next = applyAliasSubstDeep(node[slot], subst);
+    return next === node[slot] ? node : { ...node, [slot]: next };
+  }
+  function substList(node, slot, subst) {
+    const list = node[slot];
+    if (!list?.length) return node;
+    const next = list.map(el => applyAliasSubstDeep(el, subst));
+    return next.every((el, i) => el === list[i]) ? node : { ...node, [slot]: next };
+  }
+  function applyAliasSubstDeep(node, subst) {
+    if (!subst || !node || typeof node !== 'object') return node;
+    switch (node.type) {
+      case 'TSTypeReference':
+      case 'GenericTypeAnnotation': {
+        const name = typeRefName(node);
+        if (name && subst.has(name)) return subst.get(name);
+        const args = getTypeArgs(node);
+        if (!args?.params?.length) return node;
+        const next = args.params.map(p => applyAliasSubstDeep(p, subst));
+        if (next.every((p, i) => p === args.params[i])) return node;
+        const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
+        return { ...node, [argsKey]: { ...args, params: next } };
+      }
+      case 'TSTypeAnnotation':
+      case 'TypeAnnotation':
+      case 'TSParenthesizedType':
+      case 'TSOptionalType':
+      case 'NullableTypeAnnotation': return substSlot(node, 'typeAnnotation', subst);
+      case 'TSArrayType':
+      case 'ArrayTypeAnnotation': return substSlot(node, 'elementType', subst);
+      case 'TSTupleType': return substList(node, 'elementTypes', subst);
+      case 'TupleTypeAnnotation':
+      case 'TSUnionType':
+      case 'UnionTypeAnnotation':
+      case 'TSIntersectionType':
+      case 'IntersectionTypeAnnotation': return substList(node, 'types', subst);
+      default: return node;
+    }
+  }
+
   function constantBindingPath(name, scope) {
     if (!scope) return null;
     const binding = scope.getBinding(name);
@@ -593,6 +636,38 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // parent interface ref (`Container<string>`) -> Map<declParam, argNode>, or null if not generic
+  function buildParentSubst(parentRef, scope) {
+    const segments = typeRefSegments(parentRef);
+    const decl = segments ? findTypeDeclaration(segments, scope) : null;
+    if (!isInterfaceDeclaration(decl)) return null;
+    const declParams = decl.typeParameters?.params;
+    const usageArgs = getTypeArgs(parentRef)?.params;
+    if (!declParams?.length) return null;
+    const subst = new Map();
+    for (let i = 0; i < declParams.length; i++) {
+      const arg = usageArgs?.[i] ?? declParams[i].default;
+      if (arg) subst.set(typeParamName(declParams[i]), arg);
+    }
+    return subst.size ? subst : null;
+  }
+
+  // clone member with deep-substituted annotation slots; `key`/`computed` stay as-is.
+  // covers TS `TSPropertySignature`/`TSIndexSignature`/`TSMethodSignature` and Flow `ObjectTypeProperty`
+  const MEMBER_ANNOTATION_SLOTS = ['typeAnnotation', 'returnType', 'value'];
+  function substMemberAnnotations(member, subst) {
+    if (!member || typeof member !== 'object') return member;
+    let cloned = null;
+    for (const slot of MEMBER_ANNOTATION_SLOTS) {
+      if (!member[slot]) continue;
+      const next = applyAliasSubstDeep(member[slot], subst);
+      if (next === member[slot]) continue;
+      cloned ??= { ...member };
+      cloned[slot] = next;
+    }
+    return cloned ?? member;
+  }
+
   function getTypeMembers(objectType, scope, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
@@ -622,7 +697,10 @@ function createResolveNodeType(babelNodeType, t) {
           ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
           : expr;
         const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
-        if (parentMembers) for (const m of parentMembers) all.push(m);
+        if (!parentMembers) continue;
+        // substitute parent generics (`T -> string`) into every inherited member annotation
+        const parentSubst = buildParentSubst(parentRef, scope);
+        for (const m of parentMembers) all.push(parentSubst ? substMemberAnnotations(m, parentSubst) : m);
       }
       return all.length ? all : null;
     }
@@ -639,11 +717,14 @@ function createResolveNodeType(babelNodeType, t) {
 
   function findTypeMember(objectType, key, scope, depth = 0) {
     if (!objectType || depth > MAX_DEPTH) return null;
-    // unions: recurse per branch (with subst applied), fold matches into a synthetic union
+    // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
+    // unwrap wrapper before subst since applyAliasSubst only looks at top-level type name
     const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
-    // every member type returned from `aliased` may reference the alias's type parameters
-    // (`type Box<T> = { v: T }` -> member.typeAnnotation is `T`); apply subst once at exit
-    const withSubst = node => node && subst ? applyAliasSubst(node, subst) : node;
+    const withSubst = node => {
+      if (!node) return node;
+      const unwrapped = unwrapTypeAnnotation(node);
+      return subst ? applyAliasSubst(unwrapped, subst) : unwrapped;
+    };
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = [];
       for (const member of aliased.types) {
@@ -2130,6 +2211,17 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     if (!annotation) return null;
+    // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there
+    if (annotation.type === 'TSTypeQuery') {
+      const resolved = resolveTypeQueryBinding(annotation, scope);
+      if (!resolved?.node) return null;
+      if (t.isObjectExpression(resolved.node)) {
+        const result = resolveObjectMember(resolved, name, callPath);
+        if (result) return result;
+      }
+      const ctx = resolveClassContext(resolved);
+      return ctx ? resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath) : null;
+    }
     // lazily resolve default type parameter map for generic types used without explicit type arguments
     let defaultMap;
     const resolve = p => {
@@ -2305,11 +2397,14 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // extract return type from a binding's function-type annotation:
-  //   `declare const f: () => T` / `const f: (x: X) => T = ...` / Flow `(x: X) => T`
+  //   `declare const f: () => T` / `const f: (x: X) => T = ...` / Flow `(x: X) => T` /
+  //   `const f: typeof other` (follow TSTypeQuery to referenced function's return)
   function resolveCallReturnTypeFromAnnotation(callee) {
     const info = findExpressionAnnotation(callee);
     if (!info) return null;
-    const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(info.annotation));
+    const annotation = unwrapTypeAnnotation(info.annotation);
+    if (annotation?.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(annotation, info.scope);
+    const ret = functionTypeReturnAnnotation(annotation);
     return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
 
