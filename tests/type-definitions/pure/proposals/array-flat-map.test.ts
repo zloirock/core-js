@@ -39,3 +39,8 @@ arrayFlat([1, 2, 3] as any[], 'not a number');
 arrayFlatMap([1, 2, 3], x => x, 1, 2);
 // @ts-expect-error
 arrayFlat([1, 2, 3], 1, 2);
+
+const roArr: ReadonlyArray<number> = [1, 2, 3];
+const roFlatMapped: number[] = arrayFlatMap(roArr, x => [x, x * 2]);
+const roNested: ReadonlyArray<number[]> = [[1, 2], [3, 4]];
+arrayFlat(roNested);
