@@ -4,6 +4,7 @@ import {
   checkTypeAnnotations,
   handleBinaryIn,
   handleMemberExpressionNode,
+  resolveCallArgument,
   resolveKey as sharedResolveKey,
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
@@ -111,7 +112,7 @@ function buildDestructuringMeta(propNode, parentPath) {
           }
           const callNode = callPath?.node;
           if (callNode?.type === 'NewExpression' || callNode?.type === 'CallExpression') {
-            initNode = callNode.arguments?.[paramIndex];
+            initNode = resolveCallArgument(callNode.arguments ?? [], paramIndex);
           }
         }
       }

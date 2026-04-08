@@ -10,10 +10,9 @@ export default class ImportInjector {
   #globalImports = new Set();
   #pureImports = new Map(); // source -> Identifier node
   #usedNames = new Set();
-  // polyfill UID -> entry source / original hint, used by `resolveKey` and
-  // `resolveBindingToGlobal` to recognise post-mutation polyfill identifiers
-  pureImportsByName = new Map();
-  pureImportsHintByName = new Map();
+  // polyfill UID -> { source, hint } so `resolveKey` and `resolveBindingToGlobal` can
+  // recognise post-mutation polyfill identifiers
+  #pureImportsByName = new Map();
   #flushedGlobals = new Set();
   #flushedPure = new Set();
   importStyle;
@@ -56,9 +55,13 @@ export default class ImportInjector {
     program.uids[name] = true;
     const id = this.#t.identifier(name);
     this.#pureImports.set(source, id);
-    this.pureImportsByName.set(name, source);
-    this.pureImportsHintByName.set(name, hint);
+    this.#pureImportsByName.set(name, { source, hint });
     return this.#t.cloneNode(id);
+  }
+
+  // look up a polyfill UID previously emitted by addPureImport (or null)
+  getPureImport(name) {
+    return this.#pureImportsByName.get(name) ?? null;
   }
 
   // insert all collected imports sorted by compat data order. flush loops because
