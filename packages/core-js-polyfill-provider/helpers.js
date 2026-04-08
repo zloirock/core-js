@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 
 // strip g/y flags from RegExp to prevent lastIndex state between calls
@@ -41,6 +42,26 @@ export function patternToRegExp(pattern) {
   }
 }
 
+// `array/at` -> `full/array/at` modules; top-level `actual`/`index`/... -> their root entry
+export function lookupEntryModules(pattern) {
+  if (typeof pattern !== 'string') return null;
+  return entriesMap[`full/${ pattern }`] ?? entriesMap[pattern] ?? null;
+}
+
+// known namespace prefix or wildcard -> module-name pattern; everything else is an entry path
+export function isModulePattern(pattern) {
+  if (pattern instanceof RegExp) return true;
+  if (typeof pattern !== 'string') return false;
+  return pattern.startsWith('es.')
+    || pattern.startsWith('esnext.')
+    || pattern.startsWith('web.')
+    || pattern.includes('*');
+}
+
+export function isEntryPattern(pattern) {
+  return typeof pattern === 'string' && !isModulePattern(pattern);
+}
+
 // validate include/exclude option lists: must be arrays of strings or RegExps (or absent)
 export function validatePatternList(name, list) {
   if (list === undefined || list === null) return;
@@ -80,18 +101,33 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
   }
 }
 
-// proxy globals sourced from the canonical built-in registry; `globalThis`/`self`/`window` etc.
+// `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
-// build a static-method meta from a `class A extends B { static foo() { super.foo() } }` shape.
-// `resolveSuperClassName(name)` returns the parent's unaliased global name (following
-// `const X = Array` chains) or null when the parent is a non-aliased local binding
+// `globalThis.X` / `globalThis['X']` -> 'X', else null
+export function globalProxyMemberName(node) {
+  if (node?.type !== 'MemberExpression') return null;
+  if (node.object?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(node.object.name)) return null;
+  const { property, computed } = node;
+  if (!computed && property?.type === 'Identifier') return property.name;
+  if (computed && property?.type === 'StringLiteral') return property.value;
+  // ESTree (oxc) uses `Literal` with a string value for string literals
+  if (computed && property?.type === 'Literal' && typeof property.value === 'string') return property.value;
+  return null;
+}
+
+// `super.X` in a static method -> static meta on the parent class. resolveSuperClassName
+// chases `const Y = Array` aliases; returns null on real local bindings
 export function buildSuperStaticMeta(classNode, key, resolveSuperClassName) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
   const { superClass } = classNode;
-  if (superClass?.type !== 'Identifier') return null;
-  const resolved = resolveSuperClassName(superClass.name);
-  return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
+  if (!superClass) return null;
+  if (superClass.type === 'Identifier') {
+    const resolved = resolveSuperClassName(superClass.name);
+    return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
+  }
+  const globalMember = globalProxyMemberName(superClass);
+  return globalMember ? { kind: 'property', object: globalMember, key, placement: 'static' } : null;
 }
 
 // shared `super.X` / `this.X` class-walking helpers. `t` is `@babel/types` or

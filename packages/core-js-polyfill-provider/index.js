@@ -3,7 +3,14 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import { POSSIBLE_GLOBAL_OBJECTS, patternToRegExp, validatePatternList } from './helpers.js';
+import {
+  POSSIBLE_GLOBAL_OBJECTS,
+  isEntryPattern,
+  isModulePattern,
+  lookupEntryModules,
+  patternToRegExp,
+  validatePatternList,
+} from './helpers.js';
 
 const { hasOwn } = Object;
 
@@ -40,9 +47,7 @@ function collectEntryPaths(patterns) {
   if (!Array.isArray(patterns)) return new Set();
   const result = new Set();
   for (const pattern of patterns) {
-    if (typeof pattern == 'string' && hasOwn(entries, `full/${ pattern }`)) {
-      result.add(normalizeEntryPath(pattern));
-    }
+    if (lookupEntryModules(pattern)) result.add(normalizeEntryPath(pattern));
   }
   return result;
 }
@@ -61,26 +66,11 @@ function patternMatches(pattern, modules) {
   return false;
 }
 
-function isModulePattern(pattern) {
-  if (pattern instanceof RegExp) return true;
-  if (typeof pattern !== 'string') return false;
-  // module names start with a known namespace (`es.`, `esnext.`, `web.`); wildcards always
-  // imply a module pattern; entry paths use slashes (`array/at`) so they fall through
-  return pattern.startsWith('es.')
-    || pattern.startsWith('esnext.')
-    || pattern.startsWith('web.')
-    || pattern.includes('*');
-}
-
 function formatError(message, patterns) {
   return `  - ${ message }:\n${ patterns.map(p => `    ${ p }\n`).join('') }`;
 }
 
-function isEntryPattern(pattern) {
-  return typeof pattern === 'string' && !isModulePattern(pattern);
-}
-
-function validateIncludeExclude(include, exclude, modules) {
+function validateIncludeExclude(include, exclude, modules, method) {
   validatePatternList('include', include);
   validatePatternList('exclude', exclude);
   if (!include && !exclude) return;
@@ -89,8 +79,15 @@ function validateIncludeExclude(include, exclude, modules) {
     if (!patterns?.length) continue;
     const unusedModules = patterns.filter(isModulePattern).filter(p => !patternMatches(p, modules));
     if (unusedModules.length) errors.push(formatError(`The following "${ label }" patterns didn't match any polyfill`, unusedModules));
-    const unusedEntries = patterns.filter(isEntryPattern).filter(p => !hasOwn(entries, `full/${ p }`));
-    if (unusedEntries.length) errors.push(formatError(`The following "${ label }" entry paths didn't match any polyfill`, unusedEntries));
+    const entries = patterns.filter(isEntryPattern);
+    // entry-path include/exclude only makes sense for the pure variant where the entry IS
+    // the import unit; in global modes a single entry would force-inject hundreds of modules
+    if (entries.length && method !== 'usage-pure') {
+      errors.push(formatError(`Entry-path patterns in "${ label }" are only allowed with method: 'usage-pure'`, entries));
+    } else {
+      const unusedEntries = entries.filter(p => !lookupEntryModules(p));
+      if (unusedEntries.length) errors.push(formatError(`The following "${ label }" entry paths didn't match any polyfill`, unusedEntries));
+    }
   }
   const moduleInclude = include?.filter(isModulePattern);
   const moduleExclude = exclude?.filter(isModulePattern);
@@ -141,7 +138,7 @@ export function createPolyfillContext({
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const modulesForEntryCache = new Map();
 
-  validateIncludeExclude(include, exclude, modulesSetForTargetVersion);
+  validateIncludeExclude(include, exclude, modulesSetForTargetVersion, method);
 
   function resolveModule(mod) {
     if (modulesSetForTargetVersion.has(mod)) return mod;
