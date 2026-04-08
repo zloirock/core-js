@@ -784,7 +784,6 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'toReversed',
-    selfType: 'ReadonlyArray',
   },
   'array/prototype/to-reversed': {
     modules: ['es.array.to-reversed'],
@@ -802,7 +801,6 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'toSorted',
-    selfType: 'ReadonlyArray',
   },
   'array/prototype/to-sorted': {
     modules: ['es.array.to-sorted'],
@@ -822,7 +820,6 @@ export const features = {
     name: 'toSpliced',
     customType: 'proposals/change-array-by-copy-custom',
     genericsCount: 1,
-    selfType: 'ReadonlyArray',
   },
   'array/prototype/to-spliced': {
     modules: ['es.array.to-spliced'],
@@ -891,7 +888,6 @@ export const features = {
     template: $uncurried,
     namespace: 'Array',
     name: 'with',
-    selfType: 'ReadonlyArray',
   },
   'array/prototype/with': {
     modules: ['es.array.with'],
