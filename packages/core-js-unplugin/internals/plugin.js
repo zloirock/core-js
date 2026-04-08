@@ -247,11 +247,31 @@ export default function createPlugin(options) {
         return finalize();
       }
 
+      // resolve `super.X` in a static class method to a static-method meta on the parent
+      // class. returns null for unsupported cases (computed key, instance method, non-identifier
+      // extends, locally-shadowed parent name)
+      function resolveSuperMember(path) {
+        const { node } = path;
+        if (node.computed) return null;
+        const key = node.property?.name;
+        if (!key) return null;
+        let methodPath = null;
+        for (let cur = path.parentPath; cur; cur = cur.parentPath) {
+          const ct = cur.node?.type;
+          if (ct === 'MethodDefinition' || ct === 'PropertyDefinition') {
+            methodPath = cur;
+            break;
+          }
+        }
+        if (!methodPath?.node.static) return null;
+        return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
+          name => !!path.scope?.getBinding?.(name));
+      }
+
       // usage-global mode
       if (method === 'usage-global') {
         const usageGlobalCallback = createUsageGlobalCallback({
-          resolveUsage, injectModulesForModeEntry,
-          isDisabled,
+          resolveUsage, injectModulesForModeEntry, isDisabled, resolveSuperMember,
         });
 
         const usageVisitors = createUsageVisitors({ onUsage: usageGlobalCallback });
@@ -588,31 +608,6 @@ export default function createPlugin(options) {
           addInstanceTransform(binding, node, parent, metaPath, isCall);
         }
 
-        // resolve `super.X` references inside a class method to a static-method meta on the
-        // parent class. Returns null for unsupported cases (computed key, prototype super,
-        // non-identifier extends clause, locally-shadowed parent name, etc.). Currently
-        // static-only - instance super requires rewriting the receiver to `this`
-        function resolveSuperMember(node, metaPath) {
-          if (node.computed) return null;
-          const key = node.property?.name;
-          if (!key) return null;
-          // walk up to the enclosing MethodDefinition / PropertyDefinition. ESTree wraps
-          // class method bodies in FunctionExpression, so we walk through it. Nested
-          // FunctionDeclaration would not lexically inherit super (the parser would have
-          // rejected the input as a syntax error), so we don't need to bail explicitly
-          let methodPath = null;
-          for (let cur = metaPath.parentPath; cur; cur = cur.parentPath) {
-            const ct = cur.node?.type;
-            if (ct === 'MethodDefinition' || ct === 'PropertyDefinition') {
-              methodPath = cur;
-              break;
-            }
-          }
-          if (!methodPath?.node.static) return null;
-          return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
-            name => !!metaPath.scope?.getBinding?.(name));
-        }
-
         // deferred destructuring: collect polyfilled properties per ObjectPattern
         // state.destructuring: key: ObjectPattern node -> [{propNode, localName, binding, kind, initSrc}]
         function canTransformDestructuring(metaPath) {
@@ -910,7 +905,7 @@ export default function createPlugin(options) {
             if (node.type !== 'MemberExpression') return;
             if (parent?.type === 'UpdateExpression') return;
             if (node.object?.type === 'Super') {
-              const superMeta = resolveSuperMember(node, metaPath);
+              const superMeta = resolveSuperMember(metaPath);
               if (!superMeta) return;
               meta = superMeta;
             }
