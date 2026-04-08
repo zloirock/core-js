@@ -3,7 +3,7 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import { POSSIBLE_GLOBAL_OBJECTS, patternToRegExp } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, patternToRegExp, validatePatternList } from './helpers.js';
 
 const { hasOwn } = Object;
 
@@ -81,6 +81,8 @@ function isEntryPattern(pattern) {
 }
 
 function validateIncludeExclude(include, exclude, modules) {
+  validatePatternList('include', include);
+  validatePatternList('exclude', exclude);
   if (!include && !exclude) return;
   const errors = [];
   for (const [label, patterns] of [['include', include], ['exclude', exclude]]) {
@@ -105,11 +107,19 @@ function validateIncludeExclude(include, exclude, modules) {
 }
 
 export function createPolyfillContext({
-  method, mode = 'actual', version = 'node_modules', package: pkg, additionalPackages,
-  include, exclude, shippedProposals = false, shouldInjectPolyfill,
+  method,
+  mode = 'actual',
+  version = 'node_modules',
+  package: pkg,
+  additionalPackages,
+  include,
+  exclude,
+  shippedProposals = false,
+  shouldInjectPolyfill = () => true,
 }) {
   if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
   if (!['es', 'stable', 'actual', 'full'].includes(mode)) throw new TypeError('Incorrect plugin mode');
+  if (typeof shouldInjectPolyfill !== 'function') throw new TypeError('`shouldInjectPolyfill` should be a function');
   if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
 
   const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();

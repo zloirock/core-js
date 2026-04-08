@@ -21,6 +21,19 @@ export function patternToRegExp(pattern) {
   }
 }
 
+// validate include/exclude option lists: must be arrays of strings or RegExps (or absent)
+export function validatePatternList(name, list) {
+  if (list === undefined || list === null) return;
+  if (!Array.isArray(list)) {
+    throw new TypeError(`.${ name } must be an array, or undefined (received ${ JSON.stringify(list) })`);
+  }
+  for (const item of list) {
+    if (typeof item !== 'string' && !(item instanceof RegExp)) {
+      throw new TypeError(`.${ name } elements must be strings or regular expressions (received ${ JSON.stringify(item) })`);
+    }
+  }
+}
+
 // generate a unique identifier name following Babel's hint-N convention.
 // startSuffix === null means try the bare prefix first; otherwise start with `prefix${startSuffix}`
 // on collision the suffix is incremented but clamped to minSuffix
