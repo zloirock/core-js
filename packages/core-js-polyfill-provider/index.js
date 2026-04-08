@@ -7,7 +7,7 @@ import { POSSIBLE_GLOBAL_OBJECTS, patternToRegExp } from './helpers.js';
 
 const { hasOwn } = Object;
 
-function createMetaResolver({ global: globals, static: statics, instance }) {
+function createMetaResolver({ globals, statics, instance }) {
   return function resolve(meta) {
     if (meta.kind === 'global') {
       if (!hasOwn(globals, meta.name)) return undefined;
@@ -194,8 +194,4 @@ export function createPolyfillContext({
   };
 }
 
-export const resolve = createMetaResolver({
-  global: builtInDefinitions.Globals,
-  static: builtInDefinitions.StaticProperties,
-  instance: builtInDefinitions.InstanceProperties,
-});
+export const resolve = createMetaResolver(builtInDefinitions);
