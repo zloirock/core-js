@@ -330,39 +330,115 @@ export function canTransformDestructuring({ parentType, parentInit, grandParentT
   return parentType === 'AssignmentExpression';
 }
 
-// nodes whose names start with TS but actually carry runtime code that needs polyfilling
-const TS_RUNTIME_NODES = new Set([
-  'TSAsExpression',
-  'TSSatisfiesExpression',
-  'TSNonNullExpression',
-  'TSInstantiationExpression',
-  'TSTypeAssertion',
-  // namespace / module / enum bodies are runtime, not type-only
-  'TSModuleDeclaration',
-  'TSModuleBlock',
-  'TSEnumDeclaration',
-  'TSEnumBody',
-  'TSEnumMember',
-  'TSExportAssignment',
-  'TSImportEqualsDeclaration',
-  'TSExternalModuleReference',
+// allow-list of TS type-only nodes — unknown `TS*` defaults to runtime (false positive is
+// louder than silent skip). runtime-carrying wrappers (TSAsExpression, …) stay out
+const TS_TYPE_ONLY_NODES = new Set([
+  'TSTypeAnnotation',
+  'TSTypeParameterDeclaration',
+  'TSTypeParameterInstantiation',
+  'TSTypeParameter',
+  'TSStringKeyword',
+  'TSNumberKeyword',
+  'TSBooleanKeyword',
+  'TSBigIntKeyword',
+  'TSSymbolKeyword',
+  'TSVoidKeyword',
+  'TSUndefinedKeyword',
+  'TSNullKeyword',
+  'TSNeverKeyword',
+  'TSAnyKeyword',
+  'TSObjectKeyword',
+  'TSUnknownKeyword',
+  'TSIntrinsicKeyword',
+  'TSThisType',
+  'TSArrayType',
+  'TSTupleType',
+  'TSUnionType',
+  'TSIntersectionType',
+  'TSParenthesizedType',
+  'TSOptionalType',
+  'TSRestType',
+  'TSConditionalType',
+  'TSInferType',
+  'TSTypeOperator',
+  'TSIndexedAccessType',
+  'TSMappedType',
+  'TSNamedTupleMember',
+  'TSLiteralType',
+  'TSTemplateLiteralType',
+  'TSTypeReference',
+  'TSTypeQuery',
+  'TSTypePredicate',
+  'TSQualifiedName',
+  'TSImportType',
+  'TSFunctionType',
+  'TSConstructorType',
+  'TSTypeLiteral',
+  'TSInterfaceDeclaration',
+  'TSInterfaceBody',
+  'TSTypeAliasDeclaration',
+  'TSPropertySignature',
+  'TSMethodSignature',
+  'TSIndexSignature',
+  'TSCallSignatureDeclaration',
+  'TSConstructSignatureDeclaration',
+  'TSDeclareFunction',
+  'TSDeclareMethod',
 ]);
 
-// check if a node type is a TS/Flow type annotation context
-// used by both plugins to skip polyfilling in type-only positions
+// Flow type-only nodes (stable naming, no forward-compat concern)
+const FLOW_TYPE_ONLY_NODES = new Set([
+  'TypeAnnotation',
+  'InterfaceDeclaration',
+  'InterfaceTypeAnnotation',
+  'InterfaceExtends',
+  'TypeAlias',
+  'OpaqueType',
+  'TypeParameter',
+  'TypeParameterDeclaration',
+  'TypeParameterInstantiation',
+  'GenericTypeAnnotation',
+  'StringTypeAnnotation',
+  'NumberTypeAnnotation',
+  'BooleanTypeAnnotation',
+  'NullLiteralTypeAnnotation',
+  'VoidTypeAnnotation',
+  'EmptyTypeAnnotation',
+  'AnyTypeAnnotation',
+  'MixedTypeAnnotation',
+  'ExistsTypeAnnotation',
+  'SymbolTypeAnnotation',
+  'BigIntTypeAnnotation',
+  'UnionTypeAnnotation',
+  'IntersectionTypeAnnotation',
+  'NullableTypeAnnotation',
+  'ArrayTypeAnnotation',
+  'TupleTypeAnnotation',
+  'ObjectTypeAnnotation',
+  'ObjectTypeProperty',
+  'ObjectTypeSpreadProperty',
+  'ObjectTypeIndexer',
+  'ObjectTypeCallProperty',
+  'ObjectTypeInternalSlot',
+  'FunctionTypeAnnotation',
+  'FunctionTypeParam',
+  'TypeofTypeAnnotation',
+  'IndexedAccessType',
+  'OptionalIndexedAccessType',
+  'StringLiteralTypeAnnotation',
+  'NumberLiteralTypeAnnotation',
+  'BooleanLiteralTypeAnnotation',
+  'QualifiedTypeIdentifier',
+]);
+
+// is `type` a TS/Flow type-only node? `Declare*` is a stable Flow prefix
 export function isTypeAnnotationNodeType(type) {
   if (!type) return false;
-  if (type === 'TypeAnnotation' || type === 'TSTypeAnnotation') return true;
-  // TS types - exclude runtime-carrying expression and declaration wrappers
-  if (type.startsWith('TS')) return !TS_RUNTIME_NODES.has(type);
-  // Flow types (except TypeCastExpression which wraps runtime values, like TSAsExpression)
-  if (type.startsWith('Flow') || (type.startsWith('Type') && type !== 'TypeCastExpression')
-    || type === 'InterfaceDeclaration' || type.startsWith('Declare')) return true;
-  return false;
+  if (TS_TYPE_ONLY_NODES.has(type) || FLOW_TYPE_ONLY_NODES.has(type)) return true;
+  return type.startsWith('Declare');
 }
 
-// nodes that are not type annotations themselves but legitimately appear inside one and
-// carry a child `typeAnnotation` (e.g. params of TSFunctionType: `(x: Foo) => Bar`)
+// param positions (`(x: Foo) => Bar`) — pattern nodes hosting a child `typeAnnotation`
 const TYPE_ANNOTATION_PARAM_HOSTS = new Set([
   'Identifier',
   'RestElement',
@@ -371,19 +447,44 @@ const TYPE_ANNOTATION_PARAM_HOSTS = new Set([
   'ArrayPattern',
 ]);
 
-// is this node something we should descend into when walking a type annotation?
+// should the walker descend into `node` when walking a type annotation?
 function isTypeWalkable(node) {
   if (!node || typeof node !== 'object') return false;
   const { type } = node;
   if (!type) return false;
   if (isTypeAnnotationNodeType(type)) return true;
-  // structural wrappers that hold lists of TS members
   if (type === 'TSInterfaceBody' || type === 'TSModuleBlock' || type === 'TSTypeParameter') return true;
-  // param positions (`(x: Foo) => Bar`) - Identifier wraps a type via `typeAnnotation`
   return TYPE_ANNOTATION_PARAM_HOSTS.has(type);
 }
 
-// walk TS type annotations to find global type references (Promise, Map, etc.).
+// AST child keys that may hold nested type annotations across TS + Flow dialects
+const TYPE_CHILD_KEYS = [
+  'typeAnnotation',
+  'types',
+  'elementType',
+  'objectType',
+  'indexType',
+  'checkType',
+  'extendsType',
+  'trueType',
+  'falseType',
+  'constraint',
+  'default',
+  'typeArguments',
+  'typeParameters',
+  'returnType',
+  'params',
+  'value',
+  'argument',
+  'impltype',
+  'supertype',
+  'nameType',
+  'typeParameter',
+  'members',
+  'body',
+];
+
+// walk a type annotation subtree, invoking `onGlobal(name)` for every bare type reference.
 // `isTypeWalkable` keeps the walker out of runtime bodies; `seen` bounds cyclic inputs
 export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   if (!annotation) return;
@@ -398,11 +499,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     } else if (node.type === 'GenericTypeAnnotation' && node.id?.type === 'Identifier') {
       onGlobal(node.id.name);
     }
-    for (const key of ['typeAnnotation', 'types', 'elementType', 'objectType', 'indexType',
-      'checkType', 'extendsType', 'trueType', 'falseType', 'constraint', 'default',
-      'typeArguments', 'typeParameters', 'returnType', 'params',
-      'value', 'argument', 'impltype', 'supertype',
-      'nameType', 'typeParameter', 'members', 'body']) {
+    for (const key of TYPE_CHILD_KEYS) {
       const child = node[key];
       if (Array.isArray(child)) {
         for (const c of child) if (isTypeWalkable(c)) stack.push(c);
