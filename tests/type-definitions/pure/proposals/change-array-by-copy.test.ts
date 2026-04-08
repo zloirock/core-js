@@ -46,3 +46,9 @@ arrayWith(barr, 0, 1);
 const arrStr: string[] = ['a', 'b'];
 // @ts-expect-error
 arrayWith(arrStr, 0, 1);
+
+const roArr: ReadonlyArray<number> = [1, 2, 3];
+const roArrRev: number[] = arrayToReversed(roArr);
+const roArrSorted: number[] = arrayToSorted(roArr);
+const roArrSpliced: number[] = arrayToSpliced(roArr, 1, 1);
+const roArrWith: number[] = arrayWith(roArr, 0, 42);
