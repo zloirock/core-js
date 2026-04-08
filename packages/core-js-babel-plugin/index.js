@@ -154,41 +154,57 @@ export default function plugin(api, options) {
         resolveSuperMember,
       });
 
-      // resolve `super.X` references inside a class method to a static-method meta on the
-      // parent class. returns null for unsupported cases (computed key, instance method,
-      // non-identifier extends clause, locally-shadowed parent name)
+      // resolve `super.X` to a static meta on the parent class - returns null for computed
+      // keys, instance methods, non-identifier extends, or locally-shadowed parent
       function resolveSuperMember(path) {
         if (path.node.computed) return null;
         const key = path.node.property?.name;
         if (!key) return null;
-        // walk up to the enclosing class method/property; bail if we hit a non-method function
+        // walk to the enclosing class method/property/static block; arrow functions are
+        // transparent (lexical super), non-arrow functions own their own super
         let methodPath = null;
+        let isStatic = false;
         for (let cur = path.parentPath; cur; cur = cur.parentPath) {
           if (cur.isClassMethod() || cur.isClassPrivateMethod()
             || cur.isClassProperty() || cur.isClassPrivateProperty()) {
             methodPath = cur;
+            isStatic = !!cur.node.static;
             break;
           }
-          if (cur.isFunction()) return null;
+          if (cur.isStaticBlock?.()) {
+            methodPath = cur;
+            isStatic = true;
+            break;
+          }
+          if (cur.isFunction() && !cur.isArrowFunctionExpression()) return null;
         }
-        if (!methodPath?.node.static) return null;
+        if (!methodPath || !isStatic) return null;
         // hasBinding() returns true for tracked globals, so check getBinding() for an actual
         // local declaration instead
         return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
           name => !!path.scope.getBinding(name));
       }
 
-      // skip `this.X` polyfilling when the enclosing class defines its own instance member X
-      // (static methods always bail — `this` there is the constructor, not an instance)
+      // skip `this.X` when the enclosing class shadows X. static methods and nested
+      // non-arrow functions short-circuit (their `this` isn't the class instance)
       function isShadowedByClassOwnMember(path, key) {
         if (typeof key !== 'string') return false;
-        const enclosingMethod = path.findParent(p => p.isClassMethod() || p.isClassProperty()
-          || p.isClassPrivateMethod() || p.isClassPrivateProperty());
+        let enclosingMethod = null;
+        for (let cur = path.parentPath; cur; cur = cur.parentPath) {
+          if (cur.isClassMethod() || cur.isClassPrivateMethod()
+            || cur.isClassProperty() || cur.isClassPrivateProperty()
+            || cur.isClassAccessorProperty?.()) {
+            enclosingMethod = cur;
+            break;
+          }
+          if (cur.isFunction() && !cur.isArrowFunctionExpression()) return false;
+        }
         if (!enclosingMethod) return false;
         if (enclosingMethod.node.static) return true;
         const classBody = enclosingMethod.parentPath;
         if (!classBody?.isClassBody()) return false;
-        return classBody.node.body.some(m => (t.isClassMethod(m) || t.isClassProperty(m))
+        return classBody.node.body.some(m => (t.isClassMethod(m) || t.isClassProperty(m)
+          || t.isClassAccessorProperty?.(m))
           && !m.static && classMemberKeyName(m) === key);
       }
 
@@ -323,7 +339,7 @@ export default function plugin(api, options) {
               if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
             }
           }
-          // flush before debug — flush() may add sibling-plugin re-injections we want logged
+          // flush before debug - flush() may add sibling-plugin re-injections we want logged
           injector?.flush();
           outputDebug();
         },
