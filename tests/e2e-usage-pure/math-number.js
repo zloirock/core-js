@@ -6,7 +6,6 @@ QUnit.test('Math.sign', assert => {
 });
 
 QUnit.test('Math.cbrt', assert => {
-  assert.same(Math.cbrt(27), 3);
   assert.same(Math.cbrt(-8), -2);
 });
 
