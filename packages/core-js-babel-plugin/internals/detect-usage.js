@@ -94,7 +94,9 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     } else if (parent.isAssignmentExpression()) {
       initPath = parent.get('right');
     } else if (parent.isObjectProperty() || parent.isAssignmentPattern()
-      || parent.isForOfStatement() || parent.isForInStatement()) {
+      || parent.isForOfStatement() || parent.isForInStatement()
+      || parent.isArrayPattern() || parent.isRestElement()) {
+      // nested patterns: emit a typeless meta so the property name still gets registered
       const key = resolveKey(path.get('key'), path.node.computed);
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;
