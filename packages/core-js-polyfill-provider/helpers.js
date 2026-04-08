@@ -83,17 +83,15 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
 // proxy globals sourced from the canonical built-in registry; `globalThis`/`self`/`window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
-// build a static-method meta from a `class A extends B { static foo() { super.foo() } }` shape
-// `classNode` is the ClassDeclaration / ClassExpression, `key` is the super property name,
-// `isLocallyBound(name)` returns true when the parent identifier is shadowed by a local binding
-// returns null when the shape is unsupported (non-identifier extends, shadowed parent, etc.)
-export function buildSuperStaticMeta(classNode, key, isLocallyBound) {
+// build a static-method meta from a `class A extends B { static foo() { super.foo() } }` shape.
+// `resolveSuperClassName(name)` returns the parent's unaliased global name (following
+// `const X = Array` chains) or null when the parent is a non-aliased local binding
+export function buildSuperStaticMeta(classNode, key, resolveSuperClassName) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
   const { superClass } = classNode;
   if (superClass?.type !== 'Identifier') return null;
-  const { name } = superClass;
-  if (isLocallyBound(name)) return null;
-  return { kind: 'property', object: name, key, placement: 'static' };
+  const resolved = resolveSuperClassName(superClass.name);
+  return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
 }
 
 // shared `super.X` / `this.X` class-walking helpers. `t` is `@babel/types` or
@@ -140,13 +138,30 @@ export function createClassHelpers(t) {
     return backfill(visited, null);
   }
 
+  // follow a chain of `const X = Y` aliases up to the first unshadowed global name,
+  // or null when the root is a real local binding (not an alias)
+  function resolveSuperClassName(startName, scope) {
+    let name = startName;
+    const seen = new Set();
+    while (!seen.has(name)) {
+      seen.add(name);
+      const binding = scope?.getBinding?.(name);
+      if (!binding) return name;
+      if (binding.constantViolations?.length) return null;
+      const decl = binding.path?.node;
+      if (decl?.type !== 'VariableDeclarator' || decl.init?.type !== 'Identifier') return null;
+      name = decl.init.name;
+    }
+    return null;
+  }
+
   function resolveSuperMember(path) {
     if (path.node.computed) return null;
     const key = path.node.property?.name;
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
-    return buildSuperStaticMeta(info.classNode, key, name => !!path.scope?.getBinding?.(name));
+    return buildSuperStaticMeta(info.classNode, key, name => resolveSuperClassName(name, path.scope));
   }
 
   const ownInstanceNames = new WeakMap();
