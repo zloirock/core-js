@@ -1,6 +1,15 @@
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage';
 import { findUniqueName } from '@core-js/polyfill-provider/helpers';
 
+// TS-only expression wrappers - runtime no-ops that forward to their `.expression` child
+const TS_EXPR_WRAPPERS = new Set([
+  'TSNonNullExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSTypeAssertion',
+  'TSInstantiationExpression',
+]);
+
 export default function (t) {
   // memoized ancestor walk - cached on parent nodes so descendants share results
   // (overall O(node count) instead of O(node count * depth))
@@ -26,7 +35,10 @@ export default function (t) {
     return false;
   }
 
-  // identifiers and `this` are safe to double-evaluate (no side effects, no temp ref needed)
+  // identifiers and `this` are safe to double-evaluate (no side effects, no temp ref needed).
+  // we DO NOT peel TS-only wrappers (`!`/`as`/`satisfies`) here - keeping them in the
+  // memoize check makes the unplugin (which uses a source-text regex) and babel agree on
+  // when to introduce a `_ref`, which is especially important inside optional chains
   const isSafeToReuse = node => t.isIdentifier(node) || t.isThisExpression(node);
 
   // own UID generator for `_ref` temp variables - bypasses Babel's
@@ -156,14 +168,27 @@ export default function (t) {
     if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
   }
 
+  // walk past TS expression wrappers between a member expression and its enclosing call -
+  // needed when @babel/plugin-transform-typescript runs after us so `arr.includes!(1)` is
+  // not misclassified as non-call (which would emit `_includes(arr)` with broken `this`)
+  function unwrapTSExpressionParent(path) {
+    let current = path;
+    while (current.parentPath && TS_EXPR_WRAPPERS.has(current.parentPath.node?.type)) {
+      current = current.parentPath;
+    }
+    return current;
+  }
+
   function replaceInstanceLike(path, id, skipOptional) {
-    const { node, parent } = path;
-    const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent)) && parent.callee === node;
+    const callerPath = unwrapTSExpressionParent(path);
+    const { parent } = callerPath;
+    const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
+      && parent.callee === callerPath.node;
     const [check, object] = extractCheck(path, skipOptional);
     const result = isCall
       ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
       : t.callExpression(id, [t.cloneNode(object)]);
-    replaceAndWrap(isCall ? path.parentPath : path, result, check);
+    replaceAndWrap(isCall ? callerPath.parentPath : path, result, check);
   }
 
   function replaceCallWithSimple(path, id, skipOptional) {

@@ -410,7 +410,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // statement list directly inside a TSModuleDeclaration. for Babel's nested form
-  // (`namespace A.B {}` → A.body = TSModuleDeclaration B) expose B as a single-element list
+  // (`namespace A.B {}` -> A.body = TSModuleDeclaration B) expose B as a single-element list
   // so the next recursion can match its name. for oxc's flat form (id = TSQualifiedName)
   // the body is a TSModuleBlock and we return its statements directly.
   function moduleStatements(decl) {
@@ -642,7 +642,7 @@ function createResolveNodeType(babelNodeType, t) {
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union
     const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
     // every member type returned from `aliased` may reference the alias's type parameters
-    // (`type Box<T> = { v: T }` → member.typeAnnotation is `T`); apply subst once at exit
+    // (`type Box<T> = { v: T }` -> member.typeAnnotation is `T`); apply subst once at exit
     const withSubst = node => node && subst ? applyAliasSubst(node, subst) : node;
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = [];
@@ -676,7 +676,7 @@ function createResolveNodeType(babelNodeType, t) {
           // class body property: typeAnnotation if present, otherwise we can't infer the type
           if (!member.computed && keyMatchesName(member.key, key)) return withSubst(member.typeAnnotation ?? null);
           break;
-        // ESTree (MethodDefinition) and Babel (ClassMethod) class methods → generic function type
+        // ESTree (MethodDefinition) and Babel (ClassMethod) class methods -> generic function type
         case 'ClassMethod':
         case 'ClassPrivateMethod':
         case 'TSDeclareMethod':
@@ -2048,6 +2048,9 @@ function createResolveNodeType(babelNodeType, t) {
       case 'ClassPrivateMethod':
       case 'TSDeclareMethod':
         return member.returnType;
+      // ESTree class method: function lives on `.value` (FunctionExpression)
+      case 'MethodDefinition':
+        return member.value?.returnType;
       // property with a function-type annotation: extract its return type
       case 'TSPropertySignature':
         return functionTypeReturnAnnotation(unwrapTypeAnnotation(member.typeAnnotation));
@@ -2066,7 +2069,7 @@ function createResolveNodeType(babelNodeType, t) {
   //      Interface signatures are tried in declaration order; TS picks the first matching one,
   //      so falling back to "first" is a reasonable approximation when we can't run full
   //      argument-type-based overload selection
-  function resolveMemberCallReturnFromAnnotation(annotation, name, scope, resolve, depth) {
+  function resolveMemberCallReturnFromAnnotation(annotation, name, scope, resolve, depth, subst) {
     const members = getTypeMembers(annotation, scope, depth);
     if (!members) return null;
     const resolvedReturns = [];
@@ -2074,7 +2077,11 @@ function createResolveNodeType(babelNodeType, t) {
       if (!keyMatchesName(member.key, name)) continue;
       const returnAnnotation = memberCallReturnAnnotation(member);
       if (!returnAnnotation) continue;
-      const resolved = resolve(returnAnnotation);
+      // apply subst so generic alias method returns (`type Box<T> = { get(): T }`) bind T.
+      // unwrap the TSTypeAnnotation/TypeAnnotation wrapper first since applyAliasSubst only
+      // looks at the direct type-reference name on the passed node
+      const substituted = subst ? applyAliasSubst(unwrapTypeAnnotation(returnAnnotation), subst) : returnAnnotation;
+      const resolved = resolve(substituted);
       if (resolved) resolvedReturns.push(resolved);
     }
     if (!resolvedReturns.length) return null;
@@ -2099,7 +2106,7 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return result;
     }
-    return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth);
+    return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth, subst);
   }
 
   function resolveTypedMember(objectPath, name, callPath) {
