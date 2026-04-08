@@ -70,10 +70,16 @@ function resolveObjectName(objectNode, scope, adapter) {
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
-  // globalThis.Array, self.Promise, globalThis?.Array (paren-wrapped proxy globals also handled)
+  // globalThis.Array, self.Promise, globalThis.globalThis.Array — walk past any number of
+  // chained proxy globals until we hit an Identifier; that identifier is the resolved name
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
   if (objectNode.computed || objectNode.property.type !== 'Identifier') return null;
-  const inner = unwrapParens(objectNode.object);
+  let inner = unwrapParens(objectNode.object);
+  while ((inner.type === 'MemberExpression' || inner.type === 'OptionalMemberExpression')
+    && !inner.computed && inner.property.type === 'Identifier'
+    && POSSIBLE_GLOBAL_OBJECTS.has(inner.property.name)) {
+    inner = unwrapParens(inner.object);
+  }
   if (inner.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(inner.name)) return null;
   if (adapter.hasBinding(scope, inner.name)) return null;
   return objectNode.property.name;
@@ -352,21 +358,40 @@ export function isPolyfillableOptional(node, scope, adapter, resolve) {
   return resolved?.kind === 'static' || resolved?.kind === 'global';
 }
 
-// extract entry source from an AST node (ImportDeclaration or require() ExpressionStatement)
-// returns source string or null if not an entry pattern
-export function getEntrySource(node, adapter) {
+// pull the source argument out of a dynamic import call (`import('core-js/...')`).
+// covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
+// form some parsers emit (`{type: 'CallExpression', callee: {type: 'Import'}, arguments: [...]}`)
+function importExpressionSource(node, adapter) {
+  if (!node) return null;
+  if (node.type === 'ImportExpression') return adapter.getStringValue(node.source);
+  if (node.type === 'CallExpression' && node.callee?.type === 'Import') {
+    return adapter.getStringValue(node.arguments?.[0]);
+  }
+  return null;
+}
+
+// extract entry source from an AST node (ImportDeclaration / require() / await import())
+// returns source string or null if not an entry pattern. when `scope` is provided, calls to a
+// shadowed `require` (locally bound) are ignored
+export function getEntrySource(node, adapter, scope) {
   // import 'core-js/...'
   if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0) {
     return adapter.getStringValue(node.source);
   }
+  if (node.type !== 'ExpressionStatement') return null;
+  const expr = node.expression;
   // require('core-js/...')
-  if (node.type === 'ExpressionStatement'
-    && node.expression?.type === 'CallExpression'
-    && node.expression.callee?.type === 'Identifier'
-    && node.expression.callee.name === 'require'
-    && node.expression.arguments?.length === 1) {
-    return adapter.getStringValue(node.expression.arguments[0]);
+  if (expr?.type === 'CallExpression'
+    && expr.callee?.type === 'Identifier'
+    && expr.callee.name === 'require'
+    && expr.arguments?.length === 1) {
+    if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
+    return adapter.getStringValue(expr.arguments[0]);
   }
+  // await import('core-js/...') as a top-level statement (ESM top-level await).
+  // bare `import('...')` without await/then is intentionally ignored — it would discard
+  // the returned promise and create an unhandled rejection, so it's not a real-world entry shape
+  if (expr?.type === 'AwaitExpression') return importExpressionSource(expr.argument, adapter);
   return null;
 }
 
