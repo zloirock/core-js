@@ -6,6 +6,26 @@ export function toStatelessRegExp(re) {
   return re.global || re.sticky ? new RegExp(re.source, re.flags.replaceAll(/[gy]/g, '')) : re;
 }
 
+// walk every Identifier reachable from a binding pattern (`{a, b: [c]}`, `[d, ...e]`,
+// `f = 1`, `{g = 2}`, etc.), invoking `visit(identifierNode)` per leaf. caller is
+// responsible for short-circuit via captured flag since we always walk the whole tree
+export function walkPatternIdentifiers(node, visit) {
+  if (!node) return;
+  switch (node.type) {
+    case 'Identifier': visit(node); break;
+    case 'ObjectPattern':
+      for (const p of node.properties) {
+        walkPatternIdentifiers(p.type === 'RestElement' ? p.argument : p.value, visit);
+      }
+      break;
+    case 'ArrayPattern':
+      for (const el of node.elements) walkPatternIdentifiers(el, visit);
+      break;
+    case 'AssignmentPattern': walkPatternIdentifiers(node.left, visit); break;
+    case 'RestElement': walkPatternIdentifiers(node.argument, visit); break;
+  }
+}
+
 // compile an include/exclude pattern (raw regex source string or RegExp) to a stateless
 // RegExp anchored to start/end. Convention matches @babel/helper-define-polyfill-provider:
 // the string is treated as raw regex syntax (no escaping, no glob shorthand)
@@ -104,7 +124,7 @@ export function createClassHelpers(t) {
   function findEnclosingClassMember(path) {
     const visited = [];
     for (let cur = path.parentPath; cur; cur = cur.parentPath) {
-      const node = cur.node;
+      const { node } = cur;
       if (enclosingCache.has(node)) return backfill(visited, enclosingCache.get(node));
       visited.push(node);
       if (isClassMember(node) || t.isStaticBlock(node)) return backfill(visited, {
