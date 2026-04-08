@@ -151,12 +151,12 @@ export default function plugin(api, options) {
         resolveUsage,
         injectModulesForModeEntry,
         isDisabled,
+        resolveSuperMember,
       });
 
       // resolve `super.X` references inside a class method to a static-method meta on the
-      // parent class. Returns null for unsupported cases (computed key, prototype super,
-      // non-identifier extends clause, locally-shadowed parent name, etc.). Currently
-      // static-only - instance super requires rewriting the receiver to `this`.
+      // parent class. returns null for unsupported cases (computed key, instance method,
+      // non-identifier extends clause, locally-shadowed parent name)
       function resolveSuperMember(path) {
         if (path.node.computed) return null;
         const key = path.node.property?.name;
