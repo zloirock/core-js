@@ -51,8 +51,8 @@ function replaceNthOccurrence(str, needle, replacement, n) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
-// try needle shapes against outer content: raw slice, deoptionalized (`?.` -> `.`), and
-// guardRef-rewritten (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
+// try needle shapes: raw slice -> deoptionalized (`?.` -> `.`) -> guardRef-rewritten
+// (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
 function substituteInner(content, needle, replacement, nth, outerHint) {
   const candidates = [needle];
   if (needle.includes('?.')) candidates.push(needle.replaceAll('?.', '.'));
@@ -61,13 +61,13 @@ function substituteInner(content, needle, replacement, nth, outerHint) {
   }
   for (const candidate of candidates) {
     const result = replaceNthOccurrence(content, candidate, replacement, nth);
-    if (result !== content) return result;
+    if (result !== content) return { content: result, found: true };
   }
-  return content;
+  return { content, found: false };
 }
 
-// deferred transform queue for usage-pure mode
-// collects text replacements during traversal, composes nested transforms, applies after traversal
+// deferred transform queue for usage-pure: collects text replacements during traversal,
+// composes nested transforms, applies after traversal
 export default class TransformQueue {
   #code;
   #ms;
@@ -162,18 +162,30 @@ export default class TransformQueue {
       }
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 
-      // substitute inner content at the right occurrence (position-aware to skip identical
-      // strings in literals); substituteInner handles deopt/guardRef needle rewrites
+      // inners sorted largest-first — a smaller inner covered by an already-substituted
+      // larger inner is expected to miss (it's embedded in the larger's composed content).
+      // a miss on a non-covered inner means the outer still holds raw source: throw loudly
       const originalSlice = this.#code.slice(start, end);
+      const coveredRanges = [];
       for (const inner of inners) {
         const needle = this.#code.slice(inner.start, inner.end);
         const nth = occurrencesBeforeOffset(originalSlice, needle, inner.start - start);
-        content = substituteInner(content, needle, inner.content, nth, rewriteHint);
+        const result = substituteInner(content, needle, inner.content, nth, rewriteHint);
+        if (!result.found) {
+          const covered = coveredRanges.some(r => r.start <= inner.start && r.end >= inner.end);
+          if (!covered) {
+            throw new Error('[core-js] transform-queue: could not locate inner needle in outer content. '
+              + `outer=[${ start },${ end }] inner=[${ inner.start },${ inner.end }]. `
+              + 'this is a composition bug — please report with a reproducer.');
+          }
+          continue;
+        }
+        content = result.content;
+        coveredRanges.push(inner);
       }
 
-      // equal-range dedup: when an inner has the same [start, end] (e.g., arrow body wrapper
-      // covering the same range as the polyfill inside), update the existing entry in-place
-      // rather than creating a duplicate - the current content is the composed version
+      // equal-range dedup: update in place instead of duplicating (e.g. arrow body wrapper
+      // sharing range with its inner polyfill). current `content` is the composed version
       const dup = inners.find(inner => inner.start === start && inner.end === end);
       if (dup) {
         dup.content = content;
