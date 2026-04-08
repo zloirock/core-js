@@ -95,19 +95,14 @@ export default function (targets) {
     list.push(['node', node === 'current' ? process.versions.node : node]);
   }
 
+  // resolve aliases -> drop untracked engines -> normalize versions
   const normalized = list.map(([engine, version]) => {
-    if (hasOwn(browserslist.aliases, engine)) {
-      engine = browserslist.aliases[engine];
-    }
-    if (aliases.has(engine)) {
-      engine = aliases.get(engine);
-    }
-    return [engine, normalizeVersion(engine, version)];
-  }).filter(([engine]) => {
-    return validTargets.has(engine);
-  }).sort(([a], [b]) => {
-    return a < b ? -1 : a > b ? 1 : 0;
-  });
+    if (hasOwn(browserslist.aliases, engine)) engine = browserslist.aliases[engine];
+    if (aliases.has(engine)) engine = aliases.get(engine);
+    return [engine, version];
+  }).filter(([engine]) => validTargets.has(engine))
+    .map(([engine, version]) => [engine, normalizeVersion(engine, version)])
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
 
   const reduced = new Map();
 
