@@ -57,10 +57,15 @@ function resolveHint(desc, meta) {
 
   if (hintDescs.length > 1) {
     const dependencies = [...new Set(hintDescs.flatMap(d => getDependencies(d) ?? []))];
-    // propagate per-hint filters so a future variant adding `filters` doesn't silently drop them
-    const filters = hintDescs.flatMap(d => (d && typeof d === 'object' && d.filters) || []);
     if (!dependencies.length) return null;
-    return filters.length ? { dependencies, filters } : { dependencies };
+    // multi-variant: AND across groups (any unfiltered variant -> drop all filters)
+    const filterGroups = [];
+    for (const d of hintDescs) {
+      if (!(d && typeof d === 'object' && d.filters?.length)) return { dependencies };
+      filterGroups.push(d.filters);
+    }
+    if (filterGroups.length === 1) return { dependencies, filters: filterGroups[0] };
+    return { dependencies, filterGroups };
   }
 
   return null;
@@ -130,8 +135,13 @@ export function createPolyfillResolver(options, {
     return false;
   }
 
-  function applyFilters(filters, path) {
-    return !!filters?.some(([name, ...args]) => filter(name, args, path));
+  const groupRejects = (group, path) => group.some(([name, ...args]) => filter(name, args, path));
+
+  // OR within `filters`, AND across `filterGroups` (set by multi-variant `resolveHint`)
+  function rejectsByFilters(desc, path) {
+    if (desc.filterGroups?.length) return desc.filterGroups.every(group => groupRejects(group, path));
+    if (desc.filters?.length) return groupRejects(desc.filters, path);
+    return false;
   }
 
   function resolvePureEntry(kind, desc, meta, path) {
@@ -140,7 +150,7 @@ export function createPolyfillResolver(options, {
       target = resolveHint(desc, meta);
       if (target === null) return null;
     }
-    if (applyFilters(target.filters, path)) return null;
+    if (rejectsByFilters(target, path)) return null;
     const dependencies = getDependencies(target);
     if (!dependencies?.length) return null;
     const [entry] = dependencies;
@@ -160,7 +170,7 @@ export function createPolyfillResolver(options, {
     }
     const dependencies = getDependencies(desc);
     if (!dependencies?.length) return null;
-    if (applyFilters(desc.filters, path)) return null;
+    if (rejectsByFilters(desc, path)) return null;
     return dependencies;
   }
 
