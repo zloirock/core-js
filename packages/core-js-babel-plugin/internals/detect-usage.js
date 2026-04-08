@@ -3,55 +3,61 @@ import {
   checkTypeAnnotations,
   handleBinaryIn,
   handleMemberExpressionNode,
+  resolveCallArgument,
   resolveKey as sharedResolveKey,
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 
-// per-file map of polyfill UIDs -> entry source paths, populated by Program.enter
-// allows resolveKey to recognize identifiers that have been replaced in-place by the polyfill
-let activePureImports = null;
-export function setActivePureImports(injector) { activePureImports = injector; }
+const IMPORT_SPECIFIER_TYPES = new Set([
+  'ImportDefaultSpecifier',
+  'ImportSpecifier',
+  'ImportNamespaceSpecifier',
+]);
 
-// Babel scope adapter for shared detect-usage functions
-// fallbacks consult `activePureImports` so polyfill UIDs that have replaced original identifiers
-// in-place (before Program.exit flush) are still recognised by `resolveBindingToGlobal`
-export const babelAdapter = {
-  hasBinding(scope, name) {
-    return !!scope.getBindingIdentifier(name) || !!activePureImports?.pureImportsByName.has(name);
-  },
-  getBinding(scope, name) {
-    const b = scope.getBinding(name);
-    if (b) {
-      const importSource = b.path.node?.type === 'ImportDefaultSpecifier'
-        ? b.path.parent?.source?.value : null;
-      return { node: b.path.node, constantViolations: b.constantViolations, importSource };
-    }
-    const importSource = activePureImports?.pureImportsByName.get(name);
-    if (importSource) {
-      const polyfillHint = activePureImports.pureImportsHintByName.get(name) ?? null;
-      return { node: null, constantViolations: null, importSource, polyfillHint };
-    }
-    return null;
-  },
-  getBindingNodeType(scope, name) {
-    return scope.getBinding(name)?.path.node?.type ?? null;
-  },
-  isStringLiteral: node => node?.type === 'StringLiteral',
-  getStringValue: node => node?.type === 'StringLiteral' ? node.value : null,
-};
+const isStringLiteral = node => node?.type === 'StringLiteral';
 
-function resolveKey(path, computed) {
-  return sharedResolveKey(path.node, computed, path.scope, babelAdapter);
+// factory for a Babel scope adapter bound to a specific plugin-instance injector.
+// the closure over `getInjector` avoids module-level mutable state, which would race
+// under parallel transforms (Vite/Rollup/thread-loader)
+export function createBabelAdapter(getInjector = () => null) {
+  return {
+    hasBinding(scope, name) {
+      if (scope.getBindingIdentifier(name)) return true;
+      return !!getInjector()?.getPureImport(name);
+    },
+    getBinding(scope, name) {
+      const b = scope.getBinding(name);
+      if (b) {
+        const importSource = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)
+          ? b.path.parent?.source?.value ?? null : null;
+        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint: null };
+      }
+      const pureImport = getInjector()?.getPureImport(name);
+      if (!pureImport) return null;
+      return { node: null, constantViolations: null, importSource: pureImport.source, polyfillHint: pureImport.hint };
+    },
+    getBindingNodeType(scope, name) {
+      return scope.getBinding(name)?.path.node?.type ?? null;
+    },
+    isStringLiteral,
+    getStringValue: node => isStringLiteral(node) ? node.value : null,
+  };
 }
+
+// no-tracking adapter for detect-entry's `require('core-js/…')` literal check
+export const babelAdapter = createBabelAdapter();
 
 // symbol-keyed per-file reset hook on the visitors object - symbol so babel's visitor
 // enumerator (own string keys only) does not mistake it for a node-type visitor
 export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 
-// usage detection visitors for Babel AST
-export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, walkAnnotations = true }) {
+export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = false, walkAnnotations = true }) {
   let handledObjects = new WeakSet();
+
+  function resolveKey(path, computed) {
+    return sharedResolveKey(path.node, computed, path.scope, adapter);
+  }
 
   function handleIdentifier(path) {
     if (!path.isReferencedIdentifier()) return;
@@ -75,7 +81,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     if (handledObjects.has(node)) return;
     if (suppressProxyGlobals && path.parent.type === 'BinaryExpression'
       && path.parent.operator === 'in' && path.parent.left === node) return;
-    const meta = handleMemberExpressionNode(node, path.scope, babelAdapter, handledObjects, suppressProxyGlobals);
+    const meta = handleMemberExpressionNode(node, path.scope, adapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
 
@@ -96,7 +102,10 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     } else if (parent.isObjectProperty() || parent.isAssignmentPattern()
       || parent.isForOfStatement() || parent.isForInStatement()
       || parent.isArrayPattern() || parent.isRestElement()) {
-      // nested patterns: emit a typeless meta so the property name still gets registered
+      // nested / for-of / array pattern: we can't statically know the receiver type, so the
+      // property-level init can't be resolved. emit a typeless meta so the name still
+      // registers for usage tracking, but any receiver-typed polyfill variant is skipped.
+      // example: `const { a: { from } } = { a: Array }` — we don't walk into `{ a: Array }`
       const key = resolveKey(path.get('key'), path.node.computed);
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;
@@ -111,8 +120,8 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
       if (callPath?.isCallExpression() || callPath?.isNewExpression()) {
         const key = resolveKey(path.get('key'), path.node.computed);
         if (!key) return;
-        const argNode = callPath.node.arguments[paramIndex];
-        const meta = buildDestructuringInitMeta(argNode ?? null, key, callPath.scope, babelAdapter);
+        const argNode = resolveCallArgument(callPath.node.arguments, paramIndex);
+        const meta = buildDestructuringInitMeta(argNode ?? null, key, callPath.scope, adapter);
         onUsage(meta, path);
         return;
       }
@@ -121,7 +130,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     if (!initPath?.node) return;
     const key = resolveKey(path.get('key'), path.node.computed);
     if (!key) return;
-    const meta = buildDestructuringInitMeta(initPath.node, key, initPath.scope, babelAdapter);
+    const meta = buildDestructuringInitMeta(initPath.node, key, initPath.scope, adapter);
     // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization)
     if (!meta.placement && initPath.node.coreJSResolvedType) {
       meta.object = initPath.node.coreJSResolvedType;
@@ -131,7 +140,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
   }
 
   function handleBinaryExpression(path) {
-    const meta = handleBinaryIn(path.node, path.scope, babelAdapter, handledObjects, suppressProxyGlobals);
+    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
 
