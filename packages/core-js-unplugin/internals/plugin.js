@@ -136,6 +136,20 @@ const NEEDS_GUARD_PARENS = new Set([
   'ClassExpression',
 ]);
 
+// statement-body slots for unbraced control statements / single-expression arrows
+const BODY_SLOT_TYPES = new Set([
+  'WhileStatement', 'DoWhileStatement', 'ForStatement', 'ForInStatement',
+  'ForOfStatement', 'LabeledStatement', 'ArrowFunctionExpression',
+]);
+
+// is `path` the unbraced body slot of an if/loop/label/arrow?
+function isBodylessStatementBody(path) {
+  const parent = path.parentPath?.node;
+  if (!parent) return false;
+  if (parent.type === 'IfStatement') return parent.consequent === path.node || parent.alternate === path.node;
+  return BODY_SLOT_TYPES.has(parent.type) && parent.body === path.node;
+}
+
 export default function createPlugin(options) {
   // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across plugin instances
   const typeResolvers = createResolveNodeType(nodeType, types);
@@ -476,7 +490,10 @@ export default function createPlugin(options) {
 
         // build the replacement text for an instance method or Symbol.iterator transform
         function buildReplacement(binding, objectSrc, opts) {
-          const { isCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions, optionalCall, args, objectStart } = opts;
+          const {
+            isCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
+            optionalCall, args, objectStart, preAllocatedGuardRef,
+          } = opts;
           const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
           let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
           let guard = '';
@@ -486,7 +503,7 @@ export default function createPlugin(options) {
             if (/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)) {
               guard = `${ optionalRoot } == null ? void 0 : `;
             } else {
-              guardRef = state.genRef();
+              guardRef = preAllocatedGuardRef ?? state.genRef();
               // ASI safety: place `null` first so the replacement starts with the `null`
               // keyword (not `(`). Otherwise an unterminated previous statement like
               // `console.log('A')\n(...)?.at(0)` would be parsed as `console.log('A')(...)`.
@@ -570,31 +587,47 @@ export default function createPlugin(options) {
           return code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end);
         }
 
-        // build replacement, wrap guard if needed, add to transform queue
-        // replacementIsCall overrides isCall for buildReplacement (used by Symbol.iterator:
-        // the parent range is the call, but the replacement is a simple call, not .call())
+        // build replacement, wrap guard if needed, add to transform queue.
+        // replacementIsCall overrides isCall for buildReplacement (Symbol.iterator: parent
+        // range is the call, but the emitted shape is a simple call, not `.call()`)
         function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
-          const objectSrc = unwrapParens(node.object);
-          const isNonIdent = !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
+          let objectSrc = unwrapParens(node.object);
+          let isNonIdent = !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
           const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall);
-          // preserve comments inside the call's parens by slicing from just after the
-          // opening `(` to just before the closing `)`. The previous slice from arg[0].start
-          // to arg[-1].end dropped leading/trailing comments and any comment in an empty
-          // arglist (`arr.flat(/* hint */)`)
+          // inner polyfill sharing the chain root with an outer: reuse outer's guardRef so
+          // `fn()` is evaluated once (`_at(_ref).call(_ref, 0)`, not `_at(_ref3 = fn())…`)
+          if (!optionalRoot && rootNode && node.object === rootNode) {
+            const outerRef = transforms.findOuterGuardRef(rootNode);
+            if (outerRef) {
+              objectSrc = outerRef;
+              isNonIdent = false;
+            }
+          }
+          // slice between parens to keep leading/trailing comments and empty-arglist comments
           const argsSrc = isCall ? sliceBetweenParens(parent) : null;
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
           const isNew = parent?.type === 'NewExpression' && isCall;
+          // pre-allocate so rewriteHint and buildReplacement agree on the ref name
+          const preAllocatedGuardRef = optionalRoot
+            && !/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)
+            ? state.genRef() : null;
 
           let replacement = buildReplacement(binding, objectSrc, {
             isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
             optionalCall: isCall && parent.optional, args: argsSrc,
             objectStart: node.object.start,
+            preAllocatedGuardRef,
           });
           if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
             replacement = `(${ replacement })`;
           }
-          transforms.add(start, end, replacement, optionalRoot ? rootNode : null);
+          // composition hint: outer rewrites `rootRaw -> guardRef` + strips `?.`, so
+          // substituteInner can rebuild a matching needle when the raw slice is gone
+          const rewriteHint = preAllocatedGuardRef
+            ? { rootRaw, guardRef: preAllocatedGuardRef, deoptPositions, objectStart: node.object.start }
+            : null;
+          transforms.add(start, end, replacement, optionalRoot ? rootNode : null, rewriteHint);
           if (isCall) skippedNodes.add(parent);
           skipProxyGlobal(node);
         }
@@ -833,7 +866,11 @@ export default function createPlugin(options) {
             if (isForInit) {
               transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
             } else {
-              transforms.add(replaceNode.start, replaceNode.end, `${ parts.join(';\n') };`);
+              // multi-statement output under an unbraced control stmt needs `{}` or tail stmts escape
+              const needsBlock = parts.length > 1 && isBodylessStatementBody(declPath);
+              const joined = `${ parts.join(';\n') };`;
+              transforms.add(replaceNode.start, replaceNode.end,
+                needsBlock ? `{ ${ joined } }` : joined);
             }
           }
         }
