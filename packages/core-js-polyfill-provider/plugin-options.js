@@ -38,7 +38,8 @@ function validatePluginOptions({ absoluteImports, shouldInjectPolyfill, include,
     throw new TypeError('.shouldInjectPolyfill must be a function, or undefined'
       + ` (received ${ shouldInjectPolyfill })`);
   }
-  if (typeof shouldInjectPolyfill === 'function' && (include || exclude)) {
+  // empty arrays don't conflict with shouldInjectPolyfill — only non-empty include/exclude do
+  if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
     throw new TypeError('.include and .exclude are not supported when using the .shouldInjectPolyfill function.');
   }
   validatePatternList('include', include);
