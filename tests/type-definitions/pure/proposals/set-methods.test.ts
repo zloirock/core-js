@@ -86,3 +86,16 @@ setIsSubsetOf(setA, []);
 setIsSupersetOf(setA);
 // @ts-expect-error
 setIsDisjointFrom(setA);
+
+declare const roSetA: ReadonlySet<number>;
+const roSetUnion = setUnion(roSetA, setLike);
+assertCoreJSSetLike<number>(roSetUnion);
+const roSetIntersection = setIntersection(roSetA, setLike);
+assertCoreJSSetLike<number>(roSetIntersection);
+const roSetDiff = setDifference(roSetA, setLike);
+assertCoreJSSetLike<number>(roSetDiff);
+const roSetSymDiff = setSymmetricDifference(roSetA, setLike);
+assertCoreJSSetLike<number>(roSetSymDiff);
+const roSetIsSubset: boolean = setIsSubsetOf(roSetA, setLike);
+const roSetIsSuperset: boolean = setIsSupersetOf(roSetA, setLike);
+const roSetIsDisjoint: boolean = setIsDisjointFrom(roSetA, setLike);

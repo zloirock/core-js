@@ -21,3 +21,7 @@ arrayFindLast([1, 2, 3], 'not function');
 arrayFindLastIndex([1, 2, 3]);
 // @ts-expect-error
 arrayFindLastIndex([1, 2, 3], 'not function');
+
+const roArr: ReadonlyArray<number> = [1, 2, 3];
+const roFound: number | undefined = arrayFindLast(roArr, v => v > 1);
+const roIdx: number = arrayFindLastIndex(roArr, v => v > 1);
