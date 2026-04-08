@@ -74,6 +74,15 @@ function detectCommonJS(ast) {
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
+// TS-only expression wrappers - runtime no-ops that forward to their `.expression` child
+const TS_EXPR_WRAPPERS = new Set([
+  'TSNonNullExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSTypeAssertion',
+  'TSInstantiationExpression',
+]);
+
 // collect every binding name declared anywhere in the AST so the import injector
 // avoids picking a UID that collides with a user-declared identifier in any nested scope
 // `var _at = 1` inside a function should not be shadowed by a top-level `import _at from ...`
@@ -247,23 +256,30 @@ export default function createPlugin(options) {
         return finalize();
       }
 
-      // resolve `super.X` in a static class method to a static-method meta on the parent
-      // class. returns null for unsupported cases (computed key, instance method, non-identifier
-      // extends, locally-shadowed parent name)
+      // resolve `super.X` to a static meta on the parent class - returns null for computed
+      // keys, instance methods, non-identifier extends, or locally-shadowed parent
       function resolveSuperMember(path) {
         const { node } = path;
         if (node.computed) return null;
         const key = node.property?.name;
         if (!key) return null;
         let methodPath = null;
+        let isStatic = false;
         for (let cur = path.parentPath; cur; cur = cur.parentPath) {
           const ct = cur.node?.type;
           if (ct === 'MethodDefinition' || ct === 'PropertyDefinition') {
             methodPath = cur;
+            isStatic = !!cur.node.static;
+            break;
+          }
+          // static initializer block is always static
+          if (ct === 'StaticBlock') {
+            methodPath = cur;
+            isStatic = true;
             break;
           }
         }
-        if (!methodPath?.node.static) return null;
+        if (!methodPath || !isStatic) return null;
         return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
           name => !!path.scope?.getBinding?.(name));
       }
@@ -324,7 +340,7 @@ export default function createPlugin(options) {
                 this.scope = body.start;
                 return;
               }
-              // TS namespace/module body — Babel treats it as a var-scope boundary; match
+              // TS namespace/module body - Babel treats it as a var-scope boundary; match
               // its behavior so `_ref` lands inside the module instead of at file scope
               if (type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock') {
                 this.scope = body.start;
@@ -373,6 +389,12 @@ export default function createPlugin(options) {
             return nodeSrc(node.expression);
           }
           return nodeSrc(node);
+        }
+
+        // peel ParenthesizedExpression chain to reach the inner AST node (returns the node itself)
+        function peelParens(node) {
+          while (node?.type === 'ParenthesizedExpression') node = node.expression;
+          return node;
         }
 
         // scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char
@@ -553,7 +575,7 @@ export default function createPlugin(options) {
         // the parent range is the call, but the replacement is a simple call, not .call())
         function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
           const objectSrc = unwrapParens(node.object);
-          const isNonIdent = !NO_REF_NEEDED.has(unwrapNode(node.object).type);
+          const isNonIdent = !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
           const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall);
           // preserve comments inside the call's parens by slicing from just after the
           // opening `(` to just before the closing `)`. The previous slice from arg[0].start
@@ -577,9 +599,18 @@ export default function createPlugin(options) {
           skipProxyGlobal(node);
         }
 
-        // unwrap ESTree-specific wrapper nodes to reach the inner expression
+        // peel parens, chain expressions, AND TS wrappers - for AST identity checks
+        // (e.g. matching `node` against `parent.callee` through `arr.includes!(1)`)
         function unwrapNode(n) {
-          while (n?.type === 'ParenthesizedExpression' || n?.type === 'ChainExpression') n = n.expression;
+          while (n && (n.type === 'ParenthesizedExpression' || n.type === 'ChainExpression'
+            || TS_EXPR_WRAPPERS.has(n.type))) n = n.expression;
+          return n;
+        }
+
+        // peel parens / chain expressions only - kept separate from `unwrapNode` so
+        // memoization decisions stay aligned with babel's `isSafeToReuse`
+        function unwrapNodeForMemoize(n) {
+          while (n && (n.type === 'ParenthesizedExpression' || n.type === 'ChainExpression')) n = n.expression;
           return n;
         }
 
@@ -694,14 +725,19 @@ export default function createPlugin(options) {
               initSrc,
               initStart: initNode?.start,
               initEnd: initNode?.end,
-              // init identifier name for lazy re-injection when rest/remaining need the polyfilled init
-              initIdentName: initNode?.type === 'Identifier' ? initNode.name : null,
+              // peel `(...)` so `const { resolve } = (Promise)` resolves like the bare form
+              initIdentName: peelParens(initNode)?.type === 'Identifier' ? peelParens(initNode).name : null,
               scopeSnapshot: { scope: state.scope, arrow: state.arrow },
             });
-            // prevent unused global import for init identifier (e.g., _Promise from { resolve } = Promise)
-            // - destructuring replaces properties with direct polyfill imports;
-            // if rest/remaining need the init, applyDestructuringTransforms re-injects it lazily
-            if (initNode) skippedNodes.add(initNode);
+            // prevent unused global import for the init identifier - destructuring rewrites
+            // properties to polyfill imports directly; if anything remains the rebuilder
+            // re-injects the init lazily. skip both the wrapper and inner so the Identifier
+            // visitor inside `(Promise)` doesn't queue a stray transform
+            if (initNode) {
+              skippedNodes.add(initNode);
+              const inner = peelParens(initNode);
+              if (inner && inner !== initNode) skippedNodes.add(inner);
+            }
           }
           state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
         }
@@ -813,23 +849,30 @@ export default function createPlugin(options) {
           return null;
         }
 
-        // skip `this.X` polyfilling when the enclosing class defines its own instance member X
-        // (static methods always bail — `this` there is the constructor, not an instance)
+        // skip `this.X` when the enclosing class shadows X. static methods and nested
+        // non-arrow functions short-circuit (their `this` isn't the class instance).
+        // ESTree wraps method bodies in FunctionExpression on `MethodDefinition.value`,
+        // so that one specific wrapper is ignored when checking for nested functions
         function isShadowedByClassOwnMember(metaPath, key) {
           if (typeof key !== 'string') return false;
           let methodPath = null;
           for (let p = metaPath.parentPath; p; p = p.parentPath) {
             const t = p.node?.type;
-            if (t === 'MethodDefinition' || t === 'PropertyDefinition') {
+            if (t === 'MethodDefinition' || t === 'PropertyDefinition' || t === 'AccessorProperty') {
               methodPath = p;
               break;
+            }
+            if (t === 'FunctionExpression' || t === 'FunctionDeclaration') {
+              const parentType = p.parentPath?.node?.type;
+              if (parentType !== 'MethodDefinition') return false;
             }
           }
           if (!methodPath) return false;
           if (methodPath.node.static) return true;
           const classBody = methodPath.parentPath;
           if (classBody?.node?.type !== 'ClassBody') return false;
-          return classBody.node.body.some(m => (m.type === 'MethodDefinition' || m.type === 'PropertyDefinition')
+          return classBody.node.body.some(m => (m.type === 'MethodDefinition' || m.type === 'PropertyDefinition'
+            || m.type === 'AccessorProperty')
             && !m.static && classMemberKeyName(m) === key);
         }
 
@@ -885,12 +928,14 @@ export default function createPlugin(options) {
           if (isInTypeAnnotation(metaPath)) return;
           state.setScope(metaPath);
           const { node } = metaPath;
-          // unwrap ParenthesizedExpression and ChainExpression to reach the semantic parent
-          // oxc-parser preserves parens as AST nodes (Babel strips them);
-          // ChainExpression is an ESTree wrapper with no semantic meaning for our purposes
+          // walk past parens, chain expressions, and TS wrappers - they all forward to
+          // whatever wraps them, so the semantic parent is past them
           let { parentPath } = metaPath;
-          while (parentPath?.node?.type === 'ParenthesizedExpression'
-            || parentPath?.node?.type === 'ChainExpression') parentPath = parentPath.parentPath;
+          while (parentPath?.node && (parentPath.node.type === 'ParenthesizedExpression'
+            || parentPath.node.type === 'ChainExpression'
+            || TS_EXPR_WRAPPERS.has(parentPath.node.type))) {
+            parentPath = parentPath.parentPath;
+          }
           const parent = parentPath?.node;
 
           if (meta.kind === 'in') return handleInExpression(meta, metaPath);
@@ -940,6 +985,21 @@ export default function createPlugin(options) {
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent, metaPath);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
+            // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
+            // same source range for shorthand `{ Promise }` and bare `export { Promise }` -
+            // expand the rewrite so the public name stays
+            const directParent = metaPath.parent;
+            if (node.type === 'Identifier' && directParent?.type === 'Property' && directParent.shorthand
+              && directParent.value === node && metaPath.parentPath?.parent?.type === 'ObjectExpression') {
+              transforms.add(node.start, node.end, `${ node.name }: ${ binding }`);
+              return;
+            }
+            if (node.type === 'Identifier' && directParent?.type === 'ExportSpecifier'
+              && directParent.local === node && directParent.exported?.start === node.start
+              && directParent.exported?.end === node.end) {
+              transforms.add(node.start, node.end, `${ binding } as ${ node.name }`);
+              return;
+            }
             // deoptionalize `?.` when replacing global/static callee - the polyfill import is always
             // defined, so optional chaining on it is redundant:
             // - optional call: Map?.() / globalThis.Map?.() / globalThis?.Map?.() -> _Map()

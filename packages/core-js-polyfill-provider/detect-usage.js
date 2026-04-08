@@ -348,14 +348,12 @@ function isTypeWalkable(node) {
   if (isTypeAnnotationNodeType(type)) return true;
   // structural wrappers that hold lists of TS members
   if (type === 'TSInterfaceBody' || type === 'TSModuleBlock' || type === 'TSTypeParameter') return true;
-  // param positions (`(x: Foo) => Bar`) — Identifier wraps a type via `typeAnnotation`
+  // param positions (`(x: Foo) => Bar`) - Identifier wraps a type via `typeAnnotation`
   return TYPE_ANNOTATION_PARAM_HOSTS.has(type);
 }
 
-// walk TS type annotations to find global type references (Promise, Map, Set, etc.).
-// `seen` bounds the traversal so cyclic inputs cannot loop forever; the type-walkable
-// filter prevents the walker from straying into runtime bodies via generic field names
-// (`value`/`body`/`members`) that exist on both type and runtime nodes
+// walk TS type annotations to find global type references (Promise, Map, etc.).
+// `isTypeWalkable` keeps the walker out of runtime bodies; `seen` bounds cyclic inputs
 export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   if (!annotation) return;
   const seen = new WeakSet();
