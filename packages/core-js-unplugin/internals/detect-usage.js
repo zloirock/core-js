@@ -129,7 +129,7 @@ function buildDestructuringMeta(propNode, parentPath) {
 const SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
 const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
 
-// scope shim — locals shadow `parentScope`
+// scope shim - locals shadow `parentScope`
 function makeFrameScope(parentScope, locals) {
   return {
     hasBinding: name => locals.has(name) || (parentScope?.hasBinding(name) ?? false),
@@ -177,7 +177,7 @@ function collectFunctionLocals(fnNode) {
   return locals;
 }
 
-// minimal Babel-path shape — enough for resolve-node-type's `path.get(...)` chains
+// minimal Babel-path shape - enough for resolve-node-type's `path.get(...)` chains
 function makeSynthPath(node, parent, parentKey, parentPath, scope) {
   return {
     node,
