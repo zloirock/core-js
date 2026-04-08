@@ -1,7 +1,7 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { symbolKeyToEntry, patternToRegExp } from './helpers.js';
+import { patternToRegExp, symbolKeyToEntry } from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
