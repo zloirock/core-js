@@ -29,6 +29,7 @@ export const types = {
   isMemberExpression: n => n?.type === 'MemberExpression' && !n.optional,
   isOptionalMemberExpression: n => n?.type === 'MemberExpression' && n.optional === true,
   isCallExpression: (n, opts) => n?.type === 'CallExpression' && !n.optional && (!opts?.callee || n.callee === opts.callee),
+  isOptionalCallExpression: n => n?.type === 'CallExpression' && n.optional === true,
   isObjectProperty: n => n?.type === 'Property' && !n.method && n.kind === 'init',
   isObjectMethod: n => n?.type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'),
   isObjectExpression: n => n?.type === 'ObjectExpression',
@@ -40,16 +41,18 @@ export const types = {
   isClassBody: n => n?.type === 'ClassBody',
   isClassDeclaration: n => n?.type === 'ClassDeclaration',
   isClass: n => n?.type === 'ClassDeclaration' || n?.type === 'ClassExpression',
+  // matches anything that exposes function-shape fields (`params`, `body`) — accessor `Property`
+  // nodes wrap a FunctionExpression in `value`, so the Property itself is not a function
   isFunction: n => {
     const type = n?.type;
     return type === 'FunctionDeclaration'
       || type === 'FunctionExpression'
       || type === 'ArrowFunctionExpression'
-      || type === 'TSDeclareFunction'
-      || (type === 'Property' && (n.method || n.kind === 'get' || n.kind === 'set'))
       || type === 'MethodDefinition';
   },
-  isFunctionDeclaration: n => n?.type === 'FunctionDeclaration' || n?.type === 'TSDeclareFunction',
+  // TSDeclareFunction is type-only — keep it out of FunctionDeclaration so resolver code that
+  // walks `params`/`body` does not get a body-less node
+  isFunctionDeclaration: n => n?.type === 'FunctionDeclaration',
   isArrowFunctionExpression: n => n?.type === 'ArrowFunctionExpression',
   isVariableDeclarator: n => n?.type === 'VariableDeclarator',
   isVariableDeclaration: n => n?.type === 'VariableDeclaration',

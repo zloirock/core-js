@@ -14,7 +14,7 @@ const {
 
 const { assign, create, entries, hasOwn, keys } = Object;
 
-const MAX_DEPTH = 30;
+const MAX_DEPTH = 64;
 
 const POSSIBLE_GLOBAL_PROXIES = new Set(globalProxies);
 
@@ -200,6 +200,24 @@ function createResolveNodeType(babelNodeType, t) {
     return node;
   }
 
+  // detect the trivial passthrough mapped type `{ [K in keyof T]: T[K] }` and return T;
+  // anything more complex (renames, conditional bodies, key remap, etc.) returns null
+  function unwrapMappedTypePassthrough(node) {
+    if (!node || node.type !== 'TSMappedType') return null;
+    if (node.nameType || node.optional || node.readonly || !node.typeAnnotation) return null;
+    const param = node.typeParameter;
+    if (!param || param.constraint?.type !== 'TSTypeOperator' || param.constraint.operator !== 'keyof') return null;
+    // typeParameter.name is a bare string in babel-parser ASTs and an Identifier in oxc/ESTree
+    const paramName = typeof param.name === 'string' ? param.name : param.name?.name;
+    if (!paramName) return null;
+    const body = node.typeAnnotation;
+    if (body.type !== 'TSIndexedAccessType') return null;
+    const indexParam = body.indexType;
+    if (indexParam?.type !== 'TSTypeReference' || indexParam.typeName?.type !== 'Identifier'
+      || indexParam.typeName.name !== paramName) return null;
+    return body.objectType ?? null;
+  }
+
   // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
   // `NS.Data` -> ['NS', 'Data'], `A.B.T` -> ['A', 'B', 'T']. Returns null when the
   // reference uses a non-identifier head (e.g. an `import("...").Type` form)
@@ -277,6 +295,12 @@ function createResolveNodeType(babelNodeType, t) {
         subst = newSubst;
       }
       node = unwrapTypeAnnotation(typeAliasBody(decl));
+    }
+    // unwrap a final-step trivial mapped passthrough so `Copy<T> = { [K in keyof T]: T[K] }`
+    // resolves through to T (substituted) instead of stopping at the mapped type
+    if (node?.type === 'TSMappedType') {
+      const passthrough = unwrapMappedTypePassthrough(node);
+      if (passthrough) node = unwrapTypeAnnotation(subst ? applyAliasSubst(passthrough, subst) : passthrough);
     }
     return { node, subst };
   }
@@ -603,7 +627,8 @@ function createResolveNodeType(babelNodeType, t) {
       if (found.length === 1) return found[0];
       return { type: aliased.type, types: found };
     }
-    const members = getTypeMembers(objectType, scope);
+    // walk through trivial mapped passthroughs / aliases when looking up members
+    const members = getTypeMembers(aliased ?? objectType, scope, depth);
     if (!members) return null;
     let indexSignatureType = null;
     for (const member of members) {
@@ -924,9 +949,14 @@ function createResolveNodeType(babelNodeType, t) {
         return new $Object(null);
       // TS `{}` without members = any non-nullish (includes primitives) - treat as unknown
       case 'TSTypeLiteral':
-      case 'TSMappedType':
       case 'ObjectTypeAnnotation':
         return null;
+      // TS mapped type: detect the trivial passthrough `{ [K in keyof T]: T[K] }` and resolve
+      // through to T directly; everything else is structurally opaque
+      case 'TSMappedType': {
+        const passthrough = unwrapMappedTypePassthrough(node);
+        return passthrough ? resolveTypeAnnotation(passthrough, scope, depth + 1) : null;
+      }
       case 'TSArrayType':
       case 'ArrayTypeAnnotation':
         return new $Object('Array', resolveNonNullableAnnotation(node.elementType, scope, depth));
@@ -1773,7 +1803,11 @@ function createResolveNodeType(babelNodeType, t) {
     // function type: (x: T) => R - always Function regardless of type parameters
     if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
     // mapped type: { [K in keyof T]: V } - structural, can't derive concrete type
-    if (node.type === 'TSMappedType') return new $Object(null);
+    if (node.type === 'TSMappedType') {
+      const passthrough = unwrapMappedTypePassthrough(node);
+      if (passthrough) return resolveTypeAnnotation(passthrough, scope, depth + 1);
+      return new $Object(null);
+    }
     // fallback to regular annotation resolution
     return resolveTypeAnnotation(node, scope, depth);
   }
@@ -1895,7 +1929,9 @@ function createResolveNodeType(babelNodeType, t) {
     for (const returnPath of collectReturnPaths(body)) {
       const arg = returnPath.get('argument');
       const value = arg.node ? resolveRuntimeExpression(arg) : null;
-      result = value && (result === null || result.node === value.node) ? value : false;
+      // accept identical wrappers (cached) or wrappers whose resolved type matches —
+      // structurally equivalent literal nodes (`return [1,2,3]` twice) should not bail
+      result = value && (result === null || result.node === value.node || typesEqual(result, value)) ? value : false;
       if (result === false) return null;
     }
     return result || null;
@@ -3056,12 +3092,26 @@ function createResolveNodeType(babelNodeType, t) {
     let result = null;
     if (binding) {
       const guards = findEnclosingTypeGuards(path, name);
-      if (guards && (!binding.constantViolations?.length || !hasMutationAfterGuards(binding, path, name))) {
+      if (guards && (!binding.constantViolations?.length
+          || (!hasMutationAfterGuards(binding, path, name)
+            && !hasMutationInCapturedFunction(binding)))) {
         result = { binding, guards };
       }
     }
     guardsCache.set(node, result);
     return result;
+  }
+
+  // bail narrowing if any reassignment lives inside a nested function — that function may
+  // be invoked between the guard and the usage, breaking type narrowing
+  function hasMutationInCapturedFunction({ constantViolations, scope }) {
+    if (!constantViolations?.length) return false;
+    return constantViolations.some(v => {
+      for (let p = v.parentPath; p && p !== scope.path; p = p.parentPath) {
+        if (t.isFunction(p.node)) return true;
+      }
+      return false;
+    });
   }
 
   // classify a binding's annotation for the guard-based narrowing path:
@@ -3109,22 +3159,29 @@ function createResolveNodeType(babelNodeType, t) {
     // sentinel before recursion: circular references (e.g. `const a = b.x(); const b = a.x();`)
     // resolve to null (unknown type) instead of causing infinite recursion
     resolveCache.set(node, null);
-    let result = resolveNodeTypeExpression(path);
-    if (!result) {
-      // guards win over the raw binding type: for open annotations and unannotated
-      // bindings they yield the most specific type, otherwise we fall back.
-      result = resolveTypeGuardNarrowing(path) || resolveBindingType(path);
-    } else if (!result.inner && t.isIdentifier(path.node)) {
-      // when runtime resolution determined the outer type but not the inner type (e.g. `new Set()` -> Set),
-      // check if a type annotation provides a richer type with the same outer but known inner
-      // (e.g. `const s: Set<string> = new Set()` -> Set<string>)
-      const annotated = resolveBindingType(path);
-      if (annotated?.inner && typesEqual(result, annotated)) result = annotated;
-    }
-    // $Primitive('unknown') (e.g. from `+` with unresolved operands) is truthy but imprecise -
-    // allow typeof / instanceof guards to refine it to a concrete type
-    if (result?.type === 'unknown') {
-      result = resolveTypeGuardNarrowing(path) || result;
+    let result;
+    try {
+      result = resolveNodeTypeExpression(path);
+      if (!result) {
+        // guards win over the raw binding type: for open annotations and unannotated
+        // bindings they yield the most specific type, otherwise we fall back.
+        result = resolveTypeGuardNarrowing(path) || resolveBindingType(path);
+      } else if (!result.inner && t.isIdentifier(path.node)) {
+        // when runtime resolution determined the outer type but not the inner type (e.g. `new Set()` -> Set),
+        // check if a type annotation provides a richer type with the same outer but known inner
+        // (e.g. `const s: Set<string> = new Set()` -> Set<string>)
+        const annotated = resolveBindingType(path);
+        if (annotated?.inner && typesEqual(result, annotated)) result = annotated;
+      }
+      // $Primitive('unknown') (e.g. from `+` with unresolved operands) is truthy but imprecise -
+      // allow typeof / instanceof guards to refine it to a concrete type
+      if (result?.type === 'unknown') {
+        result = resolveTypeGuardNarrowing(path) || result;
+      }
+    } catch (error) {
+      // drop the sentinel so a future query may retry instead of seeing a stale `null`
+      resolveCache.delete(node);
+      throw error;
     }
     resolveCache.set(node, result);
     return result;
