@@ -174,4 +174,40 @@ throws(() => targetsParser({ chrome: 'beta' }), {
   message: /Invalid version "beta" for "chrome"/,
 }, 'unknown non-numeric version on different engine -> clear error');
 
+const TRACKED_ENGINES = new Set([
+  'android',
+  'bun',
+  'chrome',
+  'chrome-android',
+  'deno',
+  'edge',
+  'electron',
+  'firefox',
+  'firefox-android',
+  'hermes',
+  'ie',
+  'ios',
+  'node',
+  'opera',
+  'opera-android',
+  'quest',
+  'react-native',
+  'rhino',
+  'safari',
+  'samsung',
+]);
+
+// browserslist queries that include engines we don't track must not throw on their
+// non-numeric versions (e.g. `op_mini all`); they should be silently filtered
+const defaults = targetsParser('defaults');
+if (!(defaults instanceof Map)) throw new Error('targetsParser("defaults") should return a Map');
+for (const [engine] of defaults) {
+  if (!TRACKED_ENGINES.has(engine)) throw new Error(`targetsParser("defaults") returned untracked engine ${ engine }`);
+}
+
+throws(() => targetsParser({ safari: 'no!', op_mini: 'all' }), {
+  name: 'RangeError',
+  message: /Invalid version "no!" for "safari"/,
+}, 'untracked engine filtered, but tracked engine still validated');
+
 echo(chalk.green('targets parser tested'));
