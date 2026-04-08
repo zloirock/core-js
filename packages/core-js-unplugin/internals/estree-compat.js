@@ -41,7 +41,7 @@ export const types = {
   isClassBody: n => n?.type === 'ClassBody',
   isClassDeclaration: n => n?.type === 'ClassDeclaration',
   isClass: n => n?.type === 'ClassDeclaration' || n?.type === 'ClassExpression',
-  // only nodes that DIRECTLY expose `params`/`body`/`returnType` etc. — wrappers like
+  // only nodes that DIRECTLY expose `params`/`body`/`returnType` etc. - wrappers like
   // `MethodDefinition` (function lives on `.value`) are excluded so resolve-node-type
   // doesn't read undefined fields and silently abort
   isFunction: n => {
@@ -50,7 +50,7 @@ export const types = {
       || type === 'FunctionExpression'
       || type === 'ArrowFunctionExpression';
   },
-  // TSDeclareFunction is type-only — kept out so callers walking params/body see a real body
+  // TSDeclareFunction is type-only - kept out so callers walking params/body see a real body
   isFunctionDeclaration: n => n?.type === 'FunctionDeclaration',
   isArrowFunctionExpression: n => n?.type === 'ArrowFunctionExpression',
   isVariableDeclarator: n => n?.type === 'VariableDeclarator',
