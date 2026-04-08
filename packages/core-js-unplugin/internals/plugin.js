@@ -190,7 +190,7 @@ export default function createPlugin(options) {
       const detectedCJS = !isCJSFile && detectCommonJS(ast);
       const importStyle = importStyleOption ?? ((isCJSFile || detectedCJS) ? 'require' : 'import');
 
-      // check disable directives — `disable-file` only counts if it lives above any code
+      // check disable directives - `disable-file` only counts if it lives above any code
       const offsetToLine = buildOffsetToLine(code);
       const disabledLines = parseDisableDirectives(comments, offsetToLine, ast.body[0]?.start);
       if (disabledLines === true) return null; // entire file disabled
@@ -295,14 +295,18 @@ export default function createPlugin(options) {
                 continue;
               }
               if (type === 'StaticBlock') {
-                // StaticBlock.body is an array (not BlockStatement); find the { position
-                let pos = p.node.start;
-                while (pos < p.node.end && code[pos] !== '{') pos++;
-                this.scope = pos;
+                // skip past `static` + comments/whitespace so `static /*{*/ {` doesn't fool us
+                this.scope = skipGap(code, p.node.start + 'static'.length);
                 return;
               }
               if (body?.type === 'BlockStatement' && (type === 'FunctionDeclaration'
                 || type === 'FunctionExpression' || type === 'ArrowFunctionExpression')) {
+                this.scope = body.start;
+                return;
+              }
+              // TS namespace/module body — Babel treats it as a var-scope boundary; match
+              // its behavior so `_ref` lands inside the module instead of at file scope
+              if (type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock') {
                 this.scope = body.start;
                 return;
               }
@@ -486,7 +490,7 @@ export default function createPlugin(options) {
           if (root) {
             const start = isCall ? parent.start : node.start;
             const end = isCall ? parent.end : node.end;
-            // dedup against AST node identity, not source text — same `obj` text in two scopes
+            // dedup against AST node identity, not source text - same `obj` text in two scopes
             // would otherwise share a guard slot incorrectly
             if (node.optional ? transforms.hasGuardFor(start, end, rootNode) : transforms.containsRange(start, end)) {
               root = null;
@@ -657,26 +661,18 @@ export default function createPlugin(options) {
           }
           if (!canTransformDestructuring(metaPath)) return;
           const { value } = propNode;
-          // skip nested patterns (recursive expansion is too complex for text-based transforms)
-          if (value?.type === 'ObjectPattern' || value?.type === 'ArrayPattern') return;
-          // default values with non-identifier target can't be extracted
-          if (value?.type === 'AssignmentPattern' && value.left?.type !== 'Identifier') return;
+          // rebuilder only supports bare Identifier or `Identifier = default` locals
+          if (value && value.type !== 'Identifier'
+            && !(value.type === 'AssignmentPattern' && value.left?.type === 'Identifier')) return;
           const pureResult = resolvePure(meta, metaPath);
           if (!pureResult) return;
           const { entry: importEntry, kind, hintName } = pureResult;
           const binding = injectPureImport(importEntry, hintName);
 
           const objectPattern = metaPath.parent;
-          // { from = [] }: localName = "from", defaultSrc = "[]"
-          // { from }: localName = "from", defaultSrc = null
-          let defaultSrc = null;
-          let localName;
-          if (value?.type === 'AssignmentPattern') {
-            localName = value.left.name;
-            defaultSrc = nodeSrc(value.right);
-          } else {
-            localName = value?.type === 'Identifier' ? value.name : propNode.key?.name;
-          }
+          const isDefault = value?.type === 'AssignmentPattern';
+          const localName = isDefault ? value.left.name : value?.name;
+          const defaultSrc = isDefault ? nodeSrc(value.right) : null;
           if (!localName) return;
 
           // find statement path:
@@ -791,18 +787,10 @@ export default function createPlugin(options) {
             }
 
             const parts = [];
-            if (isAssignment || isForInit) {
-              // for-init keeps a single comma-separated declaration so source order survives
-              // mechanically; assignment expressions only ever have one info
+            if (isAssignment) {
               for (const info of infos) emitPolyfilled(info, parts);
-              if (!isAssignment && declPath.node.declarations?.length > infos.length) {
-                const polyfilledSet = new Set(infos.map(i => i.declaratorPath.node));
-                const others = declPath.node.declarations.filter(d => !polyfilledSet.has(d)).map(d => nodeSrc(d));
-                if (others.length) parts.push(`${ stmtPrefix }${ others.join(', ') }`);
-              }
             } else {
-              // interleave polyfilled and untouched declarators in source order so side
-              // effects of non-polyfilled initializers stay between the right siblings
+              // interleave polyfilled and untouched declarators in source order
               const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
               for (const dec of declPath.node.declarations) {
                 const info = polyfilledByDecl.get(dec);
@@ -817,6 +805,37 @@ export default function createPlugin(options) {
               transforms.add(replaceNode.start, replaceNode.end, `${ parts.join(';\n') };`);
             }
           }
+        }
+
+        // member key as a string for simple shapes (`at`, `'at'`, `` `at` ``); otherwise null
+        function classMemberKeyName(m) {
+          if (!m.key) return null;
+          if (!m.computed && m.key.type === 'Identifier') return m.key.name;
+          if (m.key.type === 'Literal' && typeof m.key.value === 'string') return m.key.value;
+          if (m.key.type === 'TemplateLiteral' && m.key.expressions.length === 0 && m.key.quasis.length === 1) {
+            return m.key.quasis[0].value.cooked;
+          }
+          return null;
+        }
+
+        // skip `this.X` polyfilling when the enclosing class defines its own instance member X
+        // (static methods always bail — `this` there is the constructor, not an instance)
+        function isShadowedByClassOwnMember(metaPath, key) {
+          if (typeof key !== 'string') return false;
+          let methodPath = null;
+          for (let p = metaPath.parentPath; p; p = p.parentPath) {
+            const t = p.node?.type;
+            if (t === 'MethodDefinition' || t === 'PropertyDefinition') {
+              methodPath = p;
+              break;
+            }
+          }
+          if (!methodPath) return false;
+          if (methodPath.node.static) return true;
+          const classBody = methodPath.parentPath;
+          if (classBody?.node?.type !== 'ClassBody') return false;
+          return classBody.node.body.some(m => (m.type === 'MethodDefinition' || m.type === 'PropertyDefinition')
+            && !m.static && classMemberKeyName(m) === key);
         }
 
         // memoized ancestor walk - cached on parent nodes so descendants share results
@@ -896,6 +915,10 @@ export default function createPlugin(options) {
               meta = superMeta;
             }
             if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
+            // `this.X` inside a class that defines its own `X` member - polyfill would
+            // bypass the user's override (also bails inside static methods, where `this`
+            // is the constructor, not an instance)
+            if (node.object?.type === 'ThisExpression' && isShadowedByClassOwnMember(metaPath, meta.key)) return;
             // skip instance method used as tagged template tag - replacing callee breaks `this` binding
             if (meta.placement === 'prototype'
               && parent?.type === 'TaggedTemplateExpression' && parent.tag === node) return;

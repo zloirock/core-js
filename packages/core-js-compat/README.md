@@ -77,7 +77,6 @@ console.log(targets);
   node: 'current',        // NodeJS version, you can use 'current' to set it to the currently used one
   opera: '12',            // Opera version
   'opera-android': '7',   // Opera for Android version
-  phantom: '1.9',         // PhantomJS headless browser version
   quest: '5.0',           // Meta Quest Browser version
   'react-native': '0.70', // React Native version (default Hermes engine)
   rhino: '1.7.13',        // Rhino engine version
