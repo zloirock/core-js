@@ -1,4 +1,4 @@
-import { isCoreJSFile, parseDisableDirectives, mergeVisitors, buildSuperStaticMeta } from '@core-js/polyfill-provider/helpers';
+import { isCoreJSFile, parseDisableDirectives, mergeVisitors, createClassHelpers } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
@@ -147,77 +147,14 @@ export default function plugin(api, options) {
         if (initNode) skippedNodes.add(initNode);
       }
 
+      const { resolveSuperMember, isShadowedByClassOwnMember } = createClassHelpers(t);
+
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
         injectModulesForModeEntry,
         isDisabled,
         resolveSuperMember,
       });
-
-      // resolve `super.X` to a static meta on the parent class - returns null for computed
-      // keys, instance methods, non-identifier extends, or locally-shadowed parent
-      function resolveSuperMember(path) {
-        if (path.node.computed) return null;
-        const key = path.node.property?.name;
-        if (!key) return null;
-        // walk to the enclosing class method/property/static block; arrow functions are
-        // transparent (lexical super), non-arrow functions own their own super
-        let methodPath = null;
-        let isStatic = false;
-        for (let cur = path.parentPath; cur; cur = cur.parentPath) {
-          if (cur.isClassMethod() || cur.isClassPrivateMethod()
-            || cur.isClassProperty() || cur.isClassPrivateProperty()) {
-            methodPath = cur;
-            isStatic = !!cur.node.static;
-            break;
-          }
-          if (cur.isStaticBlock?.()) {
-            methodPath = cur;
-            isStatic = true;
-            break;
-          }
-          if (cur.isFunction() && !cur.isArrowFunctionExpression()) return null;
-        }
-        if (!methodPath || !isStatic) return null;
-        // hasBinding() returns true for tracked globals, so check getBinding() for an actual
-        // local declaration instead
-        return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
-          name => !!path.scope.getBinding(name));
-      }
-
-      // skip `this.X` when the enclosing class shadows X. static methods and nested
-      // non-arrow functions short-circuit (their `this` isn't the class instance)
-      function isShadowedByClassOwnMember(path, key) {
-        if (typeof key !== 'string') return false;
-        let enclosingMethod = null;
-        for (let cur = path.parentPath; cur; cur = cur.parentPath) {
-          if (cur.isClassMethod() || cur.isClassPrivateMethod()
-            || cur.isClassProperty() || cur.isClassPrivateProperty()
-            || cur.isClassAccessorProperty?.()) {
-            enclosingMethod = cur;
-            break;
-          }
-          if (cur.isFunction() && !cur.isArrowFunctionExpression()) return false;
-        }
-        if (!enclosingMethod) return false;
-        if (enclosingMethod.node.static) return true;
-        const classBody = enclosingMethod.parentPath;
-        if (!classBody?.isClassBody()) return false;
-        return classBody.node.body.some(m => (t.isClassMethod(m) || t.isClassProperty(m)
-          || t.isClassAccessorProperty?.(m))
-          && !m.static && classMemberKeyName(m) === key);
-      }
-
-      // member key as a string for simple shapes (`at`, `'at'`, `` `at` ``); otherwise null
-      function classMemberKeyName(m) {
-        if (!m.key) return null;
-        if (!m.computed && t.isIdentifier(m.key)) return m.key.name;
-        if (t.isStringLiteral(m.key)) return m.key.value;
-        if (t.isTemplateLiteral(m.key) && m.key.expressions.length === 0 && m.key.quasis.length === 1) {
-          return m.key.quasis[0].value.cooked;
-        }
-        return null;
-      }
 
       function usagePureCallback(meta, path) {
         if (isDisabled(path.node)) return;
