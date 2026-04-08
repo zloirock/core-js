@@ -556,15 +556,19 @@ function createResolveNodeType(babelNodeType, t) {
   // e.g. for `type Foo<T> = Array<T>` used as `Foo<string>`, maps { T: $Primitive('string') }
   function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
     const declParams = decl.typeParameters?.params;
+    if (!declParams?.length) return typeParamMap;
     const callArgs = getTypeArgs(node)?.params;
-    if (!declParams?.length || !callArgs?.length) return typeParamMap;
     const base = typeParamMap || new Map();
     const localMap = new Map(base);
     let extended = false;
-    for (let i = 0; i < declParams.length && i < callArgs.length; i++) {
+    // fall back to each param's `default` when the usage has no explicit arg at this position,
+    // so `type Nullable<T = number[]> = T | null` resolves through `NonNullable<Nullable>`
+    for (let i = 0; i < declParams.length; i++) {
+      const arg = callArgs?.[i] ?? declParams[i].default;
+      if (!arg) continue;
       const resolved = typeParamMap
-        ? substituteTypeParams(callArgs[i], typeParamMap, scope, depth + 1)
-        : resolveTypeAnnotation(callArgs[i], scope, depth + 1);
+        ? substituteTypeParams(arg, typeParamMap, scope, depth + 1)
+        : resolveTypeAnnotation(arg, scope, depth + 1);
       if (resolved) {
         localMap.set(typeParamName(declParams[i]), resolved);
         extended = true;
