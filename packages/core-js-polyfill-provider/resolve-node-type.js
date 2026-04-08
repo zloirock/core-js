@@ -98,6 +98,7 @@ $Object.prototype.primitive = false;
 
 // eslint-disable-next-line max-statements -- factory of type inference engine
 function createResolveNodeType(babelNodeType, t) {
+  // --- AST walkers & predicates ---
   // get the primitive type name, unboxing wrapper objects: $Object('String') -> 'string', $Primitive('number') -> 'number'
   function primitiveTypeOf(type) {
     return type?.primitive ? type.type : UNBOXED_PRIMITIVES[type?.constructor] ?? null;
@@ -265,6 +266,7 @@ function createResolveNodeType(babelNodeType, t) {
     return parent.expression ?? parent.id ?? parent;
   }
 
+  // --- Alias chain & substitution ---
   // follow type alias chain: type A = type B = ... until non-alias or non-reference found
   // returns { node, subst } where subst is a Map<string, ASTNode> of accumulated type parameter
   // substitutions through the chain, or null if no generic aliases were traversed
@@ -356,6 +358,7 @@ function createResolveNodeType(babelNodeType, t) {
     }
   }
 
+  // --- Scope lookup & declarations ---
   function constantBindingPath(name, scope) {
     if (!scope) return null;
     const binding = scope.getBinding(name);
@@ -552,6 +555,7 @@ function createResolveNodeType(babelNodeType, t) {
     return hasOwn(KNOWN_CONSTRUCTORS, name) ? typeFromHint(KNOWN_CONSTRUCTORS[name].new) : null;
   }
 
+  // --- Type annotation resolver ---
   // resolve type arguments at a usage site and map them to a declaration's type parameters
   // when typeParamMap is provided, extends it; when null, builds from scratch
   // e.g. for `type Foo<T> = Array<T>` used as `Foo<string>`, maps { T: $Primitive('string') }
@@ -1210,6 +1214,7 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // --- Type utilities & runtime expression resolver ---
   function resolvePath(path) {
     let depth = MAX_DEPTH;
     while (depth-- && t.isIdentifier(path.node)) {
@@ -1654,6 +1659,7 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // --- Function return types ---
   // resolve parameter type from call-site argument, default value, or rest-element shape
   function resolveParamType(binding, fnPath, callPath) {
     const { params } = fnPath.node;
@@ -1998,6 +2004,7 @@ function createResolveNodeType(babelNodeType, t) {
     return bodyType;
   }
 
+  // --- Class / object member resolvers ---
   // resolve `this` to the enclosing class context
   function resolveThisClass(path) {
     let current = path;
@@ -2157,6 +2164,7 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // --- Member calls & runtime member resolution ---
   // resolve a method call's return type from a single (non-union) annotation by walking
   // its members and folding the return types of all matching overloads
   //   1. Skip overloads with unresolvable return types (don't bail the entire merge)
@@ -2425,6 +2433,7 @@ function createResolveNodeType(babelNodeType, t) {
     return ret ? resolveTypeAnnotation(ret, info.scope) : null;
   }
 
+  // --- Destructuring resolver ---
   // find the original property key name for a destructured variable
   // e.g. const { foo: bar } = obj -> findDestructuredKeyName(pattern, 'bar') -> 'foo'
   // e.g. const { foo } = obj -> findDestructuredKeyName(pattern, 'foo') -> 'foo'
@@ -2868,6 +2877,7 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // --- Guard parsing & narrowing ---
   function matchesTypeofValue(resolved, value) {
     if (value === 'object') return (!resolved.primitive && resolved.constructor !== 'Function') || resolved.type === 'null';
     if (value === 'function') return resolved.constructor === 'Function';
@@ -3317,6 +3327,7 @@ function createResolveNodeType(babelNodeType, t) {
     return narrowByGuards(guards.filter(g => g.positive).map(resolveGuardType), guards);
   }
 
+  // --- Entry / public API ---
   const resolveCache = new WeakMap();
 
   function resolveNodeType(path) {
