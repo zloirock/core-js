@@ -14,6 +14,7 @@ const {
 
 const { assign, create, entries, hasOwn, keys } = Object;
 
+// shared recursion budget for all resolvers — alias chains, runtime walks, guard traversals
 const MAX_DEPTH = 64;
 
 const POSSIBLE_GLOBAL_PROXIES = new Set(globalProxies);
@@ -862,7 +863,7 @@ function createResolveNodeType(babelNodeType, t) {
     let result = null;
     let anyKept = false;
     for (const member of types) {
-      const substituted = subst ? applyAliasSubst(member, subst) : member;
+      const substituted = subst ? applyAliasSubstDeep(member, subst) : member;
       const resolved = resolveTypeAnnotation(substituted, scope, depth + 1);
       if (!resolved) return null;
       if (isAssignableTo(resolved, target) !== keep) continue;
@@ -2172,10 +2173,9 @@ function createResolveNodeType(babelNodeType, t) {
       if (!keyMatchesName(member.key, name)) continue;
       const returnAnnotation = memberCallReturnAnnotation(member);
       if (!returnAnnotation) continue;
-      // apply subst so generic alias method returns (`type Box<T> = { get(): T }`) bind T.
-      // unwrap the TSTypeAnnotation/TypeAnnotation wrapper first since applyAliasSubst only
-      // looks at the direct type-reference name on the passed node
-      const substituted = subst ? applyAliasSubst(unwrapTypeAnnotation(returnAnnotation), subst) : returnAnnotation;
+      // apply subst so generic alias method returns (`type Box<T> = { get(): T[] }`) bind T
+      // through every nested shape (arrays/tuples/unions), not just top-level references
+      const substituted = subst ? applyAliasSubstDeep(unwrapTypeAnnotation(returnAnnotation), subst) : returnAnnotation;
       const resolved = resolve(substituted);
       if (resolved) resolvedReturns.push(resolved);
     }
@@ -2193,7 +2193,7 @@ function createResolveNodeType(babelNodeType, t) {
       let result = null;
       for (const branch of aliased.types) {
         // apply subst so generic alias branches (`type Foo<T> = A | B<T>`) keep their bindings
-        const substituted = subst ? applyAliasSubst(unwrapTypeAnnotation(branch), subst) : unwrapTypeAnnotation(branch);
+        const substituted = subst ? applyAliasSubstDeep(unwrapTypeAnnotation(branch), subst) : unwrapTypeAnnotation(branch);
         const branchResult = resolveMemberCallReturn(substituted, name, scope, resolve, depth + 1);
         if (!branchResult) return null;
         result = commonType(result, branchResult);
@@ -3311,7 +3311,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (classification.kind === 'union') {
       const { types, subst, scope } = classification;
       if (!types?.length) return null;
-      return narrowByGuards(types.map(member => resolveTypeAnnotation(applyAliasSubst(member, subst), scope)), guards);
+      return narrowByGuards(types.map(member => resolveTypeAnnotation(applyAliasSubstDeep(member, subst), scope)), guards);
     }
     if (classification.kind === 'closed') return null;
     return narrowByGuards(guards.filter(g => g.positive).map(resolveGuardType), guards);
