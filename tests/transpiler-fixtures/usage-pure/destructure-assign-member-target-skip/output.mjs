@@ -1,0 +1,3 @@
+({
+  from: foo.bar
+} = Array);
