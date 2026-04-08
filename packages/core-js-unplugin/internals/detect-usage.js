@@ -8,6 +8,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
+import { walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 
 // check if an identifier is referenced (not a declaration, property key, or export alias)
 function isReferenced(node, parent, parentKey, grandParentType) {
@@ -123,70 +124,91 @@ function buildDestructuringMeta(propNode, parentPath) {
   return buildDestructuringInitMeta(initNode, key, scope, estreeAdapter);
 }
 
-// estree-toolkit's visitor keys don't include `decorators`, so we walk decorator subtrees
-// manually with synthetic Babel-shaped paths and reuse the existing visitors.
+// estree-toolkit's visitor keys skip `decorators`. walk decorator subtrees manually with
+// synthetic Babel-shaped paths so resolve-node-type can read locals' typeAnnotations (parity
+// with babel-plugin, which gets real NodePaths from babel's own traverse)
 
 const SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
 const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
 
-// scope shim - locals shadow `parentScope`
-function makeFrameScope(parentScope, locals) {
-  return {
-    hasBinding: name => locals.has(name) || (parentScope?.hasBinding(name) ?? false),
-    getBinding: name => locals.has(name) ? null : parentScope?.getBinding?.(name) ?? null,
-  };
-}
-
-// add every Identifier name reachable from a binding pattern
-function collectPatternIdentifiers(node, out) {
-  if (!node) return;
-  switch (node.type) {
-    case 'Identifier': out.add(node.name); break;
-    case 'ObjectPattern':
-      for (const p of node.properties) collectPatternIdentifiers(p.type === 'RestElement' ? p.argument : p.value, out);
-      break;
-    case 'ArrayPattern':
-      for (const el of node.elements) collectPatternIdentifiers(el, out);
-      break;
-    case 'AssignmentPattern': collectPatternIdentifiers(node.left, out); break;
-    case 'RestElement': collectPatternIdentifiers(node.argument, out); break;
+// iterate typed AST child values of `node`, skipping metadata keys
+function forEachChildNode(node, visit) {
+  for (const key of Object.keys(node)) {
+    if (SKIP_KEYS.has(key)) continue;
+    const value = node[key];
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value)) for (const child of value) visit(child, key);
+    else if (typeof value === 'object' && typeof value.type === 'string') visit(value, key);
   }
 }
 
-// names a function-like node binds in its own scope (params + top-level decls in body)
-function collectFunctionLocals(fnNode) {
-  const locals = new Set();
-  for (const param of fnNode.params || []) collectPatternIdentifiers(param, locals);
-  if (fnNode.id?.name) locals.add(fnNode.id.name);
-  function walk(node) {
-    if (!node || typeof node !== 'object') return;
-    if (FUNCTION_NODE_TYPES.has(node.type)) return;
-    if (node.type === 'VariableDeclaration') {
-      for (const d of node.declarations) collectPatternIdentifiers(d.id, locals);
-    } else if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id?.name) {
-      locals.add(node.id.name);
-    }
-    for (const key of Object.keys(node)) {
-      if (SKIP_KEYS.has(key)) continue;
-      const v = node[key];
-      if (Array.isArray(v)) for (const c of v) walk(c);
-      else if (v && typeof v === 'object') walk(v);
-    }
-  }
-  if (fnNode.body) walk(fnNode.body);
-  return locals;
-}
-
-// minimal Babel-path shape - enough for resolve-node-type's `path.get(...)` chains
+// `get` returns NodePath[] for array fields to match babel's behaviour —
+// `resolveArrayLiteralCommonType` does `path.get('elements')[i]`
 function makeSynthPath(node, parent, parentKey, parentPath, scope) {
-  return {
+  const self = {
     node,
     parent,
     parentPath,
     key: parentKey,
     scope,
-    get(key) { return makeSynthPath(node?.[key] ?? null, node, key, this, scope); },
+    get(key) {
+      const value = node?.[key];
+      if (Array.isArray(value)) return value.map((el, i) => makeSynthPath(el, node, i, self, scope));
+      return makeSynthPath(value ?? null, node, key, self, scope);
+    },
   };
+  return self;
+}
+
+// frame scope for an inline function inside a decorator. locals shadow `parentScope` and
+// their bindings are memoised so repeated `getBinding` calls reuse the same synth path
+function makeFrameScope(parentScope, localDecls) {
+  const bindingCache = new Map();
+  const frame = {
+    hasBinding: name => localDecls.has(name) || (parentScope?.hasBinding(name) ?? false),
+    getBinding: name => {
+      const local = localDecls.get(name);
+      if (!local) return parentScope?.getBinding?.(name) ?? null;
+      let binding = bindingCache.get(name);
+      if (!binding) {
+        binding = { constant: local.constant, path: makeSynthPath(local.node, null, null, null, frame) };
+        bindingCache.set(name, binding);
+      }
+      return binding;
+    },
+  };
+  return frame;
+}
+
+// walk `fnNode.body` once per function. result is cached so nested walks don't re-scan
+// the same body when walkSubtree enters deeper into a closure
+const LOCALS_CACHE = new WeakMap();
+function collectFunctionLocals(fnNode) {
+  const cached = LOCALS_CACHE.get(fnNode);
+  if (cached) return cached;
+  const locals = new Map();
+  // params: the declarator is the param pattern itself (`function f(a: T)` -> a -> param),
+  // marked constant so resolve-node-type follows `typeAnnotation` via constantBindingPath
+  for (const param of fnNode.params || []) {
+    walkPatternIdentifiers(param, id => locals.set(id.name, { constant: true, node: param }));
+  }
+  if (fnNode.id?.name) locals.set(fnNode.id.name, { constant: true, node: fnNode });
+  function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (FUNCTION_NODE_TYPES.has(node.type)) return;
+    if (node.type === 'VariableDeclaration') {
+      const constant = node.kind === 'const';
+      for (const d of node.declarations) {
+        walkPatternIdentifiers(d.id, id => locals.set(id.name, { constant, node: d }));
+      }
+    } else if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id?.name) {
+      locals.set(node.id.name, { constant: true, node });
+    }
+    forEachChildNode(node, walk);
+  }
+  if (fnNode.body) walk(fnNode.body);
+  LOCALS_CACHE.set(fnNode, locals);
+  return locals;
 }
 
 function walkSubtree(node, parent, parentKey, parentPath, scope, visitors) {
@@ -196,16 +218,7 @@ function walkSubtree(node, parent, parentKey, parentPath, scope, visitors) {
     : scope;
   const synthPath = makeSynthPath(node, parent, parentKey, parentPath, childScope);
   visitors[node.type]?.(synthPath);
-  for (const key of Object.keys(node)) {
-    if (SKIP_KEYS.has(key)) continue;
-    const value = node[key];
-    if (value === null || value === undefined) continue;
-    if (Array.isArray(value)) {
-      for (const child of value) walkSubtree(child, node, key, synthPath, childScope, visitors);
-    } else if (typeof value === 'object' && typeof value.type === 'string') {
-      walkSubtree(value, node, key, synthPath, childScope, visitors);
-    }
-  }
+  forEachChildNode(node, (child, key) => walkSubtree(child, node, key, synthPath, childScope, visitors));
 }
 
 function walkDecorators(parentPath, decoratorVisitors) {
