@@ -641,11 +641,13 @@ function createResolveNodeType(babelNodeType, t) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union
     const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
+    // every member type returned from `aliased` may reference the alias's type parameters
+    // (`type Box<T> = { v: T }` → member.typeAnnotation is `T`); apply subst once at exit
+    const withSubst = node => node && subst ? applyAliasSubst(node, subst) : node;
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = [];
       for (const member of aliased.types) {
-        const unwrapped = unwrapTypeAnnotation(member);
-        const substituted = subst ? applyAliasSubst(unwrapped, subst) : unwrapped;
+        const substituted = withSubst(unwrapTypeAnnotation(member));
         const memberType = findTypeMember(substituted, key, scope, depth + 1);
         if (memberType) found.push(memberType);
       }
@@ -662,17 +664,17 @@ function createResolveNodeType(babelNodeType, t) {
         case 'TSPropertySignature':
         case 'TSMethodSignature':
           if (keyMatchesName(member.key, key)) {
-            return member.type === 'TSMethodSignature' ? { type: 'TSFunctionType' } : member.typeAnnotation;
+            return member.type === 'TSMethodSignature' ? { type: 'TSFunctionType' } : withSubst(member.typeAnnotation);
           }
           break;
         case 'ObjectTypeProperty':
-          if (keyMatchesName(member.key, key)) return member.value;
+          if (keyMatchesName(member.key, key)) return withSubst(member.value);
           break;
         case 'ClassProperty':
         case 'PropertyDefinition':
         case 'ClassAccessorProperty':
           // class body property: typeAnnotation if present, otherwise we can't infer the type
-          if (!member.computed && keyMatchesName(member.key, key)) return member.typeAnnotation ?? null;
+          if (!member.computed && keyMatchesName(member.key, key)) return withSubst(member.typeAnnotation ?? null);
           break;
         // ESTree (MethodDefinition) and Babel (ClassMethod) class methods → generic function type
         case 'ClassMethod':
@@ -686,16 +688,21 @@ function createResolveNodeType(babelNodeType, t) {
           break;
       }
     }
-    if (indexSignatureType) return indexSignatureType;
+    if (indexSignatureType) return withSubst(indexSignatureType);
     // Flow: ObjectTypeIndexer stored separately in the type node, not in properties
     // resolve through type aliases since getTypeMembers follows aliases but returns only properties
     let resolvedType = objectType;
+    let flowSubst = null;
     if (resolvedType.type !== 'ObjectTypeAnnotation') {
-      const { node } = followTypeAliasChain(resolvedType, scope);
-      if (node) resolvedType = node;
+      const followed = followTypeAliasChain(resolvedType, scope);
+      if (followed.node) {
+        resolvedType = followed.node;
+        flowSubst = followed.subst;
+      }
     }
     if (resolvedType.type === 'ObjectTypeAnnotation' && resolvedType.indexers?.length) {
-      return resolvedType.indexers[0].value;
+      const indexerValue = resolvedType.indexers[0].value;
+      return flowSubst ? applyAliasSubst(indexerValue, flowSubst) : indexerValue;
     }
     return null;
   }
@@ -2079,18 +2086,20 @@ function createResolveNodeType(babelNodeType, t) {
   // and fold the per-branch return types. mirrors findTypeMember's union handling for properties
   function resolveMemberCallReturn(annotation, name, scope, resolve, depth = 0) {
     if (depth > MAX_DEPTH) return null;
-    const { node: aliased } = followTypeAliasChain(annotation, scope);
+    const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       let result = null;
       for (const branch of aliased.types) {
-        const branchResult = resolveMemberCallReturn(unwrapTypeAnnotation(branch), name, scope, resolve, depth + 1);
+        // apply subst so generic alias branches (`type Foo<T> = A | B<T>`) keep their bindings
+        const substituted = subst ? applyAliasSubst(unwrapTypeAnnotation(branch), subst) : unwrapTypeAnnotation(branch);
+        const branchResult = resolveMemberCallReturn(substituted, name, scope, resolve, depth + 1);
         if (!branchResult) return null;
         result = commonType(result, branchResult);
         if (!result) return null;
       }
       return result;
     }
-    return resolveMemberCallReturnFromAnnotation(annotation, name, scope, resolve, depth);
+    return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth);
   }
 
   function resolveTypedMember(objectPath, name, callPath) {
