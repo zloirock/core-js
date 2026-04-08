@@ -70,7 +70,7 @@ function resolveObjectName(objectNode, scope, adapter) {
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
-  // globalThis.Array, self.Promise, globalThis.globalThis.Array — walk past any number of
+  // globalThis.Array, self.Promise, globalThis.globalThis.Array - walk past any number of
   // chained proxy globals until we hit an Identifier; that identifier is the resolved name
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
   if (objectNode.computed || objectNode.property.type !== 'Identifier') return null;
@@ -265,24 +265,21 @@ function destructureReceiverHint(objectName) {
   return null;
 }
 
-// build meta for destructuring given the resolved init node and key
-// both plugins handle parent traversal (finding initNode) themselves, then call this
-// `receiverHint` is set when the destructure source is a known constructor / namespace -
-// it tells resolveHint which polyfill variant to pick: `Array.from` (real static) still
-// matches via the static-lookup path, but `const { includes } = Array` (instance method
-// that doesn't exist on the constructor) is rejected because the `function` receiver hint
-// has no matching variant in the `includes` polyfill descriptor - preserving the runtime
-// semantics where `Array.includes` is `undefined`. Methods inherited from Function/Object
-// prototypes (`name`, `toString`, etc.) still resolve via the `function`/`rest` hints
+// build meta for a destructuring property given its resolved init node + key.
+// `receiverHint` lets resolveHint reject `const { includes } = Array` (instance method
+// that doesn't exist on the constructor) while accepting `Array.from` and inherited
+// Function/Object prototype methods like `name`/`toString`.
 export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
-  if (initNode.type === 'Identifier') {
-    const objectName = resolveObjectName(initNode, scope, adapter);
+  // oxc-parser preserves ParenthesizedExpression (Babel strips them)
+  const unwrapped = unwrapParens(initNode);
+  if (unwrapped.type === 'Identifier') {
+    const objectName = resolveObjectName(unwrapped, scope, adapter);
     const placement = objectName ? isStaticPlacement(objectName) : null;
     const receiverHint = placement === 'static' ? destructureReceiverHint(objectName) : null;
     return { kind: 'property', object: objectName, key, placement, receiverHint };
   }
-  if (adapter.isStringLiteral(initNode)) {
+  if (adapter.isStringLiteral(unwrapped)) {
     return { kind: 'property', object: 'string', key, placement: 'prototype' };
   }
   return { kind: 'property', object: null, key, placement: null };
@@ -302,19 +299,31 @@ export function canTransformDestructuring({ parentType, parentInit, grandParentT
   return parentType === 'AssignmentExpression';
 }
 
+// nodes whose names start with TS but actually carry runtime code that needs polyfilling
+const TS_RUNTIME_NODES = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSInstantiationExpression',
+  'TSTypeAssertion',
+  // namespace / module / enum bodies are runtime, not type-only
+  'TSModuleDeclaration',
+  'TSModuleBlock',
+  'TSEnumDeclaration',
+  'TSEnumBody',
+  'TSEnumMember',
+  'TSExportAssignment',
+  'TSImportEqualsDeclaration',
+  'TSExternalModuleReference',
+]);
+
 // check if a node type is a TS/Flow type annotation context
 // used by both plugins to skip polyfilling in type-only positions
 export function isTypeAnnotationNodeType(type) {
   if (!type) return false;
   if (type === 'TypeAnnotation' || type === 'TSTypeAnnotation') return true;
-  // TS types (except expression wrappers that contain runtime values)
-  if (type.startsWith('TS')) {
-    return type !== 'TSAsExpression'
-      && type !== 'TSSatisfiesExpression'
-      && type !== 'TSNonNullExpression'
-      && type !== 'TSInstantiationExpression'
-      && type !== 'TSTypeAssertion';
-  }
+  // TS types - exclude runtime-carrying expression and declaration wrappers
+  if (type.startsWith('TS')) return !TS_RUNTIME_NODES.has(type);
   // Flow types (except TypeCastExpression which wraps runtime values, like TSAsExpression)
   if (type.startsWith('Flow') || (type.startsWith('Type') && type !== 'TypeCastExpression')
     || type === 'InterfaceDeclaration' || type.startsWith('Declare')) return true;
@@ -322,12 +331,15 @@ export function isTypeAnnotationNodeType(type) {
 }
 
 // walk TS type annotations to find global type references (Promise, Map, Set, etc.)
+// `seen` bounds the traversal so cyclic inputs cannot loop forever
 export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   if (!annotation) return;
+  const seen = new WeakSet();
   const stack = [annotation];
   while (stack.length) {
     const node = stack.pop();
-    if (!node || typeof node !== 'object') continue;
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
     if (node.type === 'TSTypeReference' && node.typeName?.type === 'Identifier') {
       onGlobal(node.typeName.name);
     } else if (node.type === 'GenericTypeAnnotation' && node.id?.type === 'Identifier') {
@@ -389,7 +401,7 @@ export function getEntrySource(node, adapter, scope) {
     return adapter.getStringValue(expr.arguments[0]);
   }
   // await import('core-js/...') as a top-level statement (ESM top-level await).
-  // bare `import('...')` without await/then is intentionally ignored — it would discard
+  // bare `import('...')` without await/then is intentionally ignored - it would discard
   // the returned promise and create an unhandled rejection, so it's not a real-world entry shape
   if (expr?.type === 'AwaitExpression') return importExpressionSource(expr.argument, adapter);
   return null;
