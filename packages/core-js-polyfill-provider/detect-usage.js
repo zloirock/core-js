@@ -240,12 +240,14 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
     return;
   }
   if (!suppressProxyGlobals) return;
-  if (obj.type !== 'MemberExpression' && obj.type !== 'OptionalMemberExpression') return;
-  // mark intermediate MemberExpression (e.g. globalThis.Object) to prevent double-processing,
-  // but NOT the proxy global itself - it may need its own polyfill when the outer expression is not polyfilled
-  const inner = unwrapParens(obj.object);
-  if (inner?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(inner.name)) {
-    handledObjects.add(obj);
+  // walk down the proxy chain (`globalThis.Object`, `globalThis.self.Promise`, …) and mark
+  // every intermediate MemberExpression so the inner visitor doesn't re-process it. stop at
+  // the proxy global leaf itself — it may need its own polyfill when the outer is not polyfilled
+  let current = obj;
+  while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
+    && findProxyGlobal(current)) {
+    handledObjects.add(current);
+    current = unwrapParens(current.object);
   }
 }
 
@@ -265,6 +267,26 @@ function destructureReceiverHint(objectName) {
   return null;
 }
 
+// resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
+// spread of an inline array literal. returns null if a non-literal spread precedes `index`,
+// since we can't statically know the expanded length
+export function resolveCallArgument(args, index) {
+  let i = 0;
+  for (const arg of args) {
+    if (arg?.type === 'SpreadElement') {
+      if (arg.argument?.type !== 'ArrayExpression') return null;
+      for (const el of arg.argument.elements) {
+        if (i === index) return el;
+        i++;
+      }
+      continue;
+    }
+    if (i === index) return arg;
+    i++;
+  }
+  return null;
+}
+
 // build meta for a destructuring property given its resolved init node + key.
 // `receiverHint` lets resolveHint reject `const { includes } = Array` (instance method
 // that doesn't exist on the constructor) while accepting `Array.from` and inherited
@@ -273,6 +295,15 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
   const unwrapped = unwrapParens(initNode);
+  // `Array ?? null`, `X || Array`, `X && Array`: follow the likely-value branch
+  if (unwrapped.type === 'LogicalExpression') {
+    const next = unwrapped.operator === '&&' ? unwrapped.right : unwrapped.left;
+    return buildDestructuringInitMeta(next, key, scope, adapter);
+  }
+  // `(0, Array)`: sequence evaluates to its last expression
+  if (unwrapped.type === 'SequenceExpression') {
+    return buildDestructuringInitMeta(unwrapped.expressions.at(-1), key, scope, adapter);
+  }
   if (unwrapped.type === 'Identifier') {
     const objectName = resolveObjectName(unwrapped, scope, adapter);
     const placement = objectName ? isStaticPlacement(objectName) : null;

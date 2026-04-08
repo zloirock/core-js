@@ -12,10 +12,9 @@ import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';
 import {
-  babelAdapter,
+  createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
-  setActivePureImports,
   USAGE_VISITORS_RESET,
 } from './internals/detect-usage.js';
 import createEntryVisitors from './internals/detect-entry.js';
@@ -49,11 +48,13 @@ export default function plugin(api, options) {
     handleDestructuredProperty,
   } = createASTHelpers(t);
 
-  const skipPolyfillableOptional = (node, scope) => isPolyfillableOptional(node, scope, babelAdapter, resolveBuiltIn);
-
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
   let injector, importStyle, debugOutput;
+
+  // per-plugin-instance adapter — closure reads current `injector` without module-level state
+  const adapter = createBabelAdapter(() => injector);
+  const skipPolyfillableOptional = (node, scope) => isPolyfillableOptional(node, scope, adapter, resolveBuiltIn);
 
   return {
     name: 'core-js@4',
@@ -247,7 +248,7 @@ export default function plugin(api, options) {
 
       const usageCallback = method === 'usage-pure' ? usagePureCallback : usageGlobalCallback;
       const helperVisitors = method !== 'entry-global' ? createUsageVisitors({
-        onUsage: usageCallback, suppressProxyGlobals: method === 'usage-pure', walkAnnotations: false,
+        onUsage: usageCallback, adapter, suppressProxyGlobals: method === 'usage-pure', walkAnnotations: false,
       }) : null;
 
       const programVisitor = {
@@ -255,7 +256,6 @@ export default function plugin(api, options) {
           skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
           importStyle = importStyleOption ?? (path.node.sourceType === 'script' ? 'require' : 'import');
           injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
-          setActivePureImports(injector);
           skippedNodes = new WeakSet();
           // snapshot existing body so Program.exit can re-traverse anything a sibling
           // plugin has injected after we walked the original program
@@ -302,6 +302,7 @@ export default function plugin(api, options) {
 
       const usageVisitors = createUsageVisitors({
         onUsage: usageCallback,
+        adapter,
         suppressProxyGlobals: method === 'usage-pure',
         walkAnnotations: method !== 'usage-pure',
       });
