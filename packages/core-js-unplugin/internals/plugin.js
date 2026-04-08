@@ -3,7 +3,7 @@ import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
   buildOffsetToLine,
-  buildSuperStaticMeta,
+  createClassHelpers,
   isCoreJSFile,
   mergeVisitors,
   parseDisableDirectives,
@@ -282,33 +282,7 @@ export default function createPlugin(options) {
         return finalize();
       }
 
-      // resolve `super.X` to a static meta on the parent class - returns null for computed
-      // keys, instance methods, non-identifier extends, or locally-shadowed parent
-      function resolveSuperMember(path) {
-        const { node } = path;
-        if (node.computed) return null;
-        const key = node.property?.name;
-        if (!key) return null;
-        let methodPath = null;
-        let isStatic = false;
-        for (let cur = path.parentPath; cur; cur = cur.parentPath) {
-          const ct = cur.node?.type;
-          if (ct === 'MethodDefinition' || ct === 'PropertyDefinition') {
-            methodPath = cur;
-            isStatic = !!cur.node.static;
-            break;
-          }
-          // static initializer block is always static
-          if (ct === 'StaticBlock') {
-            methodPath = cur;
-            isStatic = true;
-            break;
-          }
-        }
-        if (!methodPath || !isStatic) return null;
-        return buildSuperStaticMeta(methodPath.parentPath?.parentPath?.node, key,
-          name => !!path.scope?.getBinding?.(name));
-      }
+      const { resolveSuperMember, isShadowedByClassOwnMember } = createClassHelpers(types);
 
       // usage-global mode
       if (method === 'usage-global') {
@@ -885,44 +859,6 @@ export default function createPlugin(options) {
                 needsBlock ? `{ ${ joined } }` : joined);
             }
           }
-        }
-
-        // member key as a string for simple shapes (`at`, `'at'`, `` `at` ``); otherwise null
-        function classMemberKeyName(m) {
-          if (!m.key) return null;
-          if (!m.computed && m.key.type === 'Identifier') return m.key.name;
-          if (m.key.type === 'Literal' && typeof m.key.value === 'string') return m.key.value;
-          if (m.key.type === 'TemplateLiteral' && m.key.expressions.length === 0 && m.key.quasis.length === 1) {
-            return m.key.quasis[0].value.cooked;
-          }
-          return null;
-        }
-
-        // skip `this.X` when the enclosing class shadows X. static methods and nested
-        // non-arrow functions short-circuit (their `this` isn't the class instance).
-        // ESTree wraps method bodies in FunctionExpression on `MethodDefinition.value`,
-        // so that one specific wrapper is ignored when checking for nested functions
-        function isShadowedByClassOwnMember(metaPath, key) {
-          if (typeof key !== 'string') return false;
-          let methodPath = null;
-          for (let p = metaPath.parentPath; p; p = p.parentPath) {
-            const t = p.node?.type;
-            if (t === 'MethodDefinition' || t === 'PropertyDefinition' || t === 'AccessorProperty') {
-              methodPath = p;
-              break;
-            }
-            if (t === 'FunctionExpression' || t === 'FunctionDeclaration') {
-              const parentType = p.parentPath?.node?.type;
-              if (parentType !== 'MethodDefinition') return false;
-            }
-          }
-          if (!methodPath) return false;
-          if (methodPath.node.static) return true;
-          const classBody = methodPath.parentPath;
-          if (classBody?.node?.type !== 'ClassBody') return false;
-          return classBody.node.body.some(m => (m.type === 'MethodDefinition' || m.type === 'PropertyDefinition'
-            || m.type === 'AccessorProperty')
-            && !m.static && classMemberKeyName(m) === key);
         }
 
         // memoized ancestor walk - cached on parent nodes so descendants share results
