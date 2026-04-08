@@ -4,9 +4,9 @@ import type getModulesListForTargetVersion from './get-modules-list-for-target-v
 import type { ModuleName, Target, TargetVersion } from './shared.js'
 
 type BuiltInDefinitions = {
-  Globals: {[name: string]: any},
-  StaticProperties: {[className: string]: {[property: string]: any}},
-  InstanceProperties: {[property: string]: any},
+  globals: {[name: string]: any},
+  statics: {[className: string]: {[member: string]: any}},
+  instance: {[member: string]: any},
 };
 
 type CompatData = {
