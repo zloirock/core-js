@@ -1,7 +1,7 @@
 import {
-  Globals,
-  StaticProperties,
-  InstanceProperties,
+  globals,
+  statics,
+  instance,
 } from '../../packages/core-js-compat/src/built-in-definitions.mjs';
 
 const entries = new Set(Object.keys(await fs.readJson('packages/core-js-compat/entries.json')));
@@ -134,19 +134,19 @@ function unfoldKind(data, kind) {
   return result;
 }
 
-const $Globals = unfoldKind(Globals, 'global');
+const $globals = unfoldKind(globals, 'global');
 
-const $StaticProperties = Object.entries(StaticProperties).reduce((memo, [key, value]) => {
+const $statics = Object.entries(statics).reduce((memo, [key, value]) => {
   memo[key] = unfoldKind(value, 'static');
   return memo;
 }, dict());
 
-const $InstanceProperties = unfoldKind(InstanceProperties, 'instance');
+const $instance = unfoldKind(instance, 'instance');
 
 await fs.writeJson('packages/core-js-compat/built-in-definitions.json', {
-  Globals: $Globals,
-  StaticProperties: $StaticProperties,
-  InstanceProperties: $InstanceProperties,
+  globals: $globals,
+  statics: $statics,
+  instance: $instance,
 }, { spaces: '  ' });
 
 echo(chalk.green('built-in-definitions rebuilt'));

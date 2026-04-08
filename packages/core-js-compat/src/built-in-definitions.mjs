@@ -12,7 +12,7 @@ const TypedArrayStatic = {
 
 const TypedArrayInstance = { global: 'typed-array/methods' };
 
-export const Globals = {
+export const globals = {
   AggregateError: 'aggregate-error/constructor',
   ArrayBuffer: { global: 'array-buffer/constructor' },
   AsyncDisposableStack: 'async-disposable-stack/constructor',
@@ -64,7 +64,7 @@ export const Globals = {
   structuredClone: 'structured-clone',
 };
 
-export const StaticProperties = {
+export const statics = {
   AggregateError: ErrorStatic,
   Array: {
     from: 'array/from',
@@ -273,7 +273,7 @@ export const StaticProperties = {
   },
 };
 
-export const InstanceProperties = {
+export const instance = {
   anchor: { global: { string: 'string/anchor' } },
   at: {
     common: 'instance/at',
