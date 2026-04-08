@@ -51,15 +51,19 @@ function replaceNthOccurrence(str, needle, replacement, n) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
-// substitute inner transform's content into outer content. exact needle first, then a
-// deoptionalized fallback (`?.` -> `.`) for chains rewritten by buildReplacement.
-// nth is counted against the ORIGINAL source slice - works while no synthetic outer text
-// duplicates an inner needle (true for current buildReplacement shapes; needs an offset-based
-// splicer if a future outer ever does)
-function substituteInner(content, needle, replacement, nth) {
-  const result = replaceNthOccurrence(content, needle, replacement, nth);
-  if (result !== content || !needle.includes('?.')) return result;
-  return replaceNthOccurrence(content, needle.replaceAll('?.', '.'), replacement, nth);
+// try needle shapes against outer content: raw slice, deoptionalized (`?.` -> `.`), and
+// guardRef-rewritten (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
+function substituteInner(content, needle, replacement, nth, outerHint) {
+  const candidates = [needle];
+  if (needle.includes('?.')) candidates.push(needle.replaceAll('?.', '.'));
+  if (outerHint?.rootRaw && outerHint.guardRef && needle.startsWith(outerHint.rootRaw)) {
+    candidates.push(outerHint.guardRef + needle.slice(outerHint.rootRaw.length).replaceAll('?.', '.'));
+  }
+  for (const candidate of candidates) {
+    const result = replaceNthOccurrence(content, candidate, replacement, nth);
+    if (result !== content) return result;
+  }
+  return content;
 }
 
 // deferred transform queue for usage-pure mode
@@ -76,8 +80,8 @@ export default class TransformQueue {
     this.#ms = ms;
   }
 
-  add(start, end, content, guardedRoot) {
-    this.#transforms.push({ start, end, content, guardedRoot });
+  add(start, end, content, guardedRoot, rewriteHint) {
+    this.#transforms.push({ start, end, content, guardedRoot, rewriteHint });
     this.#sorted = null; // invalidate
     this.#prefixMaxEnd = null;
   }
@@ -87,6 +91,13 @@ export default class TransformQueue {
     if (!root) return false;
     return this.#transforms.some(t => t.guardedRoot === root
       && t.start <= start && t.end >= end && (t.start < start || t.end > end));
+  }
+
+  // guardRef of the outer that memoized `root` - lets nested polyfills reuse it
+  findOuterGuardRef(root) {
+    if (!root) return null;
+    const match = this.#transforms.find(t => t.guardedRoot === root && t.rewriteHint?.guardRef);
+    return match?.rewriteHint?.guardRef ?? null;
   }
 
   // check if [start, end] is strictly contained within an already-queued transform
@@ -133,7 +144,7 @@ export default class TransformQueue {
     // byStart index enables O(log n + k) inner lookup instead of O(n) linear scan
     const composed = [];
     const byStart = [];
-    for (const { start, end, content: raw } of this.#transforms) {
+    for (const { start, end, content: raw, rewriteHint } of this.#transforms) {
       let content = raw;
 
       // binary search for first candidate with start >= current start
@@ -151,14 +162,13 @@ export default class TransformQueue {
       }
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 
-      // substitute each inner's composed content at the correct occurrence
-      // position-aware (not replaceAll) to preserve string literals with matching text
-      // also tries deoptionalized needle (?. -> .) since buildReplacement may have stripped ?.
+      // substitute inner content at the right occurrence (position-aware to skip identical
+      // strings in literals); substituteInner handles deopt/guardRef needle rewrites
       const originalSlice = this.#code.slice(start, end);
       for (const inner of inners) {
         const needle = this.#code.slice(inner.start, inner.end);
         const nth = occurrencesBeforeOffset(originalSlice, needle, inner.start - start);
-        content = substituteInner(content, needle, inner.content, nth);
+        content = substituteInner(content, needle, inner.content, nth, rewriteHint);
       }
 
       // equal-range dedup: when an inner has the same [start, end] (e.g., arrow body wrapper
