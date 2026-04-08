@@ -7,6 +7,7 @@ import {
   isCoreJSFile,
   mergeVisitors,
   parseDisableDirectives,
+  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
@@ -100,18 +101,7 @@ const TS_EXPR_WRAPPERS = new Set([
 // `var _at = 1` inside a function should not be shadowed by a top-level `import _at from ...`
 function collectAllBindingNames(ast) {
   const names = new Set();
-  function addPattern(node) {
-    if (!node) return;
-    switch (node.type) {
-      case 'Identifier': names.add(node.name); break;
-      case 'ObjectPattern':
-        for (const p of node.properties) addPattern(p.type === 'Property' ? p.value : p.argument);
-        break;
-      case 'ArrayPattern': for (const e of node.elements) if (e) addPattern(e); break;
-      case 'AssignmentPattern': addPattern(node.left); break;
-      case 'RestElement': addPattern(node.argument); break;
-    }
-  }
+  const addPattern = node => walkPatternIdentifiers(node, id => names.add(id.name));
   const addId = node => { if (node.id) names.add(node.id.name); };
   const addParams = node => { for (const p of node.params) addPattern(p); };
   const addFunction = path => {
