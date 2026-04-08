@@ -41,6 +41,13 @@ export const types = {
   isClassBody: n => n?.type === 'ClassBody',
   isClassDeclaration: n => n?.type === 'ClassDeclaration',
   isClass: n => n?.type === 'ClassDeclaration' || n?.type === 'ClassExpression',
+  // ESTree encodes privates as regular MethodDefinition/PropertyDefinition with a
+  // PrivateIdentifier key; these shim the separate `@babel/types` predicates for parity
+  isClassPrivateMethod: n => n?.type === 'MethodDefinition' && n.key?.type === 'PrivateIdentifier',
+  isClassPrivateProperty: n => n?.type === 'PropertyDefinition' && n.key?.type === 'PrivateIdentifier',
+  isStaticBlock: n => n?.type === 'StaticBlock',
+  isStringLiteral: n => n?.type === 'Literal' && typeof n.value === 'string',
+  isTemplateLiteral: n => n?.type === 'TemplateLiteral',
   // only nodes that DIRECTLY expose `params`/`body`/`returnType` etc. - wrappers like
   // `MethodDefinition` (function lives on `.value`) are excluded so resolve-node-type
   // doesn't read undefined fields and silently abort
