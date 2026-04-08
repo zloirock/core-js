@@ -7,3 +7,6 @@ arrayFilterReject(arr, function (v) { return v < 2; }, { foo: true });
 
 // @ts-expect-error
 [1, 2, 3].arrayFilterReject((x: string) => false);
+
+const roArr: ReadonlyArray<number> = [1, 2, 3];
+const roFiltered: number[] = arrayFilterReject(roArr, v => v > 1);
