@@ -32,8 +32,8 @@ function createMetaResolver({ global: globals, static: statics, instance }) {
 // array/instance/at and array/prototype/at -> array/at
 function normalizeEntryPath(entry) {
   return entry
-    .replace('/instance/', '/')
-    .replace('/prototype/', '/');
+    .replaceAll('/instance/', '/')
+    .replaceAll('/prototype/', '/');
 }
 
 function collectEntryPaths(patterns) {
@@ -62,8 +62,14 @@ function patternMatches(pattern, modules) {
 }
 
 function isModulePattern(pattern) {
-  // module names have dots: es.array.at. Entry paths have slashes: array/at
-  return typeof pattern === 'string' ? pattern.includes('.') || pattern.includes('*') : pattern instanceof RegExp;
+  if (pattern instanceof RegExp) return true;
+  if (typeof pattern !== 'string') return false;
+  // module names start with a known namespace (`es.`, `esnext.`, `web.`); wildcards always
+  // imply a module pattern; entry paths use slashes (`array/at`) so they fall through
+  return pattern.startsWith('es.')
+    || pattern.startsWith('esnext.')
+    || pattern.startsWith('web.')
+    || pattern.includes('*');
 }
 
 function formatError(message, patterns) {
