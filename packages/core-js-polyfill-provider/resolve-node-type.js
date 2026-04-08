@@ -636,13 +636,8 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // parent interface ref (`Container<string>`) -> Map<declParam, argNode>, or null if not generic
-  function buildParentSubst(parentRef, scope) {
-    const segments = typeRefSegments(parentRef);
-    const decl = segments ? findTypeDeclaration(segments, scope) : null;
-    if (!isInterfaceDeclaration(decl)) return null;
-    const declParams = decl.typeParameters?.params;
-    const usageArgs = getTypeArgs(parentRef)?.params;
+  // build {paramName -> argNode} from explicit usage args, falling back to decl param defaults
+  function buildSubstMap(declParams, usageArgs) {
     if (!declParams?.length) return null;
     const subst = new Map();
     for (let i = 0; i < declParams.length; i++) {
@@ -650,6 +645,14 @@ function createResolveNodeType(babelNodeType, t) {
       if (arg) subst.set(typeParamName(declParams[i]), arg);
     }
     return subst.size ? subst : null;
+  }
+
+  // parent interface ref (`Container<string>`) -> Map<declParam, argNode>
+  function buildParentSubst(parentRef, scope) {
+    const segments = typeRefSegments(parentRef);
+    const decl = segments ? findTypeDeclaration(segments, scope) : null;
+    if (!isInterfaceDeclaration(decl)) return null;
+    return buildSubstMap(decl.typeParameters?.params, getTypeArgs(parentRef)?.params);
   }
 
   // clone member with deep-substituted annotation slots; `key`/`computed` stay as-is.
@@ -735,6 +738,13 @@ function createResolveNodeType(babelNodeType, t) {
       if (!found.length) return null;
       if (found.length === 1) return found[0];
       return { type: aliased.type, types: found };
+    }
+    // tuple numeric index: `type Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`
+    if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
+      const index = typeof key === 'number' ? key : Number(key);
+      if (!Number.isInteger(index) || index < 0) return null;
+      const element = findTupleElement(aliased, index, scope);
+      return element ? (subst ? applyAliasSubstDeep(element, subst) : element) : null;
     }
     // walk through trivial mapped passthroughs / aliases when looking up members
     const members = getTypeMembers(aliased ?? objectType, scope, depth);
@@ -825,8 +835,8 @@ function createResolveNodeType(babelNodeType, t) {
     const memberNode = isTupleRestElement(element)
       ? extractElementAnnotation(unwrapTupleMember(element), scope, 0) : unwrapTupleMember(element);
     if (!memberNode) return null;
-    // substitute type parameters from generic aliases: type Pair<T> = [T, T] -> Pair<string>[0] = string
-    return applyAliasSubst(memberNode, subst);
+    // deep subst so generic args reach nested shapes: `Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`
+    return applyAliasSubstDeep(memberNode, subst);
   }
 
   function isAssignableTo(candidate, target) {
@@ -2198,16 +2208,13 @@ function createResolveNodeType(babelNodeType, t) {
       annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
       scope = binding.path.scope;
     } else {
-      // unwrap ParenthesizedExpression/ChainExpression to find type annotation
-      let exprPath = objectPath;
-      while (exprPath.node?.type === 'ParenthesizedExpression' || exprPath.node?.type === 'ChainExpression') {
-        exprPath = exprPath.get('expression');
-      }
-      const { type } = exprPath.node;
-      if (type === 'TSAsExpression' || type === 'TSTypeAssertion'
-        || type === 'TSSatisfiesExpression' || type === 'TypeCastExpression') {
-        annotation = unwrapTypeAnnotation(exprPath.node.typeAnnotation);
-        scope = exprPath.scope;
+      // delegate to findExpressionAnnotation for non-identifier shapes so that
+      // TS wrappers, call expressions with return annotations, and chain expressions
+      // all route through the same annotation lookup (incl. call-site generic subst)
+      const info = findExpressionAnnotation(objectPath);
+      if (info) {
+        annotation = unwrapTypeAnnotation(info.annotation);
+        scope = info.scope;
       }
     }
     if (!annotation) return null;
@@ -2371,7 +2378,13 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolveCallReturnType(callee) {
     // method call: obj.method() or obj?.method()
-    if (isMemberLike(callee)) return resolveMemberCallType(callee, callee.parentPath);
+    if (isMemberLike(callee)) {
+      // receiver is statically undefined/null/never -> chain is broken at runtime; propagate
+      // the same to downstream so `fn(){}; fn().at(0).includes(1)` doesn't half-polyfill
+      const receiverType = resolveNodeType(callee.get('object'));
+      if (receiverType && isNullableOrNever(receiverType)) return receiverType;
+      return resolveMemberCallType(callee, callee.parentPath);
+    }
     // direct call: foo() / IIFE: (() => expr)() / ambient TSDeclareFunction follow-through
     const resolved = resolveRuntimeExpression(callee);
     if (isFunctionLike(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
@@ -2593,17 +2606,25 @@ function createResolveNodeType(babelNodeType, t) {
         if (init.node) return findExpressionAnnotation(init, depth + 1);
       }
     }
-    // direct call f(): pull the callee's declared return type so `const [a, b] = f()`
-    // can index tuple positions instead of collapsing to the tuple's common element type
-    // babelNodeType normalizes Babel's OptionalCallExpression and ESTree's `optional: true`
+    // direct `f()`: pull the callee's declared return type and substitute explicit call-site
+    // type args (`makeBox<number>()`) so downstream member lookups see concrete types
     const callType = babelNodeType(path.node);
     if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
       const fnPath = resolveRuntimeExpression(path.get('callee'));
       if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
-        return { annotation: fnPath.node.returnType, scope: fnPath.scope };
+        const subst = buildCallSiteSubst(fnPath.node, path.node);
+        const annotation = subst
+          ? applyAliasSubstDeep(unwrapTypeAnnotation(fnPath.node.returnType), subst)
+          : fnPath.node.returnType;
+        return { annotation, scope: fnPath.scope };
       }
     }
     return null;
+  }
+
+  // call-site explicit type args (`makeBox<number>()`) -> {paramName -> argNode}
+  function buildCallSiteSubst(fnNode, callNode) {
+    return buildSubstMap(fnNode.typeParameters?.params, getTypeArgs(callNode)?.params);
   }
 
   // traverse from a binding to its enclosing for-in/for-of statement (if any)
