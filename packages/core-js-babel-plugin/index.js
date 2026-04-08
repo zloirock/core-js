@@ -59,6 +59,7 @@ export default function plugin(api, options) {
     name: 'core-js@4',
     visitor: (() => {
       let skippedNodes = new WeakSet();
+      let originalBodyNodes = new WeakSet();
       let disabledLines = null;
       let skipFile;
 
@@ -177,6 +178,18 @@ export default function plugin(api, options) {
           name => !!path.scope.getBinding(name));
       }
 
+      // does the immediately-enclosing class define an own (non-computed) member named `key`?
+      // used to skip `this.X` polyfilling when the class overrides X
+      function isShadowedByClassOwnMember(path, key) {
+        if (typeof key !== 'string') return false;
+        const classBody = path.findParent(p => p.isClassMethod() || p.isClassProperty()
+          || p.isClassPrivateMethod() || p.isClassPrivateProperty())?.parentPath;
+        if (!classBody?.isClassBody()) return false;
+        return classBody.node.body.some(m => !m.computed
+          && (t.isClassMethod(m) || t.isClassProperty(m))
+          && t.isIdentifier(m.key) && m.key.name === key);
+      }
+
       function usagePureCallback(meta, path) {
         if (isDisabled(path.node)) return;
         if (skippedNodes.has(path.node)) return;
@@ -216,6 +229,9 @@ export default function plugin(api, options) {
               if (!superMeta) return;
               meta = superMeta;
             }
+            // `this.X` inside a class that defines its own `X` member - polyfill would
+            // bypass the user's override (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
+            if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
             // skip instance method used as tagged template tag - replacing callee breaks `this` binding
             if (meta.placement === 'prototype'
               && path.parentPath.isTaggedTemplateExpression() && path.key === 'tag') return;
@@ -275,17 +291,23 @@ export default function plugin(api, options) {
           injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
           setActivePureImports(injector);
           skippedNodes = new WeakSet();
+          // snapshot existing body so Program.exit can re-traverse anything a sibling
+          // plugin has injected after we walked the original program
+          originalBodyNodes = new WeakSet(path.node.body);
           helperVisitors?.[USAGE_VISITORS_RESET]?.();
           debugOutput = createDebugOutput?.() ?? null;
           const { comments } = path.hub.file.ast;
-          const directives = skipFile ? null : parseDisableDirectives(comments);
+          const firstStmtStart = path.node.body[0]?.start;
+          const directives = skipFile ? null : parseDisableDirectives(comments, undefined, firstStmtStart);
           if (directives === true) skipFile = true;
           disabledLines = directives !== true ? directives : null;
         },
         exit(path) {
           if (helperVisitors) {
+            // re-traverse body children that did not exist on enter — `parseSync`-built
+            // injections carry full `loc`, so the old `!loc` heuristic missed them
             for (const childPath of path.get('body')) {
-              if (!childPath.node.loc) childPath.traverse(helperVisitors);
+              if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
             }
           }
           outputDebug();
@@ -330,9 +352,11 @@ export default function plugin(api, options) {
     })(),
     post() {
       if (!injector) return;
-      // when CJS transform runs after core-js plugin, newly inserted import declarations
-      // may not get converted. Detect this and switch to require style for safety flush
-      if (importStyle === 'import' && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
+      // when CJS transform runs after core-js plugin and converts every original `import` into
+      // `require`, the polyfill flush should follow. only flip if the user did not explicitly
+      // request `importStyle: 'import'` — otherwise we'd override their stated intent
+      if (importStyleOption === undefined && importStyle === 'import'
+        && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
         injector.importStyle = 'require';
       }
       injector.flush();

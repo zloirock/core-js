@@ -43,7 +43,8 @@ export function createSyntaxRules({ injectModulesForModeEntry, injectModulesForE
     },
     onClass(node) {
       if (isDisabled(node)) return;
-      if (node.decorators?.length || node.body.body.some(el => el.decorators?.length)) {
+      const hasActiveDecorator = decorators => decorators?.some(d => !isDisabled(d));
+      if (hasActiveDecorator(node.decorators) || node.body.body.some(el => hasActiveDecorator(el.decorators))) {
         injectModulesForModeEntry('symbol/metadata');
       }
     },
