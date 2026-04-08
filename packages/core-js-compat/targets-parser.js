@@ -97,25 +97,18 @@ export default function (targets) {
     list.push(['node', node === 'current' ? process.versions.node : node]);
   }
 
+  // resolve aliases -> drop untracked engines -> normalize versions
   const normalized = list.map(([engine, version]) => {
-    if (hasOwn(browserslist.aliases, engine)) {
-      engine = browserslist.aliases[engine];
-    }
-    if (aliases.has(engine)) {
-      engine = aliases.get(engine);
-    }
+    if (hasOwn(browserslist.aliases, engine)) engine = browserslist.aliases[engine];
+    if (aliases.has(engine)) engine = aliases.get(engine);
     return [engine, version];
-  }).filter(([engine]) => {
-    return validTargets.has(engine);
-  }).sort(([a], [b]) => {
-    return a < b ? -1 : a > b ? 1 : 0;
-  });
+  }).filter(([engine]) => validTargets.has(engine))
+    .map(([engine, version]) => [engine, normalizeVersion(engine, version)])
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
 
   const reduced = new Map();
 
-  for (const [engine, value] of normalized) {
-    // after the filter: a query can list engines without compat data, their versions are not validated
-    const version = normalizeVersion(engine, value);
+  for (const [engine, version] of normalized) {
     if (!reduced.has(engine) || compare(version, '<=', reduced.get(engine))) {
       reduced.set(engine, version);
     }

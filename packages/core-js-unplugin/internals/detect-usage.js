@@ -44,11 +44,11 @@ export const estreeAdapter = {
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
-    // when the binding is `import _Symbol$iterator from '.../symbol/iterator'`, expose the
-    // source so resolveKey() can recognise the polyfill UID and infer Symbol.<name> from it
-    // the binding's path is the ImportDefaultSpecifier; its parent is the ImportDeclaration
+    // expose the source string for any import-bound binding (default/named/namespace) so
+    // resolveKey() can recognise a polyfill UID and infer Symbol.<name> from it
     let importSource = null;
-    if (b.path.node?.type === 'ImportDefaultSpecifier') {
+    const specType = b.path.node?.type;
+    if (specType === 'ImportDefaultSpecifier' || specType === 'ImportSpecifier' || specType === 'ImportNamespaceSpecifier') {
       importSource = b.path.parent?.source?.value ?? b.path.parentPath?.node?.source?.value ?? null;
     }
     return { node: b.path.node, constantViolations: b.constantViolations, importSource };
@@ -83,13 +83,19 @@ function buildDestructuringMeta(propNode, parentPath) {
 
   let initNode;
   const scope = parent.scope || objectPattern.scope;
+  // nested patterns (Property/AssignmentPattern/For-of/For-in/ArrayPattern/RestElement) leave
+  // `initNode` undefined: we can't track them to a specific init, so we build a typeless meta
+  // (`object: null`) below so the polyfill machinery still sees the property name. Common case:
+  // `const [{ from }] = [Array]`.
   switch (parent.node.type) {
     case 'VariableDeclarator': initNode = parent.node.init; break;
     case 'AssignmentExpression': initNode = parent.node.right; break;
     case 'AssignmentPattern':
     case 'ForOfStatement':
     case 'ForInStatement':
-    case 'Property': break;
+    case 'Property':
+    case 'ArrayPattern':
+    case 'RestElement': break;
     default: {
       // IIFE destructuring: !function ({ entries }) {} (Object)
       const funcNode = parent.node;
@@ -117,6 +123,99 @@ function buildDestructuringMeta(propNode, parentPath) {
   return buildDestructuringInitMeta(initNode, key, scope, estreeAdapter);
 }
 
+// estree-toolkit's visitor keys don't include `decorators`, so we walk decorator subtrees
+// manually with synthetic Babel-shaped paths and reuse the existing visitors.
+
+const SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
+const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
+
+// scope shim — locals shadow `parentScope`
+function makeFrameScope(parentScope, locals) {
+  return {
+    hasBinding: name => locals.has(name) || (parentScope?.hasBinding(name) ?? false),
+    getBinding: name => locals.has(name) ? null : parentScope?.getBinding?.(name) ?? null,
+  };
+}
+
+// add every Identifier name reachable from a binding pattern
+function collectPatternIdentifiers(node, out) {
+  if (!node) return;
+  switch (node.type) {
+    case 'Identifier': out.add(node.name); break;
+    case 'ObjectPattern':
+      for (const p of node.properties) collectPatternIdentifiers(p.type === 'RestElement' ? p.argument : p.value, out);
+      break;
+    case 'ArrayPattern':
+      for (const el of node.elements) collectPatternIdentifiers(el, out);
+      break;
+    case 'AssignmentPattern': collectPatternIdentifiers(node.left, out); break;
+    case 'RestElement': collectPatternIdentifiers(node.argument, out); break;
+  }
+}
+
+// names a function-like node binds in its own scope (params + top-level decls in body)
+function collectFunctionLocals(fnNode) {
+  const locals = new Set();
+  for (const param of fnNode.params || []) collectPatternIdentifiers(param, locals);
+  if (fnNode.id?.name) locals.add(fnNode.id.name);
+  function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (FUNCTION_NODE_TYPES.has(node.type)) return;
+    if (node.type === 'VariableDeclaration') {
+      for (const d of node.declarations) collectPatternIdentifiers(d.id, locals);
+    } else if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id?.name) {
+      locals.add(node.id.name);
+    }
+    for (const key of Object.keys(node)) {
+      if (SKIP_KEYS.has(key)) continue;
+      const v = node[key];
+      if (Array.isArray(v)) for (const c of v) walk(c);
+      else if (v && typeof v === 'object') walk(v);
+    }
+  }
+  if (fnNode.body) walk(fnNode.body);
+  return locals;
+}
+
+// minimal Babel-path shape — enough for resolve-node-type's `path.get(...)` chains
+function makeSynthPath(node, parent, parentKey, parentPath, scope) {
+  return {
+    node,
+    parent,
+    parentPath,
+    key: parentKey,
+    scope,
+    get(key) { return makeSynthPath(node?.[key] ?? null, node, key, this, scope); },
+  };
+}
+
+function walkSubtree(node, parent, parentKey, parentPath, scope, visitors) {
+  if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+  const childScope = FUNCTION_NODE_TYPES.has(node.type)
+    ? makeFrameScope(scope, collectFunctionLocals(node))
+    : scope;
+  const synthPath = makeSynthPath(node, parent, parentKey, parentPath, childScope);
+  visitors[node.type]?.(synthPath);
+  for (const key of Object.keys(node)) {
+    if (SKIP_KEYS.has(key)) continue;
+    const value = node[key];
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const child of value) walkSubtree(child, node, key, synthPath, childScope, visitors);
+    } else if (typeof value === 'object' && typeof value.type === 'string') {
+      walkSubtree(value, node, key, synthPath, childScope, visitors);
+    }
+  }
+}
+
+function walkDecorators(parentPath, decoratorVisitors) {
+  const decorators = parentPath.node?.decorators;
+  if (!decorators?.length) return;
+  for (const decorator of decorators) {
+    walkSubtree(decorator, null, null, parentPath, parentPath.scope, decoratorVisitors);
+  }
+}
+
 // the main usage visitor for estree-toolkit traverse
 export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
@@ -124,6 +223,44 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
   function checkTypeAnnotation(path) {
     checkTypeAnnotations(path.node, name => onUsage({ kind: 'global', name }, path));
   }
+
+  function identifierVisitor(path) {
+    const { node, parent, key: parentKey } = path;
+    if (!isReferenced(node, parent, parentKey, path.parentPath?.parent?.type)) return;
+    // re-export: export { Promise } from 'foo' - local is not a reference when source is present
+    if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
+      && path.parentPath?.parentPath?.node?.source) return;
+    if (path.scope?.hasBinding(node.name)) return;
+    if (handledObjects.has(node)) return;
+    if (suppressProxyGlobals && parent?.type === 'MemberExpression' && parentKey === 'object') {
+      const grandParent = path.parentPath?.parentPath?.node;
+      if (grandParent?.type === 'BinaryExpression' && grandParent.operator === 'in'
+        && grandParent.left === parent) return;
+    }
+    onUsage({ kind: 'global', name: node.name }, path);
+  }
+
+  function memberExpressionVisitor(path) {
+    const { node } = path;
+    if (handledObjects.has(node)) return;
+    if (suppressProxyGlobals && path.parent?.type === 'BinaryExpression'
+      && path.parent.operator === 'in' && path.parent.left === node) return;
+    const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
+    if (meta) onUsage(meta, path);
+  }
+
+  function binaryExpressionVisitor(path) {
+    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
+    if (meta) onUsage(meta, path);
+  }
+
+  // sub-traversal handlers for decorator expressions (not all main visitors apply here)
+  const decoratorVisitors = {
+    Identifier: identifierVisitor,
+    MemberExpression: memberExpressionVisitor,
+    BinaryExpression: binaryExpressionVisitor,
+  };
+  const visitDecorators = path => walkDecorators(path, decoratorVisitors);
 
   return {
     ...walkAnnotations ? {
@@ -141,33 +278,9 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
         }
       },
     } : {},
-    Identifier(path) {
-      const { node, parent, key: parentKey } = path;
-      if (!isReferenced(node, parent, parentKey, path.parentPath?.parent?.type)) return;
-      // re-export: export { Promise } from 'foo' - local is not a reference when source is present
-      if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
-        && path.parentPath?.parentPath?.node?.source) return;
-      if (path.scope?.hasBinding(node.name)) return;
-      if (handledObjects.has(node)) return;
-      if (suppressProxyGlobals && parent?.type === 'MemberExpression' && parentKey === 'object') {
-        const grandParent = path.parentPath?.parentPath?.node;
-        if (grandParent?.type === 'BinaryExpression' && grandParent.operator === 'in'
-          && grandParent.left === parent) return;
-      }
-      onUsage({ kind: 'global', name: node.name }, path);
-    },
-    MemberExpression(path) {
-      const { node } = path;
-      if (handledObjects.has(node)) return;
-      if (suppressProxyGlobals && path.parent?.type === 'BinaryExpression'
-        && path.parent.operator === 'in' && path.parent.left === node) return;
-      const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
-      if (meta) onUsage(meta, path);
-    },
-    BinaryExpression(path) {
-      const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
-      if (meta) onUsage(meta, path);
-    },
+    Identifier: identifierVisitor,
+    MemberExpression: memberExpressionVisitor,
+    BinaryExpression: binaryExpressionVisitor,
     Property(path) {
       const { node } = path;
       if (node.method) return;
@@ -175,6 +288,12 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
       const meta = buildDestructuringMeta(node, path.parentPath);
       if (meta) onUsage(meta, path);
     },
+    // estree-toolkit's traverse skips decorator children - drive a manual sub-walk on enter
+    ClassDeclaration: visitDecorators,
+    ClassExpression: visitDecorators,
+    MethodDefinition: visitDecorators,
+    PropertyDefinition: visitDecorators,
+    AccessorProperty: visitDecorators,
   };
 }
 

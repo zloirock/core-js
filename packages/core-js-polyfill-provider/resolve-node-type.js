@@ -409,28 +409,57 @@ function createResolveNodeType(babelNodeType, t) {
     return statement;
   }
 
-  // walk a body looking for a declaration matching `segments`. The leading segments (if any)
-  // must each resolve to a TSModuleDeclaration; the final segment matches an interface / type
-  // alias / class / enum. Single-segment lookups also descend into nested namespaces - so
-  // `Foo` is found regardless of how deeply it's nested
+  // statement list directly inside a TSModuleDeclaration. for Babel's nested form
+  // (`namespace A.B {}` → A.body = TSModuleDeclaration B) expose B as a single-element list
+  // so the next recursion can match its name. for oxc's flat form (id = TSQualifiedName)
+  // the body is a TSModuleBlock and we return its statements directly.
+  function moduleStatements(decl) {
+    const body = decl?.body;
+    if (body?.type === 'TSModuleDeclaration') return [body];
+    return Array.isArray(body?.body) ? body.body : null;
+  }
+
+  // segment names of a TSModuleDeclaration id: Babel uses Identifier (single segment),
+  // oxc uses TSQualifiedName for `namespace A.B {}` (multi-segment)
+  function moduleNameSegments(id) {
+    if (!id) return null;
+    if (id.type === 'Identifier') return [id.name];
+    if (id.type === 'TSQualifiedName') {
+      const left = moduleNameSegments(id.left);
+      return left && [...left, id.right.name];
+    }
+    return null;
+  }
+
+  // does `segments` start with the same names as `prefix`?
+  function startsWithSegments(segments, prefix) {
+    if (prefix.length > segments.length) return false;
+    for (let i = 0; i < prefix.length; i++) if (segments[i] !== prefix[i]) return false;
+    return true;
+  }
+
+  // resolve a dotted segment path to its declaration; the trailing segment matches an
+  // interface/type/class/enum, leading segments must each be a TSModuleDeclaration
   function findInStatements(segments, statements) {
     if (!Array.isArray(statements) || !segments.length) return null;
     const [head, ...rest] = segments;
     for (const statement of statements) {
       const decl = unwrapExportedDeclaration(statement);
       if (!decl) continue;
+      if (rest.length === 0 && decl.id?.name === head && isTypeBearingDeclaration(decl)) return decl;
+      if (decl.type !== 'TSModuleDeclaration') continue;
+      const moduleSegs = moduleNameSegments(decl.id);
+      if (!moduleSegs) continue;
+      // single-segment lookup descends into every namespace looking for an any-level match
       if (rest.length === 0) {
-        if (decl.id?.name === head && isTypeBearingDeclaration(decl)) return decl;
-        // single-segment lookup keeps descending into all namespaces (any-level matches)
-        if (decl.type === 'TSModuleDeclaration') {
-          const inner = findInStatements(segments, decl.body?.body);
-          if (inner) return inner;
-        }
-      } else if (decl.type === 'TSModuleDeclaration' && decl.id?.name === head) {
-        // multi-segment lookup only descends into the namespace whose name matches the head
-        const inner = findInStatements(rest, decl.body?.body);
+        const inner = findInStatements(segments, moduleStatements(decl));
         if (inner) return inner;
+        continue;
       }
+      // multi-segment lookup: module's name segments must be a prefix of the lookup segments
+      if (!startsWithSegments(segments, moduleSegs)) continue;
+      const inner = findInStatements(segments.slice(moduleSegs.length), moduleStatements(decl));
+      if (inner) return inner;
     }
     return null;
   }
@@ -610,17 +639,14 @@ function createResolveNodeType(babelNodeType, t) {
 
   function findTypeMember(objectType, key, scope, depth = 0) {
     if (!objectType || depth > MAX_DEPTH) return null;
-    // union: getTypeMembers bails on it, so recurse into each branch and fold matches.
-    // a single matching branch is returned as-is; multiple matches are wrapped in a
-    // synthetic union so downstream resolveTypeAnnotation folds them via foldUnionTypes.
-    // lookups across branches are lenient (a member present in only one branch still
-    // wins) - sound enough for polyfill hint inference, which only needs a hint, not a
-    // strictly typeable expression
-    const { node: aliased } = followTypeAliasChain(objectType, scope);
+    // unions: recurse per branch (with subst applied), fold matches into a synthetic union
+    const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = [];
       for (const member of aliased.types) {
-        const memberType = findTypeMember(unwrapTypeAnnotation(member), key, scope, depth + 1);
+        const unwrapped = unwrapTypeAnnotation(member);
+        const substituted = subst ? applyAliasSubst(unwrapped, subst) : unwrapped;
+        const memberType = findTypeMember(substituted, key, scope, depth + 1);
         if (memberType) found.push(memberType);
       }
       if (!found.length) return null;
@@ -648,9 +674,11 @@ function createResolveNodeType(babelNodeType, t) {
           // class body property: typeAnnotation if present, otherwise we can't infer the type
           if (!member.computed && keyMatchesName(member.key, key)) return member.typeAnnotation ?? null;
           break;
+        // ESTree (MethodDefinition) and Babel (ClassMethod) class methods → generic function type
         case 'ClassMethod':
         case 'ClassPrivateMethod':
         case 'TSDeclareMethod':
+        case 'MethodDefinition':
           if (!member.computed && keyMatchesName(member.key, key)) return { type: 'TSFunctionType' };
           break;
         case 'TSIndexSignature':
@@ -725,14 +753,15 @@ function createResolveNodeType(babelNodeType, t) {
     if (!target) return null;
     let unwrapped = unwrapTypeAnnotation(first);
     if (!unwrapped) return null;
-    // follow type alias chain to unwrap aliases like type MyUnion = string | number
-    const { node: aliasTarget } = followTypeAliasChain(unwrapped, scope);
+    // capture subst so generic union members (`type Foo<T> = T | string`) keep their bindings
+    const { node: aliasTarget, subst } = followTypeAliasChain(unwrapped, scope);
     if (aliasTarget) unwrapped = aliasTarget;
     const types = unwrapped.type === 'TSUnionType' || unwrapped.type === 'UnionTypeAnnotation' ? unwrapped.types : [unwrapped];
     let result = null;
     let anyKept = false;
     for (const member of types) {
-      const resolved = resolveTypeAnnotation(member, scope, depth + 1);
+      const substituted = subst ? applyAliasSubst(member, subst) : member;
+      const resolved = resolveTypeAnnotation(substituted, scope, depth + 1);
       if (!resolved) return null;
       if (isAssignableTo(resolved, target) !== keep) continue;
       anyKept = true;
@@ -1929,7 +1958,7 @@ function createResolveNodeType(babelNodeType, t) {
     for (const returnPath of collectReturnPaths(body)) {
       const arg = returnPath.get('argument');
       const value = arg.node ? resolveRuntimeExpression(arg) : null;
-      // accept identical wrappers (cached) or wrappers whose resolved type matches —
+      // accept identical wrappers (cached) or wrappers whose resolved type matches -
       // structurally equivalent literal nodes (`return [1,2,3]` twice) should not bail
       result = value && (result === null || result.node === value.node || typesEqual(result, value)) ? value : false;
       if (result === false) return null;
@@ -2783,9 +2812,11 @@ function createResolveNodeType(babelNodeType, t) {
       const isNegatedOp = operator === '!==' || operator === '!=';
       if (isNegatedOp || operator === '===' || operator === '==') {
         if (isNegatedOp) negated = !negated;
-        // normalize: typeof may be on either side
-        const [typeofSide, literalSide] = left.type === 'UnaryExpression' ? [left, right] : [right, left];
-        if (isTypeofVar(typeofSide, varName)) {
+        // pick the `typeof varName` side explicitly so `typeof a === typeof b` doesn't misfire
+        const leftIsTypeof = isTypeofVar(left, varName);
+        const rightIsTypeof = !leftIsTypeof && isTypeofVar(right, varName);
+        if (leftIsTypeof || rightIsTypeof) {
+          const literalSide = leftIsTypeof ? right : left;
           if (babelNodeType(literalSide) === 'StringLiteral') return typeofGuard(literalSide.value, negated);
           // template literal with no expressions: `object` === typeof x
           if (literalSide.type === 'TemplateLiteral' && literalSide.expressions.length === 0) {
@@ -3102,7 +3133,7 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
-  // bail narrowing if any reassignment lives inside a nested function — that function may
+  // bail narrowing if any reassignment lives inside a nested function - that function may
   // be invoked between the guard and the usage, breaking type narrowing
   function hasMutationInCapturedFunction({ constantViolations, scope }) {
     if (!constantViolations?.length) return false;

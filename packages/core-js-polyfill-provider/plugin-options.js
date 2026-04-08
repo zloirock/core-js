@@ -19,16 +19,9 @@ function validateImportStyle(importStyle) {
   }
 }
 
-function validatePatternList(name, list) {
-  if (list === undefined || list === null) return;
-  if (!Array.isArray(list)) throw new TypeError(`.${ name } must be an array, or undefined (received ${ JSON.stringify(list) })`);
-  for (const item of list) {
-    if (typeof item !== 'string' && !(item instanceof RegExp)) {
-      throw new TypeError(`.${ name } elements must be strings or regular expressions (received ${ JSON.stringify(item) })`);
-    }
-  }
-}
-
+// only validates options exclusive to plugin-options (absoluteImports, shouldInjectPolyfill +
+// include/exclude conflict). Type checks for include/exclude themselves run inside
+// createPolyfillContext so direct callers of the public API stay protected.
 function validatePluginOptions({ absoluteImports, shouldInjectPolyfill, include, exclude }) {
   if (absoluteImports !== null && absoluteImports !== undefined && typeof absoluteImports !== 'boolean') {
     throw new TypeError('.absoluteImports must be a boolean, or undefined'
@@ -38,12 +31,10 @@ function validatePluginOptions({ absoluteImports, shouldInjectPolyfill, include,
     throw new TypeError('.shouldInjectPolyfill must be a function, or undefined'
       + ` (received ${ shouldInjectPolyfill })`);
   }
-  // empty arrays don't conflict with shouldInjectPolyfill — only non-empty include/exclude do
+  // empty arrays don't conflict with shouldInjectPolyfill - only non-empty include/exclude do
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
     throw new TypeError('.include and .exclude are not supported when using the .shouldInjectPolyfill function.');
   }
-  validatePatternList('include', include);
-  validatePatternList('exclude', exclude);
 }
 
 function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets }) {
@@ -165,8 +156,16 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
       return;
     }
     const deps = resolveUsage(meta, path);
-    if (!deps) return;
-    for (const entry of deps) injectModulesForModeEntry(entry);
+    if (deps) {
+      for (const entry of deps) injectModulesForModeEntry(entry);
+      return;
+    }
+    // unknown property on a known global constructor (`Map.foo`, `Map.foo++`) - the constructor
+    // itself still needs polyfilling so the read/write target exists at runtime
+    if (meta.kind === 'property' && meta.placement === 'static' && meta.object) {
+      const constructorDeps = resolveUsage({ kind: 'global', name: meta.object }, path);
+      if (constructorDeps) for (const entry of constructorDeps) injectModulesForModeEntry(entry);
+    }
   };
 }
 
