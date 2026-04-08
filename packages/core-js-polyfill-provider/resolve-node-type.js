@@ -1,7 +1,7 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from './helpers.js';
 
 const {
-  globalProxies,
   constructors: KNOWN_CONSTRUCTORS,
   globalMethods: KNOWN_GLOBAL_METHOD_RETURN_TYPES,
   globalProperties: KNOWN_GLOBAL_PROPERTY_RETURN_TYPES,
@@ -16,8 +16,6 @@ const { assign, create, entries, hasOwn, keys } = Object;
 
 // shared recursion budget for all resolvers — alias chains, runtime walks, guard traversals
 const MAX_DEPTH = 64;
-
-const POSSIBLE_GLOBAL_PROXIES = new Set(globalProxies);
 
 const PRIMITIVE_WRAPPERS = assign(create(null), {
   bigint: 'BigInt',
@@ -485,44 +483,61 @@ function createResolveNodeType(babelNodeType, t) {
     return true;
   }
 
-  // resolve a dotted segment path to its declaration; the trailing segment matches an
-  // interface/type/class/enum, leading segments must each be a TSModuleDeclaration
-  function findInStatements(segments, statements) {
+  // resolve `NS.Inner.Decl` segments inside a statement list. `collect=null` short-circuits
+  // on the first hit; `collect=[]` keeps walking to enable TS interface merging
+  function walkStatementsForDecl(segments, statements, collect) {
     if (!Array.isArray(statements) || !segments.length) return null;
     const [head, ...rest] = segments;
     for (const statement of statements) {
       const decl = unwrapExportedDeclaration(statement);
       if (!decl) continue;
-      if (rest.length === 0 && decl.id?.name === head && isTypeBearingDeclaration(decl)) return decl;
+      if (rest.length === 0 && decl.id?.name === head && isTypeBearingDeclaration(decl)) {
+        if (!collect) return decl;
+        collect.push(decl);
+        continue;
+      }
       if (decl.type !== 'TSModuleDeclaration') continue;
       const moduleSegs = moduleNameSegments(decl.id);
       if (!moduleSegs) continue;
-      // single-segment lookup descends into every namespace looking for an any-level match
+      // bare name: descend into every namespace; dotted: namespace must prefix segments
       if (rest.length === 0) {
-        const inner = findInStatements(segments, moduleStatements(decl));
-        if (inner) return inner;
+        const inner = walkStatementsForDecl(segments, moduleStatements(decl), collect);
+        if (inner && !collect) return inner;
         continue;
       }
-      // multi-segment lookup: module's name segments must be a prefix of the lookup segments
       if (!startsWithSegments(segments, moduleSegs)) continue;
-      const inner = findInStatements(segments.slice(moduleSegs.length), moduleStatements(decl));
-      if (inner) return inner;
+      const inner = walkStatementsForDecl(segments.slice(moduleSegs.length), moduleStatements(decl), collect);
+      if (inner && !collect) return inner;
     }
     return null;
   }
 
-  function findTypeDeclaration(name, scope) {
+  // walk scope chain; `collect=null` returns first hit, `collect=[]` collects siblings
+  // at the first containing scope (interface merging only — others don't merge)
+  function walkScopesForDecl(name, scope, collect) {
     if (!scope) return null;
-    // name may be a dotted path (`NS.Data`) or a pre-split segment array
     const segments = typeof name === 'string' ? name.split('.') : name;
     for (let cur = scope; cur; cur = cur.parent) {
       const block = cur.block ?? cur.path?.node;
       if (!block) continue;
       const body = block.type === 'Program' ? block.body : block.body?.body;
-      const result = findInStatements(segments, body);
-      if (result) return result;
+      const before = collect?.length;
+      const result = walkStatementsForDecl(segments, body, collect);
+      if (!collect && result) return result;
+      if (collect && collect.length > before) return null;
     }
     return null;
+  }
+
+  function findTypeDeclaration(name, scope) {
+    return walkScopesForDecl(name, scope, null);
+  }
+
+  // all `interface X {}` siblings at the first scope level that contains one
+  function findAllTypeDeclarations(name, scope) {
+    const collected = [];
+    walkScopesForDecl(name, scope, collected);
+    return collected;
   }
 
   // ESTree (oxc-parser): TSTypeParameter.name is Identifier node; Babel: it's a string
@@ -566,13 +581,12 @@ function createResolveNodeType(babelNodeType, t) {
     const base = typeParamMap || new Map();
     const localMap = new Map(base);
     let extended = false;
-    // fall back to each param's `default` when the usage has no explicit arg at this position,
-    // so `type Nullable<T = number[]> = T | null` resolves through `NonNullable<Nullable>`
+    // `<T, U = T[]>`: each default sees earlier params via `localMap` accumulated so far
     for (let i = 0; i < declParams.length; i++) {
       const arg = callArgs?.[i] ?? declParams[i].default;
       if (!arg) continue;
-      const resolved = typeParamMap
-        ? substituteTypeParams(arg, typeParamMap, scope, depth + 1)
+      const resolved = localMap.size > 0
+        ? substituteTypeParams(arg, localMap, scope, depth + 1)
         : resolveTypeAnnotation(arg, scope, depth + 1);
       if (resolved) {
         localMap.set(typeParamName(declParams[i]), resolved);
@@ -582,9 +596,7 @@ function createResolveNodeType(babelNodeType, t) {
     return extended ? localMap : typeParamMap;
   }
 
-  // build a type parameter map from explicit type arguments and/or default values
-  // e.g. for `Container<string>` referencing `interface Container<T>`, returns Map { T -> $Primitive('string') }
-  // e.g. for `Container` referencing `interface Container<T = number[]>`, returns Map { T -> $Object('Array', ...) }
+  // `Container<string>` -> { T: string }; `Container` with `<T = number[]>` -> { T: Array }
   function buildDefaultTypeParamMap(annotation, scope) {
     const segments = typeRefSegments(annotation);
     if (!segments) return null;
@@ -593,11 +605,14 @@ function createResolveNodeType(babelNodeType, t) {
     const declParams = declaration.typeParameters?.params;
     if (!declParams?.length) return null;
     const callArgs = getTypeArgs(annotation)?.params;
+    // `<T, U = T[]>`: U sees already-resolved T from earlier iterations
     let map = null;
     for (let i = 0; i < declParams.length; i++) {
       const arg = callArgs?.[i] ?? declParams[i].default;
       if (!arg) continue;
-      const resolved = resolveTypeAnnotation(arg, scope);
+      const resolved = map
+        ? substituteTypeParams(arg, map, scope, 0)
+        : resolveTypeAnnotation(arg, scope);
       if (resolved) {
         if (!map) map = new Map();
         map.set(typeParamName(declParams[i]), resolved);
@@ -695,24 +710,27 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // handle dotted refs (`NS.Data`) by passing the segment path through
     const segments = typeRefSegments(objectType);
-    const declaration = segments ? findTypeDeclaration(segments, scope) : null;
+    if (!segments) return null;
+    // fast path first; only re-walk for the rare interface-merging case
+    const declaration = findTypeDeclaration(segments, scope);
+    if (!declaration) return null;
     if (isInterfaceDeclaration(declaration)) {
-      // TS: declaration.body.body, Flow: declaration.body.properties
-      const own = declaration.body?.body ?? declaration.body?.properties;
-      // collect members from the extends chain
-      const parents = declaration.extends;
-      if (!parents?.length) return own;
-      const all = own ? [...own] : [];
-      for (const parent of parents) {
-        const expr = extendsId(parent);
-        const parentRef = expr.type === 'Identifier'
-          ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
-          : expr;
-        const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
-        if (!parentMembers) continue;
-        // substitute parent generics (`T -> string`) into every inherited member annotation
-        const parentSubst = buildParentSubst(parentRef, scope);
-        for (const m of parentMembers) all.push(parentSubst ? substMemberAnnotations(m, parentSubst) : m);
+      const interfaces = findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration);
+      const all = [];
+      for (const decl of interfaces) {
+        // TS: decl.body.body, Flow: decl.body.properties
+        const own = decl.body?.body ?? decl.body?.properties;
+        if (own) for (const m of own) all.push(m);
+        for (const parent of decl.extends ?? []) {
+          const expr = extendsId(parent);
+          const parentRef = expr.type === 'Identifier'
+            ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
+            : expr;
+          const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
+          if (!parentMembers) continue;
+          const parentSubst = buildParentSubst(parentRef, scope);
+          for (const m of parentMembers) all.push(parentSubst ? substMemberAnnotations(m, parentSubst) : m);
+        }
       }
       return all.length ? all : null;
     }
@@ -1413,7 +1431,7 @@ function createResolveNodeType(babelNodeType, t) {
 
   function isGlobalProxy(objectPath) {
     if (t.isIdentifier(objectPath.node)) {
-      return POSSIBLE_GLOBAL_PROXIES.has(objectPath.node.name) && !objectPath.scope?.getBinding(objectPath.node.name);
+      return POSSIBLE_GLOBAL_OBJECTS.has(objectPath.node.name) && !objectPath.scope?.getBinding(objectPath.node.name);
     }
     // top-level `this` (not inside any non-arrow function or class) is a global proxy
     return t.isThisExpression(objectPath.node) && isGlobalThis(objectPath);
@@ -2059,21 +2077,28 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // find the single consistently-returned runtime expression from a function body
-  // returns a path (not a type) - useful for resolving getter calls like property calls
+  // single returned expression as a path — used to resolve getters like properties
   function resolveBodyReturnValue(fnPath) {
     const body = fnPath.get('body');
     if (!t.isBlockStatement(body.node)) return resolveRuntimeExpression(body);
     let result = null;
+    let resultType; // lazy: only resolved once, on first cross-node compare
     for (const returnPath of collectReturnPaths(body)) {
       const arg = returnPath.get('argument');
-      const value = arg.node ? resolveRuntimeExpression(arg) : null;
-      // accept identical wrappers (cached) or wrappers whose resolved type matches -
-      // structurally equivalent literal nodes (`return [1,2,3]` twice) should not bail
-      result = value && (result === null || result.node === value.node || typesEqual(result, value)) ? value : false;
-      if (result === false) return null;
+      if (!arg.node) return null;
+      const value = resolveRuntimeExpression(arg);
+      if (!value) return null;
+      if (result === null || result.node === value.node) {
+        result = value;
+        continue;
+      }
+      // distinct nodes — accept only on matching resolved type (e.g. two `return [1,2,3]`)
+      if (resultType === undefined) resultType = resolveNodeType(result);
+      if (!resultType) return null;
+      const valueType = resolveNodeType(value);
+      if (!valueType || !typesEqual(resultType, valueType)) return null;
     }
-    return result || null;
+    return result;
   }
 
   function resolveClassMember(classPath, name, isStatic, callPath) {
@@ -2434,14 +2459,18 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // --- Destructuring resolver ---
-  // find the original property key name for a destructured variable
-  // e.g. const { foo: bar } = obj -> findDestructuredKeyName(pattern, 'bar') -> 'foo'
-  // e.g. const { foo } = obj -> findDestructuredKeyName(pattern, 'foo') -> 'foo'
-  function findDestructuredKeyName(objectPattern, name) {
+  // `{ a: { b: c } }`, target `c` -> `['a', 'b']`. nested ObjectPatterns walked recursively
+  function findDestructuredKeyPath(objectPattern, name) {
     for (const prop of objectPattern.properties) {
       if (babelNodeType(prop) !== 'ObjectProperty') continue;
+      const key = getKeyName(prop.key);
+      if (key === null) continue;
       const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-      if (value?.type === 'Identifier' && value.name === name) return getKeyName(prop.key);
+      if (value?.type === 'Identifier' && value.name === name) return [key];
+      if (value?.type === 'ObjectPattern') {
+        const inner = findDestructuredKeyPath(value, name);
+        if (inner) return [key, ...inner];
+      }
     }
     return null;
   }
@@ -2465,9 +2494,9 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function resolveDestructuredType(objectPattern, name, scope) {
-    const keyName = findDestructuredKeyName(objectPattern, name);
-    if (!keyName) return null;
-    return resolveAnnotatedMember(objectPattern.typeAnnotation, keyName, scope);
+    const keyPath = findDestructuredKeyPath(objectPattern, name);
+    if (!keyPath) return null;
+    return resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, scope);
   }
 
   // resolve the element type of a collection from its type annotation
@@ -2757,12 +2786,27 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolveAnnotatedMember(annotation, keyName, scope) {
     const unwrapped = unwrapTypeAnnotation(annotation);
+    if (!unwrapped) return null;
     const memberType = findTypeMember(unwrapped, keyName, scope);
     if (!memberType) return null;
     const defaultMap = buildDefaultTypeParamMap(unwrapped, scope);
     return defaultMap
       ? substituteTypeParams(memberType, defaultMap, scope, 0)
       : resolveTypeAnnotation(memberType, scope);
+  }
+
+  // step through `['a', 'b']` against the annotation; final step goes through resolveAnnotatedMember
+  function resolveAnnotatedMemberPath(annotation, keyPath, scope) {
+    if (!keyPath?.length) return null;
+    let current = annotation;
+    for (let i = 0; i < keyPath.length - 1; i++) {
+      const unwrapped = unwrapTypeAnnotation(current);
+      if (!unwrapped) return null;
+      const next = findTypeMember(unwrapped, keyPath[i], scope);
+      if (!next) return null;
+      current = next;
+    }
+    return resolveAnnotatedMember(current, keyPath.at(-1), scope);
   }
 
   // recursively unwrap Promise<T> annotation to T for for-await-of element types
@@ -2812,27 +2856,23 @@ function createResolveNodeType(babelNodeType, t) {
       const result = resolveDestructuredType(objectPattern, varName, bindingPath.scope);
       if (result) return result;
     }
-    const keyName = findDestructuredKeyName(objectPattern, varName);
-    if (!keyName) return null;
-    // resolve from init expression: runtime object literal or annotated variable
+    const keyPath = findDestructuredKeyPath(objectPattern, varName);
+    if (!keyPath) return null;
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
       const initPath = resolveRuntimeExpression(bindingPath.get('init'));
-      // const { name } = { name: 'alice' }
-      if (t.isObjectExpression(initPath.node)) {
-        const result = resolveObjectMember(initPath, keyName);
+      // `const { name } = { name: 'alice' }`; nested runtime walks fall through to annotation
+      if (keyPath.length === 1 && t.isObjectExpression(initPath.node)) {
+        const result = resolveObjectMember(initPath, keyPath[0]);
         if (result) return result;
       }
-      // const { key } = annotatedVar where annotatedVar: { key: string }
       const annotationInfo = findExpressionAnnotation(bindingPath.get('init'));
       if (annotationInfo) {
-        const result = resolveAnnotatedMember(annotationInfo.annotation, keyName, annotationInfo.scope);
+        const result = resolveAnnotatedMemberPath(annotationInfo.annotation, keyPath, annotationInfo.scope);
         if (result) return result;
       }
     }
-    // for-of iterable: for (const { name } of typedArr)
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
-    if (elemInfo) return resolveAnnotatedMember(elemInfo.annotation, keyName, elemInfo.scope);
-    // fallback: resolve from destructuring default value: const { items = [] } = obj
+    if (elemInfo) return resolveAnnotatedMemberPath(elemInfo.annotation, keyPath, elemInfo.scope);
     return resolveDestructuringDefault(objectPattern, varName, bindingPath);
   }
 
@@ -2899,15 +2939,6 @@ function createResolveNodeType(babelNodeType, t) {
     return arg?.type === 'Identifier' && arg.name === varName;
   }
 
-  // extract the property name from a global proxy member expression node (e.g. globalThis.Array -> 'Array')
-  // note: ThisExpression is intentionally excluded because without a path we cannot verify
-  // that `this` refers to the global object (it could be inside a method or regular function)
-  function resolveGlobalPropertyName(node) {
-    if (node.type !== 'MemberExpression' || node.computed) return null;
-    if (!(node.object.type === 'Identifier' && POSSIBLE_GLOBAL_PROXIES.has(node.object.name))) return null;
-    return node.property.type === 'Identifier' ? node.property.name : null;
-  }
-
   // guard shape builders - single point of truth for the guard descriptor literal
   const typeofGuard = (value, negated) => ({ kind: 'typeof', value, negated });
   const instanceofGuard = (constructorName, negated) => ({ kind: 'instanceof', constructorName, negated });
@@ -2954,7 +2985,10 @@ function createResolveNodeType(babelNodeType, t) {
       while (test.type === 'ParenthesizedExpression') test = test.expression;
     }
     if (test.type === 'BinaryExpression') {
-      const { operator, left, right } = test;
+      const { operator } = test;
+      // unwrap so `if ((x) instanceof Map)` narrows under ESTree
+      const left = unwrapParens(test.left);
+      const right = unwrapParens(test.right);
       const isNegatedOp = operator === '!==' || operator === '!=';
       if (isNegatedOp || operator === '===' || operator === '==') {
         if (isNegatedOp) negated = !negated;
@@ -2972,20 +3006,22 @@ function createResolveNodeType(babelNodeType, t) {
       }
       if (operator === 'instanceof'
         && left.type === 'Identifier' && left.name === varName) {
-        const constructorName = right.type === 'Identifier' ? right.name : resolveGlobalPropertyName(right);
+        const constructorName = right.type === 'Identifier' ? right.name : globalProxyMemberName(right);
         if (constructorName) return instanceofGuard(constructorName, negated);
       }
     }
-    if (test.type === 'CallExpression' && test.arguments?.length === 1
-      && test.arguments[0].type === 'Identifier' && test.arguments[0].name === varName) {
-      const { callee } = test;
-      if (callee.type === 'MemberExpression' && !callee.computed
-        && callee.object.type === 'Identifier' && callee.property.type === 'Identifier') {
-        const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, callee.property.name);
-        if (hint) return guardFromHint(hint, negated);
+    if (test.type === 'CallExpression' && test.arguments?.length === 1) {
+      const arg = unwrapParens(test.arguments[0]);
+      if (arg.type === 'Identifier' && arg.name === varName) {
+        const { callee } = test;
+        if (callee.type === 'MemberExpression' && !callee.computed
+          && callee.object.type === 'Identifier' && callee.property.type === 'Identifier') {
+          const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, callee.property.name);
+          if (hint) return guardFromHint(hint, negated);
+        }
+        const userGuard = parseUserPredicateGuard(callee, scope, negated);
+        if (userGuard) return userGuard;
       }
-      const userGuard = parseUserPredicateGuard(callee, scope, negated);
-      if (userGuard) return userGuard;
     }
     return null;
   }
@@ -3005,11 +3041,16 @@ function createResolveNodeType(babelNodeType, t) {
       for (let i = 0; i < body.length; i++) if (nodeAlwaysExits(body[i], depth + 1)) return true;
       return false;
     }
-    // if both branches always exit, the if-statement always exits
     if (node.type === 'IfStatement') {
       return node.alternate
         && nodeAlwaysExits(node.consequent, depth + 1)
         && nodeAlwaysExits(node.alternate, depth + 1);
+    }
+    // finally exit overrides; otherwise need both try and catch (if any) to exit
+    if (node.type === 'TryStatement') {
+      if (node.finalizer && nodeAlwaysExits(node.finalizer, depth + 1)) return true;
+      if (!nodeAlwaysExits(node.block, depth + 1)) return false;
+      return !node.handler || nodeAlwaysExits(node.handler.body, depth + 1);
     }
     return false;
   }
