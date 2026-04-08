@@ -147,8 +147,8 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
   return { injectModulesForEntry, injectModulesForModeEntry, outputDebug };
 }
 
-export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEntry, isDisabled }) {
-  return (meta, path) => {
+export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEntry, isDisabled, resolveSuperMember }) {
+  function dispatch(meta, path) {
     if (isDisabled(path.node)) return;
     if (meta.kind === 'in') {
       const entry = symbolKeyToEntry(meta.key);
@@ -166,6 +166,18 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
       const constructorDeps = resolveUsage({ kind: 'global', name: meta.object }, path);
       if (constructorDeps) for (const entry of constructorDeps) injectModulesForModeEntry(entry);
     }
+  }
+  return (meta, path) => {
+    // `super.X(...)` in a static method of `extends KnownGlobal { ... }`: regular MemberExpression
+    // resolution produces `{object: null, placement: 'prototype'}` which never matches
+    // `Array.from` etc. retry with a synthetic static meta against the parent class
+    if (resolveSuperMember && meta.kind === 'property' && meta.placement === 'prototype'
+      && meta.object === null && path?.node?.type === 'MemberExpression'
+      && path.node.object?.type === 'Super') {
+      const superMeta = resolveSuperMember(path);
+      if (superMeta) return dispatch(superMeta, path);
+    }
+    return dispatch(meta, path);
   };
 }
 

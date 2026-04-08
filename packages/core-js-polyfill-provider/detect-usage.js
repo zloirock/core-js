@@ -330,8 +330,32 @@ export function isTypeAnnotationNodeType(type) {
   return false;
 }
 
-// walk TS type annotations to find global type references (Promise, Map, Set, etc.)
-// `seen` bounds the traversal so cyclic inputs cannot loop forever
+// nodes that are not type annotations themselves but legitimately appear inside one and
+// carry a child `typeAnnotation` (e.g. params of TSFunctionType: `(x: Foo) => Bar`)
+const TYPE_ANNOTATION_PARAM_HOSTS = new Set([
+  'Identifier',
+  'RestElement',
+  'AssignmentPattern',
+  'ObjectPattern',
+  'ArrayPattern',
+]);
+
+// is this node something we should descend into when walking a type annotation?
+function isTypeWalkable(node) {
+  if (!node || typeof node !== 'object') return false;
+  const { type } = node;
+  if (!type) return false;
+  if (isTypeAnnotationNodeType(type)) return true;
+  // structural wrappers that hold lists of TS members
+  if (type === 'TSInterfaceBody' || type === 'TSModuleBlock' || type === 'TSTypeParameter') return true;
+  // param positions (`(x: Foo) => Bar`) — Identifier wraps a type via `typeAnnotation`
+  return TYPE_ANNOTATION_PARAM_HOSTS.has(type);
+}
+
+// walk TS type annotations to find global type references (Promise, Map, Set, etc.).
+// `seen` bounds the traversal so cyclic inputs cannot loop forever; the type-walkable
+// filter prevents the walker from straying into runtime bodies via generic field names
+// (`value`/`body`/`members`) that exist on both type and runtime nodes
 export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   if (!annotation) return;
   const seen = new WeakSet();
@@ -351,8 +375,11 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
       'value', 'argument', 'impltype', 'supertype',
       'nameType', 'typeParameter', 'members', 'body']) {
       const child = node[key];
-      if (Array.isArray(child)) for (const c of child) stack.push(c);
-      else if (child && typeof child === 'object') stack.push(child);
+      if (Array.isArray(child)) {
+        for (const c of child) if (isTypeWalkable(c)) stack.push(c);
+      } else if (isTypeWalkable(child)) {
+        stack.push(child);
+      }
     }
   }
 }
