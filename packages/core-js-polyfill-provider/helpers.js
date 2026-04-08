@@ -102,7 +102,9 @@ export function buildOffsetToLine(code) {
 const DIRECTIVE = /^[\s*]*core-js-disable-(?<kind>file|line|next-line)(?:\s+--|\s*$)/;
 
 // merge two visitor objects - combine handlers for same node type
-// supports function (shorthand for enter), { enter, exit }, and mixed formats
+// supports function (shorthand for enter), { enter, exit }, and mixed formats.
+// `$` is the estree-toolkit metadata key (e.g. `{ scope: true }`); it carries no enter/exit
+// handlers and is merged shallowly so neither side's metadata is dropped
 export function mergeVisitors(base, extra) {
   const toObject = v => typeof v === 'function' ? { enter: v } : v;
   const chain = (f, g) => function (path) {
@@ -111,6 +113,10 @@ export function mergeVisitors(base, extra) {
   };
   const merged = { ...base };
   for (const [key, handler] of Object.entries(extra)) {
+    if (key === '$') {
+      merged.$ = { ...merged.$, ...handler };
+      continue;
+    }
     if (!(key in merged)) {
       merged[key] = handler;
     } else {
@@ -126,14 +132,19 @@ export function mergeVisitors(base, extra) {
   return merged;
 }
 
-export function parseDisableDirectives(comments, offsetToLine) {
+// `firstStmtStart` (optional) is the offset of the first program statement; a `disable-file`
+// directive only takes effect when it appears strictly before any code (eslint-style scope)
+export function parseDisableDirectives(comments, offsetToLine, firstStmtStart) {
   if (!comments) return null;
   const lines = new Set();
   for (const comment of comments) {
     const match = comment.value.match(DIRECTIVE);
     if (!match) continue;
     const { kind } = match.groups;
-    if (kind === 'file') return true;
+    if (kind === 'file') {
+      if (firstStmtStart === undefined || comment.end <= firstStmtStart) return true;
+      continue;
+    }
     const startLine = comment.loc ? comment.loc.start.line : offsetToLine(comment.start);
     const endLine = comment.loc ? comment.loc.end.line : offsetToLine(comment.end - 1);
     if (kind === 'line') lines.add(startLine);
