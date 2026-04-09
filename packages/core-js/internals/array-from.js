@@ -11,6 +11,7 @@ var setArrayLength = require('../internals/array-set-length');
 var getIterator = require('../internals/get-iterator');
 var getIteratorMethod = require('../internals/get-iterator-method');
 var iteratorClose = require('../internals/iterator-close');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 
 var $Array = Array;
 
@@ -32,6 +33,11 @@ module.exports = function from(arrayLike /* , mapfn = undefined, thisArg = undef
     iterator = getIterator(O, iteratorMethod);
     next = iterator.next;
     for (;!(step = call(next, iterator)).done; index++) {
+      try {
+        doesNotExceedSafeInteger(index);
+      } catch (error) {
+        iteratorClose(iterator, 'throw', error);
+      }
       value = mapping ? callWithSafeIterationClosing(iterator, mapfn, [step.value, index], true) : step.value;
       try {
         createProperty(result, index, value);

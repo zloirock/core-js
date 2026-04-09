@@ -2,6 +2,7 @@
 ### Unreleased
 - Fixed possible crash on some keys in `Symbol.for`
 - Fixed possible early error in `get-iterator-method` helper
+- Added missed `MAX_SAFE_INTEGER` excess check in `Array.from` and `{ Map, Object }.groupBy` polyfills
 - Improved the way of inner iterators cleaning in iterator helpers
 - Improved accuracy of `Math.asinh` polyfill
 - Improved performance of `Uint8Array` base64 methods
