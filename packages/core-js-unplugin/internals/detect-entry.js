@@ -47,14 +47,10 @@ export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEnt
 
   for (const node of toRemove) {
     let { end } = node;
-    // also consume trailing whitespace + line endings to avoid leaving an orphan blank line
-    while (end < ms.original.length) {
-      const ch = ms.original[end];
-      if (ch === ' ' || ch === '\t') end++;
-      else if (ch === '\r' && ms.original[end + 1] === '\n') end += 2;
-      else if (ch === '\n' || ch === '\r') end++;
-      else break;
-    }
+    // consume trailing whitespace + one newline; must not eat next line's indent
+    while (end < ms.original.length && (ms.original[end] === ' ' || ms.original[end] === '\t')) end++;
+    if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
+    else if (ms.original[end] === '\n' || ms.original[end] === '\r') end++;
     ms.remove(node.start, end);
   }
   return toRemove.length > 0;
