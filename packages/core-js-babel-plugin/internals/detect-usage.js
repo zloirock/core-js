@@ -105,7 +105,7 @@ export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = f
       // nested / for-of / array pattern: we can't statically know the receiver type, so the
       // property-level init can't be resolved. emit a typeless meta so the name still
       // registers for usage tracking, but any receiver-typed polyfill variant is skipped.
-      // example: `const { a: { from } } = { a: Array }` — we don't walk into `{ a: Array }`
+      // example: `const { a: { from } } = { a: Array }` - we don't walk into `{ a: Array }`
       const key = resolveKey(path.get('key'), path.node.computed);
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;
@@ -144,19 +144,25 @@ export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = f
     if (meta) onUsage(meta, path);
   }
 
+  // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it
+  // (`class Map {}; let x: Map = …` must NOT pull in es.map.constructor)
+  const annotationGlobal = path => name => {
+    if (path.scope?.hasBinding(name)) return;
+    onUsage({ kind: 'global', name }, path);
+  };
   return {
     ...walkAnnotations ? {
       'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression'(path) {
-        checkTypeAnnotations(path.node, name => onUsage({ kind: 'global', name }, path));
+        checkTypeAnnotations(path.node, annotationGlobal(path));
       },
       VariableDeclarator(path) {
         if (path.node.id?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.id.typeAnnotation, name => onUsage({ kind: 'global', name }, path));
+          walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path));
         }
       },
       CatchClause(path) {
         if (path.node.param?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.param.typeAnnotation, name => onUsage({ kind: 'global', name }, path));
+          walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
         }
       },
     } : {},

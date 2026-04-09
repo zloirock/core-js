@@ -50,7 +50,7 @@ const ESM_MARKER_TYPES = new Set([
 
 const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name === name;
 
-// peel parens / chain expressions / sequence (take last) — CJS shapes like
+// peel parens / chain expressions / sequence (take last) - CJS shapes like
 // `0, module.exports = {...}` or `(module.exports = ...)` should still match
 function unwrapExpr(node) {
   while (node) {
@@ -552,13 +552,14 @@ export default function createPlugin(options) {
         // does guard ternary need () to preserve correct precedence?
         function guardNeedsParens(metaPath, isCall, start, end) {
           let outer = (isCall ? metaPath.parentPath : metaPath)?.parentPath;
-          if (outer?.node?.type === 'ChainExpression') outer = outer.parentPath;
-          // higher-precedence operator parent
+          // peel ChainExpression and TS wrappers - `as X` / `!` / `satisfies Y` are runtime
+          // no-ops in the emitted source, so the *real* enclosing operator is the one above
+          while (outer?.node && (outer.node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(outer.node.type))) {
+            outer = outer.parentPath;
+          }
           if (NEEDS_GUARD_PARENS.has(outer?.node?.type)) return true;
-          // ternary test position: guard ternary merges with outer ternary
           if (outer?.node?.type === 'ConditionalExpression' && outer.node.test?.end === end) return true;
           // ?. continuation after this range (top-level only - inner transforms get composed)
-          // skipGap handles whitespace/comments between the expression end and ?.
           const p = skipGap(code, end);
           return code[p] === '?' && code[p + 1] === '.' && !transforms.containsRange(start, end);
         }
