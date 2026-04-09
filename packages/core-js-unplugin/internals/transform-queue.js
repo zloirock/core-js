@@ -162,7 +162,7 @@ export default class TransformQueue {
       }
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 
-      // inners sorted largest-first — a smaller inner covered by an already-substituted
+      // inners sorted largest-first - a smaller inner covered by an already-substituted
       // larger inner is expected to miss (it's embedded in the larger's composed content).
       // a miss on a non-covered inner means the outer still holds raw source: throw loudly
       const originalSlice = this.#code.slice(start, end);
@@ -176,7 +176,7 @@ export default class TransformQueue {
           if (!covered) {
             throw new Error('[core-js] transform-queue: could not locate inner needle in outer content. '
               + `outer=[${ start },${ end }] inner=[${ inner.start },${ inner.end }]. `
-              + 'this is a composition bug — please report with a reproducer.');
+              + 'this is a composition bug - please report with a reproducer.');
           }
           continue;
         }

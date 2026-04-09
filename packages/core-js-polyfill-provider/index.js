@@ -79,13 +79,13 @@ function validateIncludeExclude(include, exclude, modules, method) {
     if (!patterns?.length) continue;
     const unusedModules = patterns.filter(isModulePattern).filter(p => !patternMatches(p, modules));
     if (unusedModules.length) errors.push(formatError(`The following "${ label }" patterns didn't match any polyfill`, unusedModules));
-    const entries = patterns.filter(isEntryPattern);
+    const $entries = patterns.filter(isEntryPattern);
     // entry-path include/exclude only makes sense for the pure variant where the entry IS
     // the import unit; in global modes a single entry would force-inject hundreds of modules
-    if (entries.length && method !== 'usage-pure') {
-      errors.push(formatError(`Entry-path patterns in "${ label }" are only allowed with method: 'usage-pure'`, entries));
+    if ($entries.length && method !== 'usage-pure') {
+      errors.push(formatError(`Entry-path patterns in "${ label }" are only allowed with method: 'usage-pure'`, $entries));
     } else {
-      const unusedEntries = entries.filter(p => !lookupEntryModules(p));
+      const unusedEntries = $entries.filter(p => !lookupEntryModules(p));
       if (unusedEntries.length) errors.push(formatError(`The following "${ label }" entry paths didn't match any polyfill`, unusedEntries));
     }
   }
