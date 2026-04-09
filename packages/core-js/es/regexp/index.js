@@ -5,6 +5,7 @@ require('../../modules/es.regexp.to-string');
 require('../../modules/es.regexp.dot-all');
 require('../../modules/es.regexp.exec');
 require('../../modules/es.regexp.flags');
+require('../../modules/es.regexp.has-indices');
 require('../../modules/es.regexp.sticky');
 require('../../modules/es.regexp.test');
 require('../../modules/es.string.match');

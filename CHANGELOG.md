@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Added `RegExp` `hasIndices` (`d` flag) polyfill, [#1507](https://github.com/zloirock/core-js/issues/1507)
 - Improved performance of `Uint8Array` base64 methods
 - Improved performance of `es.escape`
 - Improved the way of inner iterators cleaning in iterator helpers
