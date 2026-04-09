@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Add polyfill for ``Element.remove``
 - Improved performance of `Uint8Array` base64 methods
 - Improved performance of `es.escape`
 - Improved the way of inner iterators cleaning in iterator helpers
