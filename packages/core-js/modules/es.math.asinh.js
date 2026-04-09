@@ -11,7 +11,7 @@ var SQRT_2_POW_53 = 94906265.62425156;
 
 function asinh(x) {
   var n = +x;
-  return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : n > SQRT_2_POW_53 ? log(n) + LN2 : log(n + sqrt(n * n + 1));
+  return !isFinite(n) || n === 0 ? n : n < 0 ? -asinh(-n) : n > SQRT_2_POW_53 ? log(n) + LN2 : n < 1e-8 ? n : log(n + sqrt(n * n + 1));
 }
 
 var FORCED = !($asinh && 1 / $asinh(0) > 0);

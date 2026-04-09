@@ -21,6 +21,9 @@ QUnit.test('Math.asinh', assert => {
   assert.closeTo(asinh(1e300), 691.4686750787736, 1e-6, 'large value 1e300');
   assert.closeTo(asinh(Number.MAX_VALUE), 710.4758600739439, 1e-6, 'Number.MAX_VALUE');
   assert.closeTo(asinh(-1e200), -461.2101657793691, 1e-6, 'large negative value');
+  assert.closeTo(asinh(1e-16), 1e-16, 1e-30, 'small value 1e-16');
+  assert.closeTo(asinh(1e-20), 1e-20, 1e-34, 'small value 1e-20');
+  assert.closeTo(asinh(-1e-16), -1e-16, 1e-30, 'small negative value -1e-16');
 
   const checker = createConversionChecker(1234);
   assert.closeTo(asinh(checker), 7.811163549201245, 1e-11);
