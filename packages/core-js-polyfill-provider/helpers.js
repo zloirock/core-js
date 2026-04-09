@@ -131,7 +131,7 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperClassName) {
 }
 
 // shared `super.X` / `this.X` class-walking helpers. `t` is `@babel/types` or
-// `estree-compat.types`; caches live on the closure — call once per file
+// `estree-compat.types`; caches live on the closure - call once per file
 export function createClassHelpers(t) {
   const isClassMember = node => t.isClassMethod(node) || t.isClassPrivateMethod(node)
     || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
@@ -310,8 +310,15 @@ export function parseDisableDirectives(comments, offsetToLine, firstStmtStart) {
       if (firstStmtStart === undefined || comment.end <= firstStmtStart) return true;
       continue;
     }
-    const startLine = comment.loc ? comment.loc.start.line : offsetToLine(comment.start);
-    const endLine = comment.loc ? comment.loc.end.line : offsetToLine(comment.end - 1);
+    // synthetic comments (injected by sibling plugins) may lack `loc`/`start`/`end`
+    let startLine, endLine;
+    if (comment.loc) {
+      startLine = comment.loc.start.line;
+      endLine = comment.loc.end.line;
+    } else if (offsetToLine && comment.start !== undefined && comment.end !== undefined) {
+      startLine = offsetToLine(comment.start);
+      endLine = offsetToLine(comment.end - 1);
+    } else continue;
     if (kind === 'line') lines.add(startLine);
     else lines.add(endLine + 1); // next-line
   }

@@ -46,13 +46,14 @@ export default function plugin(api, options) {
     replaceCallWithSimple,
     resolveDestructuringObject,
     handleDestructuredProperty,
+    unwrapTSExpressionParent,
   } = createASTHelpers(t);
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
   let injector, importStyle, debugOutput;
 
-  // per-plugin-instance adapter — closure reads current `injector` without module-level state
+  // per-plugin-instance adapter - closure reads current `injector` without module-level state
   const adapter = createBabelAdapter(() => injector);
   const skipPolyfillableOptional = (node, scope) => isPolyfillableOptional(node, scope, adapter, resolveBuiltIn);
 
@@ -82,7 +83,9 @@ export default function plugin(api, options) {
 
       function handleSymbolIterator(path) {
         if (path.node.computed) skippedNodes.add(path.node.property);
-        const entry = resolveSymbolIteratorEntry(path.node, path.parent);
+        // peel `arr[Symbol.iterator]!()` etc. so the call parent is recognised
+        const callerPath = unwrapTSExpressionParent(path);
+        const entry = resolveSymbolIteratorEntry(callerPath.node, callerPath.parent);
         if (!isEntryNeeded(entry)) return;
         const hint = entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod';
         const id = injectPureImport(entry, hint);
@@ -188,7 +191,12 @@ export default function plugin(api, options) {
             if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)) return;
           } else {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
-            if (!path.isReferenced()) return;
+            // `path.isReferenced()` drops grandparent - pass it explicitly
+            if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
+            // `t.isReferenced` also lacks for-of/in LHS - check explicitly
+            const { parent } = path;
+            if ((parent.type === 'ForOfStatement' || parent.type === 'ForInStatement')
+              && parent.left === path.node) return;
             if (path.parentPath.isUpdateExpression()) return;
             if (t.isSuper(path.node.object)) {
               // resolve `super.X` to its parent class equivalent - currently static-only
