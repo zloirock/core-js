@@ -143,7 +143,7 @@ function forEachChildNode(node, visit) {
   }
 }
 
-// `get` returns NodePath[] for array fields to match babel's behaviour —
+// `get` returns NodePath[] for array fields to match babel's behaviour -
 // `resolveArrayLiteralCommonType` does `path.get('elements')[i]`
 function makeSynthPath(node, parent, parentKey, parentPath, scope) {
   const self = {
@@ -234,8 +234,14 @@ function walkDecorators(parentPath, decoratorVisitors) {
 export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
 
+  // skip user-shadowed names so `class Map {}; let x: Map = …` doesn't pull in es.map.constructor
+  const annotationGlobal = path => name => {
+    if (path.scope?.hasBinding(name)) return;
+    onUsage({ kind: 'global', name }, path);
+  };
+
   function checkTypeAnnotation(path) {
-    checkTypeAnnotations(path.node, name => onUsage({ kind: 'global', name }, path));
+    checkTypeAnnotations(path.node, annotationGlobal(path));
   }
 
   function identifierVisitor(path) {
@@ -255,10 +261,12 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
   }
 
   function memberExpressionVisitor(path) {
-    const { node } = path;
+    const { node, parent, key: parentKey } = path;
     if (handledObjects.has(node)) return;
-    if (suppressProxyGlobals && path.parent?.type === 'BinaryExpression'
-      && path.parent.operator === 'in' && path.parent.left === node) return;
+    // skip assignment targets - polyfilling LHS produces invalid code
+    if (!isReferenced(node, parent, parentKey, path.parentPath?.parent?.type)) return;
+    if (suppressProxyGlobals && parent?.type === 'BinaryExpression'
+      && parent.operator === 'in' && parent.left === node) return;
     const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
@@ -283,12 +291,12 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
       ArrowFunctionExpression: checkTypeAnnotation,
       VariableDeclarator(path) {
         if (path.node.id?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.id.typeAnnotation, name => onUsage({ kind: 'global', name }, path));
+          walkTypeAnnotationGlobals(path.node.id.typeAnnotation, annotationGlobal(path));
         }
       },
       CatchClause(path) {
         if (path.node.param?.typeAnnotation) {
-          walkTypeAnnotationGlobals(path.node.param.typeAnnotation, name => onUsage({ kind: 'global', name }, path));
+          walkTypeAnnotationGlobals(path.node.param.typeAnnotation, annotationGlobal(path));
         }
       },
     } : {},

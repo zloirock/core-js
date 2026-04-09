@@ -242,7 +242,7 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
   if (!suppressProxyGlobals) return;
   // walk down the proxy chain (`globalThis.Object`, `globalThis.self.Promise`, …) and mark
   // every intermediate MemberExpression so the inner visitor doesn't re-process it. stop at
-  // the proxy global leaf itself — it may need its own polyfill when the outer is not polyfilled
+  // the proxy global leaf itself - it may need its own polyfill when the outer is not polyfilled
   let current = obj;
   while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
     && findProxyGlobal(current)) {
@@ -330,7 +330,7 @@ export function canTransformDestructuring({ parentType, parentInit, grandParentT
   return parentType === 'AssignmentExpression';
 }
 
-// allow-list of TS type-only nodes — unknown `TS*` defaults to runtime (false positive is
+// allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
 // louder than silent skip). runtime-carrying wrappers (TSAsExpression, …) stay out
 const TS_TYPE_ONLY_NODES = new Set([
   'TSTypeAnnotation',
@@ -438,7 +438,7 @@ export function isTypeAnnotationNodeType(type) {
   return type.startsWith('Declare');
 }
 
-// param positions (`(x: Foo) => Bar`) — pattern nodes hosting a child `typeAnnotation`
+// param positions (`(x: Foo) => Bar`) - pattern nodes hosting a child `typeAnnotation`
 const TYPE_ANNOTATION_PARAM_HOSTS = new Set([
   'Identifier',
   'RestElement',
