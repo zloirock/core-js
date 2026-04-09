@@ -14,7 +14,7 @@ const {
 
 const { assign, create, entries, hasOwn, keys } = Object;
 
-// shared recursion budget for all resolvers — alias chains, runtime walks, guard traversals
+// shared recursion budget for all resolvers - alias chains, runtime walks, guard traversals
 const MAX_DEPTH = 64;
 
 const PRIMITIVE_WRAPPERS = assign(create(null), {
@@ -513,7 +513,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // walk scope chain; `collect=null` returns first hit, `collect=[]` collects siblings
-  // at the first containing scope (interface merging only — others don't merge)
+  // at the first containing scope (interface merging only - others don't merge)
   function walkScopesForDecl(name, scope, collect) {
     if (!scope) return null;
     const segments = typeof name === 'string' ? name.split('.') : name;
@@ -2077,7 +2077,7 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // single returned expression as a path — used to resolve getters like properties
+  // single returned expression as a path - used to resolve getters like properties
   function resolveBodyReturnValue(fnPath) {
     const body = fnPath.get('body');
     if (!t.isBlockStatement(body.node)) return resolveRuntimeExpression(body);
@@ -2092,7 +2092,7 @@ function createResolveNodeType(babelNodeType, t) {
         result = value;
         continue;
       }
-      // distinct nodes — accept only on matching resolved type (e.g. two `return [1,2,3]`)
+      // distinct nodes - accept only on matching resolved type (e.g. two `return [1,2,3]`)
       if (resultType === undefined) resultType = resolveNodeType(result);
       if (!resultType) return null;
       const valueType = resolveNodeType(value);
