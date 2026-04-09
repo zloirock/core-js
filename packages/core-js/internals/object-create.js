@@ -61,7 +61,7 @@ var NullProtoObject = function () {
     ? document.domain && activeXDocument
       ? NullProtoObjectViaActiveX(activeXDocument) // old IE
       : NullProtoObjectViaIFrame()
-    : function() { return {}; }; // WSH
+    : function () { return {}; }; // WSH
   var length = enumBugKeys.length;
   while (length--) delete NullProtoObject[PROTOTYPE][enumBugKeys[length]];
   return NullProtoObject();
