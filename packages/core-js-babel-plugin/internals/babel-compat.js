@@ -193,7 +193,9 @@ export default function (t) {
 
   function replaceCallWithSimple(path, id, skipOptional) {
     const [check, object] = extractCheck(path, skipOptional);
-    replaceAndWrap(path.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
+    // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
+    const callerPath = unwrapTSExpressionParent(path);
+    replaceAndWrap(callerPath.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
   }
 
   function resolveDestructuringObject(path, resolvedType) {
@@ -285,5 +287,6 @@ export default function (t) {
     replaceCallWithSimple,
     resolveDestructuringObject,
     handleDestructuredProperty,
+    unwrapTSExpressionParent,
   };
 }
