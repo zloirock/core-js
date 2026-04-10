@@ -2971,16 +2971,19 @@ function createResolveNodeType(babelNodeType, t) {
       // for-of / for-await-of: infer element type from the iterable
       if (t.isForOfStatement(forLoopParent.node)) return resolveForOfResolvedElement(forLoopParent);
     }
-    // fallback: resolve init expression for const bindings when resolvePath exhausted its depth limit
-    // (e.g., const v1 = [1]; const v2 = v1; ... const v16 = v15; v16.at(-1))
-    if (t.isVariableDeclarator(node) && node.init && !binding.constantViolations?.length) {
-      return resolveNodeType(bindingPath.get('init'));
-    }
-    // `let x = []; x = 'hello'; x.at(-1)` - resolve from last straight-line assignment
+    // mutable binding: resolve from the last straight-line `x = value` / `x += value` before usage
     const lastAssign = findLastStraightLineAssignment(binding, path);
-    // `=` -> resolve RHS; `+=` etc. -> resolve whole AssignmentExpression (line 1627 handles all operators)
     if (lastAssign) return lastAssign.node.operator === '='
       ? resolveNodeType(lastAssign.get('right')) : resolveNodeType(lastAssign);
+    // no assignment found - resolve from init when either const or all mutations are after usage
+    if (t.isVariableDeclarator(node) && node.init) {
+      const violations = binding.constantViolations;
+      if (!violations?.length) return resolveNodeType(bindingPath.get('init'));
+      const usagePos = path.node.start;
+      if (usagePos !== undefined && violations.every(v => (v.node.start ?? -1) >= usagePos)) {
+        return resolveNodeType(bindingPath.get('init'));
+      }
+    }
     return null;
   }
 
