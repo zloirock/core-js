@@ -77,6 +77,15 @@ const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'AsyncGenerator',
 ]);
 
+const PATTERN_WRAPPERS = new Set([
+  'ArrayPattern',
+  'ObjectPattern',
+  'Property',
+  'ObjectProperty',
+  'AssignmentPattern',
+  'RestElement',
+]);
+
 function $Primitive(type) {
   this.type = type;
   this.constructor = null;
@@ -111,6 +120,18 @@ function createResolveNodeType(babelNodeType, t) {
   function getKeyName(key) {
     if (key?.type === 'Identifier') return key.name;
     return literalKeyValue(key);
+  }
+
+  // [key] where key is a string/number literal or a const binding to one
+  function resolveComputedKeyName(key, scope) {
+    const literal = literalKeyValue(key);
+    if (literal !== null) return literal;
+    if (!scope || key?.type !== 'Identifier') return null;
+    const binding = scope.getBinding(key.name);
+    if (!binding || binding.constantViolations?.length) return null;
+    const decl = binding.path;
+    if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
+    return literalKeyValue(decl.node.init);
   }
 
   function keyMatchesName(key, name) {
@@ -2490,15 +2511,15 @@ function createResolveNodeType(babelNodeType, t) {
 
   // --- Destructuring resolver ---
   // `{ a: { b: c } }`, target `c` -> `['a', 'b']`. nested ObjectPatterns walked recursively
-  function findDestructuredKeyPath(objectPattern, name) {
+  function findDestructuredKeyPath(objectPattern, name, scope) {
     for (const prop of objectPattern.properties) {
       if (babelNodeType(prop) !== 'ObjectProperty') continue;
-      const key = getKeyName(prop.key);
+      const key = prop.computed ? resolveComputedKeyName(prop.key, scope) : getKeyName(prop.key);
       if (key === null) continue;
       const value = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
       if (value?.type === 'Identifier' && value.name === name) return [key];
       if (value?.type === 'ObjectPattern') {
-        const inner = findDestructuredKeyPath(value, name);
+        const inner = findDestructuredKeyPath(value, name, scope);
         if (inner) return [key, ...inner];
       }
     }
@@ -2524,7 +2545,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function resolveDestructuredType(objectPattern, name, scope) {
-    const keyPath = findDestructuredKeyPath(objectPattern, name);
+    const keyPath = findDestructuredKeyPath(objectPattern, name, scope);
     if (!keyPath) return null;
     return resolveAnnotatedMemberPath(objectPattern.typeAnnotation, keyPath, scope);
   }
@@ -2916,6 +2937,25 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // { a: { b: 'x' } } with path ['a','b'] -> resolveObjectMember for 'x'
+  function resolveObjectMemberPath(objPath, keyPath) {
+    if (!t.isObjectExpression(objPath.node)) return null;
+    if (keyPath.length === 1) return resolveObjectMember(objPath, keyPath[0]);
+    const prop = findObjectMember(objPath, keyPath[0]);
+    if (!prop || !t.isObjectProperty(prop.node)) return null;
+    const next = resolveRuntimeExpression(prop.get('value'));
+    return t.isObjectExpression(next.node) ? resolveObjectMemberPath(next, keyPath.slice(1)) : null;
+  }
+
+  // try runtime object literal, then annotation-based resolution for a destructured member
+  function resolveDestructuredMember(exprPath, keyPath) {
+    const runtimeResult = resolveObjectMemberPath(resolveRuntimeExpression(exprPath), keyPath);
+    if (runtimeResult) return runtimeResult;
+    const info = findExpressionAnnotation(exprPath);
+    if (info) return resolveAnnotatedMemberPath(info.annotation, keyPath, info.scope);
+    return null;
+  }
+
   function resolveObjectBinding(objectPattern, varName, bindingPath) {
     // object rest: const { a, ...rest } = obj -> rest is always Object
     if (isRestBinding(objectPattern.properties, varName)) return new $Object('Object');
@@ -2924,26 +2964,11 @@ function createResolveNodeType(babelNodeType, t) {
       const result = resolveDestructuredType(objectPattern, varName, bindingPath.scope);
       if (result) return result;
     }
-    const keyPath = findDestructuredKeyPath(objectPattern, varName);
+    const keyPath = findDestructuredKeyPath(objectPattern, varName, bindingPath.scope);
     if (!keyPath) return null;
-    // { a: { b: 'x' } } with path ['a','b'] -> resolveObjectMember for 'x'
-    function resolveObjectMemberPath(objPath, path) {
-      if (!t.isObjectExpression(objPath.node)) return null;
-      if (path.length === 1) return resolveObjectMember(objPath, path[0]);
-      const prop = findObjectMember(objPath, path[0]);
-      if (!prop || !t.isObjectProperty(prop.node)) return null;
-      const next = resolveRuntimeExpression(prop.get('value'));
-      return t.isObjectExpression(next.node) ? resolveObjectMemberPath(next, path.slice(1)) : null;
-    }
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
-      const initPath = resolveRuntimeExpression(bindingPath.get('init'));
-      const initResult = resolveObjectMemberPath(initPath, keyPath);
-      if (initResult) return initResult;
-      const annotationInfo = findExpressionAnnotation(bindingPath.get('init'));
-      if (annotationInfo) {
-        const result = resolveAnnotatedMemberPath(annotationInfo.annotation, keyPath, annotationInfo.scope);
-        if (result) return result;
-      }
+      const result = resolveDestructuredMember(bindingPath.get('init'), keyPath);
+      if (result) return result;
     }
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
     if (elemInfo) return resolveAnnotatedMemberPath(elemInfo.annotation, keyPath, elemInfo.scope);
@@ -2997,17 +3022,11 @@ function createResolveNodeType(babelNodeType, t) {
     const lastAssign = findLastStraightLineAssignment(binding, path);
     if (lastAssign) {
       if (lastAssign.node.operator !== '=') return resolveNodeType(lastAssign);
-      // destructuring: `({ name } = { name: 'alice' })` - resolve member from RHS
+      // destructuring: `({ a: { b } } = { a: { b: 'alice' } })` - resolve member from RHS
       if (lastAssign.node.left?.type === 'ObjectPattern') {
-        const keyPath = findDestructuredKeyPath(lastAssign.node.left, name);
+        const keyPath = findDestructuredKeyPath(lastAssign.node.left, name, lastAssign.scope);
         if (!keyPath) return null;
-        if (keyPath.length === 1) {
-          const initPath = resolveRuntimeExpression(lastAssign.get('right'));
-          if (t.isObjectExpression(initPath.node)) return resolveObjectMember(initPath, keyPath[0]);
-        }
-        const info = findExpressionAnnotation(lastAssign.get('right'));
-        if (info) return resolveAnnotatedMemberPath(info.annotation, keyPath, info.scope);
-        return null;
+        return resolveDestructuredMember(lastAssign.get('right'), keyPath);
       }
       return resolveNodeType(lastAssign.get('right'));
     }
@@ -3025,11 +3044,14 @@ function createResolveNodeType(babelNodeType, t) {
 
   // normalize a constantViolation path to the enclosing AssignmentExpression.
   // Babel: violation IS the AssignmentExpression. estree-toolkit: violation is the LHS
-  // Identifier - walk up through Property/ObjectPattern to reach the AssignmentExpression
+  // Identifier - walk up through Property/ObjectPattern to reach the AssignmentExpression.
+  // depth scales with destructuring nesting: each level adds Property + ObjectPattern
   function violationToAssignment(v) {
     let p = v;
-    for (let i = 0; i < 4 && p; i++) {
-      if (babelNodeType(p.node) === 'AssignmentExpression') return p;
+    for (let i = 0; i < MAX_DEPTH && p; i++) {
+      const type = babelNodeType(p.node);
+      if (type === 'AssignmentExpression') return p;
+      if (type === 'ExpressionStatement' || type === 'Program') return null;
       p = p.parentPath;
     }
     return null;
@@ -3041,6 +3063,7 @@ function createResolveNodeType(babelNodeType, t) {
     for (let cur = path; cur; cur = cur.parentPath) {
       if (cur.scope === targetScope) return null;
       if (!t.isFunction(cur.node)) continue;
+      if (cur.node.async || cur.node.generator) return null;
       // walk past parens and `(0, fn)` sequence wrappers
       let callee = cur;
       while (callee.parentPath?.node.type === 'ParenthesizedExpression'
@@ -3580,6 +3603,13 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
+  // RHS of `= expr` in assignment or variable declarator
+  function getPatternInit(p) {
+    if (t.isAssignmentExpression(p?.node)) return p.get('right');
+    if (t.isVariableDeclarator(p?.node)) return p.get('init');
+    return null;
+  }
+
   // resolve the type of the object from which a property is accessed:
   // member expression (obj.prop, obj?.prop) or destructuring ({ prop } = obj)
   function resolvePropertyObjectType(path) {
@@ -3591,24 +3621,33 @@ function createResolveNodeType(babelNodeType, t) {
       return resolveTypeAnnotation(objectPattern.node.typeAnnotation, objectPattern.scope);
     }
     const parent = objectPattern.parentPath;
-    // assignment or variable destructuring - resolve the right-hand side
-    const initPath = t.isAssignmentExpression(parent?.node) ? parent.get('right')
-      : t.isVariableDeclarator(parent?.node) ? parent.get('init') : null;
-    if (initPath?.node) return resolveNodeType(initPath);
-    // for-of: walk up through nested patterns to find the enclosing loop
-    const PATTERN_WRAPPERS = new Set([
-      'ArrayPattern',
-      'ObjectPattern',
-      'Property',
-      'ObjectProperty',
-      'AssignmentPattern',
-      'RestElement',
-    ]);
+    // direct parent owns the init - resolve the whole RHS
+    const directInit = getPatternInit(parent);
+    if (directInit?.node) return resolveNodeType(directInit);
+    // nested pattern: walk up collecting the key path, resolve through the init
+    const keyPath = [];
     let ancestor = parent;
-    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) ancestor = ancestor.parentPath;
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) {
+      const type = babelNodeType(ancestor.node);
+      if (type === 'ObjectProperty' || type === 'Property') {
+        const key = ancestor.node.computed
+          ? resolveComputedKeyName(ancestor.node.key, ancestor.scope ?? path.scope)
+          : getKeyName(ancestor.node.key);
+        if (key === null) break;
+        keyPath.unshift(key);
+      }
+      ancestor = ancestor.parentPath;
+    }
+    if (keyPath.length) {
+      const initPath = getPatternInit(ancestor);
+      if (initPath?.node) {
+        const member = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath);
+        if (member) return member;
+      }
+    }
     const forOfPath = t.isForOfStatement(ancestor?.node) ? ancestor : findForLoopParent(ancestor);
-    if (!t.isForOfStatement(forOfPath?.node)) return null;
-    return resolveForOfResolvedElement(forOfPath);
+    if (t.isForOfStatement(forOfPath?.node)) return resolveForOfResolvedElement(forOfPath);
+    return null;
   }
 
   const DOM_COLLECTION_CONSTRUCTORS = assign(create(null), {
