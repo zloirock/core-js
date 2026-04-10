@@ -40,17 +40,17 @@ var NullProtoObjectViaActiveX = function (activeXDocument) {
 // This will fail on 64-bit runtimes or when ScriptControl is unavailable.
 var sc32bit;
 
-var NullProtoObjectViaSc32bit = function() {
+var NullProtoObjectViaSc32bit = function () {
   try {
-    sc32bit = new ActiveXObject("MSScriptControl.ScriptControl");
-    sc32bit.Language = "JScript";
+    sc32bit = new ActiveXObject('MSScriptControl.ScriptControl');
+    sc32bit.Language = 'JScript';
 
     // Return the Object constructor from the ScriptControl context
     // (used to emulate Object.create(null)-like behavior)
-    return sc32bit.Eval("Object");
+    return sc32bit.Eval('Object');
   } catch (error) {
     // Throw a clear error when running outside a supported (32-bit) environment
-    throw Error("This system supports null-prototype object creation only in 32-bit runtimes.");
+    throw new Error('This system supports null-prototype object creation only in 32-bit runtimes.');
   }
 };
 
