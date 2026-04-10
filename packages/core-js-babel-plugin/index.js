@@ -160,11 +160,20 @@ export default function plugin(api, options) {
         resolveSuperMember,
       });
 
+      function isOrphaned(path) {
+        const declarator = path.findParent(p => p.isVariableDeclarator());
+        if (!declarator) return false;
+        const declaration = declarator.parentPath;
+        return declaration?.node && !declaration.node.declarations.includes(declarator.node);
+      }
+
       function usagePureCallback(meta, path) {
         if (isDisabled(path.node)) return;
         if (skippedNodes.has(path.node)) return;
         // skip nodes with stale parent path (consumed by outer optional chain replacement)
         if (path.parentPath && !path.parentPath.container) return;
+        // skip nodes detached by destructuring transform (replaceWith on grandparent)
+        if (isOrphaned(path)) return;
         if (isInTypeAnnotation(path)) return;
 
         if (meta.kind === 'in') {
