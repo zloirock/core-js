@@ -7,6 +7,7 @@ import {
   isCoreJSFile,
   mergeVisitors,
   parseDisableDirectives,
+  TS_EXPR_WRAPPERS,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -86,15 +87,6 @@ function detectCommonJS(ast) {
 
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
-
-// TS-only expression wrappers - runtime no-ops that forward to their `.expression` child
-const TS_EXPR_WRAPPERS = new Set([
-  'TSNonNullExpression',
-  'TSAsExpression',
-  'TSSatisfiesExpression',
-  'TSTypeAssertion',
-  'TSInstantiationExpression',
-]);
 
 // collect every binding name declared anywhere in the AST so the import injector
 // avoids picking a UID that collides with a user-declared identifier in any nested scope
@@ -419,9 +411,11 @@ export default function createPlugin(options) {
         // scans forward from position to find the `?.` token (skipping whitespace/comments)
         function stripOptionalDots(src, baseOffset, positions) {
           if (!positions?.length) return src;
+          // findChainRoot collects positions outermost-first (descending); sort ascending for left-to-right slicing
+          const sorted = [...positions].sort((a, b) => a - b);
           let result = '';
           let prev = 0;
-          for (const absPos of positions) {
+          for (const absPos of sorted) {
             let rel = absPos - baseOffset;
             if (rel < 0 || rel >= src.length) continue;
             // skip whitespace/comments between object end and `?.` token

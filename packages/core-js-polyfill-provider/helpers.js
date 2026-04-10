@@ -2,6 +2,15 @@ import { fileURLToPath } from 'node:url';
 import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 
+// TS-only expression wrappers - runtime no-ops that forward to their `.expression` child
+export const TS_EXPR_WRAPPERS = new Set([
+  'TSNonNullExpression',
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSTypeAssertion',
+  'TSInstantiationExpression',
+]);
+
 // strip g/y flags from RegExp to prevent lastIndex state between calls
 export function toStatelessRegExp(re) {
   return re.global || re.sticky ? new RegExp(re.source, re.flags.replaceAll(/[gy]/g, '')) : re;
