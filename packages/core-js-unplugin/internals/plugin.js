@@ -738,9 +738,23 @@ export default function createPlugin(options) {
             // re-injects the init lazily. skip both the wrapper and inner so the Identifier
             // visitor inside `(Promise)` doesn't queue a stray transform
             if (initNode) {
-              skippedNodes.add(initNode);
-              const inner = peelParens(initNode);
-              if (inner && inner !== initNode) skippedNodes.add(inner);
+              // mark all layers so child visitors don't enqueue conflicting transforms
+              let cur = initNode;
+              while (cur) {
+                skippedNodes.add(cur);
+                switch (cur.type) {
+                  case 'LogicalExpression': cur = cur.operator === '&&' ? cur.right : cur.left; break;
+                  case 'SequenceExpression': cur = cur.expressions.at(-1); break;
+                  case 'ParenthesizedExpression': case 'ChainExpression':
+                  case 'MemberExpression': case 'OptionalMemberExpression':
+                    cur = cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression'
+                      ? cur.object : cur.expression;
+                    break;
+                  default:
+                    if (TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
+                    else cur = null;
+                }
+              }
             }
           }
           state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
@@ -877,6 +891,9 @@ export default function createPlugin(options) {
             const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
             if (meta.key === 'Symbol.iterator') {
               transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.right) })`);
+              // skip child MemberExpression transform - the whole expression is replaced
+              skippedNodes.add(node.left);
+              if (node.left.type === 'ChainExpression') skippedNodes.add(node.left.expression);
             } else {
               transforms.add(node.left.start, node.left.end, binding);
             }
