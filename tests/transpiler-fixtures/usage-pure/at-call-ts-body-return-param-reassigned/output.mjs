@@ -1,7 +1,7 @@
 var _ref;
-import _at from "@core-js/pure/actual/instance/at";
+import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 function getData(x) {
   x = [1, 2, 3];
   return x;
 }
-_at(_ref = getData("hello")).call(_ref, -1);
+_atMaybeArray(_ref = getData("hello")).call(_ref, -1);
