@@ -23,6 +23,10 @@ QUnit.test('Math.asinh', assert => {
   assert.closeTo(asinh(1e-16), 1e-16, 1e-30, 'small value 1e-16');
   assert.closeTo(asinh(1e-20), 1e-20, 1e-34, 'small value 1e-20');
   assert.closeTo(asinh(-1e-16), -1e-16, 1e-30, 'small negative value -1e-16');
+  assert.closeTo(asinh(1e-8), 1e-8, 1e-16, 'precision at 1e-8');
+  assert.closeTo(asinh(1e-5), 9.999999999833334e-6, 1e-16, 'precision at 1e-5');
+  assert.closeTo(asinh(0.01), 0.009999833340832886, 1e-14, 'precision at 0.01');
+  assert.closeTo(asinh(0.1), 0.09983407889920758, 1e-14, 'precision at 0.1');
 
   const checker = createConversionChecker(1234);
   assert.closeTo(asinh(checker), 7.811163549201245, 1e-11);
