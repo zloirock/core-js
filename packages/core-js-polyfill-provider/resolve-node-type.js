@@ -2973,7 +2973,33 @@ function createResolveNodeType(babelNodeType, t) {
     if (t.isVariableDeclarator(node) && node.init && !binding.constantViolations?.length) {
       return resolveNodeType(bindingPath.get('init'));
     }
+    // `let x = []; x = 'hello'; x.at(-1)` — resolve from last straight-line assignment
+    const lastAssign = findLastStraightLineAssignment(binding, path);
+    if (lastAssign) return resolveNodeType(lastAssign.get('right'));
     return null;
+  }
+
+  // find the last `x = value` before usagePath in straight-line code:
+  // same scope, plain identifier LHS, direct ExpressionStatement in block/program
+  function findLastStraightLineAssignment(binding, usagePath) {
+    if (!binding.constantViolations?.length || binding.scope !== usagePath.scope) return null;
+    const beforePos = usagePath.node.start;
+    if (beforePos === undefined || beforePos === null) return null;
+    let best = null;
+    for (const v of binding.constantViolations) {
+      // Babel violations are AssignmentExpression paths; estree-toolkit gives LHS Identifier
+      const ap = babelNodeType(v.node) === 'AssignmentExpression' ? v
+        : babelNodeType(v.parentPath?.node) === 'AssignmentExpression' ? v.parentPath : null;
+      if (!ap || ap.node.operator !== '=' || ap.node.left?.type !== 'Identifier') continue;
+      if (ap.scope !== binding.scope) continue;
+      const pos = ap.node.start;
+      if (pos === undefined || pos === null || pos >= beforePos) continue;
+      if (ap.parentPath?.node.type !== 'ExpressionStatement') continue;
+      const block = ap.parentPath.parentPath;
+      if (block?.node.type !== 'BlockStatement' && block?.node.type !== 'Program') continue;
+      if (!best || pos > best.node.start) best = ap;
+    }
+    return best;
   }
 
   // --- Guard parsing & narrowing ---
@@ -3286,10 +3312,12 @@ function createResolveNodeType(babelNodeType, t) {
     return siblings ? findPrecedingExitGuards(siblings, current.key, varName) : [];
   }
 
-  // collect ALL type guards along the AST path for cumulative narrowing
-  function findEnclosingTypeGuards(path, varName) {
+  // collect ALL type guards along the AST path for cumulative narrowing.
+  // const bindings can't be reassigned, so arrows don't break narrowing — walk past them
+  function findEnclosingTypeGuards(path, varName, isConst = false) {
     const guards = [];
-    for (let current = path.parentPath; current && !t.isFunction(current.node); current = current.parentPath) {
+    for (let current = path.parentPath; current; current = current.parentPath) {
+      if (t.isFunction(current.node) && !(isConst && t.isArrowFunctionExpression(current.node))) break;
       guards.push(
         ...findConditionalGuards(current, varName),
         ...findSwitchCaseGuards(current, varName),
@@ -3368,8 +3396,9 @@ function createResolveNodeType(babelNodeType, t) {
     const binding = path.scope?.getBinding(name);
     let result = null;
     if (binding) {
-      const guards = findEnclosingTypeGuards(path, name);
-      if (guards && (!binding.constantViolations?.length
+      const isConst = !binding.constantViolations?.length;
+      const guards = findEnclosingTypeGuards(path, name, isConst);
+      if (guards && (isConst
           || (!hasMutationAfterGuards(binding, path, name)
             && !hasMutationInCapturedFunction(binding)))) {
         result = { binding, guards };
