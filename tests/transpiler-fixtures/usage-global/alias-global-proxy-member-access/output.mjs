@@ -1,0 +1,13 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
+import "core-js/modules/es.promise.resolve";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.global-this";
+import "core-js/modules/es.string.iterator";
+import "core-js/modules/web.self";
+const P = self.Promise;
+P.resolve(1);
+const A = globalThis.Array;
+A.from([1]);

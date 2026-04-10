@@ -122,8 +122,9 @@ function createResolveNodeType(babelNodeType, t) {
     return literalKeyValue(key);
   }
 
-  // [key] where key is a string/number literal or a const binding to one
-  function resolveComputedKeyName(key, scope) {
+  // [key] where key is a string/number literal or a const binding (chain) to one
+  function resolveComputedKeyName(key, scope, depth = 0) {
+    if (depth > MAX_DEPTH) return null;
     const literal = literalKeyValue(key);
     if (literal !== null) return literal;
     if (!scope || key?.type !== 'Identifier') return null;
@@ -131,7 +132,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (!binding || binding.constantViolations?.length) return null;
     const decl = binding.path;
     if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
-    return literalKeyValue(decl.node.init);
+    return resolveComputedKeyName(decl.node.init, decl.scope ?? scope, depth + 1);
   }
 
   function keyMatchesName(key, name) {
@@ -336,18 +337,18 @@ function createResolveNodeType(babelNodeType, t) {
 
   // deep variant of applyAliasSubst: recurses into refs/args/arrays/tuples/unions so
   // interface-extends args reach inherited members after getTypeMembers flattens them
-  function substSlot(node, slot, subst) {
-    const next = applyAliasSubstDeep(node[slot], subst);
+  function substSlot(node, slot, subst, depth) {
+    const next = applyAliasSubstDeep(node[slot], subst, depth + 1);
     return next === node[slot] ? node : { ...node, [slot]: next };
   }
-  function substList(node, slot, subst) {
+  function substList(node, slot, subst, depth) {
     const list = node[slot];
     if (!list?.length) return node;
-    const next = list.map(el => applyAliasSubstDeep(el, subst));
+    const next = list.map(el => applyAliasSubstDeep(el, subst, depth + 1));
     return next.every((el, i) => el === list[i]) ? node : { ...node, [slot]: next };
   }
-  function applyAliasSubstDeep(node, subst) {
-    if (!subst || !node || typeof node !== 'object') return node;
+  function applyAliasSubstDeep(node, subst, depth = 0) {
+    if (depth > MAX_DEPTH || !subst || !node || typeof node !== 'object') return node;
     switch (node.type) {
       case 'TSTypeReference':
       case 'GenericTypeAnnotation': {
@@ -355,7 +356,7 @@ function createResolveNodeType(babelNodeType, t) {
         if (name && subst.has(name)) return subst.get(name);
         const args = getTypeArgs(node);
         if (!args?.params?.length) return node;
-        const next = args.params.map(p => applyAliasSubstDeep(p, subst));
+        const next = args.params.map(p => applyAliasSubstDeep(p, subst, depth + 1));
         if (next.every((p, i) => p === args.params[i])) return node;
         const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
         return { ...node, [argsKey]: { ...args, params: next } };
@@ -364,20 +365,20 @@ function createResolveNodeType(babelNodeType, t) {
       case 'TypeAnnotation':
       case 'TSParenthesizedType':
       case 'TSOptionalType':
-      case 'NullableTypeAnnotation': return substSlot(node, 'typeAnnotation', subst);
+      case 'NullableTypeAnnotation': return substSlot(node, 'typeAnnotation', subst, depth);
       case 'TSArrayType':
-      case 'ArrayTypeAnnotation': return substSlot(node, 'elementType', subst);
-      case 'TSTupleType': return substList(node, 'elementTypes', subst);
+      case 'ArrayTypeAnnotation': return substSlot(node, 'elementType', subst, depth);
+      case 'TSTupleType': return substList(node, 'elementTypes', subst, depth);
       case 'TupleTypeAnnotation':
       case 'TSUnionType':
       case 'UnionTypeAnnotation':
       case 'TSIntersectionType':
-      case 'IntersectionTypeAnnotation': return substList(node, 'types', subst);
+      case 'IntersectionTypeAnnotation': return substList(node, 'types', subst, depth);
       case 'TSTypeLiteral': {
         let changed = false;
         const members = node.members?.map(m => {
-          const ta = m.typeAnnotation ? applyAliasSubstDeep(m.typeAnnotation, subst) : m.typeAnnotation;
-          const rt = m.returnType ? applyAliasSubstDeep(m.returnType, subst) : m.returnType;
+          const ta = m.typeAnnotation ? applyAliasSubstDeep(m.typeAnnotation, subst, depth + 1) : m.typeAnnotation;
+          const rt = m.returnType ? applyAliasSubstDeep(m.returnType, subst, depth + 1) : m.returnType;
           if (ta === m.typeAnnotation && rt === m.returnType) return m;
           changed = true;
           return { ...m, typeAnnotation: ta, returnType: rt };
@@ -385,24 +386,25 @@ function createResolveNodeType(babelNodeType, t) {
         return changed ? { ...node, members } : node;
       }
       case 'TSConditionalType': {
-        const ck = applyAliasSubstDeep(node.checkType, subst);
-        const ex = applyAliasSubstDeep(node.extendsType, subst);
-        const tr = applyAliasSubstDeep(node.trueType, subst);
-        const fl = applyAliasSubstDeep(node.falseType, subst);
+        const ck = applyAliasSubstDeep(node.checkType, subst, depth + 1);
+        const ex = applyAliasSubstDeep(node.extendsType, subst, depth + 1);
+        const tr = applyAliasSubstDeep(node.trueType, subst, depth + 1);
+        const fl = applyAliasSubstDeep(node.falseType, subst, depth + 1);
         return ck === node.checkType && ex === node.extendsType && tr === node.trueType && fl === node.falseType
           ? node : { ...node, checkType: ck, extendsType: ex, trueType: tr, falseType: fl };
       }
       case 'TSFunctionType':
+      case 'TSConstructorType':
       case 'FunctionTypeAnnotation':
-        return substSlot(node, node.returnType ? 'returnType' : 'typeAnnotation', subst);
+        return substSlot(node, node.returnType ? 'returnType' : 'typeAnnotation', subst, depth);
       case 'TSIndexedAccessType': {
-        const obj = applyAliasSubstDeep(node.objectType, subst);
-        const idx = applyAliasSubstDeep(node.indexType, subst);
+        const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1);
+        const idx = applyAliasSubstDeep(node.indexType, subst, depth + 1);
         return obj === node.objectType && idx === node.indexType
           ? node : { ...node, objectType: obj, indexType: idx };
       }
       case 'TSTypeOperator':
-        return substSlot(node, 'typeAnnotation', subst);
+        return substSlot(node, 'typeAnnotation', subst, depth);
       default: return node;
     }
   }
@@ -1865,6 +1867,7 @@ function createResolveNodeType(babelNodeType, t) {
       case 'TSTypeLiteral':
         for (const member of node.members) {
           if (hasTypeParamReference(member.typeAnnotation, typeParamNames, depth + 1)) return true;
+          if (hasTypeParamReference(member.returnType, typeParamNames, depth + 1)) return true;
         }
         return false;
       case 'TSFunctionType':
@@ -2522,6 +2525,18 @@ function createResolveNodeType(babelNodeType, t) {
         const inner = findDestructuredKeyPath(value, name, scope);
         if (inner) return [key, ...inner];
       }
+      if (value?.type === 'ArrayPattern') {
+        for (let i = 0; i < (value.elements?.length ?? 0); i++) {
+          const el = value.elements[i];
+          if (!el) continue;
+          const unwrapped = el.type === 'AssignmentPattern' ? el.left : el;
+          if (unwrapped?.type === 'Identifier' && unwrapped.name === name) return [key, i];
+          if (unwrapped?.type === 'ObjectPattern') {
+            const inner = findDestructuredKeyPath(unwrapped, name, scope);
+            if (inner) return [key, i, ...inner];
+          }
+        }
+      }
     }
     return null;
   }
@@ -2937,14 +2952,22 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // { a: { b: 'x' } } with path ['a','b'] -> resolveObjectMember for 'x'
+  // { a: [{ b: 'x' }] } with path ['a', 0, 'b'] -> resolveObjectMember for 'x'
+  // string keys resolve object properties, number keys resolve array elements
   function resolveObjectMemberPath(objPath, keyPath) {
+    if (keyPath.length === 0) return resolveNodeType(objPath);
+    const [step] = keyPath;
+    const rest = keyPath.slice(1);
+    if (typeof step === 'number') {
+      if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
+      return resolveObjectMemberPath(resolveRuntimeExpression(objPath.get('elements')[step]), rest);
+    }
     if (!t.isObjectExpression(objPath.node)) return null;
-    if (keyPath.length === 1) return resolveObjectMember(objPath, keyPath[0]);
-    const prop = findObjectMember(objPath, keyPath[0]);
+    if (!rest.length) return resolveObjectMember(objPath, step);
+    const prop = findObjectMember(objPath, step);
     if (!prop || !t.isObjectProperty(prop.node)) return null;
     const next = resolveRuntimeExpression(prop.get('value'));
-    return t.isObjectExpression(next.node) ? resolveObjectMemberPath(next, keyPath.slice(1)) : null;
+    return resolveObjectMemberPath(next, rest);
   }
 
   // try runtime object literal, then annotation-based resolution for a destructured member
@@ -2954,6 +2977,31 @@ function createResolveNodeType(babelNodeType, t) {
     const info = findExpressionAnnotation(exprPath);
     if (info) return resolveAnnotatedMemberPath(info.annotation, keyPath, info.scope);
     return null;
+  }
+
+  // walk from a nested pattern up through parent wrappers, collecting the key path
+  // { a: [{ b }] } -> from ObjectPattern({ b }) up to stop: ['a', 0]
+  function collectPatternKeyPath(startPath, stop) {
+    const result = [];
+    let prev = startPath;
+    let cur = startPath.parentPath;
+    while (cur && cur !== stop && PATTERN_WRAPPERS.has(babelNodeType(cur.node))) {
+      const type = babelNodeType(cur.node);
+      if (type === 'ObjectProperty' || type === 'Property') {
+        const key = cur.node.computed
+          ? resolveComputedKeyName(cur.node.key, cur.scope ?? startPath.scope)
+          : getKeyName(cur.node.key);
+        if (key === null) return null;
+        result.unshift(key);
+      } else if (type === 'ArrayPattern') {
+        const idx = cur.node.elements?.indexOf(prev.node);
+        if (idx === undefined || idx < 0) return null;
+        result.unshift(idx);
+      }
+      prev = cur;
+      cur = cur.parentPath;
+    }
+    return result;
   }
 
   function resolveObjectBinding(objectPattern, varName, bindingPath) {
@@ -2967,7 +3015,10 @@ function createResolveNodeType(babelNodeType, t) {
     const keyPath = findDestructuredKeyPath(objectPattern, varName, bindingPath.scope);
     if (!keyPath) return null;
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
-      const result = resolveDestructuredMember(bindingPath.get('init'), keyPath);
+      // build full path through nested patterns: { a: [{ b }] } = init -> ['a', 0, 'b']
+      const prefix = collectPatternKeyPath(objectPattern, bindingPath);
+      const fullPath = prefix?.length ? [...prefix, ...keyPath] : keyPath;
+      const result = resolveDestructuredMember(bindingPath.get('init'), fullPath);
       if (result) return result;
     }
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
@@ -3027,6 +3078,17 @@ function createResolveNodeType(babelNodeType, t) {
         const keyPath = findDestructuredKeyPath(lastAssign.node.left, name, lastAssign.scope);
         if (!keyPath) return null;
         return resolveDestructuredMember(lastAssign.get('right'), keyPath);
+      }
+      // array destructuring: `[x] = ['hello']` - resolve element from RHS
+      if (lastAssign.node.left?.type === 'ArrayPattern') {
+        const idx = lastAssign.node.left.elements?.findIndex(el => el?.type === 'Identifier' && el.name === name);
+        if (idx >= 0) {
+          const initPath = resolveRuntimeExpression(lastAssign.get('right'));
+          if (t.isArrayExpression(initPath.node) && initPath.node.elements.length > idx) {
+            return resolveNodeType(initPath.get('elements')[idx]);
+          }
+        }
+        return null;
       }
       return resolveNodeType(lastAssign.get('right'));
     }
@@ -3090,7 +3152,7 @@ function createResolveNodeType(babelNodeType, t) {
       const ap = violationToAssignment(v);
       if (!ap) continue;
       const { left } = ap.node;
-      if (left?.type !== 'Identifier' && left?.type !== 'ObjectPattern') continue;
+      if (left?.type !== 'Identifier' && left?.type !== 'ObjectPattern' && left?.type !== 'ArrayPattern') continue;
       // different scope: allow if the enclosing function is a synchronous IIFE
       let effectiveAp = ap;
       if (ap.scope !== binding.scope) {
@@ -3624,21 +3686,11 @@ function createResolveNodeType(babelNodeType, t) {
     // direct parent owns the init - resolve the whole RHS
     const directInit = getPatternInit(parent);
     if (directInit?.node) return resolveNodeType(directInit);
-    // nested pattern: walk up collecting the key path, resolve through the init
-    const keyPath = [];
+    // nested pattern: collect key path via shared walk, resolve through the init
     let ancestor = parent;
-    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) {
-      const type = babelNodeType(ancestor.node);
-      if (type === 'ObjectProperty' || type === 'Property') {
-        const key = ancestor.node.computed
-          ? resolveComputedKeyName(ancestor.node.key, ancestor.scope ?? path.scope)
-          : getKeyName(ancestor.node.key);
-        if (key === null) break;
-        keyPath.unshift(key);
-      }
-      ancestor = ancestor.parentPath;
-    }
-    if (keyPath.length) {
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) ancestor = ancestor.parentPath;
+    const keyPath = collectPatternKeyPath(objectPattern);
+    if (keyPath?.length) {
       const initPath = getPatternInit(ancestor);
       if (initPath?.node) {
         const member = resolveObjectMemberPath(resolveRuntimeExpression(initPath), keyPath);
