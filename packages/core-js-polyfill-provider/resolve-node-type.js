@@ -2971,10 +2971,24 @@ function createResolveNodeType(babelNodeType, t) {
       // for-of / for-await-of: infer element type from the iterable
       if (t.isForOfStatement(forLoopParent.node)) return resolveForOfResolvedElement(forLoopParent);
     }
-    // mutable binding: resolve from the last straight-line `x = value` / `x += value` before usage
+    // mutable binding: resolve from the last straight-line assignment before usage
     const lastAssign = findLastStraightLineAssignment(binding, path);
-    if (lastAssign) return lastAssign.node.operator === '='
-      ? resolveNodeType(lastAssign.get('right')) : resolveNodeType(lastAssign);
+    if (lastAssign) {
+      if (lastAssign.node.operator !== '=') return resolveNodeType(lastAssign);
+      // destructuring: `({ name } = { name: 'alice' })` - resolve member from RHS
+      if (lastAssign.node.left?.type === 'ObjectPattern') {
+        const keyPath = findDestructuredKeyPath(lastAssign.node.left, name);
+        if (!keyPath) return null;
+        if (keyPath.length === 1) {
+          const initPath = resolveRuntimeExpression(lastAssign.get('right'));
+          if (t.isObjectExpression(initPath.node)) return resolveObjectMember(initPath, keyPath[0]);
+        }
+        const info = findExpressionAnnotation(lastAssign.get('right'));
+        if (info) return resolveAnnotatedMemberPath(info.annotation, keyPath, info.scope);
+        return null;
+      }
+      return resolveNodeType(lastAssign.get('right'));
+    }
     // no assignment found - resolve from init when either const or all mutations are after usage
     if (t.isVariableDeclarator(node) && node.init) {
       const violations = binding.constantViolations;
@@ -2987,23 +3001,38 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // find the last `x = value` before usagePath in straight-line code:
-  // same scope, plain identifier LHS, direct ExpressionStatement in block/program
+  // normalize a constantViolation path to the enclosing AssignmentExpression.
+  // Babel: violation IS the AssignmentExpression. estree-toolkit: violation is the LHS
+  // Identifier - walk up through Property/ObjectPattern to reach the AssignmentExpression
+  function violationToAssignment(v) {
+    let p = v;
+    for (let i = 0; i < 4 && p; i++) {
+      if (babelNodeType(p.node) === 'AssignmentExpression') return p;
+      p = p.parentPath;
+    }
+    return null;
+  }
+
+  // find the last straight-line assignment before usagePath:
+  // `x = value`, `x += value`, or `({ x } = value)` - same scope, direct statement in block
   function findLastStraightLineAssignment(binding, usagePath) {
     if (!binding.constantViolations?.length || binding.scope !== usagePath.scope) return null;
     const beforePos = usagePath.node.start;
     if (beforePos === undefined || beforePos === null) return null;
     let best = null;
     for (const v of binding.constantViolations) {
-      // Babel violations are AssignmentExpression paths; estree-toolkit gives LHS Identifier
-      const ap = babelNodeType(v.node) === 'AssignmentExpression' ? v
-        : babelNodeType(v.parentPath?.node) === 'AssignmentExpression' ? v.parentPath : null;
-      if (!ap || ap.node.left?.type !== 'Identifier') continue;
+      const ap = violationToAssignment(v);
+      if (!ap) continue;
+      const { left } = ap.node;
+      if (left?.type !== 'Identifier' && left?.type !== 'ObjectPattern') continue;
       if (ap.scope !== binding.scope) continue;
       const pos = ap.node.start;
       if (pos === undefined || pos === null || pos >= beforePos) continue;
-      if (ap.parentPath?.node.type !== 'ExpressionStatement') continue;
-      const block = ap.parentPath.parentPath;
+      // walk past ParenthesizedExpression (ESTree preserves `({ x } = ...)` parens)
+      let stmt = ap.parentPath;
+      while (stmt?.node.type === 'ParenthesizedExpression') stmt = stmt.parentPath;
+      if (stmt?.node.type !== 'ExpressionStatement') continue;
+      const block = stmt.parentPath;
       if (block?.node.type !== 'BlockStatement' && block?.node.type !== 'Program') continue;
       if (!best || pos > best.node.start) best = ap;
     }
