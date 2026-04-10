@@ -3,7 +3,7 @@
   "devDependencies": {
     "@slowcheetah/qunitjs-1": "^1.23.1",
     "babel-loader": "^10.1.1",
-    "webpack": "^5.106.0",
+    "webpack": "^5.106.1",
     "webpack-cli": "^7.0.2"
   }
 }
