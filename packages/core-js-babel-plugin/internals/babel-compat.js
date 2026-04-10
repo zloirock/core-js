@@ -1,14 +1,5 @@
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage';
-import { findUniqueName } from '@core-js/polyfill-provider/helpers';
-
-// TS-only expression wrappers - runtime no-ops that forward to their `.expression` child
-const TS_EXPR_WRAPPERS = new Set([
-  'TSNonNullExpression',
-  'TSAsExpression',
-  'TSSatisfiesExpression',
-  'TSTypeAssertion',
-  'TSInstantiationExpression',
-]);
+import { findUniqueName, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
 
 export default function (t) {
   // memoized ancestor walk - cached on parent nodes so descendants share results
