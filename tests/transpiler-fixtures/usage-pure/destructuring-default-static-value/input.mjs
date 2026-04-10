@@ -1,0 +1,1 @@
+const { from = fallback } = Array;
