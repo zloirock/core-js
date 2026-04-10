@@ -3316,11 +3316,11 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // collect ALL type guards along the AST path for cumulative narrowing.
-  // const bindings can't be reassigned, so arrows don't break narrowing — walk past them
+  // const bindings can't be reassigned — function boundaries don't invalidate guards
   function findEnclosingTypeGuards(path, varName, isConst = false) {
     const guards = [];
     for (let current = path.parentPath; current; current = current.parentPath) {
-      if (t.isFunction(current.node) && !(isConst && t.isArrowFunctionExpression(current.node))) break;
+      if (t.isFunction(current.node) && !isConst) break;
       guards.push(
         ...findConditionalGuards(current, varName),
         ...findSwitchCaseGuards(current, varName),
