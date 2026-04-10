@@ -127,7 +127,10 @@ function captureTransform(source, pluginOptions, testId) {
   }
 }
 
-const SKIP_DIRS = new Set(['source-script', 'cjs-transform-export']);
+const SKIP_DIRS = new Set([
+  'source-script',
+  'cjs-transform-export',
+]);
 
 function shouldSkip(dirName) {
   return SKIP_DIRS.has(dirName) || dirName.includes('-flow-') || dirName.startsWith('flow-');

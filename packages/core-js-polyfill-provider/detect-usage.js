@@ -8,7 +8,7 @@
 //   isStringLiteral(node)           -> boolean
 //   getStringValue(node)            -> string | null
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, symbolKeyToEntry } from './helpers.js';
 
 // known-built-in-return-types enumerates every built-in identifier core-js knows about.
 // constructors (Array, Map, ...) and global functions (parseInt, fetch, ...) are functions;
@@ -21,11 +21,11 @@ const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespaces);
 
 const MAX_KEY_DEPTH = 10;
 
-// strip ESTree ParenthesizedExpression wrappers - Babel doesn't produce these by default,
-// so this is a no-op for Babel input. (Array).from / (Object).assign / ((Promise)).resolve
-// must be treated as if the parens weren't there for static-method resolution
+// strip transparent wrappers: ParenthesizedExpression, TS expression wrappers, ChainExpression
+// (Array as any).from() / globalThis?.Array must resolve the same as Array.from() / globalThis.Array
 function unwrapParens(node) {
-  while (node?.type === 'ParenthesizedExpression') node = node.expression;
+  while (node?.type === 'ParenthesizedExpression' || node?.type === 'ChainExpression'
+    || TS_EXPR_WRAPPERS.has(node?.type)) node = node.expression;
   return node;
 }
 
@@ -57,7 +57,14 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
       if (!adapter.hasBinding(scope, init.name)) return init.name;
       return resolveBindingToGlobal(init.name, scope, adapter, seen);
     }
-    if (init) return null;
+    // const P = self.Promise / const A = globalThis['Array']
+    if (init) {
+      const unwrapped = unwrapParens(init);
+      if (unwrapped.type === 'MemberExpression' || unwrapped.type === 'OptionalMemberExpression') {
+        return resolveObjectName(unwrapped, scope, adapter);
+      }
+      return null;
+    }
   }
   // any other binding (param, catch, class name) - not a global
   return null;
@@ -70,10 +77,13 @@ function resolveObjectName(objectNode, scope, adapter) {
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
-  // globalThis.Array, self.Promise, globalThis.globalThis.Array - walk past any number of
-  // chained proxy globals until we hit an Identifier; that identifier is the resolved name
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
-  if (objectNode.computed || objectNode.property.type !== 'Identifier') return null;
+  // globalThis[`Array`] - computed string-resolvable proxy access
+  if (objectNode.computed) {
+    return resolveComputedProxyName(objectNode, scope, adapter);
+  }
+  // globalThis.Array, self.Promise, globalThis.globalThis.Array - walk past chained proxy globals
+  if (objectNode.property.type !== 'Identifier') return null;
   let inner = unwrapParens(objectNode.object);
   while ((inner.type === 'MemberExpression' || inner.type === 'OptionalMemberExpression')
     && !inner.computed && inner.property.type === 'Identifier'
@@ -83,6 +93,14 @@ function resolveObjectName(objectNode, scope, adapter) {
   if (inner.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(inner.name)) return null;
   if (adapter.hasBinding(scope, inner.name)) return null;
   return objectNode.property.name;
+}
+
+// globalThis['Array'] / globalThis[`Map`] -> 'Array' / 'Map'
+function resolveComputedProxyName(node, scope, adapter) {
+  const obj = unwrapParens(node.object);
+  if (obj.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) return null;
+  if (adapter.hasBinding(scope, obj.name)) return null;
+  return resolveKey(node.property, true, scope, adapter);
 }
 
 export function resolveKey(node, computed, scope, adapter, depth = 0) {
@@ -116,7 +134,7 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
     if (left !== null && right !== null) return left + right;
   }
   // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
-  if (computed && node.type === 'MemberExpression'
+  if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && node.object.type === 'Identifier' && node.object.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
     const name = resolveKey(node.property, node.computed, scope, adapter, depth + 1);
@@ -190,15 +208,16 @@ export function resolveSymbolIteratorEntry(node, parent) {
 // returns meta object or null. Also marks handled objects if suppressProxyGlobals is false
 export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   if (node.operator !== 'in') return null;
-  // Symbol.X in obj - well-known symbol protocol check
-  if (node.left.type === 'MemberExpression'
-    && node.left.object?.type === 'Identifier' && node.left.object.name === 'Symbol'
+  // Symbol.X in obj / Symbol?.X in obj (ESTree wraps optional in ChainExpression)
+  const left = node.left.type === 'ChainExpression' ? node.left.expression : node.left;
+  if ((left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
+    && left.object?.type === 'Identifier' && left.object.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
-    const name = resolveKey(node.left.property, node.left.computed, scope, adapter);
+    const name = resolveKey(left.property, left.computed, scope, adapter);
     if (name) {
       if (!suppressProxyGlobals) {
         handledObjects.add(node.left);
-        handledObjects.add(node.left.object);
+        handledObjects.add(left.object);
       }
       return { kind: 'in', key: `Symbol.${ name }`, object: null, placement: null };
     }
@@ -304,7 +323,9 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   if (unwrapped.type === 'SequenceExpression') {
     return buildDestructuringInitMeta(unwrapped.expressions.at(-1), key, scope, adapter);
   }
-  if (unwrapped.type === 'Identifier') {
+  // `const { from } = Array` or `const { from } = globalThis.Array`
+  if (unwrapped.type === 'Identifier' || unwrapped.type === 'MemberExpression'
+    || unwrapped.type === 'OptionalMemberExpression') {
     const objectName = resolveObjectName(unwrapped, scope, adapter);
     const placement = objectName ? isStaticPlacement(objectName) : null;
     const receiverHint = placement === 'static' ? destructureReceiverHint(objectName) : null;
