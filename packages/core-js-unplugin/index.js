@@ -5,7 +5,7 @@ import createPlugin from './internals/plugin.js';
 // exclude .d.ts declaration files - they contain only types, no runtime code
 // Flow (.flow) is not included - oxc-parser cannot parse Flow syntax
 const JS_RE = /\.[cm]?[jt]sx?(?:[#?][^#?]*)?$/;
-const DTS_RE = /\.d\.[cm]?ts(?:[#?][^#?]*)?$/;
+const DTS_RE = /\.d\.[cm]?tsx?(?:[#?][^#?]*)?$/;
 
 const unplugin = createUnplugin((options, meta) => {
   const plugin = createPlugin({ ...options, bundler: meta?.framework });
