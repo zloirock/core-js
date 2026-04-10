@@ -1,7 +1,7 @@
 # Changelog
 ### Unreleased
 - Fixed possible crash on some keys in `Symbol.for`
-- Fixed possible early error in `get-iterator-method` helper
+- Some `get-iterator` / `get-iterator-method` fixes
 - Fixed `String.prototype.{ match, search }` polyfills conversion order
 - Added missed `MAX_SAFE_INTEGER` excess check in `Array.from` and `{ Map, Object }.groupBy` polyfills
 - Improved the way of inner iterators cleaning in iterator helpers

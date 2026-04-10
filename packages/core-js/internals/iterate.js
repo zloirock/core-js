@@ -6,8 +6,8 @@ var tryToString = require('../internals/try-to-string');
 var isArrayIteratorMethod = require('../internals/is-array-iterator-method');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var isPrototypeOf = require('../internals/object-is-prototype-of');
-var getIterator = require('../internals/get-iterator');
-var getIteratorMethod = require('../internals/get-iterator-method');
+var getIterator = require('../internals/get-iterator-internal');
+var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var iteratorClose = require('../internals/iterator-close');
 
 var $TypeError = TypeError;

@@ -8,8 +8,8 @@ var isConstructor = require('../internals/is-constructor');
 var lengthOfArrayLike = require('../internals/length-of-array-like');
 var createProperty = require('../internals/create-property');
 var setArrayLength = require('../internals/array-set-length');
-var getIterator = require('../internals/get-iterator');
-var getIteratorMethod = require('../internals/get-iterator-method');
+var getIterator = require('../internals/get-iterator-internal');
+var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var iteratorClose = require('../internals/iterator-close');
 var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 
