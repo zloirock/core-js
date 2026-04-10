@@ -202,7 +202,7 @@ function collectFunctionLocals(fnNode) {
       for (const d of node.declarations) {
         walkPatternIdentifiers(d.id, id => locals.set(id.name, { constant, node: d }));
       }
-    } else if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id?.name) {
+    } else if (node.type === 'ClassDeclaration' && node.id?.name) {
       locals.set(node.id.name, { constant: true, node });
     }
     forEachChildNode(node, walk);
