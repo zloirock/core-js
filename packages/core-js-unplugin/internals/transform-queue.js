@@ -21,18 +21,6 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
   return false;
 }
 
-// insert into sorted array maintaining start-ascending order
-function insertSorted(ranges, t) {
-  let lo = 0;
-  let hi = ranges.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (ranges[mid].start < t.start) lo = mid + 1;
-    else hi = mid;
-  }
-  ranges.splice(lo, 0, t);
-}
-
 // count how many times `needle` appears in `haystack` before `targetOffset`
 function occurrencesBeforeOffset(haystack, needle, targetOffset) {
   let count = 0;
@@ -66,14 +54,27 @@ function substituteInner(content, needle, replacement, nth, outerHint) {
   return { content, found: false };
 }
 
+// binary search: first index with ranges[i].start >= target
+function lowerBound(ranges, target) {
+  let lo = 0;
+  let hi = ranges.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ranges[mid].start < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 // deferred transform queue for usage-pure: collects text replacements during traversal,
 // composes nested transforms, applies after traversal
 export default class TransformQueue {
   #code;
   #ms;
   #transforms = [];
-  #sorted = null; // lazily built sorted snapshot for containsRange
-  #prefixMaxEnd = null; // running max of sorted[i].end, enables O(log n) containment check
+  // incrementally maintained sorted snapshot + prefix max for O(log n) containsRange
+  #sorted = [];
+  #prefixMaxEnd = [];
 
   constructor(code, ms) {
     this.#code = code;
@@ -81,9 +82,18 @@ export default class TransformQueue {
   }
 
   add(start, end, content, guardedRoot, rewriteHint) {
-    this.#transforms.push({ start, end, content, guardedRoot, rewriteHint });
-    this.#sorted = null; // invalidate
-    this.#prefixMaxEnd = null;
+    const entry = { start, end, content, guardedRoot, rewriteHint };
+    this.#transforms.push(entry);
+    // maintain sorted snapshot incrementally so containsRange stays O(log n)
+    const pos = lowerBound(this.#sorted, start);
+    this.#sorted.splice(pos, 0, entry);
+    // update prefix max from insertion point onward
+    const prev = pos > 0 ? this.#prefixMaxEnd[pos - 1] : -1;
+    let running = prev;
+    for (let i = pos; i < this.#sorted.length; i++) {
+      if (this.#sorted[i].end > running) running = this.#sorted[i].end;
+      this.#prefixMaxEnd[i] = running;
+    }
   }
 
   // check if a containing transform already guards the given root identifier
@@ -100,17 +110,8 @@ export default class TransformQueue {
     return match?.rewriteHint?.guardRef ?? null;
   }
 
-  // check if [start, end] is strictly contained within an already-queued transform
+  // O(log n) check if [start, end] is strictly contained within an already-queued transform
   containsRange(start, end) {
-    if (!this.#sorted) {
-      this.#sorted = [...this.#transforms].sort((a, b) => a.start - b.start);
-      this.#prefixMaxEnd = new Array(this.#sorted.length);
-      let running = -1;
-      for (let i = 0; i < this.#sorted.length; i++) {
-        if (this.#sorted[i].end > running) running = this.#sorted[i].end;
-        this.#prefixMaxEnd[i] = running;
-      }
-    }
     return isStrictlyContained(this.#sorted, start, end, this.#prefixMaxEnd);
   }
 
@@ -118,10 +119,20 @@ export default class TransformQueue {
   extractContent(start, end) {
     const idx = this.#transforms.findIndex(t => t.start === start && t.end === end);
     if (idx === -1) return null;
-    const { content } = this.#transforms[idx];
+    const entry = this.#transforms[idx];
     this.#transforms.splice(idx, 1);
-    this.#sorted = null;
-    return content;
+    const si = this.#sorted.indexOf(entry);
+    if (si !== -1) {
+      this.#sorted.splice(si, 1);
+      // rebuild prefix max from removal point
+      this.#prefixMaxEnd.length = this.#sorted.length;
+      let running = si > 0 ? this.#prefixMaxEnd[si - 1] : -1;
+      for (let i = si; i < this.#sorted.length; i++) {
+        if (this.#sorted[i].end > running) running = this.#sorted[i].end;
+        this.#prefixMaxEnd[i] = running;
+      }
+    }
+    return entry.content;
   }
 
   // compose nested transforms and apply to magic-string
@@ -129,7 +140,7 @@ export default class TransformQueue {
     const { length } = this.#transforms;
     if (!length) return;
 
-    // fast path: no nesting - skip O(n²) composition, apply right-to-left
+    // fast path: no nesting - skip composition, apply right-to-left
     if (!this.#hasNesting()) {
       this.#transforms.sort((a, b) => b.start - a.start);
       for (const t of this.#transforms) this.#ms.overwrite(t.start, t.end, t.content);
@@ -140,69 +151,65 @@ export default class TransformQueue {
     // sort innermost first: smaller ranges before larger, right-to-left for same-level
     this.#transforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
 
-    // phase 1: compose - substitute inner transforms' content into outer transforms
-    // byStart index enables O(log n + k) inner lookup instead of O(n) linear scan
+    // phase 1: compose - build byStart index once, track composed content via Map
+    const byStart = [...this.#transforms].sort((a, b) => a.start - b.start);
+    const composedContent = new Map(); // transform -> composed content string
     const composed = [];
-    const byStart = [];
-    for (const { start, end, content: raw, rewriteHint } of this.#transforms) {
-      let content = raw;
 
-      // binary search for first candidate with start >= current start
-      let lo = 0;
-      let hi = byStart.length;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (byStart[mid].start < start) lo = mid + 1;
-        else hi = mid;
-      }
-      // collect inners within [start, end], sort largest first for correct composition order
+    for (const t of this.#transforms) {
+      const { start, end, rewriteHint } = t;
+      let content = composedContent.get(t) ?? t.content;
+
+      // binary search for inners within [start, end]
+      const lo = lowerBound(byStart, start);
       const inners = [];
+      let dup = null;
       for (let i = lo; i < byStart.length && byStart[i].start <= end; i++) {
+        if (byStart[i] === t) continue;
         if (byStart[i].end <= end) inners.push(byStart[i]);
+        // equal-range dedup: arrow body wrapper shares range with its inner polyfill
+        if (byStart[i].start === start && byStart[i].end === end) dup = byStart[i];
+      }
+      if (dup) {
+        // equal range (e.g. arrow body wrapper + inner polyfill): compose and emit once.
+        // the "wrapper" contains the original source as a substring; the "inner" doesn't
+        const dupContent = composedContent.get(dup) ?? dup.content;
+        const needle = this.#code.slice(start, end);
+        const contentIsWrapper = content.includes(needle);
+        const wrapper = contentIsWrapper ? content : dupContent;
+        const inner = contentIsWrapper ? dupContent : content;
+        composedContent.set(t, wrapper.includes(needle) ? wrapper.replace(needle, inner) : inner);
+        composed.push(t);
+        continue;
       }
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 
-      // inners sorted largest-first - a smaller inner covered by an already-substituted
-      // larger inner is expected to miss (it's embedded in the larger's composed content).
-      // a miss on a non-covered inner means the outer still holds raw source: throw loudly
       const originalSlice = this.#code.slice(start, end);
-      const coveredRanges = [];
+      let coveredMaxEnd = -1;
       for (const inner of inners) {
+        const innerContent = composedContent.get(inner) ?? inner.content;
         const needle = this.#code.slice(inner.start, inner.end);
         const nth = occurrencesBeforeOffset(originalSlice, needle, inner.start - start);
-        const result = substituteInner(content, needle, inner.content, nth, rewriteHint);
+        const result = substituteInner(content, needle, innerContent, nth, rewriteHint);
         if (!result.found) {
-          const covered = coveredRanges.some(r => r.start <= inner.start && r.end >= inner.end);
-          if (!covered) {
-            throw new Error('[core-js] transform-queue: could not locate inner needle in outer content. '
-              + `outer=[${ start },${ end }] inner=[${ inner.start },${ inner.end }]. `
-              + 'this is a composition bug - please report with a reproducer.');
-          }
-          continue;
+          if (inner.start >= start && inner.end <= coveredMaxEnd) continue;
+          throw new Error('[core-js] transform-queue: could not locate inner needle in outer content. '
+            + `outer=[${ start },${ end }] inner=[${ inner.start },${ inner.end }]. `
+            + 'this is a composition bug - please report with a reproducer.');
         }
         content = result.content;
-        coveredRanges.push(inner);
+        if (inner.end > coveredMaxEnd) coveredMaxEnd = inner.end;
       }
-
-      // equal-range dedup: update in place instead of duplicating (e.g. arrow body wrapper
-      // sharing range with its inner polyfill). current `content` is the composed version
-      const dup = inners.find(inner => inner.start === start && inner.end === end);
-      if (dup) {
-        dup.content = content;
-      } else {
-        const entry = { start, end, content };
-        composed.push(entry);
-        insertSorted(byStart, entry);
-      }
+      composedContent.set(t, content);
+      composed.push(t);
     }
 
     // phase 2: apply outermost transforms only
-    // sort by start ascending, end descending; sweep tracking maxEnd to skip contained ranges
     composed.sort((a, b) => a.start - b.start || b.end - a.end);
     let maxEnd = -1;
     for (const t of composed) {
       if (t.end > maxEnd) {
-        this.#ms.overwrite(t.start, t.end, t.content);
+        this.#ms.overwrite(t.start, t.end, composedContent.get(t) ?? t.content);
         maxEnd = t.end;
       }
     }
