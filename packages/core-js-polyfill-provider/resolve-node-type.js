@@ -3013,6 +3013,27 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // if `path` is inside a synchronous IIFE within `targetScope`, return the CallExpression
+  // path. matches `(() => { x = 1 })()` but NOT `setTimeout(() => { x = 1 })`
+  function findEnclosingIIFE(path, targetScope) {
+    for (let cur = path; cur; cur = cur.parentPath) {
+      if (cur.scope === targetScope) return null;
+      if (!t.isFunction(cur.node)) continue;
+      // walk past parens and `(0, fn)` sequence wrappers
+      let callee = cur;
+      while (callee.parentPath?.node.type === 'ParenthesizedExpression'
+        || (callee.parentPath?.node.type === 'SequenceExpression'
+          && callee.node === callee.parentPath.node.expressions.at(-1))) {
+        callee = callee.parentPath;
+      }
+      const call = callee.parentPath;
+      if (call && (call.node.type === 'CallExpression' || call.node.type === 'OptionalCallExpression')
+        && call.node.callee === callee.node) return call;
+      return null;
+    }
+    return null;
+  }
+
   // find the last straight-line assignment before usagePath:
   // `x = value`, `x += value`, or `({ x } = value)` - same scope, direct statement in block
   function findLastStraightLineAssignment(binding, usagePath) {
@@ -3025,13 +3046,19 @@ function createResolveNodeType(babelNodeType, t) {
       if (!ap) continue;
       const { left } = ap.node;
       if (left?.type !== 'Identifier' && left?.type !== 'ObjectPattern') continue;
-      if (ap.scope !== binding.scope) continue;
-      const pos = ap.node.start;
+      // different scope: allow if the enclosing function is a synchronous IIFE
+      let effectiveAp = ap;
+      if (ap.scope !== binding.scope) {
+        const iife = findEnclosingIIFE(ap, binding.scope);
+        if (!iife) continue;
+        effectiveAp = iife;
+      }
+      const pos = effectiveAp.node.start;
       if (pos === undefined || pos === null || pos >= beforePos) continue;
-      // walk past ParenthesizedExpression (ESTree preserves `({ x } = ...)` parens)
-      let stmt = ap.parentPath;
-      while (stmt?.node.type === 'ParenthesizedExpression') stmt = stmt.parentPath;
-      if (stmt?.node.type !== 'ExpressionStatement') continue;
+      // walk to ExpressionStatement — past parens, void, sequence, unary wrappers
+      let stmt = effectiveAp;
+      while (stmt && stmt.node.type !== 'ExpressionStatement') stmt = stmt.parentPath;
+      if (!stmt) continue;
       const block = stmt.parentPath;
       if (block?.node.type !== 'BlockStatement' && block?.node.type !== 'Program') continue;
       if (!best || pos > best.node.start) best = ap;
