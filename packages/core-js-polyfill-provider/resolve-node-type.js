@@ -2702,7 +2702,10 @@ function createResolveNodeType(babelNodeType, t) {
       if (callee.node.type === 'MemberExpression' || callee.node.type === 'OptionalMemberExpression') {
         const memberInfo = findExpressionAnnotation(callee, depth + 1);
         if (memberInfo) {
-          const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(memberInfo.annotation));
+          const unwrappedMember = unwrapTypeAnnotation(memberInfo.annotation);
+          // TSFunctionType → extract return type; TSMethodSignature's typeAnnotation
+          // is already the return type (not a function wrapper), use it directly
+          const ret = functionTypeReturnAnnotation(unwrappedMember) ?? unwrappedMember;
           if (ret) return { annotation: ret, scope: memberInfo.scope };
         }
       }
