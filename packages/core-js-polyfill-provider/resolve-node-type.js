@@ -2873,6 +2873,19 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
     if (elemInfo) return resolveAnnotatedMemberPath(elemInfo.annotation, keyPath, elemInfo.scope);
+    // runtime: for (const { name } of [{ name: [1,2,3] }]) or similar runtime-resolvable iterables
+    const forOfPath = findForLoopParent(bindingPath);
+    if (t.isForOfStatement(forOfPath?.node)) {
+      const iterPath = resolveRuntimeExpression(forOfPath.get('right'));
+      // array literal iterable -> resolve the property from the first object element
+      if (keyPath.length === 1 && t.isArrayExpression(iterPath.node) && iterPath.node.elements.length) {
+        const firstElem = resolveRuntimeExpression(iterPath.get('elements')[0]);
+        if (t.isObjectExpression(firstElem.node)) {
+          const result = resolveObjectMember(firstElem, keyPath[0]);
+          if (result) return result;
+        }
+      }
+    }
     return resolveDestructuringDefault(objectPattern, varName, bindingPath);
   }
 
@@ -3421,8 +3434,18 @@ function createResolveNodeType(babelNodeType, t) {
     const initPath = t.isAssignmentExpression(parent?.node) ? parent.get('right')
       : t.isVariableDeclarator(parent?.node) ? parent.get('init') : null;
     if (initPath?.node) return resolveNodeType(initPath);
-    // for-of / for-await-of destructuring - resolve the iterable element type
-    const forOfPath = t.isForOfStatement(parent?.node) ? parent : findForLoopParent(parent);
+    // for-of: walk up through nested patterns to find the enclosing loop
+    const PATTERN_WRAPPERS = new Set([
+      'ArrayPattern',
+      'ObjectPattern',
+      'Property',
+      'ObjectProperty',
+      'AssignmentPattern',
+      'RestElement',
+    ]);
+    let ancestor = parent;
+    while (ancestor && PATTERN_WRAPPERS.has(babelNodeType(ancestor.node))) ancestor = ancestor.parentPath;
+    const forOfPath = t.isForOfStatement(ancestor?.node) ? ancestor : findForLoopParent(ancestor);
     if (!t.isForOfStatement(forOfPath?.node)) return null;
     return resolveForOfResolvedElement(forOfPath);
   }
