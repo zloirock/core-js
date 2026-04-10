@@ -2678,8 +2678,8 @@ function createResolveNodeType(babelNodeType, t) {
         if (init.node) return findExpressionAnnotation(init, depth + 1);
       }
     }
-    // obj.prop / obj?.prop — resolve property type through the object's annotation chain,
-    // carrying generic substitutions so `Wrapper<string>.inner.value()` resolves T → string
+    // obj.prop / obj?.prop - resolve property type through the object's annotation chain,
+    // carrying generic substitutions so `Wrapper<string>.inner.value()` resolves T -> string
     if ((path.node.type === 'MemberExpression' || path.node.type === 'OptionalMemberExpression')
       && !path.node.computed && path.node.property?.type === 'Identifier') {
       const result = resolveMemberAnnotation(path, depth);
@@ -2697,13 +2697,13 @@ function createResolveNodeType(babelNodeType, t) {
           : fnPath.node.returnType;
         return { annotation, scope: fnPath.scope };
       }
-      // typed method call: w.inner.value() — resolve callee's annotation, extract return type
+      // typed method call: w.inner.value() - resolve callee's annotation, extract return type
       const callee = path.get('callee');
       if (callee.node.type === 'MemberExpression' || callee.node.type === 'OptionalMemberExpression') {
         const memberInfo = findExpressionAnnotation(callee, depth + 1);
         if (memberInfo) {
           const unwrappedMember = unwrapTypeAnnotation(memberInfo.annotation);
-          // TSFunctionType → extract return type; TSMethodSignature's typeAnnotation
+          // TSFunctionType -> extract return type; TSMethodSignature's typeAnnotation
           // is already the return type (not a function wrapper), use it directly
           const ret = functionTypeReturnAnnotation(unwrappedMember) ?? unwrappedMember;
           if (ret) return { annotation: ret, scope: memberInfo.scope };
@@ -2976,9 +2976,11 @@ function createResolveNodeType(babelNodeType, t) {
     if (t.isVariableDeclarator(node) && node.init && !binding.constantViolations?.length) {
       return resolveNodeType(bindingPath.get('init'));
     }
-    // `let x = []; x = 'hello'; x.at(-1)` — resolve from last straight-line assignment
+    // `let x = []; x = 'hello'; x.at(-1)` - resolve from last straight-line assignment
     const lastAssign = findLastStraightLineAssignment(binding, path);
-    if (lastAssign) return resolveNodeType(lastAssign.get('right'));
+    // `=` -> resolve RHS; `+=` etc. -> resolve whole AssignmentExpression (line 1627 handles all operators)
+    if (lastAssign) return lastAssign.node.operator === '='
+      ? resolveNodeType(lastAssign.get('right')) : resolveNodeType(lastAssign);
     return null;
   }
 
@@ -2993,7 +2995,7 @@ function createResolveNodeType(babelNodeType, t) {
       // Babel violations are AssignmentExpression paths; estree-toolkit gives LHS Identifier
       const ap = babelNodeType(v.node) === 'AssignmentExpression' ? v
         : babelNodeType(v.parentPath?.node) === 'AssignmentExpression' ? v.parentPath : null;
-      if (!ap || ap.node.operator !== '=' || ap.node.left?.type !== 'Identifier') continue;
+      if (!ap || ap.node.left?.type !== 'Identifier') continue;
       if (ap.scope !== binding.scope) continue;
       const pos = ap.node.start;
       if (pos === undefined || pos === null || pos >= beforePos) continue;
@@ -3316,7 +3318,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // collect ALL type guards along the AST path for cumulative narrowing.
-  // const bindings can't be reassigned — function boundaries don't invalidate guards
+  // const bindings can't be reassigned - function boundaries don't invalidate guards
   function findEnclosingTypeGuards(path, varName, isConst = false) {
     const guards = [];
     for (let current = path.parentPath; current; current = current.parentPath) {
