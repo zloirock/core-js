@@ -122,6 +122,8 @@ export function globalProxyMemberName(node) {
   if (computed && property?.type === 'StringLiteral') return property.value;
   // ESTree (oxc) uses `Literal` with a string value for string literals
   if (computed && property?.type === 'Literal' && typeof property.value === 'string') return property.value;
+  if (computed && property?.type === 'TemplateLiteral'
+    && property.expressions.length === 0 && property.quasis.length === 1) return property.quasis[0].value.cooked;
   return null;
 }
 
@@ -145,15 +147,19 @@ export function createClassHelpers(t) {
   const isClassMember = node => t.isClassMethod(node) || t.isClassPrivateMethod(node)
     || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
 
-  function classMemberKeyName(m) {
-    const { key } = m;
+  // resolve a statically determinable key: Identifier (non-computed), StringLiteral, TemplateLiteral
+  function staticKeyName(key, computed) {
     if (!key) return null;
-    if (!m.computed && t.isIdentifier(key)) return key.name;
+    if (!computed && t.isIdentifier(key)) return key.name;
     if (t.isStringLiteral(key)) return key.value;
     if (t.isTemplateLiteral(key) && key.expressions.length === 0 && key.quasis.length === 1) {
       return key.quasis[0].value.cooked;
     }
     return null;
+  }
+
+  function classMemberKeyName(m) {
+    return staticKeyName(m.key, m.computed);
   }
 
   // arrows are transparent (lexical super/this); non-arrow fns short-circuit except for the
@@ -201,8 +207,7 @@ export function createClassHelpers(t) {
   }
 
   function resolveSuperMember(path) {
-    if (path.node.computed) return null;
-    const key = path.node.property?.name;
+    const key = staticKeyName(path.node.property, path.node.computed);
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
