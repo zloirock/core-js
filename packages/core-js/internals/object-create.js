@@ -22,12 +22,36 @@ var scriptTag = function (content) {
 
 // Create object with fake `null` prototype: use ActiveX Object with cleared prototype
 var NullProtoObjectViaActiveX = function (activeXDocument) {
-  activeXDocument.write(scriptTag(''));
-  activeXDocument.close();
-  var temp = activeXDocument.parentWindow.Object;
+  var temp;
+  try {
+    activeXDocument.write(scriptTag(''));
+    activeXDocument.close();
+    temp = activeXDocument.parentWindow.Object;
+  } catch (error) {
+    temp = NullProtoObjectViaSc32bit();
+  }
   // eslint-disable-next-line no-useless-assignment -- avoid memory leak
   activeXDocument = null;
   return temp;
+};
+
+// Attempt to create a null-prototype-capable Object constructor
+// using the 32-bit-only MSScriptControl (ActiveX).
+// This will fail on 64-bit runtimes or when ScriptControl is unavailable.
+var sc32bit;
+
+var NullProtoObjectViaSc32bit = function() {
+  try {
+    sc32bit = new ActiveXObject("MSScriptControl.ScriptControl");
+    sc32bit.Language = "JScript";
+
+    // Return the Object constructor from the ScriptControl context
+    // (used to emulate Object.create(null)-like behavior)
+    return sc32bit.Eval("Object");
+  } catch (error) {
+    // Throw a clear error when running outside a supported (32-bit) environment
+    throw Error("This system supports null-prototype object creation only in 32-bit runtimes.");
+  }
 };
 
 // Create object with fake `null` prototype: use iframe Object with cleared prototype
@@ -61,7 +85,7 @@ var NullProtoObject = function () {
     ? document.domain && activeXDocument
       ? NullProtoObjectViaActiveX(activeXDocument) // old IE
       : NullProtoObjectViaIFrame()
-    : function () { return {}; }; // WSH or standalone ES3 runtime
+    : NullProtoObjectViaActiveX(activeXDocument); // WSH
   var length = enumBugKeys.length;
   while (length--) delete NullProtoObject[PROTOTYPE][enumBugKeys[length]];
   return NullProtoObject();
