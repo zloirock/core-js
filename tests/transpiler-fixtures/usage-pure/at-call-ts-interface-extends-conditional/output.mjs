@@ -1,0 +1,8 @@
+var _ref;
+import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+interface Base<T> {
+  val: T extends string ? T : never;
+}
+interface Child extends Base<string> {}
+declare const c: Child;
+_atMaybeString(_ref = c.val).call(_ref, -1);
