@@ -1,7 +1,7 @@
 'use strict';
 var $ = require('../internals/export');
 var IS_PURE = require('../internals/is-pure');
-var getIteratorMethod = require('../internals/get-iterator-method');
+var getIteratorMethod = require('../internals/get-iterator-method-internal');
 var addToUnscopables = require('../internals/add-to-unscopables');
 
 // @dependency: es.array.iterator
