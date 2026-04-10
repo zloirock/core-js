@@ -2,6 +2,7 @@
 ### Unreleased
 - Fixed possible crash on some keys in `Symbol.for`
 - Fixed possible early error in `get-iterator-method` helper
+- Fixed `String.prototype.{ match, search }` polyfills conversion order
 - Added missed `MAX_SAFE_INTEGER` excess check in `Array.from` and `{ Map, Object }.groupBy` polyfills
 - Improved the way of inner iterators cleaning in iterator helpers
 - Improved accuracy of `Math.{ asinh, cbrt, log1p }` polyfills with big and small values
