@@ -352,6 +352,17 @@ function createResolveNodeType(babelNodeType, t) {
       case 'UnionTypeAnnotation':
       case 'TSIntersectionType':
       case 'IntersectionTypeAnnotation': return substList(node, 'types', subst);
+      case 'TSTypeLiteral': {
+        let changed = false;
+        const members = node.members?.map(m => {
+          const ta = m.typeAnnotation ? applyAliasSubstDeep(m.typeAnnotation, subst) : m.typeAnnotation;
+          const rt = m.returnType ? applyAliasSubstDeep(m.returnType, subst) : m.returnType;
+          if (ta === m.typeAnnotation && rt === m.returnType) return m;
+          changed = true;
+          return { ...m, typeAnnotation: ta, returnType: rt };
+        });
+        return changed ? { ...node, members } : node;
+      }
       default: return node;
     }
   }
@@ -2626,6 +2637,25 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveElementType(unwrapped, scope, 0);
   }
 
+  // resolve obj.prop annotation by chaining through the object's type, applying generic subst
+  function resolveMemberAnnotation(path, depth) {
+    const objInfo = findExpressionAnnotation(path.get('object'), depth + 1);
+    if (!objInfo) return null;
+    const unwrapped = unwrapTypeAnnotation(objInfo.annotation);
+    if (!unwrapped) return null;
+    const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
+    const members = aliased ? getTypeMembers(aliased, objInfo.scope) : null;
+    if (!members) return null;
+    const propName = path.node.property.name;
+    for (const m of members) {
+      if (!keyMatchesName(m.key, propName)) continue;
+      const raw = m.typeAnnotation ?? m.returnType ?? (m.type === 'TSMethodSignature' ? m : null);
+      if (!raw) continue;
+      return { annotation: subst ? applyAliasSubstDeep(raw, subst) : raw, scope: objInfo.scope };
+    }
+    return null;
+  }
+
   // find the raw type annotation of an expression (follows bindings and const chains)
   function findExpressionAnnotation(path, depth = 0) {
     if (depth > MAX_DEPTH) return null;
@@ -2648,6 +2678,13 @@ function createResolveNodeType(babelNodeType, t) {
         if (init.node) return findExpressionAnnotation(init, depth + 1);
       }
     }
+    // obj.prop / obj?.prop — resolve property type through the object's annotation chain,
+    // carrying generic substitutions so `Wrapper<string>.inner.value()` resolves T → string
+    if ((path.node.type === 'MemberExpression' || path.node.type === 'OptionalMemberExpression')
+      && !path.node.computed && path.node.property?.type === 'Identifier') {
+      const result = resolveMemberAnnotation(path, depth);
+      if (result) return result;
+    }
     // direct `f()`: pull the callee's declared return type and substitute explicit call-site
     // type args (`makeBox<number>()`) so downstream member lookups see concrete types
     const callType = babelNodeType(path.node);
@@ -2659,6 +2696,15 @@ function createResolveNodeType(babelNodeType, t) {
           ? applyAliasSubstDeep(unwrapTypeAnnotation(fnPath.node.returnType), subst)
           : fnPath.node.returnType;
         return { annotation, scope: fnPath.scope };
+      }
+      // typed method call: w.inner.value() — resolve callee's annotation, extract return type
+      const callee = path.get('callee');
+      if (callee.node.type === 'MemberExpression' || callee.node.type === 'OptionalMemberExpression') {
+        const memberInfo = findExpressionAnnotation(callee, depth + 1);
+        if (memberInfo) {
+          const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(memberInfo.annotation));
+          if (ret) return { annotation: ret, scope: memberInfo.scope };
+        }
       }
     }
     return null;
