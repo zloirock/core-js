@@ -66,6 +66,15 @@ function lowerBound(ranges, target) {
   return lo;
 }
 
+// equal-range merge: arrow body wrapper + inner polyfill share the same [start, end].
+// the "wrapper" contains the original source as substring; the "inner" doesn't
+function mergeEqualRange(a, b, originalNeedle) {
+  const aIsWrapper = a.includes(originalNeedle);
+  const wrapper = aIsWrapper ? a : b;
+  const inner = aIsWrapper ? b : a;
+  return wrapper.includes(originalNeedle) ? wrapper.replace(originalNeedle, inner) : inner;
+}
+
 // deferred transform queue for usage-pure: collects text replacements during traversal,
 // composes nested transforms, applies after traversal
 export default class TransformQueue {
@@ -171,16 +180,10 @@ export default class TransformQueue {
         if (byStart[i].start === start && byStart[i].end === end) dup = byStart[i];
       }
       if (dup) {
-        // equal range (e.g. arrow body wrapper + inner polyfill): compose and emit once.
-        // the "wrapper" contains the original source as a substring; the "inner" doesn't
-        const dupContent = composedContent.get(dup) ?? dup.content;
-        const needle = this.#code.slice(start, end);
-        const contentIsWrapper = content.includes(needle);
-        const wrapper = contentIsWrapper ? content : dupContent;
-        const inner = contentIsWrapper ? dupContent : content;
-        composedContent.set(t, wrapper.includes(needle) ? wrapper.replace(needle, inner) : inner);
-        composed.push(t);
-        continue;
+        if (composedContent.has(dup)) continue;
+        content = mergeEqualRange(content, composedContent.get(dup) ?? dup.content, this.#code.slice(start, end));
+        const di = inners.indexOf(dup);
+        if (di !== -1) inners.splice(di, 1);
       }
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 

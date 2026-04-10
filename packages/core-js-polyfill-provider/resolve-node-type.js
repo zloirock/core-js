@@ -363,6 +363,25 @@ function createResolveNodeType(babelNodeType, t) {
         });
         return changed ? { ...node, members } : node;
       }
+      case 'TSConditionalType': {
+        const ck = applyAliasSubstDeep(node.checkType, subst);
+        const ex = applyAliasSubstDeep(node.extendsType, subst);
+        const tr = applyAliasSubstDeep(node.trueType, subst);
+        const fl = applyAliasSubstDeep(node.falseType, subst);
+        return ck === node.checkType && ex === node.extendsType && tr === node.trueType && fl === node.falseType
+          ? node : { ...node, checkType: ck, extendsType: ex, trueType: tr, falseType: fl };
+      }
+      case 'TSFunctionType':
+      case 'FunctionTypeAnnotation':
+        return substSlot(node, node.returnType ? 'returnType' : 'typeAnnotation', subst);
+      case 'TSIndexedAccessType': {
+        const obj = applyAliasSubstDeep(node.objectType, subst);
+        const idx = applyAliasSubstDeep(node.indexType, subst);
+        return obj === node.objectType && idx === node.indexType
+          ? node : { ...node, objectType: obj, indexType: idx };
+      }
+      case 'TSTypeOperator':
+        return substSlot(node, 'typeAnnotation', subst);
       default: return node;
     }
   }
@@ -686,7 +705,7 @@ function createResolveNodeType(babelNodeType, t) {
   function buildParentSubst(parentRef, scope) {
     const segments = typeRefSegments(parentRef);
     const decl = segments ? findTypeDeclaration(segments, scope) : null;
-    if (!isInterfaceDeclaration(decl)) return null;
+    if (!isInterfaceDeclaration(decl) && !isTypeAlias(decl)) return null;
     return buildSubstMap(decl.typeParameters?.params, getTypeArgs(parentRef)?.params);
   }
 
@@ -1579,7 +1598,7 @@ function createResolveNodeType(babelNodeType, t) {
       // ESTree: import('foo') is ImportExpression (not CallExpression with Import callee)
       case 'ImportExpression':
         return new $Object('Promise');
-      // tagged templates are semantically calls: String.raw`foo` ≡ String.raw(…)
+      // tagged templates are semantically calls: String.raw`foo` ==== String.raw(…)
       case 'TaggedTemplateExpression':
         return resolveCallReturnType(path.get('tag'));
       case 'UnaryExpression':
@@ -2907,13 +2926,19 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const keyPath = findDestructuredKeyPath(objectPattern, varName);
     if (!keyPath) return null;
+    // { a: { b: 'x' } } with path ['a','b'] -> resolveObjectMember for 'x'
+    function resolveObjectMemberPath(objPath, path) {
+      if (!t.isObjectExpression(objPath.node)) return null;
+      if (path.length === 1) return resolveObjectMember(objPath, path[0]);
+      const prop = findObjectMember(objPath, path[0]);
+      if (!prop || !t.isObjectProperty(prop.node)) return null;
+      const next = resolveRuntimeExpression(prop.get('value'));
+      return t.isObjectExpression(next.node) ? resolveObjectMemberPath(next, path.slice(1)) : null;
+    }
     if (t.isVariableDeclarator(bindingPath.node) && bindingPath.node.init) {
       const initPath = resolveRuntimeExpression(bindingPath.get('init'));
-      // `const { name } = { name: 'alice' }`; nested runtime walks fall through to annotation
-      if (keyPath.length === 1 && t.isObjectExpression(initPath.node)) {
-        const result = resolveObjectMember(initPath, keyPath[0]);
-        if (result) return result;
-      }
+      const initResult = resolveObjectMemberPath(initPath, keyPath);
+      if (initResult) return initResult;
       const annotationInfo = findExpressionAnnotation(bindingPath.get('init'));
       if (annotationInfo) {
         const result = resolveAnnotatedMemberPath(annotationInfo.annotation, keyPath, annotationInfo.scope);
@@ -2922,17 +2947,14 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const elemInfo = resolveForOfElementAnnotation(bindingPath);
     if (elemInfo) return resolveAnnotatedMemberPath(elemInfo.annotation, keyPath, elemInfo.scope);
-    // runtime: for (const { name } of [{ name: [1,2,3] }]) or similar runtime-resolvable iterables
+    // runtime: for (const { name } of [{ name: [1,2,3] }])
     const forOfPath = findForLoopParent(bindingPath);
     if (t.isForOfStatement(forOfPath?.node)) {
       const iterPath = resolveRuntimeExpression(forOfPath.get('right'));
-      // array literal iterable -> resolve the property from the first object element
-      if (keyPath.length === 1 && t.isArrayExpression(iterPath.node) && iterPath.node.elements.length) {
+      if (t.isArrayExpression(iterPath.node) && iterPath.node.elements.length) {
         const firstElem = resolveRuntimeExpression(iterPath.get('elements')[0]);
-        if (t.isObjectExpression(firstElem.node)) {
-          const result = resolveObjectMember(firstElem, keyPath[0]);
-          if (result) return result;
-        }
+        const result = resolveObjectMemberPath(firstElem, keyPath);
+        if (result) return result;
       }
     }
     return resolveDestructuringDefault(objectPattern, varName, bindingPath);
@@ -3055,7 +3077,7 @@ function createResolveNodeType(babelNodeType, t) {
       }
       const pos = effectiveAp.node.start;
       if (pos === undefined || pos === null || pos >= beforePos) continue;
-      // walk to ExpressionStatement — past parens, void, sequence, unary wrappers
+      // walk to ExpressionStatement - past parens, void, sequence, unary wrappers
       let stmt = effectiveAp;
       while (stmt && stmt.node.type !== 'ExpressionStatement') stmt = stmt.parentPath;
       if (!stmt) continue;
