@@ -711,14 +711,29 @@ export default function createPlugin(options) {
             return handleParameterDestructurePure(meta, metaPath, propNode);
           }
           if (!canTransformDestructuring(metaPath)) return;
+          // [Symbol.iterator] in destructuring: { [Symbol.iterator]: iter } = obj → iter = _getIteratorMethod(obj)
+          // when rest element is present, the key transform is needed for the rest-rebuild pattern;
+          // otherwise skip the key to prevent an unused _Symbol$iterator import
+          if (propNode.computed && meta.key === 'Symbol.iterator') {
+            const patternProps = metaPath.parent?.properties;
+            const hasRest = patternProps?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
+            if (!hasRest) {
+              skippedNodes.add(propNode.key);
+              if (propNode.key.object) skippedNodes.add(propNode.key.object);
+            }
+          }
           const { value } = propNode;
           // rebuilder only supports bare Identifier or `Identifier = default` locals
           if (value && value.type !== 'Identifier'
             && !(value.type === 'AssignmentPattern' && value.left?.type === 'Identifier')) return;
-          const pureResult = resolvePure(meta, metaPath);
-          if (!pureResult) return;
-          const { entry: importEntry, kind, hintName } = pureResult;
-          const binding = injectPureImport(importEntry, hintName);
+          // Symbol.iterator: resolve normally fails (not in instance table), use getIteratorMethod
+          const isSymbolIterator = propNode.computed && meta.key === 'Symbol.iterator';
+          const pureResult = isSymbolIterator ? null : resolvePure(meta, metaPath);
+          if (!pureResult && !isSymbolIterator) return;
+          const kind = isSymbolIterator ? 'instance' : pureResult.kind;
+          const binding = isSymbolIterator
+            ? injectPureImport('get-iterator-method', 'getIteratorMethod')
+            : injectPureImport(pureResult.entry, pureResult.hintName);
 
           const objectPattern = metaPath.parent;
           const isDefault = value?.type === 'AssignmentPattern';
@@ -812,14 +827,20 @@ export default function createPlugin(options) {
 
         // catch clause: replace param with ref, insert polyfilled + remaining in source order
         function emitCatchClause(infos, catchNode) {
-          const ref = infos[0].initSrc;
+          const [{ initSrc: ref, allProps }] = infos;
           const entryByProp = new Map(infos.flatMap(i => i.entries.map(e => [e.propNode, e])));
+          // extract computed-key transforms to prevent composition conflicts
+          for (const e of entryByProp.values()) {
+            if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
+          }
+          const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
           const lines = [];
-          for (const p of infos[0].allProps) {
+          for (const p of allProps) {
             if (p.type === 'RestElement' || p.type === 'SpreadElement') continue;
             const e = entryByProp.get(p);
             if (!e) {
-              lines.push(`let { ${ nodeSrc(p) } } = ${ ref };`);
+              // non-polyfillable property — emit individually (unless rest rebuilds the whole pattern)
+              if (!hasRest) lines.push(`let { ${ nodeSrc(p) } } = ${ ref };`);
               continue;
             }
             const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
@@ -830,6 +851,16 @@ export default function createPlugin(options) {
             } else {
               lines.push(`let ${ e.localName } = ${ valueSrc };`);
             }
+          }
+          // rest element: rebuild full pattern with polyfilled keys renamed to unused bindings
+          if (hasRest) {
+            const rebuiltProps = allProps.map(p => {
+              const e = entryByProp.get(p);
+              if (!e) return nodeSrc(p);
+              const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : nodeSrc(p.key);
+              return `${ keySrc }: ${ injector.generateUnusedName() }`;
+            });
+            lines.push(`let { ${ rebuiltProps.join(', ') } } = ${ ref };`);
           }
           transforms.add(catchNode.param.start, catchNode.param.end, ref);
           ms.appendRight(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
@@ -875,6 +906,10 @@ export default function createPlugin(options) {
               // to prevent composition corruption (Promise in _Promise$resolve -> __Promise$resolve)
               let initTransformed = (initStart !== undefined && initEnd !== undefined
                 ? transforms.extractContent(initStart, initEnd) : null) ?? initSrc;
+              // extract computed-key transforms to prevent composition conflicts (Symbol.iterator → _Symbol$iterator)
+              for (const e of entries) {
+                if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
+              }
               const polyfillKeys = new Set(entries.map(e => e.propNode));
               const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
               const remaining = allProps.filter(p => !polyfillKeys.has(p));
@@ -919,8 +954,14 @@ export default function createPlugin(options) {
                   : initTransformed);
               }
 
+              const entryByProp = hasRest ? new Map(entries.map(e => [e.propNode, e])) : null;
               const rebuiltProps = hasRest
-                ? allProps.map(p => polyfillKeys.has(p) ? `${ propKeySource(p) }: ${ injector.generateUnusedName() }` : nodeSrc(p))
+                ? allProps.map(p => {
+                  const e = entryByProp.get(p);
+                  if (!e) return nodeSrc(p);
+                  const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : propKeySource(p);
+                  return `${ keySrc }: ${ injector.generateUnusedName() }`;
+                })
                 : remaining.map(p => nodeSrc(p));
               if (rebuiltProps.length > 0) {
                 parts.push(isAssignment
