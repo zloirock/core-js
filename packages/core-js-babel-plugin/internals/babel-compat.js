@@ -107,13 +107,22 @@ export default function (t) {
   // strip Optional{Member,Call}Expression wrappers above a replaced node
   // stripFirstOptional: also deoptionalize the first user-written ?. in the chain
   // (used when the replacement is always defined, e.g., polyfill imports)
+  // is `child` the operand slot (object/callee) of an optional expression,
+  // possibly through TS wrappers?
+  function isOptionalOperand(child, parent) {
+    const slot = parent.isOptionalMemberExpression() ? 'object'
+      : parent.isOptionalCallExpression() ? 'callee' : null;
+    if (!slot) return false;
+    let cur = parent.node[slot];
+    while (cur && TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
+    return cur === child.node;
+  }
+
   function normalizeOptionalChain(path, stripFirstOptional) {
     let { parentPath } = path;
-    if (parentPath.isOptionalMemberExpression()) {
-      if (path.key !== 'object') return null;
-    } else if (parentPath.isOptionalCallExpression()) {
-      if (path.key !== 'callee') return null;
-    } else return null;
+    // walk past TS wrappers (satisfies, as, !) between the replaced node and the optional chain
+    while (parentPath && TS_EXPR_WRAPPERS.has(parentPath.node?.type)) ({ parentPath } = parentPath);
+    if (!parentPath || !isOptionalOperand(path, parentPath)) return null;
     let topPath = null;
     let seenOptional = false;
     const isOptional = p => p.isOptionalMemberExpression() || p.isOptionalCallExpression();
