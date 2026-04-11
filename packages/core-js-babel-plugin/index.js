@@ -218,7 +218,8 @@ export default function plugin(api, options) {
           return;
         }
 
-        if (path.parentPath.isUnaryExpression({ operator: 'delete' })) return;
+        // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
+        if (unwrapTSExpressionParent(path).parentPath?.isUnaryExpression({ operator: 'delete' })) return;
 
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
@@ -265,7 +266,8 @@ export default function plugin(api, options) {
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             replaceInstanceLike(path, id, skipPolyfillableOptional);
-          } else if (t.isSuper(path.node.object) && path.parentPath.isCallExpression()
+          } else if (t.isSuper(path.node.object)
+            && (path.parentPath.isCallExpression() || path.parentPath.isOptionalCallExpression())
             && path.parent.callee === path.node) {
             // super.method(args) -> id.call(this, args) to preserve this-binding
             path.parentPath.replaceWith(
@@ -391,14 +393,16 @@ export default function plugin(api, options) {
 
       // usage-pure mode: extract catch ObjectPattern into the body so the destructuring
       // transform can operate on a normal VariableDeclarator
-      // catch ({ includes }) {} -> catch (_ref) { var { includes } = _ref; }
+      // catch ({ includes }) {} -> catch (_ref) { let { includes } = _ref; }
+      // `let` preserves block scope of the original catch parameter; safe to emit since
+      // destructuring (which the catch pattern already is) implies `let` support
       const catchVisitor = {
         CatchClause(path) {
           const { param } = path.node;
           if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
           const ref = path.scope.generateUidIdentifier('ref');
           path.get('body').unshiftContainer('body', [
-            t.variableDeclaration('var', [t.variableDeclarator(param, ref)]),
+            t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
           ]);
           path.node.param = ref;
         },
