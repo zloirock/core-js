@@ -2,7 +2,7 @@ import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usag
 import { findUniqueName, mayHaveSideEffects, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
 
 export default function (t) {
-  // side-effect expressions from destructuring inits — deferred to Program.exit
+  // side-effect expressions from destructuring inits - deferred to Program.exit
   const deferredSideEffects = [];
   // original body index of each declaration, before insertBefore shifts it
   const originalDeclKeys = new WeakMap();
@@ -236,14 +236,22 @@ export default function (t) {
     ]));
   }
 
-  // for-init with SE: keep SE inline via dummy binding so it doesn't escape the loop
-  // for (var { from } = (se(), Array);;) → for (var _ref = (se(), Array), from = _Array$from;;)
+  // for-init with SE: keep SE inline so it doesn't escape the loop
+  // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
+  // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call
   function handleForInitSE(declaration, parent, localBinding, value, scope) {
-    const ref = generateRef(scope, false);
-    const idx = declaration.node.declarations.indexOf(parent.node);
-    if (idx !== -1) declaration.node.declarations.splice(idx, 1,
-      t.variableDeclarator(ref, t.cloneDeep(parent.node.init)),
-      t.variableDeclarator(localBinding, value));
+    if (t.isIdentifier(value)) {
+      // static polyfill import - SE needs a dummy binding to stay in for-init
+      const ref = generateRef(scope, false);
+      const idx = declaration.node.declarations.indexOf(parent.node);
+      if (idx !== -1) declaration.node.declarations.splice(idx, 1,
+        t.variableDeclarator(ref, t.cloneDeep(parent.node.init)),
+        t.variableDeclarator(localBinding, value));
+    } else {
+      // instance call already embeds the init - SE preserved by the call itself
+      parent.node.id = localBinding;
+      parent.node.init = value;
+    }
   }
 
   // walk up from `path` to the nearest parent whose container is an array body (statement-level)
@@ -309,30 +317,30 @@ export default function (t) {
       const isMultiDecl = declaration.node.declarations.length > 1;
       const isForInit = declaration.parentPath?.isForStatement()
         && declaration.parentPath.node.init === declaration.node;
-      // unbraced body of if/while/for-body/with/label — parent.body is a single node, not an array
+      // unbraced body of if/while/for-body/with/label - parent.body is a single node, not an array
       const isBodyless = !isExport && !isForInit && !Array.isArray(declaration.parentPath?.node?.body);
       if (isEmpty) {
-        // defer SE to Program.exit — not for bodyless (wrapped in block) or for-init (kept inline)
-        if (t.isIdentifier(value) && !isBodyless && !isForInit) deferSideEffect(declaration, parent.node.init);
         if (isBodyless && t.isIdentifier(value) && mayHaveSideEffects(parent.node.init)) {
           wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
-        } else if (isForInit && mayHaveSideEffects(parent.node.init)) {
-          handleForInitSE(declaration, parent, localBinding, value, prop.scope);
-        } else if (isForInit && isMultiDecl) {
-          parent.node.id = localBinding;
-          parent.node.init = value;
         } else if (isForInit) {
-          declaration.replaceWith(extractedDeclaration);
-        } else if (isMultiDecl) {
-          // collect pending + current, replace this declarator with all extracted ones
-          const pending = pendingExtractions.get(objectPattern.node) ?? [];
-          pending.push(t.variableDeclarator(localBinding, value));
-          // splice extracted declarators into declarations array in place of the original
-          const idx = declaration.node.declarations.indexOf(parent.node);
-          if (idx !== -1) declaration.node.declarations.splice(idx, 1, ...pending);
-          trySplitDeclaration(declaration, isExport);
+          // --- for-init: SE stays inline, can't be deferred outside the loop ---
+          if (mayHaveSideEffects(parent.node.init)) handleForInitSE(declaration, parent, localBinding, value, prop.scope);
+          else if (isMultiDecl) {
+            parent.node.id = localBinding;
+            parent.node.init = value;
+          } else declaration.replaceWith(extractedDeclaration);
         } else {
-          declaration.replaceWith(extractedDeclaration);
+          // --- block-level: defer SE to Program.exit, then replace ---
+          if (t.isIdentifier(value)) deferSideEffect(declaration, parent.node.init);
+          if (isMultiDecl) {
+            const pending = pendingExtractions.get(objectPattern.node) ?? [];
+            pending.push(t.variableDeclarator(localBinding, value));
+            const idx = declaration.node.declarations.indexOf(parent.node);
+            if (idx !== -1) declaration.node.declarations.splice(idx, 1, ...pending);
+            trySplitDeclaration(declaration, isExport);
+          } else {
+            declaration.replaceWith(extractedDeclaration);
+          }
         }
       } else if (isMultiDecl && !isForInit) {
         // non-last property: collect for batch insertion when isEmpty fires
