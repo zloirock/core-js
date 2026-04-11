@@ -180,7 +180,8 @@ export default function plugin(api, options) {
         if (declarator) {
           const declaration = declarator.parentPath;
           if (declaration?.removed) return true;
-          return declaration?.node && !declaration.node.declarations.includes(declarator.node);
+          if (!declaration?.node?.declarations) return true;
+          return !declaration.node.declarations.includes(declarator.node);
         }
         // assignment destructuring: ({ from } = Array || Promise)
         const assign = path.findParent(p => p.isAssignmentExpression());
