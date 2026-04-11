@@ -11,6 +11,39 @@ export const TS_EXPR_WRAPPERS = new Set([
   'TSInstantiationExpression',
 ]);
 
+// conservative side-effect check for init expressions in destructuring
+export function mayHaveSideEffects(node) {
+  if (!node) return false;
+  switch (node.type) {
+    case 'AssignmentExpression':
+    case 'AwaitExpression':
+    case 'CallExpression':
+    case 'NewExpression':
+    case 'OptionalCallExpression':
+    case 'TaggedTemplateExpression':
+    case 'UpdateExpression':
+    case 'YieldExpression':
+      return true;
+    case 'UnaryExpression':
+      return node.operator === 'delete' || mayHaveSideEffects(node.argument);
+    case 'SequenceExpression':
+      return node.expressions.some(mayHaveSideEffects);
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      return mayHaveSideEffects(node.left) || mayHaveSideEffects(node.right);
+    case 'ConditionalExpression':
+      return mayHaveSideEffects(node.test) || mayHaveSideEffects(node.consequent) || mayHaveSideEffects(node.alternate);
+    case 'ChainExpression':
+    case 'ParenthesizedExpression':
+      return mayHaveSideEffects(node.expression);
+    case 'MemberExpression':
+    case 'OptionalMemberExpression':
+      return mayHaveSideEffects(node.object);
+    default:
+      return TS_EXPR_WRAPPERS.has(node.type) ? mayHaveSideEffects(node.expression) : false;
+  }
+}
+
 // strip g/y flags from RegExp to prevent lastIndex state between calls
 export function toStatelessRegExp(re) {
   return re.global || re.sticky ? new RegExp(re.source, re.flags.replaceAll(/[gy]/g, '')) : re;
