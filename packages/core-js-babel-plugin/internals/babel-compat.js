@@ -239,8 +239,8 @@ export default function (t) {
   // for-init with SE: keep SE inline so it doesn't escape the loop
   // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call
-  function handleForInitSE(declaration, parent, localBinding, value, scope) {
-    if (t.isIdentifier(value)) {
+  function handleForInitSE(declaration, parent, localBinding, value, scope, isStatic) {
+    if (isStatic) {
       // static polyfill import - SE needs a dummy binding to stay in for-init
       const ref = generateRef(scope, false);
       const idx = declaration.node.declarations.indexOf(parent.node);
@@ -276,7 +276,10 @@ export default function (t) {
   }
 
   function handleDestructuredProperty(prop, value) {
-    const propValue = prop.node.value;
+    const propValue = prop.node.value,
+          // captured before default-value processing turns Identifier into ConditionalExpression
+          isStaticValue = t.isIdentifier(value);
+    const objectPattern = prop.parentPath;
     // default value: { from = [] } = Array -> from = _from === void 0 ? [] : _from
     // instance calls need temp ref to avoid double evaluation
     let localBinding;
@@ -290,7 +293,6 @@ export default function (t) {
     } else {
       localBinding = t.cloneNode(propValue);
     }
-    const objectPattern = prop.parentPath;
     const parent = objectPattern.parentPath;
 
     // rest element present: keep property in pattern with renamed value to preserve rest semantics
@@ -320,18 +322,18 @@ export default function (t) {
       // unbraced body of if/while/for-body/with/label - parent.body is a single node, not an array
       const isBodyless = !isExport && !isForInit && !Array.isArray(declaration.parentPath?.node?.body);
       if (isEmpty) {
-        if (isBodyless && t.isIdentifier(value) && mayHaveSideEffects(parent.node.init)) {
+        if (isBodyless && isStaticValue && mayHaveSideEffects(parent.node.init)) {
           wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
         } else if (isForInit) {
           // --- for-init: SE stays inline, can't be deferred outside the loop ---
-          if (mayHaveSideEffects(parent.node.init)) handleForInitSE(declaration, parent, localBinding, value, prop.scope);
+          if (mayHaveSideEffects(parent.node.init)) handleForInitSE(declaration, parent, localBinding, value, prop.scope, isStaticValue);
           else if (isMultiDecl) {
             parent.node.id = localBinding;
             parent.node.init = value;
           } else declaration.replaceWith(extractedDeclaration);
         } else {
           // --- block-level: defer SE to Program.exit, then replace ---
-          if (t.isIdentifier(value)) deferSideEffect(declaration, parent.node.init);
+          if (isStaticValue) deferSideEffect(declaration, parent.node.init);
           if (isMultiDecl) {
             const pending = pendingExtractions.get(objectPattern.node) ?? [];
             pending.push(t.variableDeclarator(localBinding, value));
@@ -355,7 +357,7 @@ export default function (t) {
       const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
       const assignmentTarget = parent.parentPath;
       if (isEmpty) {
-        if (t.isIdentifier(value)) deferSideEffect(assignmentTarget, parent.node.right);
+        if (isStaticValue) deferSideEffect(assignmentTarget, parent.node.right);
         assignmentTarget.replaceWith(assignment);
       } else {
         assignmentTarget.insertBefore(assignment);
