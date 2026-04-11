@@ -265,14 +265,21 @@ export default function plugin(api, options) {
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             replaceInstanceLike(path, id, skipPolyfillableOptional);
+          } else if (t.isSuper(path.node.object) && path.parentPath.isCallExpression()
+            && path.parent.callee === path.node) {
+            // super.method(args) -> id.call(this, args) to preserve this-binding
+            path.parentPath.replaceWith(
+              t.callExpression(t.memberExpression(id, t.identifier('call')),
+                [t.thisExpression(), ...path.parent.arguments.map(a => t.cloneNode(a))]),
+            );
           } else {
-            const wasOptional = path.node.optional;
-            path.replaceWith(id);
-            normalizeOptionalChain(path, !wasOptional);
-            // the polyfill import is always defined - strip ?. on the direct parent if it
-            // wasn't already handled by normalizeOptionalChain (globalThis?.Map?.() -> _Map())
-            if (wasOptional && path.parentPath?.node?.optional) {
-              deoptionalizeNode(path.parentPath);
+            const wasOptional = path.node.optional,
+                  // replace through TS wrappers: (Map satisfies any) -> _Map
+                  replacePath = unwrapTSExpressionParent(path);
+            replacePath.replaceWith(id);
+            normalizeOptionalChain(replacePath, !wasOptional);
+            if (wasOptional && replacePath.parentPath?.node?.optional) {
+              deoptionalizeNode(replacePath.parentPath);
             }
           }
         }
@@ -382,8 +389,21 @@ export default function plugin(api, options) {
         return { Program: programVisitor, ...mergeVisitors(usageVisitors, syntaxVisitors) };
       }
 
-      // usage-pure mode
-      return { Program: programVisitor, ...usageVisitors };
+      // usage-pure mode: extract catch ObjectPattern into the body so the destructuring
+      // transform can operate on a normal VariableDeclarator
+      // catch ({ includes }) {} -> catch (_ref) { var { includes } = _ref; }
+      const catchVisitor = {
+        CatchClause(path) {
+          const { param } = path.node;
+          if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
+          const ref = path.scope.generateUidIdentifier('ref');
+          path.get('body').unshiftContainer('body', [
+            t.variableDeclaration('var', [t.variableDeclarator(param, ref)]),
+          ]);
+          path.node.param = ref;
+        },
+      };
+      return { Program: programVisitor, ...usageVisitors, ...catchVisitor };
     })(),
     post() {
       if (!injector) return;
