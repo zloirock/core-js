@@ -217,9 +217,12 @@ export default function (t) {
 
   function deferSideEffect(containerPath, initNode) {
     if (!initNode || !mayHaveSideEffects(initNode)) return;
-    const body = containerPath.parentPath?.node?.body;
+    // find the statement-level container (walk past ExportNamedDeclaration)
+    let stmt = containerPath;
+    while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)) stmt = stmt.parentPath;
+    const body = stmt.parentPath?.node?.body;
     if (Array.isArray(body)) {
-      deferredSideEffects.push({ body, index: containerPath.key, node: t.expressionStatement(t.cloneDeep(initNode)) });
+      deferredSideEffects.push({ body, index: stmt.key, node: t.expressionStatement(t.cloneDeep(initNode)) });
     }
   }
 
