@@ -228,6 +228,14 @@ export default function (t) {
     declaration.replaceWithMultiple(stmts);
   }
 
+  // bodyless control statement with side-effect: wrap in block to keep scope
+  function wrapBodylessWithSideEffect(declaration, initNode, extractedDeclaration) {
+    declaration.replaceWith(t.blockStatement([
+      t.expressionStatement(t.cloneDeep(initNode)),
+      extractedDeclaration,
+    ]));
+  }
+
   function deferSideEffect(containerPath, initNode) {
     if (!initNode || !mayHaveSideEffects(initNode)) return;
     // find the statement-level container (walk past ExportNamedDeclaration)
@@ -285,9 +293,12 @@ export default function (t) {
       const isMultiDecl = declaration.node.declarations.length > 1;
       const isForInit = declaration.parentPath?.isForStatement()
         && declaration.parentPath.node.init === declaration.node;
+      const isBodyless = !isExport && !Array.isArray(declaration.parentPath?.node?.body);
       if (isEmpty) {
-        if (t.isIdentifier(value)) deferSideEffect(declaration, parent.node.init);
-        if (isMultiDecl && isForInit) {
+        if (t.isIdentifier(value) && !isBodyless) deferSideEffect(declaration, parent.node.init);
+        if (isBodyless && t.isIdentifier(value) && mayHaveSideEffects(parent.node.init)) {
+          wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
+        } else if (isMultiDecl && isForInit) {
           // for-init multi-decl: inline modification (can't defer outside loop)
           parent.node.id = localBinding;
           parent.node.init = value;
