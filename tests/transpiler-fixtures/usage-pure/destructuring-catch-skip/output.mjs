@@ -1,5 +1,5 @@
 try {} catch (_ref) {
-  var {
+  let {
     from
   } = _ref;
 }

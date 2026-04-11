@@ -810,6 +810,31 @@ export default function createPlugin(options) {
           state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
         }
 
+        // catch clause: replace param with ref, insert polyfilled + remaining in source order
+        function emitCatchClause(infos, catchNode) {
+          const ref = infos[0].initSrc;
+          const entryByProp = new Map(infos.flatMap(i => i.entries.map(e => [e.propNode, e])));
+          const lines = [];
+          for (const p of infos[0].allProps) {
+            if (p.type === 'RestElement' || p.type === 'SpreadElement') continue;
+            const e = entryByProp.get(p);
+            if (!e) {
+              lines.push(`let { ${ nodeSrc(p) } } = ${ ref };`);
+              continue;
+            }
+            const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
+            if (e.defaultSrc) {
+              const testRef = e.kind === 'instance' ? injector.generateRef(false) : null;
+              const test = testRef ? `(${ testRef } = ${ valueSrc })` : valueSrc;
+              lines.push(`let ${ testRef ? `${ testRef }, ` : '' }${ e.localName } = ${ test } === void 0 ? ${ e.defaultSrc } : ${ testRef || valueSrc };`);
+            } else {
+              lines.push(`let ${ e.localName } = ${ valueSrc };`);
+            }
+          }
+          transforms.add(catchNode.param.start, catchNode.param.end, ref);
+          ms.appendRight(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
+        }
+
         function applyDestructuringTransforms() {
           // group by declPath node to handle multiple destructurings in the same VariableDeclaration
           const byStatement = new Map();
@@ -823,22 +848,10 @@ export default function createPlugin(options) {
           for (const [, infos] of byStatement) {
             const [{ declPath, isAssignment, isCatchClause }] = infos;
 
-            // --- catch clause: replace param with ref, insert extracted declarations into body ---
+            // catch clause: replace param with ref, insert extracted declarations into body
+            // `let` preserves block scope; safe to emit since destructuring implies `let` support
             if (isCatchClause) {
-              const catchNode = declPath.node;
-              const ref = infos[0].initSrc;
-              const polyfillKeys = new Set(infos.flatMap(i => i.entries.map(e => e.propNode)));
-              const remaining = infos[0].allProps.filter(p => !polyfillKeys.has(p));
-              const decls = infos.flatMap(i => i.entries.map(e => {
-                const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
-                return `var ${ e.localName } = ${ valueSrc };`;
-              }));
-              // replace ObjectPattern param with ref
-              transforms.add(catchNode.param.start, catchNode.param.end, ref);
-              const bodyStart = catchNode.body.start + 1;
-              const restorePattern = remaining.length > 0
-                ? `\nvar ${ nodeSrc(catchNode.param) } = ${ ref };` : '';
-              ms.appendRight(bodyStart, `${ restorePattern }\n${ decls.join('\n') }`);
+              emitCatchClause(infos, declPath.node);
               continue;
             }
 
