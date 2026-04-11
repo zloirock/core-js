@@ -4,6 +4,7 @@ import MagicString from 'magic-string';
 import {
   buildOffsetToLine,
   createClassHelpers,
+  globalProxyMemberName,
   isCoreJSFile,
   mayHaveSideEffects,
   mergeVisitors,
@@ -841,11 +842,13 @@ export default function createPlugin(options) {
               const hasInstance = entries.some(e => e.kind === 'instance');
               // if remaining/rest/instance needs init object, ensure it's polyfilled
               // (init was skipped during collection to prevent unused imports - re-inject lazily)
-              if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && initIdentName) {
-                const initResolved = resolvePure({ kind: 'global', name: initIdentName }, null);
+              // covers both bare globals (`Promise`) and proxy-globals (`globalThis.Promise`)
+              const resolvedGlobalName = initIdentName || globalProxyMemberName(info.initNode);
+              if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && resolvedGlobalName) {
+                const initResolved = resolvePure({ kind: 'global', name: resolvedGlobalName }, null);
                 if (initResolved) initTransformed = injectPureImport(initResolved.entry, initResolved.hintName);
               }
-              const needsMemo = hasInstance && !initIdentName && (entries.length > 1 || remaining.length > 0 || hasRest);
+              const needsMemo = hasInstance && !resolvedGlobalName && (entries.length > 1 || remaining.length > 0 || hasRest);
               let objRef = initTransformed;
               if (needsMemo && initTransformed) {
                 objRef = injector.generateRef(false);
