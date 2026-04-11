@@ -5,6 +5,7 @@ import {
   buildOffsetToLine,
   createClassHelpers,
   isCoreJSFile,
+  mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
   TS_EXPR_WRAPPERS,
@@ -513,12 +514,13 @@ export default function createPlugin(options) {
           if (proxy) skippedNodes.add(proxy);
         }
 
-        // mark a node and its transparent wrappers (parens, ChainExpression) as skipped
+        // mark a node and its transparent wrappers (parens, ChainExpression, TS wrappers) as skipped
         function skipWrappedNode(node) {
           let cur = node;
           while (cur) {
             skippedNodes.add(cur);
-            if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression') cur = cur.expression;
+            if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
+              || TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
             else break;
           }
         }
@@ -740,32 +742,56 @@ export default function createPlugin(options) {
               initStart: initNode?.start,
               initEnd: initNode?.end,
               // peel `(...)` so `const { resolve } = (Promise)` resolves like the bare form
+              initNode,
               initIdentName: peelParens(initNode)?.type === 'Identifier' ? peelParens(initNode).name : null,
               scopeSnapshot: { scope: state.scope, arrow: state.arrow },
             });
-            // prevent unused global import for the init identifier - destructuring rewrites
-            // properties to polyfill imports directly; if anything remains the rebuilder
-            // re-injects the init lazily. skip both the wrapper and inner so the Identifier
-            // visitor inside `(Promise)` doesn't queue a stray transform
-            if (initNode) {
-              // mark all layers so child visitors don't enqueue conflicting transforms
-              const markInitTree = node => {
+            // mark global identifiers in init so they don't generate conflicting transforms.
+            // instance methods (.slice, .at) are NOT marked -- they compose correctly and
+            // must be polyfilled since the init expression stays in the output as an argument
+            if (initNode && !mayHaveSideEffects(initNode)) {
+              const markInitGlobals = node => {
                 let cur = node;
                 while (cur) {
-                  skippedNodes.add(cur);
-                  if (cur.type === 'LogicalExpression') {
-                    markInitTree(cur.left);
-                    cur = cur.right;
-                  } else if (cur.type === 'SequenceExpression') {
-                    for (const expr of cur.expressions) skippedNodes.add(expr);
-                    cur = cur.expressions.at(-1);
-                  } else if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
-                    || TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
-                  else if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') cur = cur.object;
-                  else cur = null;
+                  switch (cur.type) {
+                    case 'LogicalExpression':
+                      markInitGlobals(cur.left);
+                      cur = cur.right;
+                      break;
+                    case 'SequenceExpression':
+                      for (const expr of cur.expressions) markInitGlobals(expr);
+                      cur = null;
+                      break;
+                    case 'ConditionalExpression':
+                      markInitGlobals(cur.consequent);
+                      cur = cur.alternate;
+                      break;
+                    case 'ParenthesizedExpression':
+                    case 'ChainExpression':
+                      cur = cur.expression;
+                      break;
+                    case 'CallExpression':
+                    case 'OptionalCallExpression':
+                    case 'NewExpression':
+                      cur = cur.callee;
+                      break;
+                    case 'MemberExpression':
+                    case 'OptionalMemberExpression':
+                      // mark proxy-global member chains (globalThis.Promise) but not
+                      // instance methods (arr.slice) — instance methods compose correctly
+                      if (findProxyGlobal(cur)) skippedNodes.add(cur);
+                      cur = cur.object;
+                      break;
+                    case 'Identifier':
+                      skippedNodes.add(cur);
+                      cur = null;
+                      break;
+                    default:
+                      cur = TS_EXPR_WRAPPERS.has(cur.type) ? cur.expression : null;
+                  }
                 }
               };
-              markInitTree(initNode);
+              markInitGlobals(initNode);
             }
           }
           state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
@@ -834,6 +860,12 @@ export default function createPlugin(options) {
                 } else {
                   parts.push(`${ stmtPrefix }${ e.localName } = ${ valueSrc }`);
                 }
+              }
+
+              // preserve side-effects when init is fully dropped (all-static, no rest/remaining)
+              if (!hasInstance && !hasRest && remaining.length === 0 && initSrc
+                && mayHaveSideEffects(info.initNode)) {
+                parts.unshift(initTransformed);
               }
 
               const rebuiltProps = hasRest

@@ -1,9 +1,4 @@
 {
-  "parserOpts": {
-    "plugins": [
-      "typescript"
-    ]
-  },
   "plugins": [
     [
       "@core-js",
@@ -15,5 +10,10 @@
         }
       }
     ]
-  ]
+  ],
+  "parserOpts": {
+    "plugins": [
+      "typescript"
+    ]
+  }
 }
