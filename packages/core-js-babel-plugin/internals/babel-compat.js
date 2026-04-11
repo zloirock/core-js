@@ -236,16 +236,34 @@ export default function (t) {
     ]));
   }
 
+  // for-init with SE: keep SE inline via dummy binding so it doesn't escape the loop
+  // for (var { from } = (se(), Array);;) → for (var _ref = (se(), Array), from = _Array$from;;)
+  function handleForInitSE(declaration, parent, localBinding, value, scope) {
+    const ref = generateRef(scope, false);
+    const idx = declaration.node.declarations.indexOf(parent.node);
+    if (idx !== -1) declaration.node.declarations.splice(idx, 1,
+      t.variableDeclarator(ref, t.cloneDeep(parent.node.init)),
+      t.variableDeclarator(localBinding, value));
+  }
+
+  // walk up from `path` to the nearest parent whose container is an array body (statement-level)
+  function findStatementParent(path) {
+    let stmt = path;
+    while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)) stmt = stmt.parentPath;
+    return stmt;
+  }
+
   function deferSideEffect(containerPath, initNode) {
     if (!initNode || !mayHaveSideEffects(initNode)) return;
-    // find the statement-level container (walk past ExportNamedDeclaration)
-    let stmt = containerPath;
-    while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)) stmt = stmt.parentPath;
+    const stmt = findStatementParent(containerPath);
     const body = stmt.parentPath?.node?.body;
     if (Array.isArray(body)) {
-      // use the original index (before insertBefore shifted it) for correct ordering
       const index = originalDeclKeys.get(containerPath.node) ?? stmt.key;
-      deferredSideEffects.push({ body, index, seq: deferredSideEffects.length, node: t.expressionStatement(t.cloneDeep(initNode)) });
+      deferredSideEffects.push({
+        body, index,
+        seq: deferredSideEffects.length,
+        node: t.expressionStatement(t.cloneDeep(initNode)),
+      });
     }
   }
 
@@ -282,9 +300,7 @@ export default function (t) {
       const declaration = parent.parentPath;
       // save original index before first insertBefore shifts it
       if (!originalDeclKeys.has(declaration.node)) {
-        let stmt = declaration;
-        while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)) stmt = stmt.parentPath;
-        originalDeclKeys.set(declaration.node, stmt.key);
+        originalDeclKeys.set(declaration.node, findStatementParent(declaration).key);
       }
       const extractedDeclaration = t.variableDeclaration(declaration.node.kind, [
         t.variableDeclarator(localBinding, value),
@@ -293,15 +309,20 @@ export default function (t) {
       const isMultiDecl = declaration.node.declarations.length > 1;
       const isForInit = declaration.parentPath?.isForStatement()
         && declaration.parentPath.node.init === declaration.node;
-      const isBodyless = !isExport && !Array.isArray(declaration.parentPath?.node?.body);
+      // unbraced body of if/while/for-body/with/label — parent.body is a single node, not an array
+      const isBodyless = !isExport && !isForInit && !Array.isArray(declaration.parentPath?.node?.body);
       if (isEmpty) {
-        if (t.isIdentifier(value) && !isBodyless) deferSideEffect(declaration, parent.node.init);
+        // defer SE to Program.exit — not for bodyless (wrapped in block) or for-init (kept inline)
+        if (t.isIdentifier(value) && !isBodyless && !isForInit) deferSideEffect(declaration, parent.node.init);
         if (isBodyless && t.isIdentifier(value) && mayHaveSideEffects(parent.node.init)) {
           wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
-        } else if (isMultiDecl && isForInit) {
-          // for-init multi-decl: inline modification (can't defer outside loop)
+        } else if (isForInit && mayHaveSideEffects(parent.node.init)) {
+          handleForInitSE(declaration, parent, localBinding, value, prop.scope);
+        } else if (isForInit && isMultiDecl) {
           parent.node.id = localBinding;
           parent.node.init = value;
+        } else if (isForInit) {
+          declaration.replaceWith(extractedDeclaration);
         } else if (isMultiDecl) {
           // collect pending + current, replace this declarator with all extracted ones
           const pending = pendingExtractions.get(objectPattern.node) ?? [];
