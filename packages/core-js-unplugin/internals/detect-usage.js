@@ -9,7 +9,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
-import { walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
+import { TS_EXPR_WRAPPERS, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 
 // check if an identifier is referenced (not a declaration, property key, or export alias)
 function isReferenced(node, parent, parentKey, grandParentType) {
@@ -33,9 +33,10 @@ function isReferenced(node, parent, parentKey, grandParentType) {
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   if (parent.type === 'AssignmentExpression' && parentKey === 'left') return false;
-  // UpdateExpression operand (Map++, --Map) - read+write context, polyfill import is read-only
-  // so the transform would emit `_Map++` which throws TypeError at runtime
+  // UpdateExpression operand (Map++, --Map, Map!++) - read+write context, polyfill import
+  // is read-only so the transform would emit `_Map++` which throws TypeError at runtime
   if (parent.type === 'UpdateExpression') return false;
+  if (TS_EXPR_WRAPPERS.has(parent.type) && grandParentType === 'UpdateExpression') return false;
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
   return true;
 }
