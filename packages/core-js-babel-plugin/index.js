@@ -179,6 +179,7 @@ export default function plugin(api, options) {
         const declarator = path.findParent(p => p.isVariableDeclarator());
         if (declarator) {
           const declaration = declarator.parentPath;
+          if (declaration?.removed) return true;
           return declaration?.node && !declaration.node.declarations.includes(declarator.node);
         }
         // assignment destructuring: ({ from } = Array || Promise)
@@ -320,7 +321,7 @@ export default function plugin(api, options) {
           // to polyfill globals inside (handles nested scopes like functions)
           if (deferredSideEffects.length) {
             const inserted = new Set();
-            deferredSideEffects.sort((a, b) => b.index - a.index);
+            deferredSideEffects.sort((a, b) => b.index - a.index || b.seq - a.seq);
             for (const { body, index, node } of deferredSideEffects) {
               (Array.isArray(body) ? body : path.node.body).splice(index, 0, node);
               inserted.add(node);
