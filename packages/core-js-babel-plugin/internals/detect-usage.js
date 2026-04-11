@@ -8,6 +8,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
+import { TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -61,9 +62,11 @@ export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = f
 
   function handleIdentifier(path) {
     if (!path.isReferencedIdentifier()) return;
-    // UpdateExpression operand (Map++, --Map) - read+write context, polyfill import is read-only
-    // so the transform would emit `_Map++` which throws TypeError at runtime
-    if (path.parentPath.isUpdateExpression()) return;
+    // UpdateExpression operand (Map++, --Map, Map!++) - read+write context, polyfill import
+    // is read-only so the transform would emit `_Map++` which throws TypeError at runtime
+    let updateCheck = path.parentPath;
+    while (updateCheck && TS_EXPR_WRAPPERS.has(updateCheck.node?.type)) updateCheck = updateCheck.parentPath;
+    if (updateCheck?.isUpdateExpression()) return;
     const { node } = path;
     if (path.scope.getBindingIdentifier(node.name)) return;
     if (handledObjects.has(node)) return;
