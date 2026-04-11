@@ -95,12 +95,20 @@ function resolveObjectName(objectNode, scope, adapter) {
   return objectNode.property.name;
 }
 
-// globalThis['Array'] / globalThis[`Map`] -> 'Array' / 'Map'
+// globalThis['Array'] / globalThis['self']['Array'] -> 'Array'
 function resolveComputedProxyName(node, scope, adapter) {
-  const obj = unwrapParens(node.object);
+  const key = resolveKey(node.property, true, scope, adapter);
+  if (!key) return null;
+  // walk through chained proxy globals to the root identifier
+  let obj = unwrapParens(node.object);
+  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
+    const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter) : obj.property?.name;
+    if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return null;
+    obj = unwrapParens(obj.object);
+  }
   if (obj.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) return null;
   if (adapter.hasBinding(scope, obj.name)) return null;
-  return resolveKey(node.property, true, scope, adapter);
+  return key;
 }
 
 export function resolveKey(node, computed, scope, adapter, depth = 0) {
@@ -179,7 +187,7 @@ export function handleMemberExpressionNode(node, scope, adapter, handledObjects,
   const symbolKey = resolveComputedSymbolKey(node, scope, adapter);
   if (symbolKey) {
     if (adapter.hasBinding(scope, 'Symbol')) return null;
-    handledObjects.add(node.property.object);
+    handledObjects.add(unwrapParens(node.property).object);
     return { kind: 'property', object: null, key: symbolKey, placement: 'prototype' };
   }
   const meta = buildMemberMeta(node, scope, adapter);
@@ -208,8 +216,8 @@ export function resolveSymbolIteratorEntry(node, parent) {
 // returns meta object or null. Also marks handled objects if suppressProxyGlobals is false
 export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   if (node.operator !== 'in') return null;
-  // Symbol.X in obj / Symbol?.X in obj (ESTree wraps optional in ChainExpression)
-  const left = node.left.type === 'ChainExpression' ? node.left.expression : node.left;
+  // Symbol.X in obj / Symbol?.X in obj / (Symbol?.X) in obj
+  const left = unwrapParens(node.left);
   if ((left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
     && left.object?.type === 'Identifier' && left.object.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
@@ -244,8 +252,9 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, suppressPro
 // and variable (foo[Symbol[key]] where const key = 'iterator')
 function resolveComputedSymbolKey(node, scope, adapter) {
   if (!node.computed) return null;
-  const prop = node.property;
-  if (prop?.type !== 'MemberExpression' || prop.object?.type !== 'Identifier' || prop.object.name !== 'Symbol') return null;
+  const prop = unwrapParens(node.property);
+  if ((prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression')
+    || prop.object?.type !== 'Identifier' || prop.object.name !== 'Symbol') return null;
   const name = resolveKey(prop.property, prop.computed, scope, adapter);
   return name ? `Symbol.${ name }` : null;
 }
