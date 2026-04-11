@@ -4,9 +4,12 @@ import { findUniqueName, mayHaveSideEffects, TS_EXPR_WRAPPERS } from '@core-js/p
 export default function (t) {
   // side-effect expressions from destructuring inits — deferred to Program.exit
   const deferredSideEffects = [];
+  // original body index of each declaration, before insertBefore shifts it
+  const originalDeclKeys = new WeakMap();
+  // pending extracted declarators per ObjectPattern (for multi-declarator source-order split)
+  const pendingExtractions = new WeakMap();
 
   // memoized ancestor walk - cached on parent nodes so descendants share results
-  // (overall O(node count) instead of O(node count * depth))
   const typeAnnotationCache = new WeakMap();
   function isInTypeAnnotation(path) {
     const visited = [];
@@ -215,6 +218,16 @@ export default function (t) {
     return objectNode;
   }
 
+  // split multi-declarator VariableDeclaration into separate statements when all patterns resolved
+  function trySplitDeclaration(declaration, isExport) {
+    if (declaration.node.declarations.some(d => t.isObjectPattern(d.id))) return;
+    const { kind } = declaration.node;
+    const stmts = declaration.node.declarations.map(d => isExport
+      ? t.exportNamedDeclaration(t.variableDeclaration(kind, [d]))
+      : t.variableDeclaration(kind, [d]));
+    declaration.replaceWithMultiple(stmts);
+  }
+
   function deferSideEffect(containerPath, initNode) {
     if (!initNode || !mayHaveSideEffects(initNode)) return;
     // find the statement-level container (walk past ExportNamedDeclaration)
@@ -222,7 +235,9 @@ export default function (t) {
     while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)) stmt = stmt.parentPath;
     const body = stmt.parentPath?.node?.body;
     if (Array.isArray(body)) {
-      deferredSideEffects.push({ body, index: stmt.key, node: t.expressionStatement(t.cloneDeep(initNode)) });
+      // use the original index (before insertBefore shifted it) for correct ordering
+      const index = originalDeclKeys.get(containerPath.node) ?? stmt.key;
+      deferredSideEffects.push({ body, index, seq: deferredSideEffects.length, node: t.expressionStatement(t.cloneDeep(initNode)) });
     }
   }
 
@@ -257,23 +272,44 @@ export default function (t) {
 
     if (parent.isVariableDeclarator()) {
       const declaration = parent.parentPath;
-      // multi-declarator: modify in-place to avoid Babel traversal crash
-      if (isEmpty && declaration.node.declarations.length > 1) {
+      // save original index before first insertBefore shifts it
+      if (!originalDeclKeys.has(declaration.node)) {
+        let stmt = declaration;
+        while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)) stmt = stmt.parentPath;
+        originalDeclKeys.set(declaration.node, stmt.key);
+      }
+      const extractedDeclaration = t.variableDeclaration(declaration.node.kind, [
+        t.variableDeclarator(localBinding, value),
+      ]);
+      const isExport = declaration.parentPath.isExportNamedDeclaration();
+      const isMultiDecl = declaration.node.declarations.length > 1;
+      const isForInit = declaration.parentPath?.isForStatement()
+        && declaration.parentPath.node.init === declaration.node;
+      if (isEmpty) {
         if (t.isIdentifier(value)) deferSideEffect(declaration, parent.node.init);
-        parent.node.id = localBinding;
-        parent.node.init = value;
-      } else {
-        const extractedDeclaration = t.variableDeclaration(declaration.node.kind, [
-          t.variableDeclarator(localBinding, value),
-        ]);
-        if (isEmpty) {
-          if (t.isIdentifier(value)) deferSideEffect(declaration, parent.node.init);
-          declaration.replaceWith(extractedDeclaration);
-        } else if (declaration.parentPath.isExportNamedDeclaration()) {
-          declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
+        if (isMultiDecl && isForInit) {
+          // for-init multi-decl: inline modification (can't defer outside loop)
+          parent.node.id = localBinding;
+          parent.node.init = value;
+        } else if (isMultiDecl) {
+          // collect pending + current, replace this declarator with all extracted ones
+          const pending = pendingExtractions.get(objectPattern.node) ?? [];
+          pending.push(t.variableDeclarator(localBinding, value));
+          // splice extracted declarators into declarations array in place of the original
+          const idx = declaration.node.declarations.indexOf(parent.node);
+          if (idx !== -1) declaration.node.declarations.splice(idx, 1, ...pending);
+          trySplitDeclaration(declaration, isExport);
         } else {
-          declaration.insertBefore(extractedDeclaration);
+          declaration.replaceWith(extractedDeclaration);
         }
+      } else if (isMultiDecl && !isForInit) {
+        // non-last property: collect for batch insertion when isEmpty fires
+        if (!pendingExtractions.has(objectPattern.node)) pendingExtractions.set(objectPattern.node, []);
+        pendingExtractions.get(objectPattern.node).push(t.variableDeclarator(localBinding, value));
+      } else if (isExport) {
+        declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
+      } else {
+        declaration.insertBefore(extractedDeclaration);
       }
     } else {
       const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
