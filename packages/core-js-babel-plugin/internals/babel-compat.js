@@ -353,7 +353,7 @@ export default function (t) {
             declaration.replaceWith(extractedDeclaration);
           }
         }
-      } else if (isMultiDecl && !isForInit) {
+      } else if (isMultiDecl && !isForInit && !hasRest) {
         // non-last property: collect for batch insertion when isEmpty fires
         if (!pendingExtractions.has(objectPattern.node)) pendingExtractions.set(objectPattern.node, []);
         pendingExtractions.get(objectPattern.node).push(t.variableDeclarator(localBinding, value));
