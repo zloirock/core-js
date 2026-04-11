@@ -99,13 +99,14 @@ export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = f
       }
     } else if (parent.isAssignmentExpression()) {
       initPath = parent.get('right');
-    } else if (parent.isObjectProperty() || parent.isAssignmentPattern()
-      || parent.isForOfStatement() || parent.isForInStatement()
-      || parent.isArrayPattern() || parent.isRestElement()) {
-      // nested / for-of / array pattern: we can't statically know the receiver type, so the
-      // property-level init can't be resolved. emit a typeless meta so the name still
-      // registers for usage tracking, but any receiver-typed polyfill variant is skipped.
-      // example: `const { a: { from } } = { a: Array }` - we don't walk into `{ a: Array }`
+    } else if (parent.isObjectProperty()
+      || parent.isAssignmentPattern()
+      || parent.isForOfStatement()
+      || parent.isForInStatement()
+      || parent.isArrayPattern()
+      || parent.isRestElement()
+      || parent.isCatchClause()) {
+      // nested / for-of / array / catch: unknown receiver, emit typeless meta
       const key = resolveKey(path.get('key'), path.node.computed);
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;

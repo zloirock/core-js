@@ -97,7 +97,8 @@ function buildDestructuringMeta(propNode, parentPath) {
     case 'ForInStatement':
     case 'Property':
     case 'ArrayPattern':
-    case 'RestElement': break;
+    case 'RestElement':
+    case 'CatchClause': break;
     default: {
       // IIFE destructuring: !function ({ entries }) {} (Object)
       const funcNode = parent.node;
