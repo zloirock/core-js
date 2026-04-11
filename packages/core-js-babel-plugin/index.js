@@ -309,20 +309,33 @@ export default function plugin(api, options) {
           disabledLines = directives !== true ? directives : null;
         },
         exit(path) {
-          // insert deferred side-effect expressions BEFORE re-traversal
-          // so globals inside them get polyfilled
-          if (deferredSideEffects.length) {
-            deferredSideEffects.sort((a, b) => b.index - a.index);
-            for (const { body, index, node } of deferredSideEffects) {
-              (Array.isArray(body) ? body : path.node.body).splice(index, 0, node);
-            }
-            deferredSideEffects.length = 0;
-          }
           if (helperVisitors) {
             // re-traverse body children that did not exist on enter - `parseSync`-built
             // injections carry full `loc`, so the old `!loc` heuristic missed them
             for (const childPath of path.get('body')) {
               if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
+            }
+          }
+          // insert deferred side-effect expressions, then traverse each one
+          // to polyfill globals inside (handles nested scopes like functions)
+          if (deferredSideEffects.length) {
+            const inserted = new Set();
+            deferredSideEffects.sort((a, b) => b.index - a.index);
+            for (const { body, index, node } of deferredSideEffects) {
+              (Array.isArray(body) ? body : path.node.body).splice(index, 0, node);
+              inserted.add(node);
+            }
+            deferredSideEffects.length = 0;
+            if (helperVisitors) {
+              // find inserted nodes (may be in nested scopes) and traverse them
+              path.traverse({
+                ExpressionStatement(p) {
+                  if (inserted.delete(p.node)) {
+                    p.traverse(helperVisitors);
+                    if (!inserted.size) p.stop();
+                  }
+                },
+              });
             }
           }
           // flush before debug - flush() may add sibling-plugin re-injections we want logged
