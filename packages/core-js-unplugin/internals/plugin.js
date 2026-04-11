@@ -131,13 +131,19 @@ const NEEDS_GUARD_PARENS = new Set([
   'ClassExpression',
 ]);
 
-// statement-body slots for unbraced control statements / single-expression arrows
+// statement-body slots for unbraced control statements, `with`, and single-expression arrows
 const BODY_SLOT_TYPES = new Set([
-  'WhileStatement', 'DoWhileStatement', 'ForStatement', 'ForInStatement',
-  'ForOfStatement', 'LabeledStatement', 'ArrowFunctionExpression',
+  'ArrowFunctionExpression',
+  'DoWhileStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'ForStatement',
+  'LabeledStatement',
+  'WhileStatement',
+  'WithStatement',
 ]);
 
-// is `path` the unbraced body slot of an if/loop/label/arrow?
+// is `path` the unbraced body slot of an if/loop/with/label/arrow?
 function isBodylessStatementBody(path) {
   const parent = path.parentPath?.node;
   if (!parent) return false;
@@ -810,7 +816,8 @@ export default function createPlugin(options) {
           for (const [, infos] of byStatement) {
             const [{ declPath, isAssignment }] = infos;
             const isExport = !isAssignment && declPath.parentPath?.node?.type === 'ExportNamedDeclaration';
-            const isForInit = !isAssignment && declPath.parentPath?.node?.type === 'ForStatement';
+            const isForInit = !isAssignment && declPath.parentPath?.node?.type === 'ForStatement'
+              && declPath.parentPath.node.init === declPath.node;
             const replaceNode = isExport ? declPath.parentPath.node : declPath.node;
             const prefix = isExport ? 'export ' : '';
             const keyword = isAssignment ? '' : `${ declPath.node.kind } `;
@@ -865,7 +872,10 @@ export default function createPlugin(options) {
               // preserve side-effects when init is fully dropped (all-static, no rest/remaining)
               if (!hasInstance && !hasRest && remaining.length === 0 && initSrc
                 && mayHaveSideEffects(info.initNode)) {
-                parts.unshift(initTransformed);
+                // for-init requires valid declarators — wrap SE in a dummy binding
+                parts.unshift(isForInit
+                  ? `${ injector.generateRef(false) } = ${ initTransformed }`
+                  : initTransformed);
               }
 
               const rebuiltProps = hasRest
