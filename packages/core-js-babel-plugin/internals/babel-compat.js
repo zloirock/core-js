@@ -1,7 +1,10 @@
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage';
-import { findUniqueName, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
+import { findUniqueName, mayHaveSideEffects, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
 
 export default function (t) {
+  // side-effect expressions from destructuring inits — deferred to Program.exit
+  const deferredSideEffects = [];
+
   // memoized ancestor walk - cached on parent nodes so descendants share results
   // (overall O(node count) instead of O(node count * depth))
   const typeAnnotationCache = new WeakMap();
@@ -212,6 +215,14 @@ export default function (t) {
     return objectNode;
   }
 
+  function deferSideEffect(containerPath, initNode) {
+    if (!initNode || !mayHaveSideEffects(initNode)) return;
+    const body = containerPath.parentPath?.node?.body;
+    if (Array.isArray(body)) {
+      deferredSideEffects.push({ body, index: containerPath.key, node: t.expressionStatement(t.cloneDeep(initNode)) });
+    }
+  }
+
   function handleDestructuredProperty(prop, value) {
     const propValue = prop.node.value;
     // default value: { from = [] } = Array -> from = _from === void 0 ? [] : _from
@@ -245,6 +256,7 @@ export default function (t) {
       const declaration = parent.parentPath;
       // multi-declarator: modify in-place to avoid Babel traversal crash
       if (isEmpty && declaration.node.declarations.length > 1) {
+        if (t.isIdentifier(value)) deferSideEffect(declaration, parent.node.init);
         parent.node.id = localBinding;
         parent.node.init = value;
       } else {
@@ -252,6 +264,7 @@ export default function (t) {
           t.variableDeclarator(localBinding, value),
         ]);
         if (isEmpty) {
+          if (t.isIdentifier(value)) deferSideEffect(declaration, parent.node.init);
           declaration.replaceWith(extractedDeclaration);
         } else if (declaration.parentPath.isExportNamedDeclaration()) {
           declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
@@ -263,6 +276,7 @@ export default function (t) {
       const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
       const assignmentTarget = parent.parentPath;
       if (isEmpty) {
+        if (t.isIdentifier(value)) deferSideEffect(assignmentTarget, parent.node.right);
         assignmentTarget.replaceWith(assignment);
       } else {
         assignmentTarget.insertBefore(assignment);
@@ -272,6 +286,7 @@ export default function (t) {
 
   return {
     isInTypeAnnotation,
+    deferredSideEffects,
     deoptionalizeNode,
     normalizeOptionalChain,
     replaceInstanceLike,
