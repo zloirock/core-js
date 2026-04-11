@@ -162,9 +162,17 @@ export default function plugin(api, options) {
 
       function isOrphaned(path) {
         const declarator = path.findParent(p => p.isVariableDeclarator());
-        if (!declarator) return false;
-        const declaration = declarator.parentPath;
-        return declaration?.node && !declaration.node.declarations.includes(declarator.node);
+        if (declarator) {
+          const declaration = declarator.parentPath;
+          return declaration?.node && !declaration.node.declarations.includes(declarator.node);
+        }
+        // assignment destructuring: ({ from } = Array || Promise)
+        const assign = path.findParent(p => p.isAssignmentExpression());
+        if (assign) {
+          const stmt = assign.parentPath;
+          return stmt?.isExpressionStatement() && stmt.node.expression !== assign.node;
+        }
+        return false;
       }
 
       function usagePureCallback(meta, path) {
