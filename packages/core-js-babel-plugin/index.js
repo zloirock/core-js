@@ -150,6 +150,8 @@ export default function plugin(api, options) {
         } else {
           value = injectPureImport(entry, hintName);
         }
+        // mark property as handled — rest-rename triggers re-traversal which must be skipped
+        skippedNodes.add(prop.node);
         handleDestructuredProperty(prop, value);
         skipEmptyPatternInit(prop);
       }
@@ -192,14 +194,14 @@ export default function plugin(api, options) {
         return false;
       }
 
+      function shouldSkipPath(path) {
+        return isDisabled(path.node) || skippedNodes.has(path.node)
+          || (path.parentPath && !path.parentPath.container) // stale parent
+          || isOrphaned(path) || isInTypeAnnotation(path);
+      }
+
       function usagePureCallback(meta, path) {
-        if (isDisabled(path.node)) return;
-        if (skippedNodes.has(path.node)) return;
-        // skip nodes with stale parent path (consumed by outer optional chain replacement)
-        if (path.parentPath && !path.parentPath.container) return;
-        // skip nodes detached by destructuring transform (replaceWith on grandparent)
-        if (isOrphaned(path)) return;
-        if (isInTypeAnnotation(path)) return;
+        if (shouldSkipPath(path)) return;
 
         if (meta.kind === 'in') {
           const symbolIn = resolveSymbolInEntry(meta.key);
@@ -232,7 +234,7 @@ export default function plugin(api, options) {
             const { parent } = path;
             if ((parent.type === 'ForOfStatement' || parent.type === 'ForInStatement')
               && parent.left === path.node) return;
-            if (path.parentPath.isUpdateExpression()) return;
+            if (unwrapTSExpressionParent(path).parentPath?.isUpdateExpression()) return;
             if (t.isSuper(path.node.object)) {
               // resolve `super.X` to its parent class equivalent - currently static-only
               const superMeta = resolveSuperMember(path);
@@ -256,7 +258,13 @@ export default function plugin(api, options) {
           normalizeOptionalChain(path, true);
           return;
         }
-        if (!result) return;
+        if (!result) {
+          // [Symbol.iterator] in destructuring: resolve returns null, use getIteratorMethod
+          if (path.isObjectProperty() && path.node.computed && meta.key === 'Symbol.iterator') {
+            handleObjectPropertyResult(path, 'instance', 'get-iterator-method', 'getIteratorMethod');
+          }
+          return;
+        }
 
         const { entry, kind, hintName } = result;
 
@@ -400,6 +408,9 @@ export default function plugin(api, options) {
         CatchClause(path) {
           const { param } = path.node;
           if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
+          // skip empty patterns — nothing to polyfill
+          const props = param.properties || param.elements;
+          if (!props || props.length === 0) return;
           const ref = path.scope.generateUidIdentifier('ref');
           path.get('body').unshiftContainer('body', [
             t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
