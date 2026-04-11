@@ -840,10 +840,9 @@ export default function createPlugin(options) {
               const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
               const remaining = allProps.filter(p => !polyfillKeys.has(p));
               const hasInstance = entries.some(e => e.kind === 'instance');
+              // resolve global name for lazy re-injection: bare (`Promise`) or proxy (`globalThis.Promise`)
+              const resolvedGlobalName = initIdentName || globalProxyMemberName(peelParens(info.initNode));
               // if remaining/rest/instance needs init object, ensure it's polyfilled
-              // (init was skipped during collection to prevent unused imports - re-inject lazily)
-              // covers both bare globals (`Promise`) and proxy-globals (`globalThis.Promise`)
-              const resolvedGlobalName = initIdentName || globalProxyMemberName(info.initNode);
               if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && resolvedGlobalName) {
                 const initResolved = resolvePure({ kind: 'global', name: resolvedGlobalName }, null);
                 if (initResolved) initTransformed = injectPureImport(initResolved.entry, initResolved.hintName);
@@ -1043,15 +1042,17 @@ export default function createPlugin(options) {
             }
             // deoptionalize `?.` when replacing global/static callee - the polyfill import is always
             // defined, so optional chaining on it is redundant:
-            // - optional call: Map?.() / globalThis.Map?.() / globalThis?.Map?.() -> _Map()
+            // - optional call: Map?.() / (Map as any)?.() / globalThis.Map?.() -> _Map()
             // - optional member parent: globalThis?.X -> _globalThis.X
-            let { end } = node;
+            let { start, end } = node;
             if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent)) {
-              end = afterOptional(node.end, false);
+              // callee may include TS wrappers / parens — replace the full callee + `?.`
+              start = parent.callee.start;
+              end = afterOptional(parent.callee.end, false);
             } else if (parent?.type === 'MemberExpression' && parent.optional && parent.object === node) {
-              end = afterOptional(node.end, !parent.computed);
+              end = afterOptional(parent.object.end, !parent.computed);
             }
-            transforms.add(node.start, end, binding);
+            transforms.add(start, end, binding);
           }
         };
 
