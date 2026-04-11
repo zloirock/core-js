@@ -1,3 +1,3 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-const from = _Array$from,
-  x = 1;
+const from = _Array$from;
+const x = 1;
