@@ -670,6 +670,8 @@ export default function createPlugin(options) {
           const declaratorPath = metaPath.parentPath?.parentPath;
           if (!declaratorPath?.node) return false;
           if (declaratorPath.node.type === 'Property') return false;
+          // catch ({ includes }) {} - treat like a variable declarator with generated ref
+          if (declaratorPath.node.type === 'CatchClause') return true;
           if (!sharedCanTransformDestructuring({
             parentType: declaratorPath.node.type,
             parentInit: declaratorPath.node.init,
@@ -727,16 +729,19 @@ export default function createPlugin(options) {
           // find statement path:
           // VariableDeclaration: Property -> ObjectPattern -> VariableDeclarator -> VariableDeclaration
           // assignment: Property -> ObjectPattern -> AssignmentExpression -> ExpressionStatement
+          // catch clause: Property -> ObjectPattern -> CatchClause
           const declaratorPath = metaPath.parentPath?.parentPath;
-          const isAssignment = declaratorPath?.node?.type === 'AssignmentExpression';
-          let declPath = declaratorPath?.parentPath;
+          const isCatchClause = declaratorPath?.node?.type === 'CatchClause';
+          const isAssignment = !isCatchClause && declaratorPath?.node?.type === 'AssignmentExpression';
+          let declPath = isCatchClause ? declaratorPath : declaratorPath?.parentPath;
           // unwrap ParenthesizedExpression for assignment: ({ from } = Array) -> ExpressionStatement
           if (isAssignment) {
             while (declPath?.node?.type === 'ParenthesizedExpression') declPath = declPath.parentPath;
           }
-          // get init source for instance methods
-          const initNode = isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
-          const initSrc = initNode ? nodeSrc(initNode) : null;
+          // get init source for instance methods (catch clause: generated ref replaces param)
+          const initNode = isCatchClause ? null
+            : isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
+          const initSrc = isCatchClause ? injector.generateRef(false) : initNode ? nodeSrc(initNode) : null;
 
           if (!state.destructuring.has(objectPattern)) {
             state.destructuring.set(objectPattern, {
@@ -745,6 +750,7 @@ export default function createPlugin(options) {
               declPath,
               declaratorPath,
               isAssignment,
+              isCatchClause,
               initSrc,
               initStart: initNode?.start,
               initEnd: initNode?.end,
@@ -785,7 +791,7 @@ export default function createPlugin(options) {
                     case 'MemberExpression':
                     case 'OptionalMemberExpression':
                       // mark proxy-global member chains (globalThis.Promise) but not
-                      // instance methods (arr.slice) — instance methods compose correctly
+                      // instance methods (arr.slice) - instance methods compose correctly
                       if (findProxyGlobal(cur)) skippedNodes.add(cur);
                       cur = cur.object;
                       break;
@@ -815,7 +821,27 @@ export default function createPlugin(options) {
           }
 
           for (const [, infos] of byStatement) {
-            const [{ declPath, isAssignment }] = infos;
+            const [{ declPath, isAssignment, isCatchClause }] = infos;
+
+            // --- catch clause: replace param with ref, insert extracted declarations into body ---
+            if (isCatchClause) {
+              const catchNode = declPath.node;
+              const ref = infos[0].initSrc;
+              const polyfillKeys = new Set(infos.flatMap(i => i.entries.map(e => e.propNode)));
+              const remaining = infos[0].allProps.filter(p => !polyfillKeys.has(p));
+              const decls = infos.flatMap(i => i.entries.map(e => {
+                const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
+                return `var ${ e.localName } = ${ valueSrc };`;
+              }));
+              // replace ObjectPattern param with ref
+              transforms.add(catchNode.param.start, catchNode.param.end, ref);
+              const bodyStart = catchNode.body.start + 1;
+              const restorePattern = remaining.length > 0
+                ? `\nvar ${ nodeSrc(catchNode.param) } = ${ ref };` : '';
+              ms.appendRight(bodyStart, `${ restorePattern }\n${ decls.join('\n') }`);
+              continue;
+            }
+
             const isExport = !isAssignment && declPath.parentPath?.node?.type === 'ExportNamedDeclaration';
             const isForInit = !isAssignment && declPath.parentPath?.node?.type === 'ForStatement'
               && declPath.parentPath.node.init === declPath.node;
@@ -830,7 +856,7 @@ export default function createPlugin(options) {
               return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
             }
 
-            function emitPolyfilled(info, parts) {
+            function emitPolyfilled(info, parts, deferredSEs) {
               const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
               // if the init has a queued transform (e.g. Promise -> _Promise), extract it
               // to prevent composition corruption (Promise in _Promise$resolve -> __Promise$resolve)
@@ -874,8 +900,8 @@ export default function createPlugin(options) {
               // preserve side-effects when init is fully dropped (all-static, no rest/remaining)
               if (!hasInstance && !hasRest && remaining.length === 0 && initSrc
                 && mayHaveSideEffects(info.initNode)) {
-                // for-init requires valid declarators — wrap SE in a dummy binding
-                parts.unshift(isForInit
+                // collect in source order - prepended to parts after the declarator loop
+                deferredSEs.push(isForInit
                   ? `${ injector.generateRef(false) } = ${ initTransformed }`
                   : initTransformed);
               }
@@ -891,17 +917,19 @@ export default function createPlugin(options) {
             }
 
             const parts = [];
+            const deferredSEs = [];
             if (isAssignment) {
-              for (const info of infos) emitPolyfilled(info, parts);
+              for (const info of infos) emitPolyfilled(info, parts, deferredSEs);
             } else {
               // interleave polyfilled and untouched declarators in source order
               const polyfilledByDecl = new Map(infos.map(i => [i.declaratorPath.node, i]));
               for (const dec of declPath.node.declarations) {
                 const info = polyfilledByDecl.get(dec);
-                if (info) emitPolyfilled(info, parts);
+                if (info) emitPolyfilled(info, parts, deferredSEs);
                 else parts.push(`${ stmtPrefix }${ nodeSrc(dec) }`);
               }
             }
+            if (deferredSEs.length) parts.unshift(...deferredSEs);
 
             if (isForInit) {
               transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
@@ -960,6 +988,38 @@ export default function createPlugin(options) {
               skipProxyGlobal(node.right);
             }
           }
+        }
+
+        // replace global identifier or static member with polyfill import binding
+        function replaceGlobalOrStatic(binding, node, parent, metaPath) {
+          // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
+          // same source range for shorthand `{ Promise }` and bare `export { Promise }`
+          const directParent = metaPath.parent;
+          if (node.type === 'Identifier' && directParent?.type === 'Property' && directParent.shorthand
+            && directParent.value === node && metaPath.parentPath?.parent?.type === 'ObjectExpression') {
+            return transforms.add(node.start, node.end, `${ node.name }: ${ binding }`);
+          }
+          if (node.type === 'Identifier' && directParent?.type === 'ExportSpecifier'
+            && directParent.local === node && directParent.exported?.start === node.start
+            && directParent.exported?.end === node.end) {
+            return transforms.add(node.start, node.end, `${ binding } as ${ node.name }`);
+          }
+          // super.method(args) -> binding.call(this, args) to preserve this-binding
+          if (node.object?.type === 'Super' && parent?.type === 'CallExpression' && isCallee(node, parent)) {
+            const args = parent.arguments;
+            const argsSrc = args.length ? `, ${ code.slice(args[0].start, args.at(-1).end) }` : '';
+            return transforms.add(parent.start, parent.end, `${ binding }.call(this${ argsSrc })`);
+          }
+          // deoptionalize `?.` - polyfill import is always defined
+          let { start, end } = node;
+          if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent)) {
+            start = parent.callee.start;
+            end = afterOptional(parent.callee.end, false);
+          } else if (parent?.type === 'MemberExpression' && parent.optional && unwrapNode(parent.object) === node) {
+            start = parent.object.start;
+            end = afterOptional(parent.object.end, !parent.computed);
+          }
+          transforms.add(start, end, binding);
         }
 
         const usagePureCallback = (meta, metaPath) => {
@@ -1025,34 +1085,7 @@ export default function createPlugin(options) {
           if (kind === 'instance' && node.type === 'MemberExpression') {
             replaceInstance(binding, node, parent, metaPath);
           } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-            // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
-            // same source range for shorthand `{ Promise }` and bare `export { Promise }` -
-            // expand the rewrite so the public name stays
-            const directParent = metaPath.parent;
-            if (node.type === 'Identifier' && directParent?.type === 'Property' && directParent.shorthand
-              && directParent.value === node && metaPath.parentPath?.parent?.type === 'ObjectExpression') {
-              transforms.add(node.start, node.end, `${ node.name }: ${ binding }`);
-              return;
-            }
-            if (node.type === 'Identifier' && directParent?.type === 'ExportSpecifier'
-              && directParent.local === node && directParent.exported?.start === node.start
-              && directParent.exported?.end === node.end) {
-              transforms.add(node.start, node.end, `${ binding } as ${ node.name }`);
-              return;
-            }
-            // deoptionalize `?.` when replacing global/static callee - the polyfill import is always
-            // defined, so optional chaining on it is redundant:
-            // - optional call: Map?.() / (Map as any)?.() / globalThis.Map?.() -> _Map()
-            // - optional member parent: globalThis?.X -> _globalThis.X
-            let { start, end } = node;
-            if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent)) {
-              // callee may include TS wrappers / parens — replace the full callee + `?.`
-              start = parent.callee.start;
-              end = afterOptional(parent.callee.end, false);
-            } else if (parent?.type === 'MemberExpression' && parent.optional && parent.object === node) {
-              end = afterOptional(parent.object.end, !parent.computed);
-            }
-            transforms.add(start, end, binding);
+            replaceGlobalOrStatic(binding, node, parent, metaPath);
           }
         };
 
