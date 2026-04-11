@@ -1871,6 +1871,7 @@ function createResolveNodeType(babelNodeType, t) {
         }
         return false;
       case 'TSFunctionType':
+      case 'TSConstructorType':
       case 'FunctionTypeAnnotation':
         return hasTypeParamReference(node.returnType ?? node.typeAnnotation, typeParamNames, depth + 1);
     }
@@ -2010,8 +2011,9 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return resolveTypeAnnotation(node, scope, depth);
     }
-    // function type: (x: T) => R - always Function regardless of type parameters
-    if (node.type === 'TSFunctionType' || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
+    // function type: (x: T) => R / new () => T - always Function regardless of type parameters
+    if (node.type === 'TSFunctionType' || node.type === 'TSConstructorType'
+      || node.type === 'FunctionTypeAnnotation') return new $Object('Function');
     // mapped type: { [K in keyof T]: V } - structural, can't derive concrete type
     if (node.type === 'TSMappedType') {
       const passthrough = unwrapMappedTypePassthrough(node);
@@ -2513,6 +2515,30 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // --- Destructuring resolver ---
+  // walk ArrayPattern elements for a target binding, returning index-prefixed key path
+  function findArrayPatternKeyPath(arrayPattern, name, scope) {
+    for (let i = 0; i < (arrayPattern.elements?.length ?? 0); i++) {
+      const el = arrayPattern.elements[i];
+      if (!el) continue;
+      // rest: [...x] is always Array - signal via negative index so callers know
+      if (el.type === 'RestElement') {
+        if (el.argument?.type === 'Identifier' && el.argument.name === name) return [-1];
+        continue;
+      }
+      const unwrapped = el.type === 'AssignmentPattern' ? el.left : el;
+      if (unwrapped?.type === 'Identifier' && unwrapped.name === name) return [i];
+      if (unwrapped?.type === 'ObjectPattern') {
+        const inner = findDestructuredKeyPath(unwrapped, name, scope);
+        if (inner) return [i, ...inner];
+      }
+      if (unwrapped?.type === 'ArrayPattern') {
+        const inner = findArrayPatternKeyPath(unwrapped, name, scope);
+        if (inner) return [i, ...inner];
+      }
+    }
+    return null;
+  }
+
   // `{ a: { b: c } }`, target `c` -> `['a', 'b']`. nested ObjectPatterns walked recursively
   function findDestructuredKeyPath(objectPattern, name, scope) {
     for (const prop of objectPattern.properties) {
@@ -2526,16 +2552,8 @@ function createResolveNodeType(babelNodeType, t) {
         if (inner) return [key, ...inner];
       }
       if (value?.type === 'ArrayPattern') {
-        for (let i = 0; i < (value.elements?.length ?? 0); i++) {
-          const el = value.elements[i];
-          if (!el) continue;
-          const unwrapped = el.type === 'AssignmentPattern' ? el.left : el;
-          if (unwrapped?.type === 'Identifier' && unwrapped.name === name) return [key, i];
-          if (unwrapped?.type === 'ObjectPattern') {
-            const inner = findDestructuredKeyPath(unwrapped, name, scope);
-            if (inner) return [key, i, ...inner];
-          }
-        }
+        const arrResult = findArrayPatternKeyPath(value, name, scope);
+        if (arrResult) return [key, ...arrResult];
       }
     }
     return null;
@@ -2859,15 +2877,22 @@ function createResolveNodeType(babelNodeType, t) {
       }
       // runtime init: resolve through variables to the actual value
       const initPath = resolveRuntimeExpression(bindingPath.get('init'));
-      const initType = resolveNodeType(initPath);
-      const inner = resolveInnerType(initType);
-      if (inner) return inner;
-      // array literal -> resolve element by index: const [a, b] = ['hello', 42]
-      if (t.isArrayExpression(initPath.node)) {
-        const index = findPatternIndex(arrayPattern, varName);
-        if (index >= 0) {
+      const index = findPatternIndex(arrayPattern, varName);
+      if (index >= 0) {
+        // direct element: const [a] = typedArr -> resolve inner type or literal element
+        const initType = resolveNodeType(initPath);
+        const inner = resolveInnerType(initType);
+        if (inner) return inner;
+        if (t.isArrayExpression(initPath.node)) {
           const elemType = resolveArrayLiteralElement(initPath, index);
           if (elemType) return elemType;
+        }
+      } else {
+        // nested pattern: const [{ a }] = [{ a: 'x' }] or const [[b]] = [['x']]
+        const arrPath = findArrayPatternKeyPath(arrayPattern, varName, bindingPath.scope);
+        if (arrPath) {
+          const result = resolveObjectMemberPath(initPath, arrPath);
+          if (result) return result;
         }
       }
     }
@@ -2959,6 +2984,8 @@ function createResolveNodeType(babelNodeType, t) {
     const [step] = keyPath;
     const rest = keyPath.slice(1);
     if (typeof step === 'number') {
+      // -1 = rest element, always Array
+      if (step < 0) return new $Object('Array');
       if (!t.isArrayExpression(objPath.node) || objPath.node.elements.length <= step) return null;
       return resolveObjectMemberPath(resolveRuntimeExpression(objPath.get('elements')[step]), rest);
     }
@@ -3079,14 +3106,12 @@ function createResolveNodeType(babelNodeType, t) {
         if (!keyPath) return null;
         return resolveDestructuredMember(lastAssign.get('right'), keyPath);
       }
-      // array destructuring: `[x] = ['hello']` - resolve element from RHS
+      // array destructuring: `[x] = ['hello']` or `[{ a }] = [{ a: 'x' }]`
       if (lastAssign.node.left?.type === 'ArrayPattern') {
-        const idx = lastAssign.node.left.elements?.findIndex(el => el?.type === 'Identifier' && el.name === name);
-        if (idx >= 0) {
+        const arrPath = findArrayPatternKeyPath(lastAssign.node.left, name, lastAssign.scope);
+        if (arrPath) {
           const initPath = resolveRuntimeExpression(lastAssign.get('right'));
-          if (t.isArrayExpression(initPath.node) && initPath.node.elements.length > idx) {
-            return resolveNodeType(initPath.get('elements')[idx]);
-          }
+          return resolveObjectMemberPath(initPath, arrPath);
         }
         return null;
       }
