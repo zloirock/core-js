@@ -513,6 +513,16 @@ export default function createPlugin(options) {
           if (proxy) skippedNodes.add(proxy);
         }
 
+        // mark a node and its transparent wrappers (parens, ChainExpression) as skipped
+        function skipWrappedNode(node) {
+          let cur = node;
+          while (cur) {
+            skippedNodes.add(cur);
+            if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression') cur = cur.expression;
+            else break;
+          }
+        }
+
         // resolve optional root + skip redundant guard when nested inside an outer transform
         function resolveOptionalRoot(node, parent, isCall) {
           let { root, rootRaw, deoptPositions, rootNode } = findChainRoot(node);
@@ -635,7 +645,7 @@ export default function createPlugin(options) {
           const binding = injectPureImport(entry, entry === 'get-iterator' ? 'getIterator' : 'getIteratorMethod');
           addInstanceTransform(binding, node, parent, metaPath, isCallParent,
             isCallParent && (parent.arguments.length > 0 || parent.optional));
-          if (node.property) skippedNodes.add(node.property);
+          if (node.property) skipWrappedNode(node.property);
         }
 
         function replaceInstance(binding, node, parent, metaPath) {
@@ -739,22 +749,23 @@ export default function createPlugin(options) {
             // visitor inside `(Promise)` doesn't queue a stray transform
             if (initNode) {
               // mark all layers so child visitors don't enqueue conflicting transforms
-              let cur = initNode;
-              while (cur) {
-                skippedNodes.add(cur);
-                switch (cur.type) {
-                  case 'LogicalExpression': cur = cur.operator === '&&' ? cur.right : cur.left; break;
-                  case 'SequenceExpression': cur = cur.expressions.at(-1); break;
-                  case 'ParenthesizedExpression': case 'ChainExpression':
-                  case 'MemberExpression': case 'OptionalMemberExpression':
-                    cur = cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression'
-                      ? cur.object : cur.expression;
-                    break;
-                  default:
-                    if (TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
-                    else cur = null;
+              const markInitTree = node => {
+                let cur = node;
+                while (cur) {
+                  skippedNodes.add(cur);
+                  if (cur.type === 'LogicalExpression') {
+                    markInitTree(cur.left);
+                    cur = cur.right;
+                  } else if (cur.type === 'SequenceExpression') {
+                    for (const expr of cur.expressions) skippedNodes.add(expr);
+                    cur = cur.expressions.at(-1);
+                  } else if (cur.type === 'ParenthesizedExpression' || cur.type === 'ChainExpression'
+                    || TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
+                  else if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') cur = cur.object;
+                  else cur = null;
                 }
-              }
+              };
+              markInitTree(initNode);
             }
           }
           state.destructuring.get(objectPattern).entries.push({ propNode, localName, binding, kind, defaultSrc });
@@ -891,9 +902,7 @@ export default function createPlugin(options) {
             const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
             if (meta.key === 'Symbol.iterator') {
               transforms.add(node.start, node.end, `${ binding }(${ nodeSrc(node.right) })`);
-              // skip child MemberExpression transform - the whole expression is replaced
-              skippedNodes.add(node.left);
-              if (node.left.type === 'ChainExpression') skippedNodes.add(node.left.expression);
+              skipWrappedNode(node.left);
             } else {
               transforms.add(node.left.start, node.left.end, binding);
             }
