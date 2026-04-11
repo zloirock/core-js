@@ -1,4 +1,10 @@
-import { isCoreJSFile, parseDisableDirectives, mergeVisitors, createClassHelpers } from '@core-js/polyfill-provider/helpers';
+import {
+  createClassHelpers,
+  isCoreJSFile,
+  mergeVisitors,
+  parseDisableDirectives,
+  TS_EXPR_WRAPPERS,
+} from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
@@ -40,6 +46,7 @@ export default function plugin(api, options) {
 
   const {
     isInTypeAnnotation,
+    deferredSideEffects,
     deoptionalizeNode,
     normalizeOptionalChain,
     replaceInstanceLike,
@@ -82,7 +89,15 @@ export default function plugin(api, options) {
       }
 
       function handleSymbolIterator(path) {
-        if (path.node.computed) skippedNodes.add(path.node.property);
+        if (path.node.computed) {
+          // skip all layers: TS wrappers, parens, and the inner MemberExpression
+          let cur = path.node.property;
+          while (cur) {
+            skippedNodes.add(cur);
+            if (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression') cur = cur.expression;
+            else break;
+          }
+        }
         // peel `arr[Symbol.iterator]!()` etc. so the call parent is recognised
         const callerPath = unwrapTSExpressionParent(path);
         const entry = resolveSymbolIteratorEntry(callerPath.node, callerPath.parent);
@@ -294,6 +309,15 @@ export default function plugin(api, options) {
           disabledLines = directives !== true ? directives : null;
         },
         exit(path) {
+          // insert deferred side-effect expressions BEFORE re-traversal
+          // so globals inside them get polyfilled
+          if (deferredSideEffects.length) {
+            deferredSideEffects.sort((a, b) => b.index - a.index);
+            for (const { body, index, node } of deferredSideEffects) {
+              (Array.isArray(body) ? body : path.node.body).splice(index, 0, node);
+            }
+            deferredSideEffects.length = 0;
+          }
           if (helperVisitors) {
             // re-traverse body children that did not exist on enter - `parseSync`-built
             // injections carry full `loc`, so the old `!loc` heuristic missed them

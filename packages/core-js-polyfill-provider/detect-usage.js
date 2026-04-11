@@ -50,7 +50,8 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
       // babel-plugin may have mutated `Symbol` into `_Symbol` in place; the adapter exposes
       // the original hint so we can translate the polyfill UID back to its source global
       const initBinding = adapter.getBinding(scope, init.name);
-      if (initBinding?.polyfillHint && /^[A-Z]\w*$/.test(initBinding.polyfillHint)) {
+      if (initBinding?.polyfillHint
+        && (/^[A-Z]\w*$/.test(initBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(initBinding.polyfillHint))) {
         return initBinding.polyfillHint;
       }
       // unbound -> global; bound -> follow chain
@@ -83,15 +84,16 @@ function resolveObjectName(objectNode, scope, adapter) {
     return resolveComputedProxyName(objectNode, scope, adapter);
   }
   // globalThis.Array, self.Promise, globalThis.globalThis.Array - walk past chained proxy globals
+  // handles mixed chains: globalThis['self'].Array, globalThis.self['self'].Promise
   if (objectNode.property.type !== 'Identifier') return null;
   let inner = unwrapParens(objectNode.object);
-  while ((inner.type === 'MemberExpression' || inner.type === 'OptionalMemberExpression')
-    && !inner.computed && inner.property.type === 'Identifier'
-    && POSSIBLE_GLOBAL_OBJECTS.has(inner.property.name)) {
+  while (inner.type === 'MemberExpression' || inner.type === 'OptionalMemberExpression') {
+    const memberKey = inner.computed ? resolveKey(inner.property, true, scope, adapter) : inner.property?.name;
+    if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return null;
     inner = unwrapParens(inner.object);
   }
-  if (inner.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(inner.name)) return null;
-  if (adapter.hasBinding(scope, inner.name)) return null;
+  if (inner.type !== 'Identifier') return null;
+  if (!isProxyGlobalIdentifier(inner, scope, adapter)) return null;
   return objectNode.property.name;
 }
 
@@ -106,9 +108,18 @@ function resolveComputedProxyName(node, scope, adapter) {
     if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return null;
     obj = unwrapParens(obj.object);
   }
-  if (obj.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) return null;
-  if (adapter.hasBinding(scope, obj.name)) return null;
+  if (obj.type !== 'Identifier') return null;
+  if (!isProxyGlobalIdentifier(obj, scope, adapter)) return null;
   return key;
+}
+
+// check if an identifier refers to a proxy global: either directly (`globalThis`)
+// or through a const alias (`const g = globalThis`)
+function isProxyGlobalIdentifier(node, scope, adapter) {
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name)) return true;
+  // follow const alias: `const g = globalThis` / `const g = self`
+  const resolved = resolveBindingToGlobal(node.name, scope, adapter);
+  return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
 export function resolveKey(node, computed, scope, adapter, depth = 0) {
