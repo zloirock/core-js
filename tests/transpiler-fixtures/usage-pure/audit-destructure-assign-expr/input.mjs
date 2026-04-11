@@ -1,2 +1,0 @@
-let from;
-({ from } = Array);
