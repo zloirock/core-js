@@ -245,17 +245,18 @@ export default function (t) {
     ]));
   }
 
-  // rest + multi-decl: splice this declarator out into its own statement to preserve
-  // source order (insertBefore on multi-decl would place ALL polyfills before ALL rests)
-  function splitRestDeclarator(declaration, parent, extractedDeclaration, isExport) {
-    const idx = declaration.node.declarations.indexOf(parent.node);
-    if (idx === -1) return;
-    declaration.node.declarations.splice(idx, 1);
-    const { kind } = declaration.node;
-    const restDecl = t.variableDeclaration(kind, [parent.node]);
-    const wrap = node => isExport ? t.exportNamedDeclaration(node) : node;
-    declaration.insertBefore(wrap(extractedDeclaration));
-    declaration.insertBefore(wrap(restDecl));
+  // multi-decl extraction: rest uses in-place splice (source order), non-rest batches for isEmpty
+  function collectMultiDeclExtraction(declaration, parent, objectPattern, localBinding, value, hasRest) {
+    const extracted = t.variableDeclarator(localBinding, value);
+    if (hasRest) {
+      // splice right before the rest-declarator to preserve source order
+      const idx = declaration.node.declarations.indexOf(parent.node);
+      if (idx !== -1) declaration.node.declarations.splice(idx, 0, extracted);
+    } else {
+      // collect for batch insertion when isEmpty fires via trySplitDeclaration
+      if (!pendingExtractions.has(objectPattern.node)) pendingExtractions.set(objectPattern.node, []);
+      pendingExtractions.get(objectPattern.node).push(extracted);
+    }
   }
 
   // for-init with SE: keep SE inline so it doesn't escape the loop
@@ -365,12 +366,8 @@ export default function (t) {
             declaration.replaceWith(extractedDeclaration);
           }
         }
-      } else if (isMultiDecl && !isForInit && !hasRest) {
-        // non-last property: collect for batch insertion when isEmpty fires
-        if (!pendingExtractions.has(objectPattern.node)) pendingExtractions.set(objectPattern.node, []);
-        pendingExtractions.get(objectPattern.node).push(t.variableDeclarator(localBinding, value));
-      } else if (hasRest && isMultiDecl && !isForInit) {
-        splitRestDeclarator(declaration, parent, extractedDeclaration, isExport);
+      } else if (isMultiDecl && !isForInit) {
+        collectMultiDeclExtraction(declaration, parent, objectPattern, localBinding, value, hasRest);
       } else if (isExport) {
         declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
       } else {
