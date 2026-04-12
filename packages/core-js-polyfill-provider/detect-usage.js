@@ -58,9 +58,15 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
       if (!adapter.hasBinding(scope, init.name) || init.name === name) return init.name;
       return resolveBindingToGlobal(init.name, scope, adapter, seen);
     }
-    // const P = self.Promise / const A = globalThis['Array']
+    // const P = self.Promise / const A = globalThis['Array'] / var _ref = (0, Array)
     if (init) {
-      const unwrapped = unwrapParens(init);
+      let unwrapped = unwrapParens(init);
+      // (0, Array) — sequence expression, value = last element
+      if (unwrapped.type === 'SequenceExpression') unwrapped = unwrapParens(unwrapped.expressions.at(-1));
+      if (unwrapped.type === 'Identifier') {
+        if (!adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
+        return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
+      }
       if (unwrapped.type === 'MemberExpression' || unwrapped.type === 'OptionalMemberExpression') {
         return resolveObjectName(unwrapped, scope, adapter);
       }
