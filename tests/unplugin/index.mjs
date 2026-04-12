@@ -18,7 +18,9 @@ function normalize(code) {
   return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>').trim();
 }
 
-// collapse whitespace outside string literals for formatting-insensitive comparison
+// collapse cosmetic whitespace outside string literals for formatting-insensitive comparison.
+// spaces between identifier-like tokens (keywords, names) are preserved to catch
+// broken codegen like `constfrom` instead of `const from`
 function collapseWhitespace(code) {
   let result = '';
   for (let i = 0; i < code.length; i++) {
@@ -35,7 +37,14 @@ function collapseWhitespace(code) {
         if (code[i] === quote) break;
       }
     } else if (/\s/.test(ch)) {
-      if (result.length && !result.endsWith(' ')) result += ' ';
+      // keep a single space only when both neighbors are word characters
+      const before = result[result.length - 1];
+      // scan ahead to the next non-whitespace
+      let j = i + 1;
+      while (j < code.length && /\s/.test(code[j])) j++;
+      const after = code[j];
+      if (before && after && /[\w$]/.test(before) && /[\w$]/.test(after)) result += ' ';
+      i = j - 1;
     } else {
       result += ch;
     }
