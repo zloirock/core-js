@@ -19,6 +19,7 @@ const ignoreWords = [
   'larg',
   'outLow',
   'statics',
+  'throughTS',
 ];
 
 // Match the walk's basename exclusions for explicit paths. Pass parent components through literally.
