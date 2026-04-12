@@ -49,3 +49,6 @@ QUnit.test('class: polyfill with inheritance', assert => {
   }
   assert.deepEqual(new Child().transform([2, 1, 3]), [3, 2, 1]);
 });
+
+// super.resolve / super.from in extends — covered by fixture tests only,
+// @babel/transform-classes races with core-js plugin in bundled context

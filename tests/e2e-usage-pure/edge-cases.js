@@ -174,3 +174,62 @@ QUnit.test('default param: polyfill in default value', assert => {
   }
   assert.same(getFirst([5, 6]), 5);
 });
+
+// var self-reference shadow — var Map = Map resolves to global
+QUnit.test('var self-ref: var Map = Map; Map.groupBy', assert => {
+  // eslint-disable-next-line no-var -- testing var hoisting
+  var Map = Map;
+  assert.same(typeof Map.groupBy, 'function');
+});
+
+// computed template literal key
+QUnit.test('computed template key: arr.includes(x) via computed', assert => {
+  assert.true([1, 2, 3].includes(2));
+});
+
+// three chained polyfills
+QUnit.test('three chained: Array.from(...).filter(...).findLast(...)', assert => {
+  assert.same(Array.from([1, 2, 3, 4]).filter(x => x > 2).findLast(x => x < 4), 3);
+});
+
+// catch clause
+QUnit.test('catch: instance method on caught error', assert => {
+  try {
+    throw new Error('test failure');
+  } catch (err) {
+    assert.true(err.message.includes('failure'));
+    assert.same(err.message.at(0), 't');
+  }
+});
+
+QUnit.test('catch: Object.keys on caught error', assert => {
+  try {
+    const err = new Error('fail');
+    err.code = 42;
+    throw err;
+  } catch (err) {
+    assert.true(Object.keys(err).includes('code'));
+  }
+});
+
+// scope shadows
+QUnit.test('scope: block-scoped shadow does not leak', assert => {
+  {
+    // eslint-disable-next-line no-unused-vars -- testing scope
+    const Array = [1, 2, 3];
+  }
+  assert.deepEqual(Array.from([4, 5]), [4, 5]);
+});
+
+QUnit.test('scope: arrow param shadow', assert => {
+  const fn = Array => Array.length;
+  assert.same(fn([1, 2, 3]), 3);
+  assert.deepEqual(Array.from('ab'), ['a', 'b']);
+});
+
+QUnit.test('scope: for-of variable shadow', assert => {
+  for (const Map of [1, 2, 3]) {
+    assert.same(typeof Map, 'number');
+  }
+  assert.same(typeof Map.groupBy, 'function');
+});
