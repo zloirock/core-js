@@ -334,10 +334,18 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
   const unwrapped = unwrapParens(initNode);
-  // `Array ?? null`, `X || Array`, `X && Array`: follow the likely-value branch
+  // `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
+  // that resolves to a known global (for `??`/`||` the fallback is usually on the right,
+  // for `&&` it's always the right).
+  // when only the fallback resolves, mark `fromFallback` — the runtime value may come
+  // from either branch, so pure-mode must not replace the destructuring
   if (unwrapped.type === 'LogicalExpression') {
-    const next = unwrapped.operator === '&&' ? unwrapped.right : unwrapped.left;
-    return buildDestructuringInitMeta(next, key, scope, adapter);
+    const primary = unwrapped.operator === '&&' ? unwrapped.right : unwrapped.left;
+    const meta = buildDestructuringInitMeta(primary, key, scope, adapter);
+    if (meta.object) return meta;
+    const fallback = buildDestructuringInitMeta(unwrapped.right, key, scope, adapter);
+    if (fallback.object) return { ...fallback, fromFallback: true };
+    return fallback;
   }
   // `(0, Array)`: sequence evaluates to its last expression
   if (unwrapped.type === 'SequenceExpression') {
