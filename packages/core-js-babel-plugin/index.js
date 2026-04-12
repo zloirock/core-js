@@ -204,6 +204,21 @@ export default function plugin(api, options) {
           || isOrphaned(path) || isInTypeAnnotation(path);
       }
 
+      // super.method(args) / super.method!(args) / super.method?.(args) -> id.call(this, args)
+      function replaceSuperStatic(path, id) {
+        const callerPath = unwrapTSExpressionParent(path);
+        const callParent = callerPath.parentPath;
+        if ((callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
+          && callParent.node.callee === callerPath.node) {
+          callParent.replaceWith(
+            t.callExpression(t.memberExpression(id, t.identifier('call')),
+              [t.thisExpression(), ...callParent.node.arguments.map(a => t.cloneNode(a))]),
+          );
+        } else {
+          unwrapTSExpressionParent(path).replaceWith(id);
+        }
+      }
+
       // extends clause replaced by polyfill import (_Promise): resolve back to original global
       function resolveSuperImportName(superMeta) {
         if (!superMeta.object) return;
@@ -288,14 +303,8 @@ export default function plugin(api, options) {
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             replaceInstanceLike(path, id, skipPolyfillableOptional);
-          } else if (t.isSuper(path.node.object)
-            && (path.parentPath.isCallExpression() || path.parentPath.isOptionalCallExpression())
-            && path.parent.callee === path.node) {
-            // super.method(args) -> id.call(this, args) to preserve this-binding
-            path.parentPath.replaceWith(
-              t.callExpression(t.memberExpression(id, t.identifier('call')),
-                [t.thisExpression(), ...path.parent.arguments.map(a => t.cloneNode(a))]),
-            );
+          } else if (t.isSuper(path.node.object)) {
+            replaceSuperStatic(path, id);
           } else {
             const wasOptional = path.node.optional,
                   // replace through TS wrappers: (Map satisfies any) -> _Map
