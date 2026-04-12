@@ -110,6 +110,8 @@ function collectAllBindingNames(ast) {
     ArrowFunctionExpression: path => addParams(path.node),
     ClassDeclaration: path => addId(path.node),
     ClassExpression: path => addId(path.node),
+    TSEnumDeclaration: path => addId(path.node),
+    TSModuleDeclaration: path => addId(path.node),
     CatchClause: path => addPattern(path.node.param),
     ImportSpecifier: addLocal,
     ImportDefaultSpecifier: addLocal,
@@ -438,17 +440,20 @@ export default function createPlugin(options) {
           return result + src.slice(prev);
         }
 
-        // walk the chain to find the first non-polyfillable optional
+        // walk the chain to find the first non-polyfillable optional,
+        // skipping TS expression wrappers (TSAsExpression, TSNonNullExpression, etc.)
         function findChainRoot(node) {
+          function chainChild(n) {
+            return n.object || n.callee || (TS_EXPR_WRAPPERS.has(n.type) ? n.expression : null);
+          }
           function makeResult(optionalNode) {
             const rootNode = optionalNode.object || optionalNode.callee;
-            // collect `?.` positions from polyfill node down to optionalNode (for stripping)
             const deoptPositions = [];
-            let cur = node.object || node.callee;
+            let cur = chainChild(node);
             while (cur && typeof cur === 'object') {
               if (cur.optional) deoptPositions.push(cur.object?.end ?? cur.callee?.end);
               if (cur === optionalNode) break;
-              cur = cur.object || cur.callee;
+              cur = chainChild(cur);
             }
             return { root: unwrapParens(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
           }
@@ -456,12 +461,12 @@ export default function createPlugin(options) {
           if (node.optional) {
             return isPoly(node) ? { root: null } : makeResult(node);
           }
-          let current = node.object || node.callee;
+          let current = chainChild(node);
           while (current && typeof current === 'object') {
             if (current.optional) {
               return isPoly(current) ? { root: null } : makeResult(current);
             }
-            current = current.object || current.callee;
+            current = chainChild(current);
           }
           return { root: null };
         }
@@ -806,7 +811,8 @@ export default function createPlugin(options) {
                     case 'CallExpression':
                     case 'OptionalCallExpression':
                     case 'NewExpression':
-                      cur = cur.callee;
+                    case 'TaggedTemplateExpression':
+                      cur = cur.callee || cur.tag;
                       break;
                     case 'MemberExpression':
                     case 'OptionalMemberExpression':
