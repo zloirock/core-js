@@ -142,6 +142,10 @@ export default function plugin(api, options) {
           return;
         }
         if (!canTransformDestructuring(prop)) return;
+        // export + rest: skip — `_unused` rename would pollute the module's export namespace
+        if (objectPattern.node.properties.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')
+          && objectPattern.parentPath?.isVariableDeclarator()
+          && objectPattern.parentPath.parentPath?.parentPath?.isExportNamedDeclaration()) return;
         let value;
         if (kind === 'instance') {
           const objectNode = resolveDestructuringObject(prop, toHint(resolvePropertyObjectType(prop)));
