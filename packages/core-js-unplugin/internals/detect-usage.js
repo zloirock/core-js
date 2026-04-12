@@ -12,12 +12,12 @@ import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import { TS_EXPR_WRAPPERS, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 
 // check if an identifier is referenced (not a declaration, property key, or export alias)
-function isReferenced(node, parent, parentKey, grandParentType) {
+function isReferenced(node, parent, parentKey, parentPath) {
   if (!parent) return true;
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
   // Property value inside ObjectPattern is a binding target, not a reference
   // { Promise } = obj -> Promise is written to, not read; but { x: Promise } in ObjectExpression IS read
-  if (parent.type === 'Property' && parentKey === 'value' && grandParentType === 'ObjectPattern') return false;
+  if (parent.type === 'Property' && parentKey === 'value' && parentPath?.parent?.type === 'ObjectPattern') return false;
   if (parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) return false;
   if ((parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression'
     || parent.type === 'ClassDeclaration' || parent.type === 'ClassExpression'
@@ -33,10 +33,14 @@ function isReferenced(node, parent, parentKey, grandParentType) {
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   if (parent.type === 'AssignmentExpression' && parentKey === 'left') return false;
-  // UpdateExpression operand (Map++, --Map, Map!++) - read+write context, polyfill import
+  // UpdateExpression operand (Map++, --Map, (Map as T)++) - read+write context, polyfill import
   // is read-only so the transform would emit `_Map++` which throws TypeError at runtime
   if (parent.type === 'UpdateExpression') return false;
-  if (TS_EXPR_WRAPPERS.has(parent.type) && grandParentType === 'UpdateExpression') return false;
+  if (TS_EXPR_WRAPPERS.has(parent.type)) {
+    let check = parentPath;
+    while (check && TS_EXPR_WRAPPERS.has(check.node?.type)) check = check.parentPath;
+    if (check?.node?.type === 'UpdateExpression') return false;
+  }
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
   return true;
 }
@@ -248,7 +252,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
 
   function identifierVisitor(path) {
     const { node, parent, key: parentKey } = path;
-    if (!isReferenced(node, parent, parentKey, path.parentPath?.parent?.type)) return;
+    if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
@@ -266,7 +270,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     const { node, parent, key: parentKey } = path;
     if (handledObjects.has(node)) return;
     // skip assignment targets - polyfilling LHS produces invalid code
-    if (!isReferenced(node, parent, parentKey, path.parentPath?.parent?.type)) return;
+    if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
     if (suppressProxyGlobals && parent?.type === 'BinaryExpression'
       && parent.operator === 'in' && parent.left === node) return;
     const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
