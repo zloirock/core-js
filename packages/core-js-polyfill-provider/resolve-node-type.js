@@ -1606,6 +1606,8 @@ function createResolveNodeType(babelNodeType, t) {
           || resolveKnownGlobalReference(path);
       case 'CallExpression':
       case 'OptionalCallExpression': {
+        // polyfill-replaced call: return type was stashed before callee replacement
+        if (path.node.coreJSResolvedType) return typeFromHint(path.node.coreJSResolvedType);
         const callee = path.get('callee');
         const name = resolveGlobalName(callee);
         if (name) {
@@ -3838,7 +3840,7 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveNodeType(path)?.primitive === false;
   }
 
-  return { resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject };
+  return { resolvePropertyObjectType, resolveGuardHints, resolveNodeType, toHint, isString, isObject };
 }
 
 export { createResolveNodeType, TYPE_HINTS };
