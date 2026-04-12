@@ -1,0 +1,1 @@
+Map.groupBy(arr, fn);
