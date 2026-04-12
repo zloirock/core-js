@@ -29,7 +29,7 @@ export default function plugin(api, options) {
   const { types: t, caller } = api;
 
   const typeResolvers = createResolveNodeType(node => node?.type, t);
-  const { resolvePropertyObjectType, toHint } = typeResolvers;
+  const { resolvePropertyObjectType, resolveNodeType, toHint } = typeResolvers;
 
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
@@ -306,9 +306,15 @@ export default function plugin(api, options) {
           } else if (t.isSuper(path.node.object)) {
             replaceSuperStatic(path, id);
           } else {
-            const wasOptional = path.node.optional,
-                  // replace through TS wrappers: (Map satisfies any) -> _Map
-                  replacePath = unwrapTSExpressionParent(path);
+            // preserve return type for downstream instance-method resolution:
+            // const arr = Promise.all(p) → after replacement, _Promise$all(p) loses type info
+            const callerPath = unwrapTSExpressionParent(path);
+            if (callerPath.parentPath?.isCallExpression() && callerPath.parent.callee === callerPath.node) {
+              const hint = toHint(resolveNodeType(callerPath.parentPath));
+              if (hint) callerPath.parentPath.node.coreJSResolvedType = hint;
+            }
+            const wasOptional = path.node.optional;
+            const replacePath = callerPath;
             replacePath.replaceWith(id);
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional && replacePath.parentPath?.node?.optional) {
