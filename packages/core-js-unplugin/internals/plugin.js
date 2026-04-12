@@ -1069,8 +1069,15 @@ export default function createPlugin(options) {
             const argsSrc = args.length ? `, ${ code.slice(args[0].start, args.at(-1).end) }` : '';
             return transforms.add(parent.start, parent.end, `${ binding }.call(this${ argsSrc })`);
           }
-          // deoptionalize `?.` - polyfill import is always defined
+          // strip TS wrappers (satisfies, as, !) — meaningless after polyfill replacement
           let { start, end } = node;
+          let wrapperPath = metaPath.parentPath;
+          while (wrapperPath?.node && (TS_EXPR_WRAPPERS.has(wrapperPath.node.type)
+            || wrapperPath.node.type === 'ParenthesizedExpression')) {
+            ({ start, end } = wrapperPath.node);
+            wrapperPath = wrapperPath.parentPath;
+          }
+          // deoptionalize `?.` - polyfill import is always defined
           if (parent?.type === 'CallExpression' && parent.optional && isCallee(node, parent)) {
             start = parent.callee.start;
             end = afterOptional(parent.callee.end, false);
