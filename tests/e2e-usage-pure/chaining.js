@@ -114,3 +114,12 @@ QUnit.test('mixed: polyfill in logical chain', assert => {
 QUnit.test('mixed: global constructor + instance method', assert => {
   assert.true(new Set([1, 2, 3]).has(2));
 });
+
+// type-driven polyfill: return type determines instance method
+QUnit.test('type: Object.keys().at()', assert => {
+  assert.same(Object.keys({ a: 1, b: 2 }).at(-1), 'b');
+});
+
+QUnit.test('type: string .trim().startsWith()', assert => {
+  assert.true('  hello'.trim().startsWith('hello'));
+});
