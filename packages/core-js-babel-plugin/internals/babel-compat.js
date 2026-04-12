@@ -145,6 +145,9 @@ export default function (t) {
     if (!path.isOptionalMemberExpression()) return [null, node.object];
     let chainStart = null;
     let current = path.get('object');
+    // skip TS wrappers (as, satisfies, !) that sit between the member and the inner chain
+    const throughTS = current.node && TS_EXPR_WRAPPERS.has(current.node.type);
+    while (current.node && TS_EXPR_WRAPPERS.has(current.node.type)) current = current.get('expression');
     while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
       if (current.node.optional) {
         chainStart = current;
@@ -165,13 +168,24 @@ export default function (t) {
     for (let p = chainStart.parentPath; p !== path; p = p.parentPath) {
       if (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) deoptionalizeNode(p);
     }
+    if (check && throughTS) check._throughTS = true;
     return [check, node.object];
   }
 
   function replaceAndWrap(replacePath, result, check) {
-    replacePath.replaceWith(result);
-    const wrapPath = normalizeOptionalChain(replacePath) || replacePath;
-    if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
+    // when check came through a TS wrapper (arr?.at(-1)!.includes), embed the guard
+    // directly — Babel's path references become stale after replaceWith and the two-step
+    // replace-then-wrap approach loses the guard. for normal chains (no TS wrapper),
+    // use the two-step approach so normalizeOptionalChain correctly lifts the guard
+    // past chain continuations like .valueOf()
+    if (check?._throughTS) {
+      replacePath.replaceWith(wrapConditional(check, result));
+      normalizeOptionalChain(replacePath);
+    } else {
+      replacePath.replaceWith(result);
+      const wrapPath = normalizeOptionalChain(replacePath) || replacePath;
+      if (check) wrapPath.replaceWith(wrapConditional(check, wrapPath.node));
+    }
   }
 
   // walk past TS expression wrappers between a member expression and its enclosing call -
@@ -186,6 +200,16 @@ export default function (t) {
   }
 
   function replaceInstanceLike(path, id, skipOptional) {
+    // (arr?.includes)(1) — parenthesized optional callee breaks the chain.
+    // replace only the member expression, keep the original call site.
+    // only for optional chains — non-optional (arr.includes)(1) preserves this
+    if ((path.node.extra?.parenthesized || unwrapTSExpressionParent(path).node.extra?.parenthesized)
+      && path.isOptionalMemberExpression()) {
+      const [check, object] = extractCheck(path, skipOptional);
+      const lookup = t.callExpression(id, [t.cloneNode(object)]);
+      replaceAndWrap(path, lookup, check);
+      return;
+    }
     const callerPath = unwrapTSExpressionParent(path);
     const { parent } = callerPath;
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
