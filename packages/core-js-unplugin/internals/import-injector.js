@@ -94,19 +94,15 @@ export default class ImportInjector {
     else this.#ms.prepend(block);
   }
 
-  // compute end of leading BOM + shebang + directive prologue -
-  // imports must be inserted AFTER all of them to remain valid
+  // compute end of shebang + directive prologue -
+  // imports must be inserted AFTER all of them to remain valid.
+  // BOM is already stripped by the caller before MagicString is created
   #prologueEnd() {
     const src = this.#ms.original;
-    let p = skipBom(src, 0);
-    p = skipShebang(src, p);
+    let p = skipShebang(src, 0);
     if (this.#directiveEnd > p) p = skipLineEnd(src, this.#directiveEnd);
     return p;
   }
-}
-
-function skipBom(src, pos) {
-  return src.charCodeAt(pos) === 0xFEFF ? pos + 1 : pos;
 }
 
 function skipShebang(src, pos) {
