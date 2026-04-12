@@ -308,7 +308,7 @@ export default function plugin(api, options) {
         const { entry, kind, hintName } = result;
 
         if (path.isObjectProperty()) {
-          handleObjectPropertyResult(path, kind, entry, hintName);
+          if (!meta.fromFallback) handleObjectPropertyResult(path, kind, entry, hintName);
         } else {
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
