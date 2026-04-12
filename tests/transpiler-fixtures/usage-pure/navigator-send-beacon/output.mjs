@@ -1,0 +1,1 @@
+navigator.sendBeacon(url, data);
