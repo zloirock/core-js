@@ -1,0 +1,1 @@
+new Uint8Array([72, 101, 108]).toBase64();
