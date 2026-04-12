@@ -278,16 +278,19 @@ export default function (t) {
   }
 
   // walk up from `path` to the nearest parent whose container is an array body (statement-level)
+  // SwitchCase uses `consequent` instead of `body`
   function findStatementParent(path) {
     let stmt = path;
-    while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)) stmt = stmt.parentPath;
+    while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)
+      && !Array.isArray(stmt.parentPath.node.consequent)) stmt = stmt.parentPath;
     return stmt;
   }
 
   function deferSideEffect(containerPath, initNode) {
     if (!initNode || !mayHaveSideEffects(initNode)) return;
     const stmt = findStatementParent(containerPath);
-    const body = stmt.parentPath?.node?.body;
+    const parentNode = stmt.parentPath?.node;
+    const body = parentNode?.body ?? parentNode?.consequent;
     if (Array.isArray(body)) {
       const index = originalDeclKeys.get(containerPath.node) ?? stmt.key;
       deferredSideEffects.push({
@@ -341,8 +344,11 @@ export default function (t) {
       const isMultiDecl = declaration.node.declarations.length > 1;
       const isForInit = declaration.parentPath?.isForStatement()
         && declaration.parentPath.node.init === declaration.node;
-      // unbraced body of if/while/for-body/with/label - parent.body is a single node, not an array
-      const isBodyless = !isExport && !isForInit && !Array.isArray(declaration.parentPath?.node?.body);
+      // unbraced body of if/while/for-body/with/label — parent.body is a single node, not an array
+      // SwitchCase uses `consequent` (array) instead of `body`
+      const parentNode = declaration.parentPath?.node;
+      const isBodyless = !isExport && !isForInit
+        && !Array.isArray(parentNode?.body) && !Array.isArray(parentNode?.consequent);
       if (isEmpty) {
         if (isBodyless && isStaticValue && mayHaveSideEffects(parent.node.init)) {
           wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
