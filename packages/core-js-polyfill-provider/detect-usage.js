@@ -54,8 +54,8 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
         && (/^[A-Z]\w*$/.test(initBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(initBinding.polyfillHint))) {
         return initBinding.polyfillHint;
       }
-      // unbound -> global; bound -> follow chain
-      if (!adapter.hasBinding(scope, init.name)) return init.name;
+      // unbound -> global; self-reference (var Map = Map) -> global; bound -> follow chain
+      if (!adapter.hasBinding(scope, init.name) || init.name === name) return init.name;
       return resolveBindingToGlobal(init.name, scope, adapter, seen);
     }
     // const P = self.Promise / const A = globalThis['Array']
