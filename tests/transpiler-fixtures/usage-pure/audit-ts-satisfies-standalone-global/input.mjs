@@ -1,0 +1,1 @@
+(Promise satisfies any);
