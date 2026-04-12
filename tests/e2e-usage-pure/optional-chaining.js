@@ -85,3 +85,38 @@ QUnit.test('optional call: fn?.call(ctx, arg)', assert => {
   const fn = arr.includes;
   assert.true(fn?.call(arr, 2));
 });
+
+// chain continuation after polyfill — .valueOf() must stay inside guard
+QUnit.test('optional chain continuation: arr?.flat().valueOf()', assert => {
+  assert.deepEqual([1, [2]]?.flat().valueOf(), [1, 2]);
+  assert.same(null?.flat().valueOf(), undefined);
+});
+
+// double optional with two polyfilled methods
+QUnit.test('double optional: arr?.at(0)?.toString()', assert => {
+  assert.same([42]?.at(0)?.toString(), '42');
+  assert.same(null?.at(0)?.toString(), undefined);
+});
+
+// parenthesized optional callee — breaks chain
+QUnit.test('parenthesized optional: (arr?.includes)(1)', assert => {
+  // null case: (null?.includes) → undefined, then (undefined)(2) → TypeError
+  const nil = null;
+  // eslint-disable-next-line no-unsafe-optional-chaining -- testing this exact pattern
+  assert.throws(() => (nil?.includes)(2), TypeError);
+});
+
+// parenthesized non-optional — this preserved
+QUnit.test('parenthesized non-optional: (arr.at)(0)', assert => {
+  const arr = [10, 20, 30];
+  // eslint-disable-next-line @stylistic/no-extra-parens -- testing parenthesized callee
+  assert.same((arr.at)(0), 10);
+});
+
+// nested optional with non-polyfillable first member
+QUnit.test('nested optional: obj?.prop?.includes(x)', assert => {
+  const obj = { list: [1, 2, 3] };
+  assert.true(obj?.list?.includes(2));
+  assert.same(null?.list?.includes(2), undefined);
+  assert.same(obj?.missing?.includes(2), undefined);
+});
