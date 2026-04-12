@@ -1,0 +1,1 @@
+new Uint8Array(10).setFromBase64("SGVsbG8=");
