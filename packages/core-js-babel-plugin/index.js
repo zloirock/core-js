@@ -219,6 +219,15 @@ export default function plugin(api, options) {
         }
       }
 
+      // stash return type on CallExpression before callee replacement so downstream
+      // resolveNodeType can still determine e.g. Promise.all → Array
+      function annotateCallReturnType(path) {
+        const callerPath = unwrapTSExpressionParent(path);
+        if (!callerPath.parentPath?.isCallExpression() || callerPath.parent.callee !== callerPath.node) return;
+        const hint = toHint(resolveNodeType(callerPath.parentPath));
+        if (hint) callerPath.parentPath.node.coreJSResolvedType = hint;
+      }
+
       // extends clause replaced by polyfill import (_Promise): resolve back to original global
       function resolveSuperImportName(superMeta) {
         if (!superMeta.object) return;
@@ -226,6 +235,7 @@ export default function plugin(api, options) {
         if (imp) superMeta.object = imp.hint;
       }
 
+      // eslint-disable-next-line max-statements -- ok
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
 
@@ -306,15 +316,8 @@ export default function plugin(api, options) {
           } else if (t.isSuper(path.node.object)) {
             replaceSuperStatic(path, id);
           } else {
-            // preserve return type for downstream instance-method resolution:
-            // const arr = Promise.all(p) → after replacement, _Promise$all(p) loses type info
-            const callerPath = unwrapTSExpressionParent(path);
-            if (callerPath.parentPath?.isCallExpression() && callerPath.parent.callee === callerPath.node) {
-              const hint = toHint(resolveNodeType(callerPath.parentPath));
-              if (hint) callerPath.parentPath.node.coreJSResolvedType = hint;
-            }
-            const wasOptional = path.node.optional;
-            const replacePath = callerPath;
+            const wasOptional = (annotateCallReturnType(path), path.node.optional);
+            const replacePath = unwrapTSExpressionParent(path);
             replacePath.replaceWith(id);
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional && replacePath.parentPath?.node?.optional) {
