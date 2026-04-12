@@ -1,0 +1,1 @@
+weakMap.getOrInsertComputed(key, fn);
