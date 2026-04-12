@@ -38,7 +38,7 @@ export function mayHaveSideEffects(node) {
       return mayHaveSideEffects(node.expression);
     case 'MemberExpression':
     case 'OptionalMemberExpression':
-      return mayHaveSideEffects(node.object);
+      return mayHaveSideEffects(node.object) || (node.computed && mayHaveSideEffects(node.property));
     default:
       return TS_EXPR_WRAPPERS.has(node.type) ? mayHaveSideEffects(node.expression) : false;
   }
