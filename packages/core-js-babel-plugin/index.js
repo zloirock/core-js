@@ -204,6 +204,13 @@ export default function plugin(api, options) {
           || isOrphaned(path) || isInTypeAnnotation(path);
       }
 
+      // extends clause replaced by polyfill import (_Promise): resolve back to original global
+      function resolveSuperImportName(superMeta) {
+        if (!superMeta.object) return;
+        const imp = injector.getPureImport(superMeta.object);
+        if (imp) superMeta.object = imp.hint;
+      }
+
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
 
@@ -240,9 +247,11 @@ export default function plugin(api, options) {
               && parent.left === path.node) return;
             if (unwrapTSExpressionParent(path).parentPath?.isUpdateExpression()) return;
             if (t.isSuper(path.node.object)) {
-              // resolve `super.X` to its parent class equivalent - currently static-only
               const superMeta = resolveSuperMember(path);
               if (!superMeta) return;
+              // extends clause may already be replaced by a polyfill import (_Promise) —
+              // resolve back to the original global via the injector
+              resolveSuperImportName(superMeta);
               meta = superMeta;
             }
             // `this.X` inside a class that defines its own `X` member - polyfill would
@@ -256,7 +265,8 @@ export default function plugin(api, options) {
         }
 
         const { result, fallback } = resolvePureOrGlobalFallback(meta, path);
-        if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())) {
+        if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())
+          && !t.isSuper(path.node.object)) {
           const id = injectPureImport(fallback.entry, fallback.hintName);
           path.get('object').replaceWith(id);
           normalizeOptionalChain(path, true);
