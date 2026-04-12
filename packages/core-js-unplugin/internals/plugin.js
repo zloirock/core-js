@@ -716,6 +716,8 @@ export default function createPlugin(options) {
             return handleParameterDestructurePure(meta, metaPath, propNode);
           }
           if (!canTransformDestructuring(metaPath)) return;
+          // `X ?? Array` — runtime value from either branch, unsafe to replace destructuring
+          if (meta.fromFallback) return;
           // export + rest: skip — `_unused` rename would pollute the module's export namespace
           const patternHasRest = metaPath.parent?.properties?.some(
             p => p.type === 'RestElement' || p.type === 'SpreadElement');
