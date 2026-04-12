@@ -105,14 +105,33 @@ function formatTargets(obj) {
   return `{ ${ pairs.map(([k, v]) => `${ JSON.stringify(k) }:${ JSON.stringify(v) }`).join(', ') } }`;
 }
 
+const KNOWN_REST_KEYS = new Set([
+  'additionalPackages',
+  'bundler',
+  'method',
+  'mode',
+  'package',
+  'shippedProposals',
+  'version',
+]);
+
 // validate user options, resolve targets, build shouldInjectPolyfill and debug output
 // returns all resolved fields for createPolyfillContext + createPolyfillResolver
 export function initPluginOptions({
-  targets, include, exclude, debug,
-  absoluteImports, shouldInjectPolyfill: userCallback,
-  configPath, ignoreBrowserslistConfig, browserslistEnv, importStyle,
+  absoluteImports,
+  browserslistEnv,
+  configPath,
+  debug,
+  exclude,
+  ignoreBrowserslistConfig,
+  importStyle,
+  include,
+  shouldInjectPolyfill: userCallback,
+  targets,
   ...rest
 }, { getBabelTargets } = {}) {
+  const unknown = keys(rest).filter(k => !KNOWN_REST_KEYS.has(k));
+  if (unknown.length) throw new TypeError(`Unknown @core-js plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }`);
   validateImportStyle(importStyle);
   validatePluginOptions({ absoluteImports, shouldInjectPolyfill: userCallback, include, exclude });
   const parsedTargets = resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets });
