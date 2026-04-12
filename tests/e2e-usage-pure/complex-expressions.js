@@ -67,3 +67,18 @@ QUnit.test('complex: chained string transforms', assert => {
     'Hello, World?.......',
   );
 });
+QUnit.test('complex: polyfill in default parameter', assert => {
+  function process(items = Array.from([1, 2, 3])) {
+    return items.filter(x => x > 1);
+  }
+  assert.deepEqual(process(), [2, 3]);
+  assert.deepEqual(process([5, 6]), [5, 6]);
+});
+
+QUnit.test('complex: Promise.all with Array.from', assert => {
+  const async = assert.async();
+  Promise.all(Array.from([1, 2, 3], x => Promise.resolve(x * 10))).then(r => {
+    assert.deepEqual(r, [10, 20, 30]);
+    async();
+  });
+});
