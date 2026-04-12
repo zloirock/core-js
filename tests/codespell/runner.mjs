@@ -11,6 +11,7 @@ const ignoreWords = [
   'larg',
   'outLow',
   'statics',
+  'throughTS',
 ];
 
 await $`codespell \
