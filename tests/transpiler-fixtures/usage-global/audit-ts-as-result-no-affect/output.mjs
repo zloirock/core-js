@@ -1,0 +1,10 @@
+import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.array.at";
+import "core-js/modules/es.array.from";
+import "core-js/modules/es.array.includes";
+import "core-js/modules/es.string.at";
+import "core-js/modules/es.string.includes";
+import "core-js/modules/es.string.iterator";
+arr.at(-1) as number;
+arr.includes(1) satisfies boolean;
+Array.from!([1]) as any[];
