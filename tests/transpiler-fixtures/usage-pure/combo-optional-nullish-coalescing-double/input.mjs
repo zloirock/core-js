@@ -1,0 +1,1 @@
+obj?.at?.(-1) ?? fallback;
