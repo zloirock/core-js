@@ -14,6 +14,7 @@ const ignoreWords = [
   'larg',
   'outLow',
   'statics',
+  'throughTS',
 ];
 
 // edit-loop scoping: positional paths narrow the run to them, gates run the unscoped default
