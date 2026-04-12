@@ -11,58 +11,81 @@ import {
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import { TS_EXPR_WRAPPERS, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 
+// --- isReferenced ---
+
+const IMPORT_SPECIFIER_TYPES = new Set([
+  'ImportSpecifier',
+  'ImportDefaultSpecifier',
+  'ImportNamespaceSpecifier',
+]);
+
+const DECLARATION_ID_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ClassDeclaration',
+  'ClassExpression',
+  'VariableDeclarator',
+]);
+
+const CLASS_MEMBER_TYPES = new Set([
+  'MethodDefinition',
+  'PropertyDefinition',
+  'AccessorProperty',
+]);
+
+const LABEL_TYPES = new Set([
+  'LabeledStatement',
+  'BreakStatement',
+  'ContinueStatement',
+]);
+
 // check if an identifier is referenced (not a declaration, property key, or export alias)
 function isReferenced(node, parent, parentKey, parentPath) {
   if (!parent) return true;
+  // property key positions
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
-  // Property value inside ObjectPattern is a binding target, not a reference
-  // { Promise } = obj -> Promise is written to, not read; but { x: Promise } in ObjectExpression IS read
-  if (parent.type === 'Property' && parentKey === 'value' && parentPath?.parent?.type === 'ObjectPattern') return false;
   if (parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) return false;
-  if ((parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression'
-    || parent.type === 'ClassDeclaration' || parent.type === 'ClassExpression'
-    || parent.type === 'VariableDeclarator') && parentKey === 'id') return false;
-  if ((parent.type === 'MethodDefinition' || parent.type === 'PropertyDefinition'
-    || parent.type === 'AccessorProperty') && parentKey === 'key' && !parent.computed) return false;
-  if ((parent.type === 'LabeledStatement' || parent.type === 'BreakStatement'
-    || parent.type === 'ContinueStatement') && parentKey === 'label') return false;
+  if (CLASS_MEMBER_TYPES.has(parent.type) && parentKey === 'key' && !parent.computed) return false;
   if (parent.type === 'ImportAttribute' && parentKey === 'key') return false;
-  if (parent.type === 'ImportSpecifier' || parent.type === 'ImportDefaultSpecifier'
-    || parent.type === 'ImportNamespaceSpecifier') return false;
+  // declaration id positions
+  if (DECLARATION_ID_TYPES.has(parent.type) && parentKey === 'id') return false;
+  if (LABEL_TYPES.has(parent.type) && parentKey === 'label') return false;
+  // import/export specifiers
+  if (IMPORT_SPECIFIER_TYPES.has(parent.type)) return false;
   if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;
+  // binding targets — write-only, not a polyfillable reference
+  // { Promise } = obj → written to; { x: Promise } in ObjectExpression IS read
+  if (parent.type === 'Property' && parentKey === 'value' && parentPath?.parent?.type === 'ObjectPattern') return false;
+  if (parent.type === 'AssignmentExpression' && parentKey === 'left') return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
-  if (parent.type === 'AssignmentExpression' && parentKey === 'left') return false;
-  // UpdateExpression operand (Map++, --Map, (Map as T)++) - read+write context, polyfill import
-  // is read-only so the transform would emit `_Map++` which throws TypeError at runtime
+  if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
+  // UpdateExpression operand (Map++, (Map as T)++) — read+write context,
+  // polyfill import is read-only so `_Map++` would throw TypeError at runtime
   if (parent.type === 'UpdateExpression') return false;
   if (TS_EXPR_WRAPPERS.has(parent.type)) {
     let check = parentPath;
     while (check && TS_EXPR_WRAPPERS.has(check.node?.type)) check = check.parentPath;
     if (check?.node?.type === 'UpdateExpression') return false;
   }
-  if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
   return true;
 }
 
-// ESTree scope adapter for shared detect-usage functions
+// --- ESTree scope adapter ---
+
 export const estreeAdapter = {
   hasBinding: (scope, name) => scope?.hasBinding(name) ?? false,
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
-    // expose the source string for any import-bound binding (default/named/namespace) so
-    // resolveKey() can recognise a polyfill UID and infer Symbol.<name> from it
+    // expose source for import bindings so resolveKey() can infer Symbol.<name>
     let importSource = null;
-    const specType = b.path.node?.type;
-    if (specType === 'ImportDefaultSpecifier' || specType === 'ImportSpecifier' || specType === 'ImportNamespaceSpecifier') {
+    if (IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)) {
       importSource = b.path.parent?.source?.value ?? b.path.parentPath?.node?.source?.value ?? null;
     }
     return { node: b.path.node, constantViolations: b.constantViolations, importSource };
   },
-  getBindingNodeType(scope, name) {
-    return scope?.getBinding(name)?.path?.node?.type ?? null;
-  },
+  getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type ?? null,
   isStringLiteral: node => node?.type === 'Literal' && typeof node.value === 'string',
   getStringValue: node => (node?.type === 'Literal' && typeof node.value === 'string') ? node.value : null,
 };
@@ -71,7 +94,8 @@ function resolveKey(node, computed, scope) {
   return sharedResolveKey(node, computed, scope, estreeAdapter);
 }
 
-// extract key from destructuring property
+// --- Destructuring ---
+
 function extractPropertyKey(propNode, scope) {
   if (!propNode.computed) {
     return propNode.key.type === 'Identifier' ? propNode.key.name
@@ -82,7 +106,6 @@ function extractPropertyKey(propNode, scope) {
 }
 
 // build meta for destructuring property: const { from } = Array, ({ from } = Array)
-// parent traversal is ESTree-specific (parentPath), core resolution uses shared helpers
 function buildDestructuringMeta(propNode, parentPath) {
   const objectPattern = parentPath;
   const parent = objectPattern?.parentPath;
@@ -90,10 +113,7 @@ function buildDestructuringMeta(propNode, parentPath) {
 
   let initNode;
   const scope = parent.scope || objectPattern.scope;
-  // nested patterns (Property/AssignmentPattern/For-of/For-in/ArrayPattern/RestElement) leave
-  // `initNode` undefined: we can't track them to a specific init, so we build a typeless meta
-  // (`object: null`) below so the polyfill machinery still sees the property name. Common case:
-  // `const [{ from }] = [Array]`.
+  // nested patterns leave `initNode` undefined → typeless meta (`object: null`)
   switch (parent.node.type) {
     case 'VariableDeclarator': initNode = parent.node.init; break;
     case 'AssignmentExpression': initNode = parent.node.right; break;
@@ -131,14 +151,14 @@ function buildDestructuringMeta(propNode, parentPath) {
   return buildDestructuringInitMeta(initNode, key, scope, estreeAdapter);
 }
 
-// estree-toolkit's visitor keys skip `decorators`. walk decorator subtrees manually with
-// synthetic Babel-shaped paths so resolve-node-type can read locals' typeAnnotations (parity
-// with babel-plugin, which gets real NodePaths from babel's own traverse)
+// --- Decorator sub-traversal ---
+
+// estree-toolkit's visitor keys skip `decorators` — walk them manually with
+// synthetic Babel-shaped paths so resolve-node-type can read typeAnnotations
 
 const SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
 const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
 
-// iterate typed AST child values of `node`, skipping metadata keys
 function forEachChildNode(node, visit) {
   for (const key of Object.keys(node)) {
     if (SKIP_KEYS.has(key)) continue;
@@ -149,8 +169,7 @@ function forEachChildNode(node, visit) {
   }
 }
 
-// `get` returns NodePath[] for array fields to match babel's behaviour -
-// `resolveArrayLiteralCommonType` does `path.get('elements')[i]`
+// `get` returns NodePath[] for array fields to match babel's behaviour
 function makeSynthPath(node, parent, parentKey, parentPath, scope) {
   const self = {
     node,
@@ -167,8 +186,7 @@ function makeSynthPath(node, parent, parentKey, parentPath, scope) {
   return self;
 }
 
-// frame scope for an inline function inside a decorator. locals shadow `parentScope` and
-// their bindings are memoised so repeated `getBinding` calls reuse the same synth path
+// frame scope for an inline function inside a decorator — locals shadow parentScope
 function makeFrameScope(parentScope, localDecls) {
   const bindingCache = new Map();
   const frame = {
@@ -187,15 +205,13 @@ function makeFrameScope(parentScope, localDecls) {
   return frame;
 }
 
-// walk `fnNode.body` once per function. result is cached so nested walks don't re-scan
-// the same body when walkSubtree enters deeper into a closure
 const LOCALS_CACHE = new WeakMap();
+
 function collectFunctionLocals(fnNode) {
   const cached = LOCALS_CACHE.get(fnNode);
   if (cached) return cached;
   const locals = new Map();
-  // params: the declarator is the param pattern itself (`function f(a: T)` -> a -> param),
-  // marked constant so resolve-node-type follows `typeAnnotation` via constantBindingPath
+  // params marked constant so resolve-node-type follows typeAnnotation
   for (const param of fnNode.params || []) {
     walkPatternIdentifiers(param, id => locals.set(id.name, { constant: true, node: param }));
   }
@@ -236,24 +252,20 @@ function walkDecorators(parentPath, decoratorVisitors) {
   }
 }
 
-// the main usage visitor for estree-toolkit traverse
+// --- Usage visitors ---
+
 export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
 
-  // skip user-shadowed names so `class Map {}; let x: Map = …` doesn't pull in es.map.constructor
   const annotationGlobal = path => name => {
     if (path.scope?.hasBinding(name)) return;
     onUsage({ kind: 'global', name }, path);
   };
 
-  function checkTypeAnnotation(path) {
-    checkTypeAnnotations(path.node, annotationGlobal(path));
-  }
-
   function identifierVisitor(path) {
     const { node, parent, key: parentKey } = path;
     if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
-    // re-export: export { Promise } from 'foo' - local is not a reference when source is present
+    // re-export: export { Promise } from 'foo' — local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
     if (path.scope?.hasBinding(node.name)) return;
@@ -269,7 +281,6 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
   function memberExpressionVisitor(path) {
     const { node, parent, key: parentKey } = path;
     if (handledObjects.has(node)) return;
-    // skip assignment targets - polyfilling LHS produces invalid code
     if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
     if (suppressProxyGlobals && parent?.type === 'BinaryExpression'
       && parent.operator === 'in' && parent.left === node) return;
@@ -282,13 +293,13 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     if (meta) onUsage(meta, path);
   }
 
-  // sub-traversal handlers for decorator expressions (not all main visitors apply here)
   const decoratorVisitors = {
     Identifier: identifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
   };
   const visitDecorators = path => walkDecorators(path, decoratorVisitors);
+  const checkTypeAnnotation = path => checkTypeAnnotations(path.node, annotationGlobal(path));
 
   return {
     ...walkAnnotations ? {
@@ -310,13 +321,10 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
     Property(path) {
-      const { node } = path;
-      if (node.method) return;
-      if (path.parent?.type !== 'ObjectPattern') return;
-      const meta = buildDestructuringMeta(node, path.parentPath);
+      if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
+      const meta = buildDestructuringMeta(path.node, path.parentPath);
       if (meta) onUsage(meta, path);
     },
-    // estree-toolkit's traverse skips decorator children - drive a manual sub-walk on enter
     ClassDeclaration: visitDecorators,
     ClassExpression: visitDecorators,
     MethodDefinition: visitDecorators,
@@ -325,20 +333,23 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
   };
 }
 
-// syntax visitors - thin wrapper over shared createSyntaxRules
+// --- Syntax visitors ---
+
 export function createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack = false }) {
   const rules = createSyntaxRules({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
+  const onFunction = path => rules.onFunction(path.node);
+  const onClass = path => rules.onClass(path.node);
   return {
     ImportExpression(path) { rules.onImportExpression(path.node); },
-    FunctionDeclaration(path) { rules.onFunction(path.node); },
-    FunctionExpression(path) { rules.onFunction(path.node); },
-    ArrowFunctionExpression(path) { rules.onFunction(path.node); },
+    FunctionDeclaration: onFunction,
+    FunctionExpression: onFunction,
+    ArrowFunctionExpression: onFunction,
     ForOfStatement(path) { rules.onForOfStatement(path.node); },
     ArrayPattern(path) { rules.onArrayPattern(path.node); },
     SpreadElement(path) { rules.onSpreadElement(path.node, path.parent?.type); },
     YieldExpression(path) { rules.onYieldExpression(path.node); },
     VariableDeclaration(path) { rules.onVariableDeclaration(path.node); },
-    ClassDeclaration(path) { rules.onClass(path.node); },
-    ClassExpression(path) { rules.onClass(path.node); },
+    ClassDeclaration: onClass,
+    ClassExpression: onClass,
   };
 }
