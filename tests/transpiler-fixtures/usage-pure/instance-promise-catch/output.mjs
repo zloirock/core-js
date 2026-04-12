@@ -1,0 +1,1 @@
+promise.catch(cb);
