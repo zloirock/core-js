@@ -168,17 +168,16 @@ export default function (t) {
     for (let p = chainStart.parentPath; p !== path; p = p.parentPath) {
       if (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) deoptionalizeNode(p);
     }
-    if (check && throughTS) check._throughTS = true;
-    return [check, node.object];
+    return [check, node.object, throughTS];
   }
 
-  function replaceAndWrap(replacePath, result, check) {
+  function replaceAndWrap(replacePath, result, check, embedGuard) {
     // when check came through a TS wrapper (arr?.at(-1)!.includes), embed the guard
     // directly — Babel's path references become stale after replaceWith and the two-step
     // replace-then-wrap approach loses the guard. for normal chains (no TS wrapper),
     // use the two-step approach so normalizeOptionalChain correctly lifts the guard
     // past chain continuations like .valueOf()
-    if (check?._throughTS) {
+    if (embedGuard) {
       replacePath.replaceWith(wrapConditional(check, result));
       normalizeOptionalChain(replacePath);
     } else {
@@ -205,27 +204,27 @@ export default function (t) {
     // only for optional chains — non-optional (arr.includes)(1) preserves this
     if ((path.node.extra?.parenthesized || unwrapTSExpressionParent(path).node.extra?.parenthesized)
       && path.isOptionalMemberExpression()) {
-      const [check, object] = extractCheck(path, skipOptional);
+      const [check, object, embed] = extractCheck(path, skipOptional);
       const lookup = t.callExpression(id, [t.cloneNode(object)]);
-      replaceAndWrap(path, lookup, check);
+      replaceAndWrap(path, lookup, check, embed);
       return;
     }
     const callerPath = unwrapTSExpressionParent(path);
     const { parent } = callerPath;
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
       && parent.callee === callerPath.node;
-    const [check, object] = extractCheck(path, skipOptional);
+    const [check, object, embed] = extractCheck(path, skipOptional);
     const result = isCall
       ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
       : t.callExpression(id, [t.cloneNode(object)]);
-    replaceAndWrap(isCall ? callerPath.parentPath : path, result, check);
+    replaceAndWrap(isCall ? callerPath.parentPath : path, result, check, embed);
   }
 
   function replaceCallWithSimple(path, id, skipOptional) {
-    const [check, object] = extractCheck(path, skipOptional);
+    const [check, object, embed] = extractCheck(path, skipOptional);
     // peel TS wrappers so the call (and not its `as X` / `!` envelope) is what we replace
     const callerPath = unwrapTSExpressionParent(path);
-    replaceAndWrap(callerPath.parentPath, t.callExpression(id, [t.cloneNode(object)]), check);
+    replaceAndWrap(callerPath.parentPath, t.callExpression(id, [t.cloneNode(object)]), check, embed);
   }
 
   function resolveDestructuringObject(path, resolvedType) {
