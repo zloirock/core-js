@@ -78,3 +78,14 @@ QUnit.test('destructuring: from globalThis', assert => {
     async();
   });
 });
+
+QUnit.test('destructuring: sequence expression init', assert => {
+  const { from } = (0, Array);
+  assert.deepEqual(from('abc'), ['a', 'b', 'c']);
+});
+
+QUnit.test('destructuring: with default value', assert => {
+  const { from = null } = Array;
+  assert.same(typeof from, 'function');
+  assert.deepEqual(from([1]), [1]);
+});
