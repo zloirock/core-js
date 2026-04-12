@@ -80,3 +80,9 @@ QUnit.test('WeakMap constructor with iterable', assert => {
   assert.same(wm.get(k1), 'a');
   assert.same(wm.get(k2), 'b');
 });
+QUnit.test('WeakMap: getOrInsert', assert => {
+  const wm = new WeakMap();
+  const key = {};
+  assert.same(wm.getOrInsert(key, 42), 42);
+  assert.same(wm.getOrInsert(key, 99), 42);
+});
