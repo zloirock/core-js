@@ -711,6 +711,11 @@ export default function createPlugin(options) {
             return handleParameterDestructurePure(meta, metaPath, propNode);
           }
           if (!canTransformDestructuring(metaPath)) return;
+          // export + rest: skip — `_unused` rename would pollute the module's export namespace
+          const patternHasRest = metaPath.parent?.properties?.some(
+            p => p.type === 'RestElement' || p.type === 'SpreadElement');
+          if (patternHasRest && metaPath.parentPath?.parentPath?.parentPath?.parentPath?.node?.type
+            === 'ExportNamedDeclaration') return;
           // [Symbol.iterator] in destructuring: { [Symbol.iterator]: iter } = obj → iter = _getIteratorMethod(obj)
           // when rest element is present, the key transform is needed for the rest-rebuild pattern;
           // otherwise skip the key to prevent an unused _Symbol$iterator import
