@@ -105,7 +105,9 @@ async function loadBabelOptions(directory) {
   for (const file of ['options.json', 'options.mjs']) {
     const full = join(directory, file);
     if (!await exists(full)) continue;
-    return file.endsWith('.json') ? readJson(full, UTF8) : (await import(full)).default;
+    if (file.endsWith('.json')) return readJson(full, UTF8);
+    const { pathToFileURL } = await import('node:url');
+    return (await import(pathToFileURL(path.resolve(full)).href)).default;
   }
   return null;
 }
