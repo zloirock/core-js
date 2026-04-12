@@ -245,6 +245,19 @@ export default function (t) {
     ]));
   }
 
+  // rest + multi-decl: splice this declarator out into its own statement to preserve
+  // source order (insertBefore on multi-decl would place ALL polyfills before ALL rests)
+  function splitRestDeclarator(declaration, parent, extractedDeclaration, isExport) {
+    const idx = declaration.node.declarations.indexOf(parent.node);
+    if (idx === -1) return;
+    declaration.node.declarations.splice(idx, 1);
+    const { kind } = declaration.node;
+    const restDecl = t.variableDeclaration(kind, [parent.node]);
+    const wrap = node => isExport ? t.exportNamedDeclaration(node) : node;
+    declaration.insertBefore(wrap(extractedDeclaration));
+    declaration.insertBefore(wrap(restDecl));
+  }
+
   // for-init with SE: keep SE inline so it doesn't escape the loop
   // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call
@@ -307,13 +320,12 @@ export default function (t) {
     // rest element present: keep property in pattern with renamed value to preserve rest semantics
     // const { from, ...rest } = Array -> const from = _from; const { from: _, ...rest } = Array
     const hasRest = objectPattern.node.properties.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
+    // rest: rename property value to preserve rest semantics; otherwise remove property
+    const isEmpty = hasRest ? false : (prop.remove(), objectPattern.node.properties.length === 0);
     if (hasRest) {
       prop.get('value').replaceWith(prop.scope.generateUidIdentifier('unused'));
       prop.node.shorthand = false;
-    } else {
-      prop.remove();
     }
-    const isEmpty = !hasRest && objectPattern.node.properties.length === 0;
 
     if (parent.isVariableDeclarator()) {
       const declaration = parent.parentPath;
@@ -357,6 +369,8 @@ export default function (t) {
         // non-last property: collect for batch insertion when isEmpty fires
         if (!pendingExtractions.has(objectPattern.node)) pendingExtractions.set(objectPattern.node, []);
         pendingExtractions.get(objectPattern.node).push(t.variableDeclarator(localBinding, value));
+      } else if (hasRest && isMultiDecl && !isForInit) {
+        splitRestDeclarator(declaration, parent, extractedDeclaration, isExport);
       } else if (isExport) {
         declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
       } else {
