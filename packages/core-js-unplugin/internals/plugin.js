@@ -663,6 +663,13 @@ export default function createPlugin(options) {
         }
 
         function replaceInstance(binding, node, parent, metaPath) {
+          // (arr?.includes)(1) — parenthesized optional callee breaks the chain.
+          // replace only the member expression (not .call()). non-optional (arr.at)(0) preserves this
+          if (isCallee(node, parent) && parent.callee !== node
+            && parent.callee?.type === 'ParenthesizedExpression' && node.optional) {
+            addInstanceTransform(binding, node, parent, metaPath, false, false);
+            return;
+          }
           const isCall = isCallee(node, parent);
           addInstanceTransform(binding, node, parent, metaPath, isCall);
         }
