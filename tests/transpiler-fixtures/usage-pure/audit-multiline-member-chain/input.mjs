@@ -1,0 +1,3 @@
+Array
+  .from
+  (x);
