@@ -1132,7 +1132,7 @@ export default function createPlugin(options) {
           }
 
           const { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
-          if (fallback && node.type === 'MemberExpression') {
+          if (fallback && node.type === 'MemberExpression' && node.object?.type !== 'Super') {
             skipProxyGlobal(node);
             const binding = injectPureImport(fallback.entry, fallback.hintName);
             // deoptionalize: globalThis?.foo -> _globalThis.foo (polyfill import is always defined)
