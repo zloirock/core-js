@@ -1,0 +1,1 @@
+Object.defineProperties(O, descs);
