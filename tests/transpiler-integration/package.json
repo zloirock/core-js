@@ -1,0 +1,15 @@
+{
+  "name": "tests/transpiler-integration",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rspack/core": "^1.7.11",
+    "esbuild": "^0.28.0",
+    "rolldown": "^1.0.0-rc.15",
+    "rollup": "^4.60.1",
+    "vite": "^8.0.8",
+    "webpack": "^5.106.1"
+  }
+}

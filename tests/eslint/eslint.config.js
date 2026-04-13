@@ -2379,6 +2379,7 @@ export default [
   {
     files: [
       'tests/@(helpers|unit-@(global|pure)|e2e-usage-pure|wpt-url-resources)/**',
+      'tests/transpiler-integration/input-*',
     ],
     languageOptions: {
       sourceType: 'module',
