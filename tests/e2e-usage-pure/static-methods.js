@@ -134,3 +134,17 @@ QUnit.test('static: Array.fromAsync with mapFn', assert => {
     async();
   });
 });
+
+QUnit.test('static: Array.isArray', assert => {
+  assert.true(Array.isArray([1, 2]));
+  assert.false(Array.isArray('string'));
+});
+
+QUnit.test('static: JSON.stringify', assert => {
+  assert.same(JSON.stringify({ a: 1 }), '{"a":1}');
+});
+
+QUnit.test('static: Number.MAX_SAFE_INTEGER / MIN_SAFE_INTEGER', assert => {
+  assert.same(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+  assert.same(typeof Number.MIN_SAFE_INTEGER, 'number');
+});
