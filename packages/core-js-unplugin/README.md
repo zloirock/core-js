@@ -149,7 +149,8 @@ Both `//` and `/* */` styles are supported. A reason can be added after ` -- `.
 
 ## Differences from `@core-js/babel-plugin`
 
-- **No Babel required** - uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for parsing
-- **Universal** - works with any bundler via unplugin
-- **No Flow support** - oxc-parser does not support Flow syntax
-- **Same data** - uses the same `@core-js/compat` data and `@core-js/polyfill-provider` logic
+- **No Babel required** — uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for parsing
+- **Universal** — works with any bundler via unplugin
+- **Same data** — uses the same `@core-js/compat` data and `@core-js/polyfill-provider` logic
+- **Transform timing** — the Babel plugin uses `pre()` hook to run before other Babel transforms (destructuring, classes, optional chaining), preserving access to original TypeScript annotations and syntax. The unplugin runs at the bundler plugin level — it processes source files as they are, before any other transforms are applied. Both approaches see the original source, but via different mechanisms
+- **No Flow support** — oxc-parser does not support Flow syntax
