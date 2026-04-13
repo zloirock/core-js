@@ -31,5 +31,4 @@ export const { esbuild } = unplugin;
 export const { rspack } = unplugin;
 export const { rolldown } = unplugin;
 export const { farm } = unplugin;
-export const { unloader } = unplugin;
 export const { bun } = unplugin;
