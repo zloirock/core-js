@@ -126,3 +126,11 @@ QUnit.test('static: Array.of edge cases', assert => {
   assert.deepEqual(Array.of(1), [1]);
   assert.deepEqual(Array.of(undefined), [undefined]);
 });
+
+QUnit.test('static: Array.fromAsync with mapFn', assert => {
+  const async = assert.async();
+  Array.fromAsync([1, 2, 3], x => x * 10).then(arr => {
+    assert.deepEqual(arr, [10, 20, 30]);
+    async();
+  });
+});
