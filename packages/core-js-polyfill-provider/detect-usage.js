@@ -46,6 +46,9 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     const binding = adapter.getBinding(scope, name);
     const { init } = binding.node;
     if (binding.constantViolations?.length) return null;
+    // rest element in destructuring: { from, ...rest } = Array — rest !=== init
+    const props = binding.node.id?.properties ?? binding.node.id?.elements;
+    if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
     if (init?.type === 'Identifier') {
       // babel-plugin may have mutated `Symbol` into `_Symbol` in place; the adapter exposes
       // the original hint so we can translate the polyfill UID back to its source global

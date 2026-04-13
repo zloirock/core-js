@@ -64,37 +64,38 @@ export default class ImportInjector {
     return this.#pureImportsByName.get(name) ?? null;
   }
 
-  // insert all collected imports sorted by compat data order. flush loops because
-  // unshiftContainer may trigger sibling plugins (e.g. CJS transform) that surface new
-  // polyfill references. inserted nodes have no `loc` - stamping one breaks babel's
-  // unshiftContainer (generator skips content with loc outside the body sibling range)
-  flush() {
+  // build import/require nodes for unflushed entries
+  #buildNodes() {
     const t = this.#t;
+    let newGlobals = [...this.#globalImports].filter(s => !this.#flushedGlobals.has(s));
+    const newPure = [...this.#pureImports].filter(([s]) => !this.#flushedPure.has(s));
+    if (!newGlobals.length && !newPure.length) return null;
+    newGlobals = sortByPolyfillOrder(newGlobals);
+    const nodes = [];
+    for (const mod of newGlobals) {
+      this.#flushedGlobals.add(mod);
+      const resolved = this.#resolvePath(`modules/${ mod }`);
+      nodes.push(this.importStyle === 'require'
+        ? t.expressionStatement(t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)]))
+        : t.importDeclaration([], t.stringLiteral(resolved)));
+    }
+    for (const [source, id] of newPure) {
+      this.#flushedPure.add(source);
+      const resolved = this.#resolvePath(source);
+      nodes.push(this.importStyle === 'require'
+        ? t.variableDeclaration('var', [
+          t.variableDeclarator(t.cloneNode(id), t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)])),
+        ])
+        : t.importDeclaration([t.importDefaultSpecifier(t.cloneNode(id))], t.stringLiteral(resolved)));
+    }
+    return nodes;
+  }
 
+  // insert via Babel path API — used during traversal (pre, Program.exit)
+  flush() {
     while (true) {
-      let newGlobals = [...this.#globalImports].filter(s => !this.#flushedGlobals.has(s));
-      const newPure = [...this.#pureImports].filter(([s]) => !this.#flushedPure.has(s));
-      if (!newGlobals.length && !newPure.length) break;
-
-      newGlobals = sortByPolyfillOrder(newGlobals);
-
-      const nodes = [];
-      for (const mod of newGlobals) {
-        this.#flushedGlobals.add(mod);
-        const resolved = this.#resolvePath(`modules/${ mod }`);
-        nodes.push(this.importStyle === 'require'
-          ? t.expressionStatement(t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)]))
-          : t.importDeclaration([], t.stringLiteral(resolved)));
-      }
-      for (const [source, id] of newPure) {
-        this.#flushedPure.add(source);
-        const resolved = this.#resolvePath(source);
-        nodes.push(this.importStyle === 'require'
-          ? t.variableDeclaration('var', [
-            t.variableDeclarator(t.cloneNode(id), t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)])),
-          ])
-          : t.importDeclaration([t.importDefaultSpecifier(t.cloneNode(id))], t.stringLiteral(resolved)));
-      }
+      const nodes = this.#buildNodes();
+      if (!nodes) break;
       this.#programPath.unshiftContainer('body', nodes);
     }
   }
