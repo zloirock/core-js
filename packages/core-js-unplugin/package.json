@@ -5,7 +5,7 @@
     "access": "public"
   },
   "type": "module",
-  "description": "core-js unplugin - universal polyfill plugin for Vite, Rolldown, Webpack, esbuild, Rspack",
+  "description": "core-js unplugin - universal polyfill plugin for Vite, Rolldown, Webpack, esbuild, Rspack, Bun, Farm",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zloirock/core-js.git",
