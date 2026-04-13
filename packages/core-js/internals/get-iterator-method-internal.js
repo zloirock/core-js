@@ -9,6 +9,5 @@ var ArrayPrototype = Array.prototype;
 
 module.exports = function (it) {
   if (!isNullOrUndefined(it)) return getMethod(it, ITERATOR)
-    || getMethod(it, '@@iterator')
     || (classof(it) === 'Arguments' ? ArrayPrototype[ITERATOR] : undefined);
 };
