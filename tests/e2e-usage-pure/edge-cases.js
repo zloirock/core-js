@@ -302,7 +302,6 @@ QUnit.test('object method: polyfill in method body', assert => {
 
 // polyfill with comma operator
 QUnit.test('comma operator: polyfill in sequence', assert => {
-  // eslint-disable-next-line no-sequences -- testing comma operator
   const result = (0, Array.from)([1, 2, 3]);
   assert.deepEqual(result, [1, 2, 3]);
 });
