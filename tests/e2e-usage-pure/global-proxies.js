@@ -54,3 +54,9 @@ QUnit.test('globalThis.structuredClone', assert => {
   assert.notSame(clone.a, obj.a);
 });
 
+QUnit.test('globalThis.WeakMap', assert => {
+  const wm = new globalThis.WeakMap();
+  const key = {};
+  wm.set(key, 'val');
+  assert.same(wm.get(key), 'val');
+});
