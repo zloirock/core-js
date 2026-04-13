@@ -84,3 +84,21 @@ QUnit.test('Promise.any', assert => {
     async();
   });
 });
+
+QUnit.test('Promise.allSettled + chaining', assert => {
+  const async = assert.async();
+  Promise.allSettled([Promise.resolve(1), Promise.reject(2)]).then(results => {
+    assert.same(results.find(r => r.status === 'fulfilled').value, 1);
+    async();
+  });
+});
+
+QUnit.test('Promise constructor with polyfill inside', assert => {
+  const async = assert.async();
+  new Promise(resolve => {
+    resolve(Array.from([1, 2, 3]));
+  }).then(arr => {
+    assert.deepEqual(arr.filter(x => x > 1), [2, 3]);
+    async();
+  });
+});
