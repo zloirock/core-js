@@ -1,4 +1,4 @@
-// Symbol well-known — only features that work in pure mode on engines without native symbols
+// Symbol well-known - only features that work in pure mode on engines without native symbols
 // NOTE: typeof checks use notSame(_, undefined) instead of typeof === 'symbol'
 // because pure-mode Symbol on engines without native symbols returns strings, not real symbols
 
@@ -33,7 +33,7 @@ QUnit.test('Symbol.metadata exists', assert => {
   assert.notSame(Symbol.metadata, undefined);
 });
 
-// Symbol.iterator `in` operator — transforms to isIterable() in usage-pure
+// Symbol.iterator `in` operator - transforms to isIterable() in usage-pure
 QUnit.test('Symbol.iterator in array', assert => {
   assert.true(Symbol.iterator in [1, 2, 3]);
 });
@@ -54,7 +54,7 @@ QUnit.test('Symbol.iterator in plain object', assert => {
   assert.false(Symbol.iterator in {});
 });
 
-// Symbol.iterator access (non-call) vs call — different transformations
+// Symbol.iterator access (non-call) vs call - different transformations
 QUnit.test('Symbol.iterator access: get method without calling', assert => {
   const arr = [1, 2, 3];
   const iterFn = arr[Symbol.iterator];
