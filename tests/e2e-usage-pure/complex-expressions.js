@@ -82,3 +82,15 @@ QUnit.test('complex: Promise.all with Array.from', assert => {
     async();
   });
 });
+
+QUnit.test('complex: structuredClone preserves polyfilled result', assert => {
+  const original = { items: Array.from([1, 2, 3]) };
+  const cloned = structuredClone(original);
+  assert.deepEqual(cloned.items, [1, 2, 3]);
+  assert.true(cloned.items.includes(2));
+});
+
+QUnit.test('complex: Iterator.from chained with instance method', assert => {
+  const result = Iterator.from([1, 2, 3, 4]).filter(x => x > 2).toArray();
+  assert.deepEqual(result, [3, 4]);
+});
