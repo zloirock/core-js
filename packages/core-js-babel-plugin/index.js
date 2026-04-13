@@ -66,7 +66,7 @@ export default function plugin(api, options) {
 
   return {
     name: 'core-js@4',
-    visitor: (() => {
+    ...(() => {
       let skippedNodes = new WeakSet();
       let originalBodyNodes = new WeakSet();
       let disabledLines = null;
@@ -342,74 +342,95 @@ export default function plugin(api, options) {
         onUsage: usageCallback, adapter, suppressProxyGlobals: method === 'usage-pure', walkAnnotations: false,
       }) : null;
 
-      const programVisitor = {
-        enter(path) {
-          skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
-          importStyle = importStyleOption ?? (path.node.sourceType === 'script' ? 'require' : 'import');
-          injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
-          skippedNodes = new WeakSet();
-          // snapshot existing body so Program.exit can re-traverse anything a sibling
-          // plugin has injected after we walked the original program
-          originalBodyNodes = new WeakSet(path.node.body);
-          helperVisitors?.[USAGE_VISITORS_RESET]?.();
-          debugOutput = createDebugOutput?.() ?? null;
-          const { comments } = path.hub.file.ast;
-          const firstStmtStart = path.node.body[0]?.start;
-          const directives = skipFile ? null : parseDisableDirectives(comments, undefined, firstStmtStart);
-          if (directives === true) skipFile = true;
-          disabledLines = directives !== true ? directives : null;
-        },
-        exit(path) {
-          if (helperVisitors) {
-            // re-traverse body children that did not exist on enter - `parseSync`-built
-            // injections carry full `loc`, so the old `!loc` heuristic missed them
-            for (const childPath of path.get('body')) {
-              if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
-            }
-          }
-          // insert deferred side-effect expressions, then traverse each one
-          // to polyfill globals inside (handles nested scopes like functions)
-          if (deferredSideEffects.length) {
-            const inserted = new Set();
-            deferredSideEffects.sort((a, b) => b.index - a.index || b.seq - a.seq);
-            for (const { body, index, node } of deferredSideEffects) {
-              (Array.isArray(body) ? body : path.node.body).splice(index, 0, node);
-              inserted.add(node);
-            }
-            deferredSideEffects.length = 0;
-            if (helperVisitors) {
-              // find inserted nodes (may be in nested scopes) and traverse them
-              path.traverse({
-                ExpressionStatement(p) {
-                  if (inserted.delete(p.node)) {
-                    p.traverse(helperVisitors);
-                    if (!inserted.size) p.stop();
-                  }
-                },
-              });
-            }
-          }
-          // flush before debug - flush() may add sibling-plugin re-injections we want logged
-          injector?.flush();
-          outputDebug();
-        },
-      };
+      // --- init: per-file state reset ---
+
+      function initFile(path) {
+        skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        importStyle = importStyleOption ?? (path.node.sourceType === 'script' ? 'require' : 'import');
+        injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
+        skippedNodes = new WeakSet();
+        originalBodyNodes = new WeakSet(path.node.body);
+        helperVisitors?.[USAGE_VISITORS_RESET]?.();
+        debugOutput = createDebugOutput?.() ?? null;
+        const { comments } = path.hub.file.ast;
+        const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start);
+        if (directives === true) skipFile = true;
+        disabledLines = directives !== true ? directives : null;
+      }
+
+      // --- deferred side effects: splice into body, re-traverse for polyfills ---
+
+      function processDeferredSideEffects(path) {
+        if (!deferredSideEffects.length) return;
+        const inserted = new Set();
+        deferredSideEffects.sort((a, b) => b.index - a.index || b.seq - a.seq);
+        for (const { body, index, node } of deferredSideEffects) {
+          (Array.isArray(body) ? body : path.node.body).splice(index, 0, node);
+          inserted.add(node);
+        }
+        deferredSideEffects.length = 0;
+        if (helperVisitors) {
+          path.traverse({
+            ExpressionStatement(p) {
+              if (inserted.delete(p.node)) {
+                p.traverse(helperVisitors);
+                if (!inserted.size) p.stop();
+              }
+            },
+          });
+        }
+      }
+
+      // --- pre(): main traverse before other plugins (TS types alive, destructuring intact) ---
+
+      function preTraverse(path, visitors) {
+        initFile(path);
+        if (skipFile) return;
+        path.traverse(visitors);
+        processDeferredSideEffects(path);
+        injector?.flush();
+      }
+
+      // --- Program.exit: re-traverse helpers added by sibling plugin visitors ---
+
+      function programExit(path) {
+        if (!helperVisitors) return;
+        for (const childPath of path.get('body')) {
+          if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
+        }
+        injector?.flush();
+        outputDebug();
+      }
+
+      // --- post(): detect sibling CJS transform, switch import style ---
+
+      function postHook() {
+        if (!injector) return;
+        if (importStyleOption === undefined && importStyle === 'import'
+          && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
+          injector.importStyle = 'require';
+        }
+        injector.flush();
+      }
 
       // entry-global mode
       if (method === 'entry-global') {
         const entryVisitors = createEntryVisitors(entryGlobalCallback);
         return {
-          Program: {
-            enter(path) {
-              programVisitor.enter(path);
+          pre() {
+            const { path } = this.file;
+            initFile(path);
+            if (!skipFile) {
               if (entryVisitors.Program) entryVisitors.Program(path);
-            },
-            exit() {
-              injector?.flush();
-              outputDebug();
-            },
+              path.traverse({ ImportDeclaration: entryVisitors.ImportDeclaration });
+            }
+            injector?.flush();
           },
-          ImportDeclaration: entryVisitors.ImportDeclaration,
+          visitor: {},
+          post() {
+            injector?.flush();
+            outputDebug();
+          },
         };
       }
 
@@ -428,19 +449,19 @@ export default function plugin(api, options) {
           isDisabled,
           isWebpack,
         });
-        return { Program: programVisitor, ...mergeVisitors(usageVisitors, syntaxVisitors) };
+        const allVisitors = mergeVisitors(usageVisitors, syntaxVisitors);
+        return {
+          pre() { preTraverse(this.file.path, allVisitors); },
+          visitor: { Program: { exit: programExit } },
+          post: postHook,
+        };
       }
 
-      // usage-pure mode: extract catch ObjectPattern into the body so the destructuring
-      // transform can operate on a normal VariableDeclarator
-      // catch ({ includes }) {} -> catch (_ref) { let { includes } = _ref; }
-      // `let` preserves block scope of the original catch parameter; safe to emit since
-      // destructuring (which the catch pattern already is) implies `let` support
+      // usage-pure mode
       const catchVisitor = {
         CatchClause(path) {
           const { param } = path.node;
           if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
-          // skip empty patterns — nothing to polyfill
           const props = param.properties || param.elements;
           if (!props || props.length === 0) return;
           const ref = path.scope.generateUidIdentifier('ref');
@@ -450,18 +471,11 @@ export default function plugin(api, options) {
           path.node.param = ref;
         },
       };
-      return { Program: programVisitor, ...usageVisitors, ...catchVisitor };
+      return {
+        pre() { preTraverse(this.file.path, { ...usageVisitors, ...catchVisitor }); },
+        visitor: { Program: { exit: programExit } },
+        post: postHook,
+      };
     })(),
-    post() {
-      if (!injector) return;
-      // when CJS transform runs after core-js plugin and converts every original `import` into
-      // `require`, the polyfill flush should follow. only flip if the user did not explicitly
-      // request `importStyle: 'import'` - otherwise we'd override their stated intent
-      if (importStyleOption === undefined && importStyle === 'import'
-        && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
-        injector.importStyle = 'require';
-      }
-      injector.flush();
-    },
   };
 }
