@@ -86,7 +86,7 @@ QUnit.test('optional call: fn?.call(ctx, arg)', assert => {
   assert.true(fn?.call(arr, 2));
 });
 
-// chain continuation after polyfill — .valueOf() must stay inside guard
+// chain continuation after polyfill - .valueOf() must stay inside guard
 QUnit.test('optional chain continuation: arr?.flat().valueOf()', assert => {
   assert.deepEqual([1, [2]]?.flat().valueOf(), [1, 2]);
   assert.same(null?.flat().valueOf(), undefined);
@@ -98,15 +98,15 @@ QUnit.test('double optional: arr?.at(0)?.toString()', assert => {
   assert.same(null?.at(0)?.toString(), undefined);
 });
 
-// parenthesized optional callee — breaks chain
+// parenthesized optional callee - breaks chain
 QUnit.test('parenthesized optional: (arr?.includes)(1)', assert => {
-  // null case: (null?.includes) → undefined, then (undefined)(2) → TypeError
+  // null case: (null?.includes) -> undefined, then (undefined)(2) -> TypeError
   const nil = null;
   // eslint-disable-next-line no-unsafe-optional-chaining -- testing this exact pattern
   assert.throws(() => (nil?.includes)(2), TypeError);
 });
 
-// parenthesized non-optional — this preserved
+// parenthesized non-optional - this preserved
 QUnit.test('parenthesized non-optional: (arr.at)(0)', assert => {
   const arr = [10, 20, 30];
   // eslint-disable-next-line @stylistic/no-extra-parens -- testing parenthesized callee
