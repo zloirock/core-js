@@ -79,6 +79,16 @@ QUnit.test('destructuring: from globalThis', assert => {
   });
 });
 
+QUnit.test('destructuring: const { from } = Array ?? null', assert => {
+  const { from } = Array ?? null;
+  assert.deepEqual(from([1, 2]), [1, 2]);
+});
+
+QUnit.test('destructuring: const { from } = Array || Promise', assert => {
+  const { from } = Array || Promise;
+  assert.deepEqual(from('ab'), ['a', 'b']);
+});
+
 QUnit.test('destructuring: sequence expression init', assert => {
   const { from } = (0, Array);
   assert.deepEqual(from('abc'), ['a', 'b', 'c']);
