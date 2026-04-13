@@ -1,4 +1,4 @@
-// Global proxies: globalThis — accessing globals and statics through it
+// Global proxies: globalThis - accessing globals and statics through it
 // === globalThis ===
 QUnit.test('globalThis.Promise', assert => {
   const async = assert.async();

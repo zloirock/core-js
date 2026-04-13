@@ -1,18 +1,18 @@
-// delete expression — must NOT be transformed
+// delete expression - must NOT be transformed
 QUnit.test('delete: should not transform delete expression', assert => {
   const obj = { includes: true, at: 1 };
   delete obj.includes;
   assert.false('includes' in obj);
 });
 
-// assignment target — must NOT be transformed
+// assignment target - must NOT be transformed
 QUnit.test('assignment: should not transform assignment target', assert => {
   const obj = { includes: false };
   obj.includes = true;
   assert.true(obj.includes);
 });
 
-// update expression — must NOT be transformed
+// update expression - must NOT be transformed
 QUnit.test('update: should not transform update expression', assert => {
   const obj = { at: 0 };
   obj.at++;
@@ -56,13 +56,13 @@ QUnit.test('IIFE: polyfill in immediately invoked function', assert => {
   assert.true(result);
 });
 
-// computed property access — plugin should NOT transform dynamic names
+// computed property access - plugin should NOT transform dynamic names
 QUnit.test('computed: dynamic method name not transformed', assert => {
   const method = 'includes';
   assert.same(typeof [][method], 'function');
 });
 
-// ternary / conditional — unknown type at compile time
+// ternary / conditional - unknown type at compile time
 QUnit.test('ternary: array or string .includes', assert => {
   const target = Math.random() > -1 ? [1, 2, 3] : 'hello';
   assert.true(target.includes(1));
@@ -175,7 +175,7 @@ QUnit.test('default param: polyfill in default value', assert => {
   assert.same(getFirst([5, 6]), 5);
 });
 
-// var self-reference shadow — var Map = Map resolves to global
+// var self-reference shadow - var Map = Map resolves to global
 QUnit.test('var self-ref: var Map = Map; Map.groupBy', assert => {
   // eslint-disable-next-line no-var -- testing var hoisting
   var Map = Map;
@@ -234,7 +234,7 @@ QUnit.test('scope: for-of variable shadow', assert => {
   assert.same(typeof Map.groupBy, 'function');
 });
 
-// typeof guard — polyfill still injected
+// typeof guard - polyfill still injected
 QUnit.test('typeof guard: typeof Map !== undefined', assert => {
   assert.same(typeof Map, 'function');
   assert.same(typeof Map.groupBy, 'function');
@@ -255,7 +255,7 @@ QUnit.test('AggregateError: constructor and errors', assert => {
   assert.same(err.errors.length, 2);
 });
 
-// disable directive — WeakMap.of is not native anywhere, so without polyfill it throws
+// disable directive - WeakMap.of is not native anywhere, so without polyfill it throws
 QUnit.test('disable: core-js-disable-next-line prevents polyfill', assert => {
   // core-js-disable-next-line
   assert.same(typeof WeakMap.of, 'undefined');
