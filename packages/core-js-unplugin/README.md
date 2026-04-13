@@ -6,7 +6,7 @@
 
 </div>
 
-Universal plugin for automatic injection of [`core-js`](https://core-js.io) polyfills. Works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, and **Rspack** via [unplugin](https://github.com/unjs/unplugin). Powered by [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for fast AST parsing with full TypeScript support.
+Universal plugin for automatic injection of [`core-js`](https://core-js.io) polyfills. Works with **Vite**, **Webpack**, **Rollup**, **Rolldown**, **esbuild**, **Rspack**, **Bun**, and **Farm** via [unplugin](https://github.com/unjs/unplugin). Powered by [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for fast AST parsing with full TypeScript support.
 
 An alternative to [`@core-js/babel-plugin`](https://www.npmjs.com/package/@core-js/babel-plugin) for projects that don't use Babel.
 
@@ -90,6 +90,38 @@ module.exports = {
     targets: { chrome: 80 },
   })],
 };
+```
+
+### Farm
+
+```js
+// farm.config.ts
+import coreJS from '@core-js/unplugin/farm';
+
+export default {
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: 'node_modules',
+    targets: { chrome: 80 },
+  })],
+};
+```
+
+### Bun
+
+```js
+// build.ts
+import coreJS from '@core-js/unplugin/bun';
+
+await Bun.build({
+  entrypoints: ['./src/index.ts'],
+  outdir: './dist',
+  plugins: [coreJS({
+    method: 'usage-global',
+    version: 'node_modules',
+    targets: { chrome: 80 },
+  })],
+});
 ```
 
 ## Methods
