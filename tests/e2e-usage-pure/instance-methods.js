@@ -159,7 +159,7 @@ QUnit.test('instance/function: Function#name', assert => {
   assert.same(hello.name, 'hello');
 });
 
-// hint: common (unknown receiver type — fallback)
+// hint: common (unknown receiver type - fallback)
 QUnit.test('instance/common: unknown receiver .includes', assert => {
   function check(obj) {
     return obj.includes('a');

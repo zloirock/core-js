@@ -72,5 +72,5 @@ QUnit.test('class: super.resolve in extends Promise', assert => {
   });
 });
 
-// super.resolve / super.from in extends — covered by fixture tests only,
+// super.resolve / super.from in extends - covered by fixture tests only,
 // @babel/transform-classes races with core-js plugin in bundled context
