@@ -57,7 +57,7 @@ QUnit.test('stored: instance method via destructuring', assert => {
   assert.false(includes.call([1, 2, 3], 4));
 });
 
-// polyfill stored as callback — wrap to avoid extra args from .map(fn, i, arr)
+// polyfill stored as callback - wrap to avoid extra args from .map(fn, i, arr)
 QUnit.test('callback: Array.from wrapped as callback', assert => {
   const items = [[1, 2], [3, 4]];
   const result = items.map(x => Array.from(x));
