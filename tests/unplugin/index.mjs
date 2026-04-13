@@ -117,7 +117,7 @@ function inferTestId(babelOptions) {
   if (babelOptions.filename) return babelOptions.filename;
   const parserPlugins = babelOptions.parserOpts?.plugins || [];
   if (parserPlugins.includes('jsx')) return 'input.tsx';
-  return 'input.tsx';
+  return 'input.ts';
 }
 
 function captureTransform(source, pluginOptions, testId) {
@@ -196,7 +196,10 @@ async function comparePureMode(directory, actual, babelOutput) {
 }
 
 async function runFixture(directory) {
+  const hasStaleUnpluginOutput = await exists(join(directory, 'output-unplugin.mjs'));
+
   if (shouldSkip(path.basename(directory))) {
+    if (hasStaleUnpluginOutput) return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in skipped fixture`);
     counts.skipped++;
     return;
   }
@@ -211,6 +214,10 @@ async function runFixture(directory) {
   if (!pluginOptions) {
     counts.skipped++;
     return;
+  }
+
+  if (hasStaleUnpluginOutput && pluginOptions.method !== 'usage-pure') {
+    return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in non-pure fixture`);
   }
 
   const errorFile = join(directory, 'error.txt');
