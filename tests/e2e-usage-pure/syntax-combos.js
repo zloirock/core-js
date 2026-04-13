@@ -333,7 +333,7 @@ QUnit.test('syntax: nested destructuring from Object.entries', assert => {
   const [[k1, v1], [k2]] = Object.entries({ a: 1, b: 2 });
   assert.same(k1, 'a');
   assert.same(v1, 1);
-  assert.same(k2, 'b'); // eslint-disable-line @stylistic/max-statements-per-line -- compact assertions
+  assert.same(k2, 'b');
 });
 
 // --- class constructor init + polyfill ---
