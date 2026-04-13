@@ -94,3 +94,32 @@ QUnit.test('complex: Iterator.from chained with instance method', assert => {
   const result = Iterator.from([1, 2, 3, 4]).filter(x => x > 2).toArray();
   assert.deepEqual(result, [3, 4]);
 });
+
+QUnit.test('complex: structuredClone preserves Map', assert => {
+  const map = new Map([['a', 1]]);
+  const clone = structuredClone(map);
+  assert.same(clone.get('a'), 1);
+  assert.true(clone instanceof Map);
+});
+
+QUnit.test('complex: queueMicrotask with polyfill inside', assert => {
+  const async = assert.async();
+  queueMicrotask(() => {
+    assert.deepEqual(Array.from([1, 2, 3]).filter(x => x > 1), [2, 3]);
+    async();
+  });
+});
+
+QUnit.test('complex: polyfill in array destructuring', assert => {
+  const [first, ...rest] = Array.from([10, 20, 30]);
+  assert.same(first, 10);
+  assert.deepEqual(rest, [20, 30]);
+});
+
+QUnit.test('complex: polyfill in object shorthand', assert => {
+  const keys = Object.keys({ x: 1, y: 2 });
+  const entries = Object.entries({ x: 1 });
+  const result = { keys, entries };
+  assert.deepEqual(result.keys, ['x', 'y']);
+  assert.deepEqual(result.entries, [['x', 1]]);
+});
