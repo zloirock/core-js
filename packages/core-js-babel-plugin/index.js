@@ -142,7 +142,7 @@ export default function plugin(api, options) {
           return;
         }
         if (!canTransformDestructuring(prop)) return;
-        // export + rest: skip — `_unused` rename would pollute the module's export namespace
+        // export + rest: skip - `_unused` rename would pollute the module's export namespace
         if (objectPattern.node.properties.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')
           && objectPattern.parentPath?.isVariableDeclarator()
           && objectPattern.parentPath.parentPath?.parentPath?.isExportNamedDeclaration()) return;
@@ -154,7 +154,7 @@ export default function plugin(api, options) {
         } else {
           value = injectPureImport(entry, hintName);
         }
-        // mark property as handled — rest-rename triggers re-traversal which must be skipped
+        // mark property as handled - rest-rename triggers re-traversal which must be skipped
         skippedNodes.add(prop.node);
         handleDestructuredProperty(prop, value);
         skipEmptyPatternInit(prop);
@@ -220,7 +220,7 @@ export default function plugin(api, options) {
       }
 
       // stash return type on CallExpression before callee replacement so downstream
-      // resolveNodeType can still determine e.g. Promise.all → Array
+      // resolveNodeType can still determine e.g. Promise.all -> Array
       function annotateCallReturnType(path) {
         const callerPath = unwrapTSExpressionParent(path);
         if (!callerPath.parentPath?.isCallExpression() || callerPath.parent.callee !== callerPath.node) return;
@@ -274,7 +274,7 @@ export default function plugin(api, options) {
             if (t.isSuper(path.node.object)) {
               const superMeta = resolveSuperMember(path);
               if (!superMeta) return;
-              // extends clause may already be replaced by a polyfill import (_Promise) —
+              // extends clause may already be replaced by a polyfill import (_Promise) -
               // resolve back to the original global via the injector
               resolveSuperImportName(superMeta);
               meta = superMeta;
@@ -391,18 +391,39 @@ export default function plugin(api, options) {
         injector?.flush();
       }
 
-      // --- Program.exit: re-traverse helpers added by sibling plugin visitors ---
+      // --- Program.exit ---
+
+      function isUpdateTarget(idPath) {
+        let check = idPath.parentPath;
+        while (check && TS_EXPR_WRAPPERS.has(check.node?.type)) check = check.parentPath;
+        return check?.isUpdateExpression();
+      }
 
       function programExit(path) {
         if (!helperVisitors) return;
+        // re-traverse new body nodes (helpers from class/spread/destructuring transforms)
         for (const childPath of path.get('body')) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
+        }
+        // usage-pure: sibling plugins (regenerator) may mutate original nodes in-place,
+        // injecting raw globals (Promise). scan for unbound global Identifiers only —
+        // MemberExpression would double-process already-polyfilled chains.
+        // usage-global doesn't need this — globals stay as-is, imports from pre() suffice
+        if (method === 'usage-pure') {
+          path.traverse({
+            Identifier(idPath) {
+              if (!idPath.isReferencedIdentifier()) return;
+              if (idPath.scope.getBindingIdentifier(idPath.node.name)) return;
+              if (isUpdateTarget(idPath)) return;
+              usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
+            },
+          });
         }
         injector?.flush();
         outputDebug();
       }
 
-      // --- post(): detect sibling CJS transform, switch import style ---
+      // --- post(): detect sibling CJS transform ---
 
       function postHook() {
         if (!injector) return;
@@ -413,66 +434,59 @@ export default function plugin(api, options) {
         injector.flush();
       }
 
-      // entry-global mode
+      // --- mode-specific plugin objects ---
+
+      const isPure = method === 'usage-pure';
+
       if (method === 'entry-global') {
         const entryVisitors = createEntryVisitors(entryGlobalCallback);
         return {
           pre() {
-            const { path } = this.file;
-            initFile(path);
+            initFile(this.file.path);
             if (!skipFile) {
-              if (entryVisitors.Program) entryVisitors.Program(path);
-              path.traverse({ ImportDeclaration: entryVisitors.ImportDeclaration });
+              if (entryVisitors.Program) entryVisitors.Program(this.file.path);
+              this.file.path.traverse({ ImportDeclaration: entryVisitors.ImportDeclaration });
             }
             injector?.flush();
           },
           visitor: {},
-          post() {
-            injector?.flush();
-            outputDebug();
-          },
+          post() { injector?.flush(); outputDebug(); },
         };
       }
 
       const usageVisitors = createUsageVisitors({
-        onUsage: usageCallback,
-        adapter,
-        suppressProxyGlobals: method === 'usage-pure',
-        walkAnnotations: method !== 'usage-pure',
+        onUsage: usageCallback, adapter, suppressProxyGlobals: isPure,
+        walkAnnotations: !isPure,
       });
 
-      // usage-global mode
-      if (method === 'usage-global') {
+      if (!isPure) {
         const syntaxVisitors = createSyntaxVisitors({
-          injectModulesForModeEntry,
-          injectModulesForEntry,
-          isDisabled,
-          isWebpack,
+          injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack,
         });
-        const allVisitors = mergeVisitors(usageVisitors, syntaxVisitors);
         return {
-          pre() { preTraverse(this.file.path, allVisitors); },
+          pre() { preTraverse(this.file.path, mergeVisitors(usageVisitors, syntaxVisitors)); },
           visitor: { Program: { exit: programExit } },
           post: postHook,
         };
       }
 
-      // usage-pure mode
-      const catchVisitor = {
-        CatchClause(path) {
-          const { param } = path.node;
-          if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
-          const props = param.properties || param.elements;
-          if (!props || props.length === 0) return;
-          const ref = path.scope.generateUidIdentifier('ref');
-          path.get('body').unshiftContainer('body', [
-            t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
-          ]);
-          path.node.param = ref;
-        },
-      };
       return {
-        pre() { preTraverse(this.file.path, { ...usageVisitors, ...catchVisitor }); },
+        pre() {
+          preTraverse(this.file.path, {
+            ...usageVisitors,
+            CatchClause(path) {
+              const { param } = path.node;
+              if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
+              const props = param.properties || param.elements;
+              if (!props || props.length === 0) return;
+              const ref = path.scope.generateUidIdentifier('ref');
+              path.get('body').unshiftContainer('body', [
+                t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
+              ]);
+              path.node.param = ref;
+            },
+          });
+        },
         visitor: { Program: { exit: programExit } },
         post: postHook,
       };
