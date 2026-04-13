@@ -7,7 +7,5 @@ var ITERATOR = wellKnownSymbol('iterator');
 
 module.exports = function (it) {
   var method = it[ITERATOR];
-  if (method || isCallable(method)) return method;
-  method = it['@@iterator'];
   return method || isCallable(method) ? method : getInternalIterator(it);
 };

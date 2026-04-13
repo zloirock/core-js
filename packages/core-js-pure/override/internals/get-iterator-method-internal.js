@@ -9,8 +9,6 @@ var ITERATOR = wellKnownSymbol('iterator');
 module.exports = function (it) {
   if (!isNullOrUndefined(it)) {
     var method = getMethod(it, ITERATOR);
-    if (method !== undefined) return method;
-    method = getMethod(it, '@@iterator');
     return method !== undefined ? method : getInternalIterator(it);
   }
 };
