@@ -233,3 +233,76 @@ QUnit.test('scope: for-of variable shadow', assert => {
   }
   assert.same(typeof Map.groupBy, 'function');
 });
+
+// typeof guard — polyfill still injected
+QUnit.test('typeof guard: typeof Map !== undefined', assert => {
+  assert.same(typeof Map, 'function');
+  assert.same(typeof Map.groupBy, 'function');
+});
+
+// spread into polyfilled constructor
+QUnit.test('spread: new Map from entries', assert => {
+  const entries = [['a', 1], ['b', 2]];
+  const map = new Map(entries);
+  assert.same(map.get('a'), 1);
+  assert.same(map.size, 2);
+});
+
+// AggregateError
+QUnit.test('AggregateError: constructor and errors', assert => {
+  const err = new AggregateError([new Error('a'), new Error('b')], 'multi');
+  assert.same(err.message, 'multi');
+  assert.same(err.errors.length, 2);
+});
+
+// disable directive — WeakMap.of is not native anywhere, so without polyfill it throws
+QUnit.test('disable: core-js-disable-next-line prevents polyfill', assert => {
+  // core-js-disable-next-line
+  assert.same(typeof WeakMap.of, 'undefined');
+});
+
+// new on polyfilled constructor result
+QUnit.test('new: Map from polyfilled entries', assert => {
+  const entries = Array.from(Object.entries({ a: 1, b: 2 }));
+  const map = new Map(entries);
+  assert.same(map.get('a'), 1);
+});
+
+// multiple polyfills in one line
+QUnit.test('multi-polyfill: several in one expression', assert => {
+  assert.true(Object.keys({ a: 1 }).includes('a'));
+  assert.same([1, 2].at(-1), 2);
+});
+
+// polyfill in ternary branches
+QUnit.test('ternary: polyfill in both branches', assert => {
+  const useSet = true;
+  const size = useSet ? new Set([1, 2]).size : new Map([['a', 1]]).size;
+  assert.same(size, 2);
+});
+
+// chained assignment with polyfill
+QUnit.test('assignment: polyfill result stored and used', assert => {
+  const keys = Object.keys({ x: 1, y: 2 });
+  const first = keys.at(0);
+  const has = keys.includes('y');
+  assert.same(first, 'x');
+  assert.true(has);
+});
+
+// polyfill in object method shorthand
+QUnit.test('object method: polyfill in method body', assert => {
+  const obj = {
+    getKeys(data) {
+      return Object.keys(data).toSorted();
+    },
+  };
+  assert.deepEqual(obj.getKeys({ b: 2, a: 1 }), ['a', 'b']);
+});
+
+// polyfill with comma operator
+QUnit.test('comma operator: polyfill in sequence', assert => {
+  // eslint-disable-next-line no-sequences -- testing comma operator
+  const result = (0, Array.from)([1, 2, 3]);
+  assert.deepEqual(result, [1, 2, 3]);
+});

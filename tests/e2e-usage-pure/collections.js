@@ -86,3 +86,31 @@ QUnit.test('WeakMap: getOrInsert', assert => {
   assert.same(wm.getOrInsert(key, 42), 42);
   assert.same(wm.getOrInsert(key, 99), 42);
 });
+
+// Set methods (intersection, union, etc.)
+QUnit.test('Set: intersection', assert => {
+  const a = new Set([1, 2, 3, 4]);
+  const b = new Set([3, 4, 5]);
+  assert.deepEqual(Array.from(a.intersection(b)), [3, 4]);
+});
+
+QUnit.test('Set: union', assert => {
+  const a = new Set([1, 2]);
+  const b = new Set([2, 3]);
+  assert.deepEqual(Array.from(a.union(b)).toSorted(), [1, 2, 3]);
+});
+
+QUnit.test('Set: difference', assert => {
+  const a = new Set([1, 2, 3]);
+  const b = new Set([2, 3, 4]);
+  assert.deepEqual(Array.from(a.difference(b)), [1]);
+});
+
+// Map.getOrInsertComputed
+QUnit.test('Map: getOrInsertComputed', assert => {
+  const m = new Map();
+  const v1 = m.getOrInsertComputed('key', k => k.length);
+  assert.same(v1, 3);
+  const v2 = m.getOrInsertComputed('key', () => 999);
+  assert.same(v2, 3);
+});
