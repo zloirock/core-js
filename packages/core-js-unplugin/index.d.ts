@@ -45,5 +45,8 @@ export declare const rollup: BundlerPlugin<any>;
 export declare const esbuild: BundlerPlugin<any>;
 export declare const rspack: BundlerPlugin<any>;
 export declare const rolldown: BundlerPlugin<any>;
+export declare const farm: BundlerPlugin<any>;
+export declare const unloader: BundlerPlugin<any>;
+export declare const bun: BundlerPlugin<any>;
 
 export type { Options, Method, Mode, Targets };
