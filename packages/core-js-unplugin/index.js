@@ -13,6 +13,8 @@ const unplugin = createUnplugin((options, meta) => {
     name: plugin.name,
     enforce: 'pre',
     transformInclude(id) {
+      // \0-prefixed ids are virtual modules (e.g. rolldown runtime helpers) — skip them
+      if (id.charCodeAt(0) === 0) return false;
       return JS_RE.test(id) && !DTS_RE.test(id);
     },
     transform(code, id) {
