@@ -184,3 +184,13 @@ QUnit.test('instance/string: String#trimLeft/trimRight (aliases)', assert => {
   // eslint-disable-next-line unicorn/prefer-string-trim-start-end -- testing legacy aliases
   assert.same('  hi  '.trimRight(), '  hi');
 });
+
+// string modern methods
+QUnit.test('String#replaceAll', assert => {
+  assert.same('aabbcc'.replaceAll('b', 'x'), 'aaxxcc');
+});
+
+QUnit.test('String#isWellFormed / toWellFormed', assert => {
+  assert.true('hello'.isWellFormed());
+  assert.same('\uD800'.toWellFormed(), '\uFFFD');
+});

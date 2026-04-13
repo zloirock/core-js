@@ -58,3 +58,29 @@ QUnit.test('Promise#finally', assert => {
     async();
   });
 });
+
+QUnit.test('Promise.allSettled', assert => {
+  const async = assert.async();
+  Promise.allSettled([
+    Promise.resolve(1),
+    Promise.reject(new Error('fail')),
+    Promise.resolve(3),
+  ]).then(results => {
+    assert.same(results.length, 3);
+    assert.same(results[0].status, 'fulfilled');
+    assert.same(results[1].status, 'rejected');
+    async();
+  });
+});
+
+QUnit.test('Promise.any', assert => {
+  const async = assert.async();
+  Promise.any([
+    Promise.reject(1),
+    Promise.resolve(2),
+    Promise.resolve(3),
+  ]).then(value => {
+    assert.same(value, 2);
+    async();
+  });
+});
