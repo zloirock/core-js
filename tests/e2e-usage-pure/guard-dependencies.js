@@ -1,4 +1,4 @@
-// Guard dependencies — Object.create/defineProperty have `guard: 'symbol/constructor'`
+// Guard dependencies - Object.create/defineProperty have `guard: 'symbol/constructor'`
 // This means they're injected even when not directly needed, if Symbol polyfill is required
 
 QUnit.test('guard: Object.create', assert => {

@@ -1,4 +1,4 @@
-// for-of, spread, destructuring — Symbol.iterator injection
+// for-of, spread, destructuring - Symbol.iterator injection
 
 // built-in iterables
 QUnit.test('for-of: array', assert => {
