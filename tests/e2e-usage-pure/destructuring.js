@@ -1,4 +1,4 @@
-// Destructuring: const { method } = Constructor — ObjectPattern path in usagePure
+// Destructuring: const { method } = Constructor - ObjectPattern path in usagePure
 
 QUnit.test('destructuring: const { from } = Array', assert => {
   const { from } = Array;
