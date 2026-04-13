@@ -1,5 +1,6 @@
 # Changelog
 ### Unreleased
+- Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
 - Fixed possible crash on some keys in `Symbol.for`
 - Some `get-iterator` / `get-iterator-method` fixes
 - Fixed `String.prototype.{ match, search }` polyfills conversion order
