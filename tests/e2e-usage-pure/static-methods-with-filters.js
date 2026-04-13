@@ -67,3 +67,9 @@ QUnit.test('Object.isFrozen', assert => {
   assert.true(Object.isFrozen(Object.freeze({})));
   assert.false(Object.isFrozen({}));
 });
+
+QUnit.test('JSON.parse: with reviver (2 args triggers polyfill)', assert => {
+  const result = JSON.parse('{"a":1,"b":2}', (key, value) => typeof value === 'number' ? value * 2 : value);
+  assert.same(result.a, 2);
+  assert.same(result.b, 4);
+});
