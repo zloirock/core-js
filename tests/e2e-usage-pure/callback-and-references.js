@@ -56,3 +56,29 @@ QUnit.test('stored: instance method via destructuring', assert => {
   assert.true(includes.call([1, 2, 3], 2));
   assert.false(includes.call([1, 2, 3], 4));
 });
+
+// polyfill stored as callback — wrap to avoid extra args from .map(fn, i, arr)
+QUnit.test('callback: Array.from wrapped as callback', assert => {
+  const items = [[1, 2], [3, 4]];
+  const result = items.map(x => Array.from(x));
+  assert.deepEqual(result, [[1, 2], [3, 4]]);
+});
+
+// polyfill in setTimeout callback
+QUnit.test('callback: polyfill in setTimeout', assert => {
+  const async = assert.async();
+  setTimeout(() => {
+    assert.deepEqual([3, 1, 2].toSorted(), [1, 2, 3]);
+    async();
+  }, 0);
+});
+
+// polyfill as property value
+QUnit.test('reference: polyfill as object property', assert => {
+  const utils = {
+    fromArray: Array.from,
+    getKeys: Object.keys,
+  };
+  assert.deepEqual(utils.fromArray([1, 2]), [1, 2]);
+  assert.deepEqual(utils.getKeys({ a: 1 }), ['a']);
+});
