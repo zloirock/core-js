@@ -1,6 +1,6 @@
 // Polyfills in async functions and generators
 
-/* eslint-disable es/no-async-functions, es/no-async-iteration -- safe */
+/* eslint-disable es/no-async-functions -- safe */
 
 QUnit.test('async: Promise.all in async function', assert => {
   const async = assert.async();
@@ -52,4 +52,12 @@ QUnit.test('generator: polyfill on yielded result', assert => {
   assert.deepEqual(Array.from(range(3)), [0, 1, 2]);
 });
 
-// async generator: for-await-of — covered by iterators.js
+QUnit.test('generator: chained polyfills on yield', assert => {
+  function * gen() {
+    yield [3, 1, 2].toSorted();
+    yield Object.keys({ a: 1, b: 2 }).at(-1);
+  }
+  const it = gen();
+  assert.deepEqual(it.next().value, [1, 2, 3]);
+  assert.same(it.next().value, 'b');
+});
