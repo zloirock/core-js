@@ -14,6 +14,7 @@
   - [`Array.prototype.includes` bug](https://bugs.webkit.org/show_bug.cgi?id=309342) marked as fixed in Bun 1.3.12
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8) compat data mapping
   - Updated Electron 42 compat data mapping
+  - Added Samsung Internet 30 compat data mapping
 
 ### [3.49.0 - 2026.03.16](https://github.com/zloirock/core-js/releases/tag/v3.49.0)
 - Changes [v3.48.0...v3.49.0](https://github.com/zloirock/core-js/compare/v3.48.0...v3.49.0) (373 commits)
