@@ -287,7 +287,9 @@ const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/
 const CORE_JS_BUNDLE = /[/\\](?:core-js-bundle|@core-js[/\\]bundle)[/\\]/;
 
 export function isCoreJSFile(filename) {
-  return CORE_JS_INTERNAL_FILE.test(filename) || CORE_JS_BUNDLE.test(filename);
+  // normalize doubled slashes/backslashes — some bundlers (farm) pass ids like `core-js-pure//full/...`
+  const normalized = filename.replaceAll(/[/\\]{2,}/g, '/');
+  return CORE_JS_INTERNAL_FILE.test(normalized) || CORE_JS_BUNDLE.test(normalized);
 }
 
 export function buildOffsetToLine(code) {
