@@ -43,8 +43,12 @@ async function verifyBundle(code, label, ext = '.mjs') {
 async function webpackLikeBuild(compiler, config) {
   const { promisify } = await import('node:util');
   const instance = compiler(config);
-  const stats = await promisify(instance.run.bind(instance))();
-  if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
+  try {
+    const stats = await promisify(instance.run.bind(instance))();
+    if (stats.hasErrors()) throw new Error(stats.compilation.errors[0].message);
+  } finally {
+    await promisify(instance.close.bind(instance))();
+  }
 }
 
 // --- babel (transform with @core-js/babel-plugin, then bundle with esbuild) ---
@@ -210,40 +214,44 @@ try {
     echo(chalk.yellow('bun: skipped (not installed)'));
   }
   if (bunVersion) {
-    const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
+    // JSON.stringify gives safe string literals (escapes backslashes on Windows, quotes, newlines)
+    const unpluginPath = JSON.stringify(pathToFileURL(resolve(testDir, '../../packages/core-js-unplugin/index.js')).href);
     for (const method of methods) {
       await withTmpDir(async dir => {
-        const input = inputOf(method);
-        // build in bun
+        const input = JSON.stringify(inputOf(method));
+        const outdir = JSON.stringify(dir);
+        const bundleUrl = JSON.stringify(pathToFileURL(join(dir, 'bundle.js')).href);
+        const opts = JSON.stringify(pluginOpts(method));
+        const exp = JSON.stringify(expected);
         const buildScript = join(dir, 'build.mjs');
         await writeFile(buildScript, `
-          import { bun as plugin } from '${ unpluginPath }';
+          import { bun as plugin } from ${ unpluginPath };
           const result = await Bun.build({
-            entrypoints: ['${ input }'],
-            outdir: '${ dir }',
+            entrypoints: [${ input }],
+            outdir: ${ outdir },
             target: 'node',
             naming: 'bundle.js',
-            plugins: [plugin(${ JSON.stringify(pluginOpts(method)) })],
+            plugins: [plugin(${ opts })],
           });
           if (!result.success) { for (const l of result.logs) console.error(l); process.exit(1); }
         `);
         await exec('bun', [buildScript]);
-        // verify in bun (bun output uses mixed CJS/ESM not loadable by node)
-        // for usage-pure, check named exports; for global methods, check patched globals
+        // verify in bun (bun output mixes CJS/ESM — not loadable by node)
+        // usage-pure checks named exports; global methods check patched globals
         const verifyScript = join(dir, 'verify.mjs');
         const isPure = method === 'usage-pure';
         await writeFile(verifyScript, isPure ? `
           import { deepStrictEqual, strictEqual } from 'node:assert';
-          const mod = await import('${ join(dir, 'bundle.js') }');
-          const exp = ${ JSON.stringify(expected) };
+          const mod = await import(${ bundleUrl });
+          const exp = ${ exp };
           deepStrictEqual(Array.from(mod.filterReject), exp.filterReject);
           deepStrictEqual(Array.from(mod.uniqueBy), exp.uniqueBy);
           strictEqual(mod.setFrom, exp.setFrom);
           strictEqual(mod.cooked, exp.cooked);
         ` : `
           import { deepStrictEqual, strictEqual } from 'node:assert';
-          await import('${ join(dir, 'bundle.js') }');
-          const exp = ${ JSON.stringify(expected) };
+          await import(${ bundleUrl });
+          const exp = ${ exp };
           deepStrictEqual([1,2,3,4].filterReject(x => x % 2), exp.filterReject);
           deepStrictEqual([1,2,3,2,1].uniqueBy(), exp.uniqueBy);
           strictEqual(Set.from([1,2,3]).size, exp.setFrom);
