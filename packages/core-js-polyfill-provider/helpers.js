@@ -283,7 +283,7 @@ export function symbolKeyToEntry(key) {
 }
 
 // skip core-js internals and bundles - polyfilling their own code creates circular dependencies
-const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:actual|es|full|internals|modules|stable)[/\\]/;
+const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:actual|es|features|full|internals|modules|proposals|stable|stage)[/\\]/;
 const CORE_JS_BUNDLE = /[/\\](?:core-js-bundle|@core-js[/\\]bundle)[/\\]/;
 
 export function isCoreJSFile(filename) {
