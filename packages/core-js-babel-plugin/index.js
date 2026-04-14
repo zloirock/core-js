@@ -352,6 +352,7 @@ export default function plugin(api, options) {
         injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
         skippedNodes = new WeakSet();
         originalBodyNodes = new WeakSet(path.node.body);
+        deferredSideEffects.length = 0;
         helperVisitors?.[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
