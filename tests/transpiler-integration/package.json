@@ -3,6 +3,7 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "@farmfe/core": "^1.7.11",
     "@rollup/plugin-commonjs": "^29.0.2",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "@rspack/core": "^1.7.11",
