@@ -223,9 +223,11 @@ export default function plugin(api, options) {
       // resolveNodeType can still determine e.g. Promise.all -> Array
       function annotateCallReturnType(path) {
         const callerPath = unwrapTSExpressionParent(path);
-        if (!callerPath.parentPath?.isCallExpression() || callerPath.parent.callee !== callerPath.node) return;
-        const hint = toHint(resolveNodeType(callerPath.parentPath));
-        if (hint) callerPath.parentPath.node.coreJSResolvedType = hint;
+        const callParent = callerPath.parentPath;
+        if (!(callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
+          || callerPath.parent.callee !== callerPath.node) return;
+        const hint = toHint(resolveNodeType(callParent));
+        if (hint) callParent.node.coreJSResolvedType = hint;
       }
 
       // extends clause replaced by polyfill import (_Promise): resolve back to original global
