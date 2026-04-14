@@ -352,6 +352,8 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
     const primary = unwrapped.operator === '&&' ? unwrapped.right : unwrapped.left;
     const meta = buildDestructuringInitMeta(primary, key, scope, adapter);
     if (meta.object) return meta;
+    // for `&&` both primary and fallback are the same (right), no point retrying
+    if (unwrapped.operator === '&&') return meta;
     const fallback = buildDestructuringInitMeta(unwrapped.right, key, scope, adapter);
     if (fallback.object) return { ...fallback, fromFallback: true };
     return fallback;
