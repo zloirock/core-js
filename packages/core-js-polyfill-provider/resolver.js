@@ -82,9 +82,10 @@ function pureImportName(kind, name, importEntry) {
 // high-level polyfill resolver factory.
 // validates options, resolves targets, creates resolver + debug output.
 export function createPolyfillResolver(options, {
-  typeResolvers, isMemberLike, isCallee, isSpreadElement, getBabelTargets,
+  typeResolvers, astPredicates, getBabelTargets,
 } = {}) {
   const { resolvePropertyObjectType, resolveGuardHints, toHint, isString, isObject } = typeResolvers;
+  const { isMemberLike, isCallee, isSpreadElement } = astPredicates;
   const {
     method, mode, version, package: pkg, additionalPackages,
     include, exclude, shippedProposals,
