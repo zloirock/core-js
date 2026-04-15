@@ -26,7 +26,7 @@ const unplugin = createUnplugin((options, meta) => {
 
   const effective = isEntryGlobal ? 'pre' : phase ?? 'pre';
   if (!VALID_PHASES.includes(effective)) {
-    // show the string value quoted, otherwise show its type — avoids JSON.stringify
+    // show the string value quoted, otherwise show its type - avoids JSON.stringify
     // blowing up on BigInt, circular objects, Symbol, etc.
     const got = typeof phase === 'string' ? `'${ phase }'` : typeof phase;
     throw new TypeError(`[core-js-unplugin] invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`);
@@ -42,7 +42,7 @@ const unplugin = createUnplugin((options, meta) => {
 
   // clear pre-pass snapshots at build end so long-running dev servers (Vite watch,
   // HMR rebuilds) don't accumulate entries when a post pass is skipped for some id.
-  // attach to the last sub-plugin — unplugin invokes buildEnd once per plugin.
+  // attach to the last sub-plugin - unplugin invokes buildEnd once per plugin.
   const subs = effective === 'pre+post'
     ? [stage('pre', 'pre'), stage('post', 'post')]
     : [stage(effective, 'single')];

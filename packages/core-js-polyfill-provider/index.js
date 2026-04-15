@@ -9,6 +9,7 @@ import {
   isModulePattern,
   lookupEntryModules,
   patternToRegExp,
+  stripQueryHash,
   validatePatternList,
 } from './helpers.js';
 
@@ -52,11 +53,22 @@ function collectEntryPaths(patterns) {
   return result;
 }
 
+// strip `file://` / `./` prefixes that bundler id resolution commonly introduces
+const stripLeadingPrefix = p => {
+  if (p.startsWith('file://')) return p.slice(7);
+  if (p.startsWith('./')) return p.slice(2);
+  return p;
+};
+
+// normalize the import source to a canonical entry path so we can look it up in the `entries`
+// map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`
 function normalizeImportPath(path) {
-  return typeof path != 'string' ? null : path
-    .replaceAll('\\', '/')
-    .replace(/(?:\/(?:index)?)?(?:\.js)?$/i, '')
-    .toLowerCase();
+  if (typeof path != 'string') return null;
+  const withForwardSlashes = path.replaceAll('\\', '/');
+  const withoutQuery = stripQueryHash(withForwardSlashes);
+  const withoutPrefix = stripLeadingPrefix(withoutQuery);
+  // accept `.js`, `.mjs`, `.cjs` - `import 'core-js/actual/array/at.mjs'` should resolve like `.js`
+  return withoutPrefix.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '').toLowerCase();
 }
 
 function patternMatches(pattern, modules) {

@@ -9,6 +9,7 @@ import {
   mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
+  stripQueryHash,
   TS_EXPR_WRAPPERS,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers';
@@ -201,8 +202,7 @@ export default function createPlugin(options) {
     // strip bundler query/hash suffix before passing the id to oxc-parser - oxc infers
     // the parser language from the extension and would otherwise see e.g. `tsx?import`
     // and reject the TypeScript syntax silently
-    const queryStart = id.search(/[#?]/);
-    const cleanId = queryStart === -1 ? id : id.slice(0, queryStart);
+    const cleanId = stripQueryHash(id);
     // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
     const isCJSFile = /\.c[jt]s$/.test(cleanId);
     // strip a leading BOM before parsing AND from the MagicString source - oxc rejects
@@ -279,7 +279,7 @@ export default function createPlugin(options) {
       const out = ms.toString();
       return {
         code: hasBOM ? `\uFEFF${ out }` : out,
-        // in `post` pass `ms.original` is pre-pass output, not the real source — omit
+        // in `post` pass `ms.original` is pre-pass output, not the real source - omit
         // sourcesContent so the bundler chains through pre-pass map's content instead
         // of attributing pre-output as the claimed content of `id`
         map: ms.generateMap({ source: id, includeContent: pass !== 'post', hires: 'boundary' }),
@@ -326,11 +326,22 @@ export default function createPlugin(options) {
       // per-callback mutable state + deferred collections
       // setScope() runs before each callback; genRef() reads the current scope
       const state = {
-        scope: -1, // enclosing block body position (-1 = file scope)
+        scope: -1, // insertion position for `var _ref;` inside enclosing block (-1 = file scope)
         arrow: null, // innermost arrow expression body node needing block conversion
-        scopedVars: new Map(), // bodyStart -> [var names]
+        scopedVars: new Map(), // insertionPos -> [var names]
         arrowVars: new Map(), // arrow body node -> [var names]
         destructuring: new Map(), // ObjectPattern node -> destructuring info
+        // advance past `{` and any directive prologue (`"use strict"`, etc.) so that
+        // inserted `var _ref;` does not split the directive off from being first in body
+        // and silently flip the function to sloppy mode
+        skipDirectives(statements, startPos) {
+          let end = startPos;
+          for (const stmt of statements ?? []) {
+            if (stmt.type !== 'ExpressionStatement' || typeof stmt.directive !== 'string') break;
+            end = stmt.end;
+          }
+          return end;
+        },
         setScope(metaPath) {
           this.scope = -1;
           this.arrow = null;
@@ -346,20 +357,9 @@ export default function createPlugin(options) {
               this.arrow ??= body;
               continue;
             }
-            if (type === 'StaticBlock') {
-              // skip past `static` + comments/whitespace so `static /*{*/ {` doesn't fool us
-              this.scope = skipGap(code, p.node.start + 'static'.length);
-              return;
-            }
-            if (body?.type === 'BlockStatement' && (type === 'FunctionDeclaration'
-                || type === 'FunctionExpression' || type === 'ArrowFunctionExpression')) {
-              this.scope = body.start;
-              return;
-            }
-            // TS namespace/module body - Babel treats it as a var-scope boundary; match
-            // its behavior so `_ref` lands inside the module instead of at file scope
-            if (type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock') {
-              this.scope = body.start;
+            const anchor = varScopeAnchor(p.node);
+            if (anchor) {
+              this.scope = this.skipDirectives(anchor.statements, anchor.insertPos);
               return;
             }
           }
@@ -388,9 +388,10 @@ export default function createPlugin(options) {
               `{ var ${ names.join(', ') }; return ${ code.slice(body.start, body.end) }; }`);
           }
           queue.apply();
-          // insert var declarations at each function body start
-          for (const [bodyStart, names] of this.scopedVars) {
-            ms.appendRight(bodyStart + 1, `\nvar ${ names.join(', ') };`);
+          // insert var declarations at each computed insertion point (after `{` + any
+          // directive prologue - see setScope.skipDirectives)
+          for (const [insertPos, names] of this.scopedVars) {
+            ms.appendRight(insertPos, `\nvar ${ names.join(', ') };`);
           }
         },
       };
@@ -438,6 +439,25 @@ export default function createPlugin(options) {
           break;
         }
         return p;
+      }
+
+      // resolve the innermost var-scope boundary at which to anchor `var _ref;`:
+      //   - function body / TSModuleBlock: just past the opening `{`
+      //   - StaticBlock: past `static` + any gap + `{`
+      // returns { statements, insertPos } or null if `node` doesn't open a var scope
+      function varScopeAnchor(node) {
+        const { type, body } = node;
+        if (type === 'StaticBlock') {
+          // skip past `static` + comments/whitespace so `static /*{*/ {` doesn't fool us
+          return { statements: body, insertPos: skipGap(code, node.start + 'static'.length) + 1 };
+        }
+        const isFunctionBlock = body?.type === 'BlockStatement'
+          && (type === 'FunctionDeclaration' || type === 'FunctionExpression' || type === 'ArrowFunctionExpression');
+        // TS namespace/module body - Babel treats it as a var-scope boundary; match
+        // its behavior so `_ref` lands inside the module instead of at file scope
+        const isTSModuleBody = type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock';
+        if (isFunctionBlock || isTSModuleBody) return { statements: body.body, insertPos: body.start + 1 };
+        return null;
       }
 
       // strip `?.` at known absolute positions within a source slice
@@ -746,7 +766,7 @@ export default function createPlugin(options) {
             || patternParentType === 'ArrowFunctionExpression') {
           return handleParameterDestructurePure(meta, metaPath, propNode);
         }
-        // two-pass post: skip `{ key: _unusedN, ...rest }` sentinels left by pre —
+        // two-pass post: skip `{ key: _unusedN, ...rest }` sentinels left by pre -
         // the inherited unusedNames set tracks them so we don't duplicate extraction
         if (propNode.value?.type === 'Identifier'
             && injector.hasGeneratedUnusedName(propNode.value.name)) return;
@@ -1185,6 +1205,10 @@ export default function createPlugin(options) {
         }
         if (!pureResult) return;
         const { entry: importEntry, kind, hintName } = pureResult;
+        // `super.X` where X is not statically on the super class - resolve() falls back
+        // from missing-static to instance, but `_binding(super)` / `_binding.call(super, ...)`
+        // are syntactically invalid (super is restricted to direct member/call positions)
+        if (node.type === 'MemberExpression' && node.object?.type === 'Super' && kind === 'instance') return;
         const binding = injectPureImport(importEntry, hintName);
 
         // mark proxy global (globalThis, self, etc.) as skipped to prevent
