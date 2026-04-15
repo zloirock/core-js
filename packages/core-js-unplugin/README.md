@@ -158,6 +158,7 @@ Like `usage-global`, but replaces usage of standard library features with import
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type if not set |
+| `phase` | `'pre' \| 'post' \| 'pre+post'` | `'pre'` | When the plugin runs. `'pre'` - before sibling plugins, sees original source with full semantic context; misses polyfills in siblings' helpers. `'post'` - after siblings, sees helpers but TS stripping and other syntactic transforms by siblings make type inference unreliable, which may cause over-polyfilling. `'pre+post'` - two passes: pre transforms user code with full context, post detects helpers; post may still over-polyfill user code that siblings transformed between passes. Not supported for `entry-global` (always at pre so `import 'core-js'` is seen before siblings convert or tree-shake it) |
 | `debug` | `boolean` | `false` | Print debug output |
 
 ## Disable comments
@@ -181,8 +182,8 @@ Both `//` and `/* */` styles are supported. A reason can be added after ` -- `.
 
 ## Differences from `@core-js/babel-plugin`
 
-- **No Babel required** — uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for parsing
-- **Universal** — works with any bundler via unplugin
-- **Same data** — uses the same `@core-js/compat` data and `@core-js/polyfill-provider` logic
-- **Transform timing** — the Babel plugin uses `pre()` hook to run before other Babel transforms (destructuring, classes, optional chaining), preserving access to original TypeScript annotations and syntax. The unplugin runs at the bundler plugin level — it processes source files as they are, before any other transforms are applied. Both approaches see the original source, but via different mechanisms
-- **No Flow support** — oxc-parser does not support Flow syntax
+- **No Babel required** - uses [oxc-parser](https://github.com/nicolo-ribaudo/oxc-parser) for parsing
+- **Universal** - works with any bundler via unplugin
+- **Same data** - uses the same `@core-js/compat` data and `@core-js/polyfill-provider` logic
+- **Transform timing** - babel-plugin runs inside Babel's own pipeline and shares a single AST traversal with other Babel transforms (TS, class down-compile, etc.), always seeing the original source. The unplugin runs in the bundler plugin chain alongside separate TS/down-compile plugins; the `phase` option controls where in the chain it sits. The default `'pre'` sees the original source. `'post'` and `'pre+post'` can additionally scan code produced by siblings to catch polyfills in emitted helpers (e.g. `Symbol.iterator` in `_toConsumableArray`), at the cost of losing semantic context siblings may have stripped (type info in particular), which can over-polyfill
+- **No Flow support** - oxc-parser does not support Flow syntax
