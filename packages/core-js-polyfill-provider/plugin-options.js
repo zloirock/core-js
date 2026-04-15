@@ -19,6 +19,14 @@ function validateImportStyle(importStyle) {
   }
 }
 
+const VALID_METHODS = new Set(['entry-global', 'usage-global', 'usage-pure']);
+const VALID_MODES = new Set(['es', 'stable', 'actual', 'full']);
+
+function validateMethodAndMode(method, mode) {
+  if (!VALID_METHODS.has(method)) throw new TypeError('Incorrect plugin method');
+  if (mode !== undefined && !VALID_MODES.has(mode)) throw new TypeError('Incorrect plugin mode');
+}
+
 // only validates options exclusive to plugin-options (absoluteImports, shouldInjectPolyfill +
 // include/exclude conflict). Type checks for include/exclude themselves run inside
 // createPolyfillContext so direct callers of the public API stay protected.
@@ -107,7 +115,6 @@ function formatTargets(obj) {
 
 const KNOWN_REST_KEYS = new Set([
   'additionalPackages',
-  'bundler',
   'method',
   'mode',
   'package',
@@ -132,6 +139,7 @@ export function initPluginOptions({
 }, { getBabelTargets } = {}) {
   const unknown = keys(rest).filter(k => !KNOWN_REST_KEYS.has(k));
   if (unknown.length) throw new TypeError(`Unknown @core-js plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }`);
+  validateMethodAndMode(rest.method, rest.mode);
   validateImportStyle(importStyle);
   validatePluginOptions({ absoluteImports, shouldInjectPolyfill: userCallback, include, exclude });
   const parsedTargets = resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets });

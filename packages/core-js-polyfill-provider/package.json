@@ -40,6 +40,8 @@
     "./detect-syntax.js": "./detect-syntax.js",
     "./helpers": "./helpers.js",
     "./helpers.js": "./helpers.js",
+    "./import-state": "./import-state.js",
+    "./import-state.js": "./import-state.js",
     "./resolver": "./resolver.js",
     "./resolver.js": "./resolver.js"
   },
