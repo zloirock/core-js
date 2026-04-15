@@ -13,6 +13,7 @@ import {
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isPolyfillableOptional,
+  scanExistingCoreJSImports,
 } from '@core-js/polyfill-provider/detect-usage';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
@@ -42,7 +43,16 @@ export default function plugin(api, options) {
   });
 
   const { method, absoluteImports = false, importStyle: importStyleOption } = options;
-  const { mode, pkg, getModulesForEntry, isEntryNeeded, getCoreJSEntry, resolveUsage, resolvePureOrGlobalFallback } = resolver;
+  const {
+    getCoreJSEntry,
+    getModulesForEntry,
+    isEntryNeeded,
+    mode,
+    packages,
+    pkg,
+    resolvePureOrGlobalFallback,
+    resolveUsage,
+  } = resolver;
 
   const {
     isInTypeAnnotation,
@@ -363,6 +373,18 @@ export default function plugin(api, options) {
         const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start);
         if (directives === true) skipFile = true;
         disabledLines = directives !== true ? directives : null;
+        // register user's pre-existing core-js imports so we don't emit duplicates.
+        // entry-global removes + re-emits user imports, so registering them would suppress
+        // the re-emission and drop needed polyfills
+        if (!skipFile && method !== 'entry-global') {
+          scanExistingCoreJSImports(path.node, {
+            packages,
+            mode,
+            adapter,
+            onGlobalImport: mod => injector.registerUserGlobalImport(mod),
+            onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
+          });
+        }
       }
 
       // --- deferred side effects: splice into body, re-traverse for polyfills ---

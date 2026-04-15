@@ -23,6 +23,7 @@ import {
   isTypeAnnotationNodeType,
   isPolyfillableOptional,
   findProxyGlobal,
+  scanExistingCoreJSImports,
 } from '@core-js/polyfill-provider/detect-usage';
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
@@ -175,7 +176,7 @@ export default function createPlugin(options) {
 
   const { method, absoluteImports, importStyle: importStyleOption, bundler } = options;
   const {
-    mode, pkg, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
+    mode, pkg, packages, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
     resolveUsage, resolvePure, resolvePureOrGlobalFallback,
   } = resolver;
   const isWebpack = bundler === 'webpack' || bundler === 'rspack';
@@ -254,6 +255,21 @@ export default function createPlugin(options) {
     // seed the injector with every binding name in the file (any nesting level)
     // so generated UIDs don't shadow user-declared identifiers in nested scopes
     injector.seedReservedNames(collectAllBindingNames(ast));
+    // register user's pre-existing core-js imports so we don't emit duplicates.
+    // post inherits via snapshot and can't re-scan (source is pre-transformed).
+    // entry-global re-emits user imports via detectEntries, so skip it here
+    if (pass !== 'post' && method !== 'entry-global') {
+      scanExistingCoreJSImports(ast, {
+        packages,
+        mode,
+        adapter: estreeAdapter,
+        onGlobalImport: mod => injector.registerUserGlobalImport(mod),
+        onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
+      });
+    }
+    // post drops inherited pure imports whose binding isn't referenced — sibling may have
+    // deleted the usage between pre and post
+    if (pass === 'post' && inherit) injector.enableReferenceTracking();
 
     const debugOutput = createDebugOutput?.() ?? null;
 
@@ -441,20 +457,16 @@ export default function createPlugin(options) {
         return p;
       }
 
-      // resolve the innermost var-scope boundary at which to anchor `var _ref;`:
-      //   - function body / TSModuleBlock: just past the opening `{`
-      //   - StaticBlock: past `static` + any gap + `{`
-      // returns { statements, insertPos } or null if `node` doesn't open a var scope
+      // innermost var-scope anchor for `var _ref;` as { statements, insertPos }, or null.
+      // TSModuleBlock counts as a var-scope boundary — match Babel so `_ref` stays inside
       function varScopeAnchor(node) {
         const { type, body } = node;
         if (type === 'StaticBlock') {
-          // skip past `static` + comments/whitespace so `static /*{*/ {` doesn't fool us
+          // `static /*{*/ {` — skip past `static` + any gap before `{`
           return { statements: body, insertPos: skipGap(code, node.start + 'static'.length) + 1 };
         }
         const isFunctionBlock = body?.type === 'BlockStatement'
           && (type === 'FunctionDeclaration' || type === 'FunctionExpression' || type === 'ArrowFunctionExpression');
-        // TS namespace/module body - Babel treats it as a var-scope boundary; match
-        // its behavior so `_ref` lands inside the module instead of at file scope
         const isTSModuleBody = type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock';
         if (isFunctionBlock || isTSModuleBody) return { statements: body.body, insertPos: body.start + 1 };
         return null;
@@ -1222,11 +1234,13 @@ export default function createPlugin(options) {
         }
       };
 
-      traverse(ast, {
+      traverse(ast, mergeVisitors({
         $: { scope: true },
         Program(path) { injector.rootScope = path.scope; },
         ...createUsageVisitors({ onUsage: usagePureCallback, suppressProxyGlobals: true, walkAnnotations: false }),
-      });
+      }, pass === 'post' && inherit ? {
+        Identifier(path) { injector.trackReferencedName(path.node.name); },
+      } : {}));
       applyDestructuringTransforms();
       state.applyTransforms(transforms);
       return finalize();

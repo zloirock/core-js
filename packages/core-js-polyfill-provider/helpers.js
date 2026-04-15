@@ -14,47 +14,34 @@ export const TS_EXPR_WRAPPERS = new Set([
   'TypeCastExpression',
 ]);
 
-// conservative side-effect check for init expressions in destructuring.
-// returns true when the node MAY have observable side effects (or we can't prove it doesn't).
-// false only when the whole subtree is provably pure (literals, identifiers, type wrappers, ...)
+// conservative: true when the subtree may observe/cause side effects, false only when provably pure
 export function mayHaveSideEffects(node) {
   if (!node) return false;
   const { type } = node;
-  // --- Always-effectful ---
   if (ALWAYS_EFFECTFUL_TYPES.has(type)) return true;
-  // --- Unary ---
   if (type === 'UnaryExpression') return node.operator === 'delete' || mayHaveSideEffects(node.argument);
-  // --- Recursive-on-list ---
   if (type === 'SequenceExpression' || type === 'TemplateLiteral') return node.expressions.some(mayHaveSideEffects);
   if (type === 'ArrayExpression') return node.elements.some(mayHaveSideEffects);
   if (type === 'ObjectExpression') return node.properties.some(mayHaveSideEffects);
-  // --- Binary / logical / ternary ---
   if (type === 'BinaryExpression' || type === 'LogicalExpression') {
     return mayHaveSideEffects(node.left) || mayHaveSideEffects(node.right);
   }
   if (type === 'ConditionalExpression') {
     return mayHaveSideEffects(node.test) || mayHaveSideEffects(node.consequent) || mayHaveSideEffects(node.alternate);
   }
-  // --- Transparent wrappers (.expression or .argument carries the child) ---
   if (TRANSPARENT_WRAPPER_TYPES.has(type) || TS_EXPR_WRAPPERS.has(type)) {
     return mayHaveSideEffects(node.expression ?? node.argument);
   }
-  // --- Member access: object must be pure and computed key, if any, must be pure ---
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
     return mayHaveSideEffects(node.object) || (node.computed && mayHaveSideEffects(node.property));
   }
-  // --- Property in an ObjectExpression ---
   if (type === 'Property' || type === 'ObjectProperty') {
     return (node.computed && mayHaveSideEffects(node.key)) || mayHaveSideEffects(node.value);
   }
-  // --- Destructuring defaults: `[x = foo()]`, `{y = bar()}` ---
   if (type === 'AssignmentPattern') return mayHaveSideEffects(node.right);
   return false;
 }
 
-// `CallExpression`/`NewExpression` obviously call user code; `ImportExpression` triggers a
-// dynamic module fetch; `TaggedTemplateExpression` calls the tag; `Yield`/`Await` suspend
-// execution; `AssignmentExpression`/`UpdateExpression` mutate bindings
 const ALWAYS_EFFECTFUL_TYPES = new Set([
   'AssignmentExpression',
   'AwaitExpression',
@@ -67,8 +54,7 @@ const ALWAYS_EFFECTFUL_TYPES = new Set([
   'YieldExpression',
 ]);
 
-// runtime no-op wrappers that forward to `.expression` (ChainExpression, ParenthesizedExpression)
-// or `.argument` (SpreadElement, RestElement)
+// runtime no-op wrappers — child carried on `.expression` or `.argument`
 const TRANSPARENT_WRAPPER_TYPES = new Set([
   'ChainExpression',
   'ParenthesizedExpression',
@@ -76,8 +62,7 @@ const TRANSPARENT_WRAPPER_TYPES = new Set([
   'SpreadElement',
 ]);
 
-// strip bundler query/hash suffix (Vite: `?import`, HMR: `?t=1234`, fragments) so downstream
-// consumers see the clean module id. returns the input unchanged when no query/hash is present
+// strip Vite-style `?import` / `?t=123` / `#hash` suffixes from a module id
 export function stripQueryHash(id) {
   const at = id.search(/[#?]/);
   return at === -1 ? id : id.slice(0, at);
