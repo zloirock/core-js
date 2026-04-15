@@ -46,7 +46,7 @@ export function createBabelAdapter(getInjector = () => null) {
   };
 }
 
-// no-tracking adapter for detect-entry's `require('core-js/…')` literal check
+// no-tracking adapter for detect-entry's `require('core-js/...')` literal check
 export const babelAdapter = createBabelAdapter();
 
 // symbol-keyed per-file reset hook on the visitors object - symbol so babel's visitor
@@ -149,7 +149,7 @@ export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = f
   }
 
   // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it
-  // (`class Map {}; let x: Map = …` must NOT pull in es.map.constructor)
+  // (`class Map {}; let x: Map = ...` must NOT pull in es.map.constructor)
   const annotationGlobal = path => name => {
     if (path.scope?.hasBinding(name)) return;
     onUsage({ kind: 'global', name }, path);

@@ -1,28 +1,17 @@
-import { findUniqueName, resolveImportPath } from '@core-js/polyfill-provider/helpers';
+import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
+import ImportInjectorState from '@core-js/polyfill-provider/import-state';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
-export default class ImportInjector {
-  #absoluteImports;
-  // two-pass pre: collect imports + refs but defer emission until post
+export default class ImportInjector extends ImportInjectorState {
+  // two-pass pre: collect but don't emit; post flushes the combined set via snapshot inherit
   #deferImports = false;
   #directiveEnd = 0;
-  #existingGlobalImports = new Set();
-  #existingPureImports = new Map();
-  #globalImports = new Set();
-  #importStyle;
-  #mode;
   #ms;
-  #pkg;
-  #pureImports = new Map();
-  // null outside post+inherit; otherwise the set of Identifier names seen during post
-  // traversal — flush drops inherited imports whose binding isn't referenced
-  #referencedInSource = null;
   #refs = [];
   #rootScope = null;
-  // `_unusedN` slots tracked separately so post recognises sentinels left by pre
-  // in `{ key: _unusedN, ...rest }` rebuilds and skips re-extracting the same property
+  // `_unusedN` sentinels left by pre's rest-destructure rebuild - post recognises them via
+  // hasGeneratedUnusedName() and skips re-processing the same `{ key: _unusedN, ...rest }`
   #unusedNames = new Set();
-  #usedNames = new Set();
 
   constructor({
     absoluteImports,
@@ -34,152 +23,91 @@ export default class ImportInjector {
     ms,
     pkg,
   }) {
-    this.#absoluteImports = absoluteImports;
+    super({ absoluteImports, mode, pkg, importStyle });
     this.#deferImports = deferImports;
     this.#directiveEnd = directiveEnd;
-    this.#importStyle = importStyle;
-    this.#mode = mode;
     this.#ms = ms;
-    this.#pkg = pkg;
-    // post-pass rehydration from pre's snapshot (post can't re-scan — its source is
-    // pre's transformed output and no longer matches the original import shapes)
-    if (inherit) {
-      this.#globalImports = new Set(inherit.globals);
-      this.#pureImports = new Map(inherit.pure);
-      this.#usedNames = new Set(inherit.usedNames);
-      this.#unusedNames = new Set(inherit.unusedNames);
-      this.#refs = [...inherit.refs];
-      this.#existingGlobalImports = new Set(inherit.existingGlobals);
-      this.#existingPureImports = new Map(inherit.existingPure);
-    }
+    if (inherit) this.#rehydrate(inherit);
   }
 
-  // raw references — pre is discarded right after finalize, post's constructor copies
+  #rehydrate(snap) {
+    for (const g of snap.globals) this.globalImports.add(g);
+    for (const [k, v] of snap.pure) this.pureImports.set(k, v);
+    for (const n of snap.usedNames) this.usedNames.add(n);
+    for (const n of snap.unusedNames) this.#unusedNames.add(n);
+    for (const g of snap.existingGlobals) this.existingGlobalImports.add(g);
+    for (const [k, v] of snap.existingPure) this.existingPureImports.set(k, v);
+    this.#refs.push(...snap.refs);
+  }
+
+  // raw references - pre is discarded right after finalize, post's #rehydrate copies
   snapshot() {
     return {
-      globals: this.#globalImports,
-      pure: this.#pureImports,
-      usedNames: this.#usedNames,
+      globals: this.globalImports,
+      pure: this.pureImports,
+      usedNames: this.usedNames,
       unusedNames: this.#unusedNames,
       refs: this.#refs,
-      existingGlobals: this.#existingGlobalImports,
-      existingPure: this.#existingPureImports,
+      existingGlobals: this.existingGlobalImports,
+      existingPure: this.existingPureImports,
     };
   }
 
   set rootScope(scope) { this.#rootScope = scope; }
 
-  // seed the in-use name set with bindings from EVERY nested scope, not just the program root
-  // estree-toolkit's program scope only sees direct bindings, so a `var _at` declared
-  // inside a function would otherwise collide with our generated `_at` polyfill UID
-  seedReservedNames(names) {
-    for (const n of names) this.#usedNames.add(n);
+  isNameTaken(name) {
+    return this.usedNames.has(name) || (this.#rootScope?.hasBinding(name) ?? false);
   }
 
-  // usage-global / entry-global: collect side-effect module import
-  addGlobalImport(moduleName) {
-    this.#globalImports.add(moduleName);
-  }
-
-  // usage-pure: register default import, return binding name
-  addPureImport(entry, hint) {
-    const key = `${ this.#mode }/${ entry }`;
-    if (this.#existingPureImports.has(key)) return this.#existingPureImports.get(key);
-    if (this.#pureImports.has(key)) return this.#pureImports.get(key);
-    const name = this.#uniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2);
-    this.#pureImports.set(key, name);
-    return name;
-  }
-
-  registerUserGlobalImport(moduleName) {
-    this.#existingGlobalImports.add(moduleName);
-  }
-
-  // caller must filter to mode-matching imports first (scanExistingCoreJSImports does this)
-  registerUserPureImport(entry, name) {
-    this.#existingPureImports.set(`${ this.#mode }/${ entry }`, name);
-    this.#usedNames.add(name);
-  }
-
-  enableReferenceTracking() {
-    this.#referencedInSource = new Set();
-  }
-
-  trackReferencedName(name) {
-    this.#referencedInSource?.add(name);
-  }
-
-  #uniqueName(prefix, startSuffix, minSuffix = 1) {
-    const name = findUniqueName(prefix, startSuffix, minSuffix,
-      n => this.#usedNames.has(n) || this.#rootScope?.hasBinding(n));
-    this.#usedNames.add(name);
-    return name;
-  }
-
-  // generate a unique _ref name; numbering matches Babel: _ref, _ref2, _ref3... (no _ref1)
-  // hoisted=true (default): declared via `var` in the file header
-  // hoisted=false: name only, for destructuring `const` memoization
+  // _ref, _ref2, _ref3... (no _ref1) - matches Babel's UID generator
   generateRef(hoisted = true) {
     const n = this.#refs.length;
-    const name = this.#uniqueName('_ref', n === 0 ? null : n + 1, 2);
+    const name = this.uniqueName('_ref', n === 0 ? null : n + 1, 2);
     if (hoisted) this.#refs.push(name);
     return name;
   }
 
-  // generate a unique name without declaring it (for unused destructuring bindings)
-  // numbering matches Babel: _unused, _unused2, _unused3... (no _unused1)
   generateUnusedName() {
-    const name = this.#uniqueName('_unused', null, 2);
+    const name = this.uniqueName('_unused', null, 2);
     this.#unusedNames.add(name);
     return name;
   }
 
-  // post pass uses this to recognise `{ key: _unusedN, ...rest }` sentinels emitted
-  // by pre's rest-destructure rebuild and skip re-processing the same property
   hasGeneratedUnusedName(name) {
     return this.#unusedNames.has(name);
   }
 
   #resolvePath(subpath) {
-    return resolveImportPath(this.#pkg, subpath, this.#absoluteImports);
+    return resolveImportPath(this.pkg, subpath, this.absoluteImports);
   }
 
-  // emit refs + canonically-sorted imports at the top of the file.
-  // deferImports=true (two-pass pre) returns early so post can flush the full set after
-  // inheriting via the snapshot. Pre's transformed code carries `_ref = ...` assignments
-  // without a preceding `var _ref;`; oxc-parser accepts that as undeclared assignment,
-  // and post lands the declaration before anything runs.
+  // pre returns early (no emission); its transformed code carries `_ref = ...` assignments
+  // without a `var _ref;`, which oxc accepts as undeclared assignment - post lands the
+  // declaration before anything runs
   flush() {
     if (this.#deferImports) return;
     const lines = [];
     if (this.#refs.length) lines.push(`var ${ this.#refs.join(', ') };`);
-    // skip mods the user already side-effect-imported
-    const newGlobals = [...this.#globalImports].filter(mod => !this.#existingGlobalImports.has(mod));
-    const sortedGlobals = sortByPolyfillOrder(newGlobals);
-    // drop inherited pure imports whose binding isn't referenced anywhere in the final
-    // source (sibling plugin removed the usage between pre and post)
-    const activePureImports = this.#referencedInSource
-      ? [...this.#pureImports].filter(([, name]) => this.#referencedInSource.has(name))
-      : [...this.#pureImports];
-    if (this.#importStyle === 'require') {
-      for (const mod of sortedGlobals) lines.push(`require("${ this.#resolvePath(`modules/${ mod }`) }");`);
-      for (const [entry, name] of activePureImports) lines.push(`var ${ name } = require("${ this.#resolvePath(entry) }");`);
+    const newGlobals = sortByPolyfillOrder([...this.globalImports].filter(m => !this.existingGlobalImports.has(m)));
+    const activePure = this.referencedInSource
+      ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
+      : [...this.pureImports];
+    if (this.importStyle === 'require') {
+      for (const mod of newGlobals) lines.push(`require("${ this.#resolvePath(`modules/${ mod }`) }");`);
+      for (const [entry, name] of activePure) lines.push(`var ${ name } = require("${ this.#resolvePath(entry) }");`);
     } else {
-      for (const mod of sortedGlobals) lines.push(`import "${ this.#resolvePath(`modules/${ mod }`) }";`);
-      for (const [entry, name] of activePureImports) lines.push(`import ${ name } from "${ this.#resolvePath(entry) }";`);
+      for (const mod of newGlobals) lines.push(`import "${ this.#resolvePath(`modules/${ mod }`) }";`);
+      for (const [entry, name] of activePure) lines.push(`import ${ name } from "${ this.#resolvePath(entry) }";`);
     }
     if (!lines.length) return;
     const block = `${ lines.join('\n') }\n`;
-    // shebang stays at offset 0; MagicString cannot emit source-map entries for appended
-    // content, so the inserted block remains synthetic in the resulting source map
+    // MagicString can't source-map appended content, so this block is synthetic in the map
     const insertPos = this.#prologueEnd();
     if (insertPos > 0) this.#ms.appendRight(insertPos, block);
     else this.#ms.prepend(block);
   }
 
-  // compute end of shebang + directive prologue -
-  // imports must be inserted AFTER all of them to remain valid.
-  // BOM is already stripped by the caller before MagicString is created
+  // BOM already stripped by caller before MagicString is created
   #prologueEnd() {
     const src = this.#ms.original;
     let p = skipShebang(src, 0);
@@ -195,7 +123,7 @@ function skipShebang(src, pos) {
 }
 
 // advance past trailing horizontal whitespace + the first line ending so insertion lands
-// on the next line - without this, `'use strict' \n` would splice between quote and space
+// on the next line - `'use strict' \n` would otherwise splice between quote and space
 function skipLineEnd(src, pos) {
   let p = pos;
   while (src[p] === ' ' || src[p] === '\t') p++;

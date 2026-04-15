@@ -160,21 +160,26 @@ export default function createPlugin(options) {
   // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across plugin instances
   const typeResolvers = createResolveNodeType(nodeType, types);
 
+  // `bundler` is unplugin-specific - strip it before passing options to the provider
+  const { bundler, ...providerOptions } = options;
+
   // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id)
   const prePassSnapshots = new Map();
-  const { resolver, createDebugOutput } = createPolyfillResolver(options, {
+  const { resolver, createDebugOutput } = createPolyfillResolver(providerOptions, {
     typeResolvers,
-    isMemberLike: path => path.node?.type === 'MemberExpression',
-    isCallee: (node, parent) => {
-      if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
-      let { callee } = parent;
-      while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
-      return callee === node;
+    astPredicates: {
+      isMemberLike: path => path.node?.type === 'MemberExpression',
+      isCallee: (node, parent) => {
+        if (!parent || (parent.type !== 'CallExpression' && parent.type !== 'NewExpression')) return false;
+        let { callee } = parent;
+        while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+        return callee === node;
+      },
+      isSpreadElement: node => node?.type === 'SpreadElement',
     },
-    isSpreadElement: node => node?.type === 'SpreadElement',
   });
 
-  const { method, absoluteImports, importStyle: importStyleOption, bundler } = options;
+  const { method, absoluteImports, importStyle: importStyleOption } = providerOptions;
   const {
     mode, pkg, packages, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
     resolveUsage, resolvePure, resolvePureOrGlobalFallback,
@@ -267,7 +272,7 @@ export default function createPlugin(options) {
         onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
       });
     }
-    // post drops inherited pure imports whose binding isn't referenced — sibling may have
+    // post drops inherited pure imports whose binding isn't referenced - sibling may have
     // deleted the usage between pre and post
     if (pass === 'post' && inherit) injector.enableReferenceTracking();
 
@@ -458,11 +463,11 @@ export default function createPlugin(options) {
       }
 
       // innermost var-scope anchor for `var _ref;` as { statements, insertPos }, or null.
-      // TSModuleBlock counts as a var-scope boundary — match Babel so `_ref` stays inside
+      // TSModuleBlock counts as a var-scope boundary -> match Babel so `_ref` stays inside
       function varScopeAnchor(node) {
         const { type, body } = node;
         if (type === 'StaticBlock') {
-          // `static /*{*/ {` — skip past `static` + any gap before `{`
+          // `static /*{*/ {` -> skip past `static` + any gap before `{`
           return { statements: body, insertPos: skipGap(code, node.start + 'static'.length) + 1 };
         }
         const isFunctionBlock = body?.type === 'BlockStatement'
