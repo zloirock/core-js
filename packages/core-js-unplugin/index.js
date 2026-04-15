@@ -7,20 +7,47 @@ import createPlugin from './internals/plugin.js';
 const JS_RE = /\.[cm]?[jt]sx?(?:[#?][^#?]*)?$/;
 const DTS_RE = /\.d\.[cm]?tsx?(?:[#?][^#?]*)?$/;
 
+// skip virtual modules (e.g. rolldown runtime helpers prefixed with \0)
+function shouldTransform(id) {
+  return id.charCodeAt(0) !== 0 && JS_RE.test(id) && !DTS_RE.test(id);
+}
+
+const VALID_PHASES = ['pre', 'post', 'pre+post'];
+
+// `phase` controls when the plugin runs. See index.d.ts for the full trade-off matrix.
+// `entry-global` is pinned to pre so `import 'core-js'` is seen before siblings transform it.
 const unplugin = createUnplugin((options, meta) => {
-  const plugin = createPlugin({ ...options, bundler: meta?.framework });
-  return {
-    name: plugin.name,
-    enforce: 'pre',
-    transformInclude(id) {
-      // \0-prefixed ids are virtual modules (e.g. rolldown runtime helpers) — skip them
-      if (id.charCodeAt(0) === 0) return false;
-      return JS_RE.test(id) && !DTS_RE.test(id);
-    },
-    transform(code, id) {
-      return plugin.transform(code, id);
-    },
-  };
+  const { phase, ...rest } = options;
+  const isEntryGlobal = rest.method === 'entry-global';
+
+  if (isEntryGlobal && phase !== undefined) {
+    throw new TypeError('[core-js-unplugin] `phase` option is not supported for `entry-global` - it always runs at pre');
+  }
+
+  const effective = isEntryGlobal ? 'pre' : phase ?? 'pre';
+  if (!VALID_PHASES.includes(effective)) {
+    // show the string value quoted, otherwise show its type — avoids JSON.stringify
+    // blowing up on BigInt, circular objects, Symbol, etc.
+    const got = typeof phase === 'string' ? `'${ phase }'` : typeof phase;
+    throw new TypeError(`[core-js-unplugin] invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`);
+  }
+
+  const plugin = createPlugin({ ...rest, bundler: meta?.framework });
+  const stage = (enforce, pass) => ({
+    name: `${ plugin.name }:${ enforce }`,
+    enforce,
+    transformInclude: shouldTransform,
+    transform(code, id) { return plugin.transform(code, id, pass); },
+  });
+
+  // clear pre-pass snapshots at build end so long-running dev servers (Vite watch,
+  // HMR rebuilds) don't accumulate entries when a post pass is skipped for some id.
+  // attach to the last sub-plugin — unplugin invokes buildEnd once per plugin.
+  const subs = effective === 'pre+post'
+    ? [stage('pre', 'pre'), stage('post', 'post')]
+    : [stage(effective, 'single')];
+  subs.at(-1).buildEnd = () => plugin.reset();
+  return subs;
 });
 
 export default unplugin;
