@@ -173,7 +173,7 @@ export default function (t) {
 
   function replaceAndWrap(replacePath, result, check, embedGuard) {
     // when check came through a TS wrapper (arr?.at(-1)!.includes), embed the guard
-    // directly — Babel's path references become stale after replaceWith and the two-step
+    // directly - Babel's path references become stale after replaceWith and the two-step
     // replace-then-wrap approach loses the guard. for normal chains (no TS wrapper),
     // use the two-step approach so normalizeOptionalChain correctly lifts the guard
     // past chain continuations like .valueOf()
@@ -199,9 +199,9 @@ export default function (t) {
   }
 
   function replaceInstanceLike(path, id, skipOptional) {
-    // (arr?.includes)(1) — parenthesized optional callee breaks the chain.
+    // (arr?.includes)(1) - parenthesized optional callee breaks the chain.
     // replace only the member expression, keep the original call site.
-    // only for optional chains — non-optional (arr.includes)(1) preserves this
+    // only for optional chains - non-optional (arr.includes)(1) preserves this
     if ((path.node.extra?.parenthesized || unwrapTSExpressionParent(path).node.extra?.parenthesized)
       && path.isOptionalMemberExpression()) {
       const [check, object, embed] = extractCheck(path, skipOptional);
@@ -367,7 +367,7 @@ export default function (t) {
       const isMultiDecl = declaration.node.declarations.length > 1;
       const isForInit = declaration.parentPath?.isForStatement()
         && declaration.parentPath.node.init === declaration.node;
-      // unbraced body of if/while/for-body/with/label — parent.body is a single node, not an array
+      // unbraced body of if/while/for-body/with/label - parent.body is a single node, not an array
       // SwitchCase uses `consequent` (array) instead of `body`
       const parentNode = declaration.parentPath?.node;
       const isBodyless = !isExport && !isForInit
