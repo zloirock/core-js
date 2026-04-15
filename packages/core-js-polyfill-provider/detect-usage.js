@@ -46,7 +46,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     const binding = adapter.getBinding(scope, name);
     const { init } = binding.node;
     if (binding.constantViolations?.length) return null;
-    // rest element in destructuring: { from, ...rest } = Array — rest !=== init
+    // rest element in destructuring: { from, ...rest } = Array - rest !=== init
     const props = binding.node.id?.properties ?? binding.node.id?.elements;
     if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
     if (init?.type === 'Identifier') {
@@ -64,14 +64,14 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     // const P = self.Promise / const A = globalThis['Array'] / var _ref = (0, Array)
     if (init) {
       let unwrapped = unwrapParens(init);
-      // (0, Array) — sequence expression, value = last element
+      // (0, Array) - sequence expression, value = last element
       if (unwrapped.type === 'SequenceExpression') unwrapped = unwrapParens(unwrapped.expressions.at(-1));
       if (unwrapped.type === 'Identifier') {
         if (!adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
         return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
       }
       if (unwrapped.type === 'MemberExpression' || unwrapped.type === 'OptionalMemberExpression') {
-        return resolveObjectName(unwrapped, scope, adapter);
+        return resolveObjectName(unwrapped, scope, adapter, seen);
       }
       return null;
     }
@@ -80,17 +80,19 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   return null;
 }
 
-function resolveObjectName(objectNode, scope, adapter) {
+// `seen` threaded from resolveBindingToGlobal so cyclic const chains
+// (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow
+function resolveObjectName(objectNode, scope, adapter, seen) {
   objectNode = unwrapParens(objectNode);
   if (objectNode.type === 'Identifier') {
-    if (adapter.hasBinding(scope, objectNode.name)) return resolveBindingToGlobal(objectNode.name, scope, adapter);
+    if (adapter.hasBinding(scope, objectNode.name)) return resolveBindingToGlobal(objectNode.name, scope, adapter, seen);
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
   // globalThis[`Array`] - computed string-resolvable proxy access
   if (objectNode.computed) {
-    return resolveComputedProxyName(objectNode, scope, adapter);
+    return resolveComputedProxyName(objectNode, scope, adapter, seen);
   }
   // globalThis.Array, self.Promise, globalThis.globalThis.Array - walk past chained proxy globals
   // handles mixed chains: globalThis['self'].Array, globalThis.self['self'].Promise
@@ -102,12 +104,12 @@ function resolveObjectName(objectNode, scope, adapter) {
     inner = unwrapParens(inner.object);
   }
   if (inner.type !== 'Identifier') return null;
-  if (!isProxyGlobalIdentifier(inner, scope, adapter)) return null;
+  if (!isProxyGlobalIdentifier(inner, scope, adapter, seen)) return null;
   return objectNode.property.name;
 }
 
 // globalThis['Array'] / globalThis['self']['Array'] -> 'Array'
-function resolveComputedProxyName(node, scope, adapter) {
+function resolveComputedProxyName(node, scope, adapter, seen) {
   const key = resolveKey(node.property, true, scope, adapter);
   if (!key) return null;
   // walk through chained proxy globals to the root identifier
@@ -118,16 +120,17 @@ function resolveComputedProxyName(node, scope, adapter) {
     obj = unwrapParens(obj.object);
   }
   if (obj.type !== 'Identifier') return null;
-  if (!isProxyGlobalIdentifier(obj, scope, adapter)) return null;
+  if (!isProxyGlobalIdentifier(obj, scope, adapter, seen)) return null;
   return key;
 }
 
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
-// or through a const alias (`const g = globalThis`)
-function isProxyGlobalIdentifier(node, scope, adapter) {
+// or through a const alias (`const g = globalThis`).
+// `seen` threaded so cyclic `const a = b.x; const b = a.x;` doesn't restart the guard
+function isProxyGlobalIdentifier(node, scope, adapter, seen) {
   if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name)) return true;
   // follow const alias: `const g = globalThis` / `const g = self`
-  const resolved = resolveBindingToGlobal(node.name, scope, adapter);
+  const resolved = resolveBindingToGlobal(node.name, scope, adapter, seen);
   return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
@@ -288,7 +291,7 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
     return;
   }
   if (!suppressProxyGlobals) return;
-  // walk down the proxy chain (`globalThis.Object`, `globalThis.self.Promise`, …) and mark
+  // walk down the proxy chain (`globalThis.Object`, `globalThis.self.Promise`, ...) and mark
   // every intermediate MemberExpression so the inner visitor doesn't re-process it. stop at
   // the proxy global leaf itself - it may need its own polyfill when the outer is not polyfilled
   let current = obj;
@@ -346,7 +349,7 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   // `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
   // that resolves to a known global (for `??`/`||` the fallback is usually on the right,
   // for `&&` it's always the right).
-  // when only the fallback resolves, mark `fromFallback` — the runtime value may come
+  // when only the fallback resolves, mark `fromFallback` - the runtime value may come
   // from either branch, so pure-mode must not replace the destructuring
   if (unwrapped.type === 'LogicalExpression') {
     const primary = unwrapped.operator === '&&' ? unwrapped.right : unwrapped.left;
@@ -391,7 +394,7 @@ export function canTransformDestructuring({ parentType, parentInit, grandParentT
 }
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
-// louder than silent skip). runtime-carrying wrappers (TSAsExpression, …) stay out
+// louder than silent skip). runtime-carrying wrappers (TSAsExpression, ...) stay out
 const TS_TYPE_ONLY_NODES = new Set([
   'TSTypeAnnotation',
   'TSTypeParameterDeclaration',
