@@ -3101,23 +3101,28 @@ function createResolveNodeType(babelNodeType, t) {
     // mutable binding: resolve from the last straight-line assignment before usage
     const lastAssign = findLastStraightLineAssignment(binding, path);
     if (lastAssign) {
-      if (lastAssign.node.operator !== '=') return resolveNodeType(lastAssign);
-      // destructuring: `({ a: { b } } = { a: { b: 'alice' } })` - resolve member from RHS
-      if (lastAssign.node.left?.type === 'ObjectPattern') {
-        const keyPath = findDestructuredKeyPath(lastAssign.node.left, name, lastAssign.scope);
-        if (!keyPath) return null;
-        return resolveDestructuredMember(lastAssign.get('right'), keyPath);
+      // `+=` / `-=` / ... - the assignment node's own type captures the result
+      if (lastAssign.node.type === 'AssignmentExpression' && lastAssign.node.operator !== '=') {
+        return resolveNodeType(lastAssign);
       }
-      // array destructuring: `[x] = ['hello']` or `[{ a }] = [{ a: 'x' }]`
-      if (lastAssign.node.left?.type === 'ArrayPattern') {
-        const arrPath = findArrayPatternKeyPath(lastAssign.node.left, name, lastAssign.scope);
+      const left = assignLeft(lastAssign.node);
+      const rightKey = assignRightKey(lastAssign.node);
+      // destructuring: `({ a: { b } } = ...)` or `var { a: { b } } = ...`
+      if (left?.type === 'ObjectPattern') {
+        const keyPath = findDestructuredKeyPath(left, name, lastAssign.scope);
+        if (!keyPath) return null;
+        return resolveDestructuredMember(lastAssign.get(rightKey), keyPath);
+      }
+      // array destructuring: `[x] = ['hello']`, `var [{ a }] = [{ a: 'x' }]`
+      if (left?.type === 'ArrayPattern') {
+        const arrPath = findArrayPatternKeyPath(left, name, lastAssign.scope);
         if (arrPath) {
-          const initPath = resolveRuntimeExpression(lastAssign.get('right'));
+          const initPath = resolveRuntimeExpression(lastAssign.get(rightKey));
           return resolveObjectMemberPath(initPath, arrPath);
         }
         return null;
       }
-      return resolveNodeType(lastAssign.get('right'));
+      return resolveNodeType(lastAssign.get(rightKey));
     }
     // no assignment found - resolve from init when either const or all mutations are after usage
     if (t.isVariableDeclarator(node) && node.init) {
@@ -3131,20 +3136,26 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // normalize a constantViolation path to the enclosing AssignmentExpression.
-  // Babel: violation IS the AssignmentExpression. estree-toolkit: violation is the LHS
-  // Identifier - walk up through Property/ObjectPattern to reach the AssignmentExpression.
-  // depth scales with destructuring nesting: each level adds Property + ObjectPattern
+  // normalize a constantViolation path to its "assignment-like" ancestor. covers:
+  //   - `x = y` / `({x} = y)`                          -> AssignmentExpression
+  //   - `var x = y` redeclaration (subsequent `var`)    -> VariableDeclarator
+  // Babel: violation IS the AssignmentExpression or the redeclared VariableDeclarator.
+  // estree-toolkit: violation is the LHS Identifier - walk up through Property/ObjectPattern.
+  // depth scales with destructuring nesting
   function violationToAssignment(v) {
     let p = v;
     for (let i = 0; i < MAX_DEPTH && p; i++) {
       const type = babelNodeType(p.node);
-      if (type === 'AssignmentExpression') return p;
+      if (type === 'AssignmentExpression' || type === 'VariableDeclarator') return p;
       if (type === 'ExpressionStatement' || type === 'Program') return null;
       p = p.parentPath;
     }
     return null;
   }
+
+  // node-shape adapters: AssignmentExpression has left/right/operator; VariableDeclarator has id/init
+  const assignLeft = n => n.type === 'VariableDeclarator' ? n.id : n.left;
+  const assignRightKey = n => n.type === 'VariableDeclarator' ? 'init' : 'right';
 
   // if `path` is inside a synchronous IIFE within `targetScope`, return the CallExpression
   // path. matches `(() => { x = 1 })()` but NOT `setTimeout(() => { x = 1 })`
@@ -3168,33 +3179,69 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // the AST node a scope is anchored to; Babel exposes `.block`, estree-toolkit - `.path.node`
+  const scopeNode = s => s.block ?? s.path?.node;
+
+  // scope is inside bindingScope's var-scope - same object, or nested through plain blocks
+  // without crossing a function/StaticBlock boundary. lets us treat `var` writes in inner
+  // BlockStatements as writes to the hoisted function-scope binding
+  function isInBindingVarScope(scope, bindingScope) {
+    for (let s = scope; s; s = s.parent) {
+      if (s === bindingScope) return true;
+      const node = scopeNode(s);
+      if (t.isFunction(node) || t.isStaticBlock?.(node)) return false;
+    }
+    return false;
+  }
+
+  // every wrapping statement up to varScopeBody is a plain BlockStatement / Program /
+  // StaticBlock - reject if / switch / loop / try / etc. that make execution conditional
+  function reachesVarScopeStraightLine(startPath, varScopeBody) {
+    for (let p = startPath; p; p = p.parentPath) {
+      if (p.node === varScopeBody) return true;
+      const { type } = p.node;
+      if (type !== 'BlockStatement' && type !== 'Program' && type !== 'StaticBlock') return false;
+    }
+    return false;
+  }
+
+  const ASSIGN_LEFT_TYPES = new Set(['Identifier', 'ObjectPattern', 'ArrayPattern']);
+
   // find the last straight-line assignment before usagePath:
-  // `x = value`, `x += value`, or `({ x } = value)` - same scope, direct statement in block
+  // `x = value`, `x += value`, `({ x } = value)`, or a `var x = value` redeclaration -
+  // same var-scope (possibly nested through plain blocks / synchronous IIFEs)
   function findLastStraightLineAssignment(binding, usagePath) {
-    if (!binding.constantViolations?.length || binding.scope !== usagePath.scope) return null;
+    const { scope: bindingScope, constantViolations } = binding;
+    if (!constantViolations?.length) return null;
+    if (!isInBindingVarScope(usagePath.scope, bindingScope)) return null;
     const beforePos = usagePath.node.start;
     if (beforePos === undefined || beforePos === null) return null;
+    const bindingScopeNode = scopeNode(bindingScope);
+    const varScopeBody = bindingScopeNode.type === 'Program' ? bindingScopeNode : bindingScopeNode.body;
+
     let best = null;
-    for (const v of binding.constantViolations) {
+    for (const v of constantViolations) {
       const ap = violationToAssignment(v);
       if (!ap) continue;
-      const { left } = ap.node;
-      if (left?.type !== 'Identifier' && left?.type !== 'ObjectPattern' && left?.type !== 'ArrayPattern') continue;
-      // different scope: allow if the enclosing function is a synchronous IIFE
+      const isVarDecl = ap.node.type === 'VariableDeclarator';
+      // `var x;` without init is a no-op at runtime - binding keeps its previous value
+      if (isVarDecl && !ap.node.init) continue;
+      if (!ASSIGN_LEFT_TYPES.has(assignLeft(ap.node)?.type)) continue;
+      // lift through nested synchronous IIFE wrappers until we land in binding's var-scope
       let effectiveAp = ap;
-      if (ap.scope !== binding.scope) {
-        const iife = findEnclosingIIFE(ap, binding.scope);
-        if (!iife) continue;
-        effectiveAp = iife;
+      while (effectiveAp && !isInBindingVarScope(effectiveAp.scope, bindingScope)) {
+        effectiveAp = findEnclosingIIFE(effectiveAp, bindingScope);
       }
+      if (!effectiveAp) continue;
       const pos = effectiveAp.node.start;
       if (pos === undefined || pos === null || pos >= beforePos) continue;
-      // walk to ExpressionStatement - past parens, void, sequence, unary wrappers
+      // walk to the directly-wrapping statement:
+      //   AssignmentExpression → ExpressionStatement
+      //   VariableDeclarator    → VariableDeclaration (one step up)
+      const stmtType = isVarDecl ? 'VariableDeclaration' : 'ExpressionStatement';
       let stmt = effectiveAp;
-      while (stmt && stmt.node.type !== 'ExpressionStatement') stmt = stmt.parentPath;
-      if (!stmt) continue;
-      const block = stmt.parentPath;
-      if (block?.node.type !== 'BlockStatement' && block?.node.type !== 'Program') continue;
+      while (stmt && stmt.node.type !== stmtType) stmt = stmt.parentPath;
+      if (!stmt || !reachesVarScopeStraightLine(stmt.parentPath, varScopeBody)) continue;
       if (!best || pos > best.node.start) best = ap;
     }
     return best;
