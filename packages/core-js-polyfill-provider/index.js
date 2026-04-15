@@ -126,8 +126,6 @@ export function createPolyfillContext({
   shippedProposals = false,
   shouldInjectPolyfill = () => true,
 }) {
-  if (!['entry-global', 'usage-global', 'usage-pure'].includes(method)) throw new TypeError('Incorrect plugin method');
-  if (!['es', 'stable', 'actual', 'full'].includes(mode)) throw new TypeError('Incorrect plugin mode');
   if (typeof shouldInjectPolyfill !== 'function') throw new TypeError('`shouldInjectPolyfill` should be a function');
   if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
 
