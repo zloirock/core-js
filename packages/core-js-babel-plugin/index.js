@@ -312,6 +312,10 @@ export default function plugin(api, options) {
         if (path.isObjectProperty()) {
           if (!meta.fromFallback) handleObjectPropertyResult(path, kind, entry, hintName);
         } else {
+          // `super.X` where X is not statically on the super class - resolve() falls back
+          // from missing-static to instance, but `_binding(super)` / `_binding.call(super, ...)`
+          // are syntactically invalid (super is restricted to direct member/call positions)
+          if (kind === 'instance' && t.isSuper(path.node.object)) return;
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             replaceInstanceLike(path, id, skipPolyfillableOptional);
@@ -409,9 +413,9 @@ export default function plugin(api, options) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
         }
         // usage-pure: sibling plugins (regenerator) may mutate original nodes in-place,
-        // injecting raw globals (Promise). scan for unbound global Identifiers only —
+        // injecting raw globals (Promise). scan for unbound global Identifiers only -
         // MemberExpression would double-process already-polyfilled chains.
-        // usage-global doesn't need this — globals stay as-is, imports from pre() suffice
+        // usage-global doesn't need this - globals stay as-is, imports from pre() suffice
         if (method === 'usage-pure') {
           path.traverse({
             Identifier(idPath) {
