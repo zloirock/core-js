@@ -92,33 +92,52 @@ function detectCommonJS(ast) {
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
+// AST node fields we walk to find nested declarations; `type` + source-position fields
+// have no children so we skip them (hot-path — ~30% of pre-traverse time was wasted there)
+const BINDING_SCAN_SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
+
 // collect every binding name declared anywhere in the AST so the import injector
-// avoids picking a UID that collides with a user-declared identifier in any nested scope
-// `var _at = 1` inside a function should not be shadowed by a top-level `import _at from ...`
+// avoids picking a UID that collides with a user-declared identifier in any nested scope.
+// `var _at = 1` inside a function would otherwise shadow a top-level `import _at from ...`.
+// manual recursion — skips estree-toolkit's per-node path/scope allocation
 function collectAllBindingNames(ast) {
   const names = new Set();
-  const addPattern = node => walkPatternIdentifiers(node, id => names.add(id.name));
-  const addId = node => { if (node.id) names.add(node.id.name); };
-  const addParams = node => { for (const p of node.params) addPattern(p); };
-  const addFunction = path => {
-    addId(path.node);
-    addParams(path.node);
-  };
-  const addLocal = path => names.add(path.node.local.name);
-  traverse(ast, {
-    VariableDeclarator: path => addPattern(path.node.id),
-    FunctionDeclaration: addFunction,
-    FunctionExpression: addFunction,
-    ArrowFunctionExpression: path => addParams(path.node),
-    ClassDeclaration: path => addId(path.node),
-    ClassExpression: path => addId(path.node),
-    TSEnumDeclaration: path => addId(path.node),
-    TSModuleDeclaration: path => addId(path.node),
-    CatchClause: path => addPattern(path.node.param),
-    ImportSpecifier: addLocal,
-    ImportDefaultSpecifier: addLocal,
-    ImportNamespaceSpecifier: addLocal,
-  });
+  const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const c of node) walk(c);
+      return;
+    }
+    switch (node.type) {
+      case 'VariableDeclarator':
+        addPattern(node.id);
+        break;
+      case 'FunctionDeclaration':
+      case 'FunctionExpression':
+        if (node.id) names.add(node.id.name);
+        for (const p of node.params) addPattern(p);
+        break;
+      case 'ArrowFunctionExpression':
+        for (const p of node.params) addPattern(p);
+        break;
+      case 'ClassDeclaration':
+      case 'ClassExpression':
+      case 'TSEnumDeclaration':
+      case 'TSModuleDeclaration':
+        if (node.id) names.add(node.id.name);
+        break;
+      case 'CatchClause': if (node.param) addPattern(node.param); break;
+      case 'ImportSpecifier':
+      case 'ImportDefaultSpecifier':
+      case 'ImportNamespaceSpecifier':
+        names.add(node.local.name);
+        break;
+    }
+    for (const key of Object.keys(node)) {
+      if (!BINDING_SCAN_SKIP_KEYS.has(key)) walk(node[key]);
+    }
+  })(ast);
   return names;
 }
 
@@ -163,8 +182,19 @@ export default function createPlugin(options) {
   // `bundler` is unplugin-specific - strip it before passing options to the provider
   const { bundler, ...providerOptions } = options;
 
-  // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id)
+  // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id).
+  // entries are tagged with insertion timestamps so dev-server sessions (where
+  // buildEnd may not fire between rebuilds) can shed snapshots that never got paired
+  // with a post run — sibling bail, tree-shake drop, HMR invalidation mid-pre
   const prePassSnapshots = new Map();
+  const SNAPSHOT_TTL_MS = 5 * 60 * 1000;
+  const SNAPSHOT_SWEEP_THRESHOLD = 100;
+  function sweepStaleSnapshots() {
+    const cutoff = Date.now() - SNAPSHOT_TTL_MS;
+    for (const [id, entry] of prePassSnapshots) {
+      if (entry.addedAt < cutoff) prePassSnapshots.delete(id);
+    }
+  }
   const { resolver, createDebugOutput } = createPolyfillResolver(providerOptions, {
     typeResolvers,
     astPredicates: {
@@ -198,11 +228,22 @@ export default function createPlugin(options) {
     if (method === 'entry-global') pass = 'single';
     const deferImports = pass === 'pre';
     let inherit = null;
+    let cachedAst = null;
+    let cachedComments = null;
     // read + clear snapshot up-front so a later parse/traverse error in post still frees
     // the entry (otherwise a one-off failure leaks until the next buildEnd reset)
     if (pass === 'post') {
-      inherit = prePassSnapshots.get(id);
+      const stored = prePassSnapshots.get(id);
       prePassSnapshots.delete(id);
+      if (stored) {
+        inherit = stored.snapshot;
+        // sibling may have mutated pre's output between passes; only reuse the parse
+        // when the source bytes match what pre handed off (null for modes that rewrite)
+        if (stored.ast && stored.postInput === code) {
+          cachedAst = stored.ast;
+          cachedComments = stored.comments;
+        }
+      }
     }
 
     // strip bundler query/hash suffix before passing the id to oxc-parser - oxc infers
@@ -217,20 +258,27 @@ export default function createPlugin(options) {
     // function (TransformQueue, skipGap, slice helpers, ...) uses the BOM-stripped source.
     const hasBOM = code.charCodeAt(0) === 0xFEFF;
     if (hasBOM) code = code.slice(1);
-    // parse with oxc-parser (sync is the only available API)
-    // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-    const { program: ast, comments, errors } = parseSync(cleanId, code, {
-      sourceType: isCJSFile ? 'script' : 'module',
-    });
-    const fatalErrors = errors?.filter(e => e.severity === 'Error');
-    if (fatalErrors?.length) {
-      // surface the parse failure rather than silently passing the file through -
-      // bundlers will re-parse and fail, but the warning identifies core-js as the
-      // first thing that saw the issue and helps users locate the source location
-      const [first] = fatalErrors;
-      const message = `[core-js] could not parse ${ id }: ${ first.message }`;
-      if (typeof this?.warn === 'function') this.warn(message);
-      return null;
+    let ast;
+    let comments;
+    if (cachedAst) {
+      ast = cachedAst;
+      comments = cachedComments;
+    } else {
+      // parse with oxc-parser (sync is the only available API)
+      // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+      const parsed = parseSync(cleanId, code, { sourceType: isCJSFile ? 'script' : 'module' });
+      const fatalErrors = parsed.errors?.filter(e => e.severity === 'Error');
+      if (fatalErrors?.length) {
+        // surface the parse failure rather than silently passing the file through -
+        // bundlers will re-parse and fail, but the warning identifies core-js as the
+        // first thing that saw the issue and helps users locate the source location
+        const [first] = fatalErrors;
+        const message = `[core-js] could not parse ${ id }: ${ first.message }`;
+        if (typeof this?.warn === 'function') this.warn(message);
+        return null;
+      }
+      ast = parsed.program;
+      comments = parsed.comments;
     }
 
     // detect CJS by content for files where extension alone is ambiguous (.js / .ts).
@@ -293,7 +341,20 @@ export default function createPlugin(options) {
     function finalize() {
       injector.flush();
       outputDebug();
-      if (pass === 'pre') prePassSnapshots.set(id, injector.snapshot());
+      if (pass === 'pre') {
+        if (prePassSnapshots.size >= SNAPSHOT_SWEEP_THRESHOLD) sweepStaleSnapshots();
+        // reuse the parse in post only when pre didn't rewrite the source (usage-global
+        // leaves `code` untouched; usage-pure mutates via TransformQueue so positions
+        // in its AST no longer line up with what post receives)
+        const canReuseParse = !ms.hasChanged();
+        prePassSnapshots.set(id, {
+          snapshot: injector.snapshot(),
+          ast: canReuseParse ? ast : null,
+          comments: canReuseParse ? comments : null,
+          postInput: canReuseParse ? code : null,
+          addedAt: Date.now(),
+        });
+      }
       // post's snapshot delete happens at the top of runTransform so it runs even on
       // early-return paths (parse error, isCoreJSFile, disabled directive)
       if (!ms.hasChanged()) return null;
@@ -344,6 +405,10 @@ export default function createPlugin(options) {
       const skippedNodes = new WeakSet();
       const transforms = new TransformQueue(code, ms);
 
+      // cache setScope walk-up result per leaf node — each node's enclosing scope is
+      // fixed by its position in the AST, so the walk is purely a function of the node
+      const scopeCache = new WeakMap();
+
       // per-callback mutable state + deferred collections
       // setScope() runs before each callback; genRef() reads the current scope
       const state = {
@@ -364,6 +429,12 @@ export default function createPlugin(options) {
           return end;
         },
         setScope(metaPath) {
+          const cached = scopeCache.get(metaPath.node);
+          if (cached) {
+            this.scope = cached.scope;
+            this.arrow = cached.arrow;
+            return;
+          }
           this.scope = -1;
           this.arrow = null;
           // walk up; on each step `prev` is the immediate child path of `p`. ES spec:
@@ -381,9 +452,10 @@ export default function createPlugin(options) {
             const anchor = varScopeAnchor(p.node);
             if (anchor) {
               this.scope = this.skipDirectives(anchor.statements, anchor.insertPos);
-              return;
+              break;
             }
           }
+          scopeCache.set(metaPath.node, { scope: this.scope, arrow: this.arrow });
         },
         genRef(overrides) {
           const { arrow, scope } = overrides || this;
