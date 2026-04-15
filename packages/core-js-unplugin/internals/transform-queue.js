@@ -21,12 +21,29 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
   return false;
 }
 
-// count how many times `needle` appears in `haystack` before `targetOffset`
-function occurrencesBeforeOffset(haystack, needle, targetOffset) {
+// count how many times `needle` appears in `haystack[rangeStart, rangeEnd)`.
+// non-overlapping (advance by needle.length). `rangeStart`/`rangeEnd` default to full string
+function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
   let count = 0;
-  for (let pos = haystack.indexOf(needle); pos !== -1 && pos < targetOffset;
-    pos = haystack.indexOf(needle, pos + 1)) count++;
+  for (let pos = haystack.indexOf(needle, rangeStart);
+    pos !== -1 && pos + needle.length <= rangeEnd;
+    pos = haystack.indexOf(needle, pos + needle.length)) count++;
   return count;
+}
+
+// adjust nth-occurrence index to account for needles already consumed by earlier substitutions.
+// when `Array.from(x).reduce(Array.from)` is being composed and filter replaces the leftmost
+// `Array.from(x)` with its binding, the rightmost inner must decrement nth to skip past the
+// already-replaced slot - otherwise it re-processes a region that's already gone.
+// only ranges that strictly precede the current inner contribute (others overlap)
+function consumedOccurrencesBefore(originalSlice, needle, innerStartAbs, outerStart, processedRanges) {
+  let consumed = 0;
+  for (const r of processedRanges) {
+    if (r.end <= innerStartAbs) {
+      consumed += countOccurrences(originalSlice, needle, r.start - outerStart, r.end - outerStart);
+    }
+  }
+  return consumed;
 }
 
 // replace the `n`-th (0-based) occurrence of `needle` in `str`; return `str` unchanged if not found
@@ -185,23 +202,34 @@ export default class TransformQueue {
         const di = inners.indexOf(dup);
         if (di !== -1) inners.splice(di, 1);
       }
+      // widest first so nested inners (where inner2 ⊂ inner1) are handled by inner1's
+      // substitution before inner2 would be skipped. same-width ties: right-to-left
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
 
       const originalSlice = this.#code.slice(start, end);
-      let coveredMaxEnd = -1;
+      // track ranges of already-processed inners; used both for containment-skip and for
+      // adjusting nth counts when multiple inners share the same needle
+      const processedRanges = [];
       for (const inner of inners) {
         const innerContent = composedContent.get(inner) ?? inner.content;
         const needle = this.#code.slice(inner.start, inner.end);
-        const nth = occurrencesBeforeOffset(originalSlice, needle, inner.start - start);
+        const innerOffset = inner.start - start;
+        // needle position in originalSlice: count from start up to innerOffset, then subtract
+        // same-needle occurrences already replaced by strictly-preceding processedRanges.
+        // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
+        // during composition, so the rightmost inner's nth must point to the sole remaining slot.
+        const nth = countOccurrences(originalSlice, needle, 0, innerOffset)
+          - consumedOccurrencesBefore(originalSlice, needle, inner.start, start, processedRanges);
         const result = substituteInner(content, needle, innerContent, nth, rewriteHint);
         if (!result.found) {
-          if (inner.start >= start && inner.end <= coveredMaxEnd) continue;
+          // inner was already swallowed by an enclosing inner we processed earlier
+          if (processedRanges.some(r => r.start <= inner.start && r.end >= inner.end)) continue;
           throw new Error('[core-js] transform-queue: could not locate inner needle in outer content. '
             + `outer=[${ start },${ end }] inner=[${ inner.start },${ inner.end }]. `
             + 'this is a composition bug - please report with a reproducer.');
         }
         content = result.content;
-        if (inner.end > coveredMaxEnd) coveredMaxEnd = inner.end;
+        processedRanges.push({ start: inner.start, end: inner.end });
       }
       composedContent.set(t, content);
       composed.push(t);
