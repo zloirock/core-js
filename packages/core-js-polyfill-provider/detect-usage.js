@@ -639,7 +639,7 @@ function defaultSpecifierName(node) {
 }
 
 // find user-authored core-js imports so the injector can reuse them instead of duplicating.
-// pure imports outside `mode/` are skipped — different polyfill layer, unsafe to reuse
+// pure imports outside `mode/` are skipped - different polyfill layer, unsafe to reuse
 export function scanExistingCoreJSImports(ast, { packages, mode, adapter, onGlobalImport, onPureImport }) {
   const modePrefix = mode ? `${ mode }/` : null;
   for (const node of ast.body ?? []) {
