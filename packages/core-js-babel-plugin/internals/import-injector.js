@@ -15,6 +15,8 @@ export default class ImportInjector {
   #pureImportsByName = new Map();
   #flushedGlobals = new Set();
   #flushedPure = new Set();
+  #existingGlobalImports = new Set();
+  #existingPureImports = new Map();
   importStyle;
 
   constructor({ t, programPath, pkg, mode, importStyle, absoluteImports = false }) {
@@ -44,6 +46,7 @@ export default class ImportInjector {
   // the import declaration isn't inserted yet, so without this it's not visible as a binding
   addPureImport(entry, hint) {
     const source = `${ this.#mode }/${ entry }`;
+    if (this.#existingPureImports.has(source)) return this.#t.cloneNode(this.#existingPureImports.get(source));
     if (this.#pureImports.has(source)) return this.#t.cloneNode(this.#pureImports.get(source));
     const { scope } = this.#programPath;
     const program = scope.getProgramParent();
@@ -57,6 +60,21 @@ export default class ImportInjector {
     this.#pureImports.set(source, id);
     this.#pureImportsByName.set(name, { source, hint });
     return this.#t.cloneNode(id);
+  }
+
+  registerUserGlobalImport(moduleName) {
+    this.#existingGlobalImports.add(moduleName);
+    // mark as flushed so #buildNodes won't re-emit it
+    this.#flushedGlobals.add(moduleName);
+  }
+
+  // caller must filter to mode-matching imports first (scanExistingCoreJSImports does this)
+  registerUserPureImport(entry, name) {
+    const source = `${ this.#mode }/${ entry }`;
+    const id = this.#t.identifier(name);
+    this.#existingPureImports.set(source, id);
+    this.#pureImportsByName.set(name, { source, hint: name });
+    this.#usedNames.add(name);
   }
 
   // look up a polyfill UID previously emitted by addPureImport (or null)
@@ -91,7 +109,7 @@ export default class ImportInjector {
     return nodes;
   }
 
-  // insert via Babel path API — used during traversal (pre, Program.exit)
+  // insert via Babel path API - used during traversal (pre, Program.exit)
   flush() {
     while (true) {
       const nodes = this.#buildNodes();
