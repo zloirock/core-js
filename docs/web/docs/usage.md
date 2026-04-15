@@ -321,6 +321,7 @@ await Bun.build({
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
+| `phase` | `'pre' \| 'post' \| 'pre+post'` | `'pre'` | When the plugin runs. `'pre'` — before sibling plugins, sees original source with full semantic context; misses polyfills in siblings' helpers. `'post'` — after siblings, sees helpers but TS stripping and other syntactic transforms by siblings make type inference unreliable, which may cause over-polyfilling. `'pre+post'` — two passes: pre transforms user code with full context, post detects helpers; post may still over-polyfill user code that siblings transformed between passes. Not supported for `entry-global` (always at pre so `import 'core-js'` is seen before siblings convert it) |
 | `debug` | `boolean` | `false` | Print debug output |
 
 > [!NOTE]
