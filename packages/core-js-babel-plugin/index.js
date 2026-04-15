@@ -34,11 +34,13 @@ export default function plugin(api, options) {
 
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
-    isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
-    isCallee: (node, parent) => t.isCallExpression(parent, { callee: node })
-      || t.isOptionalCallExpression(parent, { callee: node })
-      || t.isNewExpression(parent, { callee: node }),
-    isSpreadElement: node => t.isSpreadElement(node),
+    astPredicates: {
+      isMemberLike: path => path.isMemberExpression() || path.isOptionalMemberExpression(),
+      isCallee: (node, parent) => t.isCallExpression(parent, { callee: node })
+        || t.isOptionalCallExpression(parent, { callee: node })
+        || t.isNewExpression(parent, { callee: node }),
+      isSpreadElement: node => t.isSpreadElement(node),
+    },
     getBabelTargets: typeof api.targets === 'function' ? () => api.targets() : null,
   });
 
