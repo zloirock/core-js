@@ -623,6 +623,47 @@ export function getEntrySource(node, adapter, scope) {
   return null;
 }
 
+const canonicalizeEntrySubpath = s => s.replace(/\.[cm]?js$/, '').replace(/\/index$/, '');
+
+function stripPkgPrefix(source, packages) {
+  for (const pkg of packages) {
+    const prefix = `${ pkg }/`;
+    if (source.startsWith(prefix)) return source.slice(prefix.length);
+  }
+  return null;
+}
+
+function defaultSpecifierName(node) {
+  const spec = node.specifiers?.find(s => s.type === 'ImportDefaultSpecifier');
+  return spec?.local?.name ?? null;
+}
+
+// find user-authored core-js imports so the injector can reuse them instead of duplicating.
+// pure imports outside `mode/` are skipped — different polyfill layer, unsafe to reuse
+export function scanExistingCoreJSImports(ast, { packages, mode, adapter, onGlobalImport, onPureImport }) {
+  const modePrefix = mode ? `${ mode }/` : null;
+  for (const node of ast.body ?? []) {
+    if (node.type !== 'ImportDeclaration') continue;
+    const source = adapter.getStringValue(node.source);
+    if (typeof source !== 'string') continue;
+    if (node.specifiers?.length === 0) {
+      const rest = stripPkgPrefix(source, packages);
+      if (rest?.startsWith('modules/')) {
+        const mod = canonicalizeEntrySubpath(rest.slice('modules/'.length));
+        if (mod) onGlobalImport?.(mod);
+      }
+      continue;
+    }
+    if (!modePrefix || !onPureImport) continue;
+    const name = defaultSpecifierName(node);
+    if (!name) continue;
+    const afterPkg = stripPkgPrefix(source, packages);
+    if (!afterPkg?.startsWith(modePrefix)) continue;
+    const entry = canonicalizeEntrySubpath(afterPkg.slice(modePrefix.length));
+    if (entry) onPureImport(entry, name);
+  }
+}
+
 export function checkTypeAnnotations(node, onGlobal) {
   if (node.typeAnnotation) walkTypeAnnotationGlobals(node.typeAnnotation, onGlobal);
   if (node.returnType) walkTypeAnnotationGlobals(node.returnType, onGlobal);
