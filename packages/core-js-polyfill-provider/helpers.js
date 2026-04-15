@@ -2,46 +2,85 @@ import { fileURLToPath } from 'node:url';
 import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 
-// TS-only expression wrappers - runtime no-ops that forward to their `.expression` child
+// type-only expression wrappers - runtime no-ops that forward to their `.expression` child
 export const TS_EXPR_WRAPPERS = new Set([
   'TSNonNullExpression',
   'TSAsExpression',
   'TSSatisfiesExpression',
   'TSTypeAssertion',
   'TSInstantiationExpression',
+  // Flow: `(x: T)` - structural match with TS wrappers; reached only via babel AST
+  // (oxc-parser cannot parse Flow), so this matters for @core-js/babel-plugin users
+  'TypeCastExpression',
 ]);
 
-// conservative side-effect check for init expressions in destructuring
+// conservative side-effect check for init expressions in destructuring.
+// returns true when the node MAY have observable side effects (or we can't prove it doesn't).
+// false only when the whole subtree is provably pure (literals, identifiers, type wrappers, ...)
 export function mayHaveSideEffects(node) {
   if (!node) return false;
-  switch (node.type) {
-    case 'AssignmentExpression':
-    case 'AwaitExpression':
-    case 'CallExpression':
-    case 'NewExpression':
-    case 'OptionalCallExpression':
-    case 'TaggedTemplateExpression':
-    case 'UpdateExpression':
-    case 'YieldExpression':
-      return true;
-    case 'UnaryExpression':
-      return node.operator === 'delete' || mayHaveSideEffects(node.argument);
-    case 'SequenceExpression':
-      return node.expressions.some(mayHaveSideEffects);
-    case 'BinaryExpression':
-    case 'LogicalExpression':
-      return mayHaveSideEffects(node.left) || mayHaveSideEffects(node.right);
-    case 'ConditionalExpression':
-      return mayHaveSideEffects(node.test) || mayHaveSideEffects(node.consequent) || mayHaveSideEffects(node.alternate);
-    case 'ChainExpression':
-    case 'ParenthesizedExpression':
-      return mayHaveSideEffects(node.expression);
-    case 'MemberExpression':
-    case 'OptionalMemberExpression':
-      return mayHaveSideEffects(node.object) || (node.computed && mayHaveSideEffects(node.property));
-    default:
-      return TS_EXPR_WRAPPERS.has(node.type) ? mayHaveSideEffects(node.expression) : false;
+  const { type } = node;
+  // --- Always-effectful ---
+  if (ALWAYS_EFFECTFUL_TYPES.has(type)) return true;
+  // --- Unary ---
+  if (type === 'UnaryExpression') return node.operator === 'delete' || mayHaveSideEffects(node.argument);
+  // --- Recursive-on-list ---
+  if (type === 'SequenceExpression' || type === 'TemplateLiteral') return node.expressions.some(mayHaveSideEffects);
+  if (type === 'ArrayExpression') return node.elements.some(mayHaveSideEffects);
+  if (type === 'ObjectExpression') return node.properties.some(mayHaveSideEffects);
+  // --- Binary / logical / ternary ---
+  if (type === 'BinaryExpression' || type === 'LogicalExpression') {
+    return mayHaveSideEffects(node.left) || mayHaveSideEffects(node.right);
   }
+  if (type === 'ConditionalExpression') {
+    return mayHaveSideEffects(node.test) || mayHaveSideEffects(node.consequent) || mayHaveSideEffects(node.alternate);
+  }
+  // --- Transparent wrappers (.expression or .argument carries the child) ---
+  if (TRANSPARENT_WRAPPER_TYPES.has(type) || TS_EXPR_WRAPPERS.has(type)) {
+    return mayHaveSideEffects(node.expression ?? node.argument);
+  }
+  // --- Member access: object must be pure and computed key, if any, must be pure ---
+  if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
+    return mayHaveSideEffects(node.object) || (node.computed && mayHaveSideEffects(node.property));
+  }
+  // --- Property in an ObjectExpression ---
+  if (type === 'Property' || type === 'ObjectProperty') {
+    return (node.computed && mayHaveSideEffects(node.key)) || mayHaveSideEffects(node.value);
+  }
+  // --- Destructuring defaults: `[x = foo()]`, `{y = bar()}` ---
+  if (type === 'AssignmentPattern') return mayHaveSideEffects(node.right);
+  return false;
+}
+
+// `CallExpression`/`NewExpression` obviously call user code; `ImportExpression` triggers a
+// dynamic module fetch; `TaggedTemplateExpression` calls the tag; `Yield`/`Await` suspend
+// execution; `AssignmentExpression`/`UpdateExpression` mutate bindings
+const ALWAYS_EFFECTFUL_TYPES = new Set([
+  'AssignmentExpression',
+  'AwaitExpression',
+  'CallExpression',
+  'ImportExpression',
+  'NewExpression',
+  'OptionalCallExpression',
+  'TaggedTemplateExpression',
+  'UpdateExpression',
+  'YieldExpression',
+]);
+
+// runtime no-op wrappers that forward to `.expression` (ChainExpression, ParenthesizedExpression)
+// or `.argument` (SpreadElement, RestElement)
+const TRANSPARENT_WRAPPER_TYPES = new Set([
+  'ChainExpression',
+  'ParenthesizedExpression',
+  'RestElement',
+  'SpreadElement',
+]);
+
+// strip bundler query/hash suffix (Vite: `?import`, HMR: `?t=1234`, fragments) so downstream
+// consumers see the clean module id. returns the input unchanged when no query/hash is present
+export function stripQueryHash(id) {
+  const at = id.search(/[#?]/);
+  return at === -1 ? id : id.slice(0, at);
 }
 
 // strip g/y flags from RegExp to prevent lastIndex state between calls
@@ -287,7 +326,7 @@ const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/
 const CORE_JS_BUNDLE = /[/\\](?:core-js-bundle|@core-js[/\\]bundle)[/\\]/;
 
 export function isCoreJSFile(filename) {
-  // normalize doubled slashes/backslashes — some bundlers (farm) pass ids like `core-js-pure//full/...`
+  // normalize doubled slashes/backslashes - some bundlers (farm) pass ids like `core-js-pure//full/...`
   const normalized = filename.replaceAll(/[/\\]{2,}/g, '/');
   return CORE_JS_INTERNAL_FILE.test(normalized) || CORE_JS_BUNDLE.test(normalized);
 }
