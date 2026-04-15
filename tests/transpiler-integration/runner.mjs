@@ -9,7 +9,14 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const unpluginPath = resolve(testDir, '../../packages/core-js-unplugin/index.js');
 const methods = ['entry-global', 'usage-global', 'usage-pure'];
 const inputOf = method => resolve(testDir, `input-${ method }.js`);
-const pluginOpts = method => ({ method, version: '4.0', mode: 'full' });
+const pluginOpts = (method, phase) => {
+  const opts = { method, version: '4.0', mode: 'full' };
+  if (phase) opts.phase = phase;
+  return opts;
+};
+
+// `entry-global` rejects `phase`; everything else runs across all three.
+const phasesFor = method => method === 'entry-global' ? [undefined] : ['pre', 'post', 'pre+post'];
 
 const expected = {
   filterReject: [2, 4],
@@ -118,6 +125,7 @@ const unplugin = await import('@core-js/unplugin');
 const pluginFor = name => (...args) => unplugin[name](...args);
 
 const builders = {
+  // babel-plugin has no `phase` option — receives base opts regardless
   async babel(input, method) {
     const { transformAsync } = await import('@babel/core');
     const source = await readFile(input, 'utf8');
@@ -128,23 +136,23 @@ const builders = {
     return esbuildBundle({ stdin: { contents: code, resolveDir: dirname(input), loader: 'js' } });
   },
 
-  async esbuild(input, method) {
-    return esbuildBundle({ entryPoints: [input], plugins: [pluginFor('esbuild')(pluginOpts(method))] });
+  async esbuild(input, method, phase) {
+    return esbuildBundle({ entryPoints: [input], plugins: [pluginFor('esbuild')(pluginOpts(method, phase))] });
   },
 
-  async rollup(input, method) {
+  async rollup(input, method, phase) {
     const { rollup } = await import('rollup');
     const nodeResolve = (await import('@rollup/plugin-node-resolve')).default;
     const commonjs = (await import('@rollup/plugin-commonjs')).default;
     const bundle = await rollup({
       input,
-      plugins: [pluginFor('rollup')(pluginOpts(method)), nodeResolve(), commonjs()],
+      plugins: [pluginFor('rollup')(pluginOpts(method, phase)), nodeResolve(), commonjs()],
     });
     const { output } = await bundle.generate({ format: 'es' });
     return { code: output[0].code };
   },
 
-  async vite(input, method) {
+  async vite(input, method, phase) {
     const { build } = await import('vite');
     const result = await build({
       root: testDir,
@@ -156,23 +164,23 @@ const builders = {
         commonjsOptions: { include: [/core-js/] },
       },
       resolve: { dedupe: ['core-js'] },
-      plugins: [pluginFor('vite')(pluginOpts(method))],
+      plugins: [pluginFor('vite')(pluginOpts(method, phase))],
     });
     const [{ output }] = Array.isArray(result) ? result : [result];
     return { code: output[0].code };
   },
 
-  async webpack(input, method) {
+  async webpack(input, method, phase) {
     const wp = (await import('webpack')).default;
-    return webpackLikeBundle(wp, input, pluginFor('webpack')(pluginOpts(method)));
+    return webpackLikeBundle(wp, input, pluginFor('webpack')(pluginOpts(method, phase)));
   },
 
-  async rspack(input, method) {
+  async rspack(input, method, phase) {
     const { rspack } = await import('@rspack/core');
-    return webpackLikeBundle(rspack, input, pluginFor('rspack')(pluginOpts(method)));
+    return webpackLikeBundle(rspack, input, pluginFor('rspack')(pluginOpts(method, phase)));
   },
 
-  async rolldown(input, method) {
+  async rolldown(input, method, phase) {
     const { build } = await import('rolldown');
     return withTmpDir(async dir => {
       const file = join(dir, 'out.mjs');
@@ -180,14 +188,14 @@ const builders = {
         input,
         platform: 'node',
         treeshake: false,
-        plugins: [pluginFor('rolldown')(pluginOpts(method))],
+        plugins: [pluginFor('rolldown')(pluginOpts(method, phase))],
         output: { format: 'esm', file, externalLiveBindings: false, keepNames: true },
       });
       return { code: await readFile(file, 'utf8') };
     });
   },
 
-  async farm(input, method) {
+  async farm(input, method, phase) {
     const { build, Logger } = await import('@farmfe/core');
     // Logger level: 'error' doesn't silence "Build completed" — override info methods directly
     const noop = () => { /* empty */ };
@@ -198,7 +206,7 @@ const builders = {
       await build({
         root: testDir,
         logger: silent,
-        plugins: [pluginFor('farm')(pluginOpts(method))],
+        plugins: [pluginFor('farm')(pluginOpts(method, phase))],
         compilation: {
           input: { index: input },
           output: { path: dir, targetEnv: 'node', format: 'cjs' },
@@ -218,7 +226,7 @@ const builders = {
 
   // build in bun (Bun.build API only available in bun runtime, so spawn bun),
   // then verify in bun (output mixes CJS/ESM and can't be loaded by node)
-  async bun(input, method) {
+  async bun(input, method, phase) {
     return withTmpDir(async dir => {
       const buildScript = join(dir, 'build.mjs');
       await writeFile(buildScript, `
@@ -228,7 +236,7 @@ const builders = {
           outdir: ${ JSON.stringify(dir) },
           target: 'node',
           naming: 'bundle.js',
-          plugins: [plugin(${ JSON.stringify(pluginOpts(method)) })],
+          plugins: [plugin(${ JSON.stringify(pluginOpts(method, phase)) })],
         });
         if (!result.success) { for (const l of result.logs) console.error(l); process.exit(1); }
       `);
@@ -248,17 +256,21 @@ for (const [name, build] of Object.entries(builders)) {
     echo(chalk.yellow('bun: skipped (not installed)'));
     continue;
   }
-  try {
-    for (const method of methods) {
-      const label = `${ name }/${ method }`;
-      const { code, ext, verifier } = await build(inputOf(method), method);
-      if (verifier === 'bun') await verifyInBun(code, label, method);
-      else await verifyInNode(code, label, ext);
-      echo(chalk.green(`${ label } passed`));
+  for (const method of methods) {
+    // babel-plugin ignores `phase`; other builders exercise the full range
+    const phases = name === 'babel' ? [undefined] : phasesFor(method);
+    for (const phase of phases) {
+      const label = phase ? `${ name }/${ method }/${ phase }` : `${ name }/${ method }`;
+      try {
+        const { code, ext, verifier } = await build(inputOf(method), method, phase);
+        if (verifier === 'bun') await verifyInBun(code, label, method);
+        else await verifyInNode(code, label, ext);
+        echo(chalk.green(`${ label } passed`));
+      } catch (error) {
+        echo(chalk.red(`${ label } failed: ${ error.message }`));
+        failures++;
+      }
     }
-  } catch (error) {
-    echo(chalk.red(`${ name } failed: ${ error.message }`));
-    failures++;
   }
 }
 
