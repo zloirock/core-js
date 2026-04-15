@@ -36,8 +36,8 @@ interface Options {
   /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from sourceType */
   importStyle?: 'import' | 'require';
   /** Where in the bundler plugin chain to run:
-   *  - `'pre'` (default): before siblings — full semantic context; misses helper polyfills.
-   *  - `'post'`: after siblings — covers helpers; stripped type info may over-polyfill.
+   *  - `'pre'` (default): before siblings - full semantic context; misses helper polyfills.
+   *  - `'post'`: after siblings - covers helpers; stripped type info may over-polyfill.
    *  - `'pre+post'`: pre handles user code, post catches helpers (inherits post's risk).
    *  Rejected for `entry-global` (pinned to pre).
    */
