@@ -207,6 +207,7 @@ export function createPolyfillContext({
   return {
     mode,
     pkg,
+    packages,
     getModulesForEntry,
     getCoreJSEntry,
     isEntryNeeded,
