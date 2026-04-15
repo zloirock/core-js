@@ -53,14 +53,14 @@ function isReferenced(node, parent, parentKey, parentPath) {
   // import/export specifiers
   if (IMPORT_SPECIFIER_TYPES.has(parent.type)) return false;
   if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;
-  // binding targets — write-only, not a polyfillable reference
-  // { Promise } = obj → written to; { x: Promise } in ObjectExpression IS read
+  // binding targets - write-only, not a polyfillable reference
+  // { Promise } = obj -> written to; { x: Promise } in ObjectExpression IS read
   if (parent.type === 'Property' && parentKey === 'value' && parentPath?.parent?.type === 'ObjectPattern') return false;
   if (parent.type === 'AssignmentExpression' && parentKey === 'left') return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
-  // UpdateExpression operand (Map++, (Map as T)++) — read+write context,
+  // UpdateExpression operand (Map++, (Map as T)++) - read+write context,
   // polyfill import is read-only so `_Map++` would throw TypeError at runtime
   if (parent.type === 'UpdateExpression') return false;
   if (TS_EXPR_WRAPPERS.has(parent.type)) {
@@ -113,7 +113,7 @@ function buildDestructuringMeta(propNode, parentPath) {
 
   let initNode;
   const scope = parent.scope || objectPattern.scope;
-  // nested patterns leave `initNode` undefined → typeless meta (`object: null`)
+  // nested patterns leave `initNode` undefined -> typeless meta (`object: null`)
   switch (parent.node.type) {
     case 'VariableDeclarator': initNode = parent.node.init; break;
     case 'AssignmentExpression': initNode = parent.node.right; break;
@@ -153,7 +153,7 @@ function buildDestructuringMeta(propNode, parentPath) {
 
 // --- Decorator sub-traversal ---
 
-// estree-toolkit's visitor keys skip `decorators` — walk them manually with
+// estree-toolkit's visitor keys skip `decorators` - walk them manually with
 // synthetic Babel-shaped paths so resolve-node-type can read typeAnnotations
 
 const SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
@@ -186,7 +186,7 @@ function makeSynthPath(node, parent, parentKey, parentPath, scope) {
   return self;
 }
 
-// frame scope for an inline function inside a decorator — locals shadow parentScope
+// frame scope for an inline function inside a decorator - locals shadow parentScope
 function makeFrameScope(parentScope, localDecls) {
   const bindingCache = new Map();
   const frame = {
@@ -265,7 +265,7 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
   function identifierVisitor(path) {
     const { node, parent, key: parentKey } = path;
     if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
-    // re-export: export { Promise } from 'foo' — local is not a reference when source is present
+    // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
     if (path.scope?.hasBinding(node.name)) return;
