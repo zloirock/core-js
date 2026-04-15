@@ -21,8 +21,7 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
   return false;
 }
 
-// count how many times `needle` appears in `haystack[rangeStart, rangeEnd)`.
-// non-overlapping (advance by needle.length). `rangeStart`/`rangeEnd` default to full string
+// non-overlapping occurrences of `needle` in `haystack[rangeStart, rangeEnd)`
 function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
   let count = 0;
   for (let pos = haystack.indexOf(needle, rangeStart);
@@ -31,11 +30,8 @@ function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.
   return count;
 }
 
-// adjust nth-occurrence index to account for needles already consumed by earlier substitutions.
-// when `Array.from(x).reduce(Array.from)` is being composed and filter replaces the leftmost
-// `Array.from(x)` with its binding, the rightmost inner must decrement nth to skip past the
-// already-replaced slot - otherwise it re-processes a region that's already gone.
-// only ranges that strictly precede the current inner contribute (others overlap)
+// when composing `Array.from(x).reduce(Array.from)`, filter consumes the leftmost `Array.from`
+// during its substitution, so the rightmost inner's nth must decrement past that slot
 function consumedOccurrencesBefore(originalSlice, needle, innerStartAbs, outerStart, processedRanges) {
   let consumed = 0;
   for (const r of processedRanges) {
