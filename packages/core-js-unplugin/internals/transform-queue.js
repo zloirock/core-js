@@ -97,6 +97,8 @@ export default class TransformQueue {
   // incrementally maintained sorted snapshot + prefix max for O(log n) containsRange
   #sorted = [];
   #prefixMaxEnd = [];
+  // index: guardedRoot node -> transforms that guard it (O(1) hasGuardFor / findOuterGuardRef)
+  #byGuardedRoot = new Map();
 
   constructor(code, ms) {
     this.#code = code;
@@ -106,6 +108,11 @@ export default class TransformQueue {
   add(start, end, content, guardedRoot, rewriteHint) {
     const entry = { start, end, content, guardedRoot, rewriteHint };
     this.#transforms.push(entry);
+    if (guardedRoot) {
+      const list = this.#byGuardedRoot.get(guardedRoot);
+      if (list) list.push(entry);
+      else this.#byGuardedRoot.set(guardedRoot, [entry]);
+    }
     // maintain sorted snapshot incrementally so containsRange stays O(log n)
     const pos = lowerBound(this.#sorted, start);
     this.#sorted.splice(pos, 0, entry);
@@ -121,15 +128,21 @@ export default class TransformQueue {
   // check if a containing transform already guards the given root identifier
   hasGuardFor(start, end, root) {
     if (!root) return false;
-    return this.#transforms.some(t => t.guardedRoot === root
-      && t.start <= start && t.end >= end && (t.start < start || t.end > end));
+    const list = this.#byGuardedRoot.get(root);
+    if (!list) return false;
+    for (const t of list) {
+      if (t.start <= start && t.end >= end && (t.start < start || t.end > end)) return true;
+    }
+    return false;
   }
 
   // guardRef of the outer that memoized `root` - lets nested polyfills reuse it
   findOuterGuardRef(root) {
     if (!root) return null;
-    const match = this.#transforms.find(t => t.guardedRoot === root && t.rewriteHint?.guardRef);
-    return match?.rewriteHint?.guardRef ?? null;
+    const list = this.#byGuardedRoot.get(root);
+    if (!list) return null;
+    for (const t of list) if (t.rewriteHint?.guardRef) return t.rewriteHint.guardRef;
+    return null;
   }
 
   // O(log n) check if [start, end] is strictly contained within an already-queued transform
@@ -143,6 +156,14 @@ export default class TransformQueue {
     if (idx === -1) return null;
     const entry = this.#transforms[idx];
     this.#transforms.splice(idx, 1);
+    if (entry.guardedRoot) {
+      const list = this.#byGuardedRoot.get(entry.guardedRoot);
+      const li = list?.indexOf(entry) ?? -1;
+      if (li !== -1) {
+        if (list.length === 1) this.#byGuardedRoot.delete(entry.guardedRoot);
+        else list.splice(li, 1);
+      }
+    }
     const si = this.#sorted.indexOf(entry);
     if (si !== -1) {
       this.#sorted.splice(si, 1);
