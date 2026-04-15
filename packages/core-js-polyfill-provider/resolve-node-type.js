@@ -1623,7 +1623,7 @@ function createResolveNodeType(babelNodeType, t) {
       // ESTree: import('foo') is ImportExpression (not CallExpression with Import callee)
       case 'ImportExpression':
         return new $Object('Promise');
-      // tagged templates are semantically calls: String.raw`foo` ==== String.raw(…)
+      // tagged templates are semantically calls: String.raw`foo` ==== String.raw(...)
       case 'TaggedTemplateExpression':
         return resolveCallReturnType(path.get('tag'));
       case 'UnaryExpression':
