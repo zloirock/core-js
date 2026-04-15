@@ -1,92 +1,75 @@
-import { findUniqueName, resolveImportPath } from '@core-js/polyfill-provider/helpers';
+import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
+import ImportInjectorState from '@core-js/polyfill-provider/import-state';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
-export default class ImportInjector {
+export default class ImportInjector extends ImportInjectorState {
   #t;
   #programPath;
-  #pkg;
-  #mode;
-  #absoluteImports;
-  #globalImports = new Set();
-  #pureImports = new Map(); // source -> Identifier node
-  #usedNames = new Set();
-  // polyfill UID -> { source, hint } so `resolveKey` and `resolveBindingToGlobal` can
-  // recognise post-mutation polyfill identifiers
-  #pureImportsByName = new Map();
+  // binding name -> { source, hint, id: Identifier }. `id` is cloneNode'd on each return.
+  // source/hint exposed via getPureImport() -> resolveKey / resolveBindingToGlobal use them
+  // to recognise post-mutation polyfill identifiers
+  #byName = new Map();
+  // babel runs flush multiple times during traversal (pre, programExit, deferred side
+  // effects) -> track what's already been written to the program so we skip duplicates
   #flushedGlobals = new Set();
   #flushedPure = new Set();
-  #existingGlobalImports = new Set();
-  #existingPureImports = new Map();
-  importStyle;
 
   constructor({ t, programPath, pkg, mode, importStyle, absoluteImports = false }) {
+    super({ absoluteImports, mode, pkg, importStyle });
     this.#t = t;
     this.#programPath = programPath;
-    this.#pkg = pkg;
-    this.#mode = mode;
-    this.importStyle = importStyle;
-    this.#absoluteImports = absoluteImports;
   }
 
-  #resolvePath(subpath) {
-    return resolveImportPath(this.#pkg, subpath, this.#absoluteImports);
-  }
-
-  // usage-global / entry-global: collect side-effect module import
-  addGlobalImport(moduleName) {
-    this.#globalImports.add(moduleName);
-  }
-
-  // usage-pure: register default import, return Babel Identifier node
-  // own UID generation: Babel's scope.generateUidIdentifier strips trailing digits from the hint
-  // (`Math$log2` -> `_Math$log`), which produces misleading names for hints with numeric suffixes
-  // we also publish the chosen name into Babel's `program.references`/`program.uids` so that
-  // sibling transforms running afterwards (e.g. plugin-transform-computed-properties) don't
-  // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` -
-  // the import declaration isn't inserted yet, so without this it's not visible as a binding
+  // base returns the binding name (string); babel consumers expect an Identifier node
   addPureImport(entry, hint) {
-    const source = `${ this.#mode }/${ entry }`;
-    if (this.#existingPureImports.has(source)) return this.#t.cloneNode(this.#existingPureImports.get(source));
-    if (this.#pureImports.has(source)) return this.#t.cloneNode(this.#pureImports.get(source));
+    const name = super.addPureImport(entry, hint);
+    return this.#t.cloneNode(this.#byName.get(name).id);
+  }
+
+  getPureImport(name) {
+    const entry = this.#byName.get(name);
+    return entry ? { source: entry.source, hint: entry.hint } : null;
+  }
+
+  // --- hooks ---
+
+  isNameTaken(name) {
+    if (this.usedNames.has(name)) return true;
     const { scope } = this.#programPath;
     const program = scope.getProgramParent();
-    const name = findUniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2,
-      n => this.#usedNames.has(n) || scope.hasBinding(n)
-        || program.references[n] || program.uids[n]);
-    this.#usedNames.add(name);
-    program.references[name] = true;
-    program.uids[name] = true;
-    const id = this.#t.identifier(name);
-    this.#pureImports.set(source, id);
-    this.#pureImportsByName.set(name, { source, hint });
-    return this.#t.cloneNode(id);
+    return scope.hasBinding(name) || !!program.references[name] || !!program.uids[name];
   }
 
-  registerUserGlobalImport(moduleName) {
-    this.#existingGlobalImports.add(moduleName);
-    // mark as flushed so #buildNodes won't re-emit it
+  // publish the chosen UID into program.references/.uids so sibling transforms don't
+  // hand the same name to a temp var via scope.generateUidIdentifierBasedOnNode
+  hookNameAllocated(name) {
+    const program = this.#programPath.scope.getProgramParent();
+    program.references[name] = true;
+    program.uids[name] = true;
+  }
+
+  hookPureImportCreated(name, source, hint) {
+    this.#byName.set(name, { source, hint, id: this.#t.identifier(name) });
+  }
+
+  hookUserPureImportRegistered(name, source) {
+    this.#byName.set(name, { source, hint: name, id: this.#t.identifier(name) });
+  }
+
+  hookUserGlobalImportRegistered(moduleName) {
     this.#flushedGlobals.add(moduleName);
   }
 
-  // caller must filter to mode-matching imports first (scanExistingCoreJSImports does this)
-  registerUserPureImport(entry, name) {
-    const source = `${ this.#mode }/${ entry }`;
-    const id = this.#t.identifier(name);
-    this.#existingPureImports.set(source, id);
-    this.#pureImportsByName.set(name, { source, hint: name });
-    this.#usedNames.add(name);
+  // --- emission ---
+
+  #resolvePath(subpath) {
+    return resolveImportPath(this.pkg, subpath, this.absoluteImports);
   }
 
-  // look up a polyfill UID previously emitted by addPureImport (or null)
-  getPureImport(name) {
-    return this.#pureImportsByName.get(name) ?? null;
-  }
-
-  // build import/require nodes for unflushed entries
   #buildNodes() {
     const t = this.#t;
-    let newGlobals = [...this.#globalImports].filter(s => !this.#flushedGlobals.has(s));
-    const newPure = [...this.#pureImports].filter(([s]) => !this.#flushedPure.has(s));
+    let newGlobals = [...this.globalImports].filter(s => !this.#flushedGlobals.has(s));
+    const newPure = [...this.pureImports].filter(([s]) => !this.#flushedPure.has(s));
     if (!newGlobals.length && !newPure.length) return null;
     newGlobals = sortByPolyfillOrder(newGlobals);
     const nodes = [];
@@ -97,19 +80,19 @@ export default class ImportInjector {
         ? t.expressionStatement(t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)]))
         : t.importDeclaration([], t.stringLiteral(resolved)));
     }
-    for (const [source, id] of newPure) {
+    for (const [source, name] of newPure) {
       this.#flushedPure.add(source);
       const resolved = this.#resolvePath(source);
+      const id = t.cloneNode(this.#byName.get(name).id);
       nodes.push(this.importStyle === 'require'
         ? t.variableDeclaration('var', [
-          t.variableDeclarator(t.cloneNode(id), t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)])),
+          t.variableDeclarator(id, t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)])),
         ])
-        : t.importDeclaration([t.importDefaultSpecifier(t.cloneNode(id))], t.stringLiteral(resolved)));
+        : t.importDeclaration([t.importDefaultSpecifier(id)], t.stringLiteral(resolved)));
     }
     return nodes;
   }
 
-  // insert via Babel path API - used during traversal (pre, Program.exit)
   flush() {
     while (true) {
       const nodes = this.#buildNodes();
