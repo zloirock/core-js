@@ -13,35 +13,59 @@ export function sortByPolyfillOrder(modules) {
   return [...modules].sort((a, b) => (polyfillOrder.get(a) ?? Infinity) - (polyfillOrder.get(b) ?? Infinity) || 0);
 }
 
-function validateImportStyle(importStyle) {
-  if (importStyle !== undefined && importStyle !== 'import' && importStyle !== 'require') {
-    throw new TypeError("`importStyle` should be 'import' or 'require'");
-  }
+// consistent error format: `name` must be <expected> (received <JSON(value)>)
+export function optionTypeError(name, expected, received) {
+  return new TypeError(`\`${ name }\` must be ${ expected } (received ${ JSON.stringify(received) })`);
 }
 
 const VALID_METHODS = new Set(['entry-global', 'usage-global', 'usage-pure']);
 const VALID_MODES = new Set(['es', 'stable', 'actual', 'full']);
+const formatOptions = set => `one of ${ [...set].map(s => `'${ s }'`).join(', ') }`;
 
-function validateMethodAndMode(method, mode) {
-  if (!VALID_METHODS.has(method)) throw new TypeError('Incorrect plugin method');
-  if (mode !== undefined && !VALID_MODES.has(mode)) throw new TypeError('Incorrect plugin mode');
+// `null`/`undefined` pass through so users can use conditional spreads to clear an option
+const isEmpty = v => v === null || v === undefined;
+
+function expectOptional(name, type, value) {
+  if (!isEmpty(value) && typeof value !== type) throw optionTypeError(name, `a ${ type }, or undefined`, value);
 }
 
-// only validates options exclusive to plugin-options (absoluteImports, shouldInjectPolyfill +
-// include/exclude conflict). Type checks for include/exclude themselves run inside
-// createPolyfillContext so direct callers of the public API stay protected.
-function validatePluginOptions({ absoluteImports, shouldInjectPolyfill, include, exclude }) {
-  if (absoluteImports !== null && absoluteImports !== undefined && typeof absoluteImports !== 'boolean') {
-    throw new TypeError('.absoluteImports must be a boolean, or undefined'
-      + ` (received ${ JSON.stringify(absoluteImports) })`);
+function expectEnum(name, set, value, { required = true } = {}) {
+  if (required ? !set.has(value) : !isEmpty(value) && !set.has(value)) {
+    throw optionTypeError(name, formatOptions(set), value);
   }
-  if (shouldInjectPolyfill !== undefined && typeof shouldInjectPolyfill !== 'function') {
-    throw new TypeError('.shouldInjectPolyfill must be a function, or undefined'
-      + ` (received ${ shouldInjectPolyfill })`);
+}
+
+function validateOptions({
+  absoluteImports,
+  browserslistEnv,
+  configPath,
+  debug,
+  exclude,
+  ignoreBrowserslistConfig,
+  importStyle,
+  include,
+  method,
+  mode,
+  shippedProposals,
+  shouldInjectPolyfill,
+}) {
+  expectEnum('method', VALID_METHODS, method);
+  expectEnum('mode', VALID_MODES, mode, { required: false });
+  if (!isEmpty(importStyle) && importStyle !== 'import' && importStyle !== 'require') {
+    throw optionTypeError('importStyle', "'import' or 'require'", importStyle);
+  }
+  expectOptional('absoluteImports', 'boolean', absoluteImports);
+  expectOptional('debug', 'boolean', debug);
+  expectOptional('ignoreBrowserslistConfig', 'boolean', ignoreBrowserslistConfig);
+  expectOptional('shippedProposals', 'boolean', shippedProposals);
+  expectOptional('configPath', 'string', configPath);
+  expectOptional('browserslistEnv', 'string', browserslistEnv);
+  if (!isEmpty(shouldInjectPolyfill) && typeof shouldInjectPolyfill !== 'function') {
+    throw optionTypeError('shouldInjectPolyfill', 'a function, or undefined', shouldInjectPolyfill);
   }
   // empty arrays don't conflict with shouldInjectPolyfill - only non-empty include/exclude do
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
-    throw new TypeError('.include and .exclude are not supported when using the .shouldInjectPolyfill function.');
+    throw new TypeError('`include` and `exclude` are not supported when using `shouldInjectPolyfill`');
   }
 }
 
@@ -118,34 +142,61 @@ const KNOWN_REST_KEYS = new Set([
   'method',
   'mode',
   'package',
-  'shippedProposals',
   'version',
 ]);
 
 // validate user options, resolve targets, build shouldInjectPolyfill and debug output
 // returns all resolved fields for createPolyfillContext + createPolyfillResolver
-export function initPluginOptions({
-  absoluteImports,
-  browserslistEnv,
-  configPath,
-  debug,
-  exclude,
-  ignoreBrowserslistConfig,
-  importStyle,
-  include,
-  shouldInjectPolyfill: userCallback,
-  targets,
-  ...rest
-}, { getBabelTargets } = {}) {
+export function initPluginOptions(options, { getBabelTargets } = {}) {
+  const {
+    absoluteImports,
+    browserslistEnv,
+    configPath,
+    debug,
+    exclude,
+    ignoreBrowserslistConfig,
+    importStyle,
+    include,
+    shippedProposals,
+    shouldInjectPolyfill: userCallback,
+    targets,
+    ...rest
+  } = options;
   const unknown = keys(rest).filter(k => !KNOWN_REST_KEYS.has(k));
   if (unknown.length) throw new TypeError(`Unknown @core-js plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }`);
-  validateMethodAndMode(rest.method, rest.mode);
-  validateImportStyle(importStyle);
-  validatePluginOptions({ absoluteImports, shouldInjectPolyfill: userCallback, include, exclude });
-  const parsedTargets = resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets });
+  validateOptions({
+    absoluteImports,
+    browserslistEnv,
+    configPath,
+    debug,
+    exclude,
+    ignoreBrowserslistConfig,
+    importStyle,
+    include,
+    method: rest.method,
+    mode: rest.mode,
+    shippedProposals,
+    shouldInjectPolyfill: userCallback,
+  });
+  const parsedTargets = resolveTargets({
+    targets,
+    configPath,
+    ignoreBrowserslistConfig,
+    browserslistEnv,
+    getBabelTargets,
+  });
   const shouldInjectPolyfill = buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback });
   const createDebugOutput = debug ? createDebugOutputFactory({ method: rest.method, parsedTargets }) : null;
-  return { ...rest, include, exclude, absoluteImports, importStyle, shouldInjectPolyfill, createDebugOutput };
+  return {
+    ...rest,
+    absoluteImports,
+    createDebugOutput,
+    exclude,
+    importStyle,
+    include,
+    shippedProposals,
+    shouldInjectPolyfill,
+  };
 }
 
 // create injection helper functions shared by both plugins

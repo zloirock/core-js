@@ -1,1 +1,1 @@
-[BABEL] unknown file: .absoluteImports must be a boolean, or undefined (received 42) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
+[BABEL] unknown file: `absoluteImports` must be a boolean, or undefined (received 42) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
