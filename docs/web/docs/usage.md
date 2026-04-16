@@ -157,12 +157,13 @@ Configuration example:
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
-| `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills by name or pattern |
-| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills by name or pattern |
+| `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules (e.g. `'es.array.at'`) or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) — a leading `es.` matches any submodule, `*` is a regex quantifier |
+| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
 | `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from `sourceType` |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
+| `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `debug` | `boolean` | `false` | Print injected polyfills to console |
@@ -313,12 +314,13 @@ await Bun.build({
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
-| `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills |
-| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills |
+| `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
+| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom callback `(name, defaultShouldInject) => boolean` |
 | `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `importStyle` | `string` | auto | `'import'` or `'require'`, auto-detected from source type |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
+| `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `phase` | `'pre' \| 'post' \| 'pre+post'` | `'pre'` | When the plugin runs. `'pre'` — before sibling plugins, sees original source with full semantic context; misses polyfills in siblings' helpers. `'post'` — after siblings, sees helpers but TS stripping and other syntactic transforms by siblings make type inference unreliable, which may cause over-polyfilling. `'pre+post'` — two passes: pre transforms user code with full context, post detects helpers; post may still over-polyfill user code that siblings transformed between passes. Not supported for `entry-global` (always at pre so `import 'core-js'` is seen before siblings convert it) |
