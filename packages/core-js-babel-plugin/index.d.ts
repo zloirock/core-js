@@ -17,9 +17,12 @@ type Options = Pick<CompatOptions, "targets"> & {
   package?: string,
   /** additional packages to recognize as core-js entry points */
   additionalPackages?: string[],
-  /** include specific polyfills by name or pattern */
+  /** include polyfill modules by module name (e.g. `'es.array.at'`) or pattern.
+   *  String patterns are raw regex syntax (not glob) anchored to start/end — a leading `es.`
+   *  matches any submodule, `*` is a regex quantifier. Entry paths (`'array/at'`) are allowed
+   *  only for `method: 'usage-pure'`. */
   include?: readonly (string | RegExp)[],
-  /** exclude specific polyfills by name or pattern */
+  /** exclude polyfill modules — same pattern semantics as `include` */
   exclude?: readonly (string | RegExp)[],
   /** enable debug output */
   debug?: boolean,
@@ -29,6 +32,8 @@ type Options = Pick<CompatOptions, "targets"> & {
   absoluteImports?: boolean,
   /** directory to search for browserslist config (for monorepos) */
   configPath?: string,
+  /** browserslist env name (falls back to `production` / `defaults`) */
+  browserslistEnv?: string,
   /** do not use browserslist config, only explicit `targets` */
   ignoreBrowserslistConfig?: boolean,
   /** treat proposals that have been shipped in browsers as stable features */
