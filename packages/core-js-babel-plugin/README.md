@@ -108,11 +108,12 @@ Array.from(items);
 | `mode` | `string` | `'actual'` | Entry point layer: `'es'`, `'stable'`, `'actual'`, or `'full'` (makes no sense for `entry-global`) |
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` (for `entry-global`) |
-| `include` | `(string \| RegExp)[]` | `[]` | Force include specific polyfills by module name, entry path (for pure version), or pattern |
-| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude specific polyfills by module name, entry path (for pure version), or pattern |
+| `include` | `(string \| RegExp)[]` | `[]` | Force include polyfills by module name, entry path (for pure version), or pattern. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
+| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfills — same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
 | `shippedProposals` | `boolean` | `false` | Treat proposals that have been shipped in browsers as stable features |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |
+| `browserslistEnv` | `string` | auto | Browserslist env name (falls back to `production` / `defaults`) |
 | `ignoreBrowserslistConfig` | `boolean` | `false` | Do not use browserslist config, only explicit `targets` |
 | `absoluteImports` | `boolean` | `false` | Use absolute paths for injected imports |
 | `importStyle` | `string` | auto | Import style for injected polyfills: `'import'` or `'require'`, auto-detected from `sourceType` if not set |
