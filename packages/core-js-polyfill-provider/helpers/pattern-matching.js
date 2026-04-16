@@ -36,11 +36,11 @@ export function isEntryPattern(pattern) {
 export function validatePatternList(name, list) {
   if (list === undefined || list === null) return;
   if (!Array.isArray(list)) {
-    throw new TypeError(`.${ name } must be an array, or undefined (received ${ JSON.stringify(list) })`);
+    throw new TypeError(`\`${ name }\` must be an array, or undefined (received ${ JSON.stringify(list) })`);
   }
   for (const item of list) {
     if (typeof item !== 'string' && !(item instanceof RegExp)) {
-      throw new TypeError(`.${ name } elements must be strings or regular expressions (received ${ JSON.stringify(item) })`);
+      throw new TypeError(`\`${ name }[*]\` must be a string or RegExp (received ${ JSON.stringify(item) })`);
     }
   }
 }
