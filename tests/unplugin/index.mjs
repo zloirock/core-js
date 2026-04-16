@@ -120,6 +120,24 @@ function inferTestId(babelOptions) {
   return 'input.ts';
 }
 
+// structural sourcemap check — when transform returns a map, verify it's a well-formed
+// SourceMap v3. catches crashes / empty-mappings regressions without per-fixture probes
+function checkSourceMapShape(directory, map) {
+  if (!map) return true;
+  const reject = msg => {
+    counts.failed++;
+    echo(red(`${ cyan(label(directory)) } map invalid: ${ msg }`));
+    return false;
+  };
+  if (map.version !== 3) return reject(`version=${ map.version } (expected 3)`);
+  if (!Array.isArray(map.sources)) return reject('sources is not an array');
+  if (typeof map.mappings !== 'string') return reject('mappings is not a string');
+  if (map.sourcesContent !== undefined && !Array.isArray(map.sourcesContent)) {
+    return reject('sourcesContent is not an array');
+  }
+  return true;
+}
+
 function captureTransform(source, pluginOptions, testId) {
   const plugin = createPlugin(pluginOptions);
   const logs = [];
@@ -132,7 +150,7 @@ function captureTransform(source, pluginOptions, testId) {
     if (result === null && testId.endsWith('.tsx') && source.includes('<') && !source.includes('/>')) {
       result = plugin.transform(source, testId.replace('.tsx', '.ts'));
     }
-    return { code: result?.code ?? source, logs };
+    return { code: result?.code ?? source, map: result?.map ?? null, logs };
   } finally {
     console.log = origLog;
   }
@@ -231,11 +249,12 @@ async function runFixture(directory) {
 
   try {
     const source = await readFile(join(directory, 'input.mjs'), UTF8);
-    const { code, logs } = captureTransform(source, pluginOptions, inferTestId(babelOptions));
+    const { code, map, logs } = captureTransform(source, pluginOptions, inferTestId(babelOptions));
     const actual = normalize(code);
     const babelOutput = normalize(await readFile(outputFile, UTF8));
 
     if (!await checkDebugOutput(directory, logs)) return;
+    if (!checkSourceMapShape(directory, map)) return;
 
     if (pluginOptions.method === 'usage-pure') await comparePureMode(directory, actual, babelOutput);
     else compareGlobalMode(directory, actual, babelOutput);
