@@ -93,13 +93,13 @@ function detectCommonJS(ast) {
 const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
 // AST node fields we walk to find nested declarations; `type` + source-position fields
-// have no children so we skip them (hot-path — ~30% of pre-traverse time was wasted there)
+// have no children so we skip them (hot-path - ~30% of pre-traverse time was wasted there)
 const BINDING_SCAN_SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
 
 // collect every binding name declared anywhere in the AST so the import injector
 // avoids picking a UID that collides with a user-declared identifier in any nested scope.
 // `var _at = 1` inside a function would otherwise shadow a top-level `import _at from ...`.
-// manual recursion — skips estree-toolkit's per-node path/scope allocation
+// manual recursion - skips estree-toolkit's per-node path/scope allocation
 function collectAllBindingNames(ast) {
   const names = new Set();
   const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
@@ -185,7 +185,7 @@ export default function createPlugin(options) {
   // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id).
   // entries are tagged with insertion timestamps so dev-server sessions (where
   // buildEnd may not fire between rebuilds) can shed snapshots that never got paired
-  // with a post run — sibling bail, tree-shake drop, HMR invalidation mid-pre
+  // with a post run - sibling bail, tree-shake drop, HMR invalidation mid-pre
   const prePassSnapshots = new Map();
   const SNAPSHOT_TTL_MS = 5 * 60 * 1000;
   const SNAPSHOT_SWEEP_THRESHOLD = 100;
@@ -405,7 +405,7 @@ export default function createPlugin(options) {
       const skippedNodes = new WeakSet();
       const transforms = new TransformQueue(code, ms);
 
-      // cache setScope walk-up result per leaf node — each node's enclosing scope is
+      // cache setScope walk-up result per leaf node - each node's enclosing scope is
       // fixed by its position in the AST, so the walk is purely a function of the node
       const scopeCache = new WeakMap();
 
