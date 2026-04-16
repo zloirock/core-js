@@ -12,6 +12,7 @@ import {
   stripQueryHash,
   validatePatternList,
 } from './helpers.js';
+import { optionTypeError } from './plugin-options.js';
 
 const { hasOwn } = Object;
 
@@ -126,19 +127,22 @@ export function createPolyfillContext({
   shippedProposals = false,
   shouldInjectPolyfill = () => true,
 }) {
-  if (typeof shouldInjectPolyfill !== 'function') throw new TypeError('`shouldInjectPolyfill` should be a function');
+  if (typeof shouldInjectPolyfill !== 'function') {
+    throw optionTypeError('shouldInjectPolyfill', 'a function', shouldInjectPolyfill);
+  }
   if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
 
   const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();
   const excludeEntries = method === 'usage-pure' ? collectEntryPaths(exclude) : new Set();
 
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
-  if (typeof pkg != 'string') throw new TypeError('Incorrect package name');
+  if (typeof pkg != 'string') throw optionTypeError('package', 'a string', pkg);
   if (additionalPackages !== null && additionalPackages !== undefined && !Array.isArray(additionalPackages)) {
-    throw new TypeError('`additionalPackages` should be an array');
+    throw optionTypeError('additionalPackages', 'an array, or undefined', additionalPackages);
   }
-  if (additionalPackages && additionalPackages.some($pkg => typeof $pkg != 'string')) {
-    throw new TypeError('Incorrect additional package name');
+  if (additionalPackages) {
+    const bad = additionalPackages.find($pkg => typeof $pkg != 'string');
+    if (bad !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', bad);
   }
 
   version = normalizeCoreJSVersion(version);

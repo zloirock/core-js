@@ -1,1 +1,1 @@
-[BABEL] unknown file: Incorrect additional package name (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
+[BABEL] unknown file: `additionalPackages[*]` must be a string (received 42) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
