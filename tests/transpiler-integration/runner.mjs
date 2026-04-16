@@ -148,8 +148,8 @@ const builders = {
       input,
       plugins: [pluginFor('rollup')(pluginOpts(method, phase)), nodeResolve(), commonjs()],
     });
-    const { output } = await bundle.generate({ format: 'es' });
-    return { code: output[0].code };
+    const { output } = await bundle.generate({ format: 'es', sourcemap: true });
+    return { code: output[0].code, map: output[0].map };
   },
 
   async vite(input, method, phase) {
@@ -159,6 +159,7 @@ const builders = {
       logLevel: 'silent',
       build: {
         write: false,
+        sourcemap: true,
         lib: { entry: input, formats: ['es'] },
         minify: false,
         commonjsOptions: { include: [/core-js/] },
@@ -167,7 +168,7 @@ const builders = {
       plugins: [pluginFor('vite')(pluginOpts(method, phase))],
     });
     const [{ output }] = Array.isArray(result) ? result : [result];
-    return { code: output[0].code };
+    return { code: output[0].code, map: output[0].map };
   },
 
   async webpack(input, method, phase) {
@@ -251,6 +252,15 @@ const builders = {
 const hasBun = await which('bun', { nothrow: true });
 let failures = 0;
 
+// structural check on the bundler's final sourcemap — confirms our per-module maps
+// chain through correctly (rollup/vite merge them into a single output map)
+function assertMapShape(label, map) {
+  if (!map) throw new Error('expected a sourcemap but got none');
+  if (map.version !== 3) throw new Error(`map version ${ map.version } (expected 3)`);
+  if (!Array.isArray(map.sources)) throw new Error('map.sources is not an array');
+  if (typeof map.mappings !== 'string') throw new Error('map.mappings is not a string');
+}
+
 for (const [name, build] of Object.entries(builders)) {
   if (name === 'bun' && !hasBun) {
     echo(chalk.yellow('bun: skipped (not installed)'));
@@ -262,9 +272,10 @@ for (const [name, build] of Object.entries(builders)) {
     for (const phase of phases) {
       const label = phase ? `${ name }/${ method }/${ phase }` : `${ name }/${ method }`;
       try {
-        const { code, ext, verifier } = await build(inputOf(method), method, phase);
+        const { code, ext, map, verifier } = await build(inputOf(method), method, phase);
         if (verifier === 'bun') await verifyInBun(code, label, method);
         else await verifyInNode(code, label, ext);
+        if (name === 'rollup' || name === 'vite') assertMapShape(label, map);
         echo(chalk.green(`${ label } passed`));
       } catch (error) {
         echo(chalk.red(`${ label } failed: ${ error.message }`));
