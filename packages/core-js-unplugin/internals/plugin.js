@@ -4,8 +4,14 @@ import MagicString from 'magic-string';
 import {
   buildOffsetToLine,
   createClassHelpers,
+  createTypeAnnotationChecker,
+  detectCommonJS,
   globalProxyMemberName,
+  hasTopLevelESM,
   isCoreJSFile,
+  isDeleteTarget,
+  isTaggedTemplateTag,
+  isUpdateTarget,
   mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
@@ -41,52 +47,6 @@ function directivePrologueEnd(ast) {
     end = stmt.end;
   }
   return end;
-}
-
-// content-based CJS detection. ESM markers (top-level import/export) override CJS markers.
-// recognised CJS markers: `module.exports = ...`, `exports.X = ...`, `module.exports.X = ...`
-// at top level (the most common transpiler / hand-written CJS shapes).
-const ESM_MARKER_TYPES = new Set([
-  'ExportAllDeclaration',
-  'ExportDefaultDeclaration',
-  'ExportNamedDeclaration',
-  'ImportDeclaration',
-]);
-
-const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name === name;
-
-// peel parens / chain expressions / sequence (take last) - CJS shapes like
-// `0, module.exports = {...}` or `(module.exports = ...)` should still match
-function unwrapExpr(node) {
-  while (node) {
-    if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression') node = node.expression;
-    else if (node.type === 'SequenceExpression') node = node.expressions.at(-1);
-    else break;
-  }
-  return node;
-}
-
-const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression' && !node.computed
-  && isNamedIdent(unwrapExpr(node.object), objName) && isNamedIdent(node.property, propName);
-
-// `module.exports = ...` | `exports.X = ...` | `module.exports.X = ...`
-function isCommonJSAssignTarget(left) {
-  const unwrapped = unwrapExpr(left);
-  if (unwrapped?.type !== 'MemberExpression' || unwrapped.computed) return false;
-  if (isStaticMember(unwrapped, 'module', 'exports')) return true;
-  const obj = unwrapExpr(unwrapped.object);
-  return isNamedIdent(obj, 'exports') || isStaticMember(obj, 'module', 'exports');
-}
-
-function detectCommonJS(ast) {
-  let hasCJS = false;
-  for (const stmt of ast.body) {
-    if (ESM_MARKER_TYPES.has(stmt.type)) return false;
-    if (hasCJS || stmt.type !== 'ExpressionStatement') continue;
-    const expression = unwrapExpr(stmt.expression);
-    if (expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left)) hasCJS = true;
-  }
-  return hasCJS;
 }
 
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
@@ -282,13 +242,10 @@ export default function createPlugin(options) {
       comments = parsed.comments;
     }
 
-    // source wins over extension: a `.cjs`/`.cts` file that actually contains top-level
-    // ESM (oxc parses it tolerantly) must emit `import`, not `require`, or the output
-    // becomes a mixed CJS+ESM mess that bundlers reject. detectCommonJS already bails on
-    // ESM markers so its result is safe to fall through to.
-    const hasTopLevelESM = ast.body.some(n => ESM_MARKER_TYPES.has(n.type));
+    // source wins over extension: a `.cjs`/`.cts` with top-level ESM (oxc parses tolerantly)
+    // must emit `import`, or bundlers reject the mixed output
     const importStyle = importStyleOption
-      ?? (!hasTopLevelESM && (isCJSFile || detectCommonJS(ast)) ? 'require' : 'import');
+      ?? (!hasTopLevelESM(ast) && (isCJSFile || detectCommonJS(ast)) ? 'require' : 'import');
 
     // check disable directives - `disable-file` only counts if it lives above any code
     const offsetToLine = buildOffsetToLine(code);
@@ -1212,29 +1169,7 @@ export default function createPlugin(options) {
         }
       }
 
-      // memoized ancestor walk - cached on parent nodes so descendants share results
-      // (overall O(node count) instead of O(node count * depth))
-      const typeAnnotationCache = new WeakMap();
-      function isInTypeAnnotation(path) {
-        const visited = [];
-        for (let current = path.parentPath; current; current = current.parentPath) {
-          const { node } = current;
-          if (!node) break;
-          if (typeAnnotationCache.has(node)) {
-            const cached = typeAnnotationCache.get(node);
-            for (const n of visited) typeAnnotationCache.set(n, cached);
-            return cached;
-          }
-          if (isTypeAnnotationNodeType(node.type)) {
-            typeAnnotationCache.set(node, true);
-            for (const n of visited) typeAnnotationCache.set(n, true);
-            return true;
-          }
-          visited.push(node);
-        }
-        for (const n of visited) typeAnnotationCache.set(n, false);
-        return false;
-      }
+      const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
       function handleInExpression(meta, metaPath) {
         const { node } = metaPath;
@@ -1316,15 +1251,15 @@ export default function createPlugin(options) {
 
         if (meta.kind === 'in') return handleInExpression(meta, metaPath);
 
-        // delete check (ChainExpression and ParenthesizedExpression already unwrapped above)
-        if (parent?.type === 'UnaryExpression' && parent.operator === 'delete') return;
+        // parent is already unwrapped past parens/chain/TS above
+        if (isDeleteTarget(parent)) return;
 
         if (meta.kind === 'property') {
           if (node.type === 'Property' && metaPath.parent?.type === 'ObjectPattern') {
             return handleDestructuringPure(meta, metaPath, node);
           }
           if (node.type !== 'MemberExpression') return;
-          if (parent?.type === 'UpdateExpression') return;
+          if (isUpdateTarget(parent)) return;
           if (node.object?.type === 'Super') {
             const superMeta = resolveSuperMember(metaPath);
             if (!superMeta) return;
@@ -1335,9 +1270,7 @@ export default function createPlugin(options) {
           // bypass the user's override (also bails inside static methods, where `this`
           // is the constructor, not an instance)
           if (node.object?.type === 'ThisExpression' && isShadowedByClassOwnMember(metaPath, meta.key)) return;
-          // skip instance method used as tagged template tag - replacing callee breaks `this` binding
-          if (meta.placement === 'prototype'
-              && parent?.type === 'TaggedTemplateExpression' && parent.tag === node) return;
+          if (isTaggedTemplateTag(parent, node, meta.placement)) return;
           if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
         }
 
