@@ -52,13 +52,22 @@ function replaceNthOccurrence(str, needle, replacement, n) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
-// try needle shapes: raw slice -> deoptionalized (`?.` -> `.`) -> guardRef-rewritten
+// `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` — naive `replaceAll('?.', '.')`
+// produces `.(` that never matches the `(` emitted by the inner transform
+function deoptionalizeNeedle(needle) {
+  return needle.replaceAll('?.', (_, offset) => {
+    const next = needle[offset + 2];
+    return next === '(' || next === '[' ? '' : '.';
+  });
+}
+
+// try needle shapes: raw slice -> deoptionalized -> guardRef-rewritten
 // (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
 function substituteInner(content, needle, replacement, nth, outerHint) {
   const candidates = [needle];
-  if (needle.includes('?.')) candidates.push(needle.replaceAll('?.', '.'));
+  if (needle.includes('?.')) candidates.push(deoptionalizeNeedle(needle));
   if (outerHint?.rootRaw && outerHint.guardRef && needle.startsWith(outerHint.rootRaw)) {
-    candidates.push(outerHint.guardRef + needle.slice(outerHint.rootRaw.length).replaceAll('?.', '.'));
+    candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
   }
   for (const candidate of candidates) {
     const result = replaceNthOccurrence(content, candidate, replacement, nth);
