@@ -35,7 +35,7 @@ import {
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
-import detectEntries from './detect-entry.js';
+import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none.
@@ -274,17 +274,27 @@ export default function createPlugin(options) {
     // seed the injector with every binding name in the file (any nesting level)
     // so generated UIDs don't shadow user-declared identifiers in nested scopes
     injector.seedReservedNames(collectAllBindingNames(ast));
-    // register user's pre-existing core-js imports so we don't emit duplicates.
-    // post inherits via snapshot and can't re-scan (source is pre-transformed).
-    // entry-global re-emits user imports via detectEntries, so skip it here
+    // post reuses the pre-pass snapshot; entry-global handles re-emit via detectEntries
     if (pass !== 'post' && method !== 'entry-global') {
+      const removed = new Set();
       scanExistingCoreJSImports(ast, {
-        packages,
-        mode,
         adapter: estreeAdapter,
-        onGlobalImport: mod => injector.registerUserGlobalImport(mod),
+        mode,
+        // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be removed,
+        // so the dedup filter must not suppress re-emit
+        onGlobalImport: (mod, node) => {
+          injector.addGlobalImport(mod);
+          removed.add(node);
+        },
         onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
+        packages,
       });
+      if (removed.size) {
+        // splice from AST too - `await import(...)` would otherwise drag Promise polyfills
+        // via the syntax visitor after its statement is gone from output
+        ast.body = ast.body.filter(n => !removed.has(n));
+        for (const node of removed) removeTopLevelStatement(ms, node);
+      }
     }
     // post drops inherited pure imports whose binding isn't referenced - sibling may have
     // deleted the usage between pre and post
