@@ -3,7 +3,7 @@
     [
       "@core-js",
       {
-        "method": "usage-pure",
+        "method": "usage-global",
         "version": "4.0",
         "targets": {
           "ie": 11
@@ -12,4 +12,3 @@
     ]
   ]
 }
-
