@@ -10,10 +10,5 @@
         }
       }
     ]
-  ],
-  "parserOpts": {
-    "plugins": [
-      "typescript"
-    ]
-  }
+  ]
 }
