@@ -62,6 +62,7 @@ export default function plugin(api, options) {
     deoptionalizeNode,
     normalizeOptionalChain,
     replaceInstanceLike,
+    replaceInstanceChainCombined,
     replaceCallWithSimple,
     resolveDestructuringObject,
     handleDestructuredProperty,
@@ -216,6 +217,36 @@ export default function plugin(api, options) {
           || isOrphaned(path) || isInTypeAnnotation(path);
       }
 
+      // detect `(recv)?.inner?.(args).outer(args)` with polyfillable instance inner+outer;
+      // resolve inner via callee path so `[].at` → `_atMaybeArray` (not generic `_at`)
+      function findInnerPolyChain(path) {
+        if (!path.isOptionalMemberExpression()) return null;
+        const outerCaller = unwrapTSExpressionParent(path);
+        const outerCall = outerCaller.parent;
+        if (!t.isCallExpression(outerCall) && !t.isOptionalCallExpression(outerCall)) return null;
+        if (outerCall.callee !== outerCaller.node) return null;
+        let current = path.get('object');
+        while (current.node && TS_EXPR_WRAPPERS.has(current.node.type)) current = current.get('expression');
+        while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
+          if (current.node.optional) break;
+          current = current.isOptionalMemberExpression() ? current.get('object') : current.get('callee');
+        }
+        if (!current.isOptionalCallExpression() || !current.node.optional) return null;
+        const callee = current.get('callee');
+        const calleeNode = callee.node;
+        if (calleeNode?.type !== 'MemberExpression' && calleeNode?.type !== 'OptionalMemberExpression') return null;
+        if (calleeNode.computed || calleeNode.property?.type !== 'Identifier') return null;
+        const meta = { kind: 'property', object: null, key: calleeNode.property.name, placement: 'prototype' };
+        const { result } = resolvePureOrGlobalFallback(meta, callee);
+        if (result?.kind !== 'instance') return null;
+        return {
+          innerCallee: calleeNode,
+          innerArgs: current.node.arguments,
+          innerEntry: result.entry,
+          innerHintName: result.hintName,
+        };
+      }
+
       // super.method(args) / super.method!(args) / super.method?.(args) -> id.call(this, args)
       function replaceSuperStatic(path, id) {
         const callerPath = unwrapTSExpressionParent(path);
@@ -330,6 +361,15 @@ export default function plugin(api, options) {
           if (kind === 'instance' && t.isSuper(path.node.object)) return;
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
+            const innerChain = findInnerPolyChain(path);
+            if (innerChain) {
+              const innerId = injectPureImport(innerChain.innerEntry, innerChain.innerHintName);
+              // skip inner callee's queued visit — its subtree is replaced by the combined
+              // emission and a stale visit would allocate a dead `_ref` via extractCheck
+              skippedNodes.add(innerChain.innerCallee);
+              replaceInstanceChainCombined(path, id, { ...innerChain, innerId });
+              return;
+            }
             replaceInstanceLike(path, id, skipPolyfillableOptional);
           } else if (t.isSuper(path.node.object)) {
             replaceSuperStatic(path, id);
