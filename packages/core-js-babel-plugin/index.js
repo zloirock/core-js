@@ -432,22 +432,27 @@ export default function plugin(api, options) {
 
       // --- deferred side effects: splice into body, re-traverse for polyfills ---
 
+      // descending `index` so later splices don't shift earlier ones in the same body;
+      // descending `seq` breaks ties deterministically (later-generated first)
+      const batchOrder = (a, b) => b.index - a.index || b.seq - a.seq;
+
+      // re-traversing an inserted SE can itself trigger `deferSideEffect` (nested destructuring
+      // inside the lifted SE, e.g. `const { of } = (innerCall(), Array)` in an arrow body).
+      // loop until the queue stays empty so nothing is silently dropped
       function processDeferredSideEffects(path) {
-        if (!deferredSideEffects.length) return;
-        const inserted = new Set();
-        deferredSideEffects.sort((a, b) => b.index - a.index || b.seq - a.seq);
-        for (const { body, index, node } of deferredSideEffects) {
-          (Array.isArray(body) ? body : path.node.body).splice(index, 0, node);
-          inserted.add(node);
-        }
-        deferredSideEffects.length = 0;
-        if (helperVisitors) {
+        while (deferredSideEffects.length) {
+          const batch = deferredSideEffects.splice(0).sort(batchOrder);
+          const inserted = new Set();
+          for (const { body, index, node } of batch) {
+            body.splice(index, 0, node);
+            inserted.add(node);
+          }
+          if (!helperVisitors) continue;
           path.traverse({
             ExpressionStatement(p) {
-              if (inserted.delete(p.node)) {
-                p.traverse(helperVisitors);
-                if (!inserted.size) p.stop();
-              }
+              if (!inserted.delete(p.node)) return;
+              p.traverse(helperVisitors);
+              if (!inserted.size) p.stop();
             },
           });
         }
