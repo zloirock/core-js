@@ -8,7 +8,7 @@
 //   isStringLiteral(node)           -> boolean
 //   getStringValue(node)            -> string | null
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, symbolKeyToEntry } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, declaresRequireBinding, symbolKeyToEntry } from './helpers.js';
 
 // known-built-in-return-types enumerates every built-in identifier core-js knows about.
 // constructors (Array, Map, ...) and global functions (parseInt, fetch, ...) are functions;
@@ -643,29 +643,31 @@ function defaultSpecifierName(node) {
   return spec?.local?.name ?? null;
 }
 
-// find user-authored core-js imports so the injector can reuse them instead of duplicating.
-// pure imports outside `mode/` are skipped - different polyfill layer, unsafe to reuse
+// dual-API stub: Babel (`getBindingIdentifier`) + ESTree (`hasBinding`) adapters
+const REQUIRE_SHADOWED_SCOPE = { hasBinding: () => true, getBindingIdentifier: () => true };
+
+// callback receives the AST node so callers can remove+re-emit in canonical order -
+// the only load-order-correct option when user polyfill A and plugin-injected B depend
+// on each other in either direction
 export function scanExistingCoreJSImports(ast, { packages, mode, adapter, onGlobalImport, onPureImport }) {
   const modePrefix = mode ? `${ mode }/` : null;
+  const shadowScope = declaresRequireBinding(ast.body) ? REQUIRE_SHADOWED_SCOPE : null;
   for (const node of ast.body ?? []) {
-    if (node.type !== 'ImportDeclaration') continue;
-    const source = adapter.getStringValue(node.source);
-    if (typeof source !== 'string') continue;
-    if (node.specifiers?.length === 0) {
-      const rest = stripPkgPrefix(source, packages);
-      if (rest?.startsWith('modules/')) {
-        const mod = canonicalizeEntrySubpath(rest.slice('modules/'.length));
-        if (mod) onGlobalImport?.(mod);
-      }
+    if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
+      if (!modePrefix || !onPureImport) continue;
+      const source = adapter.getStringValue(node.source);
+      const name = typeof source === 'string' ? defaultSpecifierName(node) : null;
+      const afterPkg = name ? stripPkgPrefix(source, packages) : null;
+      if (!afterPkg?.startsWith(modePrefix)) continue;
+      const entry = canonicalizeEntrySubpath(afterPkg.slice(modePrefix.length));
+      if (entry) onPureImport(entry, name, node);
       continue;
     }
-    if (!modePrefix || !onPureImport) continue;
-    const name = defaultSpecifierName(node);
-    if (!name) continue;
-    const afterPkg = stripPkgPrefix(source, packages);
-    if (!afterPkg?.startsWith(modePrefix)) continue;
-    const entry = canonicalizeEntrySubpath(afterPkg.slice(modePrefix.length));
-    if (entry) onPureImport(entry, name);
+    const source = getEntrySource(node, adapter, shadowScope);
+    const rest = typeof source === 'string' ? stripPkgPrefix(source, packages) : null;
+    if (!rest?.startsWith('modules/')) continue;
+    const mod = canonicalizeEntrySubpath(rest.slice('modules/'.length));
+    if (mod) onGlobalImport?.(mod, node);
   }
 }
 
