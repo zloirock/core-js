@@ -386,7 +386,10 @@ export default function (t, { getInjector } = {}) {
             declaration.replaceWith(extractedDeclaration);
           }
         }
-      } else if (isMultiDecl && !isForInit) {
+      } else if (isMultiDecl || (isForInit && hasRest)) {
+        // for-init cannot hoist outside the loop header (block-scoped kinds would escape,
+        // Babel wraps the init otherwise) - splice the extracted declarator next to the
+        // rest-keeping pattern so both stay in the for-init
         collectMultiDeclExtraction(declaration, parent, objectPattern, localBinding, value, hasRest);
       } else if (isExport) {
         declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
