@@ -58,10 +58,18 @@ export default class ImportInjectorState {
     this.referencedInSource?.add(name);
   }
 
+  // amortize O(1) per prefix: without this cache, `_at, _at2, ..., _atN` from user code
+  // would force each new allocation to linear-probe all N taken names from scratch
+  #nextSuffixByPrefix = new Map();
+
   uniqueName(prefix, startSuffix, minSuffix, extraCheck) {
-    const name = findUniqueName(prefix, startSuffix, minSuffix,
+    const cached = this.#nextSuffixByPrefix.get(prefix);
+    const effective = cached > (startSuffix ?? -Infinity) ? cached : startSuffix;
+    const name = findUniqueName(prefix, effective, minSuffix,
       n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false));
     this.usedNames.add(name);
+    // `+name.slice(prefix.length) || 1` handles the bare-prefix case (slice = '' -> NaN -> 1)
+    this.#nextSuffixByPrefix.set(prefix, (+name.slice(prefix.length) || 1) + 1);
     return name;
   }
 
