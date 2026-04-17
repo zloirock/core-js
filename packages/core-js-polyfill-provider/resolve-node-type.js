@@ -122,6 +122,25 @@ function createResolveNodeType(babelNodeType, t) {
     return literalKeyValue(key);
   }
 
+  // T["key"] index literal - unwrap TSLiteralType; literalKeyValue handles null/other shapes
+  function indexedAccessKey(indexType) {
+    return literalKeyValue(indexType?.type === 'TSLiteralType' ? indexType.literal : indexType);
+  }
+
+  // ObjectExpression { key: value, ... } -> value's type for the literal key.
+  // Spread bails (unknown key coverage); method shorthand resolves to Function
+  function resolveObjectLiteralProperty(argPath, key) {
+    if (argPath?.node?.type !== 'ObjectExpression') return null;
+    for (const prop of argPath.get('properties')) {
+      const { node } = prop;
+      if (node.type === 'SpreadElement') return null;
+      if (node.computed || getKeyName(node.key) !== key) continue;
+      if (node.type === 'ObjectMethod') return new $Object('Function');
+      return resolveNodeType(prop.get('value'));
+    }
+    return null;
+  }
+
   // [key] where key is a string/number literal or a const binding (chain) to one
   function resolveComputedKeyName(key, scope, depth = 0) {
     if (depth > MAX_DEPTH) return null;
@@ -1894,9 +1913,16 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // build a Map<string, Type> of type parameter bindings from call-site arguments
+  // sidecar map (typeParamMap -> paramName -> arg NodePath) so indexed-access resolution
+  // can inspect the actual call arg - the declared constraint is usually broader.
+  // WeakMap auto-clears and avoids a banned custom property on `Map.prototype`
+  const typeParamArgPaths = new WeakMap();
+
+  // Map<string, Type> of type parameter bindings inferred from call-site arguments
   function buildTypeParamMap(typeParamNames, fnPath, callPath) {
     const typeParamMap = new Map();
+    const argPaths = new Map();
+    typeParamArgPaths.set(typeParamMap, argPaths);
     // phase 0: explicit type arguments at call site: foo<string>(...)
     const callTypeArgs = getTypeArgs(callPath.node)?.params;
     if (callTypeArgs) {
@@ -1922,7 +1948,10 @@ function createResolveNodeType(babelNodeType, t) {
       // direct: param type is exactly T
       if (name && typeParamNames.has(name) && !typeParamMap.has(name)) {
         const resolved = resolveNodeType(args[i]);
-        if (resolved) typeParamMap.set(name, resolved);
+        if (resolved) {
+          typeParamMap.set(name, resolved);
+          argPaths.set(name, args[i]);
+        }
         continue;
       }
       // container wrapper: param type is T[], Array<T>, Set<T>, Promise<T>, etc.
@@ -1997,13 +2026,20 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // T["key"] or T[number] - resolve indexed access, substituting type params in the object type
     if (node.type === 'TSIndexedAccessType') {
-      // if objectType references a type parameter, try the substituted type first, then fall back to constraint
       const objParamName = typeRefName(node.objectType);
       if (objParamName && typeParamMap.has(objParamName)) {
-        // T[number] - extract element type from the substituted type directly
+        // T[number] - element type from the substituted container
         if (node.indexType?.type === 'TSNumberKeyword') {
           const inner = resolveInnerType(typeParamMap.get(objParamName));
           if (inner) return inner;
+        }
+        // T["key"] - try the concrete call arg before falling back to the declared constraint
+        // (e.g. <T extends object>(o: T): T['k'] with arg `{ k: [1] }` narrows `k` to Array)
+        const key = indexedAccessKey(node.indexType);
+        if (key !== null) {
+          const argPath = typeParamArgPaths.get(typeParamMap)?.get(objParamName);
+          const propType = argPath && resolveObjectLiteralProperty(argPath, key);
+          if (propType) return propType;
         }
         const paramInfo = findTypeParameter(objParamName, scope);
         if (paramInfo?.constraint) {
