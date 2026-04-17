@@ -1916,7 +1916,7 @@ function createResolveNodeType(babelNodeType, t) {
   // sidecar map (typeParamMap -> paramName -> arg NodePath) so indexed-access resolution
   // can inspect the actual call arg - the declared constraint is usually broader.
   // WeakMap auto-clears and avoids a banned custom property on `Map.prototype`
-  const typeParamArgPaths = new WeakMap();
+  let typeParamArgPaths = new WeakMap();
 
   // Map<string, Type> of type parameter bindings inferred from call-site arguments
   function buildTypeParamMap(typeParamNames, fnPath, callPath) {
@@ -3244,7 +3244,7 @@ function createResolveNodeType(babelNodeType, t) {
   const ASSIGN_LEFT_TYPES = new Set(['Identifier', 'ObjectPattern', 'ArrayPattern']);
 
   // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched per query
-  const sortedAssignmentCache = new WeakMap();
+  let sortedAssignmentCache = new WeakMap();
 
   function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
@@ -3691,7 +3691,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // shared prologue: find guards for an identifier binding, cached per AST node
-  const guardsCache = new WeakMap();
+  let guardsCache = new WeakMap();
 
   function findGuardsForBinding(path) {
     if (!t.isIdentifier(path.node)) return null;
@@ -3762,7 +3762,16 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // --- Entry / public API ---
-  const resolveCache = new WeakMap();
+  let resolveCache = new WeakMap();
+
+  // rebuild per-file to bound memory and drop retained entries from previous parses
+  // (WeakMap is GC-safe, but rebuilding makes the memory footprint deterministic)
+  function reset() {
+    typeParamArgPaths = new WeakMap();
+    sortedAssignmentCache = new WeakMap();
+    guardsCache = new WeakMap();
+    resolveCache = new WeakMap();
+  }
 
   function resolveNodeType(path) {
     const { node } = path;
@@ -3947,7 +3956,7 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveNodeType(path)?.primitive === false;
   }
 
-  return { resolvePropertyObjectType, resolveGuardHints, resolveNodeType, toHint, isString, isObject };
+  return { resolvePropertyObjectType, resolveGuardHints, resolveNodeType, toHint, isString, isObject, reset };
 }
 
 export { createResolveNodeType, TYPE_HINTS };
