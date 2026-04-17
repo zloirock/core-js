@@ -88,6 +88,21 @@ function lowerBound(ranges, target) {
   return lo;
 }
 
+// binary search: first index with ranges[i].start > target
+// used by `add` to append new equal-start entries AFTER existing ones so #sorted
+// preserves insertion order within each start - matters for the compose loop where
+// later-added duplicate-range transforms (arrow wrappers) must run after their base
+function upperBound(ranges, target) {
+  let lo = 0;
+  let hi = ranges.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ranges[mid].start <= target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 // equal-range merge: arrow body wrapper + inner polyfill share the same [start, end].
 // the "wrapper" contains the original source as substring; the "inner" doesn't
 function mergeEqualRange(a, b, originalNeedle) {
@@ -97,17 +112,49 @@ function mergeEqualRange(a, b, originalNeedle) {
   return wrapper.includes(originalNeedle) ? wrapper.replace(originalNeedle, inner) : inner;
 }
 
+// composite key for the (start, end) range index
+const rangeKey = (start, end) => `${ start }|${ end }`;
+
+// recompute prefix max of `.end` from `from` onward after a splice into `sorted`
+function rebuildPrefixMax(sorted, prefixMaxEnd, from) {
+  prefixMaxEnd.length = sorted.length;
+  let running = from > 0 ? prefixMaxEnd[from - 1] : -1;
+  for (let i = from; i < sorted.length; i++) {
+    if (sorted[i].end > running) running = sorted[i].end;
+    prefixMaxEnd[i] = running;
+  }
+}
+
+// append to a Map<K, V[]>, creating the bucket on first insert
+function pushOrInit(map, key, value) {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
+}
+
+// remove `value` from `map[key]`; drop the key if the bucket goes empty
+function removeFrom(map, key, value) {
+  const list = map.get(key);
+  const idx = list?.indexOf(value) ?? -1;
+  if (idx === -1) return;
+  if (list.length === 1) map.delete(key);
+  else list.splice(idx, 1);
+}
+
 // deferred transform queue for usage-pure: collects text replacements during traversal,
 // composes nested transforms, applies after traversal
 export default class TransformQueue {
   #code;
   #ms;
-  #transforms = [];
-  // incrementally maintained sorted snapshot + prefix max for O(log n) containsRange
+  // Set gives O(1) delete + insertion-order iteration (array had O(N) findIndex/splice)
+  #transforms = new Set();
+  // sorted snapshot + prefix max maintained incrementally for O(log n) containsRange
   #sorted = [];
   #prefixMaxEnd = [];
-  // index: guardedRoot node -> transforms that guard it (O(1) hasGuardFor / findOuterGuardRef)
+  // guardedRoot node -> entries (O(1) hasGuardFor / findOuterGuardRef)
   #byGuardedRoot = new Map();
+  // `start|end` -> entries (equal-range dups share a key) for O(1) extractContent lookup
+  #byRange = new Map();
 
   constructor(code, ms) {
     this.#code = code;
@@ -116,22 +163,12 @@ export default class TransformQueue {
 
   add(start, end, content, guardedRoot, rewriteHint) {
     const entry = { start, end, content, guardedRoot, rewriteHint };
-    this.#transforms.push(entry);
-    if (guardedRoot) {
-      const list = this.#byGuardedRoot.get(guardedRoot);
-      if (list) list.push(entry);
-      else this.#byGuardedRoot.set(guardedRoot, [entry]);
-    }
-    // maintain sorted snapshot incrementally so containsRange stays O(log n)
-    const pos = lowerBound(this.#sorted, start);
+    this.#transforms.add(entry);
+    pushOrInit(this.#byRange, rangeKey(start, end), entry);
+    if (guardedRoot) pushOrInit(this.#byGuardedRoot, guardedRoot, entry);
+    const pos = upperBound(this.#sorted, start);
     this.#sorted.splice(pos, 0, entry);
-    // update prefix max from insertion point onward
-    const prev = pos > 0 ? this.#prefixMaxEnd[pos - 1] : -1;
-    let running = prev;
-    for (let i = pos; i < this.#sorted.length; i++) {
-      if (this.#sorted[i].end > running) running = this.#sorted[i].end;
-      this.#prefixMaxEnd[i] = running;
-    }
+    rebuildPrefixMax(this.#sorted, this.#prefixMaxEnd, pos);
   }
 
   // check if a containing transform already guards the given root identifier
@@ -159,56 +196,48 @@ export default class TransformQueue {
     return isStrictlyContained(this.#sorted, start, end, this.#prefixMaxEnd);
   }
 
-  // remove a queued transform by exact range and return its content, or null if not found
+  // O(log n) via indexed lookup + sorted binary search; was 3 × O(n) linear scans
   extractContent(start, end) {
-    const idx = this.#transforms.findIndex(t => t.start === start && t.end === end);
-    if (idx === -1) return null;
-    const entry = this.#transforms[idx];
-    this.#transforms.splice(idx, 1);
-    if (entry.guardedRoot) {
-      const list = this.#byGuardedRoot.get(entry.guardedRoot);
-      const li = list?.indexOf(entry) ?? -1;
-      if (li !== -1) {
-        if (list.length === 1) this.#byGuardedRoot.delete(entry.guardedRoot);
-        else list.splice(li, 1);
-      }
-    }
-    const si = this.#sorted.indexOf(entry);
-    if (si !== -1) {
-      this.#sorted.splice(si, 1);
-      // rebuild prefix max from removal point
-      this.#prefixMaxEnd.length = this.#sorted.length;
-      let running = si > 0 ? this.#prefixMaxEnd[si - 1] : -1;
-      for (let i = si; i < this.#sorted.length; i++) {
-        if (this.#sorted[i].end > running) running = this.#sorted[i].end;
-        this.#prefixMaxEnd[i] = running;
-      }
+    const rKey = rangeKey(start, end);
+    const rList = this.#byRange.get(rKey);
+    if (!rList?.length) return null;
+    const entry = rList.shift();
+    if (!rList.length) this.#byRange.delete(rKey);
+    this.#transforms.delete(entry);
+    if (entry.guardedRoot) removeFrom(this.#byGuardedRoot, entry.guardedRoot, entry);
+    const sorted = this.#sorted;
+    // binary search by start, then walk the equal-start run for entry identity
+    let si = lowerBound(sorted, start);
+    while (si < sorted.length && sorted[si].start === start && sorted[si] !== entry) si++;
+    if (si < sorted.length && sorted[si] === entry) {
+      sorted.splice(si, 1);
+      rebuildPrefixMax(sorted, this.#prefixMaxEnd, si);
     }
     return entry.content;
   }
 
   // compose nested transforms and apply to magic-string
   apply() {
-    const { length } = this.#transforms;
-    if (!length) return;
+    if (!this.#transforms.size) return;
+    const transforms = [...this.#transforms];
 
-    // fast path: no nesting - skip composition, apply right-to-left
+    // fast path: no nesting - apply right-to-left
     if (!this.#hasNesting()) {
-      this.#transforms.sort((a, b) => b.start - a.start);
-      for (const t of this.#transforms) this.#ms.overwrite(t.start, t.end, t.content);
+      transforms.sort((a, b) => b.start - a.start);
+      for (const t of transforms) this.#ms.overwrite(t.start, t.end, t.content);
       return;
     }
 
-    // slow path: compose nested transforms then apply outermost-first
-    // sort innermost first: smaller ranges before larger, right-to-left for same-level
-    this.#transforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
+    // slow path: compose nested transforms then apply outermost-first.
+    // innermost first: smaller ranges before larger, right-to-left for same-level
+    transforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
 
-    // phase 1: compose - build byStart index once, track composed content via Map
-    const byStart = [...this.#transforms].sort((a, b) => a.start - b.start);
+    // phase 1: compose - #sorted is already maintained asc by start
+    const byStart = this.#sorted;
     const composedContent = new Map(); // transform -> composed content string
     const composed = [];
 
-    for (const t of this.#transforms) {
+    for (const t of transforms) {
       const { start, end, rewriteHint } = t;
       let content = composedContent.get(t) ?? t.content;
 
@@ -274,7 +303,7 @@ export default class TransformQueue {
 
   // detect if any transform range is fully contained within another
   #hasNesting() {
-    if (this.#transforms.length < 2) return false;
+    if (this.#transforms.size < 2) return false;
     const sorted = [...this.#transforms].sort((a, b) => a.start - b.start || b.end - a.end);
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].end <= sorted[i - 1].end) return true;
