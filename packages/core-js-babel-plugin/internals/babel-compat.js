@@ -1,7 +1,11 @@
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage';
-import { findUniqueName, mayHaveSideEffects, TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
+import {
+  createTypeAnnotationChecker,
+  mayHaveSideEffects,
+  TS_EXPR_WRAPPERS,
+} from '@core-js/polyfill-provider/helpers';
 
-export default function (t) {
+export default function (t, { getInjector } = {}) {
   // side-effect expressions from destructuring inits - deferred to Program.exit
   const deferredSideEffects = [];
   // original body index of each declaration, before insertBefore shifts it
@@ -9,107 +13,14 @@ export default function (t) {
   // pending extracted declarators per ObjectPattern (for multi-declarator source-order split)
   const pendingExtractions = new WeakMap();
 
-  // memoized ancestor walk - cached on parent nodes so descendants share results
-  const typeAnnotationCache = new WeakMap();
-  function isInTypeAnnotation(path) {
-    const visited = [];
-    for (let current = path.parentPath; current; current = current.parentPath) {
-      const { node } = current;
-      if (!node) break;
-      if (typeAnnotationCache.has(node)) {
-        const cached = typeAnnotationCache.get(node);
-        for (const n of visited) typeAnnotationCache.set(n, cached);
-        return cached;
-      }
-      if (isTypeAnnotationNodeType(node.type)) {
-        typeAnnotationCache.set(node, true);
-        for (const n of visited) typeAnnotationCache.set(n, true);
-        return true;
-      }
-      visited.push(node);
-    }
-    for (const n of visited) typeAnnotationCache.set(n, false);
-    return false;
-  }
+  const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
-  // identifiers and `this` are safe to double-evaluate (no side effects, no temp ref needed).
-  // we DO NOT peel TS-only wrappers (`!`/`as`/`satisfies`) here - keeping them in the
-  // memoize check makes the unplugin (which uses a source-text regex) and babel agree on
-  // when to introduce a `_ref`, which is especially important inside optional chains
+  // identifiers and `this` are safe to double-evaluate. TS wrappers are deliberately NOT
+  // peeled here - keeping them in the check keeps babel's `_ref` emission in sync with
+  // unplugin's source-text regex, especially inside optional chains
   const isSafeToReuse = node => t.isIdentifier(node) || t.isThisExpression(node);
 
-  // own UID generator for `_ref` temp variables - bypasses Babel's
-  // scope.generateUidIdentifier which strips trailing digits from the hint, producing wrong
-  // numbering (after `_ref9` -> `_ref0`, `_ref1` instead of `_ref10`, `_ref11`).
-  // declare=true uses scope.push (handles arrow expression body -> block conversion correctly);
-  // declare=false skips the push for callers that build their own initialized declaration
-  // (e.g. destructuring extracts a const). generated names are tracked per file via REFS_KEY
-  // so subsequent calls don't reuse a name or collide with one we generated earlier.
-  // we also publish the chosen name into Babel's `program.references`/`program.uids` so that
-  // sibling transforms running afterwards (e.g. plugin-transform-computed-properties) don't
-  // hand the same name to a temp var via `scope.generateUidIdentifierBasedOnNode` -
-  // when declare=false the binding isn't registered, so without this they would collide
-  const REFS_KEY = Symbol('coreJSRefs');
-
-  function generateRef(scope, declare = true) {
-    const program = scope.getProgramParent();
-    const refs = program.path.node[REFS_KEY] ??= new Set();
-    const name = findUniqueName('_ref', refs.size === 0 ? null : refs.size + 1, 2,
-      n => refs.has(n) || scope.hasBinding(n) || program.references[n] || program.uids[n]);
-    refs.add(name);
-    program.references[name] = true;
-    program.uids[name] = true;
-    const id = t.identifier(name);
-    if (declare) scope.push({ id });
-    return id;
-  }
-
-  // drop dead `var _refN;` declarators (from `generateRef` side-effects left by stale
-  // visits whose emission was discarded by an outer `replaceWith`), then renumber
-  // survivors to `_ref, _ref2, ...` so the output matches unplugin. O(N) in AST size
-  function pruneUnusedRefs(programPath) {
-    const refs = programPath.node[REFS_KEY];
-    if (!refs?.size) return;
-    programPath.scope.crawl();
-    for (const name of refs) {
-      const binding = programPath.scope.getBinding(name);
-      if (!binding || binding.references || binding.constantViolations.length) continue;
-      // side-effectful init (`var _ref = (se(), Array)`) must not be dropped - destructuring
-      // siblings rely on the evaluation order even when the var looks unreferenced
-      if (binding.path.node?.init) continue;
-      const declPath = binding.path.parentPath;
-      if (declPath.node.declarations.length === 1) declPath.remove();
-      else binding.path.remove();
-      refs.delete(name);
-    }
-    if (!refs.size) return;
-
-    // collect every bound name across all scopes - `scope.hasBinding` from program misses
-    // nested bindings like a catch param `_ref` we mustn't collide with on renumber
-    const taken = new Set(Object.keys(programPath.scope.bindings));
-    programPath.traverse({
-      Scopable({ scope }) { for (const n of Object.keys(scope.bindings)) taken.add(n); },
-    });
-    for (const name of refs) taken.delete(name);
-
-    // Set iteration preserves generation order, already ascending
-    const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
-    const renameMap = new Map();
-    let i = 1;
-    for (const name of refs) {
-      while (taken.has(slot(i))) i++;
-      const target = slot(i++);
-      if (name !== target) renameMap.set(name, target);
-    }
-    if (!renameMap.size) return;
-
-    programPath.traverse({
-      Identifier(p) {
-        const to = renameMap.get(p.node.name);
-        if (to) p.node.name = to;
-      },
-    });
-  }
+  const generateRef = (scope, declare = true) => getInjector().generateRef(scope, declare);
 
   function memoize(node, scope) {
     if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
@@ -499,7 +410,6 @@ export default function (t) {
     deferredSideEffects,
     deoptionalizeNode,
     normalizeOptionalChain,
-    pruneUnusedRefs,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
