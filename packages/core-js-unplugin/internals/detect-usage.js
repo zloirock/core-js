@@ -244,12 +244,21 @@ function walkSubtree(node, parent, parentKey, parentPath, scope, visitors) {
   forEachChildNode(node, (child, key) => walkSubtree(child, node, key, synthPath, childScope, visitors));
 }
 
-function walkDecorators(parentPath, decoratorVisitors) {
-  const decorators = parentPath.node?.decorators;
+function walkDecoratorList(decorators, parentPath, decoratorVisitors) {
   if (!decorators?.length) return;
   for (const decorator of decorators) {
     walkSubtree(decorator, null, null, parentPath, parentPath.scope, decoratorVisitors);
   }
+}
+
+// walks the node's own decorators plus any param-level decorators (TS legacy `@dec arg`
+// on class method / constructor params). `MethodDefinition.params` lives on `.value`
+function walkDecorators(parentPath, decoratorVisitors) {
+  const { node } = parentPath;
+  walkDecoratorList(node?.decorators, parentPath, decoratorVisitors);
+  const params = node?.params ?? node?.value?.params;
+  if (!params) return;
+  for (const param of params) walkDecoratorList(param?.decorators, parentPath, decoratorVisitors);
 }
 
 // --- Usage visitors ---
