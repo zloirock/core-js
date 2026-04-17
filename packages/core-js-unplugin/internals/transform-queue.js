@@ -104,12 +104,14 @@ function upperBound(ranges, target) {
 }
 
 // equal-range merge: arrow body wrapper + inner polyfill share the same [start, end].
-// the "wrapper" contains the original source as substring; the "inner" doesn't
+// the "wrapper" contains the original source as substring; the "inner" doesn't.
+// function-form replace bypasses `$&` / `$1` / `$'` / `` $` `` interpretation if `inner`
+// happens to contain those tokens (e.g. user source with `$&` or polyfill names with `$`)
 function mergeEqualRange(a, b, originalNeedle) {
   const aIsWrapper = a.includes(originalNeedle);
   const wrapper = aIsWrapper ? a : b;
   const inner = aIsWrapper ? b : a;
-  return wrapper.includes(originalNeedle) ? wrapper.replace(originalNeedle, inner) : inner;
+  return wrapper.includes(originalNeedle) ? wrapper.replace(originalNeedle, () => inner) : inner;
 }
 
 // composite key for the (start, end) range index
