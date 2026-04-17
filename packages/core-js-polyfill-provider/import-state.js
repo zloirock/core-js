@@ -1,8 +1,7 @@
 import { findUniqueName } from './helpers.js';
 
-// pure state bookkeeping for import emitters - each plugin subclasses and implements flush().
-// optional subclass override points (called via `?.`): isNameTaken, hookNameAllocated,
-// hookPureImportCreated, hookUserPureImportRegistered, hookUserGlobalImportRegistered
+// import-emitter state; each plugin subclasses and implements `flush()`.
+// augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass
 export default class ImportInjectorState {
   absoluteImports;
   mode;
@@ -34,20 +33,17 @@ export default class ImportInjectorState {
     if (this.pureImports.has(source)) return this.pureImports.get(source);
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2);
     this.pureImports.set(source, name);
-    this.hookPureImportCreated?.(name, source, hint);
     return name;
   }
 
   registerUserGlobalImport(moduleName) {
     this.existingGlobalImports.add(moduleName);
-    this.hookUserGlobalImportRegistered?.(moduleName);
   }
 
   registerUserPureImport(entry, name) {
     const source = `${ this.mode }/${ entry }`;
     this.existingPureImports.set(source, name);
     this.usedNames.add(name);
-    this.hookUserPureImportRegistered?.(name, source);
   }
 
   seedReservedNames(names) {
@@ -62,12 +58,20 @@ export default class ImportInjectorState {
     this.referencedInSource?.add(name);
   }
 
-  uniqueName(prefix, startSuffix, minSuffix = 1) {
-    const name = findUniqueName(prefix, startSuffix, minSuffix, n => this.isNameTaken(n));
+  uniqueName(prefix, startSuffix, minSuffix, extraCheck) {
+    const name = findUniqueName(prefix, startSuffix, minSuffix,
+      n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false));
     this.usedNames.add(name);
-    this.hookNameAllocated?.(name);
     return name;
   }
 
   isNameTaken(name) { return this.usedNames.has(name); }
+
+  // `_ref, _ref2, _ref3, ...` (no `_ref1`). `extraCheck` covers bindings the injector
+  // doesn't track (e.g. caller's inner scope); subclass decides how the name is emitted
+  #refCount = 0;
+  generateRefName(extraCheck) {
+    const n = this.#refCount++;
+    return this.uniqueName('_ref', n === 0 ? null : n + 1, 2, extraCheck);
+  }
 }
