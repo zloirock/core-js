@@ -134,6 +134,20 @@ const BODY_SLOT_TYPES = new Set([
   'WithStatement',
 ]);
 
+// `UnpluginContextMeta.framework` union (upstream unplugin). validating here so typos
+// like `webpaaack` fail loudly instead of silently falling to the non-webpack default
+const KNOWN_BUNDLERS = new Set([
+  'bun',
+  'esbuild',
+  'farm',
+  'rolldown',
+  'rollup',
+  'rspack',
+  'unloader',
+  'vite',
+  'webpack',
+]);
+
 // is `path` the unbraced body slot of an if/loop/with/label/arrow?
 function isBodylessStatementBody(path) {
   const parent = path.parentPath?.node;
@@ -148,6 +162,10 @@ export default function createPlugin(options) {
 
   // `bundler` is unplugin-specific - strip it before passing options to the provider
   const { bundler, ...providerOptions } = options;
+  if (bundler !== undefined && bundler !== null && !KNOWN_BUNDLERS.has(bundler)) {
+    const list = [...KNOWN_BUNDLERS].map(b => `'${ b }'`).join(', ');
+    throw new TypeError(`\`bundler\` must be one of ${ list }, or undefined (received ${ JSON.stringify(bundler) })`);
+  }
 
   // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id).
   // `storeSnapshot` deletes-before-set, so Map insertion order stays chronological -
