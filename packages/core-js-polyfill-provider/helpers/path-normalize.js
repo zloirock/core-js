@@ -24,9 +24,10 @@ export function resolveImportPath(pkg, subpath, absoluteImports) {
   }
 }
 
-// skip core-js internals and bundles - polyfilling their own code creates circular dependencies
-const CORE_JS_INTERNAL_FILE = /[/\\](?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:actual|es|features|full|internals|modules|proposals|stable|stage)[/\\]/;
-const CORE_JS_BUNDLE = /[/\\](?:core-js-bundle|@core-js[/\\]bundle)[/\\]/;
+// skip core-js internals and bundles - polyfilling their own code creates circular dependencies.
+// `(?:^|[/\\])` so Farm/Bun/esbuild-plugin-mode bare ids (`core-js/actual/...`) match too
+const CORE_JS_INTERNAL_FILE = /(?:^|[/\\])(?:core-js|core-js-pure|@core-js[/\\]pure)[/\\](?:actual|es|features|full|internals|modules|proposals|stable|stage)[/\\]/;
+const CORE_JS_BUNDLE = /(?:^|[/\\])(?:core-js-bundle|@core-js[/\\]bundle)(?:[/\\]|$)/;
 
 export function isCoreJSFile(filename) {
   // normalize doubled slashes/backslashes - some bundlers (farm) pass ids like `core-js-pure//full/...`
