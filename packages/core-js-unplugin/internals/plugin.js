@@ -1237,6 +1237,8 @@ export default function createPlugin(options) {
       const usagePureCallback = (meta, metaPath) => {
         if (isDisabled(metaPath.node)) return;
         if (skippedNodes.has(metaPath.node)) return;
+        // see babel-plugin `usagePureCallback` - `<_Map/>` would invoke polyfill as a component
+        if (metaPath.node?.type === 'JSXIdentifier') return;
         if (isInTypeAnnotation(metaPath)) return;
         state.setScope(metaPath);
         const { node } = metaPath;
