@@ -3207,19 +3207,14 @@ function createResolveNodeType(babelNodeType, t) {
 
   const ASSIGN_LEFT_TYPES = new Set(['Identifier', 'ObjectPattern', 'ArrayPattern']);
 
-  // find the last straight-line assignment before usagePath:
-  // `x = value`, `x += value`, `({ x } = value)`, or a `var x = value` redeclaration -
-  // same var-scope (possibly nested through plain blocks / synchronous IIFEs)
-  function findLastStraightLineAssignment(binding, usagePath) {
+  // lazy per-binding cache: valid assignments pre-filtered, sorted by pos; binary-searched per query
+  const sortedAssignmentCache = new WeakMap();
+
+  function buildSortedAssignments(binding) {
     const { scope: bindingScope, constantViolations } = binding;
-    if (!constantViolations?.length) return null;
-    if (!isInBindingVarScope(usagePath.scope, bindingScope)) return null;
-    const beforePos = usagePath.node.start;
-    if (beforePos === undefined || beforePos === null) return null;
     const bindingScopeNode = scopeNode(bindingScope);
     const varScopeBody = bindingScopeNode.type === 'Program' ? bindingScopeNode : bindingScopeNode.body;
-
-    let best = null;
+    const out = [];
     for (const v of constantViolations) {
       const ap = violationToAssignment(v);
       if (!ap) continue;
@@ -3234,7 +3229,7 @@ function createResolveNodeType(babelNodeType, t) {
       }
       if (!effectiveAp) continue;
       const pos = effectiveAp.node.start;
-      if (pos === undefined || pos === null || pos >= beforePos) continue;
+      if (pos === undefined || pos === null) continue;
       // walk to the directly-wrapping statement:
       //   AssignmentExpression → ExpressionStatement
       //   VariableDeclarator    → VariableDeclaration (one step up)
@@ -3242,9 +3237,38 @@ function createResolveNodeType(babelNodeType, t) {
       let stmt = effectiveAp;
       while (stmt && stmt.node.type !== stmtType) stmt = stmt.parentPath;
       if (!stmt || !reachesVarScopeStraightLine(stmt.parentPath, varScopeBody)) continue;
-      if (!best || pos > best.node.start) best = ap;
+      out.push({ ap, pos });
     }
-    return best;
+    out.sort((a, b) => a.pos - b.pos);
+    return out;
+  }
+
+  // find the last straight-line assignment before usagePath:
+  // `x = value`, `x += value`, `({ x } = value)`, or a `var x = value` redeclaration -
+  // same var-scope (possibly nested through plain blocks / synchronous IIFEs).
+  // O(V) build per binding (cached), O(log V) per query
+  function findLastStraightLineAssignment(binding, usagePath) {
+    const beforePos = usagePath.node.start;
+    if (beforePos === undefined || beforePos === null) return null;
+    if (!binding.constantViolations?.length) return null;
+    if (!isInBindingVarScope(usagePath.scope, binding.scope)) return null;
+
+    let sortedAssigns = sortedAssignmentCache.get(binding);
+    if (!sortedAssigns) {
+      sortedAssigns = buildSortedAssignments(binding);
+      sortedAssignmentCache.set(binding, sortedAssigns);
+    }
+    if (!sortedAssigns.length) return null;
+
+    // largest entry with pos < beforePos
+    let lo = 0;
+    let hi = sortedAssigns.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sortedAssigns[mid].pos < beforePos) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo > 0 ? sortedAssigns[lo - 1].ap : null;
   }
 
   // --- Guard parsing & narrowing ---
