@@ -271,6 +271,8 @@ export default function createPlugin(options) {
       deferImports,
       inherit,
     });
+    // orphan post: snapshot dropped between passes (TTL, buildEnd, sibling invalidation)
+    if (pass === 'post' && !inherit) injector.adoptOrphanRefsFromCode(code);
     // seed the injector with every binding name in the file (any nesting level)
     // so generated UIDs don't shadow user-declared identifiers in nested scopes
     injector.seedReservedNames(collectAllBindingNames(ast));
