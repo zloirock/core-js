@@ -1,39 +1,12 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage';
-import { walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
+import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers';
 import { estreeAdapter } from './detect-usage.js';
-
-// does a binding pattern bind an Identifier named `require` anywhere in its tree?
-function patternBindsRequire(node) {
-  let found = false;
-  walkPatternIdentifiers(node, id => { if (id.name === 'require') found = true; });
-  return found;
-}
-
-// scan top-level statements for any binding named `require` (var/let/const/function/class/import)
-// - when shadowed, `require('core-js/...')` calls are user code, not entry points
-function declaresRequire(body) {
-  for (const node of body) {
-    switch (node.type) {
-      case 'VariableDeclaration':
-        for (const d of node.declarations) if (patternBindsRequire(d.id)) return true;
-        break;
-      case 'FunctionDeclaration':
-      case 'ClassDeclaration':
-        if (node.id?.name === 'require') return true;
-        break;
-      case 'ImportDeclaration':
-        for (const s of node.specifiers) if (s.local?.name === 'require') return true;
-        break;
-    }
-  }
-  return false;
-}
 
 // detect and transform core-js entry imports (entry-global mode)
 export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
   const toRemove = [];
   // stub scope: getEntrySource only consults `hasBinding('require')` to skip shadowed calls
-  const shadowScope = declaresRequire(ast.body) ? { hasBinding: () => true } : null;
+  const shadowScope = declaresRequireBinding(ast.body) ? { hasBinding: () => true } : null;
 
   for (const node of ast.body) {
     const source = getEntrySource(node, estreeAdapter, shadowScope);
@@ -45,13 +18,16 @@ export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEnt
     toRemove.push(node);
   }
 
-  for (const node of toRemove) {
-    let { end } = node;
-    // consume trailing whitespace + one newline; must not eat next line's indent
-    while (end < ms.original.length && (ms.original[end] === ' ' || ms.original[end] === '\t')) end++;
-    if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
-    else if (ms.original[end] === '\n' || ms.original[end] === '\r') end++;
-    ms.remove(node.start, end);
-  }
+  for (const node of toRemove) removeTopLevelStatement(ms, node);
   return toRemove.length > 0;
+}
+
+// consume trailing whitespace + one newline so the removed line doesn't leave a blank gap;
+// must not eat the following line's indent
+export function removeTopLevelStatement(ms, node) {
+  let { end } = node;
+  while (end < ms.original.length && (ms.original[end] === ' ' || ms.original[end] === '\t')) end++;
+  if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
+  else if (ms.original[end] === '\n' || ms.original[end] === '\r') end++;
+  ms.remove(node.start, end);
 }
