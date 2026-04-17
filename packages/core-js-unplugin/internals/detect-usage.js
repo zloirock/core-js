@@ -318,6 +318,13 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
       },
     } : {},
     Identifier: identifierVisitor,
+    // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
+    // names, namespaced/member parts, and closing-tag dupes so we emit the import once
+    JSXIdentifier(path) {
+      if (path.parent?.type !== 'JSXOpeningElement' || path.key !== 'name') return;
+      if (path.scope?.hasBinding(path.node.name)) return;
+      onUsage({ kind: 'global', name: path.node.name }, path);
+    },
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
     Property(path) {
