@@ -79,8 +79,9 @@ export function createClassHelpers(t) {
     return backfill(visited, null);
   }
 
-  // follow a chain of `const X = Y` aliases up to the first unshadowed global name,
-  // or null when the root is a real local binding (not an alias)
+  // follow `const X = Y` aliases to the first unshadowed global; null on real local
+  // bindings. ES imports pass through so `resolveSuperImportName` can map them back
+  // to the original global via the injector's `#byName` registry
   function resolveSuperClassName(startName, scope) {
     let name = startName;
     const seen = new Set();
@@ -90,6 +91,8 @@ export function createClassHelpers(t) {
       if (!binding) return name;
       if (binding.constantViolations?.length) return null;
       const decl = binding.path?.node;
+      if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
+        || decl?.type === 'ImportNamespaceSpecifier') return name;
       if (decl?.type !== 'VariableDeclarator' || decl.init?.type !== 'Identifier') return null;
       name = decl.init.name;
     }
