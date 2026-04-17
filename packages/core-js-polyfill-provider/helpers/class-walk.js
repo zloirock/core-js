@@ -55,7 +55,7 @@ export function createClassHelpers(t) {
   // arrows are transparent (lexical super/this); non-arrow fns short-circuit except for the
   // ESTree `MethodDefinition.value = FunctionExpression` wrapper. back-fills visited ancestors
   // so sibling walks in the same subtree are amortized O(1)
-  const enclosingCache = new WeakMap();
+  let enclosingCache = new WeakMap();
   const backfill = (visited, value) => {
     for (const n of visited) enclosingCache.set(n, value);
     return value;
@@ -104,7 +104,7 @@ export function createClassHelpers(t) {
     return buildSuperStaticMeta(info.classNode, key, name => resolveSuperClassName(name, path.scope));
   }
 
-  const ownInstanceNames = new WeakMap();
+  let ownInstanceNames = new WeakMap();
   function getOwnInstanceNames(classBodyNode) {
     let names = ownInstanceNames.get(classBodyNode);
     if (names) return names;
@@ -129,7 +129,12 @@ export function createClassHelpers(t) {
     return t.isClassBody(info.classBodyNode) && getOwnInstanceNames(info.classBodyNode).has(key);
   }
 
-  return { resolveSuperMember, isShadowedByClassOwnMember };
+  function reset() {
+    enclosingCache = new WeakMap();
+    ownInstanceNames = new WeakMap();
+  }
+
+  return { resolveSuperMember, isShadowedByClassOwnMember, reset };
 }
 
 // convert Symbol.X key to kebab-case entry: Symbol.hasInstance -> symbol/has-instance
