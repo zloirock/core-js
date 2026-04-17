@@ -1085,6 +1085,10 @@ function createResolveNodeType(babelNodeType, t) {
       case 'Uncapitalize':
       case '$Keys':
         return new $Primitive('string');
+      // TS lib alias for `string | number | symbol`; no polyfill API is shared across
+      // all three, so null lets downstream fall back to generic-instance emission
+      case 'PropertyKey':
+        return null;
       // well-known utility types - transparent wrappers resolving type parameter
       // Flow: $Exact
       case 'NoInfer':
@@ -1218,6 +1222,11 @@ function createResolveNodeType(babelNodeType, t) {
       // TS typeof in type position: `typeof variable`
       case 'TSTypeQuery':
         return resolveTypeQuery(node, scope);
+      // `typeof import('x')` / `import('x').Foo` - referenced module isn't visible
+      // without file I/O. explicit case so future extension doesn't need to untangle
+      // a silent fall-through through `TSTypeReference`
+      case 'TSImportType':
+        return null;
       // Flow typeof in type position: `typeof variable`
       case 'TypeofTypeAnnotation': {
         const arg = node.argument;
@@ -2197,8 +2206,17 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolveClassMember(classPath, name, isStatic, callPath) {
     const member = findClassMember(classPath, name, isStatic);
-    if (!member) return null;
-    // method call: foo.bar()
+    if (member) return resolveClassMemberNode(member, callPath);
+    // TS declaration merging: sibling `interface X { ... }` contributes instance members
+    // to the class type. runs only when the class body has no match, so real class methods
+    // always win on collision (matches TS semantics)
+    if (!isStatic && classPath.node.id?.name) {
+      return resolveMergedInterfaceMember(classPath.node.id.name, classPath.scope, name, callPath);
+    }
+    return null;
+  }
+
+  function resolveClassMemberNode(member, callPath) {
     // ESTree MethodDefinition wraps FunctionExpression in .value - unwrap for return type resolution
     const methodFn = t.isClassMethod(member.node) ? (member.get('value')?.node ? member.get('value') : member) : null;
     if (callPath) {
@@ -2221,6 +2239,31 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // method: getter returns its return type, regular method returns Function
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn) : new $Object('Function');
+    return null;
+  }
+
+  function resolveMergedInterfaceMember(className, scope, name, callPath) {
+    const interfaces = findAllTypeDeclarations(className, scope).filter(isInterfaceDeclaration);
+    for (const iface of interfaces) {
+      // TS: iface.body.body; Flow: iface.body.properties
+      const body = iface.body?.body ?? iface.body?.properties;
+      if (!body) continue;
+      for (const member of body) {
+        if (member.computed) continue;
+        if (!keyMatchesName(member.key, name)) continue;
+        if (member.type === 'TSMethodSignature') {
+          if (callPath) {
+            const returnType = member.returnType ?? member.typeAnnotation;
+            return returnType ? resolveTypeAnnotation(returnType, scope) : null;
+          }
+          return new $Object('Function');
+        }
+        if (member.type === 'TSPropertySignature' || member.type === 'ObjectTypeProperty') {
+          const annotation = member.typeAnnotation ?? member.value;
+          return annotation ? resolveTypeAnnotation(annotation, scope) : null;
+        }
+      }
+    }
     return null;
   }
 
