@@ -99,3 +99,69 @@ QUnit.test('destructuring: with default value', assert => {
   assert.same(typeof from, 'function');
   assert.deepEqual(from([1]), [1]);
 });
+
+// deferred-SE fixed-point loop: when a destructure SE contains a callback whose body
+// has another destructure-with-SE, the inner SE must survive the compiler's lift
+
+QUnit.test('destructuring: nested SE inside lifted callback', assert => {
+  const log = [];
+  let captured;
+  const wrap = obj => {
+    log.push('outer');
+    captured = obj.fn;
+  };
+  const innerFn = () => {
+    const { of } = (log.push('inner'), Array);
+    return of;
+  };
+  const { from } = (wrap({ fn: innerFn }), Array);
+  assert.deepEqual(log, ['outer']);
+  assert.same(typeof captured(), 'function');
+  assert.deepEqual(log, ['outer', 'inner']);
+  assert.same(typeof from, 'function');
+});
+
+QUnit.test('destructuring: triple-level nested SE', assert => {
+  const log = [];
+  let mid, deep;
+  const outer = cb => {
+    log.push('outer');
+    mid = cb;
+  };
+  const wrap = cb => {
+    log.push('mid');
+    deep = cb;
+  };
+  const { from } = (outer(() => {
+    const { of } = (wrap(() => {
+      const { fromAsync } = (log.push('deep'), Array);
+      return fromAsync;
+    }), Array);
+    return of;
+  }), Array);
+  assert.deepEqual(log, ['outer']);
+  mid();
+  assert.deepEqual(log, ['outer', 'mid']);
+  assert.same(typeof deep(), 'function');
+  assert.deepEqual(log, ['outer', 'mid', 'deep']);
+  assert.same(typeof from, 'function');
+});
+
+QUnit.test('destructuring: nested SE in assignment form', assert => {
+  const log = [];
+  let captured;
+  const wrap = obj => {
+    log.push('outer');
+    captured = obj.fn;
+  };
+  const innerFn = () => {
+    const { of } = (log.push('inner'), Array);
+    return of;
+  };
+  let from;
+  // eslint-disable-next-line prefer-const -- testing assignment-form destructure path
+  ({ from } = (wrap({ fn: innerFn }), Array));
+  captured();
+  assert.deepEqual(log, ['outer', 'inner']);
+  assert.same(typeof from, 'function');
+});
