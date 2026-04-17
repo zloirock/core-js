@@ -120,3 +120,56 @@ QUnit.test('nested optional: obj?.prop?.includes(x)', assert => {
   assert.same(null?.list?.includes(2), undefined);
   assert.same(obj?.missing?.includes(2), undefined);
 });
+
+// --- chained polyfills via optional call: inner chain + outer polyfill ---
+
+// user method returning array, followed by non-optional polyfilled .at
+QUnit.test('user method chain: a?.b?.().at(0)', assert => {
+  const a = { b: () => [10, 20, 30] };
+  assert.same(a?.b?.().at(0), 10);
+  assert.same(null?.b?.().at(0), undefined);
+  assert.same({ b: null }?.b?.().at(0), undefined);
+});
+
+// polyfillable instance method inside the chain + non-optional outer polyfill
+QUnit.test('poly chain with side-effect receiver: (a())?.at?.(1).slice(0)', assert => {
+  const nil = () => null;
+  assert.same(nil()?.at?.(1).slice(0), undefined);
+  const arr = () => [[1], [2], [3]];
+  assert.deepEqual(arr()?.at?.(1).slice(0), [2]);
+});
+
+// both inner and outer polyfilled, non-optional continuation
+QUnit.test('poly chain: [].at?.(1).slice(0) with non-empty', assert => {
+  const arr = [[1], [2], [3]];
+  assert.deepEqual(arr.at?.(1).slice(0), [2]);
+});
+
+// inner returns value-undef (NOT short-circuit) and non-optional outer runs on it - native throws
+QUnit.test('poly chain: [].at?.(1).slice(0) on empty throws like native', assert => {
+  assert.throws(() => [].at?.(1).slice(0), TypeError);
+});
+
+// both-optional variant
+QUnit.test('poly chain both optional: arr.at?.(i)?.slice(0)', assert => {
+  const arr = [[1], [2], [3]];
+  assert.deepEqual(arr.at?.(1)?.slice(0), [2]);
+  assert.same([].at?.(5)?.slice(0), undefined);
+});
+
+// side-effect receiver + polyfill chain + polyfill outer
+QUnit.test('poly chain: a()?.flat?.(1).at(0)', assert => {
+  const nil = () => null;
+  assert.same(nil()?.flat?.(1).at(0), undefined);
+  const nested = () => [[1], [2]];
+  assert.same(nested()?.flat?.(1).at(0), 1);
+});
+
+// deeper user-chain with polyfill at the tail
+QUnit.test('deep user chain: a?.b?.c?.().at(0)', assert => {
+  const a = { b: { c: () => [10, 20] } };
+  assert.same(a?.b?.c?.().at(0), 10);
+  assert.same(null?.b?.c?.().at(0), undefined);
+  assert.same({ b: null }?.b?.c?.().at(0), undefined);
+  assert.same({ b: { c: null } }?.b?.c?.().at(0), undefined);
+});
