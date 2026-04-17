@@ -5,14 +5,13 @@ import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 export default class ImportInjector extends ImportInjectorState {
   #t;
   #programPath;
-  // binding name -> { source, hint, id: Identifier }. `id` is cloneNode'd on each return.
-  // source/hint exposed via getPureImport() -> resolveKey / resolveBindingToGlobal use them
-  // to recognise post-mutation polyfill identifiers
+  // binding name -> { source, hint, id: Identifier }. drives getPureImport() lookups
   #byName = new Map();
-  // babel runs flush multiple times during traversal (pre, programExit, deferred side
-  // effects) -> track what's already been written to the program so we skip duplicates
+  // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted
   #flushedGlobals = new Set();
   #flushedPure = new Set();
+  // `_ref` names - iterated by pruneUnusedRefs at programExit
+  #refs = new Set();
 
   constructor({ t, programPath, pkg, mode, importStyle, absoluteImports = false }) {
     super({ absoluteImports, mode, pkg, importStyle });
@@ -20,47 +19,101 @@ export default class ImportInjector extends ImportInjectorState {
     this.#programPath = programPath;
   }
 
-  // base returns the binding name (string); babel consumers expect an Identifier node
+  isNameTaken(name) {
+    if (super.isNameTaken(name)) return true;
+    const { scope } = this.#programPath;
+    const program = scope.getProgramParent();
+    return scope.hasBinding(name) || !!program.references[name] || !!program.uids[name];
+  }
+
+  // publish every allocated UID into program.references/.uids so sibling transforms
+  // don't collide via scope.generateUidIdentifierBasedOnNode
+  uniqueName(prefix, startSuffix, minSuffix, extraCheck) {
+    const name = super.uniqueName(prefix, startSuffix, minSuffix, extraCheck);
+    const program = this.#programPath.scope.getProgramParent();
+    program.references[name] = true;
+    program.uids[name] = true;
+    return name;
+  }
+
+  // own UID generator - Babel's scope.generateUidIdentifier strips trailing digits
+  // and after `_ref9` would hand out `_ref0`/`_ref1` instead of `_ref10`/`_ref11`.
+  // `declare=true` uses scope.push (handles arrow-body -> block promotion); `false` leaves
+  // the declaration to the caller (e.g. destructuring extracts its own `const`)
+  generateRef(scope, declare = true) {
+    const name = this.generateRefName(n => scope.hasBinding(n));
+    this.#refs.add(name);
+    const id = this.#t.identifier(name);
+    if (declare) scope.push({ id });
+    return id;
+  }
+
+  // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
+  // emission but kept the scope.push), then renumber survivors so the output matches unplugin
+  pruneUnusedRefs() {
+    if (!this.#refs.size) return;
+    this.#programPath.scope.crawl();
+    for (const name of this.#refs) {
+      const binding = this.#programPath.scope.getBinding(name);
+      if (!binding || binding.references || binding.constantViolations.length) continue;
+      // `var _ref = (se(), Array)` - side-effectful init must stay even if the var is unused
+      if (binding.path.node?.init) continue;
+      const declPath = binding.path.parentPath;
+      if (declPath.node.declarations.length === 1) declPath.remove();
+      else binding.path.remove();
+      this.#refs.delete(name);
+    }
+    if (!this.#refs.size) return;
+
+    // enumerate every scope's bindings - program-level hasBinding misses nested `_ref`
+    // (catch param, inner var) we mustn't collide with on rename
+    const taken = new Set(Object.keys(this.#programPath.scope.bindings));
+    this.#programPath.traverse({
+      Scopable({ scope }) { for (const n of Object.keys(scope.bindings)) taken.add(n); },
+    });
+    for (const name of this.#refs) taken.delete(name);
+
+    const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
+    const renameMap = new Map();
+    let i = 1;
+    for (const name of this.#refs) {
+      while (taken.has(slot(i))) i++;
+      const target = slot(i++);
+      if (name !== target) renameMap.set(name, target);
+    }
+    if (!renameMap.size) return;
+
+    this.#programPath.traverse({
+      Identifier(p) {
+        const to = renameMap.get(p.node.name);
+        if (to) p.node.name = to;
+      },
+    });
+  }
+
+  // base returns a string; babel consumers need an Identifier
   addPureImport(entry, hint) {
     const name = super.addPureImport(entry, hint);
+    if (!this.#byName.has(name)) {
+      this.#byName.set(name, { source: `${ this.mode }/${ entry }`, hint, id: this.#t.identifier(name) });
+    }
     return this.#t.cloneNode(this.#byName.get(name).id);
+  }
+
+  registerUserPureImport(entry, name) {
+    super.registerUserPureImport(entry, name);
+    this.#byName.set(name, { source: `${ this.mode }/${ entry }`, hint: name, id: this.#t.identifier(name) });
+  }
+
+  registerUserGlobalImport(moduleName) {
+    super.registerUserGlobalImport(moduleName);
+    this.#flushedGlobals.add(moduleName);
   }
 
   getPureImport(name) {
     const entry = this.#byName.get(name);
     return entry ? { source: entry.source, hint: entry.hint } : null;
   }
-
-  // --- hooks ---
-
-  isNameTaken(name) {
-    if (this.usedNames.has(name)) return true;
-    const { scope } = this.#programPath;
-    const program = scope.getProgramParent();
-    return scope.hasBinding(name) || !!program.references[name] || !!program.uids[name];
-  }
-
-  // publish the chosen UID into program.references/.uids so sibling transforms don't
-  // hand the same name to a temp var via scope.generateUidIdentifierBasedOnNode
-  hookNameAllocated(name) {
-    const program = this.#programPath.scope.getProgramParent();
-    program.references[name] = true;
-    program.uids[name] = true;
-  }
-
-  hookPureImportCreated(name, source, hint) {
-    this.#byName.set(name, { source, hint, id: this.#t.identifier(name) });
-  }
-
-  hookUserPureImportRegistered(name, source) {
-    this.#byName.set(name, { source, hint: name, id: this.#t.identifier(name) });
-  }
-
-  hookUserGlobalImportRegistered(moduleName) {
-    this.#flushedGlobals.add(moduleName);
-  }
-
-  // --- emission ---
 
   #resolvePath(subpath) {
     return resolveImportPath(this.pkg, subpath, this.absoluteImports);
