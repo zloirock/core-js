@@ -140,12 +140,14 @@ export function createPolyfillContext({
 
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
   if (typeof pkg != 'string') throw optionTypeError('package', 'a string', pkg);
+  if (pkg === '') throw optionTypeError('package', 'a non-empty string', pkg);
   if (additionalPackages !== null && additionalPackages !== undefined && !Array.isArray(additionalPackages)) {
     throw optionTypeError('additionalPackages', 'an array, or undefined', additionalPackages);
   }
   if (additionalPackages) {
-    const bad = additionalPackages.find($pkg => typeof $pkg != 'string');
-    if (bad !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', bad);
+    const badType = additionalPackages.find($pkg => typeof $pkg != 'string');
+    if (badType !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', badType);
+    if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
   }
 
   version = normalizeCoreJSVersion(version);
