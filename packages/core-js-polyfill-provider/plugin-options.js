@@ -1,7 +1,7 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { patternToRegExp, symbolKeyToEntry } from './helpers.js';
+import { isForXWriteTarget, patternToRegExp, symbolKeyToEntry } from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
@@ -228,6 +228,8 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
 export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEntry, isDisabled, resolveSuperMember }) {
   function dispatch(meta, path) {
     if (isDisabled(path.node)) return;
+    // for-x LHS and shadowed body reads target a local write, not the prototype
+    if (meta.kind === 'property' && path?.node && isForXWriteTarget(path)) return;
     if (meta.kind === 'in') {
       const entry = symbolKeyToEntry(meta.key);
       if (entry) injectModulesForModeEntry(entry);
