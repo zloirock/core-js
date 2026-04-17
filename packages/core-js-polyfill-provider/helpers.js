@@ -3,6 +3,7 @@ export {
   ESM_MARKER_TYPES,
   TS_EXPR_WRAPPERS,
   createTypeAnnotationChecker,
+  declaresRequireBinding,
   detectCommonJS,
   hasTopLevelESM,
   isDeleteTarget,
