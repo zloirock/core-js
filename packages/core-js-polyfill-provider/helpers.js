@@ -6,7 +6,7 @@ export {
   detectCommonJS,
   hasTopLevelESM,
   isDeleteTarget,
-  isForXLeft,
+  isForXWriteTarget,
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
