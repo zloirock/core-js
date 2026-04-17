@@ -10,6 +10,7 @@ import {
   hasTopLevelESM,
   isCoreJSFile,
   isDeleteTarget,
+  isForXWriteTarget,
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
@@ -1263,6 +1264,7 @@ export default function createPlugin(options) {
           }
           if (node.type !== 'MemberExpression') return;
           if (isUpdateTarget(parent)) return;
+          if (isForXWriteTarget(metaPath)) return;
           if (node.object?.type === 'Super') {
             const superMeta = resolveSuperMember(metaPath);
             if (!superMeta) return;
