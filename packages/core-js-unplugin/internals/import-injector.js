@@ -59,10 +59,10 @@ export default class ImportInjector extends ImportInjectorState {
     return this.usedNames.has(name) || (this.#rootScope?.hasBinding(name) ?? false);
   }
 
-  // _ref, _ref2, _ref3... (no _ref1) - matches Babel's UID generator
+  // numbering is shared via `ImportInjectorState.generateRefName`; we track hoisted names
+  // locally so flush() can emit the `var _ref, _ref2, ...;` declaration
   generateRef(hoisted = true) {
-    const n = this.#refs.length;
-    const name = this.uniqueName('_ref', n === 0 ? null : n + 1, 2);
+    const name = this.generateRefName();
     if (hoisted) this.#refs.push(name);
     return name;
   }
