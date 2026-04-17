@@ -1,6 +1,14 @@
 // barrel re-export - preserves external import surface while logic lives in focused modules
 export {
+  ESM_MARKER_TYPES,
   TS_EXPR_WRAPPERS,
+  createTypeAnnotationChecker,
+  detectCommonJS,
+  hasTopLevelESM,
+  isDeleteTarget,
+  isForXLeft,
+  isTaggedTemplateTag,
+  isUpdateTarget,
   mayHaveSideEffects,
   walkPatternIdentifiers,
 } from './helpers/ast-patterns.js';
