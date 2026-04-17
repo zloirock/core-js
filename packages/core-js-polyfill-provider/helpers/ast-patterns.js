@@ -84,6 +84,32 @@ function isCommonJSAssignTarget(left) {
 
 export const hasTopLevelESM = program => program.body.some(n => ESM_MARKER_TYPES.has(n.type));
 
+// shadowed `require` makes its calls user-authored no-ops, not real core-js imports
+export function declaresRequireBinding(body) {
+  let found = false;
+  const mark = id => {
+    if (id.name === 'require') found = true;
+  };
+  for (const node of body ?? []) {
+    switch (node.type) {
+      case 'VariableDeclaration':
+        for (const d of node.declarations) walkPatternIdentifiers(d.id, mark);
+        break;
+      case 'FunctionDeclaration':
+      case 'ClassDeclaration':
+        if (node.id?.name === 'require') return true;
+        break;
+      case 'ImportDeclaration':
+        for (const s of node.specifiers) {
+          if (s.local?.name === 'require') return true;
+        }
+        break;
+    }
+    if (found) return true;
+  }
+  return false;
+}
+
 export function detectCommonJS(program) {
   let hasCJS = false;
   for (const stmt of program.body) {

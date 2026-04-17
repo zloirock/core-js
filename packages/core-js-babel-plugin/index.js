@@ -422,17 +422,24 @@ export default function plugin(api, options) {
         const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start);
         if (directives === true) skipFile = true;
         disabledLines = directives !== true ? directives : null;
-        // register user's pre-existing core-js imports so we don't emit duplicates.
-        // entry-global removes + re-emits user imports, so registering them would suppress
-        // the re-emission and drop needed polyfills
+        // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
+          const removed = new Set();
           scanExistingCoreJSImports(path.node, {
-            packages,
-            mode,
-            adapter,
-            onGlobalImport: mod => injector.registerUserGlobalImport(mod),
+            packages, mode, adapter,
+            // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be
+            // removed, so the dedup filter must not suppress re-emit
+            onGlobalImport: (mod, node) => {
+              injector.addGlobalImport(mod);
+              removed.add(node);
+            },
             onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
           });
+          if (removed.size) {
+            for (const stmt of path.get('body')) {
+              if (removed.has(stmt.node)) stmt.remove();
+            }
+          }
         }
       }
 
