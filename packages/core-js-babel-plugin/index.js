@@ -1,6 +1,12 @@
 import {
   createClassHelpers,
+  detectCommonJS,
+  hasTopLevelESM,
   isCoreJSFile,
+  isDeleteTarget,
+  isForXLeft,
+  isTaggedTemplateTag,
+  isUpdateTarget as isUpdateParent,
   mergeVisitors,
   parseDisableDirectives,
   TS_EXPR_WRAPPERS,
@@ -56,23 +62,22 @@ export default function plugin(api, options) {
     resolveUsage,
   } = resolver;
 
+  let injector, importStyle, debugOutput;
+
   const {
     isInTypeAnnotation,
     deferredSideEffects,
     deoptionalizeNode,
     normalizeOptionalChain,
-    pruneUnusedRefs,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
     resolveDestructuringObject,
     handleDestructuredProperty,
     unwrapTSExpressionParent,
-  } = createASTHelpers(t);
+  } = createASTHelpers(t, { getInjector: () => injector });
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
-
-  let injector, importStyle, debugOutput;
 
   // per-plugin-instance adapter - closure reads current `injector` without module-level state
   const adapter = createBabelAdapter(() => injector);
@@ -303,7 +308,7 @@ export default function plugin(api, options) {
         }
 
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
-        if (unwrapTSExpressionParent(path).parentPath?.isUnaryExpression({ operator: 'delete' })) return;
+        if (isDeleteTarget(unwrapTSExpressionParent(path).parentPath?.node)) return;
 
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
@@ -312,11 +317,8 @@ export default function plugin(api, options) {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             // `path.isReferenced()` drops grandparent - pass it explicitly
             if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
-            // `t.isReferenced` also lacks for-of/in LHS - check explicitly
-            const { parent } = path;
-            if ((parent.type === 'ForOfStatement' || parent.type === 'ForInStatement')
-              && parent.left === path.node) return;
-            if (unwrapTSExpressionParent(path).parentPath?.isUpdateExpression()) return;
+            if (isForXLeft(path.parent, path.node)) return;
+            if (isUpdateParent(unwrapTSExpressionParent(path).parentPath?.node)) return;
             if (t.isSuper(path.node.object)) {
               const superMeta = resolveSuperMember(path);
               if (!superMeta) return;
@@ -328,9 +330,7 @@ export default function plugin(api, options) {
             // `this.X` inside a class that defines its own `X` member - polyfill would
             // bypass the user's override (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
-            // skip instance method used as tagged template tag - replacing callee breaks `this` binding
-            if (meta.placement === 'prototype'
-              && path.parentPath.isTaggedTemplateExpression() && path.key === 'tag') return;
+            if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
           }
         }
@@ -405,7 +405,10 @@ export default function plugin(api, options) {
 
       function initFile(path) {
         skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
-        importStyle = importStyleOption ?? (path.node.sourceType === 'script' ? 'require' : 'import');
+        // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
+        // would otherwise produce mixed `import` + `module.exports` output
+        importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
+          && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
         injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
         skippedNodes = new WeakSet();
         originalBodyNodes = new WeakSet(path.node.body);
@@ -473,7 +476,7 @@ export default function plugin(api, options) {
       function isUpdateTarget(idPath) {
         let check = idPath.parentPath;
         while (check && TS_EXPR_WRAPPERS.has(check.node?.type)) check = check.parentPath;
-        return check?.isUpdateExpression();
+        return isUpdateParent(check?.node);
       }
 
       function programExit(path) {
@@ -497,7 +500,7 @@ export default function plugin(api, options) {
           });
         }
         injector?.flush();
-        pruneUnusedRefs(path);
+        injector?.pruneUnusedRefs();
         outputDebug();
       }
 
