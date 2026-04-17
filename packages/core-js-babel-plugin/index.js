@@ -399,9 +399,19 @@ export default function plugin(api, options) {
         path.remove();
       }
 
-      const usageCallback = method === 'usage-pure' ? usagePureCallback : usageGlobalCallback;
+      const isPure = method === 'usage-pure';
+      const usageCallback = isPure ? usagePureCallback : usageGlobalCallback;
       const helperVisitors = method !== 'entry-global' ? createUsageVisitors({
-        onUsage: usageCallback, adapter, suppressProxyGlobals: method === 'usage-pure', walkAnnotations: false,
+        adapter,
+        onUsage: usageCallback,
+        suppressProxyGlobals: isPure,
+        walkAnnotations: false,
+      }) : null;
+      const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
+        adapter,
+        onUsage: usageCallback,
+        suppressProxyGlobals: isPure,
+        walkAnnotations: !isPure,
       }) : null;
 
       // --- init: per-file state reset ---
@@ -416,7 +426,9 @@ export default function plugin(api, options) {
         skippedNodes = new WeakSet();
         originalBodyNodes = new WeakSet(path.node.body);
         deferredSideEffects.length = 0;
+        // both visitor instances carry their own `handledObjects` WeakSet; reset for symmetry
         helperVisitors?.[USAGE_VISITORS_RESET]?.();
+        usageVisitors?.[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
         const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start);
@@ -537,8 +549,6 @@ export default function plugin(api, options) {
 
       // --- mode-specific plugin objects ---
 
-      const isPure = method === 'usage-pure';
-
       if (method === 'entry-global') {
         const entryVisitors = createEntryVisitors(entryGlobalCallback);
         return {
@@ -554,11 +564,6 @@ export default function plugin(api, options) {
           post() { injector?.flush(); outputDebug(); },
         };
       }
-
-      const usageVisitors = createUsageVisitors({
-        onUsage: usageCallback, adapter, suppressProxyGlobals: isPure,
-        walkAnnotations: !isPure,
-      });
 
       if (!isPure) {
         const syntaxVisitors = createSyntaxVisitors({
