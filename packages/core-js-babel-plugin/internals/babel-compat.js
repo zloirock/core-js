@@ -9,11 +9,17 @@ export default function (t, { getInjector } = {}) {
   // side-effect expressions from destructuring inits - deferred to Program.exit
   const deferredSideEffects = [];
   // original body index of each declaration, before insertBefore shifts it
-  const originalDeclKeys = new WeakMap();
+  let originalDeclKeys = new WeakMap();
   // pending extracted declarators per ObjectPattern (for multi-declarator source-order split)
-  const pendingExtractions = new WeakMap();
+  let pendingExtractions = new WeakMap();
 
   const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
+
+  function reset() {
+    originalDeclKeys = new WeakMap();
+    pendingExtractions = new WeakMap();
+    isInTypeAnnotation.reset();
+  }
 
   // identifiers and `this` are safe to double-evaluate. TS wrappers are deliberately NOT
   // peeled here - keeping them in the check keeps babel's `_ref` emission in sync with
@@ -419,5 +425,6 @@ export default function (t, { getInjector } = {}) {
     resolveDestructuringObject,
     handleDestructuredProperty,
     unwrapTSExpressionParent,
+    reset,
   };
 }
