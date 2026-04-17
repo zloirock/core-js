@@ -61,6 +61,7 @@ export default function plugin(api, options) {
     deferredSideEffects,
     deoptionalizeNode,
     normalizeOptionalChain,
+    pruneUnusedRefs,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
@@ -491,6 +492,7 @@ export default function plugin(api, options) {
           });
         }
         injector?.flush();
+        pruneUnusedRefs(path);
         outputDebug();
       }
 
