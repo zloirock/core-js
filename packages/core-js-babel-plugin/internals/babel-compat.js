@@ -227,6 +227,39 @@ export default function (t) {
     replaceAndWrap(callerPath.parentPath, t.callExpression(id, [t.cloneNode(object)]), check, embed);
   }
 
+  // Babel-style OR-chain for `(recv)?.inner?.(ia).outer(oa)`: runs outer directly on
+  // `_m.call(_a, ia)` so value-undef (e.g. `[].at(99)`) reaches `_outer()` and throws
+  // like native, while each `?.` contributes its own `null == ...` test.
+  // caller (findInnerPolyChain) guarantees outer is a call expression
+  function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId }) {
+    const callerPath = unwrapTSExpressionParent(outerPath);
+    const outerCall = callerPath.parent;
+    const { scope } = outerPath;
+    const nullTest = expr => t.binaryExpression('==', t.nullLiteral(), expr);
+    const assign = (ref, value) => t.assignmentExpression('=', t.cloneNode(ref), value);
+
+    const [aAssign, aRef] = memoize(innerCallee.object, scope);
+    const mRef = generateRef(scope);
+    const mCall = t.callExpression(
+      t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
+      [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
+
+    const tests = [nullTest(aAssign),
+      nullTest(assign(mRef, t.callExpression(t.cloneNode(innerId), [t.cloneNode(aRef)])))];
+    let outerObject = mCall;
+    // `?.method` as outer: nullish inner result must short-circuit the outer call too
+    if (outerPath.node.optional) {
+      const vRef = generateRef(scope);
+      tests.push(nullTest(assign(vRef, mCall)));
+      outerObject = t.cloneNode(vRef);
+    }
+    const testOr = tests.reduce((a, b) => t.logicalExpression('||', a, b));
+
+    const replacement = buildMethodCall(outerId, outerObject, scope, outerCall.arguments, outerCall.optional);
+    callerPath.parentPath.replaceWith(t.conditionalExpression(testOr,
+      t.unaryExpression('void', t.numericLiteral(0)), replacement));
+  }
+
   function resolveDestructuringObject(path, resolvedType) {
     const parent = path.parentPath.parentPath;
     const initKey = parent.isVariableDeclarator() ? 'init'
@@ -420,6 +453,7 @@ export default function (t) {
     deoptionalizeNode,
     normalizeOptionalChain,
     replaceInstanceLike,
+    replaceInstanceChainCombined,
     replaceCallWithSimple,
     resolveDestructuringObject,
     handleDestructuredProperty,
