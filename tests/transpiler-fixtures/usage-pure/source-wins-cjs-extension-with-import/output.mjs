@@ -1,0 +1,3 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+import x from 'foo';
+_Array$from([1, 2, 3]);
