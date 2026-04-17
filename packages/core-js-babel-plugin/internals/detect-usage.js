@@ -62,6 +62,12 @@ export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = f
 
   function handleIdentifier(path) {
     if (!path.isReferencedIdentifier()) return;
+    // ReferencedIdentifier matches JSXIdentifier in too many positions - only the direct
+    // opening-element name is a runtime reference. Attribute names, JSXNamespacedName
+    // (custom elements), and JSXMemberExpression parts are either not references or
+    // resolve differently, so treating them as globals is a false positive
+    if (path.node.type === 'JSXIdentifier'
+      && (path.parent?.type !== 'JSXOpeningElement' || path.key !== 'name')) return;
     // UpdateExpression operand (Map++, --Map, Map!++) - read+write context, polyfill import
     // is read-only so the transform would emit `_Map++` which throws TypeError at runtime
     let updateCheck = path.parentPath;
