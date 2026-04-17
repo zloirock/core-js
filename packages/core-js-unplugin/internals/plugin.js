@@ -60,15 +60,20 @@ const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 
 // collect every binding name declared anywhere in the AST so the import injector
 // avoids picking a UID that collides with a user-declared identifier in any nested scope.
 // `var _at = 1` inside a function would otherwise shadow a top-level `import _at from ...`
-function collectAllBindingNames(ast) {
+// iterative walker (heap stack) - recursion would overflow on flat expression chains
+// commonly produced by minifiers (`a + b + c + ...` with thousands of terms)
+// exported for regression tests; call site is the plugin only
+export function collectAllBindingNames(ast) {
   const names = new Set();
   const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
-  (function walk(node) {
+  const stack = [ast];
+  while (stack.length) {
+    const node = stack.pop();
     if (Array.isArray(node)) {
-      for (const c of node) walk(c);
-      return;
+      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+      continue;
     }
-    if (!isASTNode(node)) return;
+    if (!isASTNode(node)) continue;
     switch (node.type) {
       case 'VariableDeclarator':
         addPattern(node.id);
@@ -97,9 +102,9 @@ function collectAllBindingNames(ast) {
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const v = node[key];
-      if (Array.isArray(v) || isASTNode(v)) walk(v);
+      if (Array.isArray(v) || isASTNode(v)) stack.push(v);
     }
-  })(ast);
+  }
   return names;
 }
 
