@@ -4,7 +4,7 @@ import {
   hasTopLevelESM,
   isCoreJSFile,
   isDeleteTarget,
-  isForXLeft,
+  isForXWriteTarget,
   isTaggedTemplateTag,
   isUpdateTarget as isUpdateParent,
   mergeVisitors,
@@ -320,7 +320,7 @@ export default function plugin(api, options) {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             // `path.isReferenced()` drops grandparent - pass it explicitly
             if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
-            if (isForXLeft(path.parent, path.node)) return;
+            if (isForXWriteTarget(path)) return;
             if (isUpdateParent(unwrapTSExpressionParent(path).parentPath?.node)) return;
             if (t.isSuper(path.node.object)) {
               const superMeta = resolveSuperMember(path);
