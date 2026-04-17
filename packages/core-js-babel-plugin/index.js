@@ -75,6 +75,7 @@ export default function plugin(api, options) {
     resolveDestructuringObject,
     handleDestructuredProperty,
     unwrapTSExpressionParent,
+    reset: resetASTHelpers,
   } = createASTHelpers(t, { getInjector: () => injector });
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
@@ -191,7 +192,7 @@ export default function plugin(api, options) {
         if (initNode) skippedNodes.add(initNode);
       }
 
-      const { resolveSuperMember, isShadowedByClassOwnMember } = createClassHelpers(t);
+      const { resolveSuperMember, isShadowedByClassOwnMember, reset: resetClassHelpers } = createClassHelpers(t);
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
@@ -426,6 +427,11 @@ export default function plugin(api, options) {
         skippedNodes = new WeakSet();
         originalBodyNodes = new WeakSet(path.node.body);
         deferredSideEffects.length = 0;
+        // drop per-file AST-keyed caches so memory is deterministic under long-running
+        // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
+        typeResolvers.reset();
+        resetASTHelpers();
+        resetClassHelpers();
         // both visitor instances carry their own `handledObjects` WeakSet; reset for symmetry
         helperVisitors?.[USAGE_VISITORS_RESET]?.();
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
