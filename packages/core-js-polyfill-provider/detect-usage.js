@@ -387,7 +387,12 @@ export function canTransformDestructuring({ parentType, parentInit, grandParentT
   if (parentType === 'VariableDeclarator') {
     if (!parentInit) return false; // for-of/for-in - no init
     if (grandParentType === 'ForInStatement' || grandParentType === 'ForOfStatement') return false;
-    if (grandParentType === 'ForStatement' && patternProperties?.length > 1) return false;
+    // for-init: multiple polyfillable properties would require memoising the receiver or
+    // double-evaluating it; one polyfillable + rest is safe (rest preserves the pattern)
+    if (grandParentType === 'ForStatement') {
+      const nonRest = patternProperties?.filter(p => p.type !== 'RestElement').length ?? 0;
+      if (nonRest > 1) return false;
+    }
     return true;
   }
   return parentType === 'AssignmentExpression';
