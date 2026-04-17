@@ -91,13 +91,18 @@ export default class ImportInjector extends ImportInjectorState {
     });
   }
 
-  // base returns a string; babel consumers need an Identifier
+  // base returns a string; babel consumers need an Identifier.
+  // `registerUserPureImport` seeds `hint` with the binding name (placeholder for import
+  // reuse); refresh it to the real API hint so `resolveSuperImportName` can map back to
+  // the original global instead of chasing a non-existent `hint === binding` global
   addPureImport(entry, hint) {
     const name = super.addPureImport(entry, hint);
-    if (!this.#byName.has(name)) {
-      this.#byName.set(name, { source: `${ this.mode }/${ entry }`, hint, id: this.#t.identifier(name) });
-    }
-    return this.#t.cloneNode(this.#byName.get(name).id);
+    let record = this.#byName.get(name);
+    if (!record) {
+      record = { source: `${ this.mode }/${ entry }`, hint, id: this.#t.identifier(name) };
+      this.#byName.set(name, record);
+    } else if (record.hint === name) record.hint = hint;
+    return this.#t.cloneNode(record.id);
   }
 
   registerUserPureImport(entry, name) {
