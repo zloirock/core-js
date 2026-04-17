@@ -92,23 +92,22 @@ function detectCommonJS(ast) {
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
-// AST node fields we walk to find nested declarations; `type` + source-position fields
-// have no children so we skip them (hot-path - ~30% of pre-traverse time was wasted there)
-const BINDING_SCAN_SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
+// typed AST node - excludes scalars, SourceLocation objects, and foreign markers
+// (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools)
+const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
 // collect every binding name declared anywhere in the AST so the import injector
 // avoids picking a UID that collides with a user-declared identifier in any nested scope.
-// `var _at = 1` inside a function would otherwise shadow a top-level `import _at from ...`.
-// manual recursion - skips estree-toolkit's per-node path/scope allocation
+// `var _at = 1` inside a function would otherwise shadow a top-level `import _at from ...`
 function collectAllBindingNames(ast) {
   const names = new Set();
   const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
   (function walk(node) {
-    if (!node || typeof node !== 'object') return;
     if (Array.isArray(node)) {
       for (const c of node) walk(c);
       return;
     }
+    if (!isASTNode(node)) return;
     switch (node.type) {
       case 'VariableDeclarator':
         addPattern(node.id);
@@ -134,8 +133,10 @@ function collectAllBindingNames(ast) {
         names.add(node.local.name);
         break;
     }
-    for (const key of Object.keys(node)) {
-      if (!BINDING_SCAN_SKIP_KEYS.has(key)) walk(node[key]);
+    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
+    for (const key in node) {
+      const v = node[key];
+      if (Array.isArray(v) || isASTNode(v)) walk(v);
     }
   })(ast);
   return names;
