@@ -289,6 +289,9 @@ export default function plugin(api, options) {
       // eslint-disable-next-line max-statements -- ok
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
+        // JSX tag reaches here via ReferencedIdentifier; a JSX slot cannot host a renamed
+        // Identifier, and `<_Map/>` would call the polyfill as a React component at runtime
+        if (path.node.type === 'JSXIdentifier') return;
 
         if (meta.kind === 'in') {
           const symbolIn = resolveSymbolInEntry(meta.key);
