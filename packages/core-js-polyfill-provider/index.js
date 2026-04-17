@@ -38,9 +38,12 @@ function createMetaResolver({ globals, statics, instance }) {
   };
 }
 
-// array/instance/at and array/prototype/at -> array/at
+// canonical key for include/exclude lookup: strip mode prefix and instance/prototype segment
+// `actual/array/instance/at`, `array/instance/at`, `array/prototype/at` -> `array/at`
+const MODE_PREFIX = /^(?:actual|es|full|stable)\//;
 function normalizeEntryPath(entry) {
   return entry
+    .replace(MODE_PREFIX, '')
     .replaceAll('/instance/', '/')
     .replaceAll('/prototype/', '/');
 }
