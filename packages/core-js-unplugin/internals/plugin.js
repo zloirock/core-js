@@ -188,6 +188,10 @@ export default function createPlugin(options) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
+    // per-file reset of AST-keyed caches: WeakMap would GC eventually, this makes the
+    // memory bound explicit under long-running dev-server / HMR. `createClassHelpers`
+    // is created fresh per transform below; only the persistent resolver needs clearing
+    typeResolvers.reset();
     // entry-global resolves `import 'core-js'` once per file; neither defer-imports nor
     // snapshot inheritance apply. wrapper only dispatches pass='single' for this method,
     // but defensively pin it here so direct callers (tests, bespoke integrations) can't
