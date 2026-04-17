@@ -10,6 +10,90 @@ export const TS_EXPR_WRAPPERS = new Set([
   'TypeCastExpression',
 ]);
 
+// shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
+export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
+export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
+export const isForXLeft = (parent, node) => (parent?.type === 'ForOfStatement'
+  || parent?.type === 'ForInStatement') && parent.left === node;
+export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
+  && parent?.type === 'TaggedTemplateExpression'
+  && parent.tag === node;
+
+// top-level module-format detection: ESM markers take precedence; recognised CJS shapes
+// are `module.exports[.X...] = ...`, `exports.X[.Y...] = ...` (and wrappers via `unwrapExpr`)
+export const ESM_MARKER_TYPES = new Set([
+  'ExportAllDeclaration',
+  'ExportDefaultDeclaration',
+  'ExportNamedDeclaration',
+  'ImportDeclaration',
+]);
+
+const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name === name;
+
+// peel transparent wrappers so `0, module.exports = ...` / `(module.exports = ...)` still match
+function unwrapExpr(node) {
+  while (node) {
+    if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression') node = node.expression;
+    else if (node.type === 'SequenceExpression') node = node.expressions.at(-1);
+    else break;
+  }
+  return node;
+}
+
+const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression' && !node.computed
+  && isNamedIdent(unwrapExpr(node.object), objName) && isNamedIdent(node.property, propName);
+
+// walks the MemberExpression chain - any ancestor rooted at `exports` or `module.exports` matches
+function isCommonJSAssignTarget(left) {
+  let node = unwrapExpr(left);
+  while (node?.type === 'MemberExpression') {
+    if (!node.computed && isStaticMember(node, 'module', 'exports')) return true;
+    const obj = unwrapExpr(node.object);
+    if (isNamedIdent(obj, 'exports')) return true;
+    node = obj;
+  }
+  return false;
+}
+
+export const hasTopLevelESM = program => program.body.some(n => ESM_MARKER_TYPES.has(n.type));
+
+export function detectCommonJS(program) {
+  let hasCJS = false;
+  for (const stmt of program.body) {
+    if (ESM_MARKER_TYPES.has(stmt.type)) return false;
+    if (hasCJS || stmt.type !== 'ExpressionStatement') continue;
+    const expression = unwrapExpr(stmt.expression);
+    if (expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left)) hasCJS = true;
+  }
+  return hasCJS;
+}
+
+// memoized ancestor walk with back-fill: O(depth) worst case, ~O(1) for siblings sharing
+// the same annotation subtree. per-instance cache - no cross-file leak
+export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
+  const cache = new WeakMap();
+  return function isInTypeAnnotation(path) {
+    const visited = [];
+    for (let current = path.parentPath; current; current = current.parentPath) {
+      const { node } = current;
+      if (!node) break;
+      if (cache.has(node)) {
+        const cached = cache.get(node);
+        for (const n of visited) cache.set(n, cached);
+        return cached;
+      }
+      if (isTypeAnnotationNodeType(node.type)) {
+        cache.set(node, true);
+        for (const n of visited) cache.set(n, true);
+        return true;
+      }
+      visited.push(node);
+    }
+    for (const n of visited) cache.set(n, false);
+    return false;
+  };
+}
+
 // conservative: true when the subtree may observe/cause side effects, false only when provably pure
 export function mayHaveSideEffects(node) {
   if (!node) return false;
