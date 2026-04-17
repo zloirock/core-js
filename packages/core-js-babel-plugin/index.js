@@ -503,10 +503,20 @@ export default function plugin(api, options) {
 
       // --- post(): detect sibling CJS transform ---
 
+      // ANY remaining top-level ESM marker means the file is still ESM; switching to
+      // `require` would produce mixed output. also catches `export foo`-only files
+      // (no imports) where checking ImportDeclaration alone would misfire
+      const ESM_MARKER_TYPES = new Set([
+        'ImportDeclaration',
+        'ExportNamedDeclaration',
+        'ExportDefaultDeclaration',
+        'ExportAllDeclaration',
+      ]);
+
       function postHook() {
         if (!injector) return;
         if (importStyleOption === undefined && importStyle === 'import'
-          && !this.file.path.node.body.some(n => t.isImportDeclaration(n))) {
+          && !this.file.path.node.body.some(n => ESM_MARKER_TYPES.has(n.type))) {
           injector.importStyle = 'require';
         }
         injector.flush();

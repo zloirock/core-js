@@ -281,11 +281,13 @@ export default function createPlugin(options) {
       comments = parsed.comments;
     }
 
-    // detect CJS by content for files where extension alone is ambiguous (.js / .ts).
-    // ESM markers (import/export at top level) take precedence - a file with both is ESM
-    // and the user's `module.exports` will fail at runtime, which is the user's bug.
-    const detectedCJS = !isCJSFile && detectCommonJS(ast);
-    const importStyle = importStyleOption ?? ((isCJSFile || detectedCJS) ? 'require' : 'import');
+    // source wins over extension: a `.cjs`/`.cts` file that actually contains top-level
+    // ESM (oxc parses it tolerantly) must emit `import`, not `require`, or the output
+    // becomes a mixed CJS+ESM mess that bundlers reject. detectCommonJS already bails on
+    // ESM markers so its result is safe to fall through to.
+    const hasTopLevelESM = ast.body.some(n => ESM_MARKER_TYPES.has(n.type));
+    const importStyle = importStyleOption
+      ?? (!hasTopLevelESM && (isCJSFile || detectCommonJS(ast)) ? 'require' : 'import');
 
     // check disable directives - `disable-file` only counts if it lives above any code
     const offsetToLine = buildOffsetToLine(code);
