@@ -494,18 +494,19 @@ export default function createPlugin(options) {
         return p;
       }
 
-      // innermost var-scope anchor for `var _ref;` as { statements, insertPos }, or null.
-      // TSModuleBlock counts as a var-scope boundary -> match Babel so `_ref` stays inside
+      // anchor for `var _ref;` as { statements, insertPos }, or null. `var` hoists to the
+      // enclosing function regardless of placement, so we pick the innermost braced block
+      // (any BlockStatement, including function bodies) to match Babel's codegen cosmetics
       function varScopeAnchor(node) {
         const { type, body } = node;
         if (type === 'StaticBlock') {
           // `static /*{*/ {` -> skip past `static` + any gap before `{`
           return { statements: body, insertPos: skipGap(code, node.start + 'static'.length) + 1 };
         }
-        const isFunctionBlock = body?.type === 'BlockStatement'
-          && (type === 'FunctionDeclaration' || type === 'FunctionExpression' || type === 'ArrowFunctionExpression');
-        const isTSModuleBody = type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock';
-        if (isFunctionBlock || isTSModuleBody) return { statements: body.body, insertPos: body.start + 1 };
+        if (type === 'BlockStatement') return { statements: node.body, insertPos: node.start + 1 };
+        if (type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock') {
+          return { statements: body.body, insertPos: body.start + 1 };
+        }
         return null;
       }
 
