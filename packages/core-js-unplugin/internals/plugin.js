@@ -150,17 +150,42 @@ export default function createPlugin(options) {
   const { bundler, ...providerOptions } = options;
 
   // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id).
-  // entries are tagged with insertion timestamps so dev-server sessions (where
-  // buildEnd may not fire between rebuilds) can shed snapshots that never got paired
-  // with a post run - sibling bail, tree-shake drop, HMR invalidation mid-pre
+  // `storeSnapshot` deletes-before-set, so Map insertion order stays chronological -
+  // enables O(1) oldest-eviction and early-break sweep. buildEnd clears the Map, but
+  // dev-servers don't fire it between rebuilds, so TTL + hard cap bound the leak
   const prePassSnapshots = new Map();
-  const SNAPSHOT_TTL_MS = 5 * 60 * 1000;
-  const SNAPSHOT_SWEEP_THRESHOLD = 100;
+  const SNAPSHOT_TTL_MS = 60 * 1000;
+  const SNAPSHOT_SWEEP_THRESHOLD = 32;
+  const SNAPSHOT_MAX_ENTRIES = 128;
+  const SNAPSHOT_SWEEP_INTERVAL_MS = 30 * 1000;
+  let lastSnapshotSweepAt = 0;
+
   function sweepStaleSnapshots() {
     const cutoff = Date.now() - SNAPSHOT_TTL_MS;
     for (const [id, entry] of prePassSnapshots) {
-      if (entry.addedAt < cutoff) prePassSnapshots.delete(id);
+      if (entry.addedAt >= cutoff) break; // chronological order: rest is fresher
+      prePassSnapshots.delete(id);
     }
+  }
+
+  // piggyback on any runTransform; setInterval would keep CLI event loop alive
+  function maybeSweepSnapshots() {
+    if (!prePassSnapshots.size) return;
+    const now = Date.now();
+    if (now - lastSnapshotSweepAt < SNAPSHOT_SWEEP_INTERVAL_MS) return;
+    lastSnapshotSweepAt = now;
+    sweepStaleSnapshots();
+  }
+
+  function storeSnapshot(id, entry) {
+    if (prePassSnapshots.size >= SNAPSHOT_SWEEP_THRESHOLD) sweepStaleSnapshots();
+    // delete first so same-id re-insert moves to tail (refreshes chronological order)
+    // and isn't double-counted against the cap
+    prePassSnapshots.delete(id);
+    if (prePassSnapshots.size >= SNAPSHOT_MAX_ENTRIES) {
+      prePassSnapshots.delete(prePassSnapshots.keys().next().value);
+    }
+    prePassSnapshots.set(id, entry);
   }
   const { resolver, createDebugOutput } = createPolyfillResolver(providerOptions, {
     typeResolvers,
@@ -188,6 +213,7 @@ export default function createPlugin(options) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
+    maybeSweepSnapshots();
     // per-file reset of AST-keyed caches: WeakMap would GC eventually, this makes the
     // memory bound explicit under long-running dev-server / HMR. `createClassHelpers`
     // is created fresh per transform below; only the persistent resolver needs clearing
@@ -324,12 +350,11 @@ export default function createPlugin(options) {
       injector.flush();
       outputDebug();
       if (pass === 'pre') {
-        if (prePassSnapshots.size >= SNAPSHOT_SWEEP_THRESHOLD) sweepStaleSnapshots();
         // reuse the parse in post only when pre didn't rewrite the source (usage-global
         // leaves `code` untouched; usage-pure mutates via TransformQueue so positions
         // in its AST no longer line up with what post receives)
         const canReuseParse = !ms.hasChanged();
-        prePassSnapshots.set(id, {
+        storeSnapshot(id, {
           snapshot: injector.snapshot(),
           ast: canReuseParse ? ast : null,
           comments: canReuseParse ? comments : null,
@@ -1349,6 +1374,9 @@ export default function createPlugin(options) {
     // released by the unplugin wrapper in `buildEnd` to bound snapshot retention in
     // long-running dev servers where a pre pass ran but the matching post was skipped
     // (tree-shake, sibling bail, module invalidation)
-    reset() { prePassSnapshots.clear(); },
+    reset() {
+      prePassSnapshots.clear();
+      lastSnapshotSweepAt = 0;
+    },
   };
 }
