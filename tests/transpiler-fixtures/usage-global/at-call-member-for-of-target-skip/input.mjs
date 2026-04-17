@@ -1,4 +1,4 @@
 let arr = [];
-for (arr.at in obj) {
+for (arr.at of items) {
   use(arr.at);
 }
