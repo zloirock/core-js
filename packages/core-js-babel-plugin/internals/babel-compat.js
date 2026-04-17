@@ -64,6 +64,53 @@ export default function (t) {
     return id;
   }
 
+  // drop dead `var _refN;` declarators (from `generateRef` side-effects left by stale
+  // visits whose emission was discarded by an outer `replaceWith`), then renumber
+  // survivors to `_ref, _ref2, ...` so the output matches unplugin. O(N) in AST size
+  function pruneUnusedRefs(programPath) {
+    const refs = programPath.node[REFS_KEY];
+    if (!refs?.size) return;
+    programPath.scope.crawl();
+    for (const name of refs) {
+      const binding = programPath.scope.getBinding(name);
+      if (!binding || binding.references || binding.constantViolations.length) continue;
+      // side-effectful init (`var _ref = (se(), Array)`) must not be dropped - destructuring
+      // siblings rely on the evaluation order even when the var looks unreferenced
+      if (binding.path.node?.init) continue;
+      const declPath = binding.path.parentPath;
+      if (declPath.node.declarations.length === 1) declPath.remove();
+      else binding.path.remove();
+      refs.delete(name);
+    }
+    if (!refs.size) return;
+
+    // collect every bound name across all scopes - `scope.hasBinding` from program misses
+    // nested bindings like a catch param `_ref` we mustn't collide with on renumber
+    const taken = new Set(Object.keys(programPath.scope.bindings));
+    programPath.traverse({
+      Scopable({ scope }) { for (const n of Object.keys(scope.bindings)) taken.add(n); },
+    });
+    for (const name of refs) taken.delete(name);
+
+    // Set iteration preserves generation order, already ascending
+    const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
+    const renameMap = new Map();
+    let i = 1;
+    for (const name of refs) {
+      while (taken.has(slot(i))) i++;
+      const target = slot(i++);
+      if (name !== target) renameMap.set(name, target);
+    }
+    if (!renameMap.size) return;
+
+    programPath.traverse({
+      Identifier(p) {
+        const to = renameMap.get(p.node.name);
+        if (to) p.node.name = to;
+      },
+    });
+  }
+
   function memoize(node, scope) {
     if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
     const ref = generateRef(scope);
@@ -238,13 +285,13 @@ export default function (t) {
     const nullTest = expr => t.binaryExpression('==', t.nullLiteral(), expr);
     const assign = (ref, value) => t.assignmentExpression('=', t.cloneNode(ref), value);
 
-    const [aAssign, aRef] = memoize(innerCallee.object, scope);
+    const [anAssign, aRef] = memoize(innerCallee.object, scope);
     const mRef = generateRef(scope);
     const mCall = t.callExpression(
       t.memberExpression(t.cloneNode(mRef), t.identifier('call')),
       [t.cloneNode(aRef), ...innerArgs.map(a => t.cloneNode(a))]);
 
-    const tests = [nullTest(aAssign),
+    const tests = [nullTest(anAssign),
       nullTest(assign(mRef, t.callExpression(t.cloneNode(innerId), [t.cloneNode(aRef)])))];
     let outerObject = mCall;
     // `?.method` as outer: nullish inner result must short-circuit the outer call too
@@ -452,6 +499,7 @@ export default function (t) {
     deferredSideEffects,
     deoptionalizeNode,
     normalizeOptionalChain,
+    pruneUnusedRefs,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
