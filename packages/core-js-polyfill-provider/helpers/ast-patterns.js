@@ -13,11 +13,38 @@ export const TS_EXPR_WRAPPERS = new Set([
 // shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
-export const isForXLeft = (parent, node) => (parent?.type === 'ForOfStatement'
-  || parent?.type === 'ForInStatement') && parent.left === node;
 export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
   && parent?.type === 'TaggedTemplateExpression'
   && parent.tag === node;
+
+// structural match for MemberExpression chains rooted at Identifier / ThisExpression -
+// recognises the same receiver path written at different source positions
+function memberShapeEqual(a, b) {
+  if (!a || !b || a.type !== b.type) return false;
+  if (a.type === 'Identifier') return a.name === b.name;
+  if (a.type === 'ThisExpression') return true;
+  if (a.type === 'MemberExpression') {
+    return a.computed === b.computed
+      && memberShapeEqual(a.object, b.object)
+      && memberShapeEqual(a.property, b.property);
+  }
+  return false;
+}
+
+// `for (obj.key of/in ...)` rebinds obj.key each iteration, aliasing the prototype method.
+// Both the LHS itself and matching reads in the body target a local write, not the inherited
+// method - polyfilling either would emit the wrong value
+export function isForXWriteTarget(path) {
+  const { node } = path;
+  if (node?.type !== 'MemberExpression') return false;
+  for (let current = path.parentPath; current; current = current.parentPath) {
+    const parent = current.node;
+    if (!parent) break;
+    if (parent.type !== 'ForOfStatement' && parent.type !== 'ForInStatement') continue;
+    if (parent.left === node || memberShapeEqual(parent.left, node)) return true;
+  }
+  return false;
+}
 
 // top-level module-format detection: ESM markers take precedence; recognised CJS shapes
 // are `module.exports[.X...] = ...`, `exports.X[.Y...] = ...` (and wrappers via `unwrapExpr`)
