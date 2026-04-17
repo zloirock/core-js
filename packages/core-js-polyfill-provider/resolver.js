@@ -25,6 +25,11 @@ function lookupByTypeHint(desc, hint, fallbackToCommon) {
   return null;
 }
 
+function hasHintNotIn(hints, desc) {
+  for (const h of hints) if (!hasOwn(desc, h)) return true;
+  return false;
+}
+
 function resolveHint(desc, meta) {
   const { placement, object, excludedHints, includedHints, receiverHint } = meta;
   const hint = object === null || object === undefined ? null : String(object).toLowerCase();
@@ -39,36 +44,49 @@ function resolveHint(desc, meta) {
 
   if (!excludedHints && !includedHints && hasOwn(desc, 'common')) return desc.common;
 
-  const hintDescs = [];
+  // hot path: keep 0/1 matches allocation-free. `first` holds match #1; `rest` starts
+  // null and inflates to `[first, ...]` only on match #2+
+  let first = null;
+  let rest = null;
+  const add = d => {
+    if (first === null) first = d;
+    else {
+      rest ??= [first];
+      rest.push(d);
+    }
+  };
   for (const $hint of TYPE_HINTS) {
     if (excludedHints?.has($hint)) continue;
     if (includedHints && !includedHints.has($hint)) continue;
-    if (hasOwn(desc, $hint)) hintDescs.push(desc[$hint]);
+    if (hasOwn(desc, $hint)) add(desc[$hint]);
   }
-  if (hasOwn(desc, 'rest') && (!includedHints || [...includedHints].some($hint => !hasOwn(desc, $hint)))) {
-    hintDescs.push(desc.rest);
-  }
+  // `rest` fallback: when no includedHints given, or when includedHints lists a variant
+  // `desc` doesn't specialise for
+  if (hasOwn(desc, 'rest') && (!includedHints || hasHintNotIn(includedHints, desc))) add(desc.rest);
 
   // narrowing must still surface `common` for descriptors with no type-specialised variants
   // (descriptors that DO have type variants stay strict - the matching types were ruled out)
-  if (!hintDescs.length && includedHints && hasOwn(desc, 'common') && !descHasTypeHints(desc)) return desc.common;
-
-  if (hintDescs.length === 1) return hintDescs[0];
-
-  if (hintDescs.length > 1) {
-    const dependencies = [...new Set(hintDescs.flatMap(d => getDependencies(d) ?? []))];
-    if (!dependencies.length) return null;
-    // multi-variant: AND across groups (any unfiltered variant -> drop all filters)
-    const filterGroups = [];
-    for (const d of hintDescs) {
-      if (!(d && typeof d === 'object' && d.filters?.length)) return { dependencies };
-      filterGroups.push(d.filters);
-    }
-    if (filterGroups.length === 1) return { dependencies, filters: filterGroups[0] };
-    return { dependencies, filterGroups };
+  if (first === null) {
+    return includedHints && hasOwn(desc, 'common') && !descHasTypeHints(desc) ? desc.common : null;
   }
+  if (rest === null) return first;
 
-  return null;
+  // multi-variant: merge dependencies into a single set, then build filter groups.
+  // AND across groups (any unfiltered variant -> drop all filters)
+  const depSet = new Set();
+  for (const d of rest) {
+    const deps = getDependencies(d);
+    if (deps) for (const dep of deps) depSet.add(dep);
+  }
+  if (!depSet.size) return null;
+  const dependencies = [...depSet];
+  const filterGroups = [];
+  for (const d of rest) {
+    if (!(d && typeof d === 'object' && d.filters?.length)) return { dependencies };
+    filterGroups.push(d.filters);
+  }
+  if (filterGroups.length === 1) return { dependencies, filters: filterGroups[0] };
+  return { dependencies, filterGroups };
 }
 
 function pureImportName(kind, name, importEntry) {
