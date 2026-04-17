@@ -591,10 +591,7 @@ export default function createPlugin(options) {
           return { root: unwrapParens(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
         }
         const isPoly = n => isPolyfillableOptional(n, null, estreeAdapter, resolveBuiltIn);
-        if (node.optional) {
-          return isPoly(node) ? { root: null } : makeResult(node);
-        }
-        let current = chainChild(node);
+        let current = node.optional ? node : chainChild(node);
         while (current && typeof current === 'object') {
           if (current.optional) {
             return isPoly(current) ? { root: null } : makeResult(current);
@@ -795,6 +792,62 @@ export default function createPlugin(options) {
         if (node.property) skipWrappedNode(node.property);
       }
 
+      // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined)
+      function findInnerPolyChain(node, parent, metaPath) {
+        if (!isCallee(node, parent) || node.type !== 'MemberExpression' || node.computed) return null;
+        let current = node.object;
+        while (current && (current.type === 'ParenthesizedExpression'
+            || current.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(current.type))) {
+          current = current.expression;
+        }
+        while (current && (current.type === 'MemberExpression' || current.type === 'CallExpression')) {
+          if (current.optional) break;
+          current = current.type === 'MemberExpression' ? current.object : current.callee;
+        }
+        if (current?.type !== 'CallExpression' || !current.optional) return null;
+        const { callee } = current;
+        if (callee?.type !== 'MemberExpression' || callee.computed) return null;
+        if (callee.property?.type !== 'Identifier') return null;
+        const meta = { kind: 'property', object: null, key: callee.property.name, placement: 'prototype' };
+        const { result } = resolvePureOrGlobalFallback(meta, metaPath.get('object').get('callee'));
+        if (result?.kind !== 'instance') return null;
+        return { chainStart: current, innerCallee: callee, innerResult: result };
+      }
+
+      function replaceInstanceChainCombined(outerBinding, node, parent, metaPath, chain) {
+        const { chainStart, innerCallee, innerResult } = chain;
+        const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
+        const aRef = state.genRef();
+        const mRef = state.genRef();
+        const outerRef = state.genRef();
+        const innerArgs = sliceBetweenParens(chainStart) ?? '';
+        const outerArgs = sliceBetweenParens(parent) ?? '';
+        const innerCall = `${ mRef }.call(${ aRef }${ innerArgs ? `, ${ innerArgs }` : '' })`;
+        const receiver = unwrapParens(innerCallee.object);
+
+        const tests = [
+          `null == (${ aRef } = ${ receiver })`,
+          `null == (${ mRef } = ${ innerBinding }(${ aRef }))`,
+        ];
+        let outerObj;
+        // outer is `?.method`: nullish inner value must short-circuit the outer call too
+        if (node.optional) {
+          tests.push(`null == (${ outerRef } = ${ innerCall })`);
+          outerObj = outerRef;
+        } else {
+          outerObj = `${ outerRef } = ${ innerCall }`;
+        }
+        const dot = parent.optional ? '?.' : '.';
+        const suffix = outerArgs ? `, ${ outerArgs }` : '';
+        let replacement = `${ tests.join(' || ') } ? void 0 : ${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`;
+        if (guardNeedsParens(metaPath, true, parent.start, parent.end)) replacement = `(${ replacement })`;
+
+        transforms.add(parent.start, parent.end, replacement);
+        skippedNodes.add(innerCallee);
+        skippedNodes.add(parent);
+        skipProxyGlobal(node);
+      }
+
       function replaceInstance(binding, node, parent, metaPath) {
         // (arr?.includes)(1) - parenthesized optional callee breaks the chain.
         // replace only the member expression (not .call()). non-optional (arr.at)(0) preserves this
@@ -803,6 +856,8 @@ export default function createPlugin(options) {
           addInstanceTransform(binding, node, parent, metaPath, false, false);
           return;
         }
+        const chain = findInnerPolyChain(node, parent, metaPath);
+        if (chain) return replaceInstanceChainCombined(binding, node, parent, metaPath, chain);
         const isCall = isCallee(node, parent);
         addInstanceTransform(binding, node, parent, metaPath, isCall);
       }
