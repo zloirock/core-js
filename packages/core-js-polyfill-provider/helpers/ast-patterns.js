@@ -122,10 +122,10 @@ export function detectCommonJS(program) {
 }
 
 // memoized ancestor walk with back-fill: O(depth) worst case, ~O(1) for siblings sharing
-// the same annotation subtree. per-instance cache - no cross-file leak
+// the same annotation subtree. `.reset` rebuilds the cache for per-file memory determinism
 export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
-  const cache = new WeakMap();
-  return function isInTypeAnnotation(path) {
+  let cache = new WeakMap();
+  function isInTypeAnnotation(path) {
     const visited = [];
     for (let current = path.parentPath; current; current = current.parentPath) {
       const { node } = current;
@@ -144,7 +144,9 @@ export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
     }
     for (const n of visited) cache.set(n, false);
     return false;
-  };
+  }
+  isInTypeAnnotation.reset = () => { cache = new WeakMap(); };
+  return isInTypeAnnotation;
 }
 
 // conservative: true when the subtree may observe/cause side effects, false only when provably pure
