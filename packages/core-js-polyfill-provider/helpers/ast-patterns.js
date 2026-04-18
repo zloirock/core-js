@@ -31,17 +31,50 @@ function memberShapeEqual(a, b) {
   return false;
 }
 
+// flatten a for-of/for-in LHS (bare member, or nested in object / array / rest / default
+// patterns) into every MemberExpression that receives a write on each iteration
+function collectForXWriteMembers(node, out) {
+  if (!node) return;
+  switch (node.type) {
+    case 'MemberExpression':
+      out.push(node);
+      return;
+    case 'ObjectPattern':
+      for (const p of node.properties) collectForXWriteMembers(p, out);
+      return;
+    case 'ArrayPattern':
+      for (const el of node.elements) collectForXWriteMembers(el, out);
+      return;
+    // ObjectPattern property wrapper - Babel calls it ObjectProperty, ESTree calls it Property
+    case 'ObjectProperty':
+    case 'Property':
+      collectForXWriteMembers(node.value, out);
+      return;
+    case 'AssignmentPattern':
+      collectForXWriteMembers(node.left, out);
+      return;
+    case 'RestElement':
+      collectForXWriteMembers(node.argument, out);
+  }
+}
+
 // `for (obj.key of/in ...)` rebinds obj.key each iteration, aliasing the prototype method.
-// Both the LHS itself and matching reads in the body target a local write, not the inherited
-// method - polyfilling either would emit the wrong value
+// Both the write target (bare or nested in a destructuring pattern) and matching reads in
+// the body target a local write, not the inherited method - polyfilling either is wrong
 export function isForXWriteTarget(path) {
   const { node } = path;
+  // ObjectProperty / Property wraps a write-target MemberExpression in `.value`;
+  // meta emission for destructure properties hands us the wrapper, not the member
+  if ((node?.type === 'ObjectProperty' || node?.type === 'Property')
+    && node.value?.type === 'MemberExpression') return isForXWriteTarget(path.get('value'));
   if (node?.type !== 'MemberExpression') return false;
   for (let current = path.parentPath; current; current = current.parentPath) {
     const parent = current.node;
     if (!parent) break;
     if (parent.type !== 'ForOfStatement' && parent.type !== 'ForInStatement') continue;
-    if (parent.left === node || memberShapeEqual(parent.left, node)) return true;
+    const writes = [];
+    collectForXWriteMembers(parent.left, writes);
+    if (writes.some(m => m === node || memberShapeEqual(m, node))) return true;
   }
   return false;
 }
