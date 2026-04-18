@@ -1,5 +1,6 @@
 import {
   buildDestructuringInitMeta,
+  checkLogicalAssignLhsGlobal,
   checkTypeAnnotations,
   handleBinaryIn,
   handleMemberExpressionNode,
@@ -53,7 +54,7 @@ export const babelAdapter = createBabelAdapter();
 // enumerator (own string keys only) does not mistake it for a node-type visitor
 export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 
-export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = false, walkAnnotations = true }) {
+export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxyGlobals = false, walkAnnotations = true }) {
   let handledObjects = new WeakSet();
 
   function resolveKey(path, computed) {
@@ -61,6 +62,13 @@ export function createUsageVisitors({ onUsage, adapter, suppressProxyGlobals = f
   }
 
   function handleIdentifier(path) {
+    // babel classifies logical-assignment LHS as non-reference (write-context); diagnose
+    // the `Map ||= X` pattern before the early return so users see why nothing polyfilled
+    if (onWarning) {
+      const warning = checkLogicalAssignLhsGlobal(path.node, path.parent,
+        !!path.scope.getBindingIdentifier(path.node.name));
+      if (warning) onWarning(warning);
+    }
     if (!path.isReferencedIdentifier()) return;
     // ReferencedIdentifier matches JSXIdentifier in too many positions - only the direct
     // opening-element name is a runtime reference. Attribute names, JSXNamespacedName

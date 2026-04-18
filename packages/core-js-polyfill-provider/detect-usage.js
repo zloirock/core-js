@@ -26,6 +26,27 @@ const KNOWN_FUNCTION_GLOBALS = new Set([
 ]);
 const KNOWN_NAMESPACE_GLOBALS = new Set(knownBuiltInReturnTypes.namespaces);
 
+// any name that could be polyfilled by core-js (constructors, static methods, namespaces,
+// and proxy globals). used for pattern diagnostics that should fire only for known globals
+export function isKnownGlobalName(name) {
+  return KNOWN_FUNCTION_GLOBALS.has(name) || KNOWN_NAMESPACE_GLOBALS.has(name) || POSSIBLE_GLOBAL_OBJECTS.has(name);
+}
+
+// logical-assignment operators: `||=`, `&&=`, `??=` read the LHS then conditionally write
+const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);
+
+// `Map ||= X` / `Promise ??= X` reads the LHS before any polyfill can load - `Map` without
+// a runtime binding throws ReferenceError. Polyfilling doesn't help either: the import
+// binding is read-only so `_Map ||= X` throws TypeError on write. Returns a warning
+// message for debug output, or null when the pattern doesn't apply
+export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
+  if (isBound || identifier?.type !== 'Identifier' || !isKnownGlobalName(identifier.name)) return null;
+  if (parent?.type !== 'AssignmentExpression' || parent.left !== identifier) return null;
+  if (!LOGICAL_ASSIGN_OPERATORS.has(parent.operator)) return null;
+  return `\`${ identifier.name } ${ parent.operator } ...\` left-hand side cannot be polyfilled `
+    + `(read-only import binding); expected runtime engine to provide \`${ identifier.name }\``;
+}
+
 const MAX_KEY_DEPTH = 10;
 
 // strip transparent wrappers: ParenthesizedExpression, TS expression wrappers, ChainExpression
@@ -388,12 +409,13 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   // `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
   // that resolves to a known global (for `??`/`||` the fallback is usually on the right,
   // for `&&` it's always the right).
-  // when only the fallback resolves, mark `fromFallback` - the runtime value may come
-  // from either branch, so pure-mode must not replace the destructuring
+  // `fromFallback` disables the destructure replacement when the runtime value may come
+  // from either branch - `&&` is always conditional (primary only when left truthy, else
+  // falsy left), so always flag; `??`/`||` flag only when the fallback is the resolved side
   if (unwrapped.type === 'LogicalExpression') {
     const primary = unwrapped.operator === '&&' ? unwrapped.right : unwrapped.left;
     const meta = buildDestructuringInitMeta(primary, key, scope, adapter);
-    if (meta.object) return meta;
+    if (meta.object) return unwrapped.operator === '&&' ? { ...meta, fromFallback: true } : meta;
     // for `&&` both primary and fallback are the same (right), no point retrying
     if (unwrapped.operator === '&&') return meta;
     const fallback = buildDestructuringInitMeta(unwrapped.right, key, scope, adapter);
