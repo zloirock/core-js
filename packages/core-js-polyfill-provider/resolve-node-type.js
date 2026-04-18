@@ -170,6 +170,15 @@ function createResolveNodeType(babelNodeType, t) {
     return node;
   }
 
+  // `function fn(x = 'a')` - default wraps param in AssignmentPattern; type is on `.left`.
+  // `function fn(...xs: T[])` - RestElement carries `T[]` annotation; caller must unwrap one level
+  function effectiveParam(param) {
+    if (!param) return { param: null, isRest: false };
+    if (param.type === 'AssignmentPattern') return { param: param.left, isRest: false };
+    if (param.type === 'RestElement') return { param, isRest: true };
+    return { param, isRest: false };
+  }
+
   // detect the trivial passthrough mapped type `{ [K in keyof T]: T[K] }` and return T.
   // `readonly` / `optional` / `-readonly` / `-?` modifiers don't change the member set, only
   // descriptor flags, so we let them through; `nameType` (key remap via `as`) does rename and blocks
@@ -1064,9 +1073,11 @@ function createResolveNodeType(babelNodeType, t) {
         // param's annotation so chained `.at(0)` / `.forEach` resolve to that type
         const arg = firstArg();
         const resolved = arg?.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
-        const firstParam = resolved?.node?.params?.[0];
+        const { param: firstParam, isRest } = effectiveParam(resolved?.node?.params?.[0]);
         const paramAnnotation = firstParam?.typeAnnotation;
-        const inner = paramAnnotation ? resolveTypeAnnotation(paramAnnotation, scope, depth + 1) : null;
+        const resolvedParam = paramAnnotation ? resolveTypeAnnotation(paramAnnotation, scope, depth + 1) : null;
+        // `...xs: T[]` - annotation is `T[]`, but the tuple element is T
+        const inner = isRest ? resolveInnerType(resolvedParam) : resolvedParam;
         return inner && !isNullableOrNever(inner) ? new $Object('Array', inner) : new $Object('Array');
       }
       // Flow: $Keys
@@ -1930,8 +1941,8 @@ function createResolveNodeType(babelNodeType, t) {
     const { params } = fnPath.node;
     // phase 1: match param annotations against type parameter names
     for (let i = 0; i < params.length && i < args.length; i++) {
-      if (params[i].type === 'RestElement') continue;
-      const param = params[i].type === 'AssignmentPattern' ? params[i].left : params[i];
+      const { param, isRest } = effectiveParam(params[i]);
+      if (isRest) continue;
       const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
       if (!paramAnnotation) continue;
       const name = typeRefName(paramAnnotation);
