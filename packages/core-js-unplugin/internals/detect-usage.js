@@ -1,6 +1,7 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
 import {
   buildDestructuringInitMeta,
+  checkLogicalAssignLhsGlobal,
   checkTypeAnnotations,
   handleBinaryIn,
   handleMemberExpressionNode,
@@ -280,7 +281,7 @@ function walkDecorators(parentPath, decoratorVisitors) {
 
 // --- Usage visitors ---
 
-export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, walkAnnotations = true }) {
+export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
 
   const annotationGlobal = path => name => {
@@ -290,6 +291,12 @@ export function createUsageVisitors({ onUsage, suppressProxyGlobals = false, wal
 
   function identifierVisitor(path) {
     const { node, parent, key: parentKey } = path;
+    // `isReferenced` returns false for write-context leaves like `Map ||= X`; diagnose the
+    // pattern before the early return so users see why nothing was polyfilled
+    if (onWarning) {
+      const warning = checkLogicalAssignLhsGlobal(node, parent, path.scope?.hasBinding(node.name) ?? false);
+      if (warning) onWarning(warning);
+    }
     if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
