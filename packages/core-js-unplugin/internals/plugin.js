@@ -1145,9 +1145,11 @@ export default function createPlugin(options) {
             && directParent.value === node && metaPath.parentPath?.parent?.type === 'ObjectExpression') {
           return transforms.add(node.start, node.end, `${ node.name }: ${ binding }`);
         }
+        // shorthand `export { Promise }` - ESTree sets `local === exported` by reference;
+        // `local === exported` identity is the canonical shorthand test (range-only match
+        // would also pass for `export { Promise as Promise }`, which is a valid distinction)
         if (node.type === 'Identifier' && directParent?.type === 'ExportSpecifier'
-            && directParent.local === node && directParent.exported?.start === node.start
-            && directParent.exported?.end === node.end) {
+            && directParent.local === node && directParent.exported === node) {
           return transforms.add(node.start, node.end, `${ binding } as ${ node.name }`);
         }
         // super.method(args) -> binding.call(this, args) to preserve this-binding
