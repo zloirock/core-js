@@ -36,10 +36,8 @@ export function isKnownGlobalName(name) {
 // logical-assignment operators: `||=`, `&&=`, `??=` read the LHS then conditionally write
 const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);
 
-// `Map ||= X` / `Promise ??= X` reads the LHS before any polyfill can load - `Map` without
-// a runtime binding throws ReferenceError. Polyfilling doesn't help either: the import
-// binding is read-only so `_Map ||= X` throws TypeError on write. Returns a warning
-// message for debug output, or null when the pattern doesn't apply
+// LHS of `Map ||= ...` reads the global before polyfill loads (ReferenceError); the
+// import binding is read-only anyway, so substitution also throws at write time
 export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
   if (isBound || identifier?.type !== 'Identifier' || !isKnownGlobalName(identifier.name)) return null;
   if (parent?.type !== 'AssignmentExpression' || parent.left !== identifier) return null;
@@ -274,8 +272,6 @@ function buildMemberMeta(node, scope, adapter) {
   return { kind: 'property', object: objectName, key, placement };
 }
 
-// process a MemberExpression node: resolve Symbol.X computed key or build member meta
-// returns meta or null. Handles handledObjects marking
 export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   const symbolKey = resolveComputedSymbolKey(node, scope, adapter);
   if (symbolKey) {
@@ -288,8 +284,7 @@ export function handleMemberExpressionNode(node, scope, adapter, handledObjects,
   return meta;
 }
 
-// resolve Symbol.X key from 'in' meta to { entry, hint } for pure polyfilling
-// Symbol.iterator -> is-iterable (replaces entire expression), others -> symbol/X (replaces left side)
+// Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
 export function resolveSymbolInEntry(key) {
   if (key === 'Symbol.iterator') return { entry: 'is-iterable', hint: 'isIterable' };
   const entry = symbolKeyToEntry(key);
@@ -297,16 +292,13 @@ export function resolveSymbolInEntry(key) {
   return { entry, hint: key.replace('.', '$') };
 }
 
-// determine which Symbol.iterator entry to use: 'get-iterator' for direct call, 'get-iterator-method' otherwise
 export function resolveSymbolIteratorEntry(node, parent) {
   const isCall = (parent?.type === 'CallExpression' || parent?.type === 'OptionalCallExpression')
     && parent.callee === node;
   return isCall && parent.arguments.length === 0 && !parent.optional ? 'get-iterator' : 'get-iterator-method';
 }
 
-// build meta from BinaryExpression with 'in' operator
-// handles Symbol.X in obj, 'key' in Constructor, 'key' in globalThis
-// returns meta object or null. seeds `handledObjects` for polyfillable Symbol.X patterns
+// seeds `handledObjects` only for polyfillable Symbol.X - see comment inside
 export function handleBinaryIn(node, scope, adapter, handledObjects) {
   if (node.operator !== 'in') return null;
   const left = unwrapParens(node.left);
@@ -345,9 +337,6 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
   return null;
 }
 
-// check if a MemberExpression node is a computed Symbol.X access
-// handles dot (foo[Symbol.iterator]), bracket (foo[Symbol['iterator']]),
-// and variable (foo[Symbol[key]] where const key = 'iterator')
 function resolveComputedSymbolKey(node, scope, adapter) {
   if (!node.computed) return null;
   const prop = unwrapParens(node.property);
@@ -455,10 +444,6 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   return { kind: 'property', object: null, key, placement: null };
 }
 
-// check if a destructuring ObjectProperty can be safely transformed
-// parentType: type of ObjectPattern's parent node, grandParentType: type of the next ancestor
-// patternProperties: array of ObjectPattern.properties
-// returns false if transformation would break semantics
 export function canTransformDestructuring({ parentType, parentInit, grandParentType, patternProperties }) {
   if (parentType === 'VariableDeclarator') {
     if (!parentInit) return false; // for-of/for-in - no init
@@ -654,10 +639,7 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   }
 }
 
-// check if an optional MemberExpression will be polyfilled as a static/global
-// (the replacement consumes the `?.` token, making null-checks on it unnecessary)
-// uses the polyfill resolver to distinguish polyfillable globals (Array, Promise)
-// from user code (foo, MyClass) - scope adapter is used for binding check
+// the polyfill replacement consumes `?.`, so the receiver null-check is redundant
 export function isPolyfillableOptional(node, scope, adapter, resolve) {
   const obj = node.object;
   if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name)) return false;
