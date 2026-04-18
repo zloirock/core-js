@@ -9,8 +9,9 @@ export default function createEntryVisitors(onEntry) {
     },
     Program(path) {
       for (const bodyPath of path.get('body')) {
-        // the ImportDeclaration visitor above already covers these - skip to avoid double-visit
-        if (bodyPath.isImportDeclaration()) continue;
+        // `getEntrySource` only recognises ImportDeclaration (handled above) and ExpressionStatement
+        // (`require(...)` / `await import(...)`); everything else short-circuits to null anyway
+        if (!bodyPath.isExpressionStatement()) continue;
         const source = getEntrySource(bodyPath.node, babelAdapter, bodyPath.scope);
         if (source !== null) onEntry(source, bodyPath);
       }
