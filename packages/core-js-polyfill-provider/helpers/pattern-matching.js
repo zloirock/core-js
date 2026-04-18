@@ -51,7 +51,9 @@ export function validatePatternList(name, list) {
 // (pass minSuffix=2 to skip the unused `prefix1` slot, matching Babel's UID generator)
 // isTaken is called for each candidate; return true when the name conflicts
 export function findUniqueName(prefix, startSuffix, isTaken, minSuffix = 1) {
-  let counter = startSuffix;
+  // clamp on entry too - subclass may seed a stale / out-of-range counter value,
+  // and `prefix${negative}` / `prefix0` would render an invalid identifier
+  let counter = startSuffix === null ? null : Math.max(startSuffix, minSuffix);
   let name = counter === null ? prefix : `${ prefix }${ counter }`;
   while (isTaken(name)) {
     counter = Math.max((counter ?? 0) + 1, minSuffix);
