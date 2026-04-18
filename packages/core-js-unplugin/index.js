@@ -7,9 +7,12 @@ import createPlugin from './internals/plugin.js';
 const JS_RE = /\.[cm]?[jt]sx?(?:$|[#?])/;
 const DTS_RE = /\.d\.[cm]?tsx?(?:$|[#?])/;
 
-// skip virtual modules (e.g. rolldown runtime helpers prefixed with \0)
+// `\0` marks virtual modules (some bundlers embed it mid-id in the query component, not
+// just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
+// user source
 function shouldTransform(id) {
-  return id.charCodeAt(0) !== 0 && JS_RE.test(id) && !DTS_RE.test(id);
+  if (id.includes('\0') || id.includes('?commonjs-')) return false;
+  return JS_RE.test(id) && !DTS_RE.test(id);
 }
 
 const VALID_PHASES = ['pre', 'post', 'pre+post'];
