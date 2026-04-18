@@ -37,6 +37,7 @@ function expectEnum(name, set, value, { required = true } = {}) {
 
 function validateOptions({
   absoluteImports,
+  additionalPackages,
   browserslistEnv,
   configPath,
   debug,
@@ -46,6 +47,7 @@ function validateOptions({
   include,
   method,
   mode,
+  package: pkg,
   shippedProposals,
   shouldInjectPolyfill,
 }) {
@@ -66,6 +68,20 @@ function validateOptions({
   // empty arrays don't conflict with shouldInjectPolyfill - only non-empty include/exclude do
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
     throw new TypeError('`include` and `exclude` are not supported when using `shouldInjectPolyfill`');
+  }
+  // `undefined` takes the default downstream; `null` (e.g. `{ package: cond ? 'x' : null }`)
+  // is a real mis-configuration and should surface as a type error, not a late TypeError
+  if (pkg !== undefined) {
+    if (typeof pkg !== 'string') throw optionTypeError('package', 'a string', pkg);
+    if (pkg === '') throw optionTypeError('package', 'a non-empty string', pkg);
+  }
+  if (additionalPackages !== undefined && additionalPackages !== null) {
+    if (!Array.isArray(additionalPackages)) {
+      throw optionTypeError('additionalPackages', 'an array, or undefined', additionalPackages);
+    }
+    const badType = additionalPackages.find($pkg => typeof $pkg !== 'string');
+    if (badType !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', badType);
+    if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
   }
 }
 
@@ -166,6 +182,7 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
   if (unknown.length) throw new TypeError(`Unknown @core-js plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }`);
   validateOptions({
     absoluteImports,
+    additionalPackages: rest.additionalPackages,
     browserslistEnv,
     configPath,
     debug,
@@ -175,6 +192,7 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     include,
     method: rest.method,
     mode: rest.mode,
+    package: rest.package,
     shippedProposals,
     shouldInjectPolyfill: userCallback,
   });

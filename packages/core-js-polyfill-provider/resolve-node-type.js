@@ -495,8 +495,6 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveTypeofBinding(exprName.name, scope);
   }
 
-  // resolve an enum declaration to a primitive type
-  // string enum -> $Primitive('string'), numeric enum -> $Primitive('number'), mixed/empty -> null
   function resolveEnumMemberKind(initializer) {
     if (!initializer) return 'number'; // implicit numeric
     if (babelNodeType(initializer) === 'StringLiteral') return 'string';
@@ -644,9 +642,6 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // --- Type annotation resolver ---
-  // resolve type arguments at a usage site and map them to a declaration's type parameters
-  // when typeParamMap is provided, extends it; when null, builds from scratch
-  // e.g. for `type Foo<T> = Array<T>` used as `Foo<string>`, maps { T: $Primitive('string') }
   function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
     const declParams = decl.typeParameters?.params;
     if (!declParams?.length) return typeParamMap;
@@ -694,9 +689,6 @@ function createResolveNodeType(babelNodeType, t) {
     return map;
   }
 
-  // resolve a user-defined type alias or interface, optionally substituting type parameters
-  // typeParamMap: when provided (from generic function substitution or parent type args), propagates substitutions
-  // when null, type arguments at usage site (e.g. Foo<string>) are resolved and propagated automatically
   function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
     if (depth > MAX_DEPTH) return null;
     // type parameters shadow type declarations with the same name
@@ -1098,10 +1090,6 @@ function createResolveNodeType(babelNodeType, t) {
     return isFunctionLike(resolved?.node) ? resolveReturnType(resolved) : null;
   }
 
-  // resolve inner type from the first type parameter for container types
-  // (Array, Set, Iterator, Promise, etc.) using the provided resolver
-  // e.g. Array<string> -> $Object('Array', $Primitive('string'))
-  // e.g. Promise<number[]> -> $Object('Promise', $Object('Array', ...))
   function resolveKnownContainerType(name, base, node, innerResolver) {
     if (!base) return null;
     const params = getTypeArgs(node)?.params;
@@ -1112,14 +1100,10 @@ function createResolveNodeType(babelNodeType, t) {
     return base;
   }
 
-  // resolve a known constructor with type parameters from a runtime expression
-  // e.g. new Set<string>() -> $Object('Set', $Primitive('string'))
   function resolveConstructorType(name, path) {
     return resolveKnownContainerType(name, resolveKnownConstructor(name), path.node, p => resolveTypeAnnotation(p, path.scope));
   }
 
-  // resolve a known constructor CALL (without `new`) with type parameters
-  // e.g. Array<string>() -> $Object('Array', $Primitive('string')), String() -> $Primitive('string')
   function resolveConstructorCallType(name, path) {
     if (!hasOwn(KNOWN_CONSTRUCTORS, name)) return null;
     const callResult = typeFromHint(KNOWN_CONSTRUCTORS[name].call);
