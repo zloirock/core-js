@@ -50,11 +50,17 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
 
 const MAX_KEY_DEPTH = 10;
 
-// strip transparent wrappers: ParenthesizedExpression, TS expression wrappers, ChainExpression
-// (Array as any).from() / globalThis?.Array must resolve the same as Array.from() / globalThis.Array
+// for `(0, X)` sequences: preceding elements would be silently dropped when plugins
+// replace the receiver, so bail the collapse on any side-effect there
 function unwrapParens(node) {
-  while (node?.type === 'ParenthesizedExpression' || node?.type === 'ChainExpression'
-    || TS_EXPR_WRAPPERS.has(node?.type)) node = node.expression;
+  while (node) {
+    if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression'
+      || TS_EXPR_WRAPPERS.has(node.type)) node = node.expression;
+    else if (node.type === 'SequenceExpression'
+      && !node.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+      node = node.expressions.at(-1);
+    } else break;
+  }
   return node;
 }
 
@@ -100,9 +106,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     }
     // const P = self.Promise / const A = globalThis['Array'] / var _ref = (0, Array)
     if (init) {
-      let unwrapped = unwrapParens(init);
-      // (0, Array) - sequence expression, value = last element
-      if (unwrapped.type === 'SequenceExpression') unwrapped = unwrapParens(unwrapped.expressions.at(-1));
+      const unwrapped = unwrapParens(init);
       if (unwrapped.type === 'Identifier') {
         if (!adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
         return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
@@ -300,15 +304,8 @@ export function resolveSymbolIteratorEntry(node, parent) {
 // returns meta object or null. Also marks handled objects if suppressProxyGlobals is false
 export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   if (node.operator !== 'in') return null;
-  // Symbol.X in obj / Symbol?.X in obj / (Symbol?.X) in obj / (0, Symbol).X in obj
   const left = unwrapParens(node.left);
-  // `_isIterable(obj)` replacement drops the receiver entirely, so preceding sequence
-  // elements with side-effects would be lost - bail out of the collapse in that case
-  let leftObject = unwrapParens(left.object);
-  if (leftObject?.type === 'SequenceExpression'
-    && !leftObject.expressions.slice(0, -1).some(mayHaveSideEffects)) {
-    leftObject = unwrapParens(leftObject.expressions.at(-1));
-  }
+  const leftObject = unwrapParens(left.object);
   if ((left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
     && leftObject?.type === 'Identifier' && leftObject.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
