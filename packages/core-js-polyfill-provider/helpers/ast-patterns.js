@@ -1,3 +1,8 @@
+// typed AST node predicate - excludes scalars, SourceLocation objects, and foreign markers
+// (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools).
+// prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
+export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
+
 // type-only expression wrappers - runtime no-ops that forward to their `.expression` child
 export const TS_EXPR_WRAPPERS = new Set([
   'TSNonNullExpression',
