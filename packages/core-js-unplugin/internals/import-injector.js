@@ -68,10 +68,9 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // orphan post: snapshot lost, input is pre's output with `_ref = ...` free assignments.
-  // `bindingNames` filter drops user-owned `let _ref` / similar declarations
-  adoptOrphanRefs(orphanRefs, bindingNames) {
+  // caller filters user-owned `let _ref` declarations before invoking
+  adoptOrphanRefs(orphanRefs) {
     for (const ref of orphanRefs) {
-      if (bindingNames.has(ref)) continue;
       if (!this.#refs.includes(ref)) this.#refs.push(ref);
       this.usedNames.add(ref);
     }
