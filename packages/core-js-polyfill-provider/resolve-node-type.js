@@ -1,5 +1,17 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, unwrapExportedDeclaration, unwrapParens } from './helpers.js';
+import {
+  $Object,
+  $Primitive,
+  MAX_DEPTH,
+  PATTERN_WRAPPERS,
+  PRIMITIVE_WRAPPERS,
+  PRIMITIVES,
+  SINGLE_ELEMENT_COLLECTIONS,
+  TYPE_HINTS,
+  TYPEOF_HINT_GROUPS,
+  UNBOXED_PRIMITIVES,
+} from './resolve-node-type-base.js';
 
 const {
   constructors: KNOWN_CONSTRUCTORS,
@@ -12,96 +24,7 @@ const {
   staticTypeGuards: KNOWN_STATIC_TYPE_GUARDS,
 } = knownBuiltInReturnTypes;
 
-const { assign, create, entries, hasOwn, keys } = Object;
-
-// shared recursion budget for all resolvers - alias chains, runtime walks, guard traversals
-const MAX_DEPTH = 64;
-
-const PRIMITIVE_WRAPPERS = assign(create(null), {
-  bigint: 'BigInt',
-  boolean: 'Boolean',
-  number: 'Number',
-  string: 'String',
-  symbol: 'Symbol',
-});
-
-const PRIMITIVE_HINTS = new Set(keys(PRIMITIVE_WRAPPERS));
-
-const UNBOXED_PRIMITIVES = create(null);
-for (const [primitive, constructor] of entries(PRIMITIVE_WRAPPERS)) UNBOXED_PRIMITIVES[constructor] = primitive;
-
-const PRIMITIVES = new Set([
-  ...PRIMITIVE_HINTS,
-  'null',
-  'undefined',
-]);
-
-const TYPE_HINTS = new Set([
-  ...PRIMITIVE_HINTS,
-  'array',
-  'asynciterator',
-  'date',
-  'domcollection',
-  'function',
-  'iterator',
-  'object',
-  'promise',
-  'regexp',
-]);
-
-// lack of boxed primitives - acceptable assumption
-const TYPEOF_HINT_GROUPS = [...keys(PRIMITIVE_WRAPPERS), 'function'].reduce((memo, type) => {
-  memo[type] = new Set([type]);
-  return memo;
-}, create(null));
-
-// object group: all hints not covered by explicit typeof groups
-TYPEOF_HINT_GROUPS.object = new Set([...TYPE_HINTS].filter(h => {
-  for (const group of Object.values(TYPEOF_HINT_GROUPS)) if (group.has(h)) return false;
-  return true;
-}));
-
-// collection types whose first type parameter is the element type
-const SINGLE_ELEMENT_COLLECTIONS = new Set([
-  'Array',
-  'ReadonlyArray',
-  'Set',
-  'ReadonlySet',
-  'Iterable',
-  'IterableIterator',
-  'Iterator',
-  'AsyncIterable',
-  'AsyncIterableIterator',
-  'AsyncIterator',
-  'Generator',
-  'AsyncGenerator',
-]);
-
-const PATTERN_WRAPPERS = new Set([
-  'ArrayPattern',
-  'ObjectPattern',
-  'Property',
-  'ObjectProperty',
-  'AssignmentPattern',
-  'RestElement',
-]);
-
-function $Primitive(type) {
-  this.type = type;
-  this.constructor = null;
-  // inner stored as a hint string, resolved lazily via resolveInnerType
-  this.inner = type === 'string' ? 'string' : null;
-}
-
-$Primitive.prototype.primitive = true;
-
-function $Object(constructor, inner) {
-  this.type = 'object';
-  this.constructor = constructor;
-  this.inner = inner ?? null;
-}
-
-$Object.prototype.primitive = false;
+const { assign, create, hasOwn } = Object;
 
 // eslint-disable-next-line max-statements -- factory of type inference engine
 function createResolveNodeType(babelNodeType, t) {
