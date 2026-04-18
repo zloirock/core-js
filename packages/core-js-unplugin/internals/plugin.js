@@ -91,7 +91,6 @@ export default function createPlugin(options) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
-    snapshots.maybeSweep();
     // per-file reset of AST-keyed caches: WeakMap would GC eventually, this makes the
     // memory bound explicit under long-running dev-server / HMR. `createClassHelpers`
     // is created fresh per transform below; only the persistent resolver needs clearing
@@ -181,8 +180,8 @@ export default function createPlugin(options) {
       inherit,
     });
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
-    // `orphanRefs` feeds orphan adoption when post's inherited snapshot was dropped
-    // (TTL, buildEnd, sibling invalidation); filter out user-owned `let _ref` via `names`
+    // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
+    // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
     const { names: bindingNames, orphanRefs } = collectAllBindingNames(ast);
     injector.seedReservedNames(bindingNames);
     // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
