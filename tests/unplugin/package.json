@@ -1,4 +1,7 @@
 {
   "name": "tests/unplugin",
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@jridgewell/trace-mapping": "^0.3.11"
+  }
 }
