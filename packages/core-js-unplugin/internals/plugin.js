@@ -64,7 +64,7 @@ export default function createPlugin(options) {
     throw new TypeError(`\`bundler\` must be one of ${ list }, or undefined (received ${ JSON.stringify(bundler) })`);
   }
 
-  const snapshots = new SnapshotCache();
+  const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
   const { resolver, createDebugOutput } = createPolyfillResolver(providerOptions, {
     typeResolvers,
     astPredicates: {
