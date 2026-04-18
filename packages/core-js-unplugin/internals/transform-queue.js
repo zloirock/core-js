@@ -165,9 +165,10 @@ export default class TransformQueue {
   }
 
   add(start, end, content, guardedRoot, rewriteHint) {
-    // insertion (`start === end`) is legal for prefix/suffix injects; `start > end` never is
-    // and would silently corrupt MagicString overwrites, so surface the caller bug immediately
-    if (start > end) throw new RangeError(`[core-js] transform-queue: invalid range [${ start },${ end })`);
+    // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
+    // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
+    // (and any `start > end`) as a caller bug immediately rather than corrupting silently
+    if (start >= end) throw new RangeError(`[core-js] transform-queue: invalid range [${ start },${ end })`);
     const entry = { start, end, content, guardedRoot, rewriteHint };
     this.#transforms.add(entry);
     pushOrInit(this.#byRange, rangeKey(start, end), entry);
