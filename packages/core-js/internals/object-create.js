@@ -69,7 +69,7 @@ var NullProtoObjectViaSc64bit = function () {
       return {};
     };
   }
-}
+};
 
 // Create object with fake `null` prototype: use iframe Object with cleared prototype
 var NullProtoObjectViaIFrame = function () {
