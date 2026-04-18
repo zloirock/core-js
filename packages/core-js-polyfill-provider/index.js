@@ -121,7 +121,7 @@ function validateIncludeExclude(include, exclude, modules, method) {
 
 export function createPolyfillContext({
   method,
-  mode = 'actual',
+  mode,
   version = 'node_modules',
   package: pkg,
   additionalPackages,
@@ -133,6 +133,9 @@ export function createPolyfillContext({
   if (typeof shouldInjectPolyfill !== 'function') {
     throw optionTypeError('shouldInjectPolyfill', 'a function', shouldInjectPolyfill);
   }
+  // explicit `null` (common in conditional config spreads) skips the destructuring default;
+  // leaving it unmodified makes `null/<entry>` miss the polyfill map and drop all polyfills
+  mode ??= 'actual';
   if (shippedProposals && ['es', 'stable'].includes(mode)) mode = 'actual';
 
   const includeEntries = method === 'usage-pure' ? collectEntryPaths(include) : new Set();
