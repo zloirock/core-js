@@ -281,6 +281,28 @@ function walkDecorators(parentPath, decoratorVisitors) {
 
 // --- Usage visitors ---
 
+// walk up transparent value wrappers (parens + `, X` sequence-last) until a non-wrapper;
+// true if the resulting node sits as the `.object` of a MemberExpression whose whole
+// MemberExpression is the `.left` of an `in` BinaryExpression
+function isInReceiverOfInExpression(path) {
+  let current = path;
+  while (current.parentPath) {
+    const { parent, key } = current;
+    if (parent?.type === 'ParenthesizedExpression'
+      || (parent?.type === 'SequenceExpression' && parent.expressions.at(-1) === current.node)) {
+      current = current.parentPath;
+      continue;
+    }
+    if ((parent?.type === 'MemberExpression' || parent?.type === 'OptionalMemberExpression') && key === 'object') {
+      const grandParent = current.parentPath?.parent;
+      return grandParent?.type === 'BinaryExpression' && grandParent.operator === 'in'
+        && grandParent.left === parent;
+    }
+    return false;
+  }
+  return false;
+}
+
 export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
 
@@ -303,11 +325,10 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
       && path.parentPath?.parentPath?.node?.source) return;
     if (path.scope?.hasBinding(node.name)) return;
     if (handledObjects.has(node)) return;
-    if (suppressProxyGlobals && parent?.type === 'MemberExpression' && parentKey === 'object') {
-      const grandParent = path.parentPath?.parentPath?.node;
-      if (grandParent?.type === 'BinaryExpression' && grandParent.operator === 'in'
-        && grandParent.left === parent) return;
-    }
+    // suppress a standalone `Symbol` usage when it's the receiver of `<Symbol>.X in obj` -
+    // the BinaryExpression visitor already emits the `in` meta. walk past transparent value
+    // wrappers (parens + `(0, X)` sequence) to catch `(Symbol).X in obj` and `(0, Symbol).X in obj`
+    if (suppressProxyGlobals && isInReceiverOfInExpression(path)) return;
     onUsage({ kind: 'global', name: node.name }, path);
   }
 
