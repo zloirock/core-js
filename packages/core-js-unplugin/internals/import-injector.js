@@ -67,10 +67,11 @@ export default class ImportInjector extends ImportInjectorState {
     return name;
   }
 
-  // orphan post: snapshot lost, input is pre's output with `_ref = ...` assignments;
-  // scan & adopt so flush() emits the missing `var _ref, _ref2, ...;` declaration
-  adoptOrphanRefsFromCode(code) {
-    for (const { groups: { ref } } of code.matchAll(/\b(?<ref>_ref\d*)\s*=/g)) {
+  // orphan post: snapshot lost, input is pre's output with `_ref = ...` free assignments.
+  // `bindingNames` filter drops user-owned `let _ref` / similar declarations
+  adoptOrphanRefs(orphanRefs, bindingNames) {
+    for (const ref of orphanRefs) {
+      if (bindingNames.has(ref)) continue;
       if (!this.#refs.includes(ref)) this.#refs.push(ref);
       this.usedNames.add(ref);
     }
