@@ -8,7 +8,6 @@ import {
   detectCommonJS,
   globalProxyMemberName,
   hasTopLevelESM,
-  isASTNode,
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
@@ -19,13 +18,11 @@ import {
   parseDisableDirectives,
   stripQueryHash,
   TS_EXPR_WRAPPERS,
-  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
-import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   resolveSymbolInEntry,
@@ -39,157 +36,22 @@ import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
+import {
+  canFuseWithOpenParen,
+  collectAllBindingNames,
+  directivePrologueEnd,
+  hasCoreJSPureImport,
+  isBodylessStatementBody,
+  isDirectiveStatement,
+  KNOWN_BUNDLERS,
+  LINE_TERMINATOR,
+  NEEDS_GUARD_PARENS,
+  NO_REF_NEEDED,
+  startsEnclosingStatement,
+} from './plugin-helpers.js';
+import SnapshotCache from './snapshot-cache.js';
 
-// oxc: `directive` is a string for directives; null (TSX) or undefined (JS) otherwise
-const isDirectiveStatement = n => n?.type === 'ExpressionStatement' && typeof n.directive === 'string';
-
-// end position of the leading directive prologue ('use strict', etc.) - 0 if none
-function directivePrologueEnd(ast) {
-  let end = 0;
-  for (const stmt of ast.body) {
-    if (!isDirectiveStatement(stmt)) break;
-    end = stmt.end;
-  }
-  return end;
-}
-
-// node types that are safe to double-evaluate (no side effects, no temp ref needed)
-const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
-
-// chars that, as the previous statement's last token, fuse with a leading `(` on the
-// next line into a call expression (parser continues without ASI)
-const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`]/;
-
-// ES spec LineTerminator. anchors `//`-comment scans, ASI boundary checks
-const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
-
-function canFuseWithOpenParen(src, pos) {
-  let i = pos - 1;
-  while (i >= 0 && (src[i] === ' ' || src[i] === '\t' || src[i] === '\n' || src[i] === '\r')) i--;
-  return i >= 0 && FUSES_WITH_OPEN_PAREN.test(src[i]);
-}
-
-// does `pos` sit at the start of the transform's enclosing ExpressionStatement? only then
-// does ASI at this boundary matter for the injected `(...)` wrapper
-function startsEnclosingStatement(path, pos) {
-  let p = path;
-  while (p && p.node?.type !== 'ExpressionStatement') p = p.parentPath;
-  return p?.node?.start === pos;
-}
-
-// single-pass AST scan. `names` covers every declaration anywhere in the file so UID
-// generation avoids collisions at any nesting level (`var _at = 1` in a function
-// would otherwise shadow `import _at from ...`). `orphanRefs` carries free `_refN = ...`
-// assignments left by an earlier pre pass whose snapshot got dropped; caller filters
-// these against `names` so user-owned `let _ref` isn't mistaken for a leftover.
-// heap stack - recursion would overflow on `a + b + c + ...` chains from minifiers
-export function collectAllBindingNames(ast) {
-  const names = new Set();
-  const orphanRefs = new Set();
-  const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
-  const stack = [ast];
-  while (stack.length) {
-    const node = stack.pop();
-    if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
-      continue;
-    }
-    if (!isASTNode(node)) continue;
-    switch (node.type) {
-      case 'VariableDeclarator':
-        addPattern(node.id);
-        break;
-      case 'FunctionDeclaration':
-      case 'FunctionExpression':
-        if (node.id) names.add(node.id.name);
-        for (const p of node.params) addPattern(p);
-        break;
-      case 'ArrowFunctionExpression':
-        for (const p of node.params) addPattern(p);
-        break;
-      case 'ClassDeclaration':
-      case 'ClassExpression':
-      case 'TSEnumDeclaration':
-      case 'TSModuleDeclaration':
-        if (node.id) names.add(node.id.name);
-        break;
-      case 'CatchClause': if (node.param) addPattern(node.param); break;
-      case 'ImportSpecifier':
-      case 'ImportDefaultSpecifier':
-      case 'ImportNamespaceSpecifier':
-        names.add(node.local.name);
-        break;
-      case 'AssignmentExpression':
-        if (node.operator === '=' && node.left?.type === 'Identifier' && ORPHAN_REF_PATTERN.test(node.left.name)) {
-          orphanRefs.add(node.left.name);
-        }
-        break;
-    }
-    // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
-    for (const key in node) {
-      const v = node[key];
-      if (Array.isArray(v) || isASTNode(v)) stack.push(v);
-    }
-  }
-  return { names, orphanRefs };
-}
-
-// pre-pass fingerprint - any top-level `@core-js/pure/...` import marks the source as
-// our own output, not user code that happens to contain `_ref = ...` assignments
-function hasCoreJSPureImport(ast) {
-  for (const node of ast.body) {
-    if (node?.type === 'ImportDeclaration' && node.source?.value?.includes('@core-js/pure/')) return true;
-  }
-  return false;
-}
-
-// ternary guard needs () only when parent operator has higher precedence than ?:
-// or parent grammar restricts the expression (extends clause expects LeftHandSideExpression)
-const NEEDS_GUARD_PARENS = new Set([
-  'BinaryExpression',
-  'LogicalExpression',
-  'UnaryExpression',
-  'AwaitExpression',
-  'UpdateExpression',
-  'TaggedTemplateExpression',
-  'SpreadElement',
-  'ClassDeclaration',
-  'ClassExpression',
-]);
-
-// statement-body slots for unbraced control statements, `with`, and single-expression arrows
-const BODY_SLOT_TYPES = new Set([
-  'ArrowFunctionExpression',
-  'DoWhileStatement',
-  'ForInStatement',
-  'ForOfStatement',
-  'ForStatement',
-  'LabeledStatement',
-  'WhileStatement',
-  'WithStatement',
-]);
-
-// `UnpluginContextMeta.framework` union (upstream unplugin). validating here so typos
-// like `webpaaack` fail loudly instead of silently falling to the non-webpack default
-const KNOWN_BUNDLERS = new Set([
-  'bun',
-  'esbuild',
-  'farm',
-  'rolldown',
-  'rollup',
-  'rspack',
-  'unloader',
-  'vite',
-  'webpack',
-]);
-
-// is `path` the unbraced body slot of an if/loop/with/label/arrow?
-function isBodylessStatementBody(path) {
-  const parent = path.parentPath?.node;
-  if (!parent) return false;
-  if (parent.type === 'IfStatement') return parent.consequent === path.node || parent.alternate === path.node;
-  return BODY_SLOT_TYPES.has(parent.type) && parent.body === path.node;
-}
+export { collectAllBindingNames } from './plugin-helpers.js';
 
 export default function createPlugin(options) {
   // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across plugin instances
@@ -202,50 +64,7 @@ export default function createPlugin(options) {
     throw new TypeError(`\`bundler\` must be one of ${ list }, or undefined (received ${ JSON.stringify(bundler) })`);
   }
 
-  // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id).
-  // `storeSnapshot` deletes-before-set, so Map insertion order stays chronological -
-  // enables O(1) oldest-eviction and early-break sweep. buildEnd clears the Map, but
-  // dev-servers don't fire it between rebuilds, so TTL + hard cap bound the leak
-  const prePassSnapshots = new Map();
-  const SNAPSHOT_TTL_MS = 60 * 1000;
-  const SNAPSHOT_SWEEP_THRESHOLD = 32;
-  const SNAPSHOT_MAX_ENTRIES = 128;
-  const SNAPSHOT_SWEEP_INTERVAL_MS = 30 * 1000;
-  let lastSnapshotSweepAt = 0;
-
-  function sweepStaleSnapshots() {
-    const cutoff = Date.now() - SNAPSHOT_TTL_MS;
-    for (const [id, entry] of prePassSnapshots) {
-      if (entry.addedAt >= cutoff) break; // chronological order: rest is fresher
-      prePassSnapshots.delete(id);
-    }
-  }
-
-  // piggyback on any runTransform; setInterval would keep CLI event loop alive
-  function maybeSweepSnapshots() {
-    if (!prePassSnapshots.size) return;
-    const now = Date.now();
-    if (now - lastSnapshotSweepAt < SNAPSHOT_SWEEP_INTERVAL_MS) return;
-    lastSnapshotSweepAt = now;
-    sweepStaleSnapshots();
-  }
-
-  function storeSnapshot(id, entry) {
-    if (prePassSnapshots.size >= SNAPSHOT_SWEEP_THRESHOLD) sweepStaleSnapshots();
-    // double-call races the snapshot against post-input from the earlier call - emit a
-    // diagnostic so the inconsistency doesn't silently land in the output
-    if (prePassSnapshots.has(id) && typeof console !== 'undefined') {
-      // eslint-disable-next-line no-console -- dev-time diagnostic
-      console.warn(`[core-js-unplugin] pre-pass called twice for ${ id }; latest snapshot wins`);
-    }
-    // delete first so same-id re-insert moves to tail (refreshes chronological order)
-    // and isn't double-counted against the cap
-    prePassSnapshots.delete(id);
-    if (prePassSnapshots.size >= SNAPSHOT_MAX_ENTRIES) {
-      prePassSnapshots.delete(prePassSnapshots.keys().next().value);
-    }
-    prePassSnapshots.set(id, entry);
-  }
+  const snapshots = new SnapshotCache();
   const { resolver, createDebugOutput } = createPolyfillResolver(providerOptions, {
     typeResolvers,
     astPredicates: {
@@ -272,7 +91,7 @@ export default function createPlugin(options) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
-    maybeSweepSnapshots();
+    snapshots.maybeSweep();
     // per-file reset of AST-keyed caches: WeakMap would GC eventually, this makes the
     // memory bound explicit under long-running dev-server / HMR. `createClassHelpers`
     // is created fresh per transform below; only the persistent resolver needs clearing
@@ -289,8 +108,7 @@ export default function createPlugin(options) {
     // read + clear snapshot up-front so a later parse/traverse error in post still frees
     // the entry (otherwise a one-off failure leaks until the next buildEnd reset)
     if (pass === 'post') {
-      const stored = prePassSnapshots.get(id);
-      prePassSnapshots.delete(id);
+      const stored = snapshots.take(id);
       if (stored) {
         inherit = stored.snapshot;
         // sibling may have mutated pre's output between passes; only reuse the parse
@@ -422,7 +240,7 @@ export default function createPlugin(options) {
         // leaves `code` untouched; usage-pure mutates via TransformQueue so positions
         // in its AST no longer line up with what post receives)
         const canReuseParse = !ms.hasChanged();
-        storeSnapshot(id, {
+        snapshots.store(id, {
           snapshot: injector.snapshot(),
           ast: canReuseParse ? ast : null,
           comments: canReuseParse ? comments : null,
@@ -1457,8 +1275,7 @@ export default function createPlugin(options) {
     // long-running dev servers where a pre pass ran but the matching post was skipped
     // (tree-shake, sibling bail, module invalidation)
     reset() {
-      prePassSnapshots.clear();
-      lastSnapshotSweepAt = 0;
+      snapshots.reset();
     },
   };
 }
