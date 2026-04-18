@@ -82,7 +82,7 @@ export const estreeAdapter = {
     // expose source for import bindings so resolveKey() can infer Symbol.<name>
     let importSource = null;
     if (IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)) {
-      importSource = b.path.parent?.source?.value ?? b.path.parentPath?.node?.source?.value ?? null;
+      importSource = b.path.parent?.source?.value ?? null;
     }
     return { node: b.path.node, constantViolations: b.constantViolations, importSource };
   },
