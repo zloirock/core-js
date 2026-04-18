@@ -49,8 +49,8 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains
 const MAX_KEY_DEPTH = 64;
 
-// for `(0, X)` sequences: preceding elements would be silently dropped when plugins
-// replace the receiver, so bail the collapse on any side-effect there
+// for `(0, X)` sequences: preceding elements would be silently dropped when plugins replace
+// the receiver, so bail the collapse on any side-effect there
 function unwrapParens(node) {
   while (node) {
     if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression'
@@ -199,9 +199,19 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   if (depth > MAX_KEY_DEPTH) return null;
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
-  // template literal without interpolation: `at` -> 'at'
-  if (node.type === 'TemplateLiteral' && node.expressions.length === 0 && node.quasis.length === 1) {
-    return node.quasis[0].value.cooked;
+  // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
+  if (node.type === 'TemplateLiteral') {
+    if (node.expressions.length === 0 && node.quasis.length === 1) return node.quasis[0].value.cooked;
+    let out = '';
+    for (let i = 0; i < node.quasis.length; i++) {
+      out += node.quasis[i].value.cooked;
+      if (i < node.expressions.length) {
+        const part = resolveKey(node.expressions[i], true, scope, adapter, seen, depth + 1);
+        if (part === null) return null;
+        out += part;
+      }
+    }
+    return out;
   }
   // computed: const variable - follow to init and resolve recursively
   if (node.type === 'Identifier' && computed) {
@@ -686,7 +696,9 @@ export function getEntrySource(node, adapter, scope) {
   return null;
 }
 
-const canonicalizeEntrySubpath = s => s.replace(/\.[cm]?js$/, '').replace(/\/index$/, '');
+// core-js ships only `.js` files; the trailing `/index` collapses when users reference a
+// directory-style entry path (`core-js/stable/array/index` === `core-js/stable/array`)
+const canonicalizeEntrySubpath = s => s.replace(/\.js$/, '').replace(/\/index$/, '');
 
 function stripPkgPrefix(source, packages) {
   // `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path

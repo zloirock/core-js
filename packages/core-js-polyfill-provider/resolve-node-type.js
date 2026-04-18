@@ -1070,10 +1070,15 @@ function createResolveNodeType(babelNodeType, t) {
       case 'Parameters':
       case 'ConstructorParameters': {
         // `Parameters<typeof fn>` is a tuple - approximate the element type as the first
-        // param's annotation so chained `.at(0)` / `.forEach` resolve to that type
+        // param's annotation so chained `.at(0)` / `.forEach` resolve to that type.
+        // class `constructor` params live inside `body.body`, not on `ClassDeclaration`
         const arg = firstArg();
         const resolved = arg?.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
-        const { param: firstParam, isRest } = effectiveParam(resolved?.node?.params?.[0]);
+        const resolvedNode = resolved?.node;
+        const ctor = resolvedNode?.body?.body?.find(m => m?.kind === 'constructor');
+        // babel: `ClassMethod.params`; oxc: `MethodDefinition.value.params` (FunctionExpression)
+        const params = resolvedNode?.params ?? ctor?.params ?? ctor?.value?.params;
+        const { param: firstParam, isRest } = effectiveParam(params?.[0]);
         const paramAnnotation = firstParam?.typeAnnotation;
         const resolvedParam = paramAnnotation ? resolveTypeAnnotation(paramAnnotation, scope, depth + 1) : null;
         // `...xs: T[]` - annotation is `T[]`, but the tuple element is T
