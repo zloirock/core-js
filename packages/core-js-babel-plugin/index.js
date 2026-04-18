@@ -488,7 +488,8 @@ export default function plugin(api, options) {
 
       // re-traversing an inserted SE can itself trigger `deferSideEffect` (nested destructuring
       // inside the lifted SE, e.g. `const { of } = (innerCall(), Array)` in an arrow body).
-      // loop until the queue stays empty so nothing is silently dropped
+      // loop until the queue stays empty so nothing is silently dropped; termination is
+      // guaranteed by bounded AST depth - each iteration processes a deeper level
       function processDeferredSideEffects(path) {
         while (deferredSideEffects.length) {
           const batch = deferredSideEffects.splice(0).sort(batchOrder);
