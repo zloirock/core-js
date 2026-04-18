@@ -40,8 +40,7 @@ import TransformQueue from './transform-queue.js';
 import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
-// oxc-parser sets `directive` to a string for directive ExpressionStatements; regular
-// ExpressionStatements have `directive: null` (TSX) or omit the field (JS)
+// oxc: `directive` is a string for directives; null (TSX) or undefined (JS) otherwise
 const isDirectiveStatement = n => n?.type === 'ExpressionStatement' && typeof n.directive === 'string';
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none
@@ -975,10 +974,8 @@ export default function createPlugin(options) {
         return true;
       }
 
-      // IIFE / parameter destructure: `function({ from }) {}` -> `function({ from = _Array$from }) {}`
-      // only static/global polyfills fit in a default value; instance methods need a receiver
-      // LIMITATION: the default only fires when `arg[key] === undefined`, so a present-but-buggy
-      // native (e.g. `Array.from` failing SAFE_ITERATION_CLOSING) bypasses the polyfill
+      // parameter destructure `function({ from = _Array$from })`: the default only fires
+      // when `arg[key] === undefined`, so a present-but-buggy native bypasses the polyfill
       function handleParameterDestructurePure(meta, metaPath, propNode) {
         const { value } = propNode;
         if (value?.type !== 'Identifier') return;
