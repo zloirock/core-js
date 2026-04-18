@@ -8,7 +8,7 @@
 //   isStringLiteral(node)           -> boolean
 //   getStringValue(node)            -> string | null
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, declaresRequireBinding, symbolKeyToEntry } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, declaresRequireBinding, stripQueryHash, symbolKeyToEntry } from './helpers.js';
 
 // known-built-in-return-types enumerates every built-in identifier core-js knows about.
 // constructors (Array, Map, ...) and global functions (parseInt, fetch, ...) are functions;
@@ -631,15 +631,20 @@ export function getEntrySource(node, adapter, scope) {
 const canonicalizeEntrySubpath = s => s.replace(/\.[cm]?js$/, '').replace(/\/index$/, '');
 
 function stripPkgPrefix(source, packages) {
+  // `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path
+  const clean = stripQueryHash(source);
   for (const pkg of packages) {
     const prefix = `${ pkg }/`;
-    if (source.startsWith(prefix)) return source.slice(prefix.length);
+    if (clean.startsWith(prefix)) return clean.slice(prefix.length);
   }
   return null;
 }
 
 function defaultSpecifierName(node) {
-  const spec = node.specifiers?.find(s => s.type === 'ImportDefaultSpecifier');
+  // `import X from` and `import { default as X } from` bind the same module export;
+  // the latter form (Babel's own codegen for transpiled defaults) must dedup too
+  const spec = node.specifiers?.find(s => s.type === 'ImportDefaultSpecifier'
+    || (s.type === 'ImportSpecifier' && (s.imported?.name ?? s.imported?.value) === 'default'));
   return spec?.local?.name ?? null;
 }
 
