@@ -62,10 +62,14 @@ var NullProtoObjectViaSc64bit = function () {
     sc64bit.Language = 'JScript';
     return sc64bit.Eval('Object');
   } catch (error) {
-    // Throw explicit error if ScriptControl is not available in 64-bit environment
-    throw new Error('A compatible ScriptControl version is required to support null-prototype objects on 64-bit environments.');
+    // If all attempts to retrieve a new object from an external instance fail,
+    // the existing object is returned.
+    // This prevents errors during the key deletion process using enumBugKeys afterward.
+    return function() {
+        return {};
+    }
   }
-};
+}
 
 // Create object with fake `null` prototype: use iframe Object with cleared prototype
 var NullProtoObjectViaIFrame = function () {
