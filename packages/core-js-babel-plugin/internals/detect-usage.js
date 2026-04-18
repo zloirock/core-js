@@ -53,6 +53,9 @@ export const babelAdapter = createBabelAdapter();
 // symbol-keyed per-file reset hook on the visitors object - symbol so babel's visitor
 // enumerator (own string keys only) does not mistake it for a node-type visitor
 export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
+// symbol-keyed `handledObjects.has` so post-sweep can skip nodes that `handleBinaryIn`
+// already covered (e.g. `Symbol` in `Symbol.iterator in obj`)
+export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled');
 
 export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxyGlobals = false, walkAnnotations = true }) {
   let handledObjects = new WeakSet();
@@ -83,21 +86,14 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     if (updateCheck?.isUpdateExpression()) return;
     const { node } = path;
     if (path.scope.getBindingIdentifier(node.name)) return;
+    // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
-    if (suppressProxyGlobals && (path.parentPath.isMemberExpression() || path.parentPath.isOptionalMemberExpression())
-      && path.key === 'object') {
-      const grandParent = path.parentPath.parent;
-      if (grandParent?.type === 'BinaryExpression' && grandParent.operator === 'in'
-        && grandParent.left === path.parent) return;
-    }
     onUsage({ kind: 'global', name: node.name }, path);
   }
 
   function handleMemberExpression(path) {
     const { node } = path;
     if (handledObjects.has(node)) return;
-    if (suppressProxyGlobals && path.parent.type === 'BinaryExpression'
-      && path.parent.operator === 'in' && path.parent.left === node) return;
     const meta = handleMemberExpressionNode(node, path.scope, adapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
@@ -158,7 +154,7 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
   }
 
   function handleBinaryExpression(path) {
-    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects, suppressProxyGlobals);
+    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects);
     if (meta) onUsage(meta, path);
   }
 
@@ -193,6 +189,7 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     BinaryExpression: handleBinaryExpression,
     // Program.enter calls this to drop per-file WeakSet state
     [USAGE_VISITORS_RESET]: () => { handledObjects = new WeakSet(); },
+    [USAGE_VISITORS_IS_HANDLED]: node => handledObjects.has(node),
   };
 }
 
