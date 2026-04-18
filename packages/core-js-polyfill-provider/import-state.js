@@ -1,5 +1,9 @@
 import { findUniqueName } from './helpers.js';
 
+// matches the prefix used by `generateRefName`; consumed by post-pass orphan adoption
+// in plugins - keep this in sync if the prefix or numbering scheme changes
+export const ORPHAN_REF_PATTERN = /^_ref\d*$/;
+
 // import-emitter state; each plugin subclasses and implements `flush()`.
 // augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass
 export default class ImportInjectorState {
