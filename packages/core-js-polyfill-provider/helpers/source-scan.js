@@ -1,3 +1,5 @@
+import { isASTNode } from './ast-patterns.js';
+
 export function buildOffsetToLine(code) {
   const lineStarts = [0];
   for (let i = 0; i < code.length; i++) {
@@ -15,12 +17,11 @@ export function buildOffsetToLine(code) {
   };
 }
 
-// allow leading `*` (with surrounding whitespace) so JSDoc-style block comments work
-// (`comment.value` retains the `*` on continuation lines like ` * core-js-disable-file`).
-// the character class `[\s*]*` keeps the regex linear - `\s*\*?\s*` would backtrack on long
-// whitespace runs without a leading `*`. trailing `(?:\s|$)` accepts any whitespace (incl.
-// newlines for multi-line block comments) or end-of-comment, with or without `--` reason
-const DIRECTIVE = /^[\s*]*core-js-disable-(?<kind>file|line|next-line)(?:\s|$)/;
+// `[\s*]*` (character class, not nested quantifiers) matches JSDoc continuation indent
+// `\n * ` without backtracking. `m` flag picks up directives on continuation lines,
+// not just the first (JSDoc: `/** ... \n * core-js-disable-file \n */`)
+// eslint-disable-next-line sonarjs/slow-regex, redos/no-vulnerable -- `[\s*]*` is a character class, not nested quantifiers
+const DIRECTIVE = /^[\s*]*core-js-disable-(?<kind>file|line|next-line)(?:\s|$)/m;
 
 // merge two visitor objects - combine handlers for same node type
 // supports function (shorthand for enter), { enter, exit }, and mixed formats.
@@ -53,9 +54,10 @@ export function mergeVisitors(base, extra) {
   return merged;
 }
 
-// `firstStmtStart` (optional) is the offset of the first program statement; a `disable-file`
-// directive only takes effect when it appears strictly before any code (eslint-style scope)
-export function parseDisableDirectives(comments, offsetToLine, firstStmtStart) {
+// `firstStmtStart`: `disable-file` fires only above all code (eslint-style scope).
+// `ast`: enables multi-line expansion for `disable-next-line` so directives cover the
+// whole following statement, not just its first line
+export function parseDisableDirectives(comments, offsetToLine, firstStmtStart, ast) {
   if (!comments) return null;
   const lines = new Set();
   for (const comment of comments) {
@@ -75,8 +77,58 @@ export function parseDisableDirectives(comments, offsetToLine, firstStmtStart) {
       startLine = offsetToLine(comment.start);
       endLine = offsetToLine(comment.end - 1);
     } else continue;
-    if (kind === 'line') lines.add(startLine);
-    else lines.add(endLine + 1); // next-line
+    if (kind === 'line') {
+      lines.add(startLine);
+      continue;
+    }
+    const nextLine = endLine + 1;
+    lines.add(nextLine);
+    const stmtEndLine = ast ? findStatementEndLine(ast, nextLine, offsetToLine) : null;
+    if (stmtEndLine > nextLine) {
+      for (let i = nextLine + 1; i <= stmtEndLine; i++) lines.add(i);
+    }
   }
   return lines.size ? lines : null;
+}
+
+// wrappers that share a start line with their first child when no code precedes -
+// descend past these to reach the statement the directive actually targets
+const STATEMENT_WRAPPERS = new Set([
+  'BlockStatement',
+  'File',
+  'Program',
+  'StaticBlock',
+  'TSModuleBlock',
+]);
+
+function findStatementEndLine(node, targetLine, offsetToLine) {
+  if (!isASTNode(node)) return null;
+  const lines = nodeLineSpan(node, offsetToLine);
+  if (!lines || lines.start > targetLine || lines.end < targetLine) return null;
+  if (lines.start === targetLine && !STATEMENT_WRAPPERS.has(node.type)) return lines.end;
+  // `isASTNode` filters foreign stamps (babel `extra`, sibling-plugin caches) so iterating
+  // every own key stays safe even when plugins decorate the tree with non-AST values
+  // eslint-disable-next-line no-restricted-syntax -- AST walker, keys are own-properties only
+  for (const key in node) {
+    const child = node[key];
+    if (Array.isArray(child)) {
+      for (const c of child) if (isASTNode(c)) {
+        const found = findStatementEndLine(c, targetLine, offsetToLine);
+        if (found) return found;
+      }
+    } else if (isASTNode(child)) {
+      const found = findStatementEndLine(child, targetLine, offsetToLine);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// babel carries `node.loc.start/end.line`; oxc carries offsets only
+function nodeLineSpan(node, offsetToLine) {
+  if (node.loc) return { start: node.loc.start?.line, end: node.loc.end?.line };
+  if (offsetToLine && typeof node.start === 'number' && typeof node.end === 'number') {
+    return { start: offsetToLine(node.start), end: offsetToLine(node.end - 1) };
+  }
+  return null;
 }
