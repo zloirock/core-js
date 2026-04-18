@@ -208,8 +208,8 @@ function createResolveNodeType(babelNodeType, t) {
   const isAmbientFunctionNode = node => node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction';
   const isAmbientClassNode = node => node?.type === 'DeclareClass'
     || (node?.type === 'ClassDeclaration' && node.declare === true);
+  const isAmbientFunctionOrClassNode = node => isAmbientFunctionNode(node) || isAmbientClassNode(node);
   const findAmbientFunctionPath = (name, scope) => findAmbientDeclarationPath(name, scope, isAmbientFunctionNode);
-  const findAmbientClassPath = (name, scope) => findAmbientDeclarationPath(name, scope, isAmbientClassNode);
 
   // resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
   // iterates: after unwrapping a TS wrapper, the underlying expression may be another variable reference
@@ -1082,7 +1082,7 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return null;
     }
-    return findAmbientFunctionPath(name, scope) ?? findAmbientClassPath(name, scope);
+    return findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
   }
 
   function resolveReturnTypeFromTypeQuery(param, scope) {
@@ -1126,16 +1126,10 @@ function createResolveNodeType(babelNodeType, t) {
     const resolveArg = (arg, fallback) => arg
       ? resolveTypeAnnotation(arg, scope, depth + 1) ?? fallback
       : null;
+    // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
+    // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
+    if (STRUCTURE_PRESERVING_WRAPPERS.has(name)) return resolveArg(firstArg(), new $Object('Object'));
     switch (name) {
-      // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
-      // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
-      case 'Partial':
-      case 'Required':
-      case 'Readonly':
-      case 'Pick':
-      case 'Omit':
-      case '$ReadOnly':
-        return resolveArg(firstArg(), new $Object('Object'));
       // structurally new shape from their type parameter - collapse to Object
       case 'Record':
       case '$Shape':
