@@ -9,7 +9,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
-import { TS_EXPR_WRAPPERS, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
+import { TS_EXPR_WRAPPERS, unwrapParens, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 
 // --- isReferenced ---
 
@@ -86,9 +86,16 @@ export const estreeAdapter = {
     return { node: b.path.node, constantViolations: b.constantViolations, importSource };
   },
   getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type ?? null,
-  isStringLiteral: node => node?.type === 'Literal' && typeof node.value === 'string',
-  getStringValue: node => (node?.type === 'Literal' && typeof node.value === 'string') ? node.value : null,
+  // oxc-parser preserves `ParenthesizedExpression`; unwrap so `require(('x'))` /
+  // `import(('x'))` survive the ESTree->string translation
+  isStringLiteral: node => isLiteralString(unwrapParens(node)),
+  getStringValue: node => {
+    const inner = unwrapParens(node);
+    return isLiteralString(inner) ? inner.value : null;
+  },
 };
+
+const isLiteralString = node => node?.type === 'Literal' && typeof node.value === 'string';
 
 function resolveKey(node, computed, scope) {
   return sharedResolveKey(node, computed, scope, estreeAdapter);
