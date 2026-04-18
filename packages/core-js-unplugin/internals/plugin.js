@@ -133,6 +133,15 @@ export function collectAllBindingNames(ast) {
   return { names, orphanRefs };
 }
 
+// pre-pass fingerprint - any top-level `@core-js/pure/...` import marks the source as
+// our own output, not user code that happens to contain `_ref = ...` assignments
+function hasCoreJSPureImport(ast) {
+  for (const node of ast.body) {
+    if (node?.type === 'ImportDeclaration' && node.source?.value?.includes('@core-js/pure/')) return true;
+  }
+  return false;
+}
+
 // ternary guard needs () only when parent operator has higher precedence than ?:
 // or parent grammar restricts the expression (extends clause expects LeftHandSideExpression)
 const NEEDS_GUARD_PARENS = new Set([
@@ -222,6 +231,12 @@ export default function createPlugin(options) {
 
   function storeSnapshot(id, entry) {
     if (prePassSnapshots.size >= SNAPSHOT_SWEEP_THRESHOLD) sweepStaleSnapshots();
+    // double-call races the snapshot against post-input from the earlier call - emit a
+    // diagnostic so the inconsistency doesn't silently land in the output
+    if (prePassSnapshots.has(id) && typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console -- dev-time diagnostic
+      console.warn(`[core-js-unplugin] pre-pass called twice for ${ id }; latest snapshot wins`);
+    }
     // delete first so same-id re-insert moves to tail (refreshes chronological order)
     // and isn't double-counted against the cap
     prePassSnapshots.delete(id);
@@ -349,7 +364,9 @@ export default function createPlugin(options) {
     // (TTL, buildEnd, sibling invalidation); filter out user-owned `let _ref` via `names`
     const { names: bindingNames, orphanRefs } = collectAllBindingNames(ast);
     injector.seedReservedNames(bindingNames);
-    if (pass === 'post' && !inherit) {
+    // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
+    // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline
+    if (pass === 'post' && !inherit && hasCoreJSPureImport(ast)) {
       const adoptable = new Set();
       for (const ref of orphanRefs) if (!bindingNames.has(ref)) adoptable.add(ref);
       injector.adoptOrphanRefs(adoptable);
