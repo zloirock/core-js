@@ -1,0 +1,25 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ],
+  "parserOpts": {
+    "plugins": [
+      [
+        "decorators",
+        {
+          "version": "2023-11"
+        }
+      ],
+      "typescript"
+    ]
+  }
+}
