@@ -1151,8 +1151,16 @@ function createResolveNodeType(babelNodeType, t) {
       case '$ObjMapConst':
         return new $Object('Object');
       case 'Parameters':
-      case 'ConstructorParameters':
-        return new $Object('Array');
+      case 'ConstructorParameters': {
+        // `Parameters<typeof fn>` is a tuple - approximate the element type as the first
+        // param's annotation so chained `.at(0)` / `.forEach` resolve to that type
+        const arg = firstArg();
+        const resolved = arg?.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
+        const firstParam = resolved?.node?.params?.[0];
+        const paramAnnotation = firstParam?.typeAnnotation;
+        const inner = paramAnnotation ? resolveTypeAnnotation(paramAnnotation, scope, depth + 1) : null;
+        return inner && !isNullableOrNever(inner) ? new $Object('Array', inner) : new $Object('Array');
+      }
       // Flow: $Keys
       case 'Uppercase':
       case 'Lowercase':
