@@ -1,9 +1,12 @@
 import { isASTNode } from './ast-patterns.js';
 
+// ES spec LineTerminator: U+000A, U+000D (skip the LF half of CRLF), U+2028, U+2029
 export function buildOffsetToLine(code) {
   const lineStarts = [0];
   for (let i = 0; i < code.length; i++) {
-    if (code[i] === '\n' || (code[i] === '\r' && code[i + 1] !== '\n')) lineStarts.push(i + 1);
+    const c = code.charCodeAt(i);
+    if (c === 0x0A || c === 0x2028 || c === 0x2029
+      || (c === 0x0D && code.charCodeAt(i + 1) !== 0x0A)) lineStarts.push(i + 1);
   }
   return offset => {
     let lo = 0;
@@ -39,10 +42,15 @@ export function mergeVisitors(base, extra) {
       merged.$ = { ...merged.$, ...handler };
       continue;
     }
-    if (!(key in merged)) {
+    // treat null/undefined on either side as "no handler" - `in merged` alone would pass
+    // an explicit `base.X = null` into `toObject`, which later throws on `.enter`
+    const current = merged[key];
+    if (current === null || current === undefined) {
       merged[key] = handler;
+    } else if (handler === null || handler === undefined) {
+      continue;
     } else {
-      const a = toObject(merged[key]);
+      const a = toObject(current);
       const b = toObject(handler);
       merged[key] = {};
       for (const phase of ['enter', 'exit']) {
