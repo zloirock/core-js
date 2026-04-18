@@ -73,8 +73,8 @@ export default class ImportInjectorState {
   uniqueName(prefix, startSuffix, minSuffix, extraCheck) {
     const cached = this.#nextSuffixByPrefix.get(prefix);
     const effective = cached > (startSuffix ?? -Infinity) ? cached : startSuffix;
-    const name = findUniqueName(prefix, effective, minSuffix,
-      n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false));
+    const name = findUniqueName(prefix, effective,
+      n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false), minSuffix);
     this.usedNames.add(name);
     // `+name.slice(prefix.length) || 1` handles the bare-prefix case (slice = '' -> NaN -> 1)
     this.#nextSuffixByPrefix.set(prefix, (+name.slice(prefix.length) || 1) + 1);
