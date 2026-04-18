@@ -48,7 +48,8 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
     + `(read-only import binding); expected runtime engine to provide \`${ identifier.name }\``;
 }
 
-const MAX_KEY_DEPTH = 10;
+// same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains
+const MAX_KEY_DEPTH = 64;
 
 // for `(0, X)` sequences: preceding elements would be silently dropped when plugins
 // replace the receiver, so bail the collapse on any side-effect there
@@ -196,7 +197,7 @@ function isProxyGlobalIdentifier(node, scope, adapter, seen) {
   return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
-export function resolveKey(node, computed, scope, adapter, depth = 0) {
+export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   if (depth > MAX_KEY_DEPTH) return null;
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
@@ -206,11 +207,15 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
   }
   // computed: const variable - follow to init and resolve recursively
   if (node.type === 'Identifier' && computed) {
+    // depth ceiling alone doesn't catch short cycles (`a = b; b = a`)
+    if (seen?.has(node.name)) return null;
+    const nextSeen = seen ?? new Set();
+    nextSeen.add(node.name);
     const binding = adapter.getBinding(scope, node.name);
     if (binding && !binding.constantViolations?.length) {
       if (binding.node?.type === 'VariableDeclarator') {
         const { init } = binding.node;
-        if (init) return resolveKey(init, true, scope, adapter, depth + 1);
+        if (init) return resolveKey(init, true, scope, adapter, nextSeen, depth + 1);
       }
       // polyfill import binding (e.g., import _Symbol$iterator from '.../symbol/iterator')
       // - recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
@@ -222,15 +227,15 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
   }
   // string concatenation: 'a' + 'b'
   if (node.type === 'BinaryExpression' && node.operator === '+') {
-    const left = resolveKey(node.left, true, scope, adapter, depth + 1);
-    const right = resolveKey(node.right, true, scope, adapter, depth + 1);
+    const left = resolveKey(node.left, true, scope, adapter, seen, depth + 1);
+    const right = resolveKey(node.right, true, scope, adapter, seen, depth + 1);
     if (left !== null && right !== null) return left + right;
   }
   // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
   if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
     && node.object.type === 'Identifier' && node.object.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
-    const name = resolveKey(node.property, node.computed, scope, adapter, depth + 1);
+    const name = resolveKey(node.property, node.computed, scope, adapter, seen, depth + 1);
     if (name) return `Symbol.${ name }`;
   }
   return null;
@@ -301,8 +306,8 @@ export function resolveSymbolIteratorEntry(node, parent) {
 
 // build meta from BinaryExpression with 'in' operator
 // handles Symbol.X in obj, 'key' in Constructor, 'key' in globalThis
-// returns meta object or null. Also marks handled objects if suppressProxyGlobals is false
-export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
+// returns meta object or null. seeds `handledObjects` for polyfillable Symbol.X patterns
+export function handleBinaryIn(node, scope, adapter, handledObjects) {
   if (node.operator !== 'in') return null;
   const left = unwrapParens(node.left);
   const leftObject = unwrapParens(left.object);
@@ -311,11 +316,16 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, suppressPro
     && !adapter.hasBinding(scope, 'Symbol')) {
     const name = resolveKey(left.property, left.computed, scope, adapter);
     if (name) {
-      if (!suppressProxyGlobals) {
+      const key = `Symbol.${ name }`;
+      // seed `handledObjects` only when the rewrite actually replaces the BinaryExpression -
+      // unpolyfillable keys leave the `Symbol` identifier in place and it still needs its polyfill
+      if (resolveSymbolInEntry(key)) {
         handledObjects.add(node.left);
+        handledObjects.add(left);
         handledObjects.add(left.object);
+        handledObjects.add(leftObject);
       }
-      return { kind: 'in', key: `Symbol.${ name }`, object: null, placement: null };
+      return { kind: 'in', key, object: null, placement: null };
     }
   }
   // identifier bound to Symbol.X - resolveKey may return Symbol.X for indirect bindings
