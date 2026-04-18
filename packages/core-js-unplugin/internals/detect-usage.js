@@ -218,6 +218,12 @@ function collectFunctionLocals(fnNode) {
   if (fnNode.id?.name) locals.set(fnNode.id.name, { constant: true, node: fnNode });
   function walk(node) {
     if (!node || typeof node !== 'object') return;
+    // hoisted `function foo()` binds in the enclosing function scope; register the
+    // name, then skip the body (new scope) as with any function-like
+    if (node.type === 'FunctionDeclaration') {
+      if (node.id?.name) locals.set(node.id.name, { constant: true, node });
+      return;
+    }
     if (FUNCTION_NODE_TYPES.has(node.type)) return;
     if (node.type === 'VariableDeclaration') {
       const constant = node.kind === 'const';
@@ -226,6 +232,10 @@ function collectFunctionLocals(fnNode) {
       }
     } else if (node.type === 'ClassDeclaration' && node.id?.name) {
       locals.set(node.id.name, { constant: true, node });
+    } else if (node.type === 'CatchClause' && node.param) {
+      // catch-binding is block-scoped but close enough: flat frame-locals only need
+      // "does this name shadow the global" for polyfill-lookup suppression
+      walkPatternIdentifiers(node.param, id => locals.set(id.name, { constant: false, node: node.param }));
     }
     forEachChildNode(node, walk);
   }
