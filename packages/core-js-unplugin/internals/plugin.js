@@ -58,6 +58,9 @@ const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 // next line into a call expression (parser continues without ASI)
 const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`]/;
 
+// ES spec LineTerminator. anchors `//`-comment scans, ASI boundary checks
+const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
+
 function canFuseWithOpenParen(src, pos) {
   let i = pos - 1;
   while (i >= 0 && (src[i] === ' ' || src[i] === '\t' || src[i] === '\n' || src[i] === '\r')) i--;
@@ -562,17 +565,20 @@ export default function createPlugin(options) {
         return node;
       }
 
-      // scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char
+      // scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char.
+      // `\s` covers the ES spec's WhiteSpace + LineTerminator sets (including U+2028/U+2029,
+      // NBSP, mid-file BOM, ogham/Mongolian separators) - engines treat all of them as gaps
       function skipGap(src, pos) {
         let p = pos;
         while (p < src.length) {
           const ch = src[p];
-          if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+          if (/\s/.test(ch)) {
             p++;
             continue;
           }
           if (ch === '/' && src[p + 1] === '/') {
-            while (p < src.length && src[p] !== '\n') p++;
+            // line comments terminate on any JS LineTerminator (LF/CR/U+2028/U+2029)
+            while (p < src.length && !LINE_TERMINATOR.test(src[p])) p++;
             continue;
           }
           if (ch === '/' && src[p + 1] === '*') {
