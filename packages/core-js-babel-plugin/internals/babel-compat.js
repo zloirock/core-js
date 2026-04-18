@@ -220,8 +220,12 @@ export default function (t, { getInjector } = {}) {
     const testOr = tests.reduce((a, b) => t.logicalExpression('||', a, b));
 
     const replacement = buildMethodCall(outerId, outerObject, scope, outerCall.arguments, outerCall.optional);
-    callerPath.parentPath.replaceWith(t.conditionalExpression(testOr,
-      t.unaryExpression('void', t.numericLiteral(0)), replacement));
+    const conditional = t.conditionalExpression(testOr,
+      t.unaryExpression('void', t.numericLiteral(0)), replacement);
+    // chained outer calls read the hint off the result node; relocate the pre-combine
+    // `annotateCallReturnType` stamp onto the wrapping conditional so they still resolve
+    if (outerCall.coreJSResolvedType) conditional.coreJSResolvedType = outerCall.coreJSResolvedType;
+    callerPath.parentPath.replaceWith(conditional);
   }
 
   function resolveDestructuringObject(path, resolvedType) {

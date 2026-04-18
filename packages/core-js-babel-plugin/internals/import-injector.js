@@ -53,8 +53,21 @@ export default class ImportInjector extends ImportInjectorState {
   pruneUnusedRefs() {
     if (!this.#refs.size) return;
     this.#programPath.scope.crawl();
+
+    // refs pushed into function/arrow bodies live in inner scopes - program-level
+    // getBinding misses them. collect from every scope, including program itself
+    // (`path.traverse({ Scopable })` visits descendants only, not the path itself)
+    const bindings = new Map();
+    const absorb = scope => {
+      for (const [name, binding] of Object.entries(scope.bindings)) {
+        if (!bindings.has(name)) bindings.set(name, binding);
+      }
+    };
+    absorb(this.#programPath.scope);
+    this.#programPath.traverse({ Scopable({ scope }) { absorb(scope); } });
+
     for (const name of this.#refs) {
-      const binding = this.#programPath.scope.getBinding(name);
+      const binding = bindings.get(name);
       if (!binding || binding.references || binding.constantViolations.length) continue;
       // `var _ref = (se(), Array)` - side-effectful init must stay even if the var is unused
       if (binding.path.node?.init) continue;
@@ -65,12 +78,7 @@ export default class ImportInjector extends ImportInjectorState {
     }
     if (!this.#refs.size) return;
 
-    // enumerate every scope's bindings - program-level hasBinding misses nested `_ref`
-    // (catch param, inner var) we mustn't collide with on rename
-    const taken = new Set(Object.keys(this.#programPath.scope.bindings));
-    this.#programPath.traverse({
-      Scopable({ scope }) { for (const n of Object.keys(scope.bindings)) taken.add(n); },
-    });
+    const taken = new Set(bindings.keys());
     for (const name of this.#refs) taken.delete(name);
 
     const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
