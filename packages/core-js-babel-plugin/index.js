@@ -440,16 +440,15 @@ export default function plugin(api, options) {
           && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
         injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
         skippedNodes = new WeakSet();
-        originalBodyNodes = new WeakSet(path.node.body);
         deferredSideEffects.length = 0;
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
         typeResolvers.reset();
         resetASTHelpers();
         resetClassHelpers();
-        // both visitor instances carry their own `handledObjects` WeakSet; reset for symmetry
-        helperVisitors?.[USAGE_VISITORS_RESET]?.();
+        // usage-pure shares one visitor instance (commonVisitorOptions match), reset skips dupe
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
+        if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue
@@ -475,6 +474,9 @@ export default function plugin(api, options) {
             }
           }
         }
+        // snapshot after user-core-js removal so programExit's re-traverse only hits
+        // bodies that existed at visit time - injector.flush()ed imports stay excluded
+        originalBodyNodes = new WeakSet(path.node.body);
       }
 
       // --- deferred side effects: splice into body, re-traverse for polyfills ---
