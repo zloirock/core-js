@@ -53,6 +53,24 @@ function directivePrologueEnd(ast) {
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
+// chars that, as the previous statement's last token, fuse with a leading `(` on the
+// next line into a call expression (parser continues without ASI)
+const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`]/;
+
+function canFuseWithOpenParen(src, pos) {
+  let i = pos - 1;
+  while (i >= 0 && (src[i] === ' ' || src[i] === '\t' || src[i] === '\n' || src[i] === '\r')) i--;
+  return i >= 0 && FUSES_WITH_OPEN_PAREN.test(src[i]);
+}
+
+// does `pos` sit at the start of the transform's enclosing ExpressionStatement? only then
+// does ASI at this boundary matter for the injected `(...)` wrapper
+function startsEnclosingStatement(path, pos) {
+  let p = path;
+  while (p && p.node?.type !== 'ExpressionStatement') p = p.parentPath;
+  return p?.node?.start === pos;
+}
+
 // typed AST node - excludes scalars, SourceLocation objects, and foreign markers
 // (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools)
 const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
@@ -772,6 +790,12 @@ export default function createPlugin(options) {
         });
         if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
           replacement = `(${ replacement })`;
+          // when a statement-leading `(...)` replaces an identifier-leading original, the
+          // enclosing ExpressionStatement can fuse into the previous one (`foo()\n(...)`
+          // parses as `foo()(...)`). only inject `;` at the statement boundary
+          if (startsEnclosingStatement(metaPath, start) && canFuseWithOpenParen(code, start)) {
+            replacement = `;${ replacement }`;
+          }
         }
         // composition hint: outer rewrites `rootRaw -> guardRef` + strips `?.`, so
         // substituteInner can rebuild a matching needle when the raw slice is gone
