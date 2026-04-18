@@ -92,11 +92,16 @@ export function collectAllBindingNames(ast) {
   return { names, orphanRefs };
 }
 
-// pre-pass fingerprint - any top-level `@core-js/pure/...` import marks the source as our
-// own output, not user code that happens to contain `_ref = ...` assignments
-export function hasCoreJSPureImport(ast) {
+// pre-pass fingerprint - any top-level import from one of our configured packages marks the
+// source as our own output, not user code that happens to contain `_ref = ...` assignments.
+// `packages` is the resolver's already-normalised list (pkg + additionalPackages, lowercased);
+// bare-specifier prefix only - a relative `./vendor/` copy wouldn't be emitted by us
+export function hasCoreJSPureImport(ast, packages) {
   for (const node of ast.body) {
-    if (node?.type === 'ImportDeclaration' && node.source?.value?.includes('@core-js/pure/')) return true;
+    if (node?.type !== 'ImportDeclaration') continue;
+    const source = node.source?.value?.toLowerCase();
+    if (!source) continue;
+    for (const pkg of packages) if (source.startsWith(`${ pkg }/`)) return true;
   }
   return false;
 }
