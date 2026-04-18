@@ -33,6 +33,10 @@ export default class ImportInjectorState {
     if (this.pureImports.has(source)) return this.pureImports.get(source);
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2);
     this.pureImports.set(source, name);
+    // mark name so `flush()`'s post-pass dead-import filter keeps it even when the
+    // generated identifier never appeared in source (sibling-injected usage between
+    // pre and post). no-op when tracking isn't enabled
+    this.trackReferencedName(name);
     return name;
   }
 
