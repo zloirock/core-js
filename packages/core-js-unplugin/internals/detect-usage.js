@@ -10,7 +10,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
-import { TS_EXPR_WRAPPERS, unwrapParens, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
+import { TS_EXPR_WRAPPERS, isASTNode, unwrapParens, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 
 // --- isReferenced ---
 
@@ -164,16 +164,15 @@ function buildDestructuringMeta(propNode, parentPath) {
 // estree-toolkit's visitor keys skip `decorators` - walk them manually with
 // synthetic Babel-shaped paths so resolve-node-type can read typeAnnotations
 
-const SKIP_KEYS = new Set(['type', 'loc', 'start', 'end', 'range']);
 const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
 
+// `isASTNode` drops parent back-pointers, location objects, and primitives without listing
+// them by name; tolerates parsers adding new metadata fields (e.g. `typeArguments`)
 function forEachChildNode(node, visit) {
   for (const key of Object.keys(node)) {
-    if (SKIP_KEYS.has(key)) continue;
     const value = node[key];
-    if (value === null || value === undefined) continue;
-    if (Array.isArray(value)) for (const child of value) visit(child, key);
-    else if (typeof value === 'object' && typeof value.type === 'string') visit(value, key);
+    if (Array.isArray(value)) for (const child of value) { if (isASTNode(child)) visit(child, key); }
+    else if (isASTNode(value)) visit(value, key);
   }
 }
 
@@ -281,32 +280,6 @@ function walkDecorators(parentPath, decoratorVisitors) {
 
 // --- Usage visitors ---
 
-// mirrors the wrapper set peeled by `unwrapParens` in polyfill-provider/detect-usage;
-// SequenceExpression only transparent when `inner` is the last (value-producing) element
-const ALWAYS_TRANSPARENT = new Set(['ParenthesizedExpression', 'ChainExpression', ...TS_EXPR_WRAPPERS]);
-function isTransparentValueParent(parent, inner) {
-  if (!parent) return false;
-  if (ALWAYS_TRANSPARENT.has(parent.type)) return true;
-  return parent.type === 'SequenceExpression' && parent.expressions.at(-1) === inner;
-}
-
-function skipTransparentParents(path) {
-  let cur = path;
-  while (cur.parentPath && isTransparentValueParent(cur.parent, cur.node)) cur = cur.parentPath;
-  return cur;
-}
-
-function isInReceiverOfInExpression(path) {
-  const receiver = skipTransparentParents(path);
-  const { parent, key } = receiver;
-  if (key !== 'object') return false;
-  if (parent?.type !== 'MemberExpression' && parent?.type !== 'OptionalMemberExpression') return false;
-  // wrappers can sit between the MemberExpression and the BinaryExpression too -
-  // `Symbol?.iterator in obj` has ChainExpression; `(X.iterator) in obj` has parens
-  const up = skipTransparentParents(receiver.parentPath);
-  return up.parent?.type === 'BinaryExpression' && up.parent.operator === 'in' && up.parent.left === up.node;
-}
-
 export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
 
@@ -328,11 +301,8 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
     if (path.scope?.hasBinding(node.name)) return;
+    // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
-    // suppress a standalone `Symbol` usage when it's the receiver of `<Symbol>.X in obj` -
-    // the BinaryExpression visitor already emits the `in` meta. walk past transparent value
-    // wrappers (parens + `(0, X)` sequence) to catch `(Symbol).X in obj` and `(0, Symbol).X in obj`
-    if (suppressProxyGlobals && isInReceiverOfInExpression(path)) return;
     onUsage({ kind: 'global', name: node.name }, path);
   }
 
@@ -340,18 +310,12 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
     const { node, parent, key: parentKey } = path;
     if (handledObjects.has(node)) return;
     if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
-    // BinaryExpression visitor already handles `<Member> in obj`; peel transparent wrappers
-    // so `(X.iterator) in obj` / `(X.iterator as any) in obj` dedupe too
-    if (suppressProxyGlobals) {
-      const up = skipTransparentParents(path);
-      if (up.parent?.type === 'BinaryExpression' && up.parent.operator === 'in' && up.parent.left === up.node) return;
-    }
     const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
 
   function binaryExpressionVisitor(path) {
-    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
+    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects);
     if (meta) onUsage(meta, path);
   }
 
