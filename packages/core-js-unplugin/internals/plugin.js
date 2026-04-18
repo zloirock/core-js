@@ -187,7 +187,7 @@ export default function createPlugin(options) {
     injector.seedReservedNames(bindingNames);
     // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
     // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline
-    if (pass === 'post' && !inherit && hasCoreJSPureImport(ast)) {
+    if (pass === 'post' && !inherit && hasCoreJSPureImport(ast, packages)) {
       const adoptable = new Set();
       for (const ref of orphanRefs) if (!bindingNames.has(ref)) adoptable.add(ref);
       injector.adoptOrphanRefs(adoptable);
@@ -245,7 +245,6 @@ export default function createPlugin(options) {
           ast: canReuseParse ? ast : null,
           comments: canReuseParse ? comments : null,
           postInput: canReuseParse ? code : null,
-          addedAt: Date.now(),
         });
       }
       // post's snapshot delete happens at the top of runTransform so it runs even on
