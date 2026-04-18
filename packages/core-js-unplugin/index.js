@@ -23,7 +23,8 @@ const unplugin = createUnplugin((options, meta) => {
   const { phase, ...rest } = options;
   const isEntryGlobal = rest.method === 'entry-global';
 
-  if (isEntryGlobal && phase !== undefined) {
+  // treat explicit `null` like `undefined` so `{ phase: cond ? 'post' : null }` falls back
+  if (isEntryGlobal && phase !== undefined && phase !== null) {
     throw new TypeError('[core-js-unplugin] `phase` option is not supported for `entry-global` - it always runs at pre');
   }
 
