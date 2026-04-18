@@ -40,13 +40,15 @@ import TransformQueue from './transform-queue.js';
 import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 
-// end position of the leading directive prologue ('use strict', etc.) - 0 if none.
-// oxc-parser sets `directive` to a string for directive ExpressionStatements;
-// regular ExpressionStatements have `directive: null` (TSX) or omit the field (JS)
+// oxc-parser sets `directive` to a string for directive ExpressionStatements; regular
+// ExpressionStatements have `directive: null` (TSX) or omit the field (JS)
+const isDirectiveStatement = n => n?.type === 'ExpressionStatement' && typeof n.directive === 'string';
+
+// end position of the leading directive prologue ('use strict', etc.) - 0 if none
 function directivePrologueEnd(ast) {
   let end = 0;
   for (const stmt of ast.body) {
-    if (stmt.type !== 'ExpressionStatement' || typeof stmt.directive !== 'string') break;
+    if (!isDirectiveStatement(stmt)) break;
     end = stmt.end;
   }
   return end;
@@ -341,9 +343,11 @@ export default function createPlugin(options) {
     const importStyle = importStyleOption
       ?? (!hasTopLevelESM(ast) && (isCJSFile || detectCommonJS(ast)) ? 'require' : 'import');
 
-    // check disable directives - `disable-file` only counts if it lives above any code
+    // check disable directives - `disable-file` only counts if it lives above any code.
+    // a `'use strict'` prologue can precede `disable-file`, so skip directives before the cutoff
     const offsetToLine = buildOffsetToLine(code);
-    const disabledLines = parseDisableDirectives(comments, offsetToLine, ast.body[0]?.start, ast);
+    const firstNonDirective = ast.body.find(s => !isDirectiveStatement(s));
+    const disabledLines = parseDisableDirectives(comments, offsetToLine, firstNonDirective?.start, ast);
     if (disabledLines === true) return null; // entire file disabled
 
     function isDisabled(node) {

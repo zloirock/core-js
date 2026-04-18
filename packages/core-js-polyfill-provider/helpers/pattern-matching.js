@@ -50,7 +50,7 @@ export function validatePatternList(name, list) {
 // on collision the suffix is incremented but clamped to minSuffix
 // (pass minSuffix=2 to skip the unused `prefix1` slot, matching Babel's UID generator)
 // isTaken is called for each candidate; return true when the name conflicts
-export function findUniqueName(prefix, startSuffix, minSuffix, isTaken) {
+export function findUniqueName(prefix, startSuffix, isTaken, minSuffix = 1) {
   let counter = startSuffix;
   let name = counter === null ? prefix : `${ prefix }${ counter }`;
   while (isTaken(name)) {
