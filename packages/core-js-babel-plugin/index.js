@@ -201,19 +201,18 @@ export default function plugin(api, options) {
         resolveSuperMember,
       });
 
+      // any detached ancestor puts our node outside the live AST - polyfill emission
+      // would land nowhere. verify each link still occupies its prior position in the parent
       function isOrphaned(path) {
-        const declarator = path.findParent(p => p.isVariableDeclarator());
-        if (declarator) {
-          const declaration = declarator.parentPath;
-          if (declaration?.removed) return true;
-          if (!declaration?.node?.declarations) return true;
-          return !declaration.node.declarations.includes(declarator.node);
-        }
-        // assignment destructuring: ({ from } = Array || Promise)
-        const assign = path.findParent(p => p.isAssignmentExpression());
-        if (assign) {
-          const stmt = assign.parentPath;
-          return stmt?.isExpressionStatement() && stmt.node.expression !== assign.node;
+        for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
+          if (cur.removed) return true;
+          const parent = cur.parentPath;
+          const parentNode = parent.node;
+          if (!parentNode) return true;
+          if (cur.listKey) {
+            const list = parentNode[cur.listKey];
+            if (!Array.isArray(list) || !list.includes(cur.node)) return true;
+          } else if (cur.key !== undefined && parentNode[cur.key] !== cur.node) return true;
         }
         return false;
       }
@@ -232,11 +231,20 @@ export default function plugin(api, options) {
         const outerCall = outerCaller.parent;
         if (!t.isCallExpression(outerCall) && !t.isOptionalCallExpression(outerCall)) return null;
         if (outerCall.callee !== outerCaller.node) return null;
-        let current = path.get('object');
-        while (current.node && TS_EXPR_WRAPPERS.has(current.node.type)) current = current.get('expression');
+        // rare but possible wrappers: ParenthesizedExpression (babel's
+        // `createParenthesizedExpressions: true`) and ChainExpression (ESTree shape);
+        // unwrap both or `(arr)?.at?.(0)` / `(arr?.at?.(0))` miss the inner-chain match
+        const unwrap = p => {
+          while (p.node && (TS_EXPR_WRAPPERS.has(p.node.type)
+            || p.node.type === 'ChainExpression' || p.node.type === 'ParenthesizedExpression')) {
+            p = p.get('expression');
+          }
+          return p;
+        };
+        let current = unwrap(path.get('object'));
         while (current.isOptionalMemberExpression() || current.isOptionalCallExpression()) {
           if (current.node.optional) break;
-          current = current.isOptionalMemberExpression() ? current.get('object') : current.get('callee');
+          current = unwrap(current.isOptionalMemberExpression() ? current.get('object') : current.get('callee'));
         }
         if (!current.isOptionalCallExpression() || !current.node.optional) return null;
         const callee = current.get('callee');
@@ -528,6 +536,9 @@ export default function plugin(api, options) {
               if (!idPath.isReferencedIdentifier()) return;
               if (idPath.scope.getBindingIdentifier(idPath.node.name)) return;
               if (isUpdateTarget(idPath)) return;
+              // same predicate as the primary visitor - skip disabled / type-annotation /
+              // delete-target positions so this sweep doesn't overrule their exclusions
+              if (shouldSkipPath(idPath)) return;
               usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
             },
           });
