@@ -446,7 +446,10 @@ export default function createPlugin(options) {
         resolveUsage, injectModulesForModeEntry, isDisabled, resolveSuperMember,
       });
 
-      const usageVisitors = createUsageVisitors({ onUsage: usageGlobalCallback });
+      const usageVisitors = createUsageVisitors({
+        onUsage: usageGlobalCallback,
+        onWarning: msg => debugOutput?.warn(msg),
+      });
       const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
       traverse(ast, mergeVisitors({
@@ -1415,7 +1418,12 @@ export default function createPlugin(options) {
       traverse(ast, mergeVisitors({
         $: { scope: true },
         Program(path) { injector.rootScope = path.scope; },
-        ...createUsageVisitors({ onUsage: usagePureCallback, suppressProxyGlobals: true, walkAnnotations: false }),
+        ...createUsageVisitors({
+          onUsage: usagePureCallback,
+          onWarning: msg => debugOutput?.warn(msg),
+          suppressProxyGlobals: true,
+          walkAnnotations: false,
+        }),
       }, pass === 'post' && inherit ? {
         Identifier(path) { injector.trackReferencedName(path.node.name); },
       } : {}));
