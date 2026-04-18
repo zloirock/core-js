@@ -109,6 +109,9 @@ export default function plugin(api, options) {
       }
 
       function handleSymbolIterator(path) {
+        // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
+        // current class's); let the native runtime form stand for `super[Symbol.iterator]`
+        if (t.isSuper(path.node.object)) return;
         if (path.node.computed) {
           // skip all layers: TS wrappers, parens, and the inner MemberExpression
           let cur = path.node.property;
@@ -412,21 +415,20 @@ export default function plugin(api, options) {
 
       const isPure = method === 'usage-pure';
       const usageCallback = isPure ? usagePureCallback : usageGlobalCallback;
-      const warnOnce = message => debugOutput?.warn(message);
-      const helperVisitors = method !== 'entry-global' ? createUsageVisitors({
-        adapter,
-        onUsage: usageCallback,
-        onWarning: warnOnce,
-        suppressProxyGlobals: isPure,
-        walkAnnotations: false,
-      }) : null;
+      const commonVisitorOptions = { adapter, onUsage: usageCallback, onWarning: message => debugOutput?.warn(message) };
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
-        adapter,
-        onUsage: usageCallback,
-        onWarning: warnOnce,
+        ...commonVisitorOptions,
         suppressProxyGlobals: isPure,
         walkAnnotations: !isPure,
       }) : null;
+      // usage-pure already has walkAnnotations=false, matching the helper-pass config;
+      // usage-global diverges (annotations needed for usage, not helpers) and needs its own
+      const helperVisitors = isPure ? usageVisitors
+        : method !== 'entry-global' ? createUsageVisitors({
+          ...commonVisitorOptions,
+          suppressProxyGlobals: false,
+          walkAnnotations: false,
+        }) : null;
 
       // --- init: per-file state reset ---
 
@@ -450,6 +452,7 @@ export default function plugin(api, options) {
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
+        // babel lifts directives into Program.directives, so body[0] is already post-prologue
         const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start, path.node);
         if (directives === true) skipFile = true;
         disabledLines = directives !== true ? directives : null;
