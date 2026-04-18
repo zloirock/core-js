@@ -21,7 +21,8 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
   return false;
 }
 
-// non-overlapping occurrences of `needle` in `haystack[rangeStart, rangeEnd)`
+// non-overlapping jumpsize - polyfill needles embed syntactic delimiters (`.`, `(`,
+// identifiers) that cannot self-overlap
 function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
   let count = 0;
   for (let pos = haystack.indexOf(needle, rangeStart);
@@ -164,6 +165,9 @@ export default class TransformQueue {
   }
 
   add(start, end, content, guardedRoot, rewriteHint) {
+    // insertion (`start === end`) is legal for prefix/suffix injects; `start > end` never is
+    // and would silently corrupt MagicString overwrites, so surface the caller bug immediately
+    if (start > end) throw new RangeError(`[core-js] transform-queue: invalid range [${ start },${ end })`);
     const entry = { start, end, content, guardedRoot, rewriteHint };
     this.#transforms.add(entry);
     pushOrInit(this.#byRange, rangeKey(start, end), entry);
