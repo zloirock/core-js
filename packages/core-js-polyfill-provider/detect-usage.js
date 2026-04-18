@@ -36,6 +36,13 @@ export function isKnownGlobalName(name) {
 // logical-assignment operators: `||=`, `&&=`, `??=` read the LHS then conditionally write
 const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);
 
+// capitalised-identifier probe for polyfillHint values like `Symbol`/`Map`/`Promise`
+const CAPITALISED_IDENT = /^[A-Z]\w*$/;
+// `import _Foo from 'core-js/pure/symbol/iterator'` - extract Symbol key from polyfill path.
+// `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers)
+const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/;
+const KEBAB_SEGMENT = /-(?<char>\w)/g;
+
 // LHS of `Map ||= ...` reads the global before polyfill loads (ReferenceError); the
 // import binding is read-only anyway, so substitution also throws at write time
 export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
@@ -96,7 +103,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
       // the original hint so we can translate the polyfill UID back to its source global
       const initBinding = adapter.getBinding(scope, init.name);
       if (initBinding?.polyfillHint
-        && (/^[A-Z]\w*$/.test(initBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(initBinding.polyfillHint))) {
+        && (CAPITALISED_IDENT.test(initBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(initBinding.polyfillHint))) {
         return initBinding.polyfillHint;
       }
       // unbound -> global; self-reference (var Map = Map) -> global; bound -> follow chain
@@ -228,8 +235,8 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
       // polyfill import binding (e.g., import _Symbol$iterator from '.../symbol/iterator')
       // - recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
       if (binding.importSource) {
-        const match = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/.exec(binding.importSource);
-        if (match) return `Symbol.${ match.groups.name.replaceAll(/-(?<char>\w)/g, (_, char) => char.toUpperCase()) }`;
+        const match = SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
+        if (match) return `Symbol.${ match.groups.name.replaceAll(KEBAB_SEGMENT, (_, char) => char.toUpperCase()) }`;
       }
     }
   }
