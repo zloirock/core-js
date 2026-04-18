@@ -28,6 +28,7 @@ import {
   createBabelAdapter,
   createSyntaxVisitors,
   createUsageVisitors,
+  USAGE_VISITORS_IS_HANDLED,
   USAGE_VISITORS_RESET,
 } from './internals/detect-usage.js';
 import createEntryVisitors from './internals/detect-entry.js';
@@ -536,6 +537,7 @@ export default function plugin(api, options) {
         // MemberExpression would double-process already-polyfilled chains.
         // usage-global doesn't need this - globals stay as-is, imports from pre() suffice
         if (method === 'usage-pure') {
+          const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
           path.traverse({
             Identifier(idPath) {
               if (!idPath.isReferencedIdentifier()) return;
@@ -544,6 +546,8 @@ export default function plugin(api, options) {
               // same predicate as the primary visitor - skip disabled / type-annotation /
               // delete-target positions so this sweep doesn't overrule their exclusions
               if (shouldSkipPath(idPath)) return;
+              // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
+              if (isHandled?.(idPath.node)) return;
               usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
             },
           });
