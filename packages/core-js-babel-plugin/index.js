@@ -402,15 +402,18 @@ export default function plugin(api, options) {
 
       const isPure = method === 'usage-pure';
       const usageCallback = isPure ? usagePureCallback : usageGlobalCallback;
+      const warnOnce = message => debugOutput?.warn(message);
       const helperVisitors = method !== 'entry-global' ? createUsageVisitors({
         adapter,
         onUsage: usageCallback,
+        onWarning: warnOnce,
         suppressProxyGlobals: isPure,
         walkAnnotations: false,
       }) : null;
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         adapter,
         onUsage: usageCallback,
+        onWarning: warnOnce,
         suppressProxyGlobals: isPure,
         walkAnnotations: !isPure,
       }) : null;
