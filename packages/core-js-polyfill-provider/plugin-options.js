@@ -274,11 +274,15 @@ function createDebugOutputFactory({ method, parsedTargets }) {
 
   return function createFileDebugOutput() {
     const modules = new Set();
+    const warnings = new Set();
     let entryFound = false;
 
     return {
       add(mod) {
         modules.add(mod);
+      },
+      warn(message) {
+        warnings.add(message);
       },
       markEntryFound() {
         entryFound = true;
@@ -298,7 +302,9 @@ function createDebugOutputFactory({ method, parsedTargets }) {
             : `  ${ mod } ${ formatTargets(getUnsupportedTargets(mod, parsedTargets)) }`);
           result = `The core-js@4 polyfill ${ verb } the following polyfills:\n${ polyfillLines.join('\n') }`;
         }
-        return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ targetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }`;
+        const warningBlock = warnings.size
+          ? `\n\nWarnings:\n${ [...warnings].map(m => `  ${ m }`).join('\n') }` : '';
+        return `core-js@4: \`DEBUG\` option\n\nUsing targets: ${ targetsStr }\n\nUsing polyfills with \`${ method }\` method:\n${ result }${ warningBlock }`;
       },
     };
   };

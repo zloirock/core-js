@@ -1,0 +1,11 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "ie": "11"
+}
+
+Using polyfills with `usage-global` method:
+Based on your code and targets, the core-js@4 polyfill did not add any polyfill.
+
+Warnings:
+  `Map ||= ...` left-hand side cannot be polyfilled (read-only import binding); expected runtime engine to provide `Map`
