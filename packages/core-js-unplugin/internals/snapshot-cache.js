@@ -1,11 +1,14 @@
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id).
 // `store` deletes-before-set so Map insertion order stays chronological - enables O(1)
 // oldest-eviction and early-break sweep. TTL + hard cap bound leaks in dev-servers where
-// buildEnd doesn't fire between rebuilds
+// buildEnd doesn't fire between rebuilds.
+// `performance.now()` is monotonic (ms since process start); `Date.now()` is subject to
+// NTP jumps that would confuse `addedAt >= cutoff` ordering
 const TTL_MS = 60 * 1000;
 const SWEEP_THRESHOLD = 32;
 const MAX_ENTRIES = 128;
 const SWEEP_INTERVAL_MS = 30 * 1000;
+const now = () => performance.now();
 
 export default class SnapshotCache {
   #snapshots = new Map();
@@ -17,7 +20,7 @@ export default class SnapshotCache {
   }
 
   #sweepStale() {
-    const cutoff = Date.now() - TTL_MS;
+    const cutoff = now() - TTL_MS;
     for (const [id, entry] of this.#snapshots) {
       if (entry.addedAt >= cutoff) break; // chronological: rest is fresher
       this.#snapshots.delete(id);
@@ -27,9 +30,9 @@ export default class SnapshotCache {
   // piggyback on runTransform; setInterval would keep CLI event loop alive
   maybeSweep() {
     if (!this.#snapshots.size) return;
-    const now = Date.now();
-    if (now - this.#lastSweepAt < SWEEP_INTERVAL_MS) return;
-    this.#lastSweepAt = now;
+    const t = now();
+    if (t - this.#lastSweepAt < SWEEP_INTERVAL_MS) return;
+    this.#lastSweepAt = t;
     this.#sweepStale();
   }
 
@@ -47,7 +50,7 @@ export default class SnapshotCache {
     if (this.#snapshots.size >= MAX_ENTRIES) {
       this.#snapshots.delete(this.#snapshots.keys().next().value);
     }
-    this.#snapshots.set(id, entry);
+    this.#snapshots.set(id, { ...entry, addedAt: now() });
   }
 
   take(id) {
