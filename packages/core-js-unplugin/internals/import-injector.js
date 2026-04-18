@@ -125,10 +125,15 @@ export default class ImportInjector extends ImportInjectorState {
   }
 }
 
+// CR-only line endings are legal JS separators (ES spec LineTerminator) - classic Mac
+// files / manual construction. treat any of LF / CR / CRLF as the shebang terminator
 function skipShebang(src, pos) {
   if (src[pos] !== '#' || src[pos + 1] !== '!') return pos;
-  const nl = src.indexOf('\n', pos + 2);
-  return nl === -1 ? src.length : nl + 1;
+  for (let i = pos + 2; i < src.length; i++) {
+    if (src[i] === '\n') return i + 1;
+    if (src[i] === '\r') return src[i + 1] === '\n' ? i + 2 : i + 1;
+  }
+  return src.length;
 }
 
 // advance past trailing horizontal whitespace + the first line ending so insertion lands
