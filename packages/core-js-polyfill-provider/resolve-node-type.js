@@ -247,15 +247,19 @@ function createResolveNodeType(babelNodeType, t) {
     return node;
   }
 
-  // detect the trivial passthrough mapped type `{ [K in keyof T]: T[K] }` and return T;
-  // anything more complex (renames, conditional bodies, key remap, etc.) returns null
+  // detect the trivial passthrough mapped type `{ [K in keyof T]: T[K] }` and return T.
+  // `readonly` / `optional` / `-readonly` / `-?` modifiers don't change the member set, only
+  // descriptor flags, so we let them through; `nameType` (key remap via `as`) does rename and blocks
   function unwrapMappedTypePassthrough(node) {
     if (!node || node.type !== 'TSMappedType') return null;
-    if (node.nameType || node.optional || node.readonly || !node.typeAnnotation) return null;
-    const param = node.typeParameter;
-    if (!param || param.constraint?.type !== 'TSTypeOperator' || param.constraint.operator !== 'keyof') return null;
-    // typeParameter.name is a bare string in babel-parser ASTs and an Identifier in oxc/ESTree
-    const paramName = typeof param.name === 'string' ? param.name : param.name?.name;
+    if (node.nameType || !node.typeAnnotation) return null;
+    // Babel nests `typeParameter: TSTypeParameter { name, constraint }`;
+    // oxc/TS-ESTree flattens to `key: Identifier` + `constraint` on the mapped type itself
+    const constraint = node.typeParameter?.constraint ?? node.constraint;
+    const keyNameNode = node.typeParameter?.name ?? node.key;
+    if (constraint?.type !== 'TSTypeOperator' || constraint.operator !== 'keyof') return null;
+    // key name is a bare string in babel-parser ASTs and an Identifier in oxc/ESTree
+    const paramName = typeof keyNameNode === 'string' ? keyNameNode : keyNameNode?.name;
     if (!paramName) return null;
     const body = node.typeAnnotation;
     if (body.type !== 'TSIndexedAccessType') return null;
@@ -790,6 +794,10 @@ function createResolveNodeType(babelNodeType, t) {
     '$ReadOnly',
   ]);
 
+  // TS `PromiseLike<T>` / Flow `Thenable<T>` are structural supertypes of Promise that
+  // `await` / `Awaited<>` unwrap identically; alias them to Promise for type resolution
+  const PROMISE_SYNONYMS = new Set(['PromiseLike', 'Thenable']);
+
   // follow superClass for declared parent members. `Identifier` covers both real and ambient
   // (`declare class P {}` + `class C extends P {}`), which behave the same in type position
   function findParentClassDecl(classDecl, scope) {
@@ -819,6 +827,15 @@ function createResolveNodeType(babelNodeType, t) {
     if (segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
       const arg = getTypeArgs(objectType)?.params[0];
       return arg ? getTypeMembers(unwrapTypeAnnotation(arg), scope, depth + 1) : null;
+    }
+    // `Record<K, V>` - every member access returns V. emit a synthetic index signature so
+    // findTypeMember's TSIndexSignature fallback picks it up for any key
+    if (segments.length === 1 && segments[0] === 'Record') {
+      const params = getTypeArgs(objectType)?.params;
+      if (params?.[1]) return [{
+        type: 'TSIndexSignature',
+        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: params[1] },
+      }];
     }
     // `InstanceType<typeof Cls>.x` / `ReturnType<typeof fn>.x` -> members of the pointed-to decl
     if (segments.length === 1 && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
@@ -1111,6 +1128,9 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function resolveNamedType(name, node, scope, depth) {
+    // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
+    // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
+    if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
     const known = resolveKnownContainerType(name, resolveKnownConstructor(name), node, p => resolveTypeAnnotation(p, scope, depth + 1));
     if (known) return known;
     const firstArg = () => getTypeArgs(node)?.params[0];
@@ -2191,6 +2211,21 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // resolve a class's superClass identifier to a declaration path, handling both real
+  // (`class C extends Parent`) and ambient (`declare class Parent`) forms. returns null
+  // for non-Identifier or unresolvable super heads
+  function resolveSuperClassPath(classPath) {
+    const superClass = classPath.get('superClass');
+    if (!superClass.node) return null;
+    const resolved = resolveRuntimeExpression(superClass);
+    if (t.isClass(resolved.node)) return resolved;
+    if (t.isIdentifier(superClass.node)) {
+      const ambient = findAmbientDeclarationPath(superClass.node.name, superClass.scope, isAmbientClassNode);
+      if (ambient?.node.type === 'ClassDeclaration') return ambient;
+    }
+    return null;
+  }
+
   function resolveClassContext(objectPath) {
     // Foo.staticProp - object is the class itself
     if (t.isClass(objectPath.node)) return { classPath: objectPath, isStatic: true };
@@ -2201,6 +2236,13 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // this.prop inside a class member
     if (t.isThisExpression(objectPath.node)) return resolveThisClass(objectPath);
+    // super.prop inside a class member - resolve to parent class; isStatic inherits the
+    // enclosing method's context (`static m() { super.x }` -> parent static; instance -> instance)
+    if (objectPath.node?.type === 'Super') {
+      const thisCtx = resolveThisClass(objectPath);
+      const parentPath = thisCtx && resolveSuperClassPath(thisCtx.classPath);
+      return parentPath ? { classPath: parentPath, isStatic: thisCtx.isStatic } : null;
+    }
     return null;
   }
 
@@ -2217,12 +2259,8 @@ function createResolveNodeType(babelNodeType, t) {
       if (member.node.kind === 'set') continue;
       return member;
     }
-    const superClass = classPath.get('superClass');
-    if (superClass.node) {
-      const resolved = resolveRuntimeExpression(superClass);
-      if (t.isClass(resolved.node)) return findClassMember(resolved, name, isStatic, depth + 1);
-    }
-    return null;
+    const parentPath = resolveSuperClassPath(classPath);
+    return parentPath ? findClassMember(parentPath, name, isStatic, depth + 1) : null;
   }
 
   // single returned expression as a path - used to resolve getters like properties
@@ -2264,12 +2302,17 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveClassMemberNode(member, callPath) {
     // ESTree MethodDefinition wraps FunctionExpression in .value - unwrap for return type resolution
     const methodFn = t.isClassMethod(member.node) ? (member.get('value')?.node ? member.get('value') : member) : null;
+    // TSDeclareMethod (ambient `declare class` body) has no body - only the return-type
+    // annotation is available for resolution
+    const declaredReturn = member.node.type === 'TSDeclareMethod' ? member.node.returnType : null;
     if (callPath) {
       if (methodFn) {
         if (member.node.kind !== 'get') return resolveReturnType(methodFn, callPath);
         // getter call: resolve like property - get the returned value, if callable -> call it
         const value = resolveBodyReturnValue(methodFn);
         if (t.isFunction(value?.node)) return resolveReturnType(value, callPath);
+      } else if (declaredReturn) {
+        return resolveTypeAnnotation(declaredReturn, member.scope);
       } else if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
         const value = resolveRuntimeExpression(member.get('value'));
         if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath);
@@ -2284,6 +2327,7 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // method: getter returns its return type, regular method returns Function
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn) : new $Object('Function');
+    if (declaredReturn) return new $Object('Function');
     return null;
   }
 
@@ -2517,6 +2561,16 @@ function createResolveNodeType(babelNodeType, t) {
       const ctx = resolveClassContext(resolved);
       return ctx ? resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath) : null;
     }
+    // `x: Cls` where `Cls` is a real `class` declaration in scope - route method calls through
+    // `resolveClassMember` (path-based, body-inference-capable) instead of annotation-only lookup,
+    // so unannotated methods like `test() { return this.getStr(); }` still resolve their return type
+    if (callPath) {
+      const classPath = findClassPathForTypeReference(annotation, scope);
+      if (classPath) {
+        const result = resolveClassMember(classPath, name, false, callPath);
+        if (result) return result;
+      }
+    }
     // lazily resolve default type parameter map for generic types used without explicit type arguments
     let defaultMap;
     const resolve = p => {
@@ -2530,6 +2584,14 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // method call: merge return types across overloads, recursing into union branches
     return resolveMemberCallReturn(annotation, name, scope, resolve);
+  }
+
+  // resolve `TSTypeReference { typeName: X }` to a NodePath of `class X { ... }` in scope,
+  // or null if the reference points at an ambient / interface / non-class
+  function findClassPathForTypeReference(annotation, scope) {
+    if (annotation?.type !== 'TSTypeReference' || annotation.typeName?.type !== 'Identifier') return null;
+    const binding = scope?.getBinding(annotation.typeName.name);
+    return binding && t.isClassDeclaration(binding.path.node) ? binding.path : null;
   }
 
   function resolveFromMemberExpression(path, callPath) {
@@ -3505,10 +3567,11 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
-  // assigned to a const. turns the `is T` return type into a typeof / instanceof guard so
-  // that user predicates fold through the same narrowing pipeline as built-in guards.
-  function parseUserPredicateGuard(callee, scope, negated) {
+  // resolve a callee identifier to a guard descriptor when the callee is a function whose
+  // return type is a `TSTypePredicate`. `asserts` flag picks between the two predicate forms:
+  //   `x is T`         - narrows only inside the truthy branch; callers pass `asserts=false`
+  //   `asserts x is T` - narrows after the call completes normally; callers pass `asserts=true`
+  function resolvePredicateGuard(callee, scope, negated, asserts) {
     if (!scope || callee.type !== 'Identifier') return null;
     const binding = scope.getBinding(callee.name);
     if (!binding) return null;
@@ -3516,9 +3579,28 @@ function createResolveNodeType(babelNodeType, t) {
     const fnNode = t.isVariableDeclarator(declNode) ? declNode.init : declNode;
     if (!fnNode || !t.isFunction(fnNode)) return null;
     const returnType = unwrapTypeAnnotation(fnNode.returnType);
-    if (returnType?.type !== 'TSTypePredicate') return null;
+    if (returnType?.type !== 'TSTypePredicate' || !!returnType.asserts !== asserts) return null;
     const resolved = resolveTypeAnnotation(returnType.typeAnnotation, binding.path.scope);
     return guardFromResolvedType(resolved, negated);
+  }
+
+  // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
+  // assigned to a const
+  function parseUserPredicateGuard(callee, scope, negated) {
+    return resolvePredicateGuard(callee, scope, negated, false);
+  }
+
+  // `assertArray(x)` as a statement - `asserts x is T` narrows x from that point forward.
+  // only the first argument participates (TS doesn't support asserts on non-first params)
+  function parseAssertionStatementGuard(sibling, varName) {
+    if (sibling.node?.type !== 'ExpressionStatement') return null;
+    const call = sibling.node.expression;
+    if (call?.type !== 'CallExpression' || !call.arguments?.length) return null;
+    const arg = unwrapParens(call.arguments[0]);
+    if (arg?.type !== 'Identifier' || arg.name !== varName) return null;
+    const guard = resolvePredicateGuard(call.callee, sibling.scope, false, true);
+    if (guard) guard.positive = true;
+    return guard;
   }
 
   function parseTypeGuard(testNode, varName, scope) {
@@ -3743,14 +3825,19 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // if (typeof x === 'string') return; -> x is narrowed after the if
-  // collects ALL preceding exit guards, including && / || flattening
+  // `assertArray(x)` -> x is narrowed after the call (asserts-predicate shape)
+  // collects ALL preceding guards, including && / || flattening
   function findPrecedingExitGuards(siblings, index, varName) {
     const guards = [];
     for (let i = index - 1; i >= 0; i--) {
-      const conditionTrue = resolveExitCondition(siblings[i]);
+      const sibling = siblings[i];
+      const conditionTrue = resolveExitCondition(sibling);
       if (conditionTrue !== null) {
-        guards.push(...parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName, siblings[i].scope));
+        guards.push(...parseGuardsFromCondition(sibling.node.test, conditionTrue, varName, sibling.scope));
+        continue;
       }
+      const assertionGuard = parseAssertionStatementGuard(sibling, varName);
+      if (assertionGuard) guards.push(assertionGuard);
     }
     return guards;
   }
