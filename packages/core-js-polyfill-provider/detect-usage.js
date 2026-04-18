@@ -13,6 +13,7 @@ import {
   TS_EXPR_WRAPPERS,
   declaresRequireBinding,
   globalProxyMemberName,
+  mayHaveSideEffects,
   stripQueryHash,
   symbolKeyToEntry,
 } from './helpers.js';
@@ -210,7 +211,7 @@ export function resolveKey(node, computed, scope, adapter, depth = 0) {
       // polyfill import binding (e.g., import _Symbol$iterator from '.../symbol/iterator')
       // - recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
       if (binding.importSource) {
-        const match = /(?:^|\/)symbol\/(?<name>[\w-]+)$/.exec(binding.importSource);
+        const match = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/.exec(binding.importSource);
         if (match) return `Symbol.${ match.groups.name.replaceAll(/-(?<char>\w)/g, (_, char) => char.toUpperCase()) }`;
       }
     }
@@ -299,10 +300,17 @@ export function resolveSymbolIteratorEntry(node, parent) {
 // returns meta object or null. Also marks handled objects if suppressProxyGlobals is false
 export function handleBinaryIn(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   if (node.operator !== 'in') return null;
-  // Symbol.X in obj / Symbol?.X in obj / (Symbol?.X) in obj
+  // Symbol.X in obj / Symbol?.X in obj / (Symbol?.X) in obj / (0, Symbol).X in obj
   const left = unwrapParens(node.left);
+  // `_isIterable(obj)` replacement drops the receiver entirely, so preceding sequence
+  // elements with side-effects would be lost - bail out of the collapse in that case
+  let leftObject = unwrapParens(left.object);
+  if (leftObject?.type === 'SequenceExpression'
+    && !leftObject.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+    leftObject = unwrapParens(leftObject.expressions.at(-1));
+  }
   if ((left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
-    && left.object?.type === 'Identifier' && left.object.name === 'Symbol'
+    && leftObject?.type === 'Identifier' && leftObject.name === 'Symbol'
     && !adapter.hasBinding(scope, 'Symbol')) {
     const name = resolveKey(left.property, left.computed, scope, adapter);
     if (name) {
