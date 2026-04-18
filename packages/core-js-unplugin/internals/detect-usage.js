@@ -281,26 +281,30 @@ function walkDecorators(parentPath, decoratorVisitors) {
 
 // --- Usage visitors ---
 
-// walk up transparent value wrappers (parens + `, X` sequence-last) until a non-wrapper;
-// true if the resulting node sits as the `.object` of a MemberExpression whose whole
-// MemberExpression is the `.left` of an `in` BinaryExpression
+// mirrors the wrapper set peeled by `unwrapParens` in polyfill-provider/detect-usage;
+// SequenceExpression only transparent when `inner` is the last (value-producing) element
+const ALWAYS_TRANSPARENT = new Set(['ParenthesizedExpression', 'ChainExpression', ...TS_EXPR_WRAPPERS]);
+function isTransparentValueParent(parent, inner) {
+  if (!parent) return false;
+  if (ALWAYS_TRANSPARENT.has(parent.type)) return true;
+  return parent.type === 'SequenceExpression' && parent.expressions.at(-1) === inner;
+}
+
+function skipTransparentParents(path) {
+  let cur = path;
+  while (cur.parentPath && isTransparentValueParent(cur.parent, cur.node)) cur = cur.parentPath;
+  return cur;
+}
+
 function isInReceiverOfInExpression(path) {
-  let current = path;
-  while (current.parentPath) {
-    const { parent, key } = current;
-    if (parent?.type === 'ParenthesizedExpression'
-      || (parent?.type === 'SequenceExpression' && parent.expressions.at(-1) === current.node)) {
-      current = current.parentPath;
-      continue;
-    }
-    if ((parent?.type === 'MemberExpression' || parent?.type === 'OptionalMemberExpression') && key === 'object') {
-      const grandParent = current.parentPath?.parent;
-      return grandParent?.type === 'BinaryExpression' && grandParent.operator === 'in'
-        && grandParent.left === parent;
-    }
-    return false;
-  }
-  return false;
+  const receiver = skipTransparentParents(path);
+  const { parent, key } = receiver;
+  if (key !== 'object') return false;
+  if (parent?.type !== 'MemberExpression' && parent?.type !== 'OptionalMemberExpression') return false;
+  // wrappers can sit between the MemberExpression and the BinaryExpression too -
+  // `Symbol?.iterator in obj` has ChainExpression; `(X.iterator) in obj` has parens
+  const up = skipTransparentParents(receiver.parentPath);
+  return up.parent?.type === 'BinaryExpression' && up.parent.operator === 'in' && up.parent.left === up.node;
 }
 
 export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals = false, walkAnnotations = true }) {
@@ -336,8 +340,12 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
     const { node, parent, key: parentKey } = path;
     if (handledObjects.has(node)) return;
     if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
-    if (suppressProxyGlobals && parent?.type === 'BinaryExpression'
-      && parent.operator === 'in' && parent.left === node) return;
+    // BinaryExpression visitor already handles `<Member> in obj`; peel transparent wrappers
+    // so `(X.iterator) in obj` / `(X.iterator as any) in obj` dedupe too
+    if (suppressProxyGlobals) {
+      const up = skipTransparentParents(path);
+      if (up.parent?.type === 'BinaryExpression' && up.parent.operator === 'in' && up.parent.left === up.node) return;
+    }
     const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
