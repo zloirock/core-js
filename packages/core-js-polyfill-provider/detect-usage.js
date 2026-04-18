@@ -8,7 +8,14 @@
 //   isStringLiteral(node)           -> boolean
 //   getStringValue(node)            -> string | null
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS, TS_EXPR_WRAPPERS, declaresRequireBinding, stripQueryHash, symbolKeyToEntry } from './helpers.js';
+import {
+  POSSIBLE_GLOBAL_OBJECTS,
+  TS_EXPR_WRAPPERS,
+  declaresRequireBinding,
+  globalProxyMemberName,
+  stripQueryHash,
+  symbolKeyToEntry,
+} from './helpers.js';
 
 // known-built-in-return-types enumerates every built-in identifier core-js knows about.
 // constructors (Array, Map, ...) and global functions (parseInt, fetch, ...) are functions;
@@ -47,8 +54,16 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     const { init } = binding.node;
     if (binding.constantViolations?.length) return null;
     // rest element in destructuring: { from, ...rest } = Array - rest !=== init
-    const props = binding.node.id?.properties ?? binding.node.id?.elements;
+    const pattern = binding.node.id;
+    const props = pattern?.properties ?? pattern?.elements;
     if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
+    // `const { Symbol } = globalThis` -> Symbol aliases globalThis.Symbol. only proxy-global
+    // roots translate here - destructure from named constructors (`const { from } = Array`)
+    // falls through to the init-as-identifier branch below, keeping the receiver name
+    if (pattern?.type === 'ObjectPattern' && init) {
+      const alias = resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen);
+      if (alias) return alias;
+    }
     if (init?.type === 'Identifier') {
       // babel-plugin may have mutated `Symbol` into `_Symbol` in place; the adapter exposes
       // the original hint so we can translate the polyfill UID back to its source global
@@ -78,6 +93,27 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   }
   // any other binding (param, catch, class name) - not a global
   return null;
+}
+
+// `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
+// returns the property key or null when init isn't a proxy-global or `name` isn't matched.
+// nested patterns (`const { A: { B } }`) are not followed - conservative single-level alias only
+function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen) {
+  const receiver = resolveObjectName(init, scope, adapter, seen);
+  if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
+  for (const p of pattern.properties) {
+    if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
+    if (patternBindingName(p.value) !== name) continue;
+    return resolveKey(p.key, p.computed, scope, adapter);
+  }
+  return null;
+}
+
+// top-level binding name of a destructuring element, skipping `=default` wrappers. nested
+// patterns (`[a, b]`, `{x, y}`) don't produce a single name and return null
+function patternBindingName(node) {
+  while (node?.type === 'AssignmentPattern') node = node.left;
+  return node?.type === 'Identifier' ? node.name : null;
 }
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
@@ -187,13 +223,16 @@ function buildMemberMeta(node, scope, adapter) {
   if (!key || key === 'prototype') return null;
   // unwrap ESTree ParenthesizedExpression around the object: (Array).from / ((Array)).from
   const obj = unwrapParens(node.object);
-  // Array.prototype.includes -> instance access on Array
-  if (obj.type === 'MemberExpression' && !obj.computed
-    && obj.property.type === 'Identifier' && obj.property.name === 'prototype') {
+  // `X.prototype.Y` / `X['prototype']['Y']` / `globalThis.X.prototype.Y` -> instance access on X.
+  // `resolveKey` folds dot / bracket / template-literal forms; globalProxyMemberName accepts
+  // global-proxy receivers so `globalThis.Array.prototype.Y` / `self.Array.prototype.Y` resolve
+  if ((obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression')
+    && resolveKey(obj.property, obj.computed, scope, adapter) === 'prototype') {
     const proto = unwrapParens(obj.object);
-    if (proto.type === 'Identifier' && !adapter.hasBinding(scope, proto.name)) {
-      return { kind: 'property', object: proto.name, key, placement: 'prototype' };
-    }
+    const protoName = proto.type === 'Identifier' && !adapter.hasBinding(scope, proto.name)
+      ? proto.name
+      : globalProxyMemberName(proto);
+    if (protoName) return { kind: 'property', object: protoName, key, placement: 'prototype' };
   }
   const objectName = resolveObjectName(obj, scope, adapter);
   // skip import-bound objects
