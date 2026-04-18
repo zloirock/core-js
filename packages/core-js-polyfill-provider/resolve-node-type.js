@@ -1,5 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, unwrapExportedDeclaration, unwrapParens } from './helpers.js';
 
 const {
   constructors: KNOWN_CONSTRUCTORS,
@@ -521,15 +521,6 @@ function createResolveNodeType(babelNodeType, t) {
   function isTypeBearingDeclaration(decl) {
     return isTypeAlias(decl) || isInterfaceDeclaration(decl) || isClassLikeDeclaration(decl)
       || decl?.type === 'TSEnumDeclaration';
-  }
-
-  // unwrap a top-level statement past `export {Named,Default}Declaration` wrappers, returning
-  // the inner declaration node (or null if there's no `declaration` to unwrap to)
-  function unwrapExportedDeclaration(statement) {
-    if (statement?.type === 'ExportNamedDeclaration' || statement?.type === 'ExportDefaultDeclaration') {
-      return statement.declaration ?? null;
-    }
-    return statement;
   }
 
   // statement list directly inside a TSModuleDeclaration. for Babel's nested form
@@ -3623,11 +3614,6 @@ function createResolveNodeType(babelNodeType, t) {
 
   // flatten a && b && c when condition is true, or a || b || c when condition is false
   // only flattens the matching operator; mixed operators stay as opaque nodes
-  function unwrapParens(node) {
-    while (node?.type === 'ParenthesizedExpression') node = node.expression;
-    return node;
-  }
-
   function flattenCondition(node, operator) {
     const result = [];
     const stack = [unwrapParens(node)];

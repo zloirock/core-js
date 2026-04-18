@@ -57,6 +57,23 @@ export const ESM_MARKER_TYPES = new Set([
 
 const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name === name;
 
+// oxc-parser preserves `ParenthesizedExpression`; babel strips it by default. strip here
+// so downstream matchers treat `(x)` and `x` identically without probing the parser
+export function unwrapParens(node) {
+  while (node?.type === 'ParenthesizedExpression') node = node.expression;
+  return node;
+}
+
+// `export const X = ...` / `export default function X() {}` bind `X` in the module scope
+// exactly like their un-exported form; callers that inspect top-level declarations get the
+// inner node, so the export wrapper is transparent to them
+export function unwrapExportedDeclaration(stmt) {
+  if (stmt?.type === 'ExportNamedDeclaration' || stmt?.type === 'ExportDefaultDeclaration') {
+    return stmt.declaration ?? null;
+  }
+  return stmt;
+}
+
 // peel transparent wrappers so `0, module.exports = ...` / `(module.exports = ...)` still match
 function unwrapExpr(node) {
   while (node) {
@@ -90,7 +107,9 @@ export function declaresRequireBinding(body) {
   const mark = id => {
     if (id.name === 'require') found = true;
   };
-  for (const node of body ?? []) {
+  for (const stmt of body ?? []) {
+    const node = unwrapExportedDeclaration(stmt);
+    if (!node) continue;
     switch (node.type) {
       case 'VariableDeclaration':
         for (const d of node.declarations) walkPatternIdentifiers(d.id, mark);
