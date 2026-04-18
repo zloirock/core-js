@@ -8,6 +8,7 @@ export {
   hasTopLevelESM,
   isDeleteTarget,
   isForXWriteTarget,
+  isASTNode,
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
