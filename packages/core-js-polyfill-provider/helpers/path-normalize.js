@@ -31,6 +31,7 @@ const CORE_JS_BUNDLE = /(?:^|[/\\])(?:core-js-bundle|@core-js[/\\]bundle)(?:[/\\
 
 export function isCoreJSFile(filename) {
   // normalize doubled slashes/backslashes - some bundlers (farm) pass ids like `core-js-pure//full/...`
-  const normalized = filename.replaceAll(/[/\\]{2,}/g, '/');
+  // and strip Vite/Rolldown query/hash suffix upfront so callers don't have to
+  const normalized = stripQueryHash(filename).replaceAll(/[/\\]{2,}/g, '/');
   return CORE_JS_INTERNAL_FILE.test(normalized) || CORE_JS_BUNDLE.test(normalized);
 }
