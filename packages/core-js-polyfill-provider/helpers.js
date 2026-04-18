@@ -11,6 +11,8 @@ export {
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
+  unwrapExportedDeclaration,
+  unwrapParens,
   walkPatternIdentifiers,
 } from './helpers/ast-patterns.js';
 export {
