@@ -8,6 +8,7 @@ import {
   detectCommonJS,
   globalProxyMemberName,
   hasTopLevelESM,
+  isASTNode,
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
@@ -74,10 +75,6 @@ function startsEnclosingStatement(path, pos) {
   while (p && p.node?.type !== 'ExpressionStatement') p = p.parentPath;
   return p?.node?.start === pos;
 }
-
-// typed AST node - excludes scalars, SourceLocation objects, and foreign markers
-// (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools)
-const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
 // single-pass AST scan. `names` covers every declaration anywhere in the file so UID
 // generation avoids collisions at any nesting level (`var _at = 1` in a function
@@ -331,7 +328,7 @@ export default function createPlugin(options) {
 
     // check disable directives - `disable-file` only counts if it lives above any code
     const offsetToLine = buildOffsetToLine(code);
-    const disabledLines = parseDisableDirectives(comments, offsetToLine, ast.body[0]?.start);
+    const disabledLines = parseDisableDirectives(comments, offsetToLine, ast.body[0]?.start, ast);
     if (disabledLines === true) return null; // entire file disabled
 
     function isDisabled(node) {
