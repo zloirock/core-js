@@ -146,7 +146,7 @@ function checkSourceMapShape(directory, map) {
   return true;
 }
 
-// parse-validate the transformed output - unparseable codegen (missing semi, broken ASI
+// parse-validate the transformed output - unparsable codegen (missing semi, broken ASI
 // that accidentally creates syntax errors, malformed emit) is caught here even when
 // loose-mode `compareLoose` only checks imports
 function checkOutputParses(directory, code, testId) {
@@ -276,14 +276,15 @@ async function runFixture(directory) {
   }
 
   try {
+    const testId = inferTestId(babelOptions);
     const source = await readFile(join(directory, 'input.mjs'), UTF8);
-    const { code, map, logs } = captureTransform(source, pluginOptions, inferTestId(babelOptions));
+    const { code, map, logs } = captureTransform(source, pluginOptions, testId);
     const actual = normalize(code);
     const babelOutput = normalize(await readFile(outputFile, UTF8));
 
     if (!await checkDebugOutput(directory, logs)) return;
     if (!checkSourceMapShape(directory, map)) return;
-    if (!checkOutputParses(directory, code, inferTestId(babelOptions))) return;
+    if (!checkOutputParses(directory, code, testId)) return;
 
     // global modes with `output-unplugin.mjs` opt into strict tail validation; usage-pure
     // always goes through full-text compare (with its own OVERWRITE/auto-drop logic)
