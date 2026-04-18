@@ -24,6 +24,7 @@ import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-t
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
+import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
   resolveSymbolInEntry,
@@ -81,7 +82,6 @@ const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 
 // assignments left by an earlier pre pass whose snapshot got dropped; caller filters
 // these against `names` so user-owned `let _ref` isn't mistaken for a leftover.
 // heap stack - recursion would overflow on `a + b + c + ...` chains from minifiers
-const ORPHAN_REF_PATTERN = /^_ref\d*$/;
 export function collectAllBindingNames(ast) {
   const names = new Set();
   const orphanRefs = new Set();
@@ -346,10 +346,14 @@ export default function createPlugin(options) {
     });
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post's inherited snapshot was dropped
-    // (TTL, buildEnd, sibling invalidation); user-owned `let _ref` is filtered out via `names`
+    // (TTL, buildEnd, sibling invalidation); filter out user-owned `let _ref` via `names`
     const { names: bindingNames, orphanRefs } = collectAllBindingNames(ast);
     injector.seedReservedNames(bindingNames);
-    if (pass === 'post' && !inherit) injector.adoptOrphanRefs(orphanRefs, bindingNames);
+    if (pass === 'post' && !inherit) {
+      const adoptable = new Set();
+      for (const ref of orphanRefs) if (!bindingNames.has(ref)) adoptable.add(ref);
+      injector.adoptOrphanRefs(adoptable);
+    }
     // post reuses the pre-pass snapshot; entry-global handles re-emit via detectEntries
     if (pass !== 'post' && method !== 'entry-global') {
       const removed = new Set();
