@@ -187,9 +187,9 @@ function createResolveNodeType(babelNodeType, t) {
       || AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has(node.type));
   }
 
-  // Babel does not register ambient `declare function f(): T` declarations in `scope.bindings`,
-  // so a plain `getBinding(name)` lookup misses them. Walk enclosing scopes' bodies to find one
-  function findAmbientFunctionPath(name, scope) {
+  // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
+  // enclosing statement lists instead. `matchType` picks the ambient kind we want
+  function findAmbientDeclarationPath(name, scope, matchType) {
     for (let cur = scope; cur; cur = cur.parent) {
       const bodyPaths = cur.path?.get('body');
       if (!Array.isArray(bodyPaths)) continue;
@@ -198,12 +198,18 @@ function createResolveNodeType(babelNodeType, t) {
         const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
           ? stmtPath.get('declaration') : stmtPath;
         const { node } = declPath;
-        if ((node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction')
-          && node.id?.name === name) return declPath;
+        if (node?.id?.name === name && matchType(node)) return declPath;
       }
     }
     return null;
   }
+
+  // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass
+  const isAmbientFunctionNode = node => node?.type === 'TSDeclareFunction' || node?.type === 'DeclareFunction';
+  const isAmbientClassNode = node => node?.type === 'DeclareClass'
+    || (node?.type === 'ClassDeclaration' && node.declare === true);
+  const findAmbientFunctionPath = (name, scope) => findAmbientDeclarationPath(name, scope, isAmbientFunctionNode);
+  const findAmbientClassPath = (name, scope) => findAmbientDeclarationPath(name, scope, isAmbientClassNode);
 
   // resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
   // iterates: after unwrapping a TS wrapper, the underlying expression may be another variable reference
@@ -729,6 +735,22 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return new $Object('Object');
     }
+    // class as a type: walk `extends` for known container (`Array<T>`) or user parent;
+    // `superTypeArguments` (TS) / `superTypeParameters` cover `extends Array<string>`
+    if (isClassLikeDeclaration(declaration)) {
+      const superClass = declaration.superClass ?? declaration.extends?.[0]?.id;
+      if (superClass?.type !== 'Identifier') return new $Object('Object');
+      const parentRef = {
+        type: 'TSTypeReference',
+        typeName: superClass,
+        typeArguments: declaration.superTypeArguments,
+        typeParameters: declaration.superTypeParameters,
+      };
+      const ctor = resolveKnownConstructor(superClass.name);
+      if (ctor) return resolveKnownContainerType(superClass.name, ctor, parentRef, resolve) || ctor;
+      return resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap)
+        ?? new $Object('Object');
+    }
     return null;
   }
 
@@ -767,6 +789,25 @@ function createResolveNodeType(babelNodeType, t) {
     return cloned ?? member;
   }
 
+  // TS utility types whose member set is the same as their first type parameter's
+  const STRUCTURE_PRESERVING_WRAPPERS = new Set([
+    'Omit',
+    'Partial',
+    'Pick',
+    'Readonly',
+    'Required',
+    '$ReadOnly',
+  ]);
+
+  // follow superClass for declared parent members. `Identifier` covers both real and ambient
+  // (`declare class P {}` + `class C extends P {}`), which behave the same in type position
+  function findParentClassDecl(classDecl, scope) {
+    const parentId = classDecl.superClass ?? classDecl.extends?.[0]?.id;
+    if (parentId?.type !== 'Identifier') return null;
+    const parent = findTypeDeclaration(parentId.name, scope);
+    return isClassLikeDeclaration(parent) ? parent : null;
+  }
+
   function getTypeMembers(objectType, scope, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
@@ -783,6 +824,21 @@ function createResolveNodeType(babelNodeType, t) {
     // handle dotted refs (`NS.Data`) by passing the segment path through
     const segments = typeRefSegments(objectType);
     if (!segments) return null;
+    // structure-preserving wrappers: `Readonly<{...}>.x`, `Pick<T,K>.x` look up on T directly
+    if (segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
+      const arg = getTypeArgs(objectType)?.params[0];
+      return arg ? getTypeMembers(unwrapTypeAnnotation(arg), scope, depth + 1) : null;
+    }
+    // `InstanceType<typeof Cls>.x` / `ReturnType<typeof fn>.x` -> members of the pointed-to decl
+    if (segments.length === 1 && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
+      const arg = getTypeArgs(objectType)?.params[0];
+      const resolved = arg?.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
+      if (!resolved?.node) return null;
+      const target = segments[0] === 'InstanceType'
+        ? resolved.node.id && { type: 'TSTypeReference', typeName: resolved.node.id }
+        : resolved.node.returnType ?? resolved.node.typeAnnotation;
+      return target ? getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1) : null;
+    }
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
     if (!declaration) return null;
@@ -807,9 +863,15 @@ function createResolveNodeType(babelNodeType, t) {
       return all.length ? all : null;
     }
     if (isClassLikeDeclaration(declaration)) {
-      // class as type: instance members are non-static class body entries.
-      // findTypeMember handles ClassProperty / ClassMethod / TSDeclareMethod uniformly.
-      return declaration.body?.body?.filter(m => !m?.static) ?? null;
+      // class-as-type: merge non-static body entries up the superClass chain, covering
+      // both real and ambient parents (`class C extends DeclareParent {}`)
+      const merged = [];
+      const seen = new Set();
+      for (let cur = declaration; cur && !seen.has(cur); cur = findParentClassDecl(cur, scope)) {
+        seen.add(cur);
+        for (const m of cur.body?.body ?? []) if (!m?.static) merged.push(m);
+      }
+      return merged.length ? merged : null;
     }
     if (isTypeAlias(declaration)) {
       return getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1);
@@ -998,7 +1060,8 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // resolve TSTypeQuery (typeof x or typeof x.y) to the runtime path of the target
+  // resolve TSTypeQuery (typeof x or typeof x.y) to the runtime path of the target.
+  // falls back to ambient `declare function/class` when the name isn't in scope.bindings
   function resolveTypeQueryBinding(param, scope) {
     if (param.type !== 'TSTypeQuery') return null;
     const { exprName } = param;
@@ -1009,19 +1072,22 @@ function createResolveNodeType(babelNodeType, t) {
       return bindingPath ? resolveMemberValuePath(bindingPath, right.name) : null;
     }
     if (exprName?.type !== 'Identifier') return null;
-    const bindingPath = constantBindingPath(exprName.name, scope);
-    if (!bindingPath) return null;
-    if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return bindingPath;
-    if (t.isVariableDeclarator(bindingPath.node)) {
-      const init = bindingPath.get('init');
-      return init.node ? resolveRuntimeExpression(init) : null;
+    const { name } = exprName;
+    const bindingPath = constantBindingPath(name, scope);
+    if (bindingPath) {
+      if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return bindingPath;
+      if (t.isVariableDeclarator(bindingPath.node)) {
+        const init = bindingPath.get('init');
+        return init.node ? resolveRuntimeExpression(init) : null;
+      }
+      return null;
     }
-    return null;
+    return findAmbientFunctionPath(name, scope) ?? findAmbientClassPath(name, scope);
   }
 
   function resolveReturnTypeFromTypeQuery(param, scope) {
     const resolved = resolveTypeQueryBinding(param, scope);
-    return t.isFunction(resolved?.node) ? resolveReturnType(resolved) : null;
+    return isFunctionLike(resolved?.node) ? resolveReturnType(resolved) : null;
   }
 
   // resolve inner type from the first type parameter for container types
@@ -1056,16 +1122,22 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveNamedType(name, node, scope, depth) {
     const known = resolveKnownContainerType(name, resolveKnownConstructor(name), node, p => resolveTypeAnnotation(p, scope, depth + 1));
     if (known) return known;
+    const firstArg = () => getTypeArgs(node)?.params[0];
+    const resolveArg = (arg, fallback) => arg
+      ? resolveTypeAnnotation(arg, scope, depth + 1) ?? fallback
+      : null;
     switch (name) {
-      // well-known utility types -> Object
-      // Flow: $ReadOnly, $Shape, $Diff, $Rest, $ObjMap, $ObjMapi, $ObjMapConst
-      case 'Record':
+      // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
+      // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
       case 'Partial':
       case 'Required':
+      case 'Readonly':
       case 'Pick':
       case 'Omit':
-      case 'Readonly':
       case '$ReadOnly':
+        return resolveArg(firstArg(), new $Object('Object'));
+      // structurally new shape from their type parameter - collapse to Object
+      case 'Record':
       case '$Shape':
       case '$Diff':
       case '$Rest':
@@ -1073,11 +1145,9 @@ function createResolveNodeType(babelNodeType, t) {
       case '$ObjMapi':
       case '$ObjMapConst':
         return new $Object('Object');
-      // well-known utility types -> Array
       case 'Parameters':
       case 'ConstructorParameters':
         return new $Object('Array');
-      // well-known utility types -> string
       // Flow: $Keys
       case 'Uppercase':
       case 'Lowercase':
@@ -1085,40 +1155,33 @@ function createResolveNodeType(babelNodeType, t) {
       case 'Uncapitalize':
       case '$Keys':
         return new $Primitive('string');
-      // TS lib alias for `string | number | symbol`; no polyfill API is shared across
-      // all three, so null lets downstream fall back to generic-instance emission
+      // TS lib alias for `string | number | symbol`; no shared polyfill API, null lets
+      // downstream fall back to generic-instance emission
       case 'PropertyKey':
         return null;
-      // well-known utility types - transparent wrappers resolving type parameter
-      // Flow: $Exact
+      // transparent wrappers resolving type parameter. Flow: $Exact
       case 'NoInfer':
-      case '$Exact': {
-        const arg = getTypeArgs(node)?.params[0];
-        return arg ? resolveTypeAnnotation(arg, scope, depth + 1) : null;
-      }
-      // well-known utility types - resolve type parameter, strip nullable/never
-      // Flow: $NonMaybeType
+      case '$Exact':
+        return resolveArg(firstArg(), null);
+      // resolve type parameter, strip nullable/never. Flow: $NonMaybeType
       case 'NonNullable':
       case '$NonMaybeType': {
-        const arg = getTypeArgs(node)?.params[0];
+        const arg = firstArg();
         return arg ? resolveNonNullableAnnotation(arg, scope, depth) : null;
       }
       case 'Awaited': {
-        const param = getTypeArgs(node)?.params[0];
-        if (!param) return null;
-        return unwrapPromise(resolveTypeAnnotation(param, scope, depth + 1));
+        const arg = firstArg();
+        return arg ? unwrapPromise(resolveTypeAnnotation(arg, scope, depth + 1)) : null;
       }
-      // well-known utility types - resolve via function return type
       case 'ReturnType': {
-        const arg = getTypeArgs(node)?.params[0];
+        const arg = firstArg();
         return arg ? resolveReturnTypeFromTypeQuery(arg, scope) : null;
       }
       case 'InstanceType': {
-        const param = getTypeArgs(node)?.params[0];
-        if (!param) return null;
-        const resolved = resolveTypeQueryBinding(param, scope);
-        if (t.isClass(resolved?.node)) return resolveClassInheritance(resolved) || new $Object('Object');
-        return null;
+        const arg = firstArg();
+        const resolved = arg ? resolveTypeQueryBinding(arg, scope) : null;
+        if (!(t.isClass(resolved?.node) || isAmbientClassNode(resolved?.node))) return null;
+        return resolveClassInheritance(resolved) || new $Object('Object');
       }
       case 'Extract':
       case 'Exclude': {
@@ -1127,19 +1190,16 @@ function createResolveNodeType(babelNodeType, t) {
       }
       // Flow $ReadOnlyArray<T> -> Array with inner type (equivalent to ReadonlyArray<T>)
       case '$ReadOnlyArray': {
-        const typeArgs = getTypeArgs(node);
-        const inner = typeArgs?.params[0]
-          ? resolveNonNullableAnnotation(typeArgs.params[0], scope, depth) : null;
-        return new $Object('Array', inner);
+        const arg = firstArg();
+        return new $Object('Array', arg ? resolveNonNullableAnnotation(arg, scope, depth) : null);
       }
-      // Flow utility types (conservative: unknown)
+      // conservative: unknown for Flow variants we don't model structurally
       case '$Values':
       case '$ElementType':
       case '$PropertyType':
       case '$Call':
         return null;
     }
-    // resolve user-defined type aliases and interfaces via scope chain
     return resolveUserDefinedType(name, node, scope, depth);
   }
 
@@ -2374,6 +2434,70 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth, subst);
   }
 
+  // `x.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for other
+  // shapes. `conditionTrue` flips the sign when the guard sits in an `else` / false-branch
+  function parseDiscriminantCheck(test, varName, conditionTrue) {
+    if (test?.type !== 'BinaryExpression') return null;
+    const isEq = test.operator === '===' || test.operator === '==';
+    const isNeq = test.operator === '!==' || test.operator === '!=';
+    if (!isEq && !isNeq) return null;
+    const left = unwrapParens(test.left);
+    const right = unwrapParens(test.right);
+    const pair = memberLiteralPair(left, right, varName) ?? memberLiteralPair(right, left, varName);
+    return pair && { ...pair, positive: isEq === conditionTrue };
+  }
+
+  function memberLiteralPair(memberExpr, literalNode, varName) {
+    if (memberExpr?.type !== 'MemberExpression' || memberExpr.computed) return null;
+    if (memberExpr.object?.type !== 'Identifier' || memberExpr.object.name !== varName) return null;
+    if (memberExpr.property?.type !== 'Identifier') return null;
+    const value = literalKeyValue(literalNode);
+    return value === null ? null : { field: memberExpr.property.name, value };
+  }
+
+  // walk up collecting `x.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`
+  function findDiscriminantGuards(varPath) {
+    const guards = [];
+    const { name } = varPath.node;
+    for (let current = varPath; current?.parentPath; current = current.parentPath) {
+      const parent = current.parentPath;
+      let test;
+      let conditionTrue;
+      if (t.isIfStatement(parent.node) || t.isConditionalExpression(parent.node)) {
+        if (current.key !== 'consequent' && current.key !== 'alternate') continue;
+        conditionTrue = current.key === 'consequent';
+        test = parent.node.test;
+      } else if (t.isLogicalExpression(parent.node) && parent.node.operator === '&&' && current.key === 'right') {
+        conditionTrue = true;
+        test = parent.node.left;
+      } else continue;
+      const guard = parseDiscriminantCheck(test, name, conditionTrue);
+      if (guard) guards.push(guard);
+    }
+    return guards;
+  }
+
+  function narrowDiscriminatedUnion(objectPath, annotation, scope) {
+    const { node: aliased } = followTypeAliasChain(annotation, scope);
+    if (aliased?.type !== 'TSUnionType' && aliased?.type !== 'UnionTypeAnnotation') return null;
+    const guards = findDiscriminantGuards(objectPath);
+    if (!guards.length) return null;
+    // permissive: branches with unresolvable discriminant members pass through
+    const filtered = aliased.types.filter(branch => {
+      for (const { field, value, positive } of guards) {
+        const memberType = findTypeMember(unwrapTypeAnnotation(branch), field, scope);
+        if (!memberType) continue;
+        const { node: resolvedNode } = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope);
+        const literal = resolvedNode?.type === 'TSLiteralType' ? literalKeyValue(resolvedNode.literal) : null;
+        if (literal !== null && (literal === value) !== positive) return false;
+      }
+      return true;
+    });
+    if (!filtered.length || filtered.length === aliased.types.length) return null;
+    if (filtered.length === 1) return unwrapTypeAnnotation(filtered[0]);
+    return { type: aliased.type, types: filtered };
+  }
+
   function resolveTypedMember(objectPath, name, callPath) {
     let annotation, scope;
     if (t.isIdentifier(objectPath.node)) {
@@ -2392,6 +2516,11 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     if (!annotation) return null;
+    // discriminated union narrowing: `if (x.kind === 'a') { x.data }` -> restrict Foo
+    // to the `{ kind:'a'; data: T }` branch before member lookup
+    if (t.isIdentifier(objectPath.node)) {
+      annotation = narrowDiscriminatedUnion(objectPath, annotation, scope) ?? annotation;
+    }
     // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there
     if (annotation.type === 'TSTypeQuery') {
       const resolved = resolveTypeQueryBinding(annotation, scope);
