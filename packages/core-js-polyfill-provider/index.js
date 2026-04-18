@@ -12,7 +12,6 @@ import {
   stripQueryHash,
   validatePatternList,
 } from './helpers.js';
-import { optionTypeError } from './plugin-options.js';
 
 const { hasOwn } = Object;
 
@@ -119,6 +118,8 @@ function validateIncludeExclude(include, exclude, modules, method) {
   if (errors.length) throw new Error(`Error while validating the "core-js@4" provider options:\n${ errors.join('') }`);
 }
 
+// options assumed already validated by `initPluginOptions` in plugin-options.js;
+// for direct callers without `initPluginOptions`, the first hard type check will surface a bug
 export function createPolyfillContext({
   method,
   mode,
@@ -130,9 +131,6 @@ export function createPolyfillContext({
   shippedProposals = false,
   shouldInjectPolyfill = () => true,
 }) {
-  if (typeof shouldInjectPolyfill !== 'function') {
-    throw optionTypeError('shouldInjectPolyfill', 'a function', shouldInjectPolyfill);
-  }
   // explicit `null` (common in conditional config spreads) skips the destructuring default;
   // leaving it unmodified makes `null/<entry>` miss the polyfill map and drop all polyfills
   mode ??= 'actual';
@@ -142,16 +140,6 @@ export function createPolyfillContext({
   const excludeEntries = method === 'usage-pure' ? collectEntryPaths(exclude) : new Set();
 
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
-  if (typeof pkg != 'string') throw optionTypeError('package', 'a string', pkg);
-  if (pkg === '') throw optionTypeError('package', 'a non-empty string', pkg);
-  if (additionalPackages !== null && additionalPackages !== undefined && !Array.isArray(additionalPackages)) {
-    throw optionTypeError('additionalPackages', 'an array, or undefined', additionalPackages);
-  }
-  if (additionalPackages) {
-    const badType = additionalPackages.find($pkg => typeof $pkg != 'string');
-    if (badType !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', badType);
-    if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
-  }
 
   version = normalizeCoreJSVersion(version);
 
