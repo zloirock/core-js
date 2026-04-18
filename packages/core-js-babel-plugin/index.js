@@ -393,9 +393,11 @@ export default function plugin(api, options) {
       function entryGlobalCallback(source, path) {
         if (isDisabled(path.node)) return;
         if (!path.node.loc) return;
-        debugOutput?.markEntryFound();
         const entry = getCoreJSEntry(source);
         if (entry === null) return;
+        // `createEntryVisitors` hands us every specifier-less import; mark only actual
+        // core-js entries so `import 'lodash'` doesn't mask "entry not found"
+        debugOutput?.markEntryFound();
         injectModulesForEntry(entry);
         path.remove();
       }
@@ -440,7 +442,7 @@ export default function plugin(api, options) {
         usageVisitors?.[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
-        const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start);
+        const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start, path.node);
         if (directives === true) skipFile = true;
         disabledLines = directives !== true ? directives : null;
         // entry-global handles re-emit via detectEntries
