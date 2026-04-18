@@ -1015,8 +1015,9 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolveKnownContainerType(name, base, node, innerResolver) {
     if (!base) return null;
+    if (!SINGLE_ELEMENT_COLLECTIONS.has(name) && name !== 'Promise') return base;
     const params = getTypeArgs(node)?.params;
-    if (params?.[0] && (SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise')) {
+    if (params?.[0]) {
       const inner = innerResolver(params[0]);
       if (inner && !isNullableOrNever(inner)) return new $Object(base.constructor, inner);
     }
