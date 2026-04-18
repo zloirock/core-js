@@ -75,14 +75,16 @@ function startsEnclosingStatement(path, pos) {
 // (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools)
 const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
-// collect every binding name declared anywhere in the AST so the import injector
-// avoids picking a UID that collides with a user-declared identifier in any nested scope.
-// `var _at = 1` inside a function would otherwise shadow a top-level `import _at from ...`
-// iterative walker (heap stack) - recursion would overflow on flat expression chains
-// commonly produced by minifiers (`a + b + c + ...` with thousands of terms)
-// exported for regression tests; call site is the plugin only
+// single-pass AST scan. `names` covers every declaration anywhere in the file so UID
+// generation avoids collisions at any nesting level (`var _at = 1` in a function
+// would otherwise shadow `import _at from ...`). `orphanRefs` carries free `_refN = ...`
+// assignments left by an earlier pre pass whose snapshot got dropped; caller filters
+// these against `names` so user-owned `let _ref` isn't mistaken for a leftover.
+// heap stack - recursion would overflow on `a + b + c + ...` chains from minifiers
+const ORPHAN_REF_PATTERN = /^_ref\d*$/;
 export function collectAllBindingNames(ast) {
   const names = new Set();
+  const orphanRefs = new Set();
   const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
   const stack = [ast];
   while (stack.length) {
@@ -116,6 +118,11 @@ export function collectAllBindingNames(ast) {
       case 'ImportNamespaceSpecifier':
         names.add(node.local.name);
         break;
+      case 'AssignmentExpression':
+        if (node.operator === '=' && node.left?.type === 'Identifier' && ORPHAN_REF_PATTERN.test(node.left.name)) {
+          orphanRefs.add(node.left.name);
+        }
+        break;
     }
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
@@ -123,7 +130,7 @@ export function collectAllBindingNames(ast) {
       if (Array.isArray(v) || isASTNode(v)) stack.push(v);
     }
   }
-  return names;
+  return { names, orphanRefs };
 }
 
 // ternary guard needs () only when parent operator has higher precedence than ?:
@@ -337,11 +344,12 @@ export default function createPlugin(options) {
       deferImports,
       inherit,
     });
-    // orphan post: snapshot dropped between passes (TTL, buildEnd, sibling invalidation)
-    if (pass === 'post' && !inherit) injector.adoptOrphanRefsFromCode(code);
-    // seed the injector with every binding name in the file (any nesting level)
-    // so generated UIDs don't shadow user-declared identifiers in nested scopes
-    injector.seedReservedNames(collectAllBindingNames(ast));
+    // single AST scan - `names` seeds UID-collision guards at every nesting level;
+    // `orphanRefs` feeds orphan adoption when post's inherited snapshot was dropped
+    // (TTL, buildEnd, sibling invalidation); user-owned `let _ref` is filtered out via `names`
+    const { names: bindingNames, orphanRefs } = collectAllBindingNames(ast);
+    injector.seedReservedNames(bindingNames);
+    if (pass === 'post' && !inherit) injector.adoptOrphanRefs(orphanRefs, bindingNames);
     // post reuses the pre-pass snapshot; entry-global handles re-emit via detectEntries
     if (pass !== 'post' && method !== 'entry-global') {
       const removed = new Set();
@@ -717,11 +725,10 @@ export default function createPlugin(options) {
         if (root) {
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
-          // dedup against AST node identity, not source text - same `obj` text in two scopes
-          // would otherwise share a guard slot incorrectly
-          if (node.optional ? transforms.hasGuardFor(start, end, rootNode) : transforms.containsRange(start, end)) {
-            root = null;
-          }
+          // dedup by rootNode identity: `x.at(a?.b.at(0))` has outer guard for `x` (none),
+          // inner for `a` - skipping inner because it's range-contained would drop the
+          // `a == null ? void 0 :` and crash on `a === null`
+          if (transforms.hasGuardFor(start, end, rootNode)) root = null;
         }
         return { optionalRoot: root, rootRaw, deoptPositions, rootNode };
       }
