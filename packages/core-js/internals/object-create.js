@@ -65,9 +65,9 @@ var NullProtoObjectViaSc64bit = function () {
     // If all attempts to retrieve a new object from an external instance fail,
     // the existing object is returned.
     // This prevents errors during the key deletion process using enumBugKeys afterward.
-    return function() {
-        return {};
-    }
+    return function () {
+      return {};
+    };
   }
 }
 
