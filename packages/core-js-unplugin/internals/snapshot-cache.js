@@ -10,6 +10,11 @@ const SWEEP_INTERVAL_MS = 30 * 1000;
 export default class SnapshotCache {
   #snapshots = new Map();
   #lastSweepAt = 0;
+  #debug;
+
+  constructor({ debug = false } = {}) {
+    this.#debug = debug;
+  }
 
   #sweepStale() {
     const cutoff = Date.now() - TTL_MS;
@@ -30,10 +35,10 @@ export default class SnapshotCache {
 
   store(id, entry) {
     if (this.#snapshots.size >= SWEEP_THRESHOLD) this.#sweepStale();
-    // double-call races snapshot against post-input from the earlier call - emit a
-    // diagnostic so the inconsistency doesn't silently land in the output
-    if (this.#snapshots.has(id) && typeof console !== 'undefined') {
-      // eslint-disable-next-line no-console -- dev-time diagnostic
+    // double-call is legit in dev-servers (Vite --force, HMR re-invalidation) - gate the
+    // diagnostic under `debug` so it only fires when the user is actively investigating
+    if (this.#debug && this.#snapshots.has(id) && typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console -- opt-in diagnostic
       console.warn(`[core-js-unplugin] pre-pass called twice for ${ id }; latest snapshot wins`);
     }
     // delete-first so same-id re-insert moves to tail (refreshes chronological order)
