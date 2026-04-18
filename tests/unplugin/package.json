@@ -2,6 +2,6 @@
   "name": "tests/unplugin",
   "type": "module",
   "devDependencies": {
-    "@jridgewell/trace-mapping": "^0.3.11"
+    "@jridgewell/trace-mapping": "^0.3.31"
   }
 }
