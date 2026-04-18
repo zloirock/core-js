@@ -1,3 +1,5 @@
+import { parseSync } from 'oxc-parser';
+import { TraceMap } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 
 const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
@@ -120,8 +122,9 @@ function inferTestId(babelOptions) {
   return 'input.ts';
 }
 
-// structural sourcemap check — when transform returns a map, verify it's a well-formed
-// SourceMap v3. catches crashes / empty-mappings regressions without per-fixture probes
+// sourcemap check: structural shape + VLQ decode. segments that round-trip to null
+// sources are fine (entry-global emits all-synthetic output; user-code line mappings
+// survive in usage-*). catches empty-mappings / malformed VLQ / missing sources
 function checkSourceMapShape(directory, map) {
   if (!map) return true;
   const reject = msg => {
@@ -135,7 +138,26 @@ function checkSourceMapShape(directory, map) {
   if (map.sourcesContent !== undefined && !Array.isArray(map.sourcesContent)) {
     return reject('sourcesContent is not an array');
   }
+  try {
+    new TraceMap(map);
+  } catch (error) {
+    return reject(`VLQ decode failed: ${ error.message }`);
+  }
   return true;
+}
+
+// parse-validate the transformed output - unparseable codegen (missing semi, broken ASI
+// that accidentally creates syntax errors, malformed emit) is caught here even when
+// loose-mode `compareLoose` only checks imports
+function checkOutputParses(directory, code, testId) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync(testId, code, { sourceType: 'module' });
+  const errors = parsed.errors?.filter(err => err.severity === 'Error');
+  if (!errors?.length) return true;
+  counts.failed++;
+  echo(red(`${ cyan(label(directory)) } output has parse errors:`));
+  for (const err of errors.slice(0, 3)) echo(`  ${ err.message?.split('\n')[0] ?? err }`);
+  return false;
 }
 
 function captureTransform(source, pluginOptions, testId) {
@@ -189,35 +211,45 @@ async function checkDebugOutput(directory, logs) {
   return false;
 }
 
-function compareGlobalMode(directory, actual, babelOutput) {
+// full-text comparator (used when `output-unplugin.mjs` is present in any mode, or as
+// the default for usage-pure). babel and unplugin differ in codegen minutiae - both
+// sides go through `normalize` + `collapseWhitespace` so whitespace-only divergence
+// doesn't fail
+async function compareStrict(directory, actual, directFile) {
+  const expected = normalize(await readFile(directFile, UTF8));
+  if (actual === expected) pass(directory);
+  else fail(directory, firstDiff(actual, expected));
+}
+
+// imports-only comparator: default for entry-global / usage-global. body divergence
+// between babel AST codegen and unplugin text-transform is tolerated by default; opt into
+// strict tail comparison by dropping an `output-unplugin.mjs` next to `output.mjs`
+function compareLoose(directory, actual, babelOutput) {
   const actualImports = extractImports(actual);
   const expectedImports = extractImports(babelOutput);
   if (actualImports === expectedImports) pass(directory);
   else fail(directory, firstDiff(actualImports, expectedImports));
 }
 
-async function comparePureMode(directory, actual, babelOutput) {
-  const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
-  const hasUnpluginOutput = await exists(unpluginOutputFile);
-
+async function comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile) {
   if (OVERWRITE) {
     if (stripBoilerplate(actual) === stripBoilerplate(babelOutput)) await rm(unpluginOutputFile, { force: true });
     else await writeFile(unpluginOutputFile, actual, UTF8);
     return echo`${ cyan(label(directory)) } ${ yellow('written') }`;
   }
-
-  const expected = hasUnpluginOutput ? normalize(await readFile(unpluginOutputFile, UTF8)) : stripBoilerplate(babelOutput);
-  const comparable = hasUnpluginOutput ? actual : stripBoilerplate(actual);
-
+  if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
+  const expected = stripBoilerplate(babelOutput);
+  const comparable = stripBoilerplate(actual);
   if (comparable === expected) pass(directory);
   else fail(directory, firstDiff(comparable, expected));
 }
 
 async function runFixture(directory) {
-  const hasStaleUnpluginOutput = await exists(join(directory, 'output-unplugin.mjs'));
+  const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
+  const hasUnpluginOutput = await exists(unpluginOutputFile);
 
   if (shouldSkip(path.basename(directory))) {
-    if (hasStaleUnpluginOutput) return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in skipped fixture`);
+    if (hasUnpluginOutput) return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in skipped fixture`);
     counts.skipped++;
     return;
   }
@@ -232,10 +264,6 @@ async function runFixture(directory) {
   if (!pluginOptions) {
     counts.skipped++;
     return;
-  }
-
-  if (hasStaleUnpluginOutput && pluginOptions.method !== 'usage-pure') {
-    return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in non-pure fixture`);
   }
 
   const errorFile = join(directory, 'error.txt');
@@ -255,9 +283,17 @@ async function runFixture(directory) {
 
     if (!await checkDebugOutput(directory, logs)) return;
     if (!checkSourceMapShape(directory, map)) return;
+    if (!checkOutputParses(directory, code, inferTestId(babelOptions))) return;
 
-    if (pluginOptions.method === 'usage-pure') await comparePureMode(directory, actual, babelOutput);
-    else compareGlobalMode(directory, actual, babelOutput);
+    // global modes with `output-unplugin.mjs` opt into strict tail validation; usage-pure
+    // always goes through full-text compare (with its own OVERWRITE/auto-drop logic)
+    if (pluginOptions.method === 'usage-pure') {
+      await comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile);
+    } else if (hasUnpluginOutput) {
+      await compareStrict(directory, actual, unpluginOutputFile);
+    } else {
+      compareLoose(directory, actual, babelOutput);
+    }
   } catch (error) {
     fail(directory, error.message);
   }
