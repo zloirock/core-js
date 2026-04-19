@@ -121,3 +121,10 @@ QUnit.test('globals: AsyncIterator', assert => {
   assert.isFunction(AsyncIterator);
   assert.isFunction(AsyncIterator.from);
 });
+
+QUnit.test('globals: structuredClone roundtrip on toSorted output', assert => {
+  const input = [3, 1, 2].toSorted();
+  const roundtripped = structuredClone(input);
+  assert.deepEqual(roundtripped, [1, 2, 3]);
+  assert.notStrictEqual(roundtripped, input);
+});
