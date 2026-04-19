@@ -189,11 +189,19 @@ function shouldSkip(dirName) {
 
 async function runErrorFixture(directory, pluginOptions, errorFile) {
   const expected = (await readFile(errorFile, UTF8)).trim()
-    .replace(/^\[BABEL\] [^:]+: /, '')
+    // babel wraps `error.message` with a `<filename>: ` prefix (or `unknown file: ` when
+    // options omit the filename); earlier `[BABEL] ` is the CLI-level prefix. strip both
+    // layers so comparison matches unplugin's raw error
+    .replace(/^\[BABEL\] /, '')
+    .replace(/^[^\n:]+: /, '')
     .replace(/\n? ?\(While processing:.*\)$/s, '')
     .trim();
+  // use the fixture's real input so runtime-triggered errors (e.g. `shouldInjectPolyfill`
+  // throwing during usage resolution) can reach `transform` - a dummy `'x;'` misses them
+  const inputPath = join(directory, 'input.mjs');
+  const source = await exists(inputPath) ? await readFile(inputPath, UTF8) : 'x;';
   try {
-    createPlugin(pluginOptions).transform('x;', 'test.js');
+    createPlugin(pluginOptions).transform(source, 'input.ts');
     fail(directory, 'expected error but none thrown');
   } catch (error) {
     if (error.message.trim() === expected) pass(directory);

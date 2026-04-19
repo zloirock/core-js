@@ -17,6 +17,16 @@ export function globalProxyMemberName(node) {
   return null;
 }
 
+// `class C extends MyPromise { super.try(...) }` — `buildSuperStaticMeta` sets
+// `superMeta.object` to the binding name (`MyPromise`), but resolver tables key by global
+// (`statics.Promise.try`). mutate in place to the registered global hint so lookup succeeds.
+// `injector` is the plugin's ImportInjectorState instance; no-op if it doesn't know the name
+export function resolveSuperImportName(injector, superMeta) {
+  if (!superMeta?.object || !injector) return;
+  const imp = injector.getPureImport(superMeta.object);
+  if (imp) superMeta.object = imp.hint;
+}
+
 // `super.X` in a static method -> static meta on the parent class. resolveSuperClassName
 // chases `const Y = Array` aliases; returns null on real local bindings
 export function buildSuperStaticMeta(classNode, key, resolveSuperClassName) {
