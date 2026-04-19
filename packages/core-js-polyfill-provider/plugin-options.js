@@ -50,6 +50,7 @@ function validateOptions({
   package: pkg,
   shippedProposals,
   shouldInjectPolyfill,
+  targets,
 }) {
   expectEnum('method', VALID_METHODS, method);
   expectEnum('mode', VALID_MODES, mode, { required: false });
@@ -82,6 +83,13 @@ function validateOptions({
     const badType = additionalPackages.find($pkg => typeof $pkg !== 'string');
     if (badType !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', badType);
     if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
+  }
+  // positive whitelist: only `string` / `Array` / plain object pass through to targetsParser.
+  // `function` / `boolean` / `number` / etc. trigger opaque "Unknown browser query" from
+  // browserslist downstream; reject them here with a specific message instead
+  if (!isEmpty(targets) && typeof targets !== 'string'
+    && !Array.isArray(targets) && !(typeof targets === 'object' && targets.constructor === Object)) {
+    throw optionTypeError('targets', 'a string, array, or plain object', targets);
   }
 }
 
@@ -195,6 +203,7 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     package: rest.package,
     shippedProposals,
     shouldInjectPolyfill: userCallback,
+    targets,
   });
   const parsedTargets = resolveTargets({
     targets,
