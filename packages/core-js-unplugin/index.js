@@ -1,18 +1,27 @@
 import { createUnplugin } from 'unplugin';
+import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 import createPlugin from './internals/plugin.js';
 
-// match JS/TS extensions; strip bundler query/hash suffix (Vite: foo.js?import,
-// Vue SFC: foo.ts?v=abc#bar - can have both tokens). exclude .d.ts declaration files.
-// Flow (.flow) is not included - oxc-parser cannot parse Flow syntax
-const JS_RE = /\.[cm]?[jt]sx?(?:$|[#?])/;
-const DTS_RE = /\.d\.[cm]?tsx?(?:$|[#?])/;
+// match JS/TS extensions anchored at end-of-path; `.d.ts` declaration files excluded.
+// Flow (.flow) is not listed - oxc-parser cannot parse Flow syntax
+const JS_RE = /\.[cm]?[jt]sx?$/;
+const DTS_RE = /\.d\.[cm]?tsx?$/;
+// Vue / Svelte / Astro SFC sub-blocks travel as `App.vue?vue&type=script&lang=ts` /
+// `App.svelte?ts` / `App.astro?raw`. pattern accepts the same extension alphabet as JS_RE;
+// declaration-block `lang=d.ts` wouldn't match this pattern anyway (the `[cm]?[jt]sx?`
+// alternation demands a `[jt]` char, which `d.ts` doesn't have)
+const SFC_LANG_RE = /[&?]lang=[cm]?[jt]sx?(?:&|$)/;
 
 // `\0` marks virtual modules (some bundlers embed it mid-id in the query component, not
 // just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
 // user source
-function shouldTransform(id) {
+export function shouldTransform(id) {
   if (id.includes('\0') || id.includes('?commonjs-')) return false;
-  return JS_RE.test(id) && !DTS_RE.test(id);
+  // path component without query/hash - `/virtual:foo?output=main.js` must NOT pass the
+  // extension check just because `.js` appears inside the query
+  const base = stripQueryHash(id);
+  if (JS_RE.test(base) && !DTS_RE.test(base)) return true;
+  return SFC_LANG_RE.test(id);
 }
 
 const VALID_PHASES = ['pre', 'post', 'pre+post'];
