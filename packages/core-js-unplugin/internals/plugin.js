@@ -211,6 +211,7 @@ export default function createPlugin(options) {
         },
         onPureImport: (entry, name) => injector.registerUserPureImport(entry, name),
         packages,
+        pkg,
       });
       if (removed.size) {
         // splice from AST too - `await import(...)` would otherwise drag Promise polyfills

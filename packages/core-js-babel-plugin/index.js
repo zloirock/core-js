@@ -454,7 +454,7 @@ export default function plugin(api, options) {
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
           scanExistingCoreJSImports(path.node, {
-            packages, mode, adapter,
+            packages, pkg, mode, adapter,
             // `addGlobalImport`, not `registerUserGlobalImport` - source is about to be
             // removed, so the dedup filter must not suppress re-emit
             onGlobalImport: (mod, node) => {
