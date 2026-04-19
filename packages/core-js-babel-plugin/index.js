@@ -613,7 +613,9 @@ export default function plugin(api, options) {
               if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
               const props = param.properties || param.elements;
               if (!props || props.length === 0) return;
-              const ref = path.scope.generateUidIdentifier('ref');
+              // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
+              // - keeps one naming scheme across the plugin and matches unplugin's output shape
+              const ref = injector.generateRef(path.scope, false);
               path.get('body').unshiftContainer('body', [
                 t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
               ]);

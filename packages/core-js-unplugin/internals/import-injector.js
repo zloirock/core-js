@@ -77,7 +77,7 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   generateUnusedName() {
-    const name = this.uniqueName('_unused', null, 2);
+    const name = super.generateUnusedName();
     this.#unusedNames.add(name);
     return name;
   }
