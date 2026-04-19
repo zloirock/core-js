@@ -82,6 +82,12 @@ export default class ImportInjector extends ImportInjectorState {
     const taken = new Set(bindings.keys());
     for (const name of this.#refs) taken.delete(name);
 
+    // identity set of plugin-owned binding objects guards rename against user's nested
+    // shadow-binding of the same name (e.g. user's `const _ref3` inside a function body
+    // while plugin's outer allocation shifts `_ref5` → `_ref3`)
+    const ownedBindings = new Set();
+    for (const name of this.#refs) if (bindings.has(name)) ownedBindings.add(bindings.get(name));
+
     const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
     const renameMap = new Map();
     let i = 1;
@@ -95,7 +101,8 @@ export default class ImportInjector extends ImportInjectorState {
     this.#programPath.traverse({
       Identifier(p) {
         const to = renameMap.get(p.node.name);
-        if (to) p.node.name = to;
+        if (!to || !ownedBindings.has(p.scope.getBinding(p.node.name))) return;
+        p.node.name = to;
       },
     });
   }
