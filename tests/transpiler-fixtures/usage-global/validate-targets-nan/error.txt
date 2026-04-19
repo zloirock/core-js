@@ -1,0 +1,1 @@
+[BABEL] unknown file: `targets` must be a string, array, or plain object (received NaN) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
