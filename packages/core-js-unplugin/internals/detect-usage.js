@@ -176,27 +176,35 @@ function buildDestructuringMeta(propNode, parentPath) {
 const FUNCTION_NODE_TYPES = new Set(['FunctionExpression', 'FunctionDeclaration', 'ArrowFunctionExpression']);
 
 // `isASTNode` drops parent back-pointers, location objects, and primitives without listing
-// them by name; tolerates parsers adding new metadata fields (e.g. `typeArguments`)
+// them by name; tolerates parsers adding new metadata fields (e.g. `typeArguments`).
+// `visit(child, key, listKey, container)` matches babel NodePath shape: for array children
+// `key` = index, `listKey` = property name; for non-array `key` = property name, `listKey` = null
 function forEachChildNode(node, visit) {
   for (const key of Object.keys(node)) {
     const value = node[key];
-    if (Array.isArray(value)) for (const child of value) { if (isASTNode(child)) visit(child, key); }
-    else if (isASTNode(value)) visit(value, key);
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) if (isASTNode(value[i])) visit(value[i], i, key, value);
+    } else if (isASTNode(value)) visit(value, key, null, node);
   }
 }
 
-// `get` returns NodePath[] for array fields to match babel's behaviour
-function makeSynthPath(node, parent, parentKey, parentPath, scope) {
+// babel NodePath parity: for array-indexed children `key` = numeric index, `listKey` =
+// property name, `container` = the array; for non-array children `key` = property name,
+// `listKey` = null, `container` = parent node. consumers like `getStatementSiblings` rely
+// on numeric key + listKey to recognise statement-in-block position
+function makeSynthPath(node, parent, parentKey, parentPath, scope, listKey = null, container = null) {
   const self = {
     node,
     parent,
     parentPath,
     key: parentKey,
+    listKey,
+    container: container ?? parent,
     scope,
     get(key) {
       const value = node?.[key];
-      if (Array.isArray(value)) return value.map((el, i) => makeSynthPath(el, node, i, self, scope));
-      return makeSynthPath(value ?? null, node, key, self, scope);
+      if (Array.isArray(value)) return value.map((el, i) => makeSynthPath(el, node, i, self, scope, key, value));
+      return makeSynthPath(value ?? null, node, key, self, scope, null, node);
     },
   };
   return self;
@@ -260,20 +268,22 @@ function collectFunctionLocals(fnNode) {
   return locals;
 }
 
-function walkSubtree(node, parent, parentKey, parentPath, scope, visitors) {
+function walkSubtree(node, parent, parentKey, parentPath, scope, visitors, listKey = null, container = null) {
   if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
   const childScope = FUNCTION_NODE_TYPES.has(node.type)
     ? makeFrameScope(scope, collectFunctionLocals(node))
     : scope;
-  const synthPath = makeSynthPath(node, parent, parentKey, parentPath, childScope);
+  const synthPath = makeSynthPath(node, parent, parentKey, parentPath, childScope, listKey, container);
   visitors[node.type]?.(synthPath);
-  forEachChildNode(node, (child, key) => walkSubtree(child, node, key, synthPath, childScope, visitors));
+  forEachChildNode(node, (child, childKey, childListKey, childContainer) => {
+    walkSubtree(child, node, childKey, synthPath, childScope, visitors, childListKey, childContainer);
+  });
 }
 
 function walkDecoratorList(decorators, parentPath, decoratorVisitors) {
   if (!decorators?.length) return;
-  for (const decorator of decorators) {
-    walkSubtree(decorator, null, null, parentPath, parentPath.scope, decoratorVisitors);
+  for (let i = 0; i < decorators.length; i++) {
+    walkSubtree(decorators[i], parentPath.node, i, parentPath, parentPath.scope, decoratorVisitors, 'decorators', decorators);
   }
 }
 
