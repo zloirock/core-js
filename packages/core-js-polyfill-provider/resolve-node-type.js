@@ -1044,10 +1044,17 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveKnownContainerType(name, callResult, path.node, p => resolveTypeAnnotation(p, path.scope));
   }
 
+  // TS 5.6+ stdlib base-classes share method tables with their concrete pairs
+  const CONSTRUCTOR_ALIASES = assign(create(null), {
+    IteratorObject: 'Iterator',
+    AsyncIteratorObject: 'AsyncIterator',
+  });
+
   function resolveNamedType(name, node, scope, depth) {
     // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
     if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
+    if (hasOwn(CONSTRUCTOR_ALIASES, name)) name = CONSTRUCTOR_ALIASES[name];
     const known = resolveKnownContainerType(name, resolveKnownConstructor(name), node, p => resolveTypeAnnotation(p, scope, depth + 1));
     if (known) return known;
     const firstArg = () => getTypeArgs(node)?.params[0];
