@@ -90,11 +90,22 @@ function validateIncludeExclude(include, exclude, modules, method) {
   validatePatternList('exclude', exclude);
   if (!include && !exclude) return;
   const errors = [];
+  // single pass per list: split malformed regex strings away so later checks don't
+  // re-report them as "didn't match any polyfill" / "entry-path only with usage-pure"
+  const cleaned = { include: null, exclude: null };
   for (const [label, patterns] of [['include', include], ['exclude', exclude]]) {
     if (!patterns?.length) continue;
-    const unusedModules = patterns.filter(isModulePattern).filter(p => !patternMatches(p, modules));
+    const malformed = [];
+    const clean = [];
+    for (const p of patterns) {
+      if (typeof p === 'string' && !patternToRegExp(p)) malformed.push(p);
+      else clean.push(p);
+    }
+    if (malformed.length) errors.push(formatError(`The following "${ label }" patterns are not valid regex source`, malformed));
+    cleaned[label] = clean;
+    const unusedModules = clean.filter(isModulePattern).filter(p => !patternMatches(p, modules));
     if (unusedModules.length) errors.push(formatError(`The following "${ label }" patterns didn't match any polyfill`, unusedModules));
-    const $entries = patterns.filter(isEntryPattern);
+    const $entries = clean.filter(isEntryPattern);
     // entry-path include/exclude only makes sense for the pure variant where the entry IS
     // the import unit; in global modes a single entry would force-inject hundreds of modules
     if ($entries.length && method !== 'usage-pure') {
@@ -104,8 +115,8 @@ function validateIncludeExclude(include, exclude, modules, method) {
       if (unusedEntries.length) errors.push(formatError(`The following "${ label }" entry paths didn't match any polyfill`, unusedEntries));
     }
   }
-  const moduleInclude = include?.filter(isModulePattern);
-  const moduleExclude = exclude?.filter(isModulePattern);
+  const moduleInclude = cleaned.include?.filter(isModulePattern);
+  const moduleExclude = cleaned.exclude?.filter(isModulePattern);
   if (moduleInclude?.length && moduleExclude?.length) {
     const duplicates = moduleInclude.filter(p => {
       if (p instanceof RegExp) return moduleExclude.some(e => e instanceof RegExp && e.source === p.source && e.flags === p.flags);
