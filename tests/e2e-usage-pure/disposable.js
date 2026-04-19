@@ -77,3 +77,16 @@ QUnit.test('Symbol.dispose exists', assert => {
 QUnit.test('Symbol.asyncDispose exists', assert => {
   assert.notSame(Symbol.asyncDispose, undefined);
 });
+
+QUnit.test('using: Symbol.dispose class returning polyfill-built data', assert => {
+  let disposed = 0;
+  class Lock {
+    [Symbol.dispose]() { disposed += 1; }
+    names() { return Array.from(new Set(['a', 'b', 'a'])).toSorted(); }
+  }
+  {
+    using lock = new Lock();
+    assert.deepEqual(lock.names(), ['a', 'b']);
+  }
+  assert.same(disposed, 1);
+});
