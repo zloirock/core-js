@@ -173,3 +173,10 @@ QUnit.test('deep user chain: a?.b?.c?.().at(0)', assert => {
   assert.same({ b: null }?.b?.c?.().at(0), undefined);
   assert.same({ b: { c: null } }?.b?.c?.().at(0), undefined);
 });
+
+QUnit.test('optional: factory returning maybe-null array + .at / .includes chain', assert => {
+  const make = n => n > 0 ? [1, 2, 3] : null;
+  assert.same(make(1)?.at(-1), 3);
+  assert.same(make(0)?.at(-1), undefined);
+  assert.same(make(1)?.includes?.(2), true);
+});
