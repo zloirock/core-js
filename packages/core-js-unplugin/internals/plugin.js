@@ -278,7 +278,7 @@ export default function createPlugin(options) {
       return finalize();
     }
 
-    const { resolveSuperMember, isShadowedByClassOwnMember } = createClassHelpers(types);
+    const { resolveSuperMember, isShadowedByClassOwnMember } = createClassHelpers(types, estreeAdapter);
 
     // usage-global mode
     if (method === 'usage-global') {
