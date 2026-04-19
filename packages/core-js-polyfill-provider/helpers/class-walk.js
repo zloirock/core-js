@@ -1,4 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+import { unwrapParens } from './ast-patterns.js';
 
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
@@ -13,12 +14,9 @@ function isProxyGlobalIdentifierNode(node, scope, adapter) {
   return !!hint && POSSIBLE_GLOBAL_OBJECTS.has(hint);
 }
 
-// `globalThis.X` / `globalThis?.X` / `globalThis['X']` -> 'X', else null.
-// babel: `OptionalMemberExpression`; ESTree/oxc: `ChainExpression { MemberExpression { optional } }`
-export function globalProxyMemberName(node, scope, adapter) {
-  if (node?.type === 'ChainExpression') node = node.expression;
-  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-  if (!isProxyGlobalIdentifierNode(node.object, scope, adapter)) return null;
+// extract a member property's name as a string (identifier, string literal, single-quasi template);
+// null when the key isn't statically resolvable
+function memberKeyName(node) {
   const { property, computed } = node;
   if (!computed && property?.type === 'Identifier') return property.name;
   if (computed && property?.type === 'StringLiteral') return property.value;
@@ -27,6 +25,27 @@ export function globalProxyMemberName(node, scope, adapter) {
   if (computed && property?.type === 'TemplateLiteral'
     && property.expressions.length === 0 && property.quasis.length === 1) return property.quasis[0].value.cooked;
   return null;
+}
+
+function unwrapChainExpression(node) {
+  return node?.type === 'ChainExpression' ? node.expression : node;
+}
+
+// `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis.self.X` -> 'X', else null.
+// babel: `OptionalMemberExpression`; ESTree/oxc: `ChainExpression { MemberExpression { optional } }`.
+// walks intermediate proxy-global links (`globalThis.self` / `globalThis.window`) so deeper
+// chains still resolve to the final key
+export function globalProxyMemberName(node, scope, adapter) {
+  node = unwrapChainExpression(node);
+  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+  let object = unwrapChainExpression(node.object);
+  while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
+    const linkName = memberKeyName(object);
+    if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
+    object = unwrapChainExpression(object.object);
+  }
+  if (!isProxyGlobalIdentifierNode(object, scope, adapter)) return null;
+  return memberKeyName(node);
 }
 
 // `class C extends MyPromise { super.try(...) }` — `buildSuperStaticMeta` sets
@@ -44,8 +63,7 @@ export function resolveSuperImportName(injector, superMeta) {
 // oxc-parser preserves `ParenthesizedExpression` wrappers that babel strips — peel first
 export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
-  let { superClass } = classNode;
-  while (superClass?.type === 'ParenthesizedExpression') superClass = superClass.expression;
+  const superClass = unwrapParens(classNode.superClass);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
   return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
@@ -114,8 +132,13 @@ export function createClassHelpers(t, adapter) {
       const decl = binding.path?.node;
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
         || decl?.type === 'ImportNamespaceSpecifier') return name;
-      if (decl?.type !== 'VariableDeclarator' || decl.init?.type !== 'Identifier') return null;
-      name = decl.init.name;
+      if (decl?.type !== 'VariableDeclarator') return null;
+      // oxc-parser preserves `const X = (Y)` ParenthesizedExpression; peel to match babel
+      const init = unwrapParens(decl.init);
+      if (init?.type === 'Identifier') { name = init.name; continue; }
+      // `const A = globalThis.Promise; class C extends A` — alias init points at a proxy-global
+      // member. terminate the walk with the final member name (`Promise`) instead of bailing
+      return globalProxyMemberName(init, scope, adapter) ?? null;
     }
     return null;
   }
