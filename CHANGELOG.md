@@ -1,13 +1,22 @@
 # Changelog
 ### Unreleased
 - Added polyfill for `requestIdleCallback`
+- Ensure opaque paths always roundtrip in URL polyfill (still without adding to feature detection), [whatwg/url#844](https://github.com/whatwg/url/pull/844)
+- Fixed possible crash on some keys in `Symbol.for`
+- Some `get-iterator` / `get-iterator-method` fixes
+- Fixed `String.prototype.{ match, search }` polyfills conversion order
+- Added missed `MAX_SAFE_INTEGER` excess check in `Array.from` and `{ Map, Object }.groupBy` polyfills
+- Improved the way of inner iterators cleaning in iterator helpers
+- Improved accuracy of `Math.{ asinh, cbrt, log1p }` polyfills with big and small values
 - Improved performance of `Uint8Array` base64 methods
 - Improved performance of `es.escape`
-- Improved the way of inner iterators cleaning in iterator helpers
 - Slight performance improvement for engines with native `Array#fill` on `ArrayBuffer` constructor and `%TypedArray%#fill`
 - Compat data improvements:
+  - [`Array.prototype.includes` bug](https://bugs.webkit.org/show_bug.cgi?id=309342) marked as fixed in Bun 1.3.12
   - Added [Deno 2.7.8](https://github.com/denoland/deno/releases/tag/v2.7.8) compat data mapping
   - Updated Electron 42 compat data mapping
+  - Added Samsung Internet 30 compat data mapping
+  - Added Opera for [Android 97](https://forums.opera.com/topic/88511/opera-for-android-97) compat data mapping
 
 ### [3.49.0 - 2026.03.16](https://github.com/zloirock/core-js/releases/tag/v3.49.0)
 - Changes [v3.48.0...v3.49.0](https://github.com/zloirock/core-js/compare/v3.48.0...v3.49.0) (373 commits)

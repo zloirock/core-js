@@ -7,6 +7,7 @@ var aCallable = require('../internals/a-callable');
 var requireObjectCoercible = require('../internals/require-object-coercible');
 var toPropertyKey = require('../internals/to-property-key');
 var iterate = require('../internals/iterate');
+var doesNotExceedSafeInteger = require('../internals/does-not-exceed-safe-integer');
 var fails = require('../internals/fails');
 
 // eslint-disable-next-line es/no-object-groupby -- testing
@@ -30,6 +31,7 @@ $({ target: 'Object', stat: true, forced: DOES_NOT_WORK_WITH_PRIMITIVES }, {
     var obj = create(null);
     var k = 0;
     iterate(items, function (value) {
+      doesNotExceedSafeInteger(k);
       var key = toPropertyKey(callbackfn(value, k++));
       // in some IE versions, `hasOwnProperty` returns incorrect result on integer keys
       // but since it's a `null` prototype object, we can safely use `in`

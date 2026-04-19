@@ -6,5 +6,7 @@ var log = Math.log;
 // eslint-disable-next-line es/no-math-log1p -- safe
 module.exports = Math.log1p || function log1p(x) {
   var n = +x;
-  return n > -1e-8 && n < 1e-8 ? n - n * n / 2 : log(1 + n);
+  if (n > -1e-8 && n < 1e-8) return n - n * n / 2;
+  var u = 1 + n;
+  return u === 1 ? n : n === u - 1 ? log(u) : n * log(u) / (u - 1);
 };

@@ -309,12 +309,15 @@ export const data = {
     safari: '9.0',
   },
   'es.array.includes': {
+    // WebKit < Bun 1.3.12 broken on sparse arrays with fromIndex
+    // https://bugs.webkit.org/show_bug.cgi?id=309342
+    bun: '1.3.12',
     chrome: '53',
     edge: '14',
     // FF99-101 broken on sparse arrays
     firefox: '102', // '48',
     rhino: '1.8.0',
-    // Safari broken on sparse arrays with fromIndex
+    // WebKit broken on sparse arrays with fromIndex
     // https://bugs.webkit.org/show_bug.cgi?id=309342
     // safari: '10.0',
   },

@@ -749,7 +749,11 @@ URLState.prototype = {
             url.fragment = '';
             state = FRAGMENT;
           } else if (chr !== EOF) {
-            url.path[0] += percentEncode(chr, C0ControlPercentEncodeSet);
+            if (chr === ' ') {
+              url.path[0] += codePoints[pointer + 1] === '?' || codePoints[pointer + 1] === '#' ? '%20' : ' ';
+            } else {
+              url.path[0] += percentEncode(chr, C0ControlPercentEncodeSet);
+            }
           } break;
 
         case QUERY:
