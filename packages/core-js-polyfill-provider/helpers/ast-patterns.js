@@ -38,6 +38,7 @@ const TS_TYPE_DECL_TYPES = new Set([
 export function isTSTypeOnlyIdentifier(parent, parentKey) {
   if (!parent) return false;
   if (parent.type === 'ExportSpecifier' && parent.exportKind === 'type') return true;
+  if (parent.type === 'ImportSpecifier' && parent.importKind === 'type') return true;
   if (parentKey === 'id' && TS_TYPE_DECL_TYPES.has(parent.type)) return true;
   return false;
 }
