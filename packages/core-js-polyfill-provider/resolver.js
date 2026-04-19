@@ -1,4 +1,4 @@
-import { POSSIBLE_GLOBAL_OBJECTS } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, kebabToPascal } from './helpers.js';
 import { TYPE_HINTS } from './resolve-node-type.js';
 import { initPluginOptions } from './plugin-options.js';
 import { createPolyfillContext, resolve } from './index.js';
@@ -92,9 +92,7 @@ function resolveHint(desc, meta) {
 function pureImportName(kind, name, importEntry) {
   if (kind !== 'instance') return name;
   const match = importEntry.match(/^(?<type>[^/]+)\/instance\//);
-  return match
-    ? `${ name }Maybe${ match.groups.type.replaceAll(/(?:^|-)(?<char>\w)/g, (_, char) => char.toUpperCase()) }`
-    : name;
+  return match ? `${ name }Maybe${ kebabToPascal(match.groups.type) }` : name;
 }
 
 // high-level polyfill resolver factory.

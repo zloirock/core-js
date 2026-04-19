@@ -38,6 +38,15 @@ export function startsEnclosingStatement(path, pos) {
   return p?.node?.start === pos;
 }
 
+// orphan-ref heuristic: our plugin emits `_ref = foo()` / `_ref = obj.x` — RHS always complex.
+// user sloppy-mode `_ref = 1` / `_ref = 'x'` with a literal RHS is user code
+function isComplexOrphanRhs(rhs) {
+  if (!rhs) return false;
+  return rhs.type === 'CallExpression' || rhs.type === 'OptionalCallExpression'
+    || rhs.type === 'MemberExpression' || rhs.type === 'OptionalMemberExpression'
+    || rhs.type === 'ChainExpression' || rhs.type === 'NewExpression';
+}
+
 // `names` covers declarations at every nesting level so UID generation can't collide with
 // `var _at = 1` deep in a function. `orphanRefs` is filtered against `names` by the caller
 // so user `let _ref` isn't adopted as leftover. heap stack avoids overflow
@@ -78,7 +87,12 @@ export function collectAllBindingNames(ast) {
         names.add(node.local.name);
         break;
       case 'AssignmentExpression':
-        if (node.operator === '=' && node.left?.type === 'Identifier' && ORPHAN_REF_PATTERN.test(node.left.name)) {
+        // our emit is `_ref = foo()` / `_ref = obj.bar` - RHS is always a complex expression;
+        // user sloppy-mode `_ref = 1` / `_ref = 'x'` with a literal RHS is user code and must
+        // not be adopted. this heuristic keeps the orphan fallback while dodging the common
+        // accidental-global pattern in un-linted codebases
+        if (node.operator === '=' && node.left?.type === 'Identifier' && ORPHAN_REF_PATTERN.test(node.left.name)
+          && isComplexOrphanRhs(node.right)) {
           orphanRefs.add(node.left.name);
         }
         break;
