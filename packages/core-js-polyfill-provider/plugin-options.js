@@ -13,17 +13,33 @@ export function sortByPolyfillOrder(modules) {
   return [...modules].sort((a, b) => (polyfillOrder.get(a) ?? Infinity) - (polyfillOrder.get(b) ?? Infinity) || 0);
 }
 
-// consistent error format: `name` must be <expected> (received <JSON(value)>)
+// JSON.stringify renders NaN/Infinity as `null` and Symbol/undefined/function as `undefined` —
+// useless for type-mismatch diagnostics; use their native toString for the outliers
+function formatReceived(value) {
+  if (typeof value === 'symbol') return value.toString();
+  if (typeof value === 'function') return `[Function${ value.name ? ` ${ value.name }` : '' }]`;
+  if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
+  if (value === undefined) return 'undefined';
+  return JSON.stringify(value);
+}
+
 export function optionTypeError(name, expected, received) {
-  return new TypeError(`\`${ name }\` must be ${ expected } (received ${ JSON.stringify(received) })`);
+  return new TypeError(`\`${ name }\` must be ${ expected } (received ${ formatReceived(received) })`);
+}
+
+// `null`/`undefined` pass through so users can use conditional spreads to clear an option
+const isEmpty = v => v === null || v === undefined;
+
+// accepts `Object.create(null)` alongside `Object.prototype`-backed objects
+function isPlainObject(value) {
+  if (typeof value !== 'object' || value === null) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === null || proto === Object.prototype;
 }
 
 const VALID_METHODS = new Set(['entry-global', 'usage-global', 'usage-pure']);
 const VALID_MODES = new Set(['es', 'stable', 'actual', 'full']);
 const formatOptions = set => `one of ${ [...set].map(s => `'${ s }'`).join(', ') }`;
-
-// `null`/`undefined` pass through so users can use conditional spreads to clear an option
-const isEmpty = v => v === null || v === undefined;
 
 function expectOptional(name, type, value) {
   if (!isEmpty(value) && typeof value !== type) throw optionTypeError(name, `a ${ type }, or undefined`, value);
@@ -84,11 +100,9 @@ function validateOptions({
     if (badType !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', badType);
     if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
   }
-  // positive whitelist: only `string` / `Array` / plain object pass through to targetsParser.
-  // `function` / `boolean` / `number` / etc. trigger opaque "Unknown browser query" from
-  // browserslist downstream; reject them here with a specific message instead
-  if (!isEmpty(targets) && typeof targets !== 'string'
-    && !Array.isArray(targets) && !(typeof targets === 'object' && targets.constructor === Object)) {
+  // positive whitelist for `targetsParser`: `function` / `boolean` / `number` / etc. trigger
+  // opaque "Unknown browser query" from browserslist downstream — reject them here
+  if (!isEmpty(targets) && typeof targets !== 'string' && !Array.isArray(targets) && !isPlainObject(targets)) {
     throw optionTypeError('targets', 'a string, array, or plain object', targets);
   }
 }
