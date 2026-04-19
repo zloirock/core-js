@@ -1524,6 +1524,38 @@ function createResolveNodeType(babelNodeType, t) {
     return t.isIdentifier(property.node) ? property.node.name : null;
   }
 
+  // known constructor at the runtime-resolved target of `path`, or null
+  function knownConstructorAt(path) {
+    return resolveKnownConstructor(resolveGlobalName(resolveRuntimeExpression(path)));
+  }
+
+  // `const { prototype: name } = ...` shape — `name` is bound to the init's `.prototype`
+  function isDestructuredAsPrototype(bindingPath, name) {
+    if (!t.isVariableDeclarator(bindingPath.node)) return false;
+    const { id, init } = bindingPath.node;
+    if (!t.isObjectPattern(id) || !init) return false;
+    return id.properties.some(p => t.isObjectProperty(p) && !p.computed
+      && keyMatchesName(p.key, 'prototype')
+      && t.isIdentifier(p.value) && p.value.name === name);
+  }
+
+  // `.prototype` of a known constructor reads as an instance of it: we infer which
+  // constructor's instance-methods are reachable here, and prototype objects host those.
+  // direct `X.prototype` and member-init `const P = X.prototype` fall through resolvePath;
+  // destructure `const { prototype: P } = X` doesn't (resolvePath skips patterns)
+  function resolvePrototypeAsInstance(path) {
+    if (isMemberLike(path)) {
+      return resolveMemberPropertyName(path) === 'prototype'
+        ? knownConstructorAt(path.get('object'))
+        : null;
+    }
+    if (!t.isIdentifier(path.node)) return null;
+    const binding = path.scope?.getBinding(path.node.name);
+    if (!binding || binding.constantViolations?.length) return null;
+    if (!isDestructuredAsPrototype(binding.path, path.node.name)) return null;
+    return knownConstructorAt(binding.path.get('init'));
+  }
+
   function resolveClassInheritance(classPath) {
     let current = classPath;
     let depth = MAX_DEPTH;
@@ -1581,7 +1613,7 @@ function createResolveNodeType(babelNodeType, t) {
       case 'ChainExpression':
         return resolveNodeType(path.get('expression'));
       case 'Identifier':
-        return resolveKnownGlobalReference(path);
+        return resolvePrototypeAsInstance(path) || resolveKnownGlobalReference(path);
       case 'NullLiteral':
         return new $Primitive('null');
       case 'StringLiteral':
@@ -1628,6 +1660,7 @@ function createResolveNodeType(babelNodeType, t) {
           || resolveArrayIndexAccess(path)
           || resolveKnownPropertyReturnType(path)
           || resolveGlobalStaticReference(path)
+          || resolvePrototypeAsInstance(path)
           || resolveKnownGlobalReference(path);
       case 'CallExpression':
       case 'OptionalCallExpression': {
