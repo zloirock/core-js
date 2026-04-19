@@ -724,12 +724,17 @@ export function getEntrySource(node, adapter, scope) {
 // directory-style entry path (`core-js/stable/array/index` === `core-js/stable/array`)
 const canonicalizeEntrySubpath = s => s.replace(/\.js$/, '').replace(/\/index$/, '');
 
-function stripPkgPrefix(source, packages) {
-  // `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path
+// `?v=123` / `#hash` suffixes are Vite/webpack cache-bust markers, not part of the entry path.
+// match `source` against `<pkg>/<subPrefix><rest>` where `pkg` is one of `pkgs`;
+// returns canonicalized `<rest>` or null when no prefix matches or `<rest>` is empty
+function matchEntrySubpath(source, pkgs, subPrefix) {
   const clean = stripQueryHash(source);
-  for (const pkg of packages) {
-    const prefix = `${ pkg }/`;
-    if (clean.startsWith(prefix)) return clean.slice(prefix.length);
+  for (const pkg of pkgs) {
+    const pkgPrefix = `${ pkg }/`;
+    if (!clean.startsWith(pkgPrefix)) continue;
+    const afterPkg = clean.slice(pkgPrefix.length);
+    if (!afterPkg.startsWith(subPrefix)) return null;
+    return canonicalizeEntrySubpath(afterPkg.slice(subPrefix.length)) || null;
   }
   return null;
 }
@@ -747,25 +752,30 @@ const REQUIRE_SHADOWED_SCOPE = { hasBinding: () => true, getBindingIdentifier: (
 
 // callback receives the AST node so callers can remove+re-emit in canonical order -
 // the only load-order-correct option when user polyfill A and plugin-injected B depend
-// on each other in either direction
-export function scanExistingCoreJSImports(ast, { packages, mode, adapter, onGlobalImport, onPureImport }) {
+// on each other in either direction.
+// pure-import dedup / super-method mapping is scoped to the main package only:
+// `additionalPackages` are monorepo aliases / vendor forks the user picked deliberately,
+// so their bindings stay inert and their `super.X` stays with the fork's own semantics
+export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, onGlobalImport, onPureImport }) {
+  // `packages` is lowercased in the resolver; mirror that so config `package: '@My/Fork'`
+  // still matches the user's source literal when they typed the lowercase canonical form
+  const mainPkgs = pkg ? [pkg.toLowerCase()] : null;
   const modePrefix = mode ? `${ mode }/` : null;
   const shadowScope = declaresRequireBinding(ast.body) ? REQUIRE_SHADOWED_SCOPE : null;
   for (const node of ast.body ?? []) {
     if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
-      if (!modePrefix || !onPureImport) continue;
+      if (!onPureImport || !mainPkgs || !modePrefix) continue;
       const source = adapter.getStringValue(node.source);
-      const name = typeof source === 'string' ? defaultSpecifierName(node) : null;
-      const afterPkg = name ? stripPkgPrefix(source, packages) : null;
-      if (!afterPkg?.startsWith(modePrefix)) continue;
-      const entry = canonicalizeEntrySubpath(afterPkg.slice(modePrefix.length));
+      if (typeof source !== 'string') continue;
+      const name = defaultSpecifierName(node);
+      if (!name) continue;
+      const entry = matchEntrySubpath(source, mainPkgs, modePrefix);
       if (entry) onPureImport(entry, name, node);
       continue;
     }
     const source = getEntrySource(node, adapter, shadowScope);
-    const rest = typeof source === 'string' ? stripPkgPrefix(source, packages) : null;
-    if (!rest?.startsWith('modules/')) continue;
-    const mod = canonicalizeEntrySubpath(rest.slice('modules/'.length));
+    if (typeof source !== 'string') continue;
+    const mod = matchEntrySubpath(source, packages, 'modules/');
     if (mod) onGlobalImport?.(mod, node);
   }
 }
