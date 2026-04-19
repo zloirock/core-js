@@ -58,9 +58,12 @@ export const SINGLE_ELEMENT_COLLECTIONS = new Set([
   'Iterable',
   'IterableIterator',
   'Iterator',
+  // TS 5.6+ stdlib base for iterator-helper chains — `declare const x: IteratorObject<T>`
+  'IteratorObject',
   'AsyncIterable',
   'AsyncIterableIterator',
   'AsyncIterator',
+  'AsyncIteratorObject',
   'Generator',
   'AsyncGenerator',
 ]);

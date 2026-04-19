@@ -29,13 +29,16 @@ export function createBabelAdapter(getInjector = () => null) {
       return !!getInjector()?.getPureImport(name);
     },
     getBinding(scope, name) {
+      // in-place mutation (`globalThis` → `_globalThis` / `Symbol` → `_Symbol`) inserts a
+      // real `ImportDefaultSpecifier` binding - still surface `polyfillHint` from injector
+      // so downstream resolveBindingToGlobal can translate back to the source global
+      const pureImport = getInjector()?.getPureImport(name);
       const b = scope.getBinding(name);
       if (b) {
         const importSource = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)
           ? b.path.parent?.source?.value ?? null : null;
-        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint: null };
+        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint: pureImport?.hint ?? null };
       }
-      const pureImport = getInjector()?.getPureImport(name);
       if (!pureImport) return null;
       return { node: null, constantViolations: null, importSource: pureImport.source, polyfillHint: pureImport.hint };
     },

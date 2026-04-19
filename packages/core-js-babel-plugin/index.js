@@ -198,7 +198,7 @@ export default function plugin(api, options) {
         if (initNode) skippedNodes.add(initNode);
       }
 
-      const { resolveSuperMember, isShadowedByClassOwnMember, reset: resetClassHelpers } = createClassHelpers(t);
+      const { resolveSuperMember, isShadowedByClassOwnMember, reset: resetClassHelpers } = createClassHelpers(t, adapter);
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
