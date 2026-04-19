@@ -394,37 +394,41 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // typeof obj.prop - resolve a qualified member access from a binding
-  function resolveTypeofQualifiedMember(objectName, memberName, scope) {
+  // `typeof obj.prop[.prop...]` - resolve a qualified member chain from a binding. 1-level
+  // short-circuits to the binding's runtime value (ObjectExpression / class) when available;
+  // deeper chains always walk through the type annotation
+  function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
     const bindingPath = constantBindingPath(objectName, scope);
-    if (!bindingPath) return null;
-    if (t.isVariableDeclarator(bindingPath.node)) {
-      const init = bindingPath.get('init');
-      if (init.node) {
-        const resolved = resolveRuntimeExpression(init);
-        if (t.isObjectExpression(resolved.node)) {
-          const result = resolveObjectMember(resolved, memberName);
-          if (result) return result;
+    if (!bindingPath || !memberPath.length) return null;
+    if (memberPath.length === 1) {
+      const [memberName] = memberPath;
+      if (t.isVariableDeclarator(bindingPath.node)) {
+        const init = bindingPath.get('init');
+        if (init.node) {
+          const resolved = resolveRuntimeExpression(init);
+          if (t.isObjectExpression(resolved.node)) {
+            const result = resolveObjectMember(resolved, memberName);
+            if (result) return result;
+          }
+          if (t.isClass(resolved.node)) return resolveClassMember(resolved, memberName, true);
         }
-        if (t.isClass(resolved.node)) return resolveClassMember(resolved, memberName, true);
       }
+      if (t.isClassDeclaration(bindingPath.node)) return resolveClassMember(bindingPath, memberName, true);
     }
-    if (t.isClassDeclaration(bindingPath.node)) return resolveClassMember(bindingPath, memberName, true);
     const annotation = findBindingAnnotation(bindingPath);
-    if (annotation) return resolveAnnotatedMember(annotation, memberName, scope);
-    return null;
+    return annotation ? resolveAnnotatedMemberPath(annotation, memberPath, scope) : null;
+  }
+
+  // shared dispatch for `typeof X` and `typeof X.Y[.Z...]` - segments is what
+  // collectQualifiedSegments returns for TS `TSQualifiedName` or Flow `QualifiedTypeIdentifier`
+  function resolveTypeofFromSegments(segments, scope) {
+    if (!segments?.length) return null;
+    const [rootName, ...chain] = segments;
+    return chain.length ? resolveTypeofQualifiedMember(rootName, chain, scope) : resolveTypeofBinding(rootName, scope);
   }
 
   function resolveTypeQuery(node, scope) {
-    const { exprName } = node;
-    // typeof obj.prop - qualified name (one level deep)
-    if (exprName?.type === 'TSQualifiedName') {
-      const { left, right } = exprName;
-      if (left.type !== 'Identifier' || right.type !== 'Identifier') return null;
-      return resolveTypeofQualifiedMember(left.name, right.name, scope);
-    }
-    if (exprName?.type !== 'Identifier') return null;
-    return resolveTypeofBinding(exprName.name, scope);
+    return resolveTypeofFromSegments(collectQualifiedSegments(node.exprName), scope);
   }
 
   function resolveEnumMemberKind(initializer) {
@@ -915,11 +919,45 @@ function createResolveNodeType(babelNodeType, t) {
     return node.elementTypes || node.types;
   }
 
+  // params list of the function/class referenced by `Parameters<typeof fn>` /
+  // `ConstructorParameters<typeof Cls>`. classes without an own constructor inherit - walk
+  // `extends` chain until own params (plain function) or a `constructor` method surface
+  function resolveParametersParams(typeRef, scope) {
+    const name = typeRefName(typeRef);
+    if (name !== 'Parameters' && name !== 'ConstructorParameters') return null;
+    const arg = getTypeArgs(typeRef)?.params[0];
+    if (arg?.type !== 'TSTypeQuery') return null;
+    let current = resolveTypeQueryBinding(arg, scope);
+    let depth = MAX_DEPTH;
+    while (depth-- && current?.node) {
+      if (current.node.params) return current.node.params;
+      const ctor = current.node.body?.body?.find(m => m?.kind === 'constructor');
+      // babel: ClassMethod.params; oxc: MethodDefinition.value.params (FunctionExpression)
+      if (ctor) return ctor.params ?? ctor.value?.params ?? null;
+      if (!t.isClass(current.node) || !current.node.superClass) return null;
+      current = resolveRuntimeExpression(current.get('superClass'));
+    }
+    return null;
+  }
+
   function findTupleElement(objectType, index, scope) {
+    if (index < 0) return null;
+    // `Parameters<typeof fn>[N]` / `ConstructorParameters<typeof Cls>[N]` - N-th param's
+    // annotation; rest param unwraps `T[]` → T and covers every index ≥ its position
+    const params = resolveParametersParams(objectType, scope);
+    if (params) {
+      for (let i = 0; i < params.length; i++) {
+        const { param, isRest } = effectiveParam(params[i]);
+        const annotation = param?.typeAnnotation?.typeAnnotation;
+        if (!isRest && i === index) return annotation ?? null;
+        if (isRest) return i <= index ? extractElementAnnotation(annotation, scope, 0) ?? null : null;
+      }
+      return null;
+    }
     const { node: tuple, subst } = followTypeAliasChain(objectType, scope);
     if (tuple?.type !== 'TSTupleType' && tuple?.type !== 'TupleTypeAnnotation') return null;
     const elements = tupleElements(tuple);
-    if (!elements?.length || index < 0) return null;
+    if (!elements?.length) return null;
     // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number
     const element = index < elements.length ? elements[index]
       // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
@@ -1076,20 +1114,13 @@ function createResolveNodeType(babelNodeType, t) {
         return new $Object('Object');
       case 'Parameters':
       case 'ConstructorParameters': {
-        // `Parameters<typeof fn>` is a tuple - approximate the element type as the first
-        // param's annotation so chained `.at(0)` / `.forEach` resolve to that type.
-        // class `constructor` params live inside `body.body`, not on `ClassDeclaration`
-        const arg = firstArg();
-        const resolved = arg?.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
-        const resolvedNode = resolved?.node;
-        const ctor = resolvedNode?.body?.body?.find(m => m?.kind === 'constructor');
-        // babel: `ClassMethod.params`; oxc: `MethodDefinition.value.params` (FunctionExpression)
-        const params = resolvedNode?.params ?? ctor?.params ?? ctor?.value?.params;
-        const { param: firstParam, isRest } = effectiveParam(params?.[0]);
-        const paramAnnotation = firstParam?.typeAnnotation;
-        const resolvedParam = paramAnnotation ? resolveTypeAnnotation(paramAnnotation, scope, depth + 1) : null;
-        // `...xs: T[]` - annotation is `T[]`, but the tuple element is T
-        const inner = isRest ? resolveInnerType(resolvedParam) : resolvedParam;
+        // tuple approximated as Array<first-param-type> so chained `.at(0)` / `.forEach`
+        // resolve; indexed access `T[N]` picks the N-th via `findTupleElement`
+        const { param, isRest } = effectiveParam(resolveParametersParams(node, scope)?.[0]);
+        const resolved = param?.typeAnnotation
+          ? resolveTypeAnnotation(param.typeAnnotation, scope, depth + 1) : null;
+        // `...xs: T[]` - annotation is `T[]`, the tuple element is T
+        const inner = isRest ? resolveInnerType(resolved) : resolved;
         return inner && !isNullableOrNever(inner) ? new $Object('Array', inner) : new $Object('Array');
       }
       // Flow: $Keys
@@ -1234,15 +1265,8 @@ function createResolveNodeType(babelNodeType, t) {
       // Flow typeof in type position: `typeof variable`
       case 'TypeofTypeAnnotation': {
         const arg = node.argument;
-        if (arg?.type !== 'GenericTypeAnnotation') return null;
-        // typeof obj.prop - qualified access (one level deep)
-        if (arg.id?.type === 'QualifiedTypeIdentifier') {
-          const { qualification, id: right } = arg.id;
-          if (qualification?.type !== 'Identifier' || right?.type !== 'Identifier') return null;
-          return resolveTypeofQualifiedMember(qualification.name, right.name, scope);
-        }
-        if (arg.id?.type === 'Identifier') return resolveTypeofBinding(arg.id.name, scope);
-        return null;
+        return arg?.type === 'GenericTypeAnnotation'
+          ? resolveTypeofFromSegments(collectQualifiedSegments(arg.id), scope) : null;
       }
       // TS template literal type: `prefix_${string}`
       case 'TSTemplateLiteralType':
@@ -2914,6 +2938,12 @@ function createResolveNodeType(babelNodeType, t) {
         const name = typeRefName(node);
         if (!name) return null;
         if (SINGLE_ELEMENT_COLLECTIONS.has(name)) return getTypeArgs(node)?.params[0] ?? null;
+        // Map/ReadonlyMap iterate as [K, V] - synthesize a TSTupleType so `findTupleElement`
+        // can pick up K or V by index
+        if (name === 'Map' || name === 'ReadonlyMap') {
+          const params = getTypeArgs(node)?.params;
+          return params?.length >= 2 ? { type: 'TSTupleType', elementTypes: [params[0], params[1]] } : null;
+        }
         return resolveUserTypeElement(name, scope, depth, extractElementAnnotation);
       }
       case 'TSTypeOperator':
