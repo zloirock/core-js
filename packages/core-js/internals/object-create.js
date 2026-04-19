@@ -62,12 +62,7 @@ var NullProtoObjectViaSc64bit = function () {
     sc64bit.Language = 'JScript';
     return sc64bit.Eval('Object');
   } catch (error) {
-    // If all attempts to retrieve a new object from an external instance fail,
-    // the existing object is returned.
-    // This prevents errors during the key deletion process using enumBugKeys afterward.
-    return function () {
-      return {};
-    };
+    throw new Error('Cannot create an object with a null prototype in the current environment.');
   }
 };
 
