@@ -107,6 +107,21 @@ export default function createPlugin(options) {
     let inherit = null;
     let cachedAst = null;
     let cachedComments = null;
+
+    // strip bundler query/hash suffix before passing the id to oxc-parser - oxc infers
+    // the parser language from the extension and would otherwise see e.g. `tsx?import`
+    // and reject the TypeScript syntax silently
+    const cleanId = stripQueryHash(id);
+    // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
+    const isCJSFile = /\.c[jt]s$/.test(cleanId);
+    // strip a leading BOM before parsing AND from the MagicString source - oxc rejects
+    // BOM-prefixed shebangs, and offsetting positions by 1 would corrupt every transform.
+    // the BOM is re-prepended to the final output. Reassign `code` so the rest of the
+    // function (TransformQueue, skipGap, slice helpers, ...) AND the post-pass cache
+    // comparison use the BOM-stripped source (stored `postInput` is always BOM-stripped)
+    const hasBOM = code.charCodeAt(0) === 0xFEFF;
+    if (hasBOM) code = code.slice(1);
+
     // read + clear snapshot up-front so a later parse/traverse error in post still frees
     // the entry (otherwise a one-off failure leaks until the next buildEnd reset)
     if (pass === 'post') {
@@ -121,19 +136,6 @@ export default function createPlugin(options) {
         }
       }
     }
-
-    // strip bundler query/hash suffix before passing the id to oxc-parser - oxc infers
-    // the parser language from the extension and would otherwise see e.g. `tsx?import`
-    // and reject the TypeScript syntax silently
-    const cleanId = stripQueryHash(id);
-    // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
-    const isCJSFile = /\.c[jt]s$/.test(cleanId);
-    // strip a leading BOM before parsing AND from the MagicString source - oxc rejects
-    // BOM-prefixed shebangs, and offsetting positions by 1 would corrupt every transform.
-    // the BOM is re-prepended to the final output. Reassign `code` so the rest of the
-    // function (TransformQueue, skipGap, slice helpers, ...) uses the BOM-stripped source.
-    const hasBOM = code.charCodeAt(0) === 0xFEFF;
-    if (hasBOM) code = code.slice(1);
     let ast;
     let comments;
     if (cachedAst) {
