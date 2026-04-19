@@ -3,6 +3,14 @@
 // prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
+// `async-iterator` → `asyncIterator` (keeps leading char lowercase for Symbol names);
+// `weak-map` / `promise` → `WeakMap` / `Promise` via the Pascal variant
+const DASH_WORD = /-(?<c>\w)/g;
+
+export const kebabToCamel = str => str.replaceAll(DASH_WORD, (_, c) => c.toUpperCase());
+
+export const kebabToPascal = str => str ? kebabToCamel(str[0].toUpperCase() + str.slice(1)) : str;
+
 // type-only expression wrappers - runtime no-ops that forward to their `.expression` child
 export const TS_EXPR_WRAPPERS = new Set([
   'TSNonNullExpression',
