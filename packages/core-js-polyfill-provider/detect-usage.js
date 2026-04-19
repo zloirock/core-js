@@ -248,12 +248,22 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   }
   // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
   if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
-    && node.object.type === 'Identifier' && node.object.name === 'Symbol'
-    && !adapter.hasBinding(scope, 'Symbol')) {
+    && asSymbolRef(node.object, scope, adapter)) {
     const name = resolveKey(node.property, node.computed, scope, adapter, seen, depth + 1);
     if (name) return `Symbol.${ name }`;
   }
   return null;
+}
+
+// nullable { raw, unwrapped } for `Symbol` references wrapped in TS noise (`as X`, `satisfies X`,
+// `!`, `(...)`). callers that just need a boolean check `!!asSymbolRef(...)`; callers that need
+// to mark both positions in handledObjects use `raw` + `unwrapped` directly (same node when
+// the reference isn't wrapped; `.add` of a duplicate is a cheap no-op on Set)
+function asSymbolRef(node, scope, adapter) {
+  const unwrapped = unwrapParens(node);
+  if (unwrapped?.type !== 'Identifier' || unwrapped.name !== 'Symbol') return null;
+  if (adapter.hasBinding(scope, 'Symbol')) return null;
+  return { raw: node, unwrapped };
 }
 
 function isImportBinding(name, scope, adapter) {
@@ -292,9 +302,12 @@ function buildMemberMeta(node, scope, adapter) {
 export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals) {
   const symbolKey = resolveComputedSymbolKey(node, scope, adapter);
   if (symbolKey) {
-    if (adapter.hasBinding(scope, 'Symbol')) return null;
-    handledObjects.add(unwrapParens(node.property).object);
-    return { kind: 'property', object: null, key: symbolKey, placement: 'prototype' };
+    // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
+    // the identifier-visitor (unwrapped Identifier) re-enters this node. `asSymbolRef`
+    // already walked the `unwrapParens` chain and confirmed the binding guard
+    handledObjects.add(symbolKey.ref.raw);
+    handledObjects.add(symbolKey.ref.unwrapped);
+    return { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
   }
   const meta = buildMemberMeta(node, scope, adapter);
   if (meta) markHandledObjects(node, handledObjects, suppressProxyGlobals);
@@ -319,10 +332,9 @@ export function resolveSymbolIteratorEntry(node, parent) {
 export function handleBinaryIn(node, scope, adapter, handledObjects) {
   if (node.operator !== 'in') return null;
   const left = unwrapParens(node.left);
-  const leftObject = unwrapParens(left.object);
-  if ((left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
-    && leftObject?.type === 'Identifier' && leftObject.name === 'Symbol'
-    && !adapter.hasBinding(scope, 'Symbol')) {
+  const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
+    ? asSymbolRef(left.object, scope, adapter) : null;
+  if (ref) {
     const name = resolveKey(left.property, left.computed, scope, adapter);
     if (name) {
       const key = `Symbol.${ name }`;
@@ -331,8 +343,8 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
       if (resolveSymbolInEntry(key)) {
         handledObjects.add(node.left);
         handledObjects.add(left);
-        handledObjects.add(left.object);
-        handledObjects.add(leftObject);
+        handledObjects.add(ref.raw);
+        handledObjects.add(ref.unwrapped);
       }
       return { kind: 'in', key, object: null, placement: null };
     }
@@ -354,13 +366,16 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
   return null;
 }
 
+// returns { key: 'Symbol.xxx', ref: { raw, unwrapped } } so the caller can mark handledObjects
+// without re-walking the unwrap chain
 function resolveComputedSymbolKey(node, scope, adapter) {
   if (!node.computed) return null;
   const prop = unwrapParens(node.property);
-  if ((prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression')
-    || prop.object?.type !== 'Identifier' || prop.object.name !== 'Symbol') return null;
+  if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
+  const ref = asSymbolRef(prop.object, scope, adapter);
+  if (!ref) return null;
   const name = resolveKey(prop.property, prop.computed, scope, adapter);
-  return name ? `Symbol.${ name }` : null;
+  return name ? { key: `Symbol.${ name }`, ref } : null;
 }
 
 // mark handled objects after processing a MemberExpression meta
