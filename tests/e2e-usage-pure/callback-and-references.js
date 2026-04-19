@@ -82,3 +82,8 @@ QUnit.test('reference: polyfill as object property', assert => {
   assert.deepEqual(utils.fromArray([1, 2]), [1, 2]);
   assert.deepEqual(utils.getKeys({ a: 1 }), ['a']);
 });
+
+QUnit.test('callback: Array.from mapFn using polyfilled method per element', assert => {
+  const r = Array.from({ length: 3 }, (_, i) => [i, i * 2]).flat();
+  assert.deepEqual(r, [0, 0, 1, 2, 2, 4]);
+});
