@@ -1,7 +1,5 @@
-// unit tests for helpers exported from the unplugin surface that the fixture runner bypasses.
-// fixtures call `plugin.transform(code, id)` directly without going through `shouldTransform`,
-// so regressions in the id-level gatekeeper would be invisible to the fixture suite
 import { shouldTransform } from '../../packages/core-js-unplugin/index.js';
+import { entryToGlobalHint } from '../../packages/core-js-polyfill-provider/import-state.js';
 
 const { cyan, green, red } = chalk;
 
@@ -52,6 +50,15 @@ const shouldTransformCases = [
 ];
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
+
+// single-segment -> PascalCase, multi-segment takes first, kebab -> PascalCase, empty -> null
+check('entryToGlobalHint/single segment', entryToGlobalHint('promise'), 'Promise');
+check('entryToGlobalHint/subpath constructor', entryToGlobalHint('promise/constructor'), 'Promise');
+check('entryToGlobalHint/instance subpath', entryToGlobalHint('array/instance/at'), 'Array');
+check('entryToGlobalHint/kebab single word', entryToGlobalHint('weak-map'), 'WeakMap');
+check('entryToGlobalHint/kebab subpath', entryToGlobalHint('array-buffer/is-view'), 'ArrayBuffer');
+check('entryToGlobalHint/non-class helper', entryToGlobalHint('is-iterable'), 'IsIterable');
+check('entryToGlobalHint/empty string', entryToGlobalHint(''), null);
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
