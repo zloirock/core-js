@@ -57,11 +57,13 @@ export default function createPlugin(options) {
   // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across plugin instances
   const typeResolvers = createResolveNodeType(nodeType, types);
 
-  // `bundler` is unplugin-specific - strip it before passing options to the provider
+  // upstream unplugin's framework union drifts - unknown values degrade to generic handling
+  // (`isWebpack = false`) instead of hard-crashing every transform
   const { bundler, ...providerOptions } = options;
   if (bundler !== undefined && bundler !== null && !KNOWN_BUNDLERS.has(bundler)) {
     const list = [...KNOWN_BUNDLERS].map(b => `'${ b }'`).join(', ');
-    throw new TypeError(`\`bundler\` must be one of ${ list }, or undefined (received ${ JSON.stringify(bundler) })`);
+    // eslint-disable-next-line no-console -- first-run diagnostic
+    console.warn(`[core-js-unplugin] unknown \`bundler\` ${ JSON.stringify(bundler) } - falling back to generic handling (expected one of ${ list })`);
   }
 
   const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
@@ -1151,11 +1153,14 @@ export default function createPlugin(options) {
             && directParent.local === node && directParent.exported === node) {
           return transforms.add(node.start, node.end, `${ binding } as ${ node.name }`);
         }
-        // super.method(args) -> binding.call(this, args) to preserve this-binding
+        // super.method(args) -> binding.call(this, args) to preserve this-binding.
+        // `sliceBetweenParens` keeps every byte between `(` and `)` (comments, whitespace,
+        // trailing commas); `sep` branches on AST arity so `super.foo(/* c */)` (no real args,
+        // comment still round-trips inside argsSrc) doesn't get a dangling leading comma
         if (node.object?.type === 'Super' && parent?.type === 'CallExpression' && isCallee(node, parent)) {
-          const args = parent.arguments;
-          const argsSrc = args.length ? `, ${ code.slice(args[0].start, args.at(-1).end) }` : '';
-          return transforms.add(parent.start, parent.end, `${ binding }.call(this${ argsSrc })`);
+          const argsSrc = sliceBetweenParens(parent) ?? '';
+          const sep = parent.arguments.length ? ', ' : '';
+          return transforms.add(parent.start, parent.end, `${ binding }.call(this${ sep }${ argsSrc })`);
         }
         // strip TS wrappers (satisfies, as, !) - meaningless after polyfill replacement
         let { start, end } = node;
