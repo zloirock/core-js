@@ -17,8 +17,9 @@ const SFC_LANG_RE = /[&?]lang=[cm]?[jt]sx?(?:&|$)/;
 // user source
 export function shouldTransform(id) {
   if (id.includes('\0') || id.includes('?commonjs-')) return false;
-  // path component without query/hash - `/virtual:foo?output=main.js` must NOT pass the
-  // extension check just because `.js` appears inside the query
+  // strip query/hash up-front so `lang=d.ts` or `?output=main.js` don't fool the
+  // `$`-anchored regex into treating the id as a JS/TS file. performing the strip
+  // unconditionally is cheaper than adding a `.includes('?')` fast-path guard
   const base = stripQueryHash(id);
   if (JS_RE.test(base) && !DTS_RE.test(base)) return true;
   return SFC_LANG_RE.test(id);
