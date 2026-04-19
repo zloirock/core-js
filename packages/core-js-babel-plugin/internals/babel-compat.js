@@ -27,6 +27,7 @@ export default function (t, { getInjector } = {}) {
   const isSafeToReuse = node => t.isIdentifier(node) || t.isThisExpression(node);
 
   const generateRef = (scope, declare = true) => getInjector().generateRef(scope, declare);
+  const generateUnusedId = () => t.identifier(getInjector().generateUnusedName());
 
   function memoize(node, scope) {
     if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
@@ -351,7 +352,10 @@ export default function (t, { getInjector } = {}) {
     // rest: rename property value to preserve rest semantics; otherwise remove property
     const isEmpty = hasRest ? false : (prop.remove(), objectPattern.node.properties.length === 0);
     if (hasRest) {
-      prop.get('value').replaceWith(prop.scope.generateUidIdentifier('unused'));
+      // shared generator keeps babel and unplugin emitting identical `_unused` sentinels;
+      // scope.generateUidIdentifier would diverge when babel's scope tracker sees
+      // pre-existing `_unused*` bindings our injector hasn't learnt about
+      prop.get('value').replaceWith(generateUnusedId());
       prop.node.shorthand = false;
     }
 
