@@ -40,11 +40,14 @@ export function resolveSuperImportName(injector, superMeta) {
 }
 
 // `super.X` in a static method -> static meta on the parent class. `resolveSuperType`
-// dispatches on AST shape (Identifier alias chains / MemberExpression proxy-global chains)
+// dispatches on AST shape (Identifier alias chains / MemberExpression proxy-global chains).
+// oxc-parser preserves `ParenthesizedExpression` wrappers that babel strips — peel first
 export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
-  if (!classNode.superClass) return null;
-  const resolved = resolveSuperType(classNode.superClass);
+  let { superClass } = classNode;
+  while (superClass?.type === 'ParenthesizedExpression') superClass = superClass.expression;
+  if (!superClass) return null;
+  const resolved = resolveSuperType(superClass);
   return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
 }
 

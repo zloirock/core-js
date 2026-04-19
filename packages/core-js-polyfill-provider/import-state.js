@@ -60,12 +60,15 @@ export default class ImportInjectorState {
   }
 
   registerUserPureImport(entry, name) {
+    // first-write-wins — sibling AST transforms could re-register `name` with a different
+    // source; keeping the first keeps downstream super-mapping deterministic
+    if (this.#importInfoByName.has(name)) return;
     const source = `${ this.mode }/${ entry }`;
     this.existingPureImports.set(source, name);
     this.usedNames.add(name);
-    // map binding → global hint so `resolveSuperImportName` can find `statics.Promise.try`
-    // when user wrote `import MyPromise from '@core-js/pure/actual/promise'`.
-    // source feeds the adapter's `importSource` lookup (Symbol.X detection via path)
+    // binding → global hint lets `resolveSuperImportName` find `statics.Promise.try` for
+    // `import MyPromise from '@core-js/pure/actual/promise'`; source feeds the adapter's
+    // `importSource` lookup (Symbol.X detection via path)
     this.#importInfoByName.set(name, { source, hint: entryToGlobalHint(entry) ?? name });
   }
 
