@@ -1,7 +1,7 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { isForXWriteTarget, patternToRegExp, symbolKeyToEntry } from './helpers.js';
+import { isForXWriteTarget, isTSTypeOnlyIdentifier, patternToRegExp, symbolKeyToEntry } from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
@@ -259,6 +259,8 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
     // polyfilling it is pure over-injection. narrow to TSTypeQuery only; `as Map<...>` and
     // `let x: Map` keep current behavior (runtime-cast heuristic assumes later Map usage)
     if (path?.parentPath?.node?.type === 'TSTypeQuery') return;
+    // `export { type Set }` / `type Set = …` / `interface Set {…}` — TS type-only contexts
+    if (isTSTypeOnlyIdentifier(path?.parent, path?.key)) return;
     // for-x LHS and shadowed body reads target a local write, not the prototype
     if (meta.kind === 'property' && path?.node && isForXWriteTarget(path)) return;
     if (meta.kind === 'in') {
