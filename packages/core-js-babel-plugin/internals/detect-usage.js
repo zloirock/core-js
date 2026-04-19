@@ -9,7 +9,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
-import { TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
+import { TS_EXPR_WRAPPERS, isTSTypeOnlyIdentifier } from '@core-js/polyfill-provider/helpers';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -79,6 +79,10 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     // resolve differently, so treating them as globals is a false positive
     if (path.node.type === 'JSXIdentifier'
       && (path.parent?.type !== 'JSXOpeningElement' || path.key !== 'name')) return;
+    // TS type-only positions: `type X = …` / `interface X {…}` ids and `export { type X }`
+    // specifiers. babel's `isReferencedIdentifier` marks them as referenced, but no runtime
+    // binding exists - polyfilling is pure over-injection (and breaks TS output for exports)
+    if (isTSTypeOnlyIdentifier(path.parent, path.key)) return;
     // UpdateExpression operand (Map++, --Map, Map!++) - read+write context, polyfill import
     // is read-only so the transform would emit `_Map++` which throws TypeError at runtime
     let updateCheck = path.parentPath;
