@@ -1,4 +1,6 @@
 [BABEL] unknown file: Error while validating the "core-js@4" provider options:
   - The following "include" patterns are not valid regex source:
-    [invalid regex
+    [invalid
+  - The following "exclude" patterns are not valid regex source:
+    (unclosed
  (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
