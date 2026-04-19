@@ -123,3 +123,20 @@ QUnit.test('complex: polyfill in object shorthand', assert => {
   assert.deepEqual(result.keys, ['x', 'y']);
   assert.deepEqual(result.entries, [['x', 1]]);
 });
+
+QUnit.test('complex: Object.defineProperty with getters calling polyfilled .at', assert => {
+  const target = [10, 20, 30];
+  const wrapped = {};
+  Object.defineProperty(wrapped, 'first', { get() { return target.at(0); } });
+  Object.defineProperty(wrapped, 'last', { get() { return target.at(-1); } });
+  assert.same(wrapped.first, 10);
+  assert.same(wrapped.last, 30);
+});
+
+QUnit.test('complex: recursive tree flattened via flat(Infinity) after map', assert => {
+  const tree = { v: 1, children: [{ v: 2, children: [{ v: 3, children: [] }] }, { v: 4, children: [] }] };
+  function collect(node) {
+    return [node.v, ...node.children.map(collect)];
+  }
+  assert.deepEqual(collect(tree).flat(Infinity), [1, 2, 3, 4]);
+});
