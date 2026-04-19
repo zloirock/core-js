@@ -12,6 +12,8 @@ export {
   isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget,
+  kebabToCamel,
+  kebabToPascal,
   mayHaveSideEffects,
   unwrapExportedDeclaration,
   unwrapParens,
@@ -30,6 +32,7 @@ export {
   buildSuperStaticMeta,
   createClassHelpers,
   globalProxyMemberName,
+  resolveSuperImportName,
   symbolKeyToEntry,
 } from './helpers/class-walk.js';
 export {

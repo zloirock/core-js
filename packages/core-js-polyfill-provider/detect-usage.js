@@ -13,6 +13,7 @@ import {
   TS_EXPR_WRAPPERS,
   declaresRequireBinding,
   globalProxyMemberName,
+  kebabToCamel,
   mayHaveSideEffects,
   stripQueryHash,
   symbolKeyToEntry,
@@ -41,7 +42,6 @@ const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `import _Foo from 'core-js/pure/symbol/iterator'` - extract Symbol key from polyfill path.
 // `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers)
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/;
-const KEBAB_SEGMENT = /-(?<char>\w)/g;
 
 // LHS of `Map ||= ...` reads the global before polyfill loads (ReferenceError); the
 // import binding is read-only anyway, so substitution also throws at write time
@@ -236,7 +236,7 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
       // - recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
       if (binding.importSource) {
         const match = SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
-        if (match) return `Symbol.${ match.groups.name.replaceAll(KEBAB_SEGMENT, (_, char) => char.toUpperCase()) }`;
+        if (match) return `Symbol.${ kebabToCamel(match.groups.name) }`;
       }
     }
   }
@@ -273,8 +273,10 @@ function isImportBinding(name, scope, adapter) {
 }
 
 function buildMemberMeta(node, scope, adapter) {
+  // peel TS wrappers on the computed key - `obj[(k) as any]` / `obj[k!]` arrive wrapped and
+  // `resolveKey` cannot walk the identifier-alias chain through a TSAsExpression root
   const key = node.computed
-    ? resolveKey(node.property, true, scope, adapter)
+    ? resolveKey(unwrapParens(node.property), true, scope, adapter)
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
   // unwrap ESTree ParenthesizedExpression around the object: (Array).from / ((Array)).from
