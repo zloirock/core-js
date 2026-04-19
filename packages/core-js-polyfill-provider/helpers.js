@@ -9,6 +9,7 @@ export {
   isDeleteTarget,
   isForXWriteTarget,
   isASTNode,
+  isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
