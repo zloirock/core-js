@@ -5,6 +5,7 @@ import {
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
+  isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget as isUpdateParent,
   mergeVisitors,
@@ -547,6 +548,8 @@ export default function plugin(api, options) {
               // same predicate as the primary visitor - skip disabled / type-annotation /
               // delete-target positions so this sweep doesn't overrule their exclusions
               if (shouldSkipPath(idPath)) return;
+              // mirror `handleIdentifier` — TS type-only positions never need a polyfill
+              if (isTSTypeOnlyIdentifier(idPath.parent, idPath.key)) return;
               // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
               if (isHandled?.(idPath.node)) return;
               usageCallback({ kind: 'global', name: idPath.node.name }, idPath);

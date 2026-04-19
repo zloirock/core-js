@@ -10,7 +10,13 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
-import { TS_EXPR_WRAPPERS, isASTNode, unwrapParens, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
+import {
+  TS_EXPR_WRAPPERS,
+  isASTNode,
+  isTSTypeOnlyIdentifier,
+  unwrapParens,
+  walkPatternIdentifiers,
+} from '@core-js/polyfill-provider/helpers';
 
 // --- isReferenced ---
 
@@ -43,6 +49,8 @@ const LABEL_TYPES = new Set([
 // check if an identifier is referenced (not a declaration, property key, or export alias)
 function isReferenced(node, parent, parentKey, parentPath) {
   if (!parent) return true;
+  // TS type-only positions: `type X = …` ids, `export { type X }` specifiers
+  if (isTSTypeOnlyIdentifier(parent, parentKey)) return false;
   // property key positions
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
   if (parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) return false;
@@ -51,7 +59,8 @@ function isReferenced(node, parent, parentKey, parentPath) {
   // declaration id positions
   if (DECLARATION_ID_TYPES.has(parent.type) && parentKey === 'id') return false;
   if (LABEL_TYPES.has(parent.type) && parentKey === 'label') return false;
-  // import/export specifiers
+  // `IMPORT_SPECIFIER_TYPES` skips all import positions regardless of `importKind`, so
+  // `import { type X, foo }` / `import type { X }` are already covered here
   if (IMPORT_SPECIFIER_TYPES.has(parent.type)) return false;
   if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;
   // binding targets - write-only, not a polyfillable reference
