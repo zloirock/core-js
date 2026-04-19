@@ -1947,10 +1947,23 @@ function createResolveNodeType(babelNodeType, t) {
     // phase 1: match param annotations against type parameter names
     for (let i = 0; i < params.length && i < args.length; i++) {
       const { param, isRest } = effectiveParam(params[i]);
-      if (isRest) continue;
       const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
       if (!paramAnnotation) continue;
       const name = typeRefName(paramAnnotation);
+      // rest-only generic `function fn<T>(...xs: T[])` — annotation is T[] or Array<T>, bind T
+      // to the element type of the first rest-arg. spread-call `fn(...arr)` passes `args[0]`
+      // as a SpreadElement whose overall type IS the array — unwrap once to get the element.
+      // no more params possible after rest, so break regardless
+      if (isRest) {
+        const elementParamName = innerTypeParamName(paramAnnotation, name);
+        if (elementParamName && typeParamNames.has(elementParamName) && !typeParamMap.has(elementParamName)) {
+          const arg = args[i];
+          const isSpread = arg.node?.type === 'SpreadElement';
+          const resolved = isSpread ? resolveInnerType(resolveNodeType(arg.get('argument'))) : resolveNodeType(arg);
+          if (resolved) typeParamMap.set(elementParamName, resolved);
+        }
+        break;
+      }
       // direct: param type is exactly T
       if (name && typeParamNames.has(name) && !typeParamMap.has(name)) {
         const resolved = resolveNodeType(args[i]);
