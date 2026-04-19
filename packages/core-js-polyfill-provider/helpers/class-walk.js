@@ -3,10 +3,22 @@ import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
-// `globalThis.X` / `globalThis['X']` -> 'X', else null
-export function globalProxyMemberName(node) {
-  if (node?.type !== 'MemberExpression') return null;
-  if (node.object?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(node.object.name)) return null;
+// direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint
+// after `globalThis → _globalThis` in-place mutation). scope+adapter optional; without them
+// only direct names pass
+function isProxyGlobalIdentifierNode(node, scope, adapter) {
+  if (node?.type !== 'Identifier') return false;
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return true;
+  const hint = scope && adapter ? adapter.getBinding(scope, node.name)?.polyfillHint : null;
+  return !!hint && POSSIBLE_GLOBAL_OBJECTS.has(hint);
+}
+
+// `globalThis.X` / `globalThis?.X` / `globalThis['X']` -> 'X', else null.
+// babel: `OptionalMemberExpression`; ESTree/oxc: `ChainExpression { MemberExpression { optional } }`
+export function globalProxyMemberName(node, scope, adapter) {
+  if (node?.type === 'ChainExpression') node = node.expression;
+  if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+  if (!isProxyGlobalIdentifierNode(node.object, scope, adapter)) return null;
   const { property, computed } = node;
   if (!computed && property?.type === 'Identifier') return property.name;
   if (computed && property?.type === 'StringLiteral') return property.value;
@@ -27,23 +39,19 @@ export function resolveSuperImportName(injector, superMeta) {
   if (imp) superMeta.object = imp.hint;
 }
 
-// `super.X` in a static method -> static meta on the parent class. resolveSuperClassName
-// chases `const Y = Array` aliases; returns null on real local bindings
-export function buildSuperStaticMeta(classNode, key, resolveSuperClassName) {
+// `super.X` in a static method -> static meta on the parent class. `resolveSuperType`
+// dispatches on AST shape (Identifier alias chains / MemberExpression proxy-global chains)
+export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
-  const { superClass } = classNode;
-  if (!superClass) return null;
-  if (superClass.type === 'Identifier') {
-    const resolved = resolveSuperClassName(superClass.name);
-    return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
-  }
-  const globalMember = globalProxyMemberName(superClass);
-  return globalMember ? { kind: 'property', object: globalMember, key, placement: 'static' } : null;
+  if (!classNode.superClass) return null;
+  const resolved = resolveSuperType(classNode.superClass);
+  return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
 }
 
 // shared `super.X` / `this.X` class-walking helpers. `t` is `@babel/types` or
-// `estree-compat.types`; caches live on the closure - call once per file
-export function createClassHelpers(t) {
+// `estree-compat.types`; `adapter` enables scope-aware proxy-global resolution through
+// polyfillHint for plugin-managed imports. caches live on the closure - call once per file
+export function createClassHelpers(t, adapter) {
   const isClassMember = node => t.isClassMethod(node) || t.isClassPrivateMethod(node)
     || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
 
@@ -114,7 +122,9 @@ export function createClassHelpers(t) {
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
-    return buildSuperStaticMeta(info.classNode, key, name => resolveSuperClassName(name, path.scope));
+    return buildSuperStaticMeta(info.classNode, key, superClass => superClass.type === 'Identifier'
+      ? resolveSuperClassName(superClass.name, path.scope)
+      : globalProxyMemberName(superClass, path.scope, adapter));
   }
 
   let ownInstanceNames = new WeakMap();
