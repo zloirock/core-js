@@ -16,6 +16,7 @@ import {
   mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
+  resolveSuperImportName,
   stripQueryHash,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers';
@@ -193,8 +194,11 @@ export default function createPlugin(options) {
       for (const ref of orphanRefs) if (!bindingNames.has(ref)) adoptable.add(ref);
       injector.adoptOrphanRefs(adoptable);
     }
-    // post reuses the pre-pass snapshot; entry-global handles re-emit via detectEntries
-    if (pass !== 'post' && method !== 'entry-global') {
+    // post WITH inherit already has user imports dedup'd via the pre-pass snapshot;
+    // post WITHOUT inherit (single `phase: 'post'` or dropped snapshot) still needs to
+    // scan so user `import 'core-js/…'` isn't duplicated alongside plugin-injected ones.
+    // entry-global handles re-emit via detectEntries
+    if (!(pass === 'post' && inherit) && method !== 'entry-global') {
       const removed = new Set();
       scanExistingCoreJSImports(ast, {
         adapter: estreeAdapter,
@@ -1214,6 +1218,8 @@ export default function createPlugin(options) {
           if (node.object?.type === 'Super') {
             const superMeta = resolveSuperMember(metaPath);
             if (!superMeta) return;
+            // `extends MyPromise` (user-aliased pure import) - map binding → global hint
+            resolveSuperImportName(injector, superMeta);
             meta = superMeta;
           }
           if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
