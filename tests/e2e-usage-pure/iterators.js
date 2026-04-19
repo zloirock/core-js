@@ -105,3 +105,30 @@ QUnit.test('destructuring: custom iterable', assert => {
   assert.same(b, 101);
   assert.same(c, 102);
 });
+
+// class with generator [Symbol.iterator] yielding polyfill-built data
+QUnit.test('class: [Symbol.iterator] generator yielding from Set', assert => {
+  class UniqueWords {
+    constructor(text) {
+      this.words = new Set(text.split(/\s+/).filter(Boolean));
+    }
+    * [Symbol.iterator]() {
+      yield * Array.from(this.words).toSorted();
+    }
+  }
+  const u = new UniqueWords('the quick brown fox jumps over the lazy dog');
+  assert.deepEqual([...u], ['brown', 'dog', 'fox', 'jumps', 'lazy', 'over', 'quick', 'the']);
+});
+
+// generator [Symbol.iterator] as object literal shorthand, yields array fragments
+QUnit.test('for-of: custom iterable yielding array fragments spread on each step', assert => {
+  const chunked = {
+    * [Symbol.iterator]() {
+      for (let i = 0; i < 6; i += 2) yield [i, i + 1];
+    },
+  };
+  const flat = [];
+  for (const pair of chunked) flat.push(...pair);
+  assert.deepEqual(flat, [0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(Array.from(chunked).flat(), [0, 1, 2, 3, 4, 5]);
+});

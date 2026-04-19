@@ -148,3 +148,18 @@ QUnit.test('esnext: Object.keysLength', assert => {
   assert.same(Object.keysLength({ a: 1, b: 2 }), 2);
   assert.same(Object.keysLength({}), 0);
 });
+
+QUnit.test('esnext: Object.groupBy by parity, then toReversed / map each group', assert => {
+  const grouped = Object.groupBy([1, 2, 3, 4, 5, 6], x => x % 2 === 0 ? 'even' : 'odd');
+  assert.deepEqual(grouped.even.toReversed(), [6, 4, 2]);
+  assert.deepEqual(grouped.odd.map(x => x * 10), [10, 30, 50]);
+});
+
+QUnit.test('esnext: Map.groupBy with object keys, Array.from over result Map', assert => {
+  const A = { t: 'a' };
+  const B = { t: 'b' };
+  const items = [{ k: A, v: 1 }, { k: B, v: 2 }, { k: A, v: 3 }];
+  const g = Map.groupBy(items, it => it.k);
+  const sums = Array.from(g, ([, xs]) => xs.reduce((a, b) => a + b.v, 0));
+  assert.deepEqual(sums.toSorted(), [2, 4]);
+});
