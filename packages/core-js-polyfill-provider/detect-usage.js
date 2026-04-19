@@ -245,8 +245,10 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   }
   // string concatenation: 'a' + 'b'
   if (node.type === 'BinaryExpression' && node.operator === '+') {
-    const left = resolveKey(node.left, true, scope, adapter, seen, depth + 1);
-    const right = resolveKey(node.right, true, scope, adapter, seen, depth + 1);
+    // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
+    // cycle guard on the right branch after the left added `a` to the shared Set
+    const left = resolveKey(node.left, true, scope, adapter, new Set(seen), depth + 1);
+    const right = resolveKey(node.right, true, scope, adapter, new Set(seen), depth + 1);
     if (left !== null && right !== null) return left + right;
   }
   // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'

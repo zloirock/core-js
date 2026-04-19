@@ -135,7 +135,10 @@ export function createClassHelpers(t, adapter) {
       if (decl?.type !== 'VariableDeclarator') return null;
       // oxc-parser preserves `const X = (Y)` ParenthesizedExpression; peel to match babel
       const init = unwrapParens(decl.init);
-      if (init?.type === 'Identifier') { name = init.name; continue; }
+      if (init?.type === 'Identifier') {
+        name = init.name;
+        continue;
+      }
       // `const A = globalThis.Promise; class C extends A` — alias init points at a proxy-global
       // member. terminate the walk with the final member name (`Promise`) instead of bailing
       return globalProxyMemberName(init, scope, adapter) ?? null;
