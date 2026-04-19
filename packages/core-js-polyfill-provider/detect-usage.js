@@ -12,7 +12,6 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   declaresRequireBinding,
-  globalProxyMemberName,
   kebabToCamel,
   mayHaveSideEffects,
   stripQueryHash,
@@ -87,17 +86,17 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     const binding = adapter.getBinding(scope, name);
     const { init } = binding.node;
     if (binding.constantViolations?.length) return null;
-    // rest element in destructuring: { from, ...rest } = Array - rest !=== init
     const pattern = binding.node.id;
+    // `{ from, ...rest } = Array` - rest !=== init
     const props = pattern?.properties ?? pattern?.elements;
     if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
-    // `const { Symbol } = globalThis` -> Symbol aliases globalThis.Symbol. only proxy-global
-    // roots translate here - destructure from named constructors (`const { from } = Array`)
-    // falls through to the init-as-identifier branch below, keeping the receiver name
+    // destructures bind `name` to a property of init, not init itself. proxy-global shorthand
+    // (`{ Symbol } = globalThis`) is the only exception - aliases to the property key
     if (pattern?.type === 'ObjectPattern' && init) {
       const alias = resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen);
       if (alias) return alias;
     }
+    if (pattern && pattern.type !== 'Identifier') return null;
     if (init?.type === 'Identifier') {
       // babel-plugin may have mutated `Symbol` into `_Symbol` in place; the adapter exposes
       // the original hint so we can translate the polyfill UID back to its source global
@@ -106,11 +105,10 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
         && (CAPITALISED_IDENT.test(initBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(initBinding.polyfillHint))) {
         return initBinding.polyfillHint;
       }
-      // unbound -> global; self-reference (var Map = Map) -> global; bound -> follow chain
+      // unbound -> global; self-reference (`var Map = Map`) -> global; bound -> follow chain
       if (!adapter.hasBinding(scope, init.name) || init.name === name) return init.name;
       return resolveBindingToGlobal(init.name, scope, adapter, seen);
     }
-    // const P = self.Promise / const A = globalThis['Array'] / var _ref = (0, Array)
     if (init) {
       const unwrapped = unwrapParens(init);
       if (unwrapped.type === 'Identifier') {
@@ -120,10 +118,9 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
       if (unwrapped.type === 'MemberExpression' || unwrapped.type === 'OptionalMemberExpression') {
         return resolveObjectName(unwrapped, scope, adapter, seen);
       }
-      return null;
     }
   }
-  // any other binding (param, catch, class name) - not a global
+  // param, catch, class name - never a global
   return null;
 }
 
@@ -273,30 +270,23 @@ function isImportBinding(name, scope, adapter) {
 }
 
 function buildMemberMeta(node, scope, adapter) {
-  // peel TS wrappers on the computed key - `obj[(k) as any]` / `obj[k!]` arrive wrapped and
-  // `resolveKey` cannot walk the identifier-alias chain through a TSAsExpression root
+  // computed keys may arrive wrapped in TS constructs (`obj[(k) as any]`, `obj[k!]`) -
+  // resolveKey can't walk identifier-alias chain through a TS expression wrapper root
   const key = node.computed
     ? resolveKey(unwrapParens(node.property), true, scope, adapter)
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
-  // unwrap ESTree ParenthesizedExpression around the object: (Array).from / ((Array)).from
   const obj = unwrapParens(node.object);
-  // `X.prototype.Y` / `X['prototype']['Y']` / `globalThis.X.prototype.Y` -> instance access on X.
-  // `resolveKey` folds dot / bracket / template-literal forms; globalProxyMemberName accepts
-  // global-proxy receivers so `globalThis.Array.prototype.Y` / `self.Array.prototype.Y` resolve
+  // direct `X.prototype.Y` -> instance-method on X. indirect alias (`const P = X.prototype`
+  // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
+  // via `enhanceMeta`
   if ((obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression')
     && resolveKey(obj.property, obj.computed, scope, adapter) === 'prototype') {
-    const proto = unwrapParens(obj.object);
-    const protoName = proto.type === 'Identifier' && !adapter.hasBinding(scope, proto.name)
-      ? proto.name
-      : globalProxyMemberName(proto);
+    const protoName = resolveObjectName(obj.object, scope, adapter);
     if (protoName) return { kind: 'property', object: protoName, key, placement: 'prototype' };
   }
   const objectName = resolveObjectName(obj, scope, adapter);
-  // skip import-bound objects
-  if (!objectName && obj.type === 'Identifier' && isImportBinding(obj.name, scope, adapter)) {
-    return null;
-  }
+  if (!objectName && obj.type === 'Identifier' && isImportBinding(obj.name, scope, adapter)) return null;
   const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
   return { kind: 'property', object: objectName, key, placement };
 }
