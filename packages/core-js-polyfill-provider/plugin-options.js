@@ -136,8 +136,20 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
     try {
       return userCallback(mod, base);
     } catch (error) {
-      error.message = `core-js-polyfill-provider: shouldInjectPolyfill(${ JSON.stringify(mod) }) threw: ${ error.message }`;
-      throw error;
+      // wrap in a fresh Error so readonly `.message`, frozen Error, or primitive throw
+      // (`throw 'str'`/`throw 42`/`throw null`) can't swallow the diagnostic via a TypeError
+      // on reassignment. both `.message` access and `String(error)` may re-throw on adversarial
+      // Proxy objects — guard each step so the wrapper never masks the user bug with a secondary
+      // diagnostic. `cause` preserves the original for debuggers
+      let originalMessage;
+      try {
+        originalMessage = error?.message ?? String(error);
+      } catch {
+        originalMessage = '<unreadable>';
+      }
+      const wrapped = new Error(`core-js-polyfill-provider: shouldInjectPolyfill(${ JSON.stringify(mod) }) threw: ${ originalMessage }`);
+      wrapped.cause = error;
+      throw wrapped;
     }
   };
 }
