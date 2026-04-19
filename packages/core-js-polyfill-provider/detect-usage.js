@@ -687,10 +687,11 @@ export function isPolyfillableOptional(node, scope, adapter, resolve) {
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
 // form some parsers emit (`{type: 'CallExpression', callee: {type: 'Import'}, arguments: [...]}`)
 function importExpressionSource(node, adapter) {
-  if (!node) return null;
-  if (node.type === 'ImportExpression') return adapter.getStringValue(node.source);
-  if (node.type === 'CallExpression' && node.callee?.type === 'Import') {
-    return adapter.getStringValue(node.arguments?.[0]);
+  const inner = unwrapParens(node);
+  if (!inner) return null;
+  if (inner.type === 'ImportExpression') return adapter.getStringValue(inner.source);
+  if (inner.type === 'CallExpression' && inner.callee?.type === 'Import') {
+    return adapter.getStringValue(inner.arguments?.[0]);
   }
   return null;
 }
@@ -704,7 +705,9 @@ export function getEntrySource(node, adapter, scope) {
     return adapter.getStringValue(node.source);
   }
   if (node.type !== 'ExpressionStatement') return null;
-  const expr = node.expression;
+  // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` — parsers
+  // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
+  const expr = unwrapParens(node.expression);
   // require('core-js/...')
   if (expr?.type === 'CallExpression'
     && expr.callee?.type === 'Identifier'
