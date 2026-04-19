@@ -625,7 +625,7 @@ function createResolveNodeType(babelNodeType, t) {
     return map;
   }
 
-  function resolveUserDefinedType(name, node, scope, depth, typeParamMap) {
+  function resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen) {
     if (depth > MAX_DEPTH) return null;
     // type parameters shadow type declarations with the same name
     const typeParam = findTypeParameter(name, scope);
@@ -638,6 +638,11 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const declaration = findTypeDeclaration(name, scope);
     if (!declaration) return null;
+    // `interface A extends B; interface B extends A` — MAX_DEPTH catches the loop, but
+    // a per-walk declaration set short-circuits it at the second visit
+    if (seen?.has(declaration)) return null;
+    const visited = seen ?? new Set();
+    visited.add(declaration);
     typeParamMap = resolveTypeArgs(declaration, node, typeParamMap, scope, depth);
     const resolve = typeParamMap
       ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1)
@@ -652,7 +657,7 @@ function createResolveNodeType(babelNodeType, t) {
           if (base.type !== 'Identifier') continue;
           const constructor = resolveKnownConstructor(base.name);
           const result = resolveKnownContainerType(base.name, constructor, parent, resolve)
-            || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap);
+            || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap, visited);
           if (result) return result;
         }
       }
@@ -671,7 +676,7 @@ function createResolveNodeType(babelNodeType, t) {
       };
       const ctor = resolveKnownConstructor(superClass.name);
       if (ctor) return resolveKnownContainerType(superClass.name, ctor, parentRef, resolve) || ctor;
-      return resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap)
+      return resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap, visited)
         ?? new $Object('Object');
     }
     return null;
