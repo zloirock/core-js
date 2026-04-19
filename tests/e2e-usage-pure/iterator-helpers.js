@@ -83,3 +83,21 @@ QUnit.test('Iterator.from + Iterator#toAsync', assert => {
 QUnit.test('Iterator.concat', assert => {
   assert.deepEqual(Array.from(Iterator.concat([1, 2], [3, 4])), [1, 2, 3, 4]);
 });
+
+// Iterator.from on generator + take + toArray terminal chain
+QUnit.test('Iterator.from: on infinite generator + take + toArray', assert => {
+  function * evens() { for (let i = 0; ; i += 2) yield i; }
+  const first = Iterator.from(evens()).take(5).toArray();
+  assert.deepEqual(first, [0, 2, 4, 6, 8]);
+});
+
+// complex chain: map + filter + drop + take + toArray preserves correctness
+QUnit.test('Iterator.from: map + filter + drop + take chain', assert => {
+  const result = Iterator.from([1, 2, 3, 4, 5, 6, 7, 8])
+    .map(x => x ** 2)
+    .filter(x => x > 4)
+    .drop(1)
+    .take(3)
+    .toArray();
+  assert.deepEqual(result, [16, 25, 36]);
+});
