@@ -32,13 +32,16 @@ export function isEntryPattern(pattern) {
   return typeof pattern === 'string' && !isModulePattern(pattern);
 }
 
-// validate include/exclude option lists: must be arrays of strings or RegExps (or absent)
+// validate include/exclude option lists: must be arrays of strings or RegExps (or absent).
+// empty strings are rejected — `patternToRegExp('')` → `/^$/` matches zero-length entry-paths
+// and downstream produces a confusing "didn't match any polyfill" message
 export function validatePatternList(name, list) {
   if (list === undefined || list === null) return;
   if (!Array.isArray(list)) {
     throw new TypeError(`\`${ name }\` must be an array, or undefined (received ${ JSON.stringify(list) })`);
   }
   for (const item of list) {
+    if (item === '') throw new TypeError(`\`${ name }[*]\` must be a non-empty string`);
     if (typeof item !== 'string' && !(item instanceof RegExp)) {
       throw new TypeError(`\`${ name }[*]\` must be a string or RegExp (received ${ JSON.stringify(item) })`);
     }
