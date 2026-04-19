@@ -258,15 +258,19 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   return null;
 }
 
-// nullable { raw, unwrapped } for `Symbol` references wrapped in TS noise (`as X`, `satisfies X`,
-// `!`, `(...)`). callers that just need a boolean check `!!asSymbolRef(...)`; callers that need
-// to mark both positions in handledObjects use `raw` + `unwrapped` directly (same node when
-// the reference isn't wrapped; `.add` of a duplicate is a cheap no-op on Set)
+// nullable { raw, unwrapped } for `Symbol` references - bare `Symbol`, TS-wrapped
+// (`as X`, `satisfies X`, `!`, `(...)`), or const-aliased (`const Sym = Symbol`). `raw` ===
+// `unwrapped` when there's no wrapping, so callers `.add` both to handledObjects without
+// branching (Set dedup absorbs the duplicate)
 function asSymbolRef(node, scope, adapter) {
   const unwrapped = unwrapParens(node);
-  if (unwrapped?.type !== 'Identifier' || unwrapped.name !== 'Symbol') return null;
-  if (adapter.hasBinding(scope, 'Symbol')) return null;
-  return { raw: node, unwrapped };
+  if (unwrapped?.type !== 'Identifier') return null;
+  if (unwrapped.name === 'Symbol' && !adapter.hasBinding(scope, 'Symbol')) return { raw: node, unwrapped };
+  // lowercase identifiers skip the const-chain walk - `Symbol` aliases are capitalised
+  // by convention, so lowercase names never resolve back to Symbol
+  if (!CAPITALISED_IDENT.test(unwrapped.name)) return null;
+  if (resolveBindingToGlobal(unwrapped.name, scope, adapter) === 'Symbol') return { raw: node, unwrapped };
+  return null;
 }
 
 function isImportBinding(name, scope, adapter) {
