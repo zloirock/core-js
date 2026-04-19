@@ -114,3 +114,12 @@ QUnit.test('Map: getOrInsertComputed', assert => {
   const v2 = m.getOrInsertComputed('key', () => 999);
   assert.same(v2, 3);
 });
+
+QUnit.test('WeakMap: keys derived from Array.from-built array of objects', assert => {
+  const data = new WeakMap();
+  const keys = Array.from({ length: 3 }, () => ({}));
+  keys.forEach((k, i) => data.set(k, i * 10));
+  assert.same(data.get(keys.at(0)), 0);
+  assert.same(data.get(keys.at(-1)), 20);
+  assert.true(keys.every(k => data.has(k)));
+});

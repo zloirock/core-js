@@ -165,3 +165,9 @@ QUnit.test('destructuring: nested SE in assignment form', assert => {
   assert.deepEqual(log, ['outer', 'inner']);
   assert.same(typeof from, 'function');
 });
+
+QUnit.test('destructuring: deeply nested with Array.from / array defaults', assert => {
+  const { a: { b = Array.from('xyz'), c: [first = 'none'] = [] } = {} } = { a: { c: [] } };
+  assert.deepEqual(b, ['x', 'y', 'z']);
+  assert.same(first, 'none');
+});
