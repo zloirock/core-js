@@ -5,8 +5,9 @@ import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 export default class ImportInjector extends ImportInjectorState {
   #t;
   #programPath;
-  // binding name -> { source, hint, id: Identifier }. drives getPureImport() lookups
-  #byName = new Map();
+  // binding name → babel Identifier node (flushed imports clone it to preserve range/loc).
+  // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
+  #idByName = new Map();
   // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted
   #flushedGlobals = new Set();
   #flushedPure = new Set();
@@ -99,33 +100,26 @@ export default class ImportInjector extends ImportInjectorState {
     });
   }
 
-  // base returns a string; babel consumers need an Identifier.
-  // `registerUserPureImport` seeds `hint` with the binding name (placeholder for import
-  // reuse); refresh it to the real API hint so `resolveSuperImportName` can map back to
-  // the original global instead of chasing a non-existent `hint === binding` global
+  // base returns a string; babel consumers need an Identifier - cache one per name so
+  // repeated `addPureImport` calls return clones of the same node (keeps range/loc stable)
   addPureImport(entry, hint) {
     const name = super.addPureImport(entry, hint);
-    let record = this.#byName.get(name);
-    if (!record) {
-      record = { source: `${ this.mode }/${ entry }`, hint, id: this.#t.identifier(name) };
-      this.#byName.set(name, record);
-    } else if (record.hint === name) record.hint = hint;
-    return this.#t.cloneNode(record.id);
+    let id = this.#idByName.get(name);
+    if (!id) {
+      id = this.#t.identifier(name);
+      this.#idByName.set(name, id);
+    }
+    return this.#t.cloneNode(id);
   }
 
   registerUserPureImport(entry, name) {
     super.registerUserPureImport(entry, name);
-    this.#byName.set(name, { source: `${ this.mode }/${ entry }`, hint: name, id: this.#t.identifier(name) });
+    this.#idByName.set(name, this.#t.identifier(name));
   }
 
   registerUserGlobalImport(moduleName) {
     super.registerUserGlobalImport(moduleName);
     this.#flushedGlobals.add(moduleName);
-  }
-
-  getPureImport(name) {
-    const entry = this.#byName.get(name);
-    return entry ? { source: entry.source, hint: entry.hint } : null;
   }
 
   #resolvePath(subpath) {
@@ -149,7 +143,7 @@ export default class ImportInjector extends ImportInjectorState {
     for (const [source, name] of newPure) {
       this.#flushedPure.add(source);
       const resolved = this.#resolvePath(source);
-      const id = t.cloneNode(this.#byName.get(name).id);
+      const id = t.cloneNode(this.#idByName.get(name));
       nodes.push(this.importStyle === 'require'
         ? t.variableDeclaration('var', [
           t.variableDeclarator(id, t.callExpression(t.identifier('require'), [t.stringLiteral(resolved)])),
