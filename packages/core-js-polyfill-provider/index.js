@@ -154,7 +154,9 @@ export function createPolyfillContext({
 
   version = normalizeCoreJSVersion(version);
 
-  const packages = (additionalPackages ? [pkg, ...additionalPackages] : [pkg]).map(p => p.toLowerCase());
+  // dedup: users sometimes list the main `pkg` inside `additionalPackages` or repeat an alias.
+  // Set preserves first-match order — hot-loop `stripPkgPrefix` hits main pkg first
+  const packages = [...new Set([pkg, ...additionalPackages ?? []].map(p => p.toLowerCase()))];
   const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const modulesForEntryCache = new Map();
