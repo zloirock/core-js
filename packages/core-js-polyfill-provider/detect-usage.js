@@ -79,6 +79,14 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   if (!seen) seen = new Set();
   if (seen.has(name)) return null;
   seen.add(name);
+  // plugin-managed pure-import mutation (`globalThis` → `_globalThis` / `Symbol` → `_Symbol`)
+  // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
+  // downstream proxy-global / constructor recognition survives the rewrite
+  const hintBinding = adapter.getBinding(scope, name);
+  if (hintBinding?.polyfillHint
+    && (CAPITALISED_IDENT.test(hintBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(hintBinding.polyfillHint))) {
+    return hintBinding.polyfillHint;
+  }
   const bindingType = adapter.getBindingNodeType(scope, name);
   if (bindingType === 'ImportSpecifier' || bindingType === 'ImportDefaultSpecifier'
     || bindingType === 'ImportNamespaceSpecifier') return null;
@@ -98,14 +106,8 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
     }
     if (pattern && pattern.type !== 'Identifier') return null;
     if (init?.type === 'Identifier') {
-      // babel-plugin may have mutated `Symbol` into `_Symbol` in place; the adapter exposes
-      // the original hint so we can translate the polyfill UID back to its source global
-      const initBinding = adapter.getBinding(scope, init.name);
-      if (initBinding?.polyfillHint
-        && (CAPITALISED_IDENT.test(initBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(initBinding.polyfillHint))) {
-        return initBinding.polyfillHint;
-      }
       // unbound -> global; self-reference (`var Map = Map`) -> global; bound -> follow chain
+      // (which hits the top-level polyfillHint translation for plugin-managed imports)
       if (!adapter.hasBinding(scope, init.name) || init.name === name) return init.name;
       return resolveBindingToGlobal(init.name, scope, adapter, seen);
     }
@@ -201,6 +203,10 @@ function isProxyGlobalIdentifier(node, scope, adapter, seen) {
 
 export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   if (depth > MAX_KEY_DEPTH) return null;
+  // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
+  // binding inits; Babel strips them. unwrap up front so the identifier-alias and
+  // Symbol-member branches below work uniformly across parsers
+  if (computed) node = unwrapParens(node);
   if (!computed && node.type === 'Identifier') return node.name;
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
   // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
