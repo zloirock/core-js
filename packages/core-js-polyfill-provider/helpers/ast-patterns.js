@@ -15,6 +15,25 @@ export const TS_EXPR_WRAPPERS = new Set([
   'TypeCastExpression',
 ]);
 
+// TS type-only declarations - identifier `id` here is a type name, not a runtime reference.
+// naive `isReferenced` treats it as a ref by default; polyfilling the id is pure over-injection
+const TS_TYPE_DECL_TYPES = new Set([
+  'TSTypeAliasDeclaration',
+  'TSInterfaceDeclaration',
+  'TSEnumDeclaration',
+  'TSModuleDeclaration',
+]);
+
+// true for identifiers in type-only positions (TS declaration ids, `type`-modified
+// import/export specifiers). covers all three call sites: babel handleIdentifier + post-sweep
+// and shared `createUsageGlobalCallback`. parent / parentKey come from the visitor context
+export function isTSTypeOnlyIdentifier(parent, parentKey) {
+  if (!parent) return false;
+  if (parent.type === 'ExportSpecifier' && parent.exportKind === 'type') return true;
+  if (parentKey === 'id' && TS_TYPE_DECL_TYPES.has(parent.type)) return true;
+  return false;
+}
+
 // shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
