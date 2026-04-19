@@ -10,6 +10,7 @@ import {
   isUpdateTarget as isUpdateParent,
   mergeVisitors,
   parseDisableDirectives,
+  resolveSuperImportName,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -293,13 +294,6 @@ export default function plugin(api, options) {
         if (hint) callParent.node.coreJSResolvedType = hint;
       }
 
-      // extends clause replaced by polyfill import (_Promise): resolve back to original global
-      function resolveSuperImportName(superMeta) {
-        if (!superMeta.object) return;
-        const imp = injector.getPureImport(superMeta.object);
-        if (imp) superMeta.object = imp.hint;
-      }
-
       // eslint-disable-next-line max-statements -- ok
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
@@ -339,9 +333,8 @@ export default function plugin(api, options) {
             if (t.isSuper(path.node.object)) {
               const superMeta = resolveSuperMember(path);
               if (!superMeta) return;
-              // extends clause may already be replaced by a polyfill import (_Promise) -
-              // resolve back to the original global via the injector
-              resolveSuperImportName(superMeta);
+              // `extends MyPromise` (user-aliased pure import) - map binding → global hint
+              resolveSuperImportName(injector, superMeta);
               meta = superMeta;
             }
             // `this.X` inside a class that defines its own `X` member - polyfill would
