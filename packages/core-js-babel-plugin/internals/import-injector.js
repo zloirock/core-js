@@ -29,16 +29,17 @@ export default class ImportInjector extends ImportInjectorState {
 
   // publish every allocated UID into program.references/.uids so sibling transforms
   // don't collide via scope.generateUidIdentifierBasedOnNode
-  uniqueName(prefix, startSuffix, minSuffix, extraCheck) {
-    const name = super.uniqueName(prefix, startSuffix, minSuffix, extraCheck);
+  uniqueName(prefix, extraCheck) {
+    const name = super.uniqueName(prefix, extraCheck);
     const program = this.#programPath.scope.getProgramParent();
     program.references[name] = true;
     program.uids[name] = true;
     return name;
   }
 
-  // own UID generator - Babel's scope.generateUidIdentifier strips trailing digits
-  // and after `_ref9` would hand out `_ref0`/`_ref1` instead of `_ref10`/`_ref11`.
+  // own UID generator - Babel's scope.generateUidIdentifier strips trailing digits,
+  // so after `_ref9` it would hand out `_ref` / `_ref2` instead of `_ref10` / `_ref11`,
+  // colliding with earlier slots.
   // `declare=true` uses scope.push (handles arrow-body -> block promotion); `false` leaves
   // the declaration to the caller (e.g. destructuring extracts its own `const`)
   generateRef(scope, declare = true) {
@@ -88,6 +89,8 @@ export default class ImportInjector extends ImportInjectorState {
     const ownedBindings = new Set();
     for (const name of this.#refs) if (bindings.has(name)) ownedBindings.add(bindings.get(name));
 
+    // matches generateRefName: slot 1 is bare `_ref`, slot 2+ is `_ref2, _ref3, ...`
+    // (skip `_ref1` per babel convention)
     const slot = i => i === 1 ? '_ref' : `_ref${ i }`;
     const renameMap = new Map();
     let i = 1;
