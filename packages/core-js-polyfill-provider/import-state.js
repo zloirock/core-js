@@ -1,7 +1,8 @@
 import { findUniqueName, kebabToPascal } from './helpers.js';
 
 // matches the prefix used by `generateRefName`; consumed by post-pass orphan adoption
-// in plugins - keep this in sync if the prefix or numbering scheme changes
+// in plugins - keep this in sync if the prefix or numbering scheme changes.
+// `\d*` matches bare `_ref` and `_ref2, _ref3, ...` (skip-1 per babel UID convention)
 export const ORPHAN_REF_PATTERN = /^_ref\d*$/;
 
 // `promise/try` / `array/instance/at` / `weak-map` → `Promise` / `Array` / `WeakMap`.
@@ -45,7 +46,7 @@ export default class ImportInjectorState {
     const source = `${ this.mode }/${ entry }`;
     if (this.existingPureImports.has(source)) return this.existingPureImports.get(source);
     if (this.pureImports.has(source)) return this.pureImports.get(source);
-    const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`, null, 2);
+    const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`);
     this.pureImports.set(source, name);
     this.#importInfoByName.set(name, { source, hint });
     // mark name so `flush()`'s post-pass dead-import filter keeps it even when the
@@ -91,28 +92,29 @@ export default class ImportInjectorState {
     this.referencedInSource?.add(name);
   }
 
-  // amortize O(1) per prefix: without this cache, `_at, _at2, ..., _atN` from user code
-  // would force each new allocation to linear-probe all N taken names from scratch
+  // per-prefix next-slot cache: O(1) amortized over repeated allocations. without it,
+  // N user-taken `_hintN` names would force every new allocation to re-probe all N
   #nextSuffixByPrefix = new Map();
 
-  uniqueName(prefix, startSuffix, minSuffix, extraCheck) {
+  uniqueName(prefix, extraCheck) {
     const cached = this.#nextSuffixByPrefix.get(prefix);
-    const effective = cached > (startSuffix ?? -Infinity) ? cached : startSuffix;
-    const name = findUniqueName(prefix, effective,
-      n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false), minSuffix);
+    const startSuffix = cached ?? null;
+    const name = findUniqueName(prefix, startSuffix,
+      n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false));
     this.usedNames.add(name);
-    // `+name.slice(prefix.length) || 1` handles the bare-prefix case (slice = '' -> NaN -> 1)
-    this.#nextSuffixByPrefix.set(prefix, (+name.slice(prefix.length) || 1) + 1);
+    // bare reserves slot 1 so next call skips `_hint1` (babel skip-1); numbered advances
+    const slice = name.slice(prefix.length);
+    this.#nextSuffixByPrefix.set(prefix, (slice === '' ? 1 : +slice) + 1);
     return name;
   }
 
   isNameTaken(name) { return this.usedNames.has(name); }
 
-  // `_ref, _ref2, _ref3, ...` (no `_ref1`). `extraCheck` covers bindings the injector
-  // doesn't track (e.g. caller's inner scope); subclass decides how the name is emitted
-  #refCount = 0;
-  generateRefName(extraCheck) {
-    const n = this.#refCount++;
-    return this.uniqueName('_ref', n === 0 ? null : n + 1, 2, extraCheck);
-  }
+  // `_ref, _ref2, _ref3, ...`. `extraCheck` covers bindings the injector doesn't track
+  // (e.g. caller's inner scope)
+  generateRefName(extraCheck) { return this.uniqueName('_ref', extraCheck); }
+
+  // `_unused, _unused2, _unused3, ...` sentinels for rest-destructure rebuild
+  // (`{ polyKey: _unused, ...rest } = obj`). subclass may override to track per-pass state
+  generateUnusedName() { return this.uniqueName('_unused'); }
 }
