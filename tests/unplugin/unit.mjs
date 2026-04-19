@@ -59,6 +59,13 @@ check('entryToGlobalHint/kebab single word', entryToGlobalHint('weak-map'), 'Wea
 check('entryToGlobalHint/kebab subpath', entryToGlobalHint('array-buffer/is-view'), 'ArrayBuffer');
 check('entryToGlobalHint/non-class helper', entryToGlobalHint('is-iterable'), 'IsIterable');
 check('entryToGlobalHint/empty string', entryToGlobalHint(''), null);
+// edge cases
+check('entryToGlobalHint/leading slash', entryToGlobalHint('/promise'), null);
+check('entryToGlobalHint/trailing slash', entryToGlobalHint('promise/'), 'Promise');
+// numeric segment passes through `kebabToPascal` unchanged - documented edge; downstream
+// hint-consumers fall through because no global matches '42'
+check('entryToGlobalHint/numeric prefix', entryToGlobalHint('42/foo'), '42');
+check('entryToGlobalHint/deep kebab subpath', entryToGlobalHint('typed-array/instance/to-sorted'), 'TypedArray');
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
