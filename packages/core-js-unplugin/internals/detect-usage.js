@@ -3,8 +3,10 @@ import {
   buildDestructuringInitMeta,
   checkLogicalAssignLhsGlobal,
   checkTypeAnnotations,
+  createSelfRefVarGuard,
   handleBinaryIn,
   handleMemberExpressionNode,
+  isKnownGlobalName,
   resolveCallArgument,
   resolveKey as sharedResolveKey,
   walkTypeAnnotationGlobals,
@@ -307,6 +309,10 @@ function walkDecorators(parentPath, decoratorVisitors) {
 
 export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
+  // estree-toolkit doesn't expose `binding.kind` — walk up to the enclosing VariableDeclaration
+  const isSelfRefVarBinding = createSelfRefVarGuard(
+    b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
+  );
 
   const annotationGlobal = path => name => {
     if (path.scope?.hasBinding(name)) return;
@@ -325,7 +331,16 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
-    if (path.scope?.hasBinding(node.name)) return;
+    if (path.scope?.hasBinding(node.name)) {
+      // self-reference `var X = X` — hoisted var init reads the outer (global) scope
+      // before the local is assigned. narrow via cached binding check; exclude let/const
+      // (TDZ error) and ImportSpecifiers. `node.name` equals binding's own name by lookup
+      if (!isSelfRefVarBinding(path.scope?.getBinding?.(node.name))) return;
+      if (!isKnownGlobalName(node.name)) return;
+      if (handledObjects.has(node)) return;
+      onUsage({ kind: 'global', name: node.name }, path);
+      return;
+    }
     // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
     onUsage({ kind: 'global', name: node.name }, path);
