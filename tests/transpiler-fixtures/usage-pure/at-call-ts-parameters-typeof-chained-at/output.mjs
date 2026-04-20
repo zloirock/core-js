@@ -1,5 +1,5 @@
-var _ref;
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+var _ref;
 // `Parameters<typeof fn>` element type = first param annotation (`number[]`) flows through
 // to the chained `.at(0)` on the result - would otherwise resolve as generic instance-at
 declare function fn(xs: number[]): void;
