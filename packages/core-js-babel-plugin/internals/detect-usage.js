@@ -2,8 +2,10 @@ import {
   buildDestructuringInitMeta,
   checkLogicalAssignLhsGlobal,
   checkTypeAnnotations,
+  createSelfRefVarGuard,
   handleBinaryIn,
   handleMemberExpressionNode,
+  isKnownGlobalName,
   resolveCallArgument,
   resolveKey as sharedResolveKey,
   walkTypeAnnotationGlobals,
@@ -62,6 +64,7 @@ export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled
 
 export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxyGlobals = false, walkAnnotations = true }) {
   let handledObjects = new WeakSet();
+  let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
 
   function resolveKey(path, computed) {
     return sharedResolveKey(path.node, computed, path.scope, adapter);
@@ -92,7 +95,21 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     while (updateCheck && TS_EXPR_WRAPPERS.has(updateCheck.node?.type)) updateCheck = updateCheck.parentPath;
     if (updateCheck?.isUpdateExpression()) return;
     const { node } = path;
-    if (path.scope.getBindingIdentifier(node.name)) return;
+    if (path.scope.getBindingIdentifier(node.name)) {
+      // self-reference `var X = X` — hoisted var init references its own name, which at
+      // runtime reads from the outer (global) scope before the local is assigned. narrow
+      // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
+      // are excluded so user-owned pure imports (e.g. `const MyPromiseTry = …`) don't get
+      // re-routed through generic-global polyfill
+      if (!isSelfRefVarBinding(path.scope.getBinding(node.name))) return;
+      // name equals the binding's own name (we looked up `binding` by `node.name`), so
+      // `isKnownGlobalName(node.name)` is sufficient — `resolveBindingToGlobal` would
+      // walk a now-mutated `init` and give an unreliable answer
+      if (!isKnownGlobalName(node.name)) return;
+      if (handledObjects.has(node)) return;
+      onUsage({ kind: 'global', name: node.name }, path);
+      return;
+    }
     // see `handleBinaryIn` - only resolved polyfillable keys seed `handledObjects`
     if (handledObjects.has(node)) return;
     onUsage({ kind: 'global', name: node.name }, path);
@@ -195,7 +212,10 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     },
     BinaryExpression: handleBinaryExpression,
     // Program.enter calls this to drop per-file WeakSet state
-    [USAGE_VISITORS_RESET]: () => { handledObjects = new WeakSet(); },
+    [USAGE_VISITORS_RESET]: () => {
+      handledObjects = new WeakSet();
+      isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
+    },
     [USAGE_VISITORS_IS_HANDLED]: node => handledObjects.has(node),
   };
 }

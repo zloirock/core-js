@@ -283,6 +283,28 @@ function asSymbolRef(node, scope, adapter) {
   return unwrapped && resolvesToGlobalSymbol(unwrapped, scope, adapter) ? { raw: node, unwrapped } : null;
 }
 
+// `var X = X` — hoisted var init references its own name, which at runtime reads the
+// outer (global) scope before the local is assigned. Factory wraps a per-binding cache
+// because the usage transform mutates `init.name` (X → _X) after the first visit, so a
+// non-cached recheck on later references would miss the invariant.
+// `getKind` varies by adapter: babel has `binding.kind`, estree-toolkit reads `kind` off
+// the parent VariableDeclaration
+export function createSelfRefVarGuard(getKind) {
+  const cache = new WeakMap();
+  return function isSelfRefVarBinding(binding) {
+    const decl = binding?.path?.node ?? binding?.node;
+    if (!decl || decl.type !== 'VariableDeclarator') return false;
+    if (cache.has(decl)) return cache.get(decl);
+    const { id, init } = decl;
+    const result = getKind(binding) === 'var'
+      && id?.type === 'Identifier'
+      && init?.type === 'Identifier'
+      && init.name === id.name;
+    cache.set(decl, result);
+    return result;
+  };
+}
+
 function isImportBinding(name, scope, adapter) {
   if (!adapter.hasBinding(scope, name)) return false;
   const type = adapter.getBindingNodeType(scope, name);
