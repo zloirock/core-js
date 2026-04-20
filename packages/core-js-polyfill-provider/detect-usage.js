@@ -217,7 +217,10 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
     for (let i = 0; i < node.quasis.length; i++) {
       out += node.quasis[i].value.cooked;
       if (i < node.expressions.length) {
-        const part = resolveKey(node.expressions[i], true, scope, adapter, seen, depth + 1);
+        // fork `seen` per interpolation - same-binding reuse (`${k}${k}`) must not
+        // trip the cycle guard after the first interpolation mutates a shared Set.
+        // mirrors the fork pattern in the BinaryExpression `+` branch below
+        const part = resolveKey(node.expressions[i], true, scope, adapter, new Set(seen), depth + 1);
         if (part === null) return null;
         out += part;
       }
