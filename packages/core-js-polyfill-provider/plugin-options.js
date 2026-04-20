@@ -96,8 +96,12 @@ function validateOptions({
     if (!Array.isArray(additionalPackages)) {
       throw optionTypeError('additionalPackages', 'an array, or undefined', additionalPackages);
     }
-    const badType = additionalPackages.find($pkg => typeof $pkg !== 'string');
-    if (badType !== undefined) throw optionTypeError('additionalPackages[*]', 'a string', badType);
+    // `.find(...)` collides with the sentinel: `additionalPackages: ['ok', undefined]`
+    // matches on the `undefined` item but returns `undefined`, so `!== undefined` skips
+    // the throw and crashes later at `p.toLowerCase()` inside `createPolyfillContext`.
+    // `findIndex` disambiguates: `-1` is not-found, `>= 0` is a real hit
+    const badIndex = additionalPackages.findIndex($pkg => typeof $pkg !== 'string');
+    if (badIndex !== -1) throw optionTypeError('additionalPackages[*]', 'a string', additionalPackages[badIndex]);
     if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
   }
   // positive whitelist for `targetsParser`: `function` / `boolean` / `number` / etc. trigger
