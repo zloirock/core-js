@@ -54,6 +54,28 @@ import SnapshotCache from './snapshot-cache.js';
 
 export { collectAllBindingNames } from './plugin-helpers.js';
 
+// estree-toolkit's scope crawler doesn't recognise `TSDeclareFunction` as a scope owner, so
+// it walks into `RestElement` in params via the reference path which throws `This should be
+// handled by findVisiblePathsInPattern`. narrow retype: only when params contain `RestElement`
+// (the sole crash trigger) - touching every declare would flip `es.function.name` injection
+// on user-facing identifiers. params are preserved so `Parameters<typeof fn>[N]` keeps working
+function neutralizeTSDeclareFunctions(ast) {
+  if (!ast?.body) return;
+  for (const stmt of ast.body) {
+    const target = unwrapExport(stmt);
+    if (target?.type !== 'TSDeclareFunction') continue;
+    if (!target.params?.some(p => p?.type === 'RestElement')) continue;
+    target.type = 'FunctionDeclaration';
+    target.body = { type: 'BlockStatement', body: [], start: target.end, end: target.end };
+  }
+}
+
+// `export declare function …` / `export default declare function …` wrap the declaration
+function unwrapExport(stmt) {
+  return stmt?.type === 'ExportNamedDeclaration' || stmt?.type === 'ExportDefaultDeclaration'
+    ? stmt.declaration : stmt;
+}
+
 export default function createPlugin(options) {
   // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across plugin instances
   const typeResolvers = createResolveNodeType(nodeType, types);
@@ -158,6 +180,13 @@ export default function createPlugin(options) {
       ast = parsed.program;
       comments = parsed.comments;
     }
+
+    // estree-toolkit's scope crawler doesn't recognize `TSDeclareFunction` as a scope owner,
+    // so it falls through to the reference-walker which throws on `RestElement` in params
+    // (`This should be handled by findVisiblePathsInPattern`). retype to `FunctionDeclaration`
+    // with an empty body - same shape (id / params / async / generator), scope walker handles
+    // it as a regular fn, `resolveParametersParams` still reads params for `Parameters<typeof fn>[N]`
+    neutralizeTSDeclareFunctions(ast);
 
     // source wins over extension: a `.cjs`/`.cts` with top-level ESM (oxc parses tolerantly)
     // must emit `import`, or bundlers reject the mixed output
