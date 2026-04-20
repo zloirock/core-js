@@ -43,8 +43,11 @@ function consumedOccurrencesBefore(originalSlice, needle, innerStartAbs, outerSt
   return consumed;
 }
 
-// replace the `n`-th (0-based) occurrence of `needle` in `str`; return `str` unchanged if not found
+// replace the `n`-th (0-based) occurrence of `needle` in `str`; return `str` unchanged if not found.
+// negative `n` (possible if count math underflows - defensive) yields no replacement rather than
+// a corrupt slice from `str.slice(0, -1) + replacement + ...` falling through the empty loop
 function replaceNthOccurrence(str, needle, replacement, n) {
+  if (n < 0) return str;
   let idx = -1;
   for (let i = 0; i <= n; i++) {
     idx = str.indexOf(needle, idx + 1);
@@ -251,24 +254,28 @@ export default class TransformQueue {
       // binary search for inners within [start, end]
       const lo = lowerBound(byStart, start);
       const inners = [];
-      let dup = null;
+      const dups = [];
       for (let i = lo; i < byStart.length && byStart[i].start <= end; i++) {
         if (byStart[i] === t) continue;
-        if (byStart[i].end <= end) inners.push(byStart[i]);
-        // equal-range dedup: arrow body wrapper shares range with its inner polyfill
-        if (byStart[i].start === start && byStart[i].end === end) dup = byStart[i];
+        // 3+ wrappers at identical offsets: the old single-`dup` logic only merged the
+        // last one and left the rest in `inners`, where substituteInner threw "could not
+        // locate inner needle" after the polyfill had eliminated the original slice
+        if (byStart[i].start === start && byStart[i].end === end) dups.push(byStart[i]);
+        else if (byStart[i].end <= end) inners.push(byStart[i]);
       }
-      if (dup) {
-        if (composedContent.has(dup)) continue;
-        content = mergeEqualRange(content, composedContent.get(dup) ?? dup.content, this.#code.slice(start, end));
-        const di = inners.indexOf(dup);
-        if (di !== -1) inners.splice(di, 1);
+      const originalSlice = this.#code.slice(start, end);
+      if (dups.length) {
+        // another transform in the same equal-range cohort already owns the merge
+        if (dups.some(d => composedContent.has(d))) continue;
+        // fold all dups - `mergeEqualRange` nests wrappers and drops polyfills into the
+        // innermost slot regardless of fold order
+        for (const dup of dups) {
+          content = mergeEqualRange(content, composedContent.get(dup) ?? dup.content, originalSlice);
+        }
       }
       // widest first so nested inners (where inner2 ⊂ inner1) are handled by inner1's
       // substitution before inner2 would be skipped. same-width ties: right-to-left
       inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
-
-      const originalSlice = this.#code.slice(start, end);
       // track ranges of already-processed inners; used both for containment-skip and for
       // adjusting nth counts when multiple inners share the same needle
       const processedRanges = [];
