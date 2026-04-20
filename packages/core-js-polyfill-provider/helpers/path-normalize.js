@@ -1,10 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 
-// strip Vite-style `?import` / `?t=123` / `#hash` suffixes from a module id
+// strip Vite-style `?import` / `?t=123` / `#hash` suffixes from a module id.
+// Windows UNC prefixes `\\?\` (long-path) and `\\.\` (device) embed `?`/`.` at index 2 -
+// skip the 4-char prefix so the search doesn't mistake them for a query separator
 export function stripQueryHash(id) {
-  const at = id.search(/[#?]/);
-  return at === -1 ? id : id.slice(0, at);
+  const offset = id.startsWith('\\\\?\\') || id.startsWith('\\\\.\\') ? 4 : 0;
+  const at = id.slice(offset).search(/[#?]/);
+  return at === -1 ? id : id.slice(0, offset + at);
 }
 
 // `array/at` -> `full/array/at` modules; top-level `actual`/`index`/... -> their root entry
