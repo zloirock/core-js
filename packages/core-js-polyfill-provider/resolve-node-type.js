@@ -64,17 +64,33 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // [key] where key is a string/number literal or a const binding (chain) to one
+  // [key] where key is a string/number literal, a const binding (chain) to one, or an
+  // enum member access (`obj[Enum.A]` - enum members carry static literals at known slots)
   function resolveComputedKeyName(key, scope, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     const literal = literalKeyValue(key);
     if (literal !== null) return literal;
-    if (!scope || key?.type !== 'Identifier') return null;
-    const binding = scope.getBinding(key.name);
-    if (!binding || binding.constantViolations?.length) return null;
-    const decl = binding.path;
-    if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
-    return resolveComputedKeyName(decl.node.init, decl.scope ?? scope, depth + 1);
+    if (!scope) return null;
+    if (key?.type === 'Identifier') {
+      const binding = scope.getBinding?.(key.name);
+      if (!binding || binding.constantViolations?.length) return null;
+      const decl = binding.path;
+      if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
+      return resolveComputedKeyName(decl.node.init, decl.scope ?? scope, depth + 1);
+    }
+    // `Enum.A` — TSEnumDeclaration lookup via findTypeDeclaration (scope-chain walk),
+    // not scope.getBinding — estree-toolkit adapter doesn't register enum bindings the
+    // same way babel does; type-declaration walker works uniformly for both
+    if (key?.type === 'MemberExpression' && !key.computed
+      && key.object?.type === 'Identifier' && key.property?.type === 'Identifier') {
+      const enumDecl = findTypeDeclaration(key.object.name, scope);
+      if (enumDecl?.type === 'TSEnumDeclaration') {
+        const member = findEnumMember(enumDecl, key.property.name);
+        const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
+        if (initValue !== null) return initValue;
+      }
+    }
+    return null;
   }
 
   function keyMatchesName(key, name) {
@@ -379,6 +395,11 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
   function resolveTypeofBinding(name, scope) {
+    // `typeof Enum` (alone in annotation) — enum's runtime value is the enum object itself.
+    // TSEnumDeclaration has no typeAnnotation slot so the bindingPath walk below returns null;
+    // treat it as $Object('Object') so downstream member inference uses the enum as a receiver
+    const typeDecl = findTypeDeclaration(name, scope);
+    if (typeDecl?.type === 'TSEnumDeclaration') return new $Object('Object');
     const bindingPath = constantBindingPath(name, scope);
     if (!bindingPath) return null;
     if (t.isVariableDeclarator(bindingPath.node)) {
@@ -398,6 +419,16 @@ function createResolveNodeType(babelNodeType, t) {
   // short-circuits to the binding's runtime value (ObjectExpression / class) when available;
   // deeper chains always walk through the type annotation
   function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
+    // `typeof Enum.Member` — TSEnumDeclaration has no typeAnnotation and its bindingPath
+    // fallthrough returns null. look it up via findTypeDeclaration and map the member to
+    // the enum's value kind ($Primitive('string'|'number'))
+    if (memberPath.length === 1) {
+      const typeDecl = findTypeDeclaration(objectName, scope);
+      if (typeDecl?.type === 'TSEnumDeclaration') {
+        const type = resolveEnumMemberType(typeDecl, memberPath[0]);
+        if (type) return type;
+      }
+    }
     const bindingPath = constantBindingPath(objectName, scope);
     if (!bindingPath || !memberPath.length) return null;
     if (memberPath.length === 1) {
@@ -438,9 +469,25 @@ function createResolveNodeType(babelNodeType, t) {
     return null; // template literal, expression, etc.
   }
 
+  // ESTree (oxc-parser): members under body.members; Babel: directly on declaration
+  function enumMembers(declaration) {
+    return declaration.members ?? declaration.body?.members;
+  }
+
+  // member's id may be Identifier (babel) or StringLiteral (oxc) — handle both shapes
+  function findEnumMember(declaration, name) {
+    return enumMembers(declaration)?.find(m => (m.id?.name ?? m.id?.value) === name) ?? null;
+  }
+
+  function resolveEnumMemberType(declaration, name) {
+    const member = findEnumMember(declaration, name);
+    if (!member) return null;
+    const kind = resolveEnumMemberKind(member.initializer);
+    return kind ? new $Primitive(kind) : null;
+  }
+
   function resolveEnumType(declaration) {
-    // ESTree (oxc-parser): members under body.members; Babel: directly on declaration
-    const members = declaration.members ?? declaration.body?.members;
+    const members = enumMembers(declaration);
     if (!members?.length) return null;
     let kind = null;
     for (const member of members) {
@@ -638,9 +685,14 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const declaration = findTypeDeclaration(name, scope);
     if (!declaration) return null;
-    // `interface A extends B; interface B extends A` — MAX_DEPTH catches the loop, but
-    // a per-walk declaration set short-circuits it at the second visit
-    if (seen?.has(declaration)) return null;
+    // `interface A extends B; interface B extends A` — MAX_DEPTH catches the loop, but a
+    // per-walk decl-set short-circuits it at the second visit. `hadCycle` piggybacked on
+    // the Set so parent frames know to return null instead of defaulting to $Object — an
+    // unknowable cyclic type must NOT masquerade as `Object` (it suppresses generic polyfill)
+    if (seen?.has(declaration)) {
+      seen.hadCycle = true;
+      return null;
+    }
     const visited = seen ?? new Set();
     visited.add(declaration);
     typeParamMap = resolveTypeArgs(declaration, node, typeParamMap, scope, depth);
@@ -655,6 +707,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (isInterfaceDeclaration(declaration)) {
       const parents = declaration.extends;
       if (parents?.length) {
+        const preCycle = visited.hadCycle === true;
         for (const parent of parents) {
           const base = extendsId(parent);
           if (base.type !== 'Identifier') continue;
@@ -663,6 +716,7 @@ function createResolveNodeType(babelNodeType, t) {
             || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap, visited);
           if (result) return result;
         }
+        if (!preCycle && visited.hadCycle === true) return null;
       }
       return new $Object('Object');
     }
@@ -679,8 +733,14 @@ function createResolveNodeType(babelNodeType, t) {
       };
       const ctor = resolveKnownConstructor(superClass.name);
       if (ctor) return resolveKnownContainerType(superClass.name, ctor, parentRef, resolve) || ctor;
-      return resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap, visited)
-        ?? new $Object('Object');
+      const preCycle = visited.hadCycle === true;
+      const result = resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap, visited);
+      if (result) return result;
+      // mirror the interface-branch cycle handling: cyclic class extends should NOT fall
+      // back to `$Object('Object')` — that masquerades as a concrete type and suppresses
+      // the generic polyfill plugin emits for unknowable receivers
+      if (!preCycle && visited.hadCycle === true) return null;
+      return new $Object('Object');
     }
     return null;
   }
@@ -1338,6 +1398,16 @@ function createResolveNodeType(babelNodeType, t) {
           }
           return null;
         }
+        // `T['a' | 'b']` — union of literal indices. fold each branch back through this same
+        // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to
+        // the widest common type, handing us precise inference when all branches agree
+        if (node.indexType?.type === 'TSUnionType') {
+          return foldUnionTypes(node.indexType.types, branch => resolveTypeAnnotation(
+            { type: 'TSIndexedAccessType', objectType: node.objectType, indexType: branch },
+            scope,
+            depth + 1,
+          ));
+        }
         if (node.indexType?.type !== 'TSLiteralType') return null;
         const { literal } = node.indexType;
         let member;
@@ -1381,12 +1451,13 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve property name from a MemberExpression, handling both
   // non-computed (obj.prop), string/numeric literal (obj['prop'], obj[0]),
-  // and constant binding (const key = 'prop'; obj[key])
+  // constant binding (const key = 'prop'; obj[key]) and enum member access (`obj[Enum.A]`)
   function resolveMemberPropertyName(path) {
     const { property, computed } = path.node;
     if (!computed) return property.type === 'Identifier' ? property.name : null;
     return literalKeyValue(property)
-      ?? literalKeyValue(resolveRuntimeExpression(path.get('property')).node);
+      ?? literalKeyValue(resolveRuntimeExpression(path.get('property')).node)
+      ?? resolveComputedKeyName(property, path.scope);
   }
 
   // intentionally compares only outer type identity (type + constructor), ignoring `inner`
@@ -2578,13 +2649,18 @@ function createResolveNodeType(babelNodeType, t) {
     // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there
     if (annotation.type === 'TSTypeQuery') {
       const resolved = resolveTypeQueryBinding(annotation, scope);
-      if (!resolved?.node) return null;
-      if (t.isObjectExpression(resolved.node)) {
-        const result = resolveObjectMember(resolved, name, callPath);
-        if (result) return result;
+      if (resolved?.node) {
+        if (t.isObjectExpression(resolved.node)) {
+          const result = resolveObjectMember(resolved, name, callPath);
+          if (result) return result;
+        }
+        const ctx = resolveClassContext(resolved);
+        if (ctx) return resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
+        return null;
       }
-      const ctx = resolveClassContext(resolved);
-      return ctx ? resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath) : null;
+      // TSEnumDeclaration has no runtime binding path in `resolveTypeQueryBinding`; route
+      // through `resolveAnnotatedMember` so `typeof Enum` member access hits the enum branch
+      return resolveAnnotatedMember(annotation, name, scope);
     }
     // `x: Cls` where `Cls` is a real `class` declaration in scope - route method calls through
     // `resolveClassMember` (path-based, body-inference-capable) instead of annotation-only lookup,
@@ -3204,6 +3280,19 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveAnnotatedMember(annotation, keyName, scope) {
     const unwrapped = unwrapTypeAnnotation(annotation);
     if (!unwrapped) return null;
+    // `typeof Enum` in annotation position — member access on the enum object yields the
+    // enum value kind. findTypeMember doesn't walk TSTypeQuery bodies, so dispatch here
+    if (unwrapped.type === 'TSTypeQuery') {
+      const segments = collectQualifiedSegments(unwrapped.exprName);
+      const rootName = segments?.[0];
+      if (rootName && segments.length === 1) {
+        const typeDecl = findTypeDeclaration(rootName, scope);
+        if (typeDecl?.type === 'TSEnumDeclaration') {
+          const type = resolveEnumMemberType(typeDecl, keyName);
+          if (type) return type;
+        }
+      }
+    }
     const memberType = findTypeMember(unwrapped, keyName, scope);
     if (!memberType) return null;
     const defaultMap = buildDefaultTypeParamMap(unwrapped, scope);
