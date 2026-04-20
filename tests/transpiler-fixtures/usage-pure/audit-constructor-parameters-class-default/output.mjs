@@ -1,6 +1,6 @@
-var _ref;
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+var _ref;
 // `ClassDeclaration.params` is undefined - params live on the `constructor` method inside
 // `body.body`; the Parameters/ConstructorParameters handler must descend there for class
 class Foo {

@@ -1,5 +1,5 @@
-var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
+var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
 // regression for own UID generator: Babel's scope.generateUidIdentifier strips trailing
 // digits, so after `_ref9` it would loop back and reuse `_ref` / `_ref2`. own generator
 // emits `_ref, _ref2, _ref3, ..., _refN` (skip-1 babel convention) via the per-prefix

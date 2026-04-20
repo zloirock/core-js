@@ -1,5 +1,5 @@
-var _ref;
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+var _ref;
 type Box<T> = {
   get(): T extends number ? never : T;
 };
