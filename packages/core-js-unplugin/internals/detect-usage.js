@@ -70,15 +70,21 @@ function isReferenced(node, parent, parentKey, parentPath) {
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
-  // UpdateExpression operand (Map++, (Map as T)++) - read+write context,
-  // polyfill import is read-only so `_Map++` would throw TypeError at runtime
+  // UpdateExpression operand (Map++, (Map as T)!++) - read+write context,
+  // polyfill import is read-only so `_Map++` would throw TypeError at runtime.
+  // oxc preserves `ParenthesizedExpression` around TS wrappers, so walk-up skips both
   if (parent.type === 'UpdateExpression') return false;
-  if (TS_EXPR_WRAPPERS.has(parent.type)) {
+  if (isUpdateWrapper(parent)) {
     let check = parentPath;
-    while (check && TS_EXPR_WRAPPERS.has(check.node?.type)) check = check.parentPath;
+    while (check && isUpdateWrapper(check.node)) check = check.parentPath;
     if (check?.node?.type === 'UpdateExpression') return false;
   }
   return true;
+}
+
+// walk-up classes for UpdateExpression detection through TS wrappers + parser-preserved parens
+function isUpdateWrapper(node) {
+  return !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
 }
 
 // --- ESTree scope adapter ---

@@ -115,12 +115,13 @@ function validateIncludeExclude(include, exclude, modules, method) {
       if (unusedEntries.length) errors.push(formatError(`The following "${ label }" entry paths didn't match any polyfill`, unusedEntries));
     }
   }
-  const moduleInclude = cleaned.include?.filter(isModulePattern);
-  const moduleExclude = cleaned.exclude?.filter(isModulePattern);
-  if (moduleInclude?.length && moduleExclude?.length) {
-    const duplicates = moduleInclude.filter(p => {
-      if (p instanceof RegExp) return moduleExclude.some(e => e instanceof RegExp && e.source === p.source && e.flags === p.flags);
-      return moduleExclude.includes(p);
+  // duplicate detection across include/exclude covers both module and entry patterns -
+  // historically only modules were checked, so `include: ['array/from']` + `exclude: ['array/from']`
+  // silently let exclude win. entry duplicates get the same "matched by both" error now
+  if (cleaned.include?.length && cleaned.exclude?.length) {
+    const duplicates = cleaned.include.filter(p => {
+      if (p instanceof RegExp) return cleaned.exclude.some(e => e instanceof RegExp && e.source === p.source && e.flags === p.flags);
+      return cleaned.exclude.includes(p);
     });
     if (duplicates.length) {
       errors.push(formatError('The following polyfills were matched both by "include" and "exclude" patterns', duplicates));
