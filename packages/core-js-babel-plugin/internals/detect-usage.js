@@ -11,7 +11,7 @@ import {
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
-import { TS_EXPR_WRAPPERS, isTSTypeOnlyIdentifier } from '@core-js/polyfill-provider/helpers';
+import { TS_EXPR_WRAPPERS, isFunctionParamDestructureParent, isTSTypeOnlyIdentifier } from '@core-js/polyfill-provider/helpers';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -136,6 +136,17 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
       }
     } else if (parent.isAssignmentExpression()) {
       initPath = parent.get('right');
+    } else if (parent.isAssignmentPattern()
+      && isFunctionParamDestructureParent(parent.node, parent.parentPath?.node, objectPattern.node)) {
+      // `function({ from } = Array)` — AssignmentPattern wraps the param; the default
+      // expression is the receiver that our destructure targets when the arg is omitted.
+      // without this branch handleDestructuring emits typeless meta and loses the `Array`
+      // linkage, so `from` never resolves to `Array.from`
+      const key = resolveKey(path.get('key'), path.node.computed);
+      if (!key) return;
+      const meta = buildDestructuringInitMeta(parent.node.right, key, parent.scope, adapter);
+      onUsage(meta, path);
+      return;
     } else if (parent.isObjectProperty()
       || parent.isAssignmentPattern()
       || parent.isForOfStatement()

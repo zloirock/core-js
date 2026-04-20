@@ -96,11 +96,13 @@ export default class ImportInjector extends ImportInjectorState {
   flush() {
     if (this.#deferImports) return;
     const lines = [];
-    if (this.#refs.length) lines.push(`var ${ this.#refs.join(', ') };`);
     const newGlobals = sortByPolyfillOrder([...this.globalImports].filter(m => !this.existingGlobalImports.has(m)));
     const activePure = this.referencedInSource
       ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
       : [...this.pureImports];
+    // emit imports first, then the `var _ref, _ref2, ...;` declaration — imports are
+    // hoisted by the engine either way, but keeping the source order lint-clean avoids
+    // "statement before import" warnings in tools that don't apply ESM hoisting
     if (this.importStyle === 'require') {
       for (const mod of newGlobals) lines.push(`require("${ this.#resolvePath(`modules/${ mod }`) }");`);
       for (const [entry, name] of activePure) lines.push(`var ${ name } = require("${ this.#resolvePath(entry) }");`);
@@ -108,6 +110,7 @@ export default class ImportInjector extends ImportInjectorState {
       for (const mod of newGlobals) lines.push(`import "${ this.#resolvePath(`modules/${ mod }`) }";`);
       for (const [entry, name] of activePure) lines.push(`import ${ name } from "${ this.#resolvePath(entry) }";`);
     }
+    if (this.#refs.length) lines.push(`var ${ this.#refs.join(', ') };`);
     if (!lines.length) return;
     const block = `${ lines.join('\n') }\n`;
     // MagicString can't source-map appended content, so this block is synthetic in the map
