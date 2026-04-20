@@ -1,5 +1,5 @@
-var _ref;
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+var _ref;
 type B<U> = { get(): U };
 type A = B<string>;
 declare const a: A;
