@@ -1,7 +1,7 @@
-var _ref;
 import _mapMaybeArray from "@core-js/pure/actual/array/instance/map";
 import _entries from "@core-js/pure/actual/instance/entries";
 import _padStartMaybeString from "@core-js/pure/actual/string/instance/pad-start";
+var _ref;
 const el = (
   <ul>
     {_mapMaybeArray(_ref = _entries(items).call(items)).call(_ref, ([i, v]) => { var _ref2; return (

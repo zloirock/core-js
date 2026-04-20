@@ -311,6 +311,18 @@ export default function (t, { getInjector } = {}) {
     return stmt;
   }
 
+  // `(inner(), Array)` — when we lift the init as a standalone statement only the
+  // side-effectful head is needed; the trailing value (`Array`, read by the destructure)
+  // becomes a no-op read once extraction leaves no destructure target. trim it so the
+  // emitted ExpressionStatement reads `inner();` instead of `inner(), Array;`
+  function trimSideEffectTail(node) {
+    if (!t.isSequenceExpression(node)) return node;
+    const trimmed = [...node.expressions];
+    while (trimmed.length > 1 && !mayHaveSideEffects(trimmed[trimmed.length - 1])) trimmed.pop();
+    if (trimmed.length === node.expressions.length) return node;
+    return trimmed.length === 1 ? trimmed[0] : t.sequenceExpression(trimmed);
+  }
+
   function deferSideEffect(containerPath, initNode) {
     if (!initNode || !mayHaveSideEffects(initNode)) return;
     const stmt = findStatementParent(containerPath);
@@ -321,7 +333,7 @@ export default function (t, { getInjector } = {}) {
       deferredSideEffects.push({
         body, index,
         seq: deferredSideEffects.length,
-        node: t.expressionStatement(t.cloneDeep(initNode)),
+        node: t.expressionStatement(t.cloneDeep(trimSideEffectTail(initNode))),
       });
     }
   }

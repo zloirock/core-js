@@ -1,5 +1,5 @@
-var _ref;
 import _at from "@core-js/pure/actual/instance/at";
+var _ref;
 type Deep<T> = {
   get(): T extends object ? T extends Array<infer U> ? U[] : never : T;
 };
