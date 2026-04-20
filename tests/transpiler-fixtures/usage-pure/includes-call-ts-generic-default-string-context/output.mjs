@@ -1,6 +1,6 @@
-var _ref, _ref2;
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+var _ref, _ref2;
 interface Box<T = string> {
   items: T[];
 }

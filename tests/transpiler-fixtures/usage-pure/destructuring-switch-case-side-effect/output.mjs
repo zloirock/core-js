@@ -1,7 +1,7 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 switch (x) {
   case 1:
-    sideEffect(), Array;
+    sideEffect();
     var from = _Array$from;
     from([1]);
     break;
