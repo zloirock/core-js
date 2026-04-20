@@ -2150,7 +2150,11 @@ function createResolveNodeType(babelNodeType, t) {
     // mapped type: { [K in keyof T]: V } - structural, can't derive concrete type
     if (node.type === 'TSMappedType') {
       const passthrough = unwrapMappedTypePassthrough(node);
-      if (passthrough) return resolveTypeAnnotation(passthrough, scope, depth + 1);
+      // passthrough body references the mapped-over type param by name; delegate back to
+      // substituteTypeParams so `{T->string[]}` subst survives into `T`-ref inside the body.
+      // using resolveTypeAnnotation here would drop the map and collapse precise Array
+      // receiver types to generic `$Object(null)` via `Copy<string[]>.at(…)` chains
+      if (passthrough) return substituteTypeParams(passthrough, typeParamMap, scope, depth + 1, seen);
       return new $Object(null);
     }
     // fallback to regular annotation resolution
