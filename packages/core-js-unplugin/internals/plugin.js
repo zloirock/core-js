@@ -1036,7 +1036,10 @@ export default function createPlugin(options) {
             const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
             const remaining = allProps.filter(p => !polyfillKeys.has(p));
             const hasInstance = entries.some(e => e.kind === 'instance');
-            // resolve global name for lazy re-injection: bare (`Promise`) or proxy (`globalThis.Promise`)
+            // resolve global name for lazy re-injection: bare (`Promise`) or proxy (`globalThis.Promise`).
+            // scope+adapter omitted - unplugin's `state.scope` snapshot exposes a reduced API
+            // (no `.getBinding()`) that isn't compatible with `estreeAdapter`; polyfillHint-aliased
+            // proxies don't arise in unplugin anyway since it doesn't mutate bindings in place
             const resolvedGlobalName = initIdentName || globalProxyMemberName(peelParens(info.initNode));
             // if remaining/rest/instance needs init object, ensure it's polyfilled
             if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && resolvedGlobalName) {
