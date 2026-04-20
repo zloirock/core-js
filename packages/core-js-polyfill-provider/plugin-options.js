@@ -14,12 +14,18 @@ export function sortByPolyfillOrder(modules) {
 }
 
 // JSON.stringify renders NaN/Infinity as `null` and Symbol/undefined/function as `undefined` —
-// useless for type-mismatch diagnostics; use their native toString for the outliers
+// useless for type-mismatch diagnostics; use their native toString for the outliers.
+// class instances serialize as plain `{…}` — prefix with constructor name so users distinguish
+// `new Targets()` from `{ ie: 11 }` object-literal in the error
 function formatReceived(value) {
   if (typeof value === 'symbol') return value.toString();
   if (typeof value === 'function') return `[Function${ value.name ? ` ${ value.name }` : '' }]`;
   if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
   if (value === undefined) return 'undefined';
+  if (typeof value === 'object' && value !== null && !isPlainObject(value) && !Array.isArray(value)) {
+    const ctorName = value.constructor?.name;
+    return ctorName && ctorName !== 'Object' ? `[${ ctorName }] ${ JSON.stringify(value) }` : JSON.stringify(value);
+  }
   return JSON.stringify(value);
 }
 

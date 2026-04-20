@@ -1,6 +1,6 @@
-var _ref;
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+var _ref;
 // `abstract class` carries a real `constructor` method in body - the walker ignores the
 // abstract flag and still reads params like a regular class
 abstract class Foo {
