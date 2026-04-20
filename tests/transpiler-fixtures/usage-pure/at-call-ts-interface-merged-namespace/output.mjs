@@ -1,5 +1,5 @@
-var _ref;
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
+var _ref;
 namespace NS {
   export interface Box {
     items: number[];
