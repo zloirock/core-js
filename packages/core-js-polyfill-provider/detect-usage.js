@@ -12,6 +12,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   declaresRequireBinding,
+  globalProxyMemberName,
   kebabToCamel,
   mayHaveSideEffects,
   stripQueryHash,
@@ -260,19 +261,23 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   return null;
 }
 
-// nullable { raw, unwrapped } for `Symbol` references - bare `Symbol`, TS-wrapped
-// (`as X`, `satisfies X`, `!`, `(...)`), or const-aliased (`const Sym = Symbol`). `raw` ===
-// `unwrapped` when there's no wrapping, so callers `.add` both to handledObjects without
-// branching (Set dedup absorbs the duplicate)
+// bare unbound `Symbol` / capitalised const-alias (`const Sym = Symbol`) /
+// proxy-global access (`globalThis.Symbol`, `self.window.Symbol`). lowercase idents skip
+// the const-chain walk - `Symbol` aliases are capitalised by convention
+function resolvesToGlobalSymbol(node, scope, adapter) {
+  if (node.type === 'Identifier') {
+    if (node.name === 'Symbol') return !adapter.hasBinding(scope, 'Symbol');
+    if (!CAPITALISED_IDENT.test(node.name)) return false;
+    return resolveBindingToGlobal(node.name, scope, adapter) === 'Symbol';
+  }
+  return globalProxyMemberName(node, scope, adapter) === 'Symbol';
+}
+
+// preserve pre-unwrap node so callers can seed both forms into handledObjects;
+// Set dedup absorbs the duplicate when raw === unwrapped
 function asSymbolRef(node, scope, adapter) {
   const unwrapped = unwrapParens(node);
-  if (unwrapped?.type !== 'Identifier') return null;
-  if (unwrapped.name === 'Symbol' && !adapter.hasBinding(scope, 'Symbol')) return { raw: node, unwrapped };
-  // lowercase identifiers skip the const-chain walk - `Symbol` aliases are capitalised
-  // by convention, so lowercase names never resolve back to Symbol
-  if (!CAPITALISED_IDENT.test(unwrapped.name)) return null;
-  if (resolveBindingToGlobal(unwrapped.name, scope, adapter) === 'Symbol') return { raw: node, unwrapped };
-  return null;
+  return unwrapped && resolvesToGlobalSymbol(unwrapped, scope, adapter) ? { raw: node, unwrapped } : null;
 }
 
 function isImportBinding(name, scope, adapter) {
@@ -349,6 +354,11 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
         handledObjects.add(left);
         handledObjects.add(ref.raw);
         handledObjects.add(ref.unwrapped);
+        // proxy-global LHS (`globalThis.Symbol.iterator in x`) - the outer `_isIterable(x)`
+        // rewrite subsumes the entire chain, so the leaf `globalThis` identifier must not
+        // trigger its own polyfill. without this, unplugin's transform-queue fails to compose
+        // the inner `globalThis`-replacement into the outer's eliminated-needle content
+        markSubsumedProxyChain(ref.unwrapped, handledObjects);
       }
       return { kind: 'in', key, object: null, placement: null };
     }
@@ -380,6 +390,22 @@ function resolveComputedSymbolKey(node, scope, adapter) {
   if (!ref) return null;
   const name = resolveKey(prop.property, prop.computed, scope, adapter);
   return name ? { key: `Symbol.${ name }`, ref } : null;
+}
+
+// walk the proxy-global chain at `node`, seeding every intermediate MemberExpression AND the
+// leaf `globalThis`/`self`/`window` Identifier. used when an outer rewrite fully subsumes the
+// chain (`handleBinaryIn`'s Symbol.X case) - without the leaf, the identifier visitor fires a
+// parallel polyfill for `globalThis` that the text-transform queue can't compose into the
+// outer's eliminated-needle replacement
+function markSubsumedProxyChain(node, handledObjects) {
+  let current = unwrapParens(node);
+  while (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression') {
+    handledObjects.add(current);
+    current = unwrapParens(current.object);
+  }
+  if (current.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name)) {
+    handledObjects.add(current);
+  }
 }
 
 // mark handled objects after processing a MemberExpression meta
