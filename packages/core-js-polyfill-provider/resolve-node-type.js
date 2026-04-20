@@ -644,8 +644,11 @@ function createResolveNodeType(babelNodeType, t) {
     const visited = seen ?? new Set();
     visited.add(declaration);
     typeParamMap = resolveTypeArgs(declaration, node, typeParamMap, scope, depth);
+    // thread `visited` into the body-resolution closure so self-recursive aliases
+    // (`type Rec<T> = Rec<T[]>`) hit the decl-set guard on re-entry instead of
+    // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn
     const resolve = typeParamMap
-      ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1)
+      ? p => substituteTypeParams(p, typeParamMap, scope, depth + 1, visited)
       : p => resolveTypeAnnotation(p, scope, depth + 1);
     if (isTypeAlias(declaration)) return resolve(typeAliasBody(declaration));
     if (declaration.type === 'TSEnumDeclaration') return resolveEnumType(declaration);
@@ -1093,7 +1096,7 @@ function createResolveNodeType(babelNodeType, t) {
     AsyncIteratorObject: 'AsyncIterator',
   });
 
-  function resolveNamedType(name, node, scope, depth) {
+  function resolveNamedType(name, node, scope, depth, seen) {
     // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
     if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
@@ -1180,7 +1183,7 @@ function createResolveNodeType(babelNodeType, t) {
       case '$Call':
         return null;
     }
-    return resolveUserDefinedType(name, node, scope, depth);
+    return resolveUserDefinedType(name, node, scope, depth, undefined, seen);
   }
 
   function resolveTypeAnnotation(node, scope, depth = 0) {
@@ -2062,8 +2065,10 @@ function createResolveNodeType(babelNodeType, t) {
     return typeParamMap;
   }
 
-  // resolve a type annotation substituting type parameters from the map
-  function substituteTypeParams(node, typeParamMap, scope, depth) {
+  // resolve a type annotation substituting type parameters from the map.
+  // `seen` is the decl-set guard threaded from `resolveUserDefinedType` so body
+  // recursion into the same alias short-circuits instead of CPU-burning up to MAX_DEPTH
+  function substituteTypeParams(node, typeParamMap, scope, depth, seen) {
     if (depth > MAX_DEPTH) return null;
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
@@ -2074,42 +2079,44 @@ function createResolveNodeType(babelNodeType, t) {
       if (name) {
         // substitute type params in container inner types: Array<T>, Promise<T>, etc.
         const ctor = resolveKnownConstructor(name);
-        const known = resolveKnownContainerType(name, ctor, node, p => substituteTypeParams(p, typeParamMap, scope, depth + 1));
+        const known = resolveKnownContainerType(name, ctor, node,
+          p => substituteTypeParams(p, typeParamMap, scope, depth + 1, seen));
         if (known) return known;
         // user-defined type alias / interface: propagate type parameter substitutions
-        return resolveUserDefinedType(name, node, scope, depth, typeParamMap) ?? resolveNamedType(name, node, scope, depth);
+        return resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen)
+          ?? resolveNamedType(name, node, scope, depth, seen);
       }
       return null;
     }
     // union: T | null, T | undefined - strip nullable, substitute T
     if (node.type === 'TSUnionType' || node.type === 'UnionTypeAnnotation') {
-      return foldUnionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1));
+      return foldUnionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1, seen));
     }
     // intersection: T & { extra: boolean } - skip plain $Object('Object') from type literals, rest must agree
     if (node.type === 'TSIntersectionType' || node.type === 'IntersectionTypeAnnotation') {
-      return foldIntersectionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1));
+      return foldIntersectionTypes(node.types, member => substituteTypeParams(member, typeParamMap, scope, depth + 1, seen));
     }
     // transparent wrappers: (T), T?, readonly T[], etc.
     if (node.type === 'TSOptionalType' || node.type === 'TSParenthesizedType' || node.type === 'NullableTypeAnnotation'
       || (node.type === 'TSTypeOperator' && node.operator !== 'keyof')) {
-      return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1);
+      return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1, seen);
     }
     // conditional type: T extends U ? X : Y - substitute in branches
     if (node.type === 'TSConditionalType') {
       return resolveConditionalBranches(
-        substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1),
-        substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1));
+        substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1, seen),
+        substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1, seen));
     }
     // T[] -> Array with substituted element type
     if (node.type === 'TSArrayType' || node.type === 'ArrayTypeAnnotation') {
-      const inner = substituteTypeParams(node.elementType, typeParamMap, scope, depth + 1);
+      const inner = substituteTypeParams(node.elementType, typeParamMap, scope, depth + 1, seen);
       return new $Object('Array', inner && !isNullableOrNever(inner) ? inner : null);
     }
     // [T, U] - resolve to Array, compute inner type if all elements agree
     if (node.type === 'TSTupleType' || node.type === 'TupleTypeAnnotation') {
       const elements = tupleElements(node);
       return new $Object('Array', elements?.length
-        ? resolveTupleInner(elements, e => substituteTypeParams(e, typeParamMap, scope, depth + 1))
+        ? resolveTupleInner(elements, e => substituteTypeParams(e, typeParamMap, scope, depth + 1, seen))
         : null);
     }
     // T["key"] or T[number] - resolve indexed access, substituting type params in the object type
