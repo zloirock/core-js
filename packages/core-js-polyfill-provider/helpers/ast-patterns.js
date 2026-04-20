@@ -46,6 +46,26 @@ export function isTSTypeOnlyIdentifier(parent, parentKey) {
 // shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
+
+// function-like types that carry `params` — ObjectPattern used as a parameter lives
+// either directly under one of these, or wrapped in an AssignmentPattern for the
+// `function({ x } = default) {}` form
+const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+]);
+
+// true when `parent`/`grandparent` describe an ObjectPattern at function-parameter
+// position: either direct (`function({ x })`) or wrapped in AssignmentPattern default
+// (`function({ x } = Y)`). accepts node refs (both adapters pass raw nodes, not paths)
+export function isFunctionParamDestructureParent(parent, grandparent, objectPatternNode) {
+  if (!parent) return false;
+  if (FUNCTION_LIKE_PARAM_OWNER_TYPES.has(parent.type)) return true;
+  return parent.type === 'AssignmentPattern'
+    && parent.left === objectPatternNode
+    && !!grandparent && FUNCTION_LIKE_PARAM_OWNER_TYPES.has(grandparent.type);
+}
 export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
   && parent?.type === 'TaggedTemplateExpression'
   && parent.tag === node;

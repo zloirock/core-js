@@ -15,6 +15,7 @@ import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   TS_EXPR_WRAPPERS,
   isASTNode,
+  isFunctionParamDestructureParent,
   isTSTypeOnlyIdentifier,
   unwrapParens,
   walkPatternIdentifiers,
@@ -143,6 +144,13 @@ function buildDestructuringMeta(propNode, parentPath) {
     case 'VariableDeclarator': initNode = parent.node.init; break;
     case 'AssignmentExpression': initNode = parent.node.right; break;
     case 'AssignmentPattern':
+      // `function({ from } = Array)` — AssignmentPattern wraps the param. Route `parent.right`
+      // as the destructure receiver so `from` resolves to `Array.from`. without this the
+      // fall-through emits typeless meta and the polyfill isn't injected
+      if (isFunctionParamDestructureParent(parent.node, parent.parentPath?.node, objectPattern.node)) {
+        initNode = parent.node.right;
+      }
+      break;
     case 'ForOfStatement':
     case 'ForInStatement':
     case 'Property':

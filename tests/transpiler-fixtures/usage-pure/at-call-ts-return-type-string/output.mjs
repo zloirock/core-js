@@ -1,5 +1,5 @@
-var _ref;
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
+var _ref;
 function getStr(): string {
   return '';
 }
