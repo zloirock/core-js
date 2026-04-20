@@ -64,12 +64,15 @@ const stripLeadingPrefix = p => {
 };
 
 // normalize the import source to a canonical entry path so we can look it up in the `entries`
-// map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`
+// map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`.
+// strip query/hash BEFORE slash replacement — UNC prefixes (`\\?\`, `\\.\`) embed `?`/`.` at
+// index 2 and stripQueryHash uses the backslash form to skip them. replacing backslashes
+// first would collapse `\\?\` to `//?/` and truncate the path at the bogus `?` marker
 function normalizeImportPath(path) {
   if (typeof path != 'string') return null;
-  const withForwardSlashes = path.replaceAll('\\', '/');
-  const withoutQuery = stripQueryHash(withForwardSlashes);
-  const withoutPrefix = stripLeadingPrefix(withoutQuery);
+  const withoutQuery = stripQueryHash(path);
+  const withForwardSlashes = withoutQuery.replaceAll('\\', '/');
+  const withoutPrefix = stripLeadingPrefix(withForwardSlashes);
   // accept `.js`, `.mjs`, `.cjs` - `import 'core-js/actual/array/at.mjs'` should resolve like `.js`
   return withoutPrefix.replace(/(?:\/(?:index)?)?(?:\.[cm]?js)?$/i, '').toLowerCase();
 }
