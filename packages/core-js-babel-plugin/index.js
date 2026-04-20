@@ -5,6 +5,7 @@ import {
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
+  isFunctionParamDestructureParent,
   isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget as isUpdateParent,
@@ -163,7 +164,8 @@ export default function plugin(api, options) {
       // VariableDeclarator / AssignmentExpression destructure path
       function handleObjectPropertyResult(prop, kind, entry, hintName) {
         const objectPattern = prop.parentPath;
-        if (objectPattern?.parentPath?.isFunction()) {
+        const patternParent = objectPattern?.parentPath;
+        if (isFunctionParamDestructureParent(patternParent?.node, patternParent?.parentPath?.node, objectPattern?.node)) {
           handleParameterDestructure(prop, kind, entry, hintName);
           return;
         }
@@ -551,6 +553,7 @@ export default function plugin(api, options) {
         }
         injector?.flush();
         injector?.pruneUnusedRefs();
+        injector?.reorderRefsAfterImports();
         outputDebug();
       }
 
@@ -568,7 +571,10 @@ export default function plugin(api, options) {
 
       function postHook() {
         if (!injector) return;
-        if (importStyleOption === undefined && importStyle === 'import'
+        // late style-switch is a safety-net for sibling plugins that strip all ESM markers
+        // (e.g. `commonjs` rewriters) after our traversal. skip it once we've already
+        // flushed imports — switching now would mix ESM (already emitted) with CJS (new)
+        if (!injector.hasFlushed && importStyleOption === undefined && importStyle === 'import'
           && !this.file.path.node.body.some(n => ESM_MARKER_TYPES.has(n.type))) {
           injector.importStyle = 'require';
         }
@@ -610,9 +616,13 @@ export default function plugin(api, options) {
             ...usageVisitors,
             CatchClause(path) {
               const { param } = path.node;
-              if (!param || (param.type !== 'ObjectPattern' && param.type !== 'ArrayPattern')) return;
-              const props = param.properties || param.elements;
-              if (!props || props.length === 0) return;
+              // ArrayPattern destructuring in catch can't be polyfilled by property rewrite
+              // (bindings are positional, not named), so extracting it is pure overhead —
+              // unplugin keeps it inline and babel should mirror that. ObjectPattern still
+              // needs extraction because `{ key = default }` and polyfillable key lookups
+              // require a named receiver (`_ref`) to rewrite against
+              if (!param || param.type !== 'ObjectPattern') return;
+              if (!param.properties?.length) return;
               // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
               // - keeps one naming scheme across the plugin and matches unplugin's output shape
               const ref = injector.generateRef(path.scope, false);

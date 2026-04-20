@@ -11,6 +11,7 @@ import {
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
+  isFunctionParamDestructureParent,
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
@@ -842,11 +843,11 @@ export default function createPlugin(options) {
       }
 
       function handleDestructuringPure(meta, metaPath, propNode) {
-        // IIFE / parameter destructure: ObjectPattern's parent is a function
-        const patternParentType = metaPath.parentPath?.parentPath?.node?.type;
-        if (patternParentType === 'FunctionDeclaration'
-            || patternParentType === 'FunctionExpression'
-            || patternParentType === 'ArrowFunctionExpression') {
+        // IIFE / parameter destructure: ObjectPattern's parent is a function (or an
+        // AssignmentPattern default at function-param position — `function({ x } = Y)`)
+        const patternParent = metaPath.parentPath?.parentPath?.node;
+        const patternGrandparent = metaPath.parentPath?.parentPath?.parentPath?.node;
+        if (isFunctionParamDestructureParent(patternParent, patternGrandparent, metaPath.parent)) {
           return handleParameterDestructurePure(meta, metaPath, propNode);
         }
         // two-pass post: skip `{ key: _unusedN, ...rest }` sentinels left by pre -
@@ -906,9 +907,13 @@ export default function createPlugin(options) {
         // get init source for instance methods (catch clause: generated ref replaces param)
         const initNode = isCatchClause ? null
             : isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
-        const initSrc = isCatchClause ? injector.generateRef(false) : initNode ? nodeSrc(initNode) : null;
 
         if (!state.destructuring.has(objectPattern)) {
+          // only allocate `_refN` on first-seen pattern — a multi-property pattern visits
+          // once per polyfillable key, and generating a ref each time would inflate the
+          // UID counter without using the later IDs (state.destructuring.set only fires
+          // on first visit, so subsequent IDs are abandoned)
+          const initSrc = isCatchClause ? injector.generateRef(false) : initNode ? nodeSrc(initNode) : null;
           state.destructuring.set(objectPattern, {
             entries: [],
             allProps: objectPattern.properties || [],

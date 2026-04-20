@@ -20,6 +20,12 @@ export default class ImportInjector extends ImportInjectorState {
     this.#programPath = programPath;
   }
 
+  // post-hook safety-net needs to know whether any import has already been written so
+  // it doesn't switch `importStyle` mid-file and produce ESM+CJS mixed output
+  get hasFlushed() {
+    return this.#flushedGlobals.size > 0 || this.#flushedPure.size > 0;
+  }
+
   isNameTaken(name) {
     if (super.isNameTaken(name)) return true;
     const { scope } = this.#programPath;
@@ -169,5 +175,41 @@ export default class ImportInjector extends ImportInjectorState {
       if (!nodes) break;
       this.#programPath.unshiftContainer('body', nodes);
     }
+  }
+
+  // `scope.push({ id: _ref })` in handlers schedules a top-level `var _ref;` that lands
+  // ahead of our later-unshifted imports in Babel's final body. sweep the program body
+  // once (called from programExit after all pushes settle) and move the ref-only decls
+  // past the import header. keeps source order lint-clean without touching pruneUnusedRefs
+  reorderRefsAfterImports() {
+    const { body } = this.#programPath.node;
+    if (!body?.length) return;
+    const isRefOnly = stmt => stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
+      && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier' && this.#refs.has(d.id.name));
+    const isImport = stmt => stmt.type === 'ImportDeclaration'
+      || (stmt.type === 'ExpressionStatement' && stmt.expression?.type === 'CallExpression'
+        && stmt.expression.callee?.name === 'require')
+      || (stmt.type === 'VariableDeclaration'
+        && stmt.declarations.every(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
+    const refs = [];
+    let importEnd = 0;
+    for (let i = 0; i < body.length; i++) {
+      if (isRefOnly(body[i])) {
+        refs.push(body[i]);
+        continue;
+      }
+      if (isImport(body[i])) {
+        importEnd = i + 1;
+        continue;
+      }
+      break;
+    }
+    if (!refs.length || importEnd === 0) return;
+    const kept = body.filter(s => !refs.includes(s));
+    // importEnd counted against original indices including refs; subtract refs that preceded it
+    const insertAt = importEnd - refs.filter(r => body.indexOf(r) < importEnd).length;
+    const merged = this.#t.variableDeclaration('var', refs.flatMap(s => s.declarations));
+    kept.splice(insertAt, 0, merged);
+    this.#programPath.node.body = kept;
   }
 }
