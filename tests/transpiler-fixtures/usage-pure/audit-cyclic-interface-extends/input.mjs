@@ -1,7 +1,7 @@
-// `interface A extends B; interface B extends A` - cyclic extends chain. `resolveUserDefinedType`
-// walks declarations; without cycle detection it'd loop until MAX_DEPTH=64 per name lookup.
-// `seen` Set short-circuits at the second visit. compilation must succeed with no polyfill
-// emitted (type unresolvable → x.at stays bare)
+// cyclic interface extends: A extends B, B extends A. resolveUserDefinedType threads
+// a `visited` Set and propagates a `hadCycle` signal up so cyclic chains return null
+// (unknown type) instead of falling back to $Object('Object') — that gives the plugin
+// the signal to emit generic `_at` rather than suppressing the polyfill entirely
 interface A extends B {}
 interface B extends A {}
 declare const x: A;
