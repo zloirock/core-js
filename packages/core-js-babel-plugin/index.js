@@ -450,7 +450,10 @@ export default function plugin(api, options) {
         if (path.node.type === 'JSXIdentifier') return;
 
         if (meta.kind === 'in') {
-          const symbolIn = resolveSymbolInEntry(meta.key);
+          // symbol-sourced LHS (`Symbol.X in obj` / alias binding) → dedicated symbol-in
+          // polyfill. string-sourced `'Symbol.X' in Obj` takes the string-key branch below,
+          // where polyfill is emitted only if the static-table has the literal string key
+          const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
           if (symbolIn && isEntryNeeded(symbolIn.entry)) {
             const id = injectPureImport(symbolIn.entry, symbolIn.hint);
             if (meta.key === 'Symbol.iterator') {
