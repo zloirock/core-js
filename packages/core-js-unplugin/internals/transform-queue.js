@@ -23,7 +23,7 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
 
 // non-overlapping jumpsize - polyfill needles embed syntactic delimiters (`.`, `(`,
 // identifiers) that cannot self-overlap
-function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
+export function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
   let count = 0;
   for (let pos = haystack.indexOf(needle, rangeStart);
     pos !== -1 && pos + needle.length <= rangeEnd;
@@ -57,8 +57,10 @@ function replaceNthOccurrence(str, needle, replacement, n) {
 }
 
 // `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` — naive `replaceAll('?.', '.')`
-// produces `.(` that never matches the `(` emitted by the inner transform
-function deoptionalizeNeedle(needle) {
+// produces `.(` that never matches the `(` emitted by the inner transform.
+// `needle[offset + 2]` returns `undefined` when `?.` sits at the very end of the needle;
+// that compares unequal to `(` / `[` and falls through to the `.` branch — no bounds check needed
+export function deoptionalizeNeedle(needle) {
   return needle.replaceAll('?.', (_, offset) => {
     const next = needle[offset + 2];
     return next === '(' || next === '[' ? '' : '.';
@@ -111,7 +113,7 @@ function upperBound(ranges, target) {
 // the "wrapper" contains the original source as substring; the "inner" doesn't.
 // function-form replace bypasses `$&` / `$1` / `$'` / `` $` `` interpretation if `inner`
 // happens to contain those tokens (e.g. user source with `$&` or polyfill names with `$`)
-function mergeEqualRange(a, b, originalNeedle) {
+export function mergeEqualRange(a, b, originalNeedle) {
   const aIsWrapper = a.includes(originalNeedle);
   const wrapper = aIsWrapper ? a : b;
   const inner = aIsWrapper ? b : a;
@@ -136,7 +138,7 @@ function updatePrefixMaxOnInsert(sorted, prefixMaxEnd, pos) {
 function updatePrefixMaxOnRemove(sorted, prefixMaxEnd, si, removedEnd) {
   prefixMaxEnd.splice(si, 1);
   const prev = si > 0 ? prefixMaxEnd[si - 1] : -1;
-  // removed end wasn't the contributor → shifted-left stale values are already correct
+  // removed end wasn't the contributor -> shifted-left stale values are already correct
   if (removedEnd <= prev) return;
   let running = prev;
   for (let i = si; i < sorted.length; i++) {
