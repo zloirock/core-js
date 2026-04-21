@@ -5,7 +5,7 @@ import { unwrapParens } from './ast-patterns.js';
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
 // direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint
-// after `globalThis → _globalThis` in-place mutation). scope+adapter optional; without them
+// after `globalThis -> _globalThis` in-place mutation). scope+adapter optional; without them
 // only direct names pass
 function isProxyGlobalIdentifierNode(node, scope, adapter) {
   if (node?.type !== 'Identifier') return false;
@@ -146,7 +146,10 @@ export function createClassHelpers(t, adapter) {
     return null;
   }
 
-  function resolveSuperMember(path) {
+  // common path for `super.X` and `this.X` in static context — both resolve to the same
+  // `<SuperClass>.X` static meta since JS looks up unresolved static names on the
+  // super class's static surface
+  function resolveStaticInheritedMember(path) {
     const key = staticKeyName(path.node.property, path.node.computed);
     if (!key) return null;
     const info = findEnclosingClassMember(path);
@@ -156,37 +159,65 @@ export function createClassHelpers(t, adapter) {
       : globalProxyMemberName(superClass, path.scope, adapter));
   }
 
-  let ownInstanceNames = new WeakMap();
-  function getOwnInstanceNames(classBodyNode) {
-    let names = ownInstanceNames.get(classBodyNode);
-    if (names) return names;
-    names = new Set();
+  let ownNamesCache = new WeakMap();
+  function getOwnNames(classBodyNode, kind) {
+    let cached = ownNamesCache.get(classBodyNode);
+    if (!cached) ownNamesCache.set(classBodyNode, cached = { instance: null, static: null });
+    if (cached[kind]) return cached[kind];
+    const names = new Set();
+    const wantStatic = kind === 'static';
     for (const m of classBodyNode.body) {
-      if (isClassMember(m) && !m.static) {
+      if (isClassMember(m) && !!m.static === wantStatic) {
         const name = classMemberKeyName(m);
         if (name) names.add(name);
       }
     }
-    ownInstanceNames.set(classBodyNode, names);
+    cached[kind] = names;
     return names;
   }
 
-  // static ctx -> always shadowed: `this` is the constructor, instance polyfills don't apply.
-  // nested non-arrow fn -> `this` rebinds, can't prove ownership -> not shadowed
+  // `this.X` inside a class — shadowed iff the class declares its own `X` matching the
+  // current `this` binding (static-ctx → static members; instance-ctx → instance members).
+  // nested non-arrow fn rebinds `this` so ownership can't be proven → not shadowed
   function isShadowedByClassOwnMember(path, key) {
     if (typeof key !== 'string') return false;
     const info = findEnclosingClassMember(path);
-    if (!info) return false;
-    if (info.isStatic) return true;
-    return t.isClassBody(info.classBodyNode) && getOwnInstanceNames(info.classBodyNode).has(key);
+    if (!info || !t.isClassBody(info.classBodyNode)) return false;
+    return getOwnNames(info.classBodyNode, info.isStatic ? 'static' : 'instance').has(key);
   }
 
   function reset() {
     enclosingCache = new WeakMap();
-    ownInstanceNames = new WeakMap();
+    ownNamesCache = new WeakMap();
   }
 
-  return { resolveSuperMember, isShadowedByClassOwnMember, reset };
+  // true when `path` lives inside a static method or static block — `this` there is the
+  // constructor, so unshadowed `this.X` reads the super class's static surface
+  function isInStaticContext(path) {
+    return !!findEnclosingClassMember(path)?.isStatic;
+  }
+
+  // `super.X` anywhere → static-only resolves here (instance super.X is out of scope).
+  // `this.X` in static context → same lookup rule (class's static chain via `extends`).
+  // both share `resolveStaticInheritedMember`; this predicate gates the dispatch and the
+  // downstream instance-fallback bail (class-as-instance would be semantically wrong).
+  // direct type-string checks because estree-compat's `types` doesn't provide `isSuper`
+  function isInheritedStaticLookup(path) {
+    const objType = path.node.object?.type;
+    if (objType === 'Super') return true;
+    return objType === 'ThisExpression' && isInStaticContext(path);
+  }
+
+  return {
+    resolveStaticInheritedMember,
+    // legacy aliases kept for external callers (usage-global uses `resolveSuperMember` only)
+    resolveSuperMember: resolveStaticInheritedMember,
+    resolveThisStaticMember: resolveStaticInheritedMember,
+    isInStaticContext,
+    isInheritedStaticLookup,
+    isShadowedByClassOwnMember,
+    reset,
+  };
 }
 
 // convert Symbol.X key to kebab-case entry: Symbol.hasInstance -> symbol/has-instance
