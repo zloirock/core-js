@@ -26,9 +26,36 @@ const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`]/;
 // ES spec LineTerminator. anchors `//`-comment scans, ASI boundary checks
 export const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
 
-export function canFuseWithOpenParen(src, pos) {
+// scan backwards past whitespace and comments; -1 if we walked off the start
+function prevSignificantPos(src, pos) {
   let i = pos - 1;
-  while (i >= 0 && (src[i] === ' ' || src[i] === '\t' || src[i] === '\n' || src[i] === '\r')) i--;
+  while (i >= 0) {
+    const ch = src[i];
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+      i--;
+      continue;
+    }
+    if (ch === '/' && src[i - 1] === '*') {
+      const start = src.lastIndexOf('/*', i - 2);
+      if (start === -1) return -1;
+      i = start - 1;
+      continue;
+    }
+    // line comment: if `//` lives earlier on the same line, current char is inside it
+    let lineStart = i;
+    while (lineStart > 0 && src[lineStart - 1] !== '\n' && src[lineStart - 1] !== '\r') lineStart--;
+    const slash = src.indexOf('//', lineStart);
+    if (slash !== -1 && slash <= i) {
+      i = slash - 1;
+      continue;
+    }
+    return i;
+  }
+  return -1;
+}
+
+export function canFuseWithOpenParen(src, pos) {
+  const i = prevSignificantPos(src, pos);
   return i >= 0 && FUSES_WITH_OPEN_PAREN.test(src[i]);
 }
 
