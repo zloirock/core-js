@@ -17,6 +17,7 @@ import {
   mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
+  POSSIBLE_GLOBAL_OBJECTS,
   resolveSuperImportName,
   stripQueryHash,
   TS_EXPR_WRAPPERS,
@@ -27,6 +28,7 @@ import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyf
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
+  resolveObjectName as sharedResolveObjectName,
   resolveSymbolInEntry,
   isTypeAnnotationNodeType,
   isPolyfillableOptional,
@@ -336,6 +338,9 @@ export default function createPlugin(options) {
     // usage-pure mode
     if (method === 'usage-pure') {
       const skippedNodes = new WeakSet();
+      // declarations already rewritten by the nested-proxy batch flatten — subsequent
+      // visits of other polyfillable inner props in the same declaration skip early
+      const flattenedNestedDecls = new WeakSet();
       const transforms = new TransformQueue(code, ms);
 
       // cache setScope walk-up result per leaf node - each node's enclosing scope is
@@ -732,6 +737,19 @@ export default function createPlugin(options) {
         addInstanceTransform(binding, node, parent, metaPath, isCallParent,
           isCallParent && (parent.arguments.length > 0 || parent.optional));
         if (node.property) skipWrappedNode(node.property);
+        // `obj[Symbol[Symbol.iterator]]` — outer rewrite emits `_getIteratorMethod(Symbol)`
+        // with the receiver pasted as raw text. if that receiver is itself a bare polyfillable
+        // global (Symbol, Map, …), queue a nested transform so the final composed output
+        // reads `_getIteratorMethod(_Symbol)`. mirrors babel, whose AST clone revisits the
+        // cloned receiver through identifier visitor; text-based rewrite needs this explicit
+        polyfillBareGlobalReceiver(node.object, metaPath);
+      }
+
+      function polyfillBareGlobalReceiver(obj, metaPath) {
+        if (obj?.type !== 'Identifier' || metaPath.scope?.hasBinding?.(obj.name)) return;
+        const pure = resolveGlobalPolyfill(obj.name);
+        if (!pure) return;
+        transforms.add(obj.start, obj.end, injectPureImport(pure.entry, pure.hintName));
       }
 
       // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined)
@@ -842,12 +860,182 @@ export default function createPlugin(options) {
         ms.appendRight(value.end, ` = ${ binding }`);
       }
 
+      // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
+      // binding info; null when not polyfillable as a global. `resolvePure` without path is
+      // safe for `kind: 'global'` — `enhanceMeta`'s path-dependent `resolvePropertyObjectType`
+      // only fires for instance kind, and global-meta inputs never resolve to instance
+      function resolveGlobalPolyfill(name) {
+        const pure = resolvePure({ kind: 'global', name });
+        return pure && pure.kind !== 'instance' ? pure : null;
+      }
+
+      // `const { Array: { from, of } } = globalThis` → `const from = _Array$from; const of = _Array$of;`
+      // batch rewrite: on the first polyfillable inner prop visited for a given declaration
+      // we walk ALL declarators, extract every polyfillable inner binding, rebuild the
+      // declaration with the remaining siblings (or drop it entirely). subsequent visits of
+      // the same declaration are no-ops — matches babel's output including dropped `_globalThis`
+      // when the proxy-global init has no remaining reader. narrow-scope: proxy-global receiver
+      // (globalThis/self/window) only — single-level `{ from } = Array` is covered by the
+      // state machine below (equivalent output, different code path)
+      function tryFlattenNestedProxyDestructurePure(metaPath) {
+        if (metaPath.node.value?.type !== 'Identifier') return false;
+        // walk inner Property → inner ObjectPattern → outer Property → outer ObjectPattern
+        // → VariableDeclarator → VariableDeclaration (5 levels)
+        const declaration = metaPath.parentPath?.parentPath?.parentPath?.parentPath?.parentPath?.node;
+        if (declaration?.type !== 'VariableDeclaration') return false;
+        if (flattenedNestedDecls.has(declaration)) return true;
+        const { scope } = metaPath;
+        const extracted = []; // `const X = _polyfill;` lines, in source order across declarators
+        const preservedDecls = []; // declarator source strings to keep in the rebuilt declaration
+        let anyExtracted = false;
+        for (const d of declaration.declarations) {
+          const { consumed, preservedDeclSrc } = rewriteProxyNestedDeclarator(d, scope, extracted, declaration.kind);
+          if (consumed) anyExtracted = true;
+          if (preservedDeclSrc !== null) preservedDecls.push(preservedDeclSrc);
+        }
+        if (!anyExtracted) return false;
+        flattenedNestedDecls.add(declaration);
+        // suppress every node inside the original declaration — the outer overwrite
+        // discards them all, and leftover queue entries on init identifiers, inner
+        // bindings, or sibling property handlers would either trip transform-queue
+        // composition or produce duplicate polyfill injection (e.g. existing single-level
+        // destructure handler re-emitting Symbol after our batch already did)
+        walkAstNodes(declaration, node => skippedNodes.add(node));
+        const replacement = extracted.join('\n')
+          + (preservedDecls.length ? `\n${ declaration.kind } ${ preservedDecls.join(', ') };` : '');
+        transforms.add(declaration.start, declaration.end, replacement);
+        return true;
+      }
+
+      // plan factory: classify every outer prop of a proxy-global declarator without
+      // side effects. returned shape:
+      //   { receiver, outerProps: [{ extractions?, preservedSrc }] }
+      // preservedSrc === null → outer prop was fully consumed (drop).
+      // null when the init isn't a proxy-global ObjectPattern source or nothing matches
+      function planProxyNestedDeclarator(declarator, scope) {
+        if (declarator.id?.type !== 'ObjectPattern' || !declarator.id.properties.length) return null;
+        const receiver = declarator.init ? sharedResolveObjectName(declarator.init, scope, estreeAdapter) : null;
+        if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
+        const outerProps = declarator.id.properties.map(planOuterProp);
+        const consumedAny = outerProps.some(p => p.extractions?.length);
+        return consumedAny ? { receiver, outerProps } : null;
+      }
+
+      // proxy-global outer prop (`globalThis.Foo` access via destructure). three shapes:
+      //   - `{ Foo: { bar, ... } }` — inner pattern, extract static methods
+      //   - `{ Foo }` shorthand — polyfill Foo as a global
+      //   - `{ Foo: alias }` aliased — same, different local name
+      function planOuterProp(outerProp) {
+        if (outerProp.type !== 'Property' || outerProp.computed
+          || outerProp.key?.type !== 'Identifier') {
+          return { preservedSrc: nodeSrc(outerProp) };
+        }
+        const globalName = outerProp.key.name;
+        if (outerProp.value?.type === 'ObjectPattern') {
+          const extractions = [];
+          const preservedInner = [];
+          for (const innerProp of outerProp.value.properties) {
+            const e = planInnerProp(innerProp, globalName);
+            if (e.extractions?.length) extractions.push(...e.extractions);
+            else preservedInner.push(nodeSrc(innerProp));
+          }
+          if (!extractions.length) return { preservedSrc: nodeSrc(outerProp) };
+          if (!preservedInner.length) return { extractions, preservedSrc: null };
+          return { extractions, preservedSrc: `${ globalName }: { ${ preservedInner.join(', ') } }` };
+        }
+        if (outerProp.value?.type === 'Identifier') {
+          const pure = resolveGlobalPolyfill(globalName);
+          if (!pure) return { preservedSrc: nodeSrc(outerProp) };
+          return {
+            extractions: [{ entry: pure.entry, hint: pure.hintName, localName: outerProp.value.name }],
+            preservedSrc: null,
+          };
+        }
+        return { preservedSrc: nodeSrc(outerProp) };
+      }
+
+      // inner prop (static method on the nested global): `{ Array: { from } }` — `from` on
+      // `Array`. only simple Identifier values; rest / default / non-Identifier / unknown
+      // keys fall back to `preservedSrc`. uses the bare `resolveBuiltIn` meta resolver first
+      // to filter instance kind — `resolvePure` with no path would crash on `enhanceMeta`'s
+      // `isMemberLike(path)` for instance resolutions
+      function planInnerProp(prop, receiverName) {
+        if (prop.type !== 'Property' || prop.computed
+          || prop.key?.type !== 'Identifier' || prop.value?.type !== 'Identifier') {
+          return { preservedSrc: nodeSrc(prop) };
+        }
+        const meta = { kind: 'property', object: receiverName, key: prop.key.name, placement: 'static' };
+        if (resolveBuiltIn(meta)?.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
+        const pure = resolvePure(meta);
+        if (!pure || pure.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
+        return {
+          extractions: [{ entry: pure.entry, hint: pure.hintName, localName: prop.value.name }],
+          preservedSrc: null,
+        };
+      }
+
+      // execute the plan: inject polyfill imports, push `const X = _polyfill;` lines.
+      // returns { consumed, preservedDeclSrc }:
+      //   - consumed: whether any extraction was made (→ anyExtracted in caller)
+      //   - preservedDeclSrc: raw declarator src (no plan), null (fully consumed), or rebuilt
+      //     `{ ... } = init` source (partial — outer siblings kept)
+      function rewriteProxyNestedDeclarator(declarator, scope, extracted, kind) {
+        const plan = planProxyNestedDeclarator(declarator, scope);
+        if (!plan) return { consumed: false, preservedDeclSrc: nodeSrc(declarator) };
+        const preservedOuter = [];
+        for (const outer of plan.outerProps) {
+          for (const e of outer.extractions ?? []) {
+            const binding = injectPureImport(e.entry, e.hint);
+            extracted.push(`${ kind } ${ e.localName } = ${ binding };`);
+          }
+          if (outer.preservedSrc !== null) preservedOuter.push(outer.preservedSrc);
+        }
+        if (!preservedOuter.length) return { consumed: true, preservedDeclSrc: null };
+        // partial flatten: preserved declarator still destructures from the receiver,
+        // so polyfill it — old runtimes without `globalThis` / `self` would crash otherwise
+        const receiverPure = resolveGlobalPolyfill(plan.receiver);
+        const initSrc = receiverPure
+          ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+          : nodeSrc(declarator.init);
+        return {
+          consumed: true,
+          preservedDeclSrc: `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`,
+        };
+      }
+
+      // pre-pass helper: true when every outer prop was fully consumed — flatten will
+      // discard the declarator's init, so `_globalThis` injection can be suppressed
+      function canFullyConsumeProxyDeclarator(d, scope) {
+        const plan = planProxyNestedDeclarator(d, scope);
+        return !!plan && plan.outerProps.every(p => p.preservedSrc === null);
+      }
+
+      // recursive AST walker — seeds skippedNodes before batch overwrite so queued visits
+      // on descendants short-circuit (no duplicate polyfill inject from sibling handlers)
+      function walkAstNodes(root, visit) {
+        if (!root || typeof root !== 'object' || typeof root.type !== 'string') return;
+        visit(root);
+        for (const key of Object.keys(root)) {
+          const value = root[key];
+          if (Array.isArray(value)) for (const v of value) walkAstNodes(v, visit);
+          else walkAstNodes(value, visit);
+        }
+      }
+
       function handleDestructuringPure(meta, metaPath, propNode) {
         // IIFE / parameter destructure: ObjectPattern's parent is a function (or an
         // AssignmentPattern default at function-param position — `function({ x } = Y)`)
         const patternParent = metaPath.parentPath?.parentPath?.node;
         const patternGrandparent = metaPath.parentPath?.parentPath?.parentPath?.node;
         if (isFunctionParamDestructureParent(patternParent, patternGrandparent, metaPath.parent)) {
+          return handleParameterDestructurePure(meta, metaPath, propNode);
+        }
+        // nested proxy-global destructure `{ Array: { from } } = globalThis` — default
+        // wouldn't fire (Array.from is always non-undefined on the target engines, just
+        // potentially buggy). flatten to `const from = _Array$from` when both inner + outer
+        // patterns hold only this one chain; fall back to param-default for complex shapes
+        if (patternParent?.type === 'Property') {
+          if (tryFlattenNestedProxyDestructurePure(metaPath)) return;
           return handleParameterDestructurePure(meta, metaPath, propNode);
         }
         // two-pass post: skip `{ key: _unusedN, ...rest }` sentinels left by pre -
@@ -1299,6 +1487,18 @@ export default function createPlugin(options) {
         }
       };
 
+      // pre-pass: detect declarations that WILL be fully flattened (every outer prop
+      // resolvable as proxy-global shorthand or nested static method). the outer rewrite
+      // discards the init span, so suppress handleIdentifier's `_globalThis` injection
+      // for it — otherwise a now-dead import leaks into the final bundle
+      traverse(ast, {
+        $: { scope: true },
+        VariableDeclaration(path) {
+          for (const d of path.node.declarations) {
+            if (d.init && canFullyConsumeProxyDeclarator(d, path.scope)) skippedNodes.add(d.init);
+          }
+        },
+      });
       traverse(ast, mergeVisitors({
         $: { scope: true },
         Program(path) { injector.rootScope = path.scope; },
