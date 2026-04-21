@@ -1,9 +1,6 @@
-import _isIterable from "@core-js/pure/actual/is-iterable";
-// `Symbol.${v}` template resolves to a `Symbol.X` string when `v` resolves via binding or
-// literal concat - resolveKey returns it from `node.left`, then handleBinaryIn's second
-// branch (`resolvedLeft?.startsWith('Symbol.')`) picks it up. the in-check rewrites to
-// the `Symbol.iterator` polyfill even though the template literal itself isn't a member
-// expression - handleBinaryIn's first branch (asSymbolRef on left.object) bails since
-// TemplateLiteral has no `.object`
+// `` `Symbol.${v}` `` folds to the string `'Symbol.X'` via TemplateLiteral + literal concat,
+// but that's still a string — `isSymbolSourcedKey` rejects template-literal sources. the
+// symbol-in short-circuit skips and `obj` isn't a known static, so no polyfill emitted.
+// `k`'s init `'iter' + 'ator'` folds to a string too but `k` itself is unused here
 const key = 'iter' + 'ator';
-_isIterable(obj);
+`Symbol.${key}` in obj;
