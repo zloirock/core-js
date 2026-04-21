@@ -160,6 +160,12 @@ export function unwrapParens(node) {
   return node;
 }
 
+// generic type arguments at a use-site (`Array<string>`) — babel: `typeParameters`,
+// oxc TS-ESTree: `typeArguments`. class `extends` uses `superTypeParameters` /
+// `superTypeArguments` under the same split
+export const getTypeArgs = node => node?.typeParameters ?? node?.typeArguments;
+export const getSuperTypeArgs = node => node?.superTypeArguments ?? node?.superTypeParameters;
+
 // `export const X = ...` / `export default function X() {}` bind `X` in the module scope
 // exactly like their un-exported form; callers that inspect top-level declarations get the
 // inner node, so the export wrapper is transparent to them
