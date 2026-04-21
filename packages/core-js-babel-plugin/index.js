@@ -493,7 +493,7 @@ export default function plugin(api, options) {
       // --- init: per-file state reset ---
 
       function initFile(path) {
-        skipFile = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
+        const isInternalCoreJS = !!path.hub.file.opts.filename && isCoreJSFile(path.hub.file.opts.filename);
         // source wins over sourceType: CJS-assign at top level of a `sourceType: "module"` file
         // would otherwise produce mixed `import` + `module.exports` output
         importStyle = importStyleOption ?? (!hasTopLevelESM(path.node)
@@ -511,10 +511,12 @@ export default function plugin(api, options) {
         if (helperVisitors && helperVisitors !== usageVisitors) helperVisitors[USAGE_VISITORS_RESET]?.();
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
-        // babel lifts directives into Program.directives, so body[0] is already post-prologue
-        const directives = skipFile ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start, path.node);
-        if (directives === true) skipFile = true;
-        disabledLines = directives !== true ? directives : null;
+        // babel lifts directives into Program.directives, so body[0] is already post-prologue.
+        // `directives === true` signals `disable-file` — collapse both skip sources into one write
+        const directives = isInternalCoreJS ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start, path.node);
+        const fileDisabled = directives === true;
+        skipFile = isInternalCoreJS || fileDisabled;
+        disabledLines = fileDisabled ? null : directives;
         // entry-global handles re-emit via detectEntries
         if (!skipFile && method !== 'entry-global') {
           const removed = new Set();
