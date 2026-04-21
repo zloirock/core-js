@@ -266,7 +266,6 @@ export default function plugin(api, options) {
         // single-declarator simple-chain: replaceWith preserves leading comments
         if (willRemoveDeclarator && declCount === 1) {
           declaration.replaceWith(extracted);
-
           return true;
         }
         declaration.insertBefore(extracted);
