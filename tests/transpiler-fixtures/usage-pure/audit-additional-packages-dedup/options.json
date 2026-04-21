@@ -1,0 +1,20 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "additionalPackages": [
+          "@core-js/pure",
+          "@core-js/pure",
+          "My-Fork",
+          "my-fork"
+        ],
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ]
+}
