@@ -5,7 +5,7 @@ import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 export default class ImportInjector extends ImportInjectorState {
   #t;
   #programPath;
-  // binding name → babel Identifier node (flushed imports clone it to preserve range/loc).
+  // binding name -> babel Identifier node (flushed imports clone it to preserve range/loc).
   // hint / source live on the base class via `#importInfoByName` + `existingPureImports`
   #idByName = new Map();
   // flush runs multiple times (pre, programExit, deferred SE) - skip already-emitted
@@ -30,7 +30,12 @@ export default class ImportInjector extends ImportInjectorState {
     if (super.isNameTaken(name)) return true;
     const { scope } = this.#programPath;
     const program = scope.getProgramParent();
-    return scope.hasBinding(name) || !!program.references[name] || !!program.uids[name];
+    // `program.globals` captures undeclared identifier uses — sloppy-mode assignment
+    // targets (`_Map = foo()`) and unbound reads (`Map` as NewExpression callee) both
+    // land here. without it, UID generator would pick `_Map` and collide with a user's
+    // accidental `_Map = ...` sloppy global (reassigning our const import throws at runtime)
+    return scope.hasBinding(name) || !!program.globals[name]
+      || !!program.references[name] || !!program.uids[name];
   }
 
   // publish every allocated UID into program.references/.uids so sibling transforms
@@ -124,7 +129,7 @@ export default class ImportInjector extends ImportInjectorState {
 
     // identity set of plugin-owned binding objects guards rename against user's nested
     // shadow-binding of the same name (e.g. user's `const _ref3` inside a function body
-    // while plugin's outer allocation shifts `_ref5` → `_ref3`)
+    // while plugin's outer allocation shifts `_ref5` -> `_ref3`)
     const ownedBindings = new Set();
     for (const name of this.#refs) if (bindings.has(name)) ownedBindings.add(bindings.get(name));
 

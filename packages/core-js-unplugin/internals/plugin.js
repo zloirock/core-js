@@ -412,6 +412,11 @@ export default function createPlugin(options) {
           }
           scopeCache.set(metaPath.node, { scope: this.scope, arrow: this.arrow });
         },
+        // allocates a UID AND queues a scope-local `var X;` emission at the target block
+        // (arrow-body wrap / block body / program). use this when the caller writes to the
+        // ref via assignment and needs a declaration in scope. callers that emit their own
+        // `const X = Y` (e.g. memo decls inside `parts`) go straight to `injector.generateRef`
+        // with `hoisted: false` to avoid a duplicate bare `var X;`
         genRef(overrides) {
           const { arrow, scope } = overrides || this;
           // arrow expression body: var goes into a new block wrapping the body

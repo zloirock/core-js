@@ -3,11 +3,17 @@ import ImportInjectorState from '@core-js/polyfill-provider/import-state';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
 export default class ImportInjector extends ImportInjectorState {
-  // two-pass pre: collect but don't emit; post flushes the combined set via snapshot inherit
+  // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot
+  // inherit. refs (`var _refN;`) ARE emitted in pre regardless, so pre's output is valid in
+  // strict mode (ESM) even when post is skipped — otherwise `_ref = foo()` is an undeclared
+  // assignment that throws ReferenceError at runtime
   #deferImports = false;
   #directiveEnd = 0;
   #ms;
   #refs = [];
+  // refs already written to `ms` by a prior flush (or inherited from pre via snapshot).
+  // lets post emit only the delta so pre + post doesn't produce duplicate `var X;` lines
+  #flushedRefs = new Set();
   #rootScope = null;
   // `_unusedN` sentinels left by pre's rest-destructure rebuild - post recognises them via
   // hasGeneratedUnusedName() and skips re-processing the same `{ key: _unusedN, ...rest }`
@@ -38,6 +44,9 @@ export default class ImportInjector extends ImportInjectorState {
     for (const g of snap.existingGlobals) this.existingGlobalImports.add(g);
     for (const [k, v] of snap.existingPure) this.existingPureImports.set(k, v);
     this.#refs.push(...snap.refs);
+    // pre already emitted `var ...` for these refs into its transformed output (which is
+    // post's input); don't re-emit or we'd get two declarations at the same position
+    for (const r of snap.refs) this.#flushedRefs.add(r);
   }
 
   // raw references - pre is discarded right after finalize, post's #rehydrate copies
@@ -90,33 +99,48 @@ export default class ImportInjector extends ImportInjectorState {
     return resolveImportPath(this.pkg, subpath, this.absoluteImports);
   }
 
-  // pre returns early (no emission); its transformed code carries `_ref = ...` assignments
-  // without a `var _ref;`, which oxc accepts as undeclared assignment - post lands the
-  // declaration before anything runs
+  // imports vs refs have different flush rules: imports are deferred in `pre` (post emits
+  // the combined set via snapshot inherit); refs go out always, because `_ref = foo()`
+  // without a `var _ref;` throws ReferenceError in strict-mode ESM if post skips.
+  // `#flushedRefs` dedupes so post doesn't re-emit the same `var` pre already wrote
   flush() {
-    if (this.#deferImports) return;
     const lines = [];
-    const newGlobals = sortByPolyfillOrder([...this.globalImports].filter(m => !this.existingGlobalImports.has(m)));
-    const activePure = this.referencedInSource
-      ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
-      : [...this.pureImports];
-    // emit imports first, then the `var _ref, _ref2, ...;` declaration — imports are
-    // hoisted by the engine either way, but keeping the source order lint-clean avoids
-    // "statement before import" warnings in tools that don't apply ESM hoisting
-    if (this.importStyle === 'require') {
-      for (const mod of newGlobals) lines.push(`require("${ this.#resolvePath(`modules/${ mod }`) }");`);
-      for (const [entry, name] of activePure) lines.push(`var ${ name } = require("${ this.#resolvePath(entry) }");`);
-    } else {
-      for (const mod of newGlobals) lines.push(`import "${ this.#resolvePath(`modules/${ mod }`) }";`);
-      for (const [entry, name] of activePure) lines.push(`import ${ name } from "${ this.#resolvePath(entry) }";`);
-    }
-    if (this.#refs.length) lines.push(`var ${ this.#refs.join(', ') };`);
+    if (!this.#deferImports) this.#appendImportLines(lines);
+    this.#appendRefLines(lines);
     if (!lines.length) return;
     const block = `${ lines.join('\n') }\n`;
     // MagicString can't source-map appended content, so this block is synthetic in the map
     const insertPos = this.#prologueEnd();
     if (insertPos > 0) this.#ms.appendRight(insertPos, block);
     else this.#ms.prepend(block);
+  }
+
+  // `import "…"` / `var X = require("…")` — dispatched by `importStyle`. side-effect-only
+  // globals first, then pure-import bindings. `referencedInSource` filters dead imports
+  // when the caller tracks usage
+  #appendImportLines(lines) {
+    const newGlobals = sortByPolyfillOrder([...this.globalImports].filter(m => !this.existingGlobalImports.has(m)));
+    const activePure = this.referencedInSource
+      ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
+      : [...this.pureImports];
+    const isRequire = this.importStyle === 'require';
+    for (const mod of newGlobals) {
+      const path = this.#resolvePath(`modules/${ mod }`);
+      lines.push(isRequire ? `require("${ path }");` : `import "${ path }";`);
+    }
+    for (const [entry, name] of activePure) {
+      const path = this.#resolvePath(entry);
+      lines.push(isRequire ? `var ${ name } = require("${ path }");` : `import ${ name } from "${ path }";`);
+    }
+  }
+
+  // `var _ref, _ref2, ...;` for refs this flush hasn't written yet. pre's emission makes
+  // the output strict-mode safe; post's emission adds any new refs post allocated
+  #appendRefLines(lines) {
+    const newRefs = this.#refs.filter(r => !this.#flushedRefs.has(r));
+    if (!newRefs.length) return;
+    lines.push(`var ${ newRefs.join(', ') };`);
+    for (const r of newRefs) this.#flushedRefs.add(r);
   }
 
   // BOM already stripped by caller before MagicString is created
