@@ -1446,7 +1446,9 @@ export default function createPlugin(options) {
 
       function handleInExpression(meta, metaPath) {
         const { node } = metaPath;
-        const symbolIn = resolveSymbolInEntry(meta.key);
+        // symbol-sourced LHS (`Symbol.X in obj` / alias binding) → dedicated symbol-in
+        // polyfill. string-sourced `'Symbol.X' in Obj` takes the string-key branch below
+        const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
         if (symbolIn && isEntryNeeded(symbolIn.entry)) {
           const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
           if (meta.key === 'Symbol.iterator') {
