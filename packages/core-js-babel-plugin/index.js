@@ -341,7 +341,13 @@ export default function plugin(api, options) {
         if (initNode) skippedNodes.add(initNode);
       }
 
-      const { resolveSuperMember, isShadowedByClassOwnMember, reset: resetClassHelpers } = createClassHelpers(t, adapter);
+      const {
+        resolveSuperMember,
+        resolveStaticInheritedMember,
+        isInheritedStaticLookup,
+        isShadowedByClassOwnMember,
+        reset: resetClassHelpers,
+      } = createClassHelpers(t, adapter);
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
@@ -472,16 +478,19 @@ export default function plugin(api, options) {
             if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
             if (isForXWriteTarget(path)) return;
             if (isUpdateParent(unwrapTSExpressionParent(path).parentPath?.node)) return;
-            if (t.isSuper(path.node.object)) {
-              const superMeta = resolveSuperMember(path);
-              if (!superMeta) return;
-              // `extends MyPromise` (user-aliased pure import) - map binding -> global hint
-              resolveSuperImportName(injector, superMeta);
-              meta = superMeta;
-            }
-            // `this.X` inside a class that defines its own `X` member - polyfill would
-            // bypass the user's override (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
+            // shadow check for `this.X` — polyfill would bypass the user's own member
+            // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
+            // `super.X` and unshadowed `this.X` in static ctx resolve against the super
+            // class's static surface via the same path — `this` in static ctx is the
+            // constructor, so inherited static lookup behaves exactly like `super.X`
+            if (isInheritedStaticLookup(path)) {
+              const inheritedMeta = resolveStaticInheritedMember(path);
+              if (!inheritedMeta) return;
+              // `extends MyPromise` (user-aliased pure import) — map binding → global hint
+              resolveSuperImportName(injector, inheritedMeta);
+              meta = inheritedMeta;
+            }
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
           }
@@ -508,10 +517,11 @@ export default function plugin(api, options) {
         if (path.isObjectProperty()) {
           if (!meta.fromFallback) handleObjectPropertyResult(path, kind, entry, hintName);
         } else {
-          // `super.X` where X is not statically on the super class - resolve() falls back
-          // from missing-static to instance, but `_binding(super)` / `_binding.call(super, ...)`
-          // are syntactically invalid (super is restricted to direct member/call positions)
-          if (kind === 'instance' && t.isSuper(path.node.object)) return;
+          // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
+          // on the super class — resolve() falls back to instance. for super: syntactically
+          // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
+          // `_at(this)` would treat the class as an array. either way, bail
+          if (kind === 'instance' && isInheritedStaticLookup(path)) return;
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             const innerChain = findInnerPolyChain(path);
