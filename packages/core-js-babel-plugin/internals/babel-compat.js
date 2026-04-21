@@ -311,6 +311,16 @@ export default function (t, { getInjector } = {}) {
     return stmt;
   }
 
+  // `replaceWith` doesn't register declarations on the target scope, so after collapsing
+  // `const { X } = ...` to `const X = ...` a later visit of bare `X` would see an empty
+  // scope and mistake `X` for an unbound global. safe only on `replaceWith` (original
+  // bindings gone); `insertBefore` keeps the old declaration and duplicate-registering
+  // the same name trips babel's block-scope collision check in rest / multi-prop paths
+  function replaceWithAndRegister(path, node) {
+    const [newPath] = path.replaceWith(node);
+    newPath.scope.registerDeclaration(newPath);
+  }
+
   // `(inner(), Array)` — when we lift the init as a standalone statement only the
   // side-effectful head is needed; the trailing value (`Array`, read by the destructure)
   // becomes a no-op read once extraction leaves no destructure target. trim it so the
@@ -398,7 +408,7 @@ export default function (t, { getInjector } = {}) {
           else if (isMultiDecl) {
             parent.node.id = localBinding;
             parent.node.init = value;
-          } else declaration.replaceWith(extractedDeclaration);
+          } else replaceWithAndRegister(declaration, extractedDeclaration);
         } else {
           // --- block-level: defer SE to Program.exit, then replace ---
           if (isStaticValue) deferSideEffect(declaration, parent.node.init);
@@ -409,7 +419,7 @@ export default function (t, { getInjector } = {}) {
             if (idx !== -1) declaration.node.declarations.splice(idx, 1, ...pending);
             trySplitDeclaration(declaration, isExport);
           } else {
-            declaration.replaceWith(extractedDeclaration);
+            replaceWithAndRegister(declaration, extractedDeclaration);
           }
         }
       } else if (isMultiDecl || (isForInit && hasRest)) {
