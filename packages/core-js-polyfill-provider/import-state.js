@@ -5,10 +5,17 @@ import { findUniqueName, kebabToPascal } from './helpers.js';
 // `\d*` matches bare `_ref` and `_ref2, _ref3, ...` (skip-1 per babel UID convention)
 export const ORPHAN_REF_PATTERN = /^_ref\d*$/;
 
-// `promise/try` / `array/instance/at` / `weak-map` → `Promise` / `Array` / `WeakMap`.
-// first entry segment is the built-in class in kebab-case; PascalCase it so a user
-// pure-import binding maps back to its global and `super.X` resolves
-export const entryToGlobalHint = entry => kebabToPascal(entry.split('/')[0]) || null;
+// bare-class and `/constructor` entries PascalCase the first segment to the global name.
+// method / instance / helper entries (`promise/try`, `array/from`, `array/instance/at`, ...)
+// return null: the user's binding is the function, not the class, so mapping to a global
+// would make `super.X` on `class extends MyMethod` get polyfilled as if MyMethod were the
+// class — silently "fixing" broken user code the plugin has no business touching
+export const entryToGlobalHint = entry => {
+  if (!entry) return null;
+  const [head, ...rest] = entry.split('/');
+  if (rest.length && rest.at(-1) !== 'constructor') return null;
+  return kebabToPascal(head) || null;
+};
 
 // import-emitter state; each plugin subclasses and implements `flush()`.
 // augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass
@@ -25,7 +32,7 @@ export default class ImportInjectorState {
   usedNames = new Set();
   // post-pass dead-import filter - null when inactive
   referencedInSource = null;
-  // binding-name → { source, hint } for BOTH plugin-emitted and user-registered pure
+  // binding-name -> { source, hint } for BOTH plugin-emitted and user-registered pure
   // imports. `source` is `${mode}/${entry}` (used by `getBinding` adapter to detect
   // Symbol.X polyfills via source-path); `hint` is the global class name so
   // `resolveSuperImportName` can map `class C extends MyPromise` back to `Promise`
@@ -67,20 +74,20 @@ export default class ImportInjectorState {
     const source = `${ this.mode }/${ entry }`;
     this.existingPureImports.set(source, name);
     this.usedNames.add(name);
-    // binding → global hint lets `resolveSuperImportName` find `statics.Promise.try` for
+    // binding -> global hint lets `resolveSuperImportName` find `statics.Promise.try` for
     // `import MyPromise from '@core-js/pure/actual/promise'`; source feeds the adapter's
     // `importSource` lookup (Symbol.X detection via path)
     this.#importInfoByName.set(name, { source, hint: entryToGlobalHint(entry) ?? name });
   }
 
-  // binding-name → { source, hint } for super-import back-mapping (see `resolveSuperImportName`
+  // binding-name -> { source, hint } for super-import back-mapping (see `resolveSuperImportName`
   // in helpers/class-walk.js) and `getBinding(name).importSource` path-match detection;
   // null when unknown
   getPureImport(name) {
     return this.#importInfoByName.get(name) ?? null;
   }
 
-  // local-name → global-name for user destructure aliases (`{Symbol: S} = globalThis` → S).
+  // local-name -> global-name for user destructure aliases (`{Symbol: S} = globalThis` -> S).
   // babel AST mutation rewrites the destructure binding so `resolveBindingToGlobal` can't
   // walk the resulting shape (ConditionalExpression for defaulted form); unplugin doesn't
   // mutate, keeps the table empty
