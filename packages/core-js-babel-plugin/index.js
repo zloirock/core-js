@@ -617,6 +617,7 @@ export default function plugin(api, options) {
           });
         }
         injector?.flush();
+        injector?.normalizeArrowRefParams();
         injector?.pruneUnusedRefs();
         injector?.reorderRefsAfterImports();
         outputDebug();
