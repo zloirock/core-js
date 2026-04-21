@@ -10,6 +10,7 @@ export {
   isForXWriteTarget,
   isASTNode,
   isFunctionParamDestructureParent,
+  isSingleNestedProxyChain,
   isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget,

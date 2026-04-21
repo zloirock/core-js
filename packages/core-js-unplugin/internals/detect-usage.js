@@ -2,6 +2,7 @@
 import {
   buildDestructuringInitMeta,
   checkLogicalAssignLhsGlobal,
+  checkLogicalAssignLhsMember,
   checkTypeAnnotations,
   createSelfRefVarGuard,
   handleBinaryIn,
@@ -9,10 +10,12 @@ import {
   isKnownGlobalName,
   resolveCallArgument,
   resolveKey as sharedResolveKey,
+  resolveObjectName as sharedResolveObjectName,
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
+  POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   isASTNode,
   isFunctionParamDestructureParent,
@@ -151,9 +154,28 @@ function buildDestructuringMeta(propNode, parentPath) {
         initNode = parent.node.right;
       }
       break;
+    case 'Property': {
+      // nested pattern `{ Array: { from } } = globalThis` — inner Property's outer chain:
+      // Property → ObjectPattern → VariableDeclarator. resolve outer init; if proxy-global,
+      // return structured meta with outer key as receiver and inner as key
+      const outerPattern = parent.parentPath;
+      const outerDecl = outerPattern?.parentPath;
+      if (outerPattern?.node?.type === 'ObjectPattern' && outerDecl?.node?.type === 'VariableDeclarator') {
+        const receiver = outerDecl.node.init
+          ? sharedResolveObjectName(outerDecl.node.init, outerDecl.scope ?? scope, estreeAdapter)
+          : null;
+        if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
+          const innerKey = extractPropertyKey(propNode, scope);
+          const outerKey = sharedResolveKey(parent.node.key, parent.node.computed, outerDecl.scope ?? scope, estreeAdapter);
+          if (innerKey && outerKey) {
+            return { kind: 'property', object: outerKey, key: innerKey, placement: 'static' };
+          }
+        }
+      }
+      break;
+    }
     case 'ForOfStatement':
     case 'ForInStatement':
-    case 'Property':
     case 'ArrayPattern':
     case 'RestElement':
     case 'CatchClause': break;
@@ -356,6 +378,12 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
 
   function memberExpressionVisitor(path) {
     const { node, parent, key: parentKey } = path;
+    // `globalThis.Map ||= X` — check BEFORE `isReferenced` rejects (write-context member)
+    // and before child-visitor rewrites the object identifier into `_globalThis`
+    if (onWarning) {
+      const warning = checkLogicalAssignLhsMember(node, parent);
+      if (warning) onWarning(warning);
+    }
     if (handledObjects.has(node)) return;
     if (!isReferenced(node, parent, parentKey, path.parentPath)) return;
     const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
