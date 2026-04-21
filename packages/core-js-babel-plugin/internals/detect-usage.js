@@ -1,6 +1,7 @@
 import {
   buildDestructuringInitMeta,
   checkLogicalAssignLhsGlobal,
+  checkLogicalAssignLhsMember,
   checkTypeAnnotations,
   createSelfRefVarGuard,
   handleBinaryIn,
@@ -8,10 +9,16 @@ import {
   isKnownGlobalName,
   resolveCallArgument,
   resolveKey as sharedResolveKey,
+  resolveObjectName as sharedResolveObjectName,
   walkTypeAnnotationGlobals,
 } from '@core-js/polyfill-provider/detect-usage';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
-import { TS_EXPR_WRAPPERS, isFunctionParamDestructureParent, isTSTypeOnlyIdentifier } from '@core-js/polyfill-provider/helpers';
+import {
+  POSSIBLE_GLOBAL_OBJECTS,
+  TS_EXPR_WRAPPERS,
+  isFunctionParamDestructureParent,
+  isTSTypeOnlyIdentifier,
+} from '@core-js/polyfill-provider/helpers';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -71,6 +78,9 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
   }
 
   function handleIdentifier(path) {
+    // orphaned node (parent removed by a sibling transform): `isReferencedIdentifier`
+    // reads `parent.type` unconditionally and would crash. check BEFORE everything else
+    if (!path.parent) return;
     // babel classifies logical-assignment LHS as non-reference (write-context); diagnose
     // the `Map ||= X` pattern before the early return so users see why nothing polyfilled
     if (onWarning) {
@@ -117,9 +127,37 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
 
   function handleMemberExpression(path) {
     const { node } = path;
+    // `globalThis.Map ||= X` — check BEFORE inner-identifier visit rewrites `globalThis`
+    // into `_globalThis` (at which point `POSSIBLE_GLOBAL_OBJECTS.has(_globalThis)` is false)
+    if (onWarning) {
+      const warning = checkLogicalAssignLhsMember(node, path.parent);
+      if (warning) onWarning(warning);
+    }
     if (handledObjects.has(node)) return;
     const meta = handleMemberExpressionNode(node, path.scope, adapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
+  }
+
+  // nested pattern `{ Array: { from } } = globalThis` — inner ObjectPattern lives under
+  // an outer ObjectProperty. if the outer chain terminates in a VariableDeclarator with
+  // a proxy-global init, the outer key names the static receiver for inner bindings
+  function emitNestedDestructureMeta(path, outerProp) {
+    const innerKey = sharedResolveKey(path.node.key, path.node.computed, path.scope, adapter);
+    if (!innerKey) return;
+    const outerPattern = outerProp.parentPath;
+    const outerDecl = outerPattern?.parentPath;
+    if (outerPattern?.isObjectPattern() && outerDecl?.isVariableDeclarator()) {
+      const initNode = outerDecl.node.init;
+      const receiver = initNode ? sharedResolveObjectName(initNode, outerDecl.scope, adapter) : null;
+      if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
+        const outerKey = sharedResolveKey(outerProp.node.key, outerProp.node.computed, outerDecl.scope, adapter);
+        if (outerKey) {
+          onUsage({ kind: 'property', object: outerKey, key: innerKey, placement: 'static' }, path);
+          return;
+        }
+      }
+    }
+    onUsage({ kind: 'property', object: null, key: innerKey, placement: null }, path);
   }
 
   function handleDestructuring(path) {
@@ -147,14 +185,16 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
       const meta = buildDestructuringInitMeta(parent.node.right, key, parent.scope, adapter);
       onUsage(meta, path);
       return;
-    } else if (parent.isObjectProperty()
-      || parent.isAssignmentPattern()
+    } else if (parent.isObjectProperty()) {
+      emitNestedDestructureMeta(path, parent);
+      return;
+    } else if (parent.isAssignmentPattern()
       || parent.isForOfStatement()
       || parent.isForInStatement()
       || parent.isArrayPattern()
       || parent.isRestElement()
       || parent.isCatchClause()) {
-      // nested / for-of / array / catch: unknown receiver, emit typeless meta
+      // for-of / array / catch: unknown receiver, emit typeless meta
       const key = resolveKey(path.get('key'), path.node.computed);
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;
