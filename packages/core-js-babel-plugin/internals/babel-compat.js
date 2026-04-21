@@ -10,14 +10,11 @@ export default function (t, { getInjector } = {}) {
   const deferredSideEffects = [];
   // original body index of each declaration, before insertBefore shifts it
   let originalDeclKeys = new WeakMap();
-  // pending extracted declarators per ObjectPattern (for multi-declarator source-order split)
-  let pendingExtractions = new WeakMap();
 
   const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
   function reset() {
     originalDeclKeys = new WeakMap();
-    pendingExtractions = new WeakMap();
     isInTypeAnnotation.reset();
   }
 
@@ -270,18 +267,16 @@ export default function (t, { getInjector } = {}) {
     ]));
   }
 
-  // multi-decl extraction: rest uses in-place splice (source order), non-rest batches for isEmpty
-  function collectMultiDeclExtraction(declaration, parent, objectPattern, localBinding, value, hasRest) {
-    const extracted = t.variableDeclarator(localBinding, value);
-    if (hasRest) {
-      // splice right before the rest-declarator to preserve source order
-      const idx = declaration.node.declarations.indexOf(parent.node);
-      if (idx !== -1) declaration.node.declarations.splice(idx, 0, extracted);
-    } else {
-      // collect for batch insertion when isEmpty fires via trySplitDeclaration
-      if (!pendingExtractions.has(objectPattern.node)) pendingExtractions.set(objectPattern.node, []);
-      pendingExtractions.get(objectPattern.node).push(extracted);
-    }
+  // multi-decl extraction: insert the extracted declarator adjacent to the parent.
+  // `parent.insertBefore` lets babel-traverse keep the still-pending declarator paths
+  // in sync — raw splice into `declarations[]` desyncs `path.key` of later siblings
+  // and their visitor stops firing (missing polyfill for the next sibling prop).
+  // rest keeps its declarator (rest semantics depend on pattern staying live);
+  // non-rest with remaining non-polyfill siblings (e.g. `{ from, noSuch } = Array, y = 1`)
+  // also needs inline insertion — earlier batching-until-isEmpty flow stranded the extraction
+  // when a non-polyfill leftover kept the pattern live
+  function collectMultiDeclExtraction(parent, localBinding, value) {
+    parent.insertBefore(t.variableDeclarator(localBinding, value));
   }
 
   // for-init with SE: keep SE inline so it doesn't escape the loop
@@ -413,10 +408,12 @@ export default function (t, { getInjector } = {}) {
           // --- block-level: defer SE to Program.exit, then replace ---
           if (isStaticValue) deferSideEffect(declaration, parent.node.init);
           if (isMultiDecl) {
-            const pending = pendingExtractions.get(objectPattern.node) ?? [];
-            pending.push(t.variableDeclarator(localBinding, value));
+            // previously-extracted declarators (from `collectMultiDeclExtraction`) are already
+            // spliced inline; only the now-empty parent declarator needs swapping for the final
+            // extraction. `trySplitDeclaration` then hoists standalone extractions out of mixed
+            // export / non-export runs
             const idx = declaration.node.declarations.indexOf(parent.node);
-            if (idx !== -1) declaration.node.declarations.splice(idx, 1, ...pending);
+            if (idx !== -1) declaration.node.declarations.splice(idx, 1, t.variableDeclarator(localBinding, value));
             trySplitDeclaration(declaration, isExport);
           } else {
             replaceWithAndRegister(declaration, extractedDeclaration);
@@ -426,7 +423,7 @@ export default function (t, { getInjector } = {}) {
         // for-init cannot hoist outside the loop header (block-scoped kinds would escape,
         // Babel wraps the init otherwise) - splice the extracted declarator next to the
         // rest-keeping pattern so both stay in the for-init
-        collectMultiDeclExtraction(declaration, parent, objectPattern, localBinding, value, hasRest);
+        collectMultiDeclExtraction(parent, localBinding, value);
       } else if (isExport) {
         declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
       } else {
