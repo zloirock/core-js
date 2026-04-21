@@ -440,6 +440,15 @@ export default function createPlugin(options) {
         return code.slice(n.start, n.end);
       }
 
+      // wrap a polyfill binding in a source-level SequenceExpression carrying any side
+      // effects collected from the receiver / computed-key. noop when empty — callers can
+      // invoke unconditionally. mirrors `withSideEffects` in babel-plugin, text-based
+      function wrapSideEffects(binding, sideEffects) {
+        return sideEffects?.length
+          ? `(${ sideEffects.map(e => nodeSrc(e)).join(', ') }, ${ binding })`
+          : binding;
+      }
+
       // source of `node` with its outer `ParenthesizedExpression` wrapper dropped — except
       // when the inner is a `SequenceExpression` (dropping the parens changes semantics)
       function unwrapParensSrc(node) {
@@ -1412,8 +1421,11 @@ export default function createPlugin(options) {
         }
       }
 
-      // replace global identifier or static member with polyfill import binding
-      function replaceGlobalOrStatic(binding, node, parent, metaPath) {
+      // replace global identifier or static member with polyfill import binding. the
+      // shorthand / export / super early-returns don't carry side effects (Identifier /
+      // Super can't host a SequenceExpression); only the final MemberExpression replacement
+      // wraps with `sideEffects` from the receiver / computed-key
+      function replaceGlobalOrStatic(binding, node, parent, metaPath, sideEffects) {
         // oxc emits two Identifier nodes (key + value, or local + exported) sharing the
         // same source range for shorthand `{ Promise }` and bare `export { Promise }`
         const directParent = metaPath.parent;
@@ -1453,7 +1465,7 @@ export default function createPlugin(options) {
           start = parent.object.start;
           end = afterOptional(parent.object.end, !parent.computed);
         }
-        transforms.add(start, end, binding);
+        transforms.add(start, end, wrapSideEffects(binding, sideEffects));
       }
 
       const usagePureCallback = (meta, metaPath) => {
@@ -1526,7 +1538,7 @@ export default function createPlugin(options) {
         if (kind === 'instance' && node.type === 'MemberExpression') {
           replaceInstance(binding, node, parent, metaPath);
         } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
-          replaceGlobalOrStatic(binding, node, parent, metaPath);
+          replaceGlobalOrStatic(binding, node, parent, metaPath, meta.sideEffects);
         }
       };
 
