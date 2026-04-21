@@ -159,6 +159,51 @@ export default function plugin(api, options) {
         prop.node.shorthand = false;
       }
 
+      // `const { Array: { from } } = globalThis` → `const from = _Array$from`. extracts the
+      // inner property to a top-level declaration and cleans up the remaining pattern:
+      // - drop inner prop; if inner pattern becomes empty, drop outer Property too
+      // - if outer pattern becomes empty, drop the whole VariableDeclaration
+      // multi-decl (e.g. `const {...} = X, y = 1`) / non-Identifier inner value / AssignmentPattern
+      // default fall back to the param-default path — those can't be trivially flattened
+      function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
+        if (!t.isIdentifier(prop.node.value)) return false;
+        const innerPattern = prop.parentPath;
+        const outerProp = innerPattern.parentPath;
+        const outerPattern = outerProp?.parentPath;
+        const declarator = outerPattern?.parentPath;
+        if (!declarator?.isVariableDeclarator()) return false;
+        const declaration = declarator.parentPath;
+        const declCount = declaration.node?.declarations?.length ?? 1;
+        const id = injectPureImport(entry, hintName);
+        const extracted = t.variableDeclaration(declaration.node.kind, [
+          t.variableDeclarator(t.cloneNode(prop.node.value), t.cloneNode(id)),
+        ]);
+        const wasLastInner = innerPattern.node.properties.length === 1;
+        const wasLastOuter = outerPattern.node.properties.length === 1;
+        const willRemoveDeclarator = wasLastInner && wasLastOuter;
+        // seed skippedNodes for the subtree about to be orphaned so scheduled visitor
+        // re-entries short-circuit; handleIdentifier's `!path.parent` guard backs this up
+        const skipSubtree = willRemoveDeclarator ? declarator.node : prop.node;
+        t.traverseFast(skipSubtree, node => { skippedNodes.add(node); });
+        // single-declarator simple-chain: replaceWith preserves leading comments
+        if (willRemoveDeclarator && declCount === 1) {
+          declaration.replaceWith(extracted);
+          return true;
+        }
+        declaration.insertBefore(extracted);
+        // multi-declarator simple-chain: splice this declarator out in-place instead of
+        // `.remove()` — `.remove()` nulls the path's parent mid-traversal and crashes
+        // babel's virtual-type visitor filter on still-queued inner Identifiers
+        if (willRemoveDeclarator && declCount > 1) {
+          const idx = declaration.node.declarations.indexOf(declarator.node);
+          if (idx !== -1) declaration.node.declarations.splice(idx, 1);
+          return true;
+        }
+        prop.remove();
+        if (wasLastInner) outerProp.remove();
+        return true;
+      }
+
       // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
       // function-parameter destructure path (`function({ from }) {}` form) or the regular
       // VariableDeclarator / AssignmentExpression destructure path
@@ -166,6 +211,17 @@ export default function plugin(api, options) {
         const objectPattern = prop.parentPath;
         const patternParent = objectPattern?.parentPath;
         if (isFunctionParamDestructureParent(patternParent?.node, patternParent?.parentPath?.node, objectPattern?.node)) {
+          handleParameterDestructure(prop, kind, entry, hintName);
+          return;
+        }
+        // nested proxy-global destructure: `{ Array: { from } } = globalThis`. default
+        // (`from = _Array$from`) wouldn't fire — `globalThis.Array` is always present and
+        // `Array.from` is non-undefined on every engine we target (may just be buggy).
+        // flatten the outer structure when it's a single-nested shape: replace the whole
+        // VariableDeclarator with `const from = _Array$from` so the polyfill ALWAYS wins
+        if (patternParent?.isObjectProperty() && kind !== 'instance') {
+          if (tryFlattenNestedProxyDestructure(prop, entry, hintName)) return;
+          // fallback: non-single shape (outer has siblings) — inline default as last resort
           handleParameterDestructure(prop, kind, entry, hintName);
           return;
         }
