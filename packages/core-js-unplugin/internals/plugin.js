@@ -293,7 +293,7 @@ export default function createPlugin(options) {
       if (!ms.hasChanged()) return null;
       // re-prepend BOM through MagicString so the sourcemap's output columns on line 0
       // account for the extra char (external string concat would leave mappings claiming
-      // output[0,0] → source[0,0] while the real output[0,0] is the BOM). gated on
+      // output[0,0] -> source[0,0] while the real output[0,0] is the BOM). gated on
       // hasChanged so no-op transforms still return null
       if (hasBOM) ms.prepend('\uFEFF');
       return {
@@ -360,10 +360,13 @@ export default function createPlugin(options) {
         scopedVars: new Map(), // insertionPos -> [var names]
         arrowVars: new Map(), // arrow body node -> [var names]
         destructuring: new Map(), // ObjectPattern node -> destructuring info
-        // AssignmentPattern wrapper (`function({p} = R)`) -> `{ wrapper, polyfills: Map }`.
-        // collected during traverse, emitted in applyParamDefaultSynthTransforms — the full
-        // key set of the synth object isn't known until every sibling prop has been visited
-        paramDefaultSynth: new Map(),
+        // receiver -> `{p: _polyfill, q: R.q, ...}` synth swaps, deferred to the post-traverse
+        // pass so the full key set is known once every sibling prop has been visited. two
+        // detection shapes feed this map:
+        //   - param-default `function({p} = R)`: receiver = AssignmentPattern.right
+        //   - IIFE `(({p}) => body)(R)`: receiver = CallExpression.arguments[i]
+        // entry shape: `{ receiver, objectPattern, polyfills: Map<key, binding> }`
+        synthSwaps: new Map(),
         // advance past `{` and any directive prologue (`"use strict"`, etc.) so that
         // inserted `var _ref;` does not split the directive off from being first in body
         // and silently flip the function to sloppy mode
@@ -761,7 +764,7 @@ export default function createPlugin(options) {
         const pure = resolveGlobalPolyfill(obj.name);
         if (!pure) return;
         transforms.add(obj.start, obj.end, injectPureImport(pure.entry, pure.hintName));
-        // identifier visitor would otherwise queue a second `Symbol → _Symbol` transform at
+        // identifier visitor would otherwise queue a second `Symbol -> _Symbol` transform at
         // the same range; two equal-range inners composed into the outer produce `___Symbol`
         // (each mergeEqualRange pass wraps the `Symbol` substring in another `_`)
         skippedNodes.add(obj);
@@ -862,11 +865,56 @@ export default function createPlugin(options) {
         return true;
       }
 
-      // parameter destructure. `function({p} = R)` with Identifier R and no rest: defer —
-      // `applyParamDefaultSynthTransforms` swaps `= R` for `= {p: _polyfill, q: R.q, ...}`
-      // so `f()` binds through polyfill regardless of native R.p being present-but-buggy.
-      // everything else (complex R, rest, bare param) gets inline default `{p = _polyfill}`,
-      // which only fires on undefined property
+      // find the call-arg node a bare-ObjectPattern IIFE param resolves to. arrow-only on
+      // purpose — FunctionExpression IIFE would leak the synth into `arguments[i]`.
+      // expands inline-array spreads (`...[R]`) the same way `resolveCallArgument` does;
+      // non-literal spread returns null (static index unknown)
+      function detectIifeArgReceiver(wrapperPath, objectPattern) {
+        if (wrapperPath?.node?.type !== 'ArrowFunctionExpression') return null;
+        const paramIndex = wrapperPath.node.params.indexOf(objectPattern);
+        if (paramIndex === -1) return null;
+        let callPath = wrapperPath.parentPath;
+        // oxc preserves `ParenthesizedExpression`; `(arrow)(args)` needs one extra hop.
+        // `UnaryExpression` / `SequenceExpression` mirror `!function(){}()` and `(0, fn)()`
+        while (callPath?.node && (callPath.node.type === 'UnaryExpression'
+            || callPath.node.type === 'SequenceExpression'
+            || callPath.node.type === 'ParenthesizedExpression')) {
+          callPath = callPath.parentPath;
+        }
+        const call = callPath?.node;
+        if (!call || (call.type !== 'CallExpression' && call.type !== 'NewExpression')) return null;
+        let i = 0;
+        for (const arg of call.arguments) {
+          if (arg?.type === 'SpreadElement') {
+            if (arg.argument?.type !== 'ArrayExpression') return null;
+            for (const el of arg.argument.elements) {
+              if (i === paramIndex) return el;
+              i++;
+            }
+            continue;
+          }
+          if (i === paramIndex) return arg;
+          i++;
+        }
+        return null;
+      }
+
+      // the receiver node to swap. null → fall through to inline-default. unified across
+      // shapes:
+      //   - `function({p} = R)`     → `AssignmentPattern.right`
+      //   - `(({p}) => body)(R)`    → call-arg node (incl. inline-array-spread element)
+      function findSynthSwapReceiver(wrapperPath, objectPattern) {
+        if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
+        const wrapper = wrapperPath?.node;
+        if (wrapper?.type === 'AssignmentPattern'
+          && wrapper.left === objectPattern
+          && wrapper.right?.type === 'Identifier') return wrapper.right;
+        const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
+        return argReceiver?.type === 'Identifier' ? argReceiver : null;
+      }
+
+      // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
+      // Identifier receiver; otherwise inline-default `{p = _polyfill}`
       function handleParameterDestructurePure(meta, metaPath, propNode) {
         const { value } = propNode;
         if (value?.type !== 'Identifier') return;
@@ -874,22 +922,17 @@ export default function createPlugin(options) {
         if (!pureResult || pureResult.kind === 'instance') return;
         const binding = injectPureImport(pureResult.entry, pureResult.hintName);
         const objectPattern = metaPath.parent;
-        const wrapper = metaPath.parentPath?.parentPath?.node;
-        const hasRest = objectPattern?.properties?.some(
-          p => p.type === 'RestElement' || p.type === 'SpreadElement');
-        if (wrapper?.type === 'AssignmentPattern'
-          && wrapper.left === objectPattern
-          && wrapper.right?.type === 'Identifier'
-          && !hasRest) {
-          let pending = state.paramDefaultSynth.get(wrapper);
-          if (!pending) {
-            pending = { wrapper, polyfills: new Map() };
-            state.paramDefaultSynth.set(wrapper, pending);
-          }
-          pending.polyfills.set(propNode.key.name, binding);
+        const receiver = findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern);
+        if (!receiver) {
+          ms.appendRight(value.end, ` = ${ binding }`);
           return;
         }
-        ms.appendRight(value.end, ` = ${ binding }`);
+        let pending = state.synthSwaps.get(receiver);
+        if (!pending) {
+          pending = { receiver, objectPattern, polyfills: new Map() };
+          state.synthSwaps.set(receiver, pending);
+        }
+        pending.polyfills.set(propNode.key.name, binding);
       }
 
       // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
@@ -901,7 +944,7 @@ export default function createPlugin(options) {
         return pure && pure.kind !== 'instance' ? pure : null;
       }
 
-      // `const { Array: { from, of } } = globalThis` → `const from = _Array$from; const of = _Array$of;`
+      // `const { Array: { from, of } } = globalThis` -> `const from = _Array$from; const of = _Array$of;`
       // batch rewrite: on the first polyfillable inner prop visited for a given declaration
       // we walk ALL declarators, extract every polyfillable inner binding, rebuild the
       // declaration with the remaining siblings (or drop it entirely). subsequent visits of
@@ -911,8 +954,8 @@ export default function createPlugin(options) {
       // state machine below (equivalent output, different code path)
       function tryFlattenNestedProxyDestructurePure(metaPath) {
         if (metaPath.node.value?.type !== 'Identifier') return false;
-        // walk inner Property → inner ObjectPattern → outer Property → outer ObjectPattern
-        // → VariableDeclarator → VariableDeclaration (5 levels)
+        // walk inner Property -> inner ObjectPattern -> outer Property -> outer ObjectPattern
+        // -> VariableDeclarator -> VariableDeclaration (5 levels)
         const declaration = metaPath.parentPath?.parentPath?.parentPath?.parentPath?.parentPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
         if (flattenedNestedDecls.has(declaration)) return true;
@@ -942,7 +985,7 @@ export default function createPlugin(options) {
       // plan factory: classify every outer prop of a proxy-global declarator without
       // side effects. returned shape:
       //   { receiver, outerProps: [{ extractions?, preservedSrc }] }
-      // preservedSrc === null → outer prop was fully consumed (drop).
+      // preservedSrc === null -> outer prop was fully consumed (drop).
       // null when the init isn't a proxy-global ObjectPattern source or nothing matches
       function planProxyNestedDeclarator(declarator, scope) {
         if (declarator.id?.type !== 'ObjectPattern' || !declarator.id.properties.length) return null;
@@ -1008,7 +1051,7 @@ export default function createPlugin(options) {
 
       // execute the plan: inject polyfill imports, push `const X = _polyfill;` lines.
       // returns { consumed, preservedDeclSrc }:
-      //   - consumed: whether any extraction was made (→ anyExtracted in caller)
+      //   - consumed: whether any extraction was made (-> anyExtracted in caller)
       //   - preservedDeclSrc: raw declarator src (no plan), null (fully consumed), or rebuilt
       //     `{ ... } = init` source (partial — outer siblings kept)
       function rewriteProxyNestedDeclarator(declarator, scope, extracted, kind) {
@@ -1242,13 +1285,11 @@ export default function createPlugin(options) {
         ms.appendRight(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
       }
 
-      // post-traverse pass: swap `= R` for synth `= {p: _polyfill, q: R.q, ...}` covering
-      // every destructured key. runs after the main traverse — the full polyfill set per
-      // wrapper is only known once every sibling prop has been visited
-      function applyParamDefaultSynthTransforms() {
-        for (const [, { wrapper, polyfills }] of state.paramDefaultSynth) {
-          const receiver = wrapper.right;
-          const objectPattern = wrapper.left;
+      // post-traverse pass: emit `{p: _polyfill, q: R.q, ...}` over the receiver span,
+      // covering every destructured key. runs after the main traverse — the full polyfill
+      // set per receiver is only known once every sibling prop has been visited
+      function applySynthSwaps() {
+        for (const [, { receiver, objectPattern, polyfills }] of state.synthSwaps) {
           if (receiver?.type !== 'Identifier' || objectPattern?.type !== 'ObjectPattern') continue;
           const entries = [];
           for (const p of objectPattern.properties) {
@@ -1501,7 +1542,7 @@ export default function createPlugin(options) {
           if (node.object?.type === 'Super') {
             const superMeta = resolveSuperMember(metaPath);
             if (!superMeta) return;
-            // `extends MyPromise` (user-aliased pure import) - map binding → global hint
+            // `extends MyPromise` (user-aliased pure import) - map binding -> global hint
             resolveSuperImportName(injector, superMeta);
             meta = superMeta;
           }
@@ -1566,7 +1607,7 @@ export default function createPlugin(options) {
       }, pass === 'post' && inherit ? {
         Identifier(path) { injector.trackReferencedName(path.node.name); },
       } : {}));
-      applyParamDefaultSynthTransforms();
+      applySynthSwaps();
       applyDestructuringTransforms();
       state.applyTransforms(transforms);
       return finalize();
