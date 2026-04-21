@@ -34,22 +34,24 @@ const isStringLiteral = node => node?.type === 'StringLiteral';
 export function createBabelAdapter(getInjector = () => null) {
   return {
     hasBinding(scope, name) {
-      if (scope.getBindingIdentifier(name)) return true;
-      return !!getInjector()?.getPureImport(name);
+      return !!scope.getBindingIdentifier(name) || !!getInjector()?.getBindingInfo(name);
     },
     getBinding(scope, name) {
-      // in-place mutation (`globalThis` → `_globalThis` / `Symbol` → `_Symbol`) inserts a
-      // real `ImportDefaultSpecifier` binding - still surface `polyfillHint` from injector
-      // so downstream resolveBindingToGlobal can translate back to the source global
-      const pureImport = getInjector()?.getPureImport(name);
+      // `polyfillHint` lets `resolveBindingToGlobal` walk back to the source global through:
+      // (a) injector's pure-import table — `_Symbol` / `_globalThis` after in-place AST
+      // rewrite; (b) globalAlias table — user destructure aliases (`{Symbol: S} = globalThis`
+      // → `S`) whose mutated binding shape `resolveBindingToGlobal` can't walk on its own.
+      // hint-only fallback handles babel scope-tracker lag after `replaceWith` during
+      // traversal (scope.getBinding empty even though the AST has the declaration)
+      const info = getInjector()?.getBindingInfo(name) ?? null;
       const b = scope.getBinding(name);
       if (b) {
         const importSource = IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)
           ? b.path.parent?.source?.value ?? null : null;
-        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint: pureImport?.hint ?? null };
+        return { node: b.path.node, constantViolations: b.constantViolations, importSource, polyfillHint: info?.hint ?? null };
       }
-      if (!pureImport) return null;
-      return { node: null, constantViolations: null, importSource: pureImport.source, polyfillHint: pureImport.hint };
+      if (!info) return null;
+      return { node: null, constantViolations: null, importSource: info.source, polyfillHint: info.hint };
     },
     getBindingNodeType(scope, name) {
       return scope.getBinding(name)?.path.node?.type ?? null;
