@@ -118,6 +118,15 @@ export default function plugin(api, options) {
         return injector.addPureImport(entry, hint);
       }
 
+      // wrap a polyfill id in a SequenceExpression preserving side effects collected from
+      // the receiver / computed-key. noop when `sideEffects` is empty or absent — emission
+      // sites can call unconditionally
+      function withSideEffects(id, sideEffects) {
+        return sideEffects?.length
+          ? t.sequenceExpression([...sideEffects.map(e => t.cloneNode(e)), id])
+          : id;
+      }
+
       function handleSymbolIterator(path) {
         // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
@@ -479,7 +488,10 @@ export default function plugin(api, options) {
           } else {
             const wasOptional = (annotateCallReturnType(path), path.node.optional);
             const replacePath = unwrapTSExpressionParent(path);
-            replacePath.replaceWith(id);
+            // `Symbol[(fn(), 'iterator')]` / `(fn(), Array).from(x)` — preserve fn() via
+            // SequenceExpression wrap since the MemberExpression replacement discards its
+            // receiver/computed-key subtree
+            replacePath.replaceWith(withSideEffects(id, meta.sideEffects));
             normalizeOptionalChain(replacePath, !wasOptional);
             if (wasOptional && replacePath.parentPath?.node?.optional) {
               deoptionalizeNode(replacePath.parentPath);
