@@ -55,7 +55,7 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
 }
 
 // `globalThis.Map ||= X` — MemberExpression LHS form. called from MemberExpression visitor
-// before inner-identifier transformation mutates `globalThis` → `_globalThis`; receiver and
+// before inner-identifier transformation mutates `globalThis` -> `_globalThis`; receiver and
 // property still carry their pre-transform names at this visitation point
 export function checkLogicalAssignLhsMember(memberNode, parent) {
   if (!memberNode || memberNode.type !== 'MemberExpression' || memberNode.computed) return null;
@@ -105,7 +105,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   if (!seen) seen = new Set();
   if (seen.has(name)) return null;
   seen.add(name);
-  // plugin-managed pure-import mutation (`globalThis` → `_globalThis` / `Symbol` → `_Symbol`)
+  // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
   const hintBinding = adapter.getBinding(scope, name);
@@ -315,7 +315,7 @@ function asSymbolRef(node, scope, adapter, seen) {
 
 // `var X = X` — hoisted var init references its own name, which at runtime reads the
 // outer (global) scope before the local is assigned. Factory wraps a per-binding cache
-// because the usage transform mutates `init.name` (X → _X) after the first visit, so a
+// because the usage transform mutates `init.name` (X -> _X) after the first visit, so a
 // non-cached recheck on later references would miss the invariant.
 // `getKind` varies by adapter: babel has `binding.kind`, estree-toolkit reads `kind` off
 // the parent VariableDeclaration
@@ -387,6 +387,35 @@ export function handleMemberExpressionNode(node, scope, adapter, handledObjects,
   return meta;
 }
 
+// `resolveKey` can fold StringLiteral / TemplateLiteral / `+` concat to the string
+// `'Symbol.X'`, but none of those are the well-known symbol. this predicate rejects
+// string-sourced keys so `'Symbol.iterator' in Array` isn't miscategorised as an
+// is-iterable check. parallel to resolveKey's Identifier / MemberExpression branches
+// minus the string-folding cases
+function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
+  if (depth > MAX_KEY_DEPTH) return false;
+  node = unwrapParens(node);
+  const { type } = node;
+  // string-folded sources — plain strings, not the symbol
+  if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
+    || (type === 'BinaryExpression' && node.operator === '+')) return false;
+  // Symbol[.X] direct / via chained proxy-global — canonical symbol-ref shape
+  if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
+    return !!asSymbolRef(node.object, scope, adapter, new Set(seen));
+  }
+  if (type !== 'Identifier' || seen?.has(node.name)) return false;
+  const nextSeen = seen ?? new Set();
+  nextSeen.add(node.name);
+  const binding = adapter.getBinding(scope, node.name);
+  if (!binding || binding.constantViolations?.length) return false;
+  // binding indirection — `const k = Symbol.iterator; k in X` resolves through init
+  if (binding.node?.type === 'VariableDeclarator' && binding.node.init) {
+    return isSymbolSourcedKey(binding.node.init, scope, adapter, nextSeen, depth + 1);
+  }
+  // plugin's own pure-import binding (`import _Symbol$iterator from '.../symbol/iterator'`)
+  return !!binding.importSource && SYMBOL_IMPORT_SOURCE.test(binding.importSource);
+}
+
 // Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
 export function resolveSymbolInEntry(key) {
   if (key === 'Symbol.iterator') return { entry: 'is-iterable', hint: 'isIterable' };
@@ -424,14 +453,16 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
         // the inner `globalThis`-replacement into the outer's eliminated-needle content
         markSubsumedProxyChain(ref.unwrapped, handledObjects);
       }
-      return { kind: 'in', key, object: null, placement: null };
+      return { kind: 'in', key, object: null, placement: null, symbolSourced: true };
     }
   }
-  // identifier bound to Symbol.X - resolveKey may return Symbol.X for indirect bindings
-  // (e.g., const k = Symbol.iterator; k in obj - works regardless of object type)
+  // identifier bound to Symbol.X — `const k = Symbol.iterator; k in obj` works regardless of
+  // object type. literal-string sources that happen to spell `Symbol.X` (`'Symbol.iterator'`,
+  // `` `Symbol.iterator` ``, `'Symbol.' + 'iterator'`) are NOT symbol refs — `isSymbolSourcedKey`
+  // filters them out; they fall through to the string-key branch below
   const resolvedLeft = resolveKey(node.left, true, scope, adapter);
-  if (resolvedLeft?.startsWith('Symbol.')) {
-    return { kind: 'in', key: resolvedLeft, object: null, placement: null };
+  if (resolvedLeft?.startsWith('Symbol.') && isSymbolSourcedKey(node.left, scope, adapter)) {
+    return { kind: 'in', key: resolvedLeft, object: null, placement: null, symbolSourced: true };
   }
   // 'key' in Object - string key in static/global object
   if (resolvedLeft) {
