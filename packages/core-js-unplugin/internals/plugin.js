@@ -744,6 +744,10 @@ export default function createPlugin(options) {
         const pure = resolveGlobalPolyfill(obj.name);
         if (!pure) return;
         transforms.add(obj.start, obj.end, injectPureImport(pure.entry, pure.hintName));
+        // identifier visitor would otherwise queue a second `Symbol → _Symbol` transform at
+        // the same range; two equal-range inners composed into the outer produce `___Symbol`
+        // (each mergeEqualRange pass wraps the `Symbol` substring in another `_`)
+        skippedNodes.add(obj);
       }
 
       // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined)
