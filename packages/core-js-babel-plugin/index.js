@@ -252,9 +252,7 @@ export default function plugin(api, options) {
         const declaration = declarator.parentPath;
         const declCount = declaration.node?.declarations?.length ?? 1;
         const id = injectPureImport(entry, hintName);
-        const extracted = t.variableDeclaration(declaration.node.kind, [
-          t.variableDeclarator(t.cloneNode(prop.node.value), t.cloneNode(id)),
-        ]);
+        const extractedDeclarator = t.variableDeclarator(t.cloneNode(prop.node.value), t.cloneNode(id));
         const wasLastInner = innerPattern.node.properties.length === 1;
         const wasLastOuter = outerPattern.node.properties.length === 1;
         const willRemoveDeclarator = wasLastInner && wasLastOuter;
@@ -264,18 +262,30 @@ export default function plugin(api, options) {
         t.traverseFast(skipSubtree, node => { skippedNodes.add(node); });
         // single-declarator simple-chain: replaceWith preserves leading comments
         if (willRemoveDeclarator && declCount === 1) {
-          declaration.replaceWith(extracted);
+          declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
           return true;
         }
-        declaration.insertBefore(extracted);
-        // multi-declarator simple-chain: splice this declarator out in-place instead of
-        // `.remove()` — `.remove()` nulls the path's parent mid-traversal and crashes
-        // babel's virtual-type visitor filter on still-queued inner Identifiers
+        // for-init: hoisting the extraction via `declaration.insertBefore` wraps the for-init
+        // in an arrow-IIFE — then `const from = _from` and the live `{ Array: { from } }`
+        // both land in the IIFE scope and babel rejects the second. keep the extraction
+        // inside the for-init header via `declarator.insertBefore`.
+        // block-level: hoist extracted as a standalone statement above `declaration`.
+        // both paths use `.insertBefore` (never raw `declarations[].splice`) so babel-traverse
+        // keeps `path.key` of queued sibling-inner paths in sync — raw splice desyncs them
+        // and the visitor for the next inner prop stops firing
+        const isForInit = declaration.parentPath?.isForStatement()
+          && declaration.parentPath.node.init === declaration.node;
+        if (isForInit) declarator.insertBefore(extractedDeclarator);
+        else declaration.insertBefore(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
+        // fully-consumed outer declarator: splice the now-empty declarator out in-place.
+        // `.remove()` nulls the path's parent mid-traversal and crashes babel's virtual-type
+        // visitor filter on still-queued inner Identifiers
         if (willRemoveDeclarator && declCount > 1) {
           const idx = declaration.node.declarations.indexOf(declarator.node);
           if (idx !== -1) declaration.node.declarations.splice(idx, 1);
           return true;
         }
+        // partial: prune the consumed property; outer prop drops too if its inner pattern emptied
         prop.remove();
         if (wasLastInner) outerProp.remove();
         return true;
