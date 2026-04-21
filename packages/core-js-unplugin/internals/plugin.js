@@ -935,6 +935,8 @@ export default function createPlugin(options) {
           ms.appendRight(value.end, ` = ${ binding }`);
           return;
         }
+        // synth-swap owns the receiver — identifier visitor would race on the same range
+        skippedNodes.add(receiver);
         let pending = state.synthSwaps.get(receiver);
         if (!pending) {
           pending = { receiver, objectPattern, polyfills: new Map() };
@@ -1302,19 +1304,24 @@ export default function createPlugin(options) {
         ms.appendRight(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
       }
 
-      // post-traverse pass: emit `{p: _polyfill, q: R.q, ...}` over the receiver span,
-      // covering every destructured key. runs after the main traverse — the full polyfill
-      // set per receiver is only known once every sibling prop has been visited
+      // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
+      // after main traverse — full polyfill set per receiver known only after sibling visits.
+      // non-polyfilled siblings read from pure receiver when receiver itself is polyfillable
+      // (raw `Promise.custom` on IE11 would ReferenceError before the destructure runs)
       function applySynthSwaps() {
         for (const [, { receiver, objectPattern, polyfills }] of state.synthSwaps) {
           if (receiver?.type !== 'Identifier' || objectPattern?.type !== 'ObjectPattern') continue;
+          const receiverPure = resolveGlobalPolyfill(receiver.name);
+          const receiverSrc = receiverPure
+            ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+            : receiver.name;
           const entries = [];
           for (const p of objectPattern.properties) {
             if (p.type !== 'Property' || p.computed || p.key?.type !== 'Identifier') continue;
             const polyfill = polyfills.get(p.key.name);
             entries.push(polyfill
               ? `${ p.key.name }: ${ polyfill }`
-              : `${ p.key.name }: ${ receiver.name }.${ p.key.name }`);
+              : `${ p.key.name }: ${ receiverSrc }.${ p.key.name }`);
           }
           transforms.add(receiver.start, receiver.end, `{ ${ entries.join(', ') } }`);
         }
