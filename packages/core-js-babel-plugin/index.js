@@ -96,11 +96,12 @@ export default function plugin(api, options) {
       let originalBodyNodes = new WeakSet();
       let disabledLines = null;
       let skipFile;
-      // AssignmentPattern (param default) → `{ wrapper, polyfills: Map<key, idNode> }`.
-      // deferred to programExit so `wrapper.right` isn't mutated mid-traversal — a mid-visit
-      // swap would let sibling props resolve against the synth object and miss their polyfill
-      let paramDefaultSynth = new WeakMap();
-      let pendingParamDefaults = [];
+      // receiver -> `{p: _polyfill, q: R.q, ...}` synth-swap targets, deferred to programExit
+      // so every sibling prop visits against the ORIGINAL receiver first (mid-visit swap
+      // would route later siblings to the partial synth and miss their polyfill). populated
+      // from two shapes — param-default `function({p} = R)` and arrow IIFE `(({p}) => ...)(R)`
+      let synthSwapByReceiver = new WeakMap();
+      let pendingSynthSwaps = [];
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
@@ -171,32 +172,72 @@ export default function plugin(api, options) {
         prop.node.shorthand = false;
       }
 
+      // find the NodePath of the call-arg a bare-ObjectPattern IIFE param resolves to.
+      // arrow-only on purpose — FunctionExpression IIFE would leak the synth into
+      // `arguments[i]`; arrow has no own `arguments` binding. expands inline-array spreads
+      // (`...[R]`) the same way `resolveCallArgument` does; non-literal spread returns null
+      function detectIifeArgPath(wrapper, objectPattern) {
+        if (!wrapper?.isArrowFunctionExpression()) return null;
+        const paramIndex = wrapper.node.params.indexOf(objectPattern.node);
+        if (paramIndex === -1) return null;
+        let callPath = wrapper.parentPath;
+        while (callPath?.isUnaryExpression() || callPath?.isSequenceExpression()) {
+          callPath = callPath.parentPath;
+        }
+        if (!callPath?.isCallExpression() && !callPath?.isNewExpression()) return null;
+        let i = 0;
+        for (const aP of callPath.get('arguments')) {
+          if (aP.isSpreadElement()) {
+            if (!aP.get('argument').isArrayExpression()) return null;
+            for (const elP of aP.get('argument').get('elements')) {
+              if (i === paramIndex) return elP;
+              i++;
+            }
+            continue;
+          }
+          if (i === paramIndex) return aP;
+          i++;
+        }
+        return null;
+      }
+
+      // the NodePath whose `.node` will be replaced with the synth object. null → fall
+      // through to inline-default. unified across shapes:
+      //   - `function({p} = R)`     → `wrapper.get('right')`
+      //   - `(({p}) => body)(R)`    → call-arg path (incl. inline-array-spread element)
+      function findSynthSwapTargetPath(wrapper, objectPattern) {
+        if (objectPattern.node.properties.some(p => t.isRestElement(p))) return null;
+        if (wrapper?.isAssignmentPattern() && t.isIdentifier(wrapper.node.right)) {
+          return wrapper.get('right');
+        }
+        const argPath = detectIifeArgPath(wrapper, objectPattern);
+        return argPath && t.isIdentifier(argPath.node) ? argPath : null;
+      }
+
       // parameter destructure polyfill. only static/global fit here; instance methods need a
-      // receiver. for `function({p} = R)` with Identifier R and no rest: defer — programExit
-      // swaps `= R` for `= {p: _polyfill, q: R.q, ...}`, so `f()` binds through polyfill
-      // regardless of native presence; caller-passed args bypass the default entirely.
-      // everything else (complex R, rest, bare param) takes the inline-default path
+      // receiver. synth-swap when `findSynthSwapTargetPath` identifies a safe Identifier
+      // receiver; otherwise inline-default `{p = _polyfill}` (fires only on undefined property)
       function handleParameterDestructure(prop, kind, entry, hintName) {
         if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
         if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
         const id = injectPureImport(entry, hintName);
         const objectPattern = prop.parentPath;
-        const wrapper = objectPattern?.parentPath;
-        const hasRest = objectPattern.node.properties.some(p => t.isRestElement(p));
-        if (wrapper?.isAssignmentPattern() && !hasRest && t.isIdentifier(wrapper.node.right)) {
-          let pending = paramDefaultSynth.get(wrapper.node);
-          if (!pending) {
-            pending = { wrapper, polyfills: new Map() };
-            paramDefaultSynth.set(wrapper.node, pending);
-            pendingParamDefaults.push(pending);
-          }
-          pending.polyfills.set(prop.node.key.name, id);
+        const targetPath = findSynthSwapTargetPath(objectPattern?.parentPath, objectPattern);
+        if (!targetPath) {
+          emitParamInlineDefault(prop, id);
           return;
         }
-        emitParamInlineDefault(prop, id);
+        const receiver = targetPath.node;
+        let pending = synthSwapByReceiver.get(receiver);
+        if (!pending) {
+          pending = { targetPath, objectPatternNode: objectPattern.node, polyfills: new Map() };
+          synthSwapByReceiver.set(receiver, pending);
+          pendingSynthSwaps.push(pending);
+        }
+        pending.polyfills.set(prop.node.key.name, id);
       }
 
-      // `const { Array: { from } } = globalThis` → `const from = _Array$from`. extracts the
+      // `const { Array: { from } } = globalThis` -> `const from = _Array$from`. extracts the
       // inner property to a top-level declaration and cleans up the remaining pattern:
       // - drop inner prop; if inner pattern becomes empty, drop outer Property too
       // - if outer pattern becomes empty, drop the whole VariableDeclaration
@@ -277,7 +318,7 @@ export default function plugin(api, options) {
         }
         // proxy-global alias (`{ Symbol: S = default } = globalThis`): AST mutation below
         // rewrites init to `_Symbol === void 0 ? default : _Symbol` — `resolveBindingToGlobal`
-        // can't walk that ConditionalExpression, so register S → 'Symbol' up front
+        // can't walk that ConditionalExpression, so register S -> 'Symbol' up front
         if (kind === 'global') {
           const localName = patternBindingName(prop.node.value);
           if (localName) injector.registerGlobalAlias(localName, hintName);
@@ -331,7 +372,7 @@ export default function plugin(api, options) {
       }
 
       // detect `(recv)?.inner?.(args).outer(args)` with polyfillable instance inner+outer;
-      // resolve inner via callee path so `[].at` → `_atMaybeArray` (not generic `_at`)
+      // resolve inner via callee path so `[].at` -> `_atMaybeArray` (not generic `_at`)
       function findInnerPolyChain(path) {
         if (!path.isOptionalMemberExpression()) return null;
         const outerCaller = unwrapTSExpressionParent(path);
@@ -434,7 +475,7 @@ export default function plugin(api, options) {
             if (t.isSuper(path.node.object)) {
               const superMeta = resolveSuperMember(path);
               if (!superMeta) return;
-              // `extends MyPromise` (user-aliased pure import) - map binding → global hint
+              // `extends MyPromise` (user-aliased pure import) - map binding -> global hint
               resolveSuperImportName(injector, superMeta);
               meta = superMeta;
             }
@@ -539,8 +580,8 @@ export default function plugin(api, options) {
           && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
         injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
         skippedNodes = new WeakSet();
-        paramDefaultSynth = new WeakMap();
-        pendingParamDefaults = [];
+        synthSwapByReceiver = new WeakMap();
+        pendingSynthSwaps = [];
         deferredSideEffects.length = 0;
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
@@ -657,18 +698,17 @@ export default function plugin(api, options) {
             },
           });
         }
-        // swap param-default receivers with synthesized polyfill-backed objects. all sibling
-        // props have now been visited against the original receiver, so the key set is final.
-        // synth covers every destructured key: polyfilled → polyfill id; native → `R.key` ref.
-        // skip if the wrapper shape was mutated by another plugin (orphaned / non-Identifier
-        // right / non-ObjectPattern left) — losing the polyfill is preferable to emitting
-        // against an unexpected shape
-        for (const { wrapper, polyfills } of pendingParamDefaults) {
-          const receiver = wrapper.node?.right;
-          const objectPattern = wrapper.node?.left;
-          if (!t.isIdentifier(receiver) || objectPattern?.type !== 'ObjectPattern') continue;
+        // swap deferred destructure receivers with synthesized polyfill-backed objects. all
+        // sibling props have now been visited against the original receiver, so the key set
+        // is final. synth covers every destructured key: polyfilled -> polyfill id; native ->
+        // `R.key` ref. skip if the shape was mutated by another plugin (orphaned / non-
+        // Identifier receiver / non-ObjectPattern) — losing the polyfill is preferable to
+        // emitting against an unexpected shape
+        for (const { targetPath, objectPatternNode, polyfills } of pendingSynthSwaps) {
+          const receiver = targetPath.node;
+          if (!t.isIdentifier(receiver) || objectPatternNode?.type !== 'ObjectPattern') continue;
           const synthProps = [];
-          for (const p of objectPattern.properties) {
+          for (const p of objectPatternNode.properties) {
             if (!t.isObjectProperty(p) || p.computed || !t.isIdentifier(p.key)) continue;
             const polyfill = polyfills.get(p.key.name);
             const value = polyfill
@@ -676,7 +716,7 @@ export default function plugin(api, options) {
               : t.memberExpression(t.cloneNode(receiver), t.identifier(p.key.name));
             synthProps.push(t.objectProperty(t.identifier(p.key.name), value));
           }
-          wrapper.get('right').replaceWith(t.objectExpression(synthProps));
+          targetPath.replaceWith(t.objectExpression(synthProps));
         }
         injector?.flush();
         injector?.normalizeArrowRefParams();
