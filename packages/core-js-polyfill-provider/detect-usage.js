@@ -12,6 +12,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   declaresRequireBinding,
+  getSuperTypeArgs,
   globalProxyMemberName,
   kebabToCamel,
   mayHaveSideEffects,
@@ -871,5 +872,7 @@ export function checkTypeAnnotations(node, onGlobal) {
       if (p.default) walkTypeAnnotationGlobals(p.default, onGlobal);
     }
   }
-  if (node.superTypeParameters) walkTypeAnnotationGlobals(node.superTypeParameters, onGlobal);
+  // class `extends Foo<T>` — Babel: `superTypeParameters`, oxc TS-ESTree: `superTypeArguments`
+  const superArgs = getSuperTypeArgs(node);
+  if (superArgs) walkTypeAnnotationGlobals(superArgs, onGlobal);
 }
