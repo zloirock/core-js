@@ -1,5 +1,12 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, unwrapExportedDeclaration, unwrapParens } from './helpers.js';
+import {
+  POSSIBLE_GLOBAL_OBJECTS,
+  getSuperTypeArgs,
+  getTypeArgs,
+  globalProxyMemberName,
+  unwrapExportedDeclaration,
+  unwrapParens,
+} from './helpers.js';
 import {
   $Object,
   $Primitive,
@@ -599,11 +606,6 @@ function createResolveNodeType(babelNodeType, t) {
     return typeof param.name === 'string' ? param.name : param.name?.name;
   }
 
-  // ESTree (oxc-parser TS-ESTree): uses typeArguments; Babel: uses typeParameters
-  function getTypeArgs(node) {
-    return node?.typeParameters ?? node?.typeArguments;
-  }
-
   function findTypeParameter(name, scope) {
     let currentScope = scope;
     while (currentScope) {
@@ -720,16 +722,14 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return new $Object('Object');
     }
-    // class as a type: walk `extends` for known container (`Array<T>`) or user parent;
-    // `superTypeArguments` (TS) / `superTypeParameters` cover `extends Array<string>`
+    // class as a type: walk `extends` for known container (`Array<T>`) or user parent
     if (isClassLikeDeclaration(declaration)) {
       const superClass = declaration.superClass ?? declaration.extends?.[0]?.id;
       if (superClass?.type !== 'Identifier') return new $Object('Object');
       const parentRef = {
         type: 'TSTypeReference',
         typeName: superClass,
-        typeArguments: declaration.superTypeArguments,
-        typeParameters: declaration.superTypeParameters,
+        typeParameters: getSuperTypeArgs(declaration),
       };
       const ctor = resolveKnownConstructor(superClass.name);
       if (ctor) return resolveKnownContainerType(superClass.name, ctor, parentRef, resolve) || ctor;

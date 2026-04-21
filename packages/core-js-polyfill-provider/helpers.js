@@ -5,6 +5,8 @@ export {
   createTypeAnnotationChecker,
   declaresRequireBinding,
   detectCommonJS,
+  getSuperTypeArgs,
+  getTypeArgs,
   hasTopLevelESM,
   isDeleteTarget,
   isForXWriteTarget,
