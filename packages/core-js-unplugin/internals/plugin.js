@@ -360,6 +360,10 @@ export default function createPlugin(options) {
         scopedVars: new Map(), // insertionPos -> [var names]
         arrowVars: new Map(), // arrow body node -> [var names]
         destructuring: new Map(), // ObjectPattern node -> destructuring info
+        // AssignmentPattern wrapper (`function({p} = R)`) -> `{ wrapper, polyfills: Map }`.
+        // collected during traverse, emitted in applyParamDefaultSynthTransforms — the full
+        // key set of the synth object isn't known until every sibling prop has been visited
+        paramDefaultSynth: new Map(),
         // advance past `{` and any directive prologue (`"use strict"`, etc.) so that
         // inserted `var _ref;` does not split the directive off from being first in body
         // and silently flip the function to sloppy mode
@@ -849,16 +853,33 @@ export default function createPlugin(options) {
         return true;
       }
 
-      // parameter destructure `function({ from = _Array$from })`: the default only fires
-      // when `arg[key] === undefined`, so a present-but-buggy native bypasses the polyfill
+      // parameter destructure. `function({p} = R)` with Identifier R and no rest: defer —
+      // `applyParamDefaultSynthTransforms` swaps `= R` for `= {p: _polyfill, q: R.q, ...}`
+      // so `f()` binds through polyfill regardless of native R.p being present-but-buggy.
+      // everything else (complex R, rest, bare param) gets inline default `{p = _polyfill}`,
+      // which only fires on undefined property
       function handleParameterDestructurePure(meta, metaPath, propNode) {
         const { value } = propNode;
         if (value?.type !== 'Identifier') return;
         const pureResult = resolvePure(meta, metaPath);
         if (!pureResult || pureResult.kind === 'instance') return;
         const binding = injectPureImport(pureResult.entry, pureResult.hintName);
-        // insert ` = <binding>` after the value identifier - pure insertion, not a replacement,
-        // so use ms.appendRight directly rather than the transform queue (which expects overwrites)
+        const objectPattern = metaPath.parent;
+        const wrapper = metaPath.parentPath?.parentPath?.node;
+        const hasRest = objectPattern?.properties?.some(
+          p => p.type === 'RestElement' || p.type === 'SpreadElement');
+        if (wrapper?.type === 'AssignmentPattern'
+          && wrapper.left === objectPattern
+          && wrapper.right?.type === 'Identifier'
+          && !hasRest) {
+          let pending = state.paramDefaultSynth.get(wrapper);
+          if (!pending) {
+            pending = { wrapper, polyfills: new Map() };
+            state.paramDefaultSynth.set(wrapper, pending);
+          }
+          pending.polyfills.set(propNode.key.name, binding);
+          return;
+        }
         ms.appendRight(value.end, ` = ${ binding }`);
       }
 
@@ -1212,6 +1233,26 @@ export default function createPlugin(options) {
         ms.appendRight(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
       }
 
+      // post-traverse pass: swap `= R` for synth `= {p: _polyfill, q: R.q, ...}` covering
+      // every destructured key. runs after the main traverse — the full polyfill set per
+      // wrapper is only known once every sibling prop has been visited
+      function applyParamDefaultSynthTransforms() {
+        for (const [, { wrapper, polyfills }] of state.paramDefaultSynth) {
+          const receiver = wrapper.right;
+          const objectPattern = wrapper.left;
+          if (receiver?.type !== 'Identifier' || objectPattern?.type !== 'ObjectPattern') continue;
+          const entries = [];
+          for (const p of objectPattern.properties) {
+            if (p.type !== 'Property' || p.computed || p.key?.type !== 'Identifier') continue;
+            const polyfill = polyfills.get(p.key.name);
+            entries.push(polyfill
+              ? `${ p.key.name }: ${ polyfill }`
+              : `${ p.key.name }: ${ receiver.name }.${ p.key.name }`);
+          }
+          transforms.add(receiver.start, receiver.end, `{ ${ entries.join(', ') } }`);
+        }
+      }
+
       function applyDestructuringTransforms() {
         // group by declPath node to handle multiple destructurings in the same VariableDeclaration
         const byStatement = new Map();
@@ -1513,6 +1554,7 @@ export default function createPlugin(options) {
       }, pass === 'post' && inherit ? {
         Identifier(path) { injector.trackReferencedName(path.node.name); },
       } : {}));
+      applyParamDefaultSynthTransforms();
       applyDestructuringTransforms();
       state.applyTransforms(transforms);
       return finalize();
