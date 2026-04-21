@@ -211,16 +211,15 @@ export default function plugin(api, options) {
 
       // any detached ancestor puts our node outside the live AST - polyfill emission
       // would land nowhere. verify each link still occupies its prior position in the parent
+      // via direct index lookup (`parent[listKey][key]`); avoids the O(N) `list.includes`
+      // per ancestor that ballooned into O(depth×width) on deep member-chains in large files
       function isOrphaned(path) {
         for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
           if (cur.removed) return true;
-          const parent = cur.parentPath;
-          const parentNode = parent.node;
+          const parentNode = cur.parentPath.node;
           if (!parentNode) return true;
-          if (cur.listKey) {
-            const list = parentNode[cur.listKey];
-            if (!Array.isArray(list) || !list.includes(cur.node)) return true;
-          } else if (cur.key !== undefined && parentNode[cur.key] !== cur.node) return true;
+          const slot = cur.listKey ? parentNode[cur.listKey]?.[cur.key] : parentNode[cur.key];
+          if (slot !== cur.node) return true;
         }
         return false;
       }
