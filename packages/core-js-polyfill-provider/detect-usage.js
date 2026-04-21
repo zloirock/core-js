@@ -158,7 +158,7 @@ function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter,
 
 // top-level binding name of a destructuring element, skipping `=default` wrappers. nested
 // patterns (`[a, b]`, `{x, y}`) don't produce a single name and return null
-function patternBindingName(node) {
+export function patternBindingName(node) {
   while (node?.type === 'AssignmentPattern') node = node.left;
   return node?.type === 'Identifier' ? node.name : null;
 }
