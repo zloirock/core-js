@@ -1,7 +1,9 @@
 import { isASTNode, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 
-// oxc: `directive` is a string for directives; null (TSX) or undefined (JS) otherwise
+// unplugin parses exclusively via oxc, which represents directives as top-of-body
+// ExpressionStatement nodes with `.directive: string` (babel uses a separate
+// `Program.directives` array — out of scope here)
 export const isDirectiveStatement = n => n?.type === 'ExpressionStatement' && typeof n.directive === 'string';
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none
@@ -87,13 +89,16 @@ export function collectAllBindingNames(ast) {
         names.add(node.local.name);
         break;
       case 'AssignmentExpression':
-        // our emit is `_ref = foo()` / `_ref = obj.bar` - RHS is always a complex expression;
-        // user sloppy-mode `_ref = 1` / `_ref = 'x'` with a literal RHS is user code and must
-        // not be adopted. this heuristic keeps the orphan fallback while dodging the common
-        // accidental-global pattern in un-linted codebases
-        if (node.operator === '=' && node.left?.type === 'Identifier' && ORPHAN_REF_PATTERN.test(node.left.name)
-          && isComplexOrphanRhs(node.right)) {
-          orphanRefs.add(node.left.name);
+        // `_ref = foo()` / `_ref = obj.bar` with complex RHS fits our emit shape: candidate
+        // for orphan adoption, NOT reserved (adoption gate requires name NOT in `names`).
+        // everything else (non-orphan pattern, or orphan pattern with literal RHS) is user
+        // code — reserve so our UID generator doesn't reuse a name the user writes to
+        if (node.operator === '=' && node.left?.type === 'Identifier') {
+          if (ORPHAN_REF_PATTERN.test(node.left.name) && isComplexOrphanRhs(node.right)) {
+            orphanRefs.add(node.left.name);
+          } else {
+            names.add(node.left.name);
+          }
         }
         break;
     }
@@ -106,14 +111,39 @@ export function collectAllBindingNames(ast) {
   return { names, orphanRefs };
 }
 
+// source string (lowercased) of `require('@pkg/...')`, or null. covers both bare
+// side-effect form and `var X = require(...)` init form — the plugin emits either
+// depending on `importStyle`, and the fingerprint must catch both
+function requireCallSource(expr) {
+  if (expr?.type !== 'CallExpression') return null;
+  if (expr.callee?.type !== 'Identifier' || expr.callee.name !== 'require') return null;
+  const arg = expr.arguments?.[0];
+  return typeof arg?.value === 'string' ? arg.value.toLowerCase() : null;
+}
+
+// top-level statement mapped to the core-js source string it imports, else null.
+// dispatches ESM `import` and CJS `require`/var-require shapes to their extractors
+function pureImportSource(node) {
+  switch (node?.type) {
+    case 'ImportDeclaration': return node.source?.value?.toLowerCase() ?? null;
+    case 'ExpressionStatement': return requireCallSource(node.expression);
+    case 'VariableDeclaration':
+      for (const d of node.declarations) {
+        const src = requireCallSource(d.init);
+        if (src) return src;
+      }
+      return null;
+    default: return null;
+  }
+}
+
 // pre-pass fingerprint - any top-level import from one of our configured packages marks the
 // source as our own output, not user code that happens to contain `_ref = ...` assignments.
 // `packages` is the resolver's already-normalised list (pkg + additionalPackages, lowercased);
 // bare-specifier prefix only - a relative `./vendor/` copy wouldn't be emitted by us
 export function hasCoreJSPureImport(ast, packages) {
   for (const node of ast.body) {
-    if (node?.type !== 'ImportDeclaration') continue;
-    const source = node.source?.value?.toLowerCase();
+    const source = pureImportSource(node);
     if (!source) continue;
     for (const pkg of packages) if (source.startsWith(`${ pkg }/`)) return true;
   }
