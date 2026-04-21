@@ -965,19 +965,15 @@ export default function createPlugin(options) {
         if (metaPath.node.value?.type !== 'Identifier') return false;
         // walk inner Property -> inner ObjectPattern -> outer Property -> outer ObjectPattern
         // -> VariableDeclarator -> VariableDeclaration (5 levels)
-        const declaration = metaPath.parentPath?.parentPath?.parentPath?.parentPath?.parentPath?.node;
+        const declPath = metaPath.parentPath?.parentPath?.parentPath?.parentPath?.parentPath;
+        const declaration = declPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
         if (flattenedNestedDecls.has(declaration)) return true;
-        const { scope } = metaPath;
-        const extracted = []; // `const X = _polyfill;` lines, in source order across declarators
-        const preservedDecls = []; // declarator source strings to keep in the rebuilt declaration
-        let anyExtracted = false;
-        for (const d of declaration.declarations) {
-          const { consumed, preservedDeclSrc } = rewriteProxyNestedDeclarator(d, scope, extracted, declaration.kind);
-          if (consumed) anyExtracted = true;
-          if (preservedDeclSrc !== null) preservedDecls.push(preservedDeclSrc);
-        }
-        if (!anyExtracted) return false;
+        // per-declarator results collected in source order so rendering can preserve
+        // original position (babel keeps `let i = 0, from = _from` when source had
+        // `let i = 0, { Array: { from } } = globalThis`)
+        const perDecl = declaration.declarations.map(d => rewriteProxyNestedDeclarator(d, metaPath.scope));
+        if (!perDecl.some(r => r.extractions.length)) return false;
         flattenedNestedDecls.add(declaration);
         // suppress every node inside the original declaration — the outer overwrite
         // discards them all, and leftover queue entries on init identifiers, inner
@@ -985,10 +981,32 @@ export default function createPlugin(options) {
         // composition or produce duplicate polyfill injection (e.g. existing single-level
         // destructure handler re-emitting Symbol after our batch already did)
         walkAstNodes(declaration, node => skippedNodes.add(node));
-        const replacement = extracted.join('\n')
-          + (preservedDecls.length ? `\n${ declaration.kind } ${ preservedDecls.join(', ') };` : '');
+        const parentNode = declPath.parentPath?.node;
+        const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
+        const replacement = renderFlattenedNestedProxy(perDecl, declaration.kind, isForInit);
         transforms.add(declaration.start, declaration.end, replacement);
         return true;
+      }
+
+      // render per-declarator `{ extractions, preservedSrc }` list back into source.
+      // for-init must emit a single `kind d1, d2, d3` — `for (const X=..;\nconst Y=..;;..)`
+      // parses as `for (const X=..; const Y=..;; ..)` with the middle declaration read as
+      // test expression, a syntax error. block-level: extractions become separate statements
+      // to match babel's split output, remaining preserved declarators collapse into one
+      // trailing `kind` statement
+      function renderFlattenedNestedProxy(perDecl, kind, isForInit) {
+        if (isForInit) {
+          const parts = [];
+          for (const r of perDecl) {
+            for (const e of r.extractions) parts.push(e.decl);
+            if (r.preservedSrc !== null) parts.push(r.preservedSrc);
+          }
+          return `${ kind } ${ parts.join(', ') }`;
+        }
+        const extractedLines = perDecl.flatMap(r => r.extractions.map(e => `${ kind } ${ e.decl };`));
+        const preservedDecls = perDecl.map(r => r.preservedSrc).filter(s => s !== null);
+        return extractedLines.join('\n')
+          + (preservedDecls.length ? `\n${ kind } ${ preservedDecls.join(', ') };` : '');
       }
 
       // plan factory: classify every outer prop of a proxy-global declarator without
@@ -1063,18 +1081,21 @@ export default function createPlugin(options) {
       //   - consumed: whether any extraction was made (-> anyExtracted in caller)
       //   - preservedDeclSrc: raw declarator src (no plan), null (fully consumed), or rebuilt
       //     `{ ... } = init` source (partial — outer siblings kept)
-      function rewriteProxyNestedDeclarator(declarator, scope, extracted, kind) {
+      function rewriteProxyNestedDeclarator(declarator, scope) {
         const plan = planProxyNestedDeclarator(declarator, scope);
-        if (!plan) return { consumed: false, preservedDeclSrc: nodeSrc(declarator) };
+        // no-plan declarator: no polyfill touches it, return its raw source verbatim so
+        // the caller re-stitches it into the comma-joined for-init / block-level output
+        if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator) };
+        const extractions = [];
         const preservedOuter = [];
         for (const outer of plan.outerProps) {
           for (const e of outer.extractions ?? []) {
             const binding = injectPureImport(e.entry, e.hint);
-            extracted.push(`${ kind } ${ e.localName } = ${ binding };`);
+            extractions.push({ decl: `${ e.localName } = ${ binding }` });
           }
           if (outer.preservedSrc !== null) preservedOuter.push(outer.preservedSrc);
         }
-        if (!preservedOuter.length) return { consumed: true, preservedDeclSrc: null };
+        if (!preservedOuter.length) return { extractions, preservedSrc: null };
         // partial flatten: preserved declarator still destructures from the receiver,
         // so polyfill it — old runtimes without `globalThis` / `self` would crash otherwise
         const receiverPure = resolveGlobalPolyfill(plan.receiver);
@@ -1082,8 +1103,8 @@ export default function createPlugin(options) {
           ? injectPureImport(receiverPure.entry, receiverPure.hintName)
           : nodeSrc(declarator.init);
         return {
-          consumed: true,
-          preservedDeclSrc: `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`,
+          extractions,
+          preservedSrc: `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`,
         };
       }
 
