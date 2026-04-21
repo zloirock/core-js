@@ -1,9 +1,10 @@
-// `entryToGlobalHint` takes only the FIRST path segment: `array/from` → `Array`.
-// user-imported `MyAF` from entry `array/from` is mapped to global `Array` so
-// `super.from(x)` in `class C extends MyAF` resolves to `statics.Array.from`
+// `MyAF` is `Array.from` — a function, not the Array class. `class extends MyAF` +
+// `super.from(x)` reads `.from` off the function, which is undefined. `entryToGlobalHint`
+// rejects method entries (`array/from` isn't `/constructor`), so `MyAF` has no Array hint
+// and `super.from(x)` doesn't resolve. the plugin keeps the user's broken code unchanged
 import MyAF from '@core-js/pure/actual/array/from';
 class C extends MyAF {
   static collect(x) {
-    return MyAF.call(this, x);
+    return super.from(x);
   }
 }

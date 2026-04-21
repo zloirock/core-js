@@ -51,21 +51,24 @@ const shouldTransformCases = [
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
 
-// single-segment -> PascalCase, multi-segment takes first, kebab -> PascalCase, empty -> null
+// class entries (bare or `/constructor` tail) PascalCase the first segment; method
+// entries return null so user imports of them don't masquerade as class aliases
 check('entryToGlobalHint/single segment', entryToGlobalHint('promise'), 'Promise');
 check('entryToGlobalHint/subpath constructor', entryToGlobalHint('promise/constructor'), 'Promise');
-check('entryToGlobalHint/instance subpath', entryToGlobalHint('array/instance/at'), 'Array');
 check('entryToGlobalHint/kebab single word', entryToGlobalHint('weak-map'), 'WeakMap');
-check('entryToGlobalHint/kebab subpath', entryToGlobalHint('array-buffer/is-view'), 'ArrayBuffer');
 check('entryToGlobalHint/non-class helper', entryToGlobalHint('is-iterable'), 'IsIterable');
 check('entryToGlobalHint/empty string', entryToGlobalHint(''), null);
+// method / instance entries: user's pure import is a function, not the class — no hint
+check('entryToGlobalHint/static method', entryToGlobalHint('promise/try'), null);
+check('entryToGlobalHint/instance subpath', entryToGlobalHint('array/instance/at'), null);
+check('entryToGlobalHint/kebab subpath', entryToGlobalHint('array-buffer/is-view'), null);
+check('entryToGlobalHint/deep kebab subpath', entryToGlobalHint('typed-array/instance/to-sorted'), null);
 // edge cases
 check('entryToGlobalHint/leading slash', entryToGlobalHint('/promise'), null);
-check('entryToGlobalHint/trailing slash', entryToGlobalHint('promise/'), 'Promise');
-// numeric segment passes through `kebabToPascal` unchanged - documented edge; downstream
-// hint-consumers fall through because no global matches '42'
-check('entryToGlobalHint/numeric prefix', entryToGlobalHint('42/foo'), '42');
-check('entryToGlobalHint/deep kebab subpath', entryToGlobalHint('typed-array/instance/to-sorted'), 'TypedArray');
+check('entryToGlobalHint/trailing slash', entryToGlobalHint('promise/'), null);
+// numeric first segment passes through `kebabToPascal` unchanged; downstream
+// hint-consumers filter it out because no global matches '42'
+check('entryToGlobalHint/numeric prefix', entryToGlobalHint('42'), '42');
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
