@@ -176,9 +176,9 @@ export function createClassHelpers(t, adapter) {
     return names;
   }
 
-  // `this.X` inside a class — shadowed iff the class declares its own `X` matching the
-  // current `this` binding (static-ctx → static members; instance-ctx → instance members).
-  // nested non-arrow fn rebinds `this` so ownership can't be proven → not shadowed
+  // `this.X` is shadowed when the class declares its own `X` of the matching kind —
+  // static-ctx checks static members, instance-ctx checks instance members. nested
+  // non-arrow fn rebinds `this`, so ownership can't be proven there
   function isShadowedByClassOwnMember(path, key) {
     if (typeof key !== 'string') return false;
     const info = findEnclosingClassMember(path);
@@ -197,11 +197,10 @@ export function createClassHelpers(t, adapter) {
     return !!findEnclosingClassMember(path)?.isStatic;
   }
 
-  // `super.X` anywhere → static-only resolves here (instance super.X is out of scope).
-  // `this.X` in static context → same lookup rule (class's static chain via `extends`).
-  // both share `resolveStaticInheritedMember`; this predicate gates the dispatch and the
-  // downstream instance-fallback bail (class-as-instance would be semantically wrong).
-  // direct type-string checks because estree-compat's `types` doesn't provide `isSuper`
+  // gates dispatch to `resolveStaticInheritedMember` plus the downstream instance-fallback
+  // bail. both `super.X` (any ctx; instance super.X is out of scope of our resolver) and
+  // `this.X` in static ctx look up the super class's static chain via `extends`. direct
+  // type-string checks because estree-compat's `types` doesn't export `isSuper`
   function isInheritedStaticLookup(path) {
     const objType = path.node.object?.type;
     if (objType === 'Super') return true;
