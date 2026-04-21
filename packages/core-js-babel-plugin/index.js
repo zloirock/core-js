@@ -22,6 +22,7 @@ import {
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isPolyfillableOptional,
+  patternBindingName,
   scanExistingCoreJSImports,
 } from '@core-js/polyfill-provider/detect-usage';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
@@ -237,6 +238,13 @@ export default function plugin(api, options) {
           value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
         } else {
           value = injectPureImport(entry, hintName);
+        }
+        // proxy-global alias (`{ Symbol: S = default } = globalThis`): AST mutation below
+        // rewrites init to `_Symbol === void 0 ? default : _Symbol` — `resolveBindingToGlobal`
+        // can't walk that ConditionalExpression, so register S → 'Symbol' up front
+        if (kind === 'global') {
+          const localName = patternBindingName(prop.node.value);
+          if (localName) injector.registerGlobalAlias(localName, hintName);
         }
         // mark property as handled - rest-rename triggers re-traversal which must be skipped
         skippedNodes.add(prop.node);
