@@ -121,12 +121,27 @@ function mergeEqualRange(a, b, originalNeedle) {
 // composite key for the (start, end) range index
 const rangeKey = (start, end) => `${ start }|${ end }`;
 
-// recompute prefix max of `.end` from `from` onward after a splice into `sorted`
-function rebuildPrefixMax(sorted, prefixMaxEnd, from) {
-  prefixMaxEnd.length = sorted.length;
-  let running = from > 0 ? prefixMaxEnd[from - 1] : -1;
-  for (let i = from; i < sorted.length; i++) {
+// incremental prefix-max maintenance after splice. prefix max is monotonic non-decreasing:
+// once the walk hits a stale slot that already covers the change, trailing slots stay correct
+function updatePrefixMaxOnInsert(sorted, prefixMaxEnd, pos) {
+  const prev = pos > 0 ? prefixMaxEnd[pos - 1] : -1;
+  const newEnd = sorted[pos].end;
+  prefixMaxEnd.splice(pos, 0, Math.max(newEnd, prev));
+  if (newEnd > prev) for (let i = pos + 1; i < prefixMaxEnd.length; i++) {
+    if (prefixMaxEnd[i] >= newEnd) return;
+    prefixMaxEnd[i] = newEnd;
+  }
+}
+
+function updatePrefixMaxOnRemove(sorted, prefixMaxEnd, si, removedEnd) {
+  prefixMaxEnd.splice(si, 1);
+  const prev = si > 0 ? prefixMaxEnd[si - 1] : -1;
+  // removed end wasn't the contributor → shifted-left stale values are already correct
+  if (removedEnd <= prev) return;
+  let running = prev;
+  for (let i = si; i < sorted.length; i++) {
     if (sorted[i].end > running) running = sorted[i].end;
+    if (prefixMaxEnd[i] === running) return;
     prefixMaxEnd[i] = running;
   }
 }
@@ -157,8 +172,12 @@ export default class TransformQueue {
   // sorted snapshot + prefix max maintained incrementally for O(log n) containsRange
   #sorted = [];
   #prefixMaxEnd = [];
-  // guardedRoot node -> entries (O(1) hasGuardFor / findOuterGuardRef)
+  // guardedRoot -> entries. linear scan per query, M typically ≤ 2-3 in practice
   #byGuardedRoot = new Map();
+  // per-root widest `.end` — fast-reject for `hasGuardFor` when `query.end > max`.
+  // not decremented on extract: an overstated cache falls through to the linear scan
+  // (still correct), understated would drop valid matches
+  #maxEndByGuardedRoot = new Map();
   // `start|end` -> entries (equal-range dups share a key) for O(1) extractContent lookup
   #byRange = new Map();
 
@@ -175,15 +194,22 @@ export default class TransformQueue {
     const entry = { start, end, content, guardedRoot, rewriteHint };
     this.#transforms.add(entry);
     pushOrInit(this.#byRange, rangeKey(start, end), entry);
-    if (guardedRoot) pushOrInit(this.#byGuardedRoot, guardedRoot, entry);
+    if (guardedRoot) {
+      pushOrInit(this.#byGuardedRoot, guardedRoot, entry);
+      const prevMax = this.#maxEndByGuardedRoot.get(guardedRoot);
+      if (prevMax === undefined || end > prevMax) this.#maxEndByGuardedRoot.set(guardedRoot, end);
+    }
     const pos = upperBound(this.#sorted, start);
     this.#sorted.splice(pos, 0, entry);
-    rebuildPrefixMax(this.#sorted, this.#prefixMaxEnd, pos);
+    updatePrefixMaxOnInsert(this.#sorted, this.#prefixMaxEnd, pos);
   }
 
-  // check if a containing transform already guards the given root identifier
+  // strict containment only — equal range isn't "guarded" (both transforms must apply)
   hasGuardFor(start, end, root) {
     if (!root) return false;
+    const maxEnd = this.#maxEndByGuardedRoot.get(root);
+    if (maxEnd === undefined || maxEnd < end) return false;
+    // extract drains #byGuardedRoot but not the maxEnd cache — defensive null-check
     const list = this.#byGuardedRoot.get(root);
     if (!list) return false;
     for (const t of list) {
@@ -221,7 +247,7 @@ export default class TransformQueue {
     while (si < sorted.length && sorted[si].start === start && sorted[si] !== entry) si++;
     if (si < sorted.length && sorted[si] === entry) {
       sorted.splice(si, 1);
-      rebuildPrefixMax(sorted, this.#prefixMaxEnd, si);
+      updatePrefixMaxOnRemove(sorted, this.#prefixMaxEnd, si, entry.end);
     }
     return entry.content;
   }
