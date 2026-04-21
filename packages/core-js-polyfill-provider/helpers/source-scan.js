@@ -23,7 +23,7 @@ export function buildOffsetToLine(code) {
 // `[\s*]*` (character class, not nested quantifiers) matches JSDoc continuation indent
 // `\n * ` without backtracking. `m` flag picks up directives on continuation lines,
 // not just the first (JSDoc: `/** ... \n * core-js-disable-file \n */`)
-// eslint-disable-next-line sonarjs/slow-regex, redos/no-vulnerable -- `[\s*]*` is a character class, not nested quantifiers
+// eslint-disable-next-line redos/no-vulnerable -- `[\s*]*` is a character class, not nested quantifiers
 const DIRECTIVE = /^[\s*]*core-js-disable-(?<kind>file|line|next-line)(?:\s|$)/m;
 
 // merge two visitor objects - combine handlers for same node type
