@@ -53,6 +53,21 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
     + `(read-only import binding); expected runtime engine to provide \`${ identifier.name }\``;
 }
 
+// `globalThis.Map ||= X` — MemberExpression LHS form. called from MemberExpression visitor
+// before inner-identifier transformation mutates `globalThis` → `_globalThis`; receiver and
+// property still carry their pre-transform names at this visitation point
+export function checkLogicalAssignLhsMember(memberNode, parent) {
+  if (!memberNode || memberNode.type !== 'MemberExpression' || memberNode.computed) return null;
+  const obj = memberNode.object;
+  const prop = memberNode.property;
+  if (obj?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) return null;
+  if (prop?.type !== 'Identifier' || !isKnownGlobalName(prop.name)) return null;
+  if (parent?.type !== 'AssignmentExpression' || parent.left !== memberNode) return null;
+  if (!LOGICAL_ASSIGN_OPERATORS.has(parent.operator)) return null;
+  return `\`${ obj.name }.${ prop.name } ${ parent.operator } ...\` left-hand side cannot be polyfilled `
+    + `(plugin rewrites reads, not writes); expected runtime engine to provide \`${ prop.name }\``;
+}
+
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains
 const MAX_KEY_DEPTH = 64;
 
@@ -150,7 +165,7 @@ function patternBindingName(node) {
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
 // (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow
-function resolveObjectName(objectNode, scope, adapter, seen) {
+export function resolveObjectName(objectNode, scope, adapter, seen) {
   objectNode = unwrapParens(objectNode);
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name)) return resolveBindingToGlobal(objectNode.name, scope, adapter, seen);
@@ -256,9 +271,12 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
     if (left !== null && right !== null) return left + right;
   }
   // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
+  // fork `seen` per side so shared-binding probe (e.g. `obj[s[s]]` re-entering `s`) doesn't
+  // trip the cycle guard on the second side after the first side populated the Set. mirrors
+  // the TemplateLiteral / `+` branches above
   if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
-    && asSymbolRef(node.object, scope, adapter)) {
-    const name = resolveKey(node.property, node.computed, scope, adapter, seen, depth + 1);
+    && asSymbolRef(node.object, scope, adapter, new Set(seen))) {
+    const name = resolveKey(node.property, node.computed, scope, adapter, new Set(seen), depth + 1);
     if (name) return `Symbol.${ name }`;
   }
   return null;
@@ -266,21 +284,23 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
 
 // bare unbound `Symbol` / capitalised const-alias (`const Sym = Symbol`) /
 // proxy-global access (`globalThis.Symbol`, `self.window.Symbol`). lowercase idents skip
-// the const-chain walk - `Symbol` aliases are capitalised by convention
-function resolvesToGlobalSymbol(node, scope, adapter) {
+// the const-chain walk - `Symbol` aliases are capitalised by convention.
+// `seen` threaded through so callers caught in a cyclic const-alias chain
+// (`const a = b.Symbol; const b = a;`) don't restart the cycle guard
+function resolvesToGlobalSymbol(node, scope, adapter, seen) {
   if (node.type === 'Identifier') {
     if (node.name === 'Symbol') return !adapter.hasBinding(scope, 'Symbol');
     if (!CAPITALISED_IDENT.test(node.name)) return false;
-    return resolveBindingToGlobal(node.name, scope, adapter) === 'Symbol';
+    return resolveBindingToGlobal(node.name, scope, adapter, seen) === 'Symbol';
   }
   return globalProxyMemberName(node, scope, adapter) === 'Symbol';
 }
 
 // preserve pre-unwrap node so callers can seed both forms into handledObjects;
 // Set dedup absorbs the duplicate when raw === unwrapped
-function asSymbolRef(node, scope, adapter) {
+function asSymbolRef(node, scope, adapter, seen) {
   const unwrapped = unwrapParens(node);
-  return unwrapped && resolvesToGlobalSymbol(unwrapped, scope, adapter) ? { raw: node, unwrapped } : null;
+  return unwrapped && resolvesToGlobalSymbol(unwrapped, scope, adapter, seen) ? { raw: node, unwrapped } : null;
 }
 
 // `var X = X` — hoisted var init references its own name, which at runtime reads the
