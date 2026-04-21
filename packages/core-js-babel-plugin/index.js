@@ -152,13 +152,11 @@ export default function plugin(api, options) {
       }
 
       function canTransformDestructuring(path) {
-        const objectPattern = path.parentPath;
-        const parent = objectPattern?.parentPath;
+        const parent = path.parentPath?.parentPath;
         if (!sharedCanTransformDestructuring({
           parentType: parent?.node?.type,
           parentInit: parent?.node?.init,
           grandParentType: parent?.parentPath?.parentPath?.node?.type,
-          patternProperties: objectPattern?.node?.properties,
         })) return false;
         if (parent?.isAssignmentExpression() && !parent.parentPath?.isExpressionStatement()) return false;
         return true;
@@ -236,12 +234,9 @@ export default function plugin(api, options) {
         pending.polyfills.set(prop.node.key.name, id);
       }
 
-      // `const { Array: { from } } = globalThis` -> `const from = _Array$from`. extracts the
-      // inner property to a top-level declaration and cleans up the remaining pattern:
-      // - drop inner prop; if inner pattern becomes empty, drop outer Property too
-      // - if outer pattern becomes empty, drop the whole VariableDeclaration
-      // multi-decl (e.g. `const {...} = X, y = 1`) / non-Identifier inner value / AssignmentPattern
-      // default fall back to the param-default path — those can't be trivially flattened
+      // `const { Array: { from } } = globalThis` -> `const from = _Array$from`.
+      // non-Identifier inner value / AssignmentPattern default fall back to the param-default
+      // path — those can't be trivially flattened
       function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
         if (!t.isIdentifier(prop.node.value)) return false;
         const innerPattern = prop.parentPath;
@@ -265,21 +260,14 @@ export default function plugin(api, options) {
           declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
           return true;
         }
-        // for-init: hoisting the extraction via `declaration.insertBefore` wraps the for-init
-        // in an arrow-IIFE — then `const from = _from` and the live `{ Array: { from } }`
-        // both land in the IIFE scope and babel rejects the second. keep the extraction
-        // inside the for-init header via `declarator.insertBefore`.
-        // block-level: hoist extracted as a standalone statement above `declaration`.
-        // both paths use `.insertBefore` (never raw `declarations[].splice`) so babel-traverse
-        // keeps `path.key` of queued sibling-inner paths in sync — raw splice desyncs them
-        // and the visitor for the next inner prop stops firing
+        // declarator-level insert in for-init keeps loop-header shape; declaration-level
+        // insert would wrap for-init in an arrow-IIFE and duplicate the bound name inside
         const isForInit = declaration.parentPath?.isForStatement()
           && declaration.parentPath.node.init === declaration.node;
         if (isForInit) declarator.insertBefore(extractedDeclarator);
         else declaration.insertBefore(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
-        // fully-consumed outer declarator: splice the now-empty declarator out in-place.
-        // `.remove()` nulls the path's parent mid-traversal and crashes babel's virtual-type
-        // visitor filter on still-queued inner Identifiers
+        // splice out the emptied declarator in-place; `.remove()` mid-traversal nulls
+        // path.parent and crashes babel's virtual-type filter on queued inner Identifiers
         if (willRemoveDeclarator && declCount > 1) {
           const idx = declaration.node.declarations.indexOf(declarator.node);
           if (idx !== -1) declaration.node.declarations.splice(idx, 1);
