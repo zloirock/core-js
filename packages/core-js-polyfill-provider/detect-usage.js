@@ -72,14 +72,23 @@ export function checkLogicalAssignLhsMember(memberNode, parent) {
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains
 const MAX_KEY_DEPTH = 64;
 
-// for `(0, X)` sequences: preceding elements would be silently dropped when plugins replace
-// the receiver, so bail the collapse on any side-effect there
-function unwrapParens(node) {
+// walks transparent wrappers (parens / chains / TS casts) and SequenceExpression.
+// two modes via the optional `effects` out-param:
+//   - omitted: bail on sequences whose preceding elements have side effects (caller can't
+//     preserve them — e.g. inner resolveKey recursion, handleBinaryIn). keeps the sequence
+//     intact so no fn() gets silently dropped
+//   - array: always unwrap, pushing side-effect preceding elements into `effects` for the
+//     caller to re-attach via a SequenceExpression wrap around the polyfill replacement
+function unwrapParens(node, effects) {
   while (node) {
     if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression'
-      || TS_EXPR_WRAPPERS.has(node.type)) node = node.expression;
-    else if (node.type === 'SequenceExpression'
-      && !node.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+      || TS_EXPR_WRAPPERS.has(node.type)) {
+      node = node.expression;
+    } else if (node.type === 'SequenceExpression') {
+      const preceding = node.expressions.slice(0, -1);
+      if (effects) {
+        for (const e of preceding) if (mayHaveSideEffects(e)) effects.push(e);
+      } else if (preceding.some(mayHaveSideEffects)) break;
       node = node.expressions.at(-1);
     } else break;
   }
@@ -333,25 +342,34 @@ function isImportBinding(name, scope, adapter) {
 }
 
 function buildMemberMeta(node, scope, adapter) {
+  // collect side effects from both the receiver and the computed-key so a polyfill
+  // replacement on this MemberExpression (which discards the whole subtree) can re-emit
+  // them via a SequenceExpression wrap in the plugin's emission path
+  const sideEffects = [];
+  const obj = unwrapParens(node.object, sideEffects);
   // computed keys may arrive wrapped in TS constructs (`obj[(k) as any]`, `obj[k!]`) -
   // resolveKey can't walk identifier-alias chain through a TS expression wrapper root
   const key = node.computed
-    ? resolveKey(unwrapParens(node.property), true, scope, adapter)
+    ? resolveKey(unwrapParens(node.property, sideEffects), true, scope, adapter)
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
-  const obj = unwrapParens(node.object);
   // direct `X.prototype.Y` -> instance-method on X. indirect alias (`const P = X.prototype`
   // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
   // via `enhanceMeta`
+  let meta = null;
   if ((obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression')
     && resolveKey(obj.property, obj.computed, scope, adapter) === 'prototype') {
     const protoName = resolveObjectName(obj.object, scope, adapter);
-    if (protoName) return { kind: 'property', object: protoName, key, placement: 'prototype' };
+    if (protoName) meta = { kind: 'property', object: protoName, key, placement: 'prototype' };
   }
-  const objectName = resolveObjectName(obj, scope, adapter);
-  if (!objectName && obj.type === 'Identifier' && isImportBinding(obj.name, scope, adapter)) return null;
-  const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
-  return { kind: 'property', object: objectName, key, placement };
+  if (!meta) {
+    const objectName = resolveObjectName(obj, scope, adapter);
+    if (!objectName && obj.type === 'Identifier' && isImportBinding(obj.name, scope, adapter)) return null;
+    const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
+    meta = { kind: 'property', object: objectName, key, placement };
+  }
+  if (sideEffects.length) meta.sideEffects = sideEffects;
+  return meta;
 }
 
 export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals) {
