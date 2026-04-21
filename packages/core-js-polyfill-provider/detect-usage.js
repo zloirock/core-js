@@ -438,7 +438,10 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
     ? asSymbolRef(left.object, scope, adapter) : null;
   if (ref) {
     const name = resolveKey(left.property, left.computed, scope, adapter);
-    if (name) {
+    // nested `Symbol[Symbol.X]` — `resolveKey` already returns `Symbol.X`; double-prefixing
+    // would build invalid `Symbol.Symbol.X`. user code (`Symbol[Symbol.iterator]` evaluates
+    // to undefined regardless) is runtime-broken; bail rather than carry an invalid key
+    if (name && !name.includes('.')) {
       const key = `Symbol.${ name }`;
       // seed `handledObjects` only when the rewrite actually replaces the BinaryExpression -
       // unpolyfillable keys leave the `Symbol` identifier in place and it still needs its polyfill
@@ -459,9 +462,11 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
   // identifier bound to Symbol.X — `const k = Symbol.iterator; k in obj` works regardless of
   // object type. literal-string sources that happen to spell `Symbol.X` (`'Symbol.iterator'`,
   // `` `Symbol.iterator` ``, `'Symbol.' + 'iterator'`) are NOT symbol refs — `isSymbolSourcedKey`
-  // filters them out; they fall through to the string-key branch below
+  // filters them out; they fall through to the string-key branch below.
+  // single-`.` shape filters out double-prefixed `Symbol.Symbol.X` from nested `Symbol[Symbol.X]`
   const resolvedLeft = resolveKey(node.left, true, scope, adapter);
-  if (resolvedLeft?.startsWith('Symbol.') && isSymbolSourcedKey(node.left, scope, adapter)) {
+  if (resolvedLeft?.startsWith('Symbol.') && !resolvedLeft.includes('.', 7)
+    && isSymbolSourcedKey(node.left, scope, adapter)) {
     return { kind: 'in', key: resolvedLeft, object: null, placement: null, symbolSourced: true };
   }
   // 'key' in Object - string key in static/global object
