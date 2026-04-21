@@ -462,6 +462,16 @@ export default function createPlugin(options) {
           : binding;
       }
 
+      // a `(`-leading replacement at a statement-leading slot can fuse with the previous
+      // line into a call (`a\n(...)` → `a(...)`); inject `;` only when both conditions hit
+      function asiGuardLeadingParen(replacement, metaPath, start) {
+        return replacement[0] === '('
+          && startsEnclosingStatement(metaPath, start)
+          && canFuseWithOpenParen(code, start)
+          ? `;${ replacement }`
+          : replacement;
+      }
+
       // source of `node` with its outer `ParenthesizedExpression` wrapper dropped — except
       // when the inner is a `SequenceExpression` (dropping the parens changes semantics)
       function unwrapParensSrc(node) {
@@ -710,13 +720,7 @@ export default function createPlugin(options) {
           preAllocatedGuardRef,
         });
         if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
-          replacement = `(${ replacement })`;
-          // when a statement-leading `(...)` replaces an identifier-leading original, the
-          // enclosing ExpressionStatement can fuse into the previous one (`foo()\n(...)`
-          // parses as `foo()(...)`). only inject `;` at the statement boundary
-          if (startsEnclosingStatement(metaPath, start) && canFuseWithOpenParen(code, start)) {
-            replacement = `;${ replacement }`;
-          }
+          replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, start);
         }
         // composition hint: outer rewrites `rootRaw -> guardRef` + strips `?.`, so
         // substituteInner can rebuild a matching needle when the raw slice is gone
@@ -1533,7 +1537,7 @@ export default function createPlugin(options) {
           start = parent.object.start;
           end = afterOptional(parent.object.end, !parent.computed);
         }
-        transforms.add(start, end, wrapSideEffects(binding, sideEffects));
+        transforms.add(start, end, asiGuardLeadingParen(wrapSideEffects(binding, sideEffects), metaPath, start));
       }
 
       const usagePureCallback = (meta, metaPath) => {
