@@ -291,9 +291,13 @@ export default function createPlugin(options) {
       // post's snapshot delete happens at the top of runTransform so it runs even on
       // early-return paths (parse error, isCoreJSFile, disabled directive)
       if (!ms.hasChanged()) return null;
-      const out = ms.toString();
+      // re-prepend BOM through MagicString so the sourcemap's output columns on line 0
+      // account for the extra char (external string concat would leave mappings claiming
+      // output[0,0] → source[0,0] while the real output[0,0] is the BOM). gated on
+      // hasChanged so no-op transforms still return null
+      if (hasBOM) ms.prepend('\uFEFF');
       return {
-        code: hasBOM ? `\uFEFF${ out }` : out,
+        code: ms.toString(),
         // in `post` pass `ms.original` is pre-pass output, not the real source - omit
         // sourcesContent so the bundler chains through pre-pass map's content instead
         // of attributing pre-output as the claimed content of `id`
