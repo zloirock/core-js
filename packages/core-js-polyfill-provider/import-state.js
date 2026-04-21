@@ -80,6 +80,25 @@ export default class ImportInjectorState {
     return this.#importInfoByName.get(name) ?? null;
   }
 
+  // local-name → global-name for user destructure aliases (`{Symbol: S} = globalThis` → S).
+  // babel AST mutation rewrites the destructure binding so `resolveBindingToGlobal` can't
+  // walk the resulting shape (ConditionalExpression for defaulted form); unplugin doesn't
+  // mutate, keeps the table empty
+  #globalAliases = new Map();
+
+  registerGlobalAlias(name, globalName) {
+    this.#globalAliases.set(name, globalName);
+  }
+
+  // unified lookup for the adapter's `getBinding` — pure-import or global-alias, whichever
+  // hits first. `source` is null for aliases (no standalone import for them)
+  getBindingInfo(name) {
+    const pure = this.#importInfoByName.get(name);
+    if (pure) return { hint: pure.hint, source: pure.source };
+    const alias = this.#globalAliases.get(name);
+    return alias ? { hint: alias, source: null } : null;
+  }
+
   seedReservedNames(names) {
     for (const n of names) this.usedNames.add(n);
   }
