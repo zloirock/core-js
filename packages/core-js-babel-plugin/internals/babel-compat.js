@@ -267,18 +267,6 @@ export default function (t, { getInjector } = {}) {
     ]));
   }
 
-  // multi-decl extraction: insert the extracted declarator adjacent to the parent.
-  // `parent.insertBefore` lets babel-traverse keep the still-pending declarator paths
-  // in sync — raw splice into `declarations[]` desyncs `path.key` of later siblings
-  // and their visitor stops firing (missing polyfill for the next sibling prop).
-  // rest keeps its declarator (rest semantics depend on pattern staying live);
-  // non-rest with remaining non-polyfill siblings (e.g. `{ from, noSuch } = Array, y = 1`)
-  // also needs inline insertion — earlier batching-until-isEmpty flow stranded the extraction
-  // when a non-polyfill leftover kept the pattern live
-  function collectMultiDeclExtraction(parent, localBinding, value) {
-    parent.insertBefore(t.variableDeclarator(localBinding, value));
-  }
-
   // for-init with SE: keep SE inline so it doesn't escape the loop
   // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call
@@ -420,10 +408,15 @@ export default function (t, { getInjector } = {}) {
           }
         }
       } else if (isMultiDecl || (isForInit && hasRest)) {
-        // for-init cannot hoist outside the loop header (block-scoped kinds would escape,
-        // Babel wraps the init otherwise) - splice the extracted declarator next to the
-        // rest-keeping pattern so both stay in the for-init
-        collectMultiDeclExtraction(parent, localBinding, value);
+        // insert the extracted declarator adjacent to the parent. `parent.insertBefore`
+        // keeps babel-traverse `path.key` of later-sibling declarators in sync — raw
+        // `declarations[]` splice desyncs them and the next sibling's visitor stops firing
+        // (missing polyfill for `{ from, noSuch }` leftover, or for-init escape).
+        // rest pattern stays live (rest semantics need it); non-rest with a non-polyfill
+        // leftover inside the pattern (`{ from, noSuch } = Array, y = 1`) similarly needs
+        // inline insertion — earlier batch-until-isEmpty flow stranded the extraction when
+        // the leftover kept the pattern from going empty
+        parent.insertBefore(t.variableDeclarator(localBinding, value));
       } else if (isExport) {
         declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
       } else {
