@@ -21,6 +21,7 @@ import {
   resolveSuperImportName,
   stripQueryHash,
   TS_EXPR_WRAPPERS,
+  unwrapParens,
 } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
@@ -431,18 +432,11 @@ export default function createPlugin(options) {
         return code.slice(n.start, n.end);
       }
 
-      // strip ESTree ParenthesizedExpression wrapper when inner expression doesn't require parens
-      function unwrapParens(node) {
-        if (node.type === 'ParenthesizedExpression' && node.expression.type !== 'SequenceExpression') {
-          return nodeSrc(node.expression);
-        }
-        return nodeSrc(node);
-      }
-
-      // peel ParenthesizedExpression chain to reach the inner AST node (returns the node itself)
-      function peelParens(node) {
-        while (node?.type === 'ParenthesizedExpression') node = node.expression;
-        return node;
+      // source of `node` with its outer `ParenthesizedExpression` wrapper dropped — except
+      // when the inner is a `SequenceExpression` (dropping the parens changes semantics)
+      function unwrapParensSrc(node) {
+        return nodeSrc(node.type === 'ParenthesizedExpression'
+          && node.expression.type !== 'SequenceExpression' ? node.expression : node);
       }
 
       // scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char.
@@ -530,7 +524,7 @@ export default function createPlugin(options) {
             if (cur === optionalNode) break;
             cur = chainChild(cur);
           }
-          return { root: unwrapParens(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
+          return { root: unwrapParensSrc(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
         }
         const isPoly = n => isPolyfillableOptional(n, null, estreeAdapter, resolveBuiltIn);
         let current = node.optional ? node : chainChild(node);
@@ -657,7 +651,7 @@ export default function createPlugin(options) {
       // replacementIsCall overrides isCall for buildReplacement (Symbol.iterator: parent
       // range is the call, but the emitted shape is a simple call, not `.call()`)
       function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
-        let objectSrc = unwrapParens(node.object);
+        let objectSrc = unwrapParensSrc(node.object);
         let isNonIdent = !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
         const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall);
         // inner polyfill sharing the chain root with an outer: reuse outer's guardRef so
@@ -783,7 +777,7 @@ export default function createPlugin(options) {
         const innerArgs = sliceBetweenParens(chainStart) ?? '';
         const outerArgs = sliceBetweenParens(parent) ?? '';
         const innerCall = `${ mRef }.call(${ aRef }${ innerArgs ? `, ${ innerArgs }` : '' })`;
-        const receiver = unwrapParens(innerCallee.object);
+        const receiver = unwrapParensSrc(innerCallee.object);
 
         const tests = [
           `null == (${ aRef } = ${ receiver })`,
@@ -1114,7 +1108,7 @@ export default function createPlugin(options) {
             initEnd: initNode?.end,
             // peel `(...)` so `const { resolve } = (Promise)` resolves like the bare form
             initNode,
-            initIdentName: peelParens(initNode)?.type === 'Identifier' ? peelParens(initNode).name : null,
+            initIdentName: unwrapParens(initNode)?.type === 'Identifier' ? unwrapParens(initNode).name : null,
             scopeSnapshot: { scope: state.scope, arrow: state.arrow },
           });
           // mark global identifiers in init so they don't generate conflicting transforms.
@@ -1262,7 +1256,7 @@ export default function createPlugin(options) {
             // scope+adapter omitted - unplugin's `state.scope` snapshot exposes a reduced API
             // (no `.getBinding()`) that isn't compatible with `estreeAdapter`; polyfillHint-aliased
             // proxies don't arise in unplugin anyway since it doesn't mutate bindings in place
-            const resolvedGlobalName = initIdentName || globalProxyMemberName(peelParens(info.initNode));
+            const resolvedGlobalName = initIdentName || globalProxyMemberName(unwrapParens(info.initNode));
             // if remaining/rest/instance needs init object, ensure it's polyfilled
             if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && resolvedGlobalName) {
               const initResolved = resolvePure({ kind: 'global', name: resolvedGlobalName }, null);
