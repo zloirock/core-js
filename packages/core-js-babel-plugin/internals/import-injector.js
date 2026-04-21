@@ -46,14 +46,47 @@ export default class ImportInjector extends ImportInjectorState {
   // own UID generator - Babel's scope.generateUidIdentifier strips trailing digits,
   // so after `_ref9` it would hand out `_ref` / `_ref2` instead of `_ref10` / `_ref11`,
   // colliding with earlier slots.
-  // `declare=true` uses scope.push (handles arrow-body -> block promotion); `false` leaves
-  // the declaration to the caller (e.g. destructuring extracts its own `const`)
+  // `declare=true` uses scope.push; `false` leaves the declaration to the caller (e.g.
+  // destructuring extracts its own `const`). arrow-expression-body is normalized post-pass
+  // by `normalizeArrowRefParams` — see there for why it can't run in-visit
   generateRef(scope, declare = true) {
     const name = this.generateRefName(n => scope.hasBinding(n));
     this.#refs.add(name);
     const id = this.#t.identifier(name);
     if (declare) scope.push({ id });
     return id;
+  }
+
+  // `scope.push` on an arrow with expression body appends the ref as a trailing parameter
+  // instead of block-converting (Babel fallback when there's no block to host `var _ref;`).
+  // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
+  // container pointers still point at the pre-convert arrow.body slot — they clobber the
+  // new block when they fire
+  normalizeArrowRefParams() {
+    if (!this.#refs.size) return;
+    const t = this.#t;
+    const refNames = this.#refs;
+    this.#programPath.traverse({
+      ArrowFunctionExpression(path) {
+        const { params } = path.node;
+        let n = params.length;
+        while (n > 0) {
+          const p = params[n - 1];
+          if (p?.type !== 'Identifier' || !refNames.has(p.name)) break;
+          n--;
+        }
+        if (n === params.length) return;
+        const refParams = params.slice(n);
+        path.node.params = params.slice(0, n);
+        let bodyPath = path.get('body');
+        if (!bodyPath.isBlockStatement()) {
+          bodyPath.replaceWith(t.blockStatement([t.returnStatement(path.node.body)]));
+          bodyPath = path.get('body');
+        }
+        bodyPath.unshiftContainer('body', t.variableDeclaration('var',
+          refParams.map(p => t.variableDeclarator(t.cloneNode(p)))));
+      },
+    });
   }
 
   // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
