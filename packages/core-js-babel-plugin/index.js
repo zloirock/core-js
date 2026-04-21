@@ -201,10 +201,9 @@ export default function plugin(api, options) {
         return null;
       }
 
-      // the NodePath whose `.node` will be replaced with the synth object. null → fall
-      // through to inline-default. unified across shapes:
-      //   - `function({p} = R)`     → `wrapper.get('right')`
-      //   - `(({p}) => body)(R)`    → call-arg path (incl. inline-array-spread element)
+      // NodePath whose `.node` becomes the synth object; null means inline-default fallback.
+      // handles `function({p} = R)` (wrapper.right) and arrow IIFE `(({p}) => body)(R)`
+      // (call-arg path, expanding inline-array spreads)
       function findSynthSwapTargetPath(wrapper, objectPattern) {
         if (objectPattern.node.properties.some(p => t.isRestElement(p))) return null;
         if (wrapper?.isAssignmentPattern() && t.isIdentifier(wrapper.node.right)) {
@@ -450,9 +449,9 @@ export default function plugin(api, options) {
         if (path.node.type === 'JSXIdentifier') return;
 
         if (meta.kind === 'in') {
-          // symbol-sourced LHS (`Symbol.X in obj` / alias binding) → dedicated symbol-in
-          // polyfill. string-sourced `'Symbol.X' in Obj` takes the string-key branch below,
-          // where polyfill is emitted only if the static-table has the literal string key
+          // symbol-sourced LHS (`Symbol.X in obj` / alias binding) takes the symbol-in
+          // polyfill path; string-sourced LHS (`'Symbol.X' in Obj`) falls through to the
+          // string-key lookup and emits `true` only if the static table matches the literal
           const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
           if (symbolIn && isEntryNeeded(symbolIn.entry)) {
             const id = injectPureImport(symbolIn.entry, symbolIn.hint);
@@ -490,7 +489,7 @@ export default function plugin(api, options) {
             if (isInheritedStaticLookup(path)) {
               const inheritedMeta = resolveStaticInheritedMember(path);
               if (!inheritedMeta) return;
-              // `extends MyPromise` (user-aliased pure import) — map binding → global hint
+              // `extends MyPromise` (user-aliased pure import) — map binding to global hint
               resolveSuperImportName(injector, inheritedMeta);
               meta = inheritedMeta;
             }

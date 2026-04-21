@@ -904,10 +904,9 @@ export default function createPlugin(options) {
         return null;
       }
 
-      // the receiver node to swap. null → fall through to inline-default. unified across
-      // shapes:
-      //   - `function({p} = R)`     → `AssignmentPattern.right`
-      //   - `(({p}) => body)(R)`    → call-arg node (incl. inline-array-spread element)
+      // receiver node to swap; null means inline-default fallback. handles
+      // `function({p} = R)` (AssignmentPattern.right) and arrow IIFE `(({p}) => body)(R)`
+      // (call-arg node, expanding inline-array spreads)
       function findSynthSwapReceiver(wrapperPath, objectPattern) {
         if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
         const wrapper = wrapperPath?.node;
@@ -1446,8 +1445,9 @@ export default function createPlugin(options) {
 
       function handleInExpression(meta, metaPath) {
         const { node } = metaPath;
-        // symbol-sourced LHS (`Symbol.X in obj` / alias binding) → dedicated symbol-in
-        // polyfill. string-sourced `'Symbol.X' in Obj` takes the string-key branch below
+        // symbol-sourced LHS (`Symbol.X in obj` / alias binding) takes the symbol-in
+        // polyfill path; string-sourced LHS (`'Symbol.X' in Obj`) falls through to the
+        // string-key lookup
         const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
         if (symbolIn && isEntryNeeded(symbolIn.entry)) {
           const binding = injectPureImport(symbolIn.entry, symbolIn.hint);
@@ -1555,7 +1555,7 @@ export default function createPlugin(options) {
           if (isInheritedStaticLookup(metaPath)) {
             const inheritedMeta = resolveStaticInheritedMember(metaPath);
             if (!inheritedMeta) return;
-            // `extends MyPromise` (user-aliased pure import) — map binding → global hint
+            // `extends MyPromise` (user-aliased pure import) — map binding to global hint
             resolveSuperImportName(injector, inheritedMeta);
             meta = inheritedMeta;
           }
