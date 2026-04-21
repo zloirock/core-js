@@ -66,6 +66,16 @@ export function isFunctionParamDestructureParent(parent, grandparent, objectPatt
     && parent.left === objectPatternNode
     && !!grandparent && FUNCTION_LIKE_PARAM_OWNER_TYPES.has(grandparent.type);
 }
+
+// single-chain nested destructure shape: `const { X: { y } } = Z`.
+// inner + outer patterns each hold exactly one property and the declaration carries a
+// single declarator. only under this shape can we safely flatten to `const y = _polyfill`
+// — any sibling would be silently lost by a full declarator replace
+export function isSingleNestedProxyChain(innerPattern, outerPattern, declaration) {
+  return innerPattern?.type === 'ObjectPattern' && (innerPattern.properties?.length ?? 0) === 1
+    && outerPattern?.type === 'ObjectPattern' && (outerPattern.properties?.length ?? 0) === 1
+    && declaration?.type === 'VariableDeclaration' && declaration.declarations?.length === 1;
+}
 export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
   && parent?.type === 'TaggedTemplateExpression'
   && parent.tag === node;
