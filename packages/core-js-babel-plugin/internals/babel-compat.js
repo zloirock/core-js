@@ -237,7 +237,13 @@ export default function (t, { getInjector } = {}) {
     if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
       // declare=false: we emit our own `const _ref = init;` below, no extra `var _ref;`
       const ref = generateRef(path.scope, false);
-      parent.parentPath.insertBefore(t.variableDeclaration('const', [
+      // for-init: splice as sibling declarator; declaration-level insertBefore would wrap
+      // the whole for-init in an arrow-IIFE and lose the loop-header shape
+      const isForInit = parent.isVariableDeclarator()
+        && parent.parentPath?.parentPath?.isForStatement()
+        && parent.parentPath.parentPath.node.init === parent.parentPath.node;
+      if (isForInit) parent.insertBefore(t.variableDeclarator(ref, objectNode));
+      else parent.parentPath.insertBefore(t.variableDeclaration('const', [
         t.variableDeclarator(ref, objectNode),
       ]));
       const cloned = t.cloneNode(ref);
@@ -396,10 +402,8 @@ export default function (t, { getInjector } = {}) {
           // --- block-level: defer SE to Program.exit, then replace ---
           if (isStaticValue) deferSideEffect(declaration, parent.node.init);
           if (isMultiDecl) {
-            // previously-extracted declarators (from `collectMultiDeclExtraction`) are already
-            // spliced inline; only the now-empty parent declarator needs swapping for the final
-            // extraction. `trySplitDeclaration` then hoists standalone extractions out of mixed
-            // export / non-export runs
+            // earlier extractions from sibling props are already spliced in-line; swap the
+            // now-empty parent declarator for the final one, then split mixed export runs
             const idx = declaration.node.declarations.indexOf(parent.node);
             if (idx !== -1) declaration.node.declarations.splice(idx, 1, t.variableDeclarator(localBinding, value));
             trySplitDeclaration(declaration, isExport);
@@ -407,15 +411,10 @@ export default function (t, { getInjector } = {}) {
             replaceWithAndRegister(declaration, extractedDeclaration);
           }
         }
-      } else if (isMultiDecl || (isForInit && hasRest)) {
-        // insert the extracted declarator adjacent to the parent. `parent.insertBefore`
-        // keeps babel-traverse `path.key` of later-sibling declarators in sync — raw
-        // `declarations[]` splice desyncs them and the next sibling's visitor stops firing
-        // (missing polyfill for `{ from, noSuch }` leftover, or for-init escape).
-        // rest pattern stays live (rest semantics need it); non-rest with a non-polyfill
-        // leftover inside the pattern (`{ from, noSuch } = Array, y = 1`) similarly needs
-        // inline insertion — earlier batch-until-isEmpty flow stranded the extraction when
-        // the leftover kept the pattern from going empty
+      } else if (isMultiDecl || isForInit) {
+        // `parent.insertBefore` (VariableDeclarator-level) keeps babel-traverse path.key of
+        // queued sibling declarators in sync. `declaration.insertBefore` would wrap a
+        // for-init in an arrow-IIFE and lose the loop-header shape
         parent.insertBefore(t.variableDeclarator(localBinding, value));
       } else if (isExport) {
         declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));

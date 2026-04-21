@@ -864,7 +864,6 @@ export default function createPlugin(options) {
           parentType: declaratorPath.node.type,
           parentInit: declaratorPath.node.init,
           grandParentType: declaratorPath.parentPath?.parentPath?.node?.type,
-          patternProperties: objectPattern.properties,
         })) return false;
         // ESTree-specific: assignment must be inside ExpressionStatement (unwrap ParenthesizedExpression)
         if (declaratorPath.node.type === 'AssignmentExpression') {
@@ -954,13 +953,10 @@ export default function createPlugin(options) {
       }
 
       // `const { Array: { from, of } } = globalThis` -> `const from = _Array$from; const of = _Array$of;`
-      // batch rewrite: on the first polyfillable inner prop visited for a given declaration
-      // we walk ALL declarators, extract every polyfillable inner binding, rebuild the
-      // declaration with the remaining siblings (or drop it entirely). subsequent visits of
-      // the same declaration are no-ops — matches babel's output including dropped `_globalThis`
-      // when the proxy-global init has no remaining reader. narrow-scope: proxy-global receiver
-      // (globalThis/self/window) only — single-level `{ from } = Array` is covered by the
-      // state machine below (equivalent output, different code path)
+      // batch-rewrite on first visit: walk all declarators, extract every polyfillable inner
+      // binding, rebuild the declaration with siblings (or drop entirely). subsequent visits
+      // are no-ops. scope limited to proxy-global receiver (globalThis/self/window) — plain
+      // `{ from } = Array` is handled by the state machine below
       function tryFlattenNestedProxyDestructurePure(metaPath) {
         if (metaPath.node.value?.type !== 'Identifier') return false;
         // walk inner Property -> inner ObjectPattern -> outer Property -> outer ObjectPattern
@@ -969,17 +965,13 @@ export default function createPlugin(options) {
         const declaration = declPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
         if (flattenedNestedDecls.has(declaration)) return true;
-        // per-declarator results collected in source order so rendering can preserve
-        // original position (babel keeps `let i = 0, from = _from` when source had
-        // `let i = 0, { Array: { from } } = globalThis`)
+        // per-declarator order preserved so rendering keeps source position
+        // (`let i = 0, { Array: { from } } = globalThis` -> `let i = 0, from = _from`)
         const perDecl = declaration.declarations.map(d => rewriteProxyNestedDeclarator(d, metaPath.scope));
         if (!perDecl.some(r => r.extractions.length)) return false;
         flattenedNestedDecls.add(declaration);
-        // suppress every node inside the original declaration — the outer overwrite
-        // discards them all, and leftover queue entries on init identifiers, inner
-        // bindings, or sibling property handlers would either trip transform-queue
-        // composition or produce duplicate polyfill injection (e.g. existing single-level
-        // destructure handler re-emitting Symbol after our batch already did)
+        // suppress every original descendant — queued visits on init / inner / sibling-prop
+        // handlers would either trip transform-queue composition or re-emit polyfills
         walkAstNodes(declaration, node => skippedNodes.add(node));
         const parentNode = declPath.parentPath?.node;
         const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
@@ -988,12 +980,10 @@ export default function createPlugin(options) {
         return true;
       }
 
-      // render per-declarator `{ extractions, preservedSrc }` list back into source.
-      // for-init must emit a single `kind d1, d2, d3` — `for (const X=..;\nconst Y=..;;..)`
-      // parses as `for (const X=..; const Y=..;; ..)` with the middle declaration read as
-      // test expression, a syntax error. block-level: extractions become separate statements
-      // to match babel's split output, remaining preserved declarators collapse into one
-      // trailing `kind` statement
+      // for-init: single `kind d1, d2, d3` — `\n`-separated statements parse as for-init-test-
+      // update with the middle declaration as test, a syntax error.
+      // block-level: extractions split to separate statements (match babel), preserved
+      // declarators collapse into one trailing `kind` statement
       function renderFlattenedNestedProxy(perDecl, kind, isForInit) {
         if (isForInit) {
           const parts = [];
@@ -1076,15 +1066,12 @@ export default function createPlugin(options) {
         };
       }
 
-      // execute the plan: inject polyfill imports, push `const X = _polyfill;` lines.
-      // returns { consumed, preservedDeclSrc }:
-      //   - consumed: whether any extraction was made (-> anyExtracted in caller)
-      //   - preservedDeclSrc: raw declarator src (no plan), null (fully consumed), or rebuilt
-      //     `{ ... } = init` source (partial — outer siblings kept)
+      // execute the plan: inject polyfill imports, emit extractions. returns
+      // `{ extractions: [{ decl }], preservedSrc }` where `preservedSrc` is null when the
+      // declarator is fully consumed, raw src when there's no plan to touch, or a rebuilt
+      // `{ ... } = init` source when outer siblings remain
       function rewriteProxyNestedDeclarator(declarator, scope) {
         const plan = planProxyNestedDeclarator(declarator, scope);
-        // no-plan declarator: no polyfill touches it, return its raw source verbatim so
-        // the caller re-stitches it into the comma-joined for-init / block-level output
         if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator) };
         const extractions = [];
         const preservedOuter = [];
