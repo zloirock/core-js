@@ -96,6 +96,11 @@ export default function plugin(api, options) {
       let originalBodyNodes = new WeakSet();
       let disabledLines = null;
       let skipFile;
+      // AssignmentPattern (param default) → `{ wrapper, polyfills: Map<key, idNode> }`.
+      // deferred to programExit so `wrapper.right` isn't mutated mid-traversal — a mid-visit
+      // swap would let sibling props resolve against the synth object and miss their polyfill
+      let paramDefaultSynth = new WeakMap();
+      let pendingParamDefaults = [];
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
@@ -149,15 +154,37 @@ export default function plugin(api, options) {
         return true;
       }
 
-      // parameter / IIFE destructure: `function({ from }) {}` -> `function({ from = _Array$from }) {}`
-      // only static/global polyfills fit in a default value; instance methods need a receiver
-      // LIMITATION: the default only fires when `arg[key] === undefined`, so a present-but-buggy
-      // native (e.g. `Array.from` failing SAFE_ITERATION_CLOSING) bypasses the polyfill
-      function handleParameterDestructure(prop, kind, entry, hintName) {
-        if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
-        const id = injectPureImport(entry, hintName);
+      // inline-default `{ p = _polyfill }` — only fires on undefined property. used when
+      // synth-swap can't run (complex receiver, rest element, no default wrapper): it misses
+      // the buggy-present native case, but preserves receiver evaluation semantics
+      function emitParamInlineDefault(prop, id) {
         prop.get('value').replaceWith(t.assignmentPattern(t.cloneNode(prop.node.value), t.cloneNode(id)));
         prop.node.shorthand = false;
+      }
+
+      // parameter destructure polyfill. only static/global fit here; instance methods need a
+      // receiver. for `function({p} = R)` with Identifier R and no rest: defer — programExit
+      // swaps `= R` for `= {p: _polyfill, q: R.q, ...}`, so `f()` binds through polyfill
+      // regardless of native presence; caller-passed args bypass the default entirely.
+      // everything else (complex R, rest, bare param) takes the inline-default path
+      function handleParameterDestructure(prop, kind, entry, hintName) {
+        if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
+        if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
+        const id = injectPureImport(entry, hintName);
+        const objectPattern = prop.parentPath;
+        const wrapper = objectPattern?.parentPath;
+        const hasRest = objectPattern.node.properties.some(p => t.isRestElement(p));
+        if (wrapper?.isAssignmentPattern() && !hasRest && t.isIdentifier(wrapper.node.right)) {
+          let pending = paramDefaultSynth.get(wrapper.node);
+          if (!pending) {
+            pending = { wrapper, polyfills: new Map() };
+            paramDefaultSynth.set(wrapper.node, pending);
+            pendingParamDefaults.push(pending);
+          }
+          pending.polyfills.set(prop.node.key.name, id);
+          return;
+        }
+        emitParamInlineDefault(prop, id);
       }
 
       // `const { Array: { from } } = globalThis` → `const from = _Array$from`. extracts the
@@ -500,6 +527,8 @@ export default function plugin(api, options) {
           && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
         injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
         skippedNodes = new WeakSet();
+        paramDefaultSynth = new WeakMap();
+        pendingParamDefaults = [];
         deferredSideEffects.length = 0;
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
@@ -615,6 +644,27 @@ export default function plugin(api, options) {
               usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
             },
           });
+        }
+        // swap param-default receivers with synthesized polyfill-backed objects. all sibling
+        // props have now been visited against the original receiver, so the key set is final.
+        // synth covers every destructured key: polyfilled → polyfill id; native → `R.key` ref.
+        // skip if the wrapper shape was mutated by another plugin (orphaned / non-Identifier
+        // right / non-ObjectPattern left) — losing the polyfill is preferable to emitting
+        // against an unexpected shape
+        for (const { wrapper, polyfills } of pendingParamDefaults) {
+          const receiver = wrapper.node?.right;
+          const objectPattern = wrapper.node?.left;
+          if (!t.isIdentifier(receiver) || objectPattern?.type !== 'ObjectPattern') continue;
+          const synthProps = [];
+          for (const p of objectPattern.properties) {
+            if (!t.isObjectProperty(p) || p.computed || !t.isIdentifier(p.key)) continue;
+            const polyfill = polyfills.get(p.key.name);
+            const value = polyfill
+              ? t.cloneNode(polyfill)
+              : t.memberExpression(t.cloneNode(receiver), t.identifier(p.key.name));
+            synthProps.push(t.objectProperty(t.identifier(p.key.name), value));
+          }
+          wrapper.get('right').replaceWith(t.objectExpression(synthProps));
         }
         injector?.flush();
         injector?.normalizeArrowRefParams();
