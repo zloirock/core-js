@@ -317,7 +317,12 @@ export default function createPlugin(options) {
       return finalize();
     }
 
-    const { resolveSuperMember, isShadowedByClassOwnMember } = createClassHelpers(types, estreeAdapter);
+    const {
+      resolveSuperMember,
+      resolveStaticInheritedMember,
+      isInheritedStaticLookup,
+      isShadowedByClassOwnMember,
+    } = createClassHelpers(types, estreeAdapter);
 
     // usage-global mode
     if (method === 'usage-global') {
@@ -1539,18 +1544,19 @@ export default function createPlugin(options) {
           if (node.type !== 'MemberExpression') return;
           if (isUpdateTarget(parent)) return;
           if (isForXWriteTarget(metaPath)) return;
-          if (node.object?.type === 'Super') {
-            const superMeta = resolveSuperMember(metaPath);
-            if (!superMeta) return;
-            // `extends MyPromise` (user-aliased pure import) - map binding -> global hint
-            resolveSuperImportName(injector, superMeta);
-            meta = superMeta;
-          }
           if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-          // `this.X` inside a class that defines its own `X` member - polyfill would
-          // bypass the user's override (also bails inside static methods, where `this`
-          // is the constructor, not an instance)
+          // shadow check for `this.X` — polyfill would bypass the user's own member
           if (node.object?.type === 'ThisExpression' && isShadowedByClassOwnMember(metaPath, meta.key)) return;
+          // `super.X` and unshadowed `this.X` in static ctx resolve against the super
+          // class's static surface via the same path — `this` in static ctx is the
+          // constructor, so inherited static lookup behaves exactly like `super.X`
+          if (isInheritedStaticLookup(metaPath)) {
+            const inheritedMeta = resolveStaticInheritedMember(metaPath);
+            if (!inheritedMeta) return;
+            // `extends MyPromise` (user-aliased pure import) — map binding → global hint
+            resolveSuperImportName(injector, inheritedMeta);
+            meta = inheritedMeta;
+          }
           if (isTaggedTemplateTag(parent, node, meta.placement)) return;
           if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
         }
@@ -1566,10 +1572,11 @@ export default function createPlugin(options) {
         }
         if (!pureResult) return;
         const { entry: importEntry, kind, hintName } = pureResult;
-        // `super.X` where X is not statically on the super class - resolve() falls back
-        // from missing-static to instance, but `_binding(super)` / `_binding.call(super, ...)`
-        // are syntactically invalid (super is restricted to direct member/call positions)
-        if (node.type === 'MemberExpression' && node.object?.type === 'Super' && kind === 'instance') return;
+        // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
+        // on the super class — resolve() falls back to instance. for super: syntactically
+        // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
+        // `_at(this)` would treat the class as an array. either way, bail
+        if (kind === 'instance' && node.type === 'MemberExpression' && isInheritedStaticLookup(metaPath)) return;
         const binding = injectPureImport(importEntry, hintName);
 
         // mark proxy global (globalThis, self, etc.) as skipped to prevent
