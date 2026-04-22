@@ -1,8 +1,7 @@
 import _at from "@core-js/pure/actual/instance/at";
 import _globalThis from "@core-js/pure/actual/global-this";
 var _ref;
-// mutually-recursive type aliases — `followTypeAliasChain` must bail on cycle
-// without exhausting MAX_DEPTH (memory waste on subst Map per iteration)
+// mutually-recursive type aliases — resolution bails on cycle
 type A = B;
 type B = A;
 declare const x: A;

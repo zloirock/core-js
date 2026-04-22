@@ -1,5 +1,4 @@
-// mutually-recursive type aliases — `followTypeAliasChain` must bail on cycle
-// without exhausting MAX_DEPTH (memory waste on subst Map per iteration)
+// mutually-recursive type aliases — resolution bails on cycle
 type A = B;
 type B = A;
 declare const x: A;
