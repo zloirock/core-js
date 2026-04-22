@@ -281,10 +281,13 @@ function computeDeclaresRequire(body) {
 export function detectCommonJS(program) {
   let hasCJS = false;
   for (const stmt of program.body) {
+    // ESM wins: any ESM marker anywhere in the program rules out CJS classification,
+    // so keep scanning even after hasCJS is set to surface a later import / export
     if (ESM_MARKER_TYPES.has(stmt.type)) return false;
-    if (hasCJS || stmt.type !== 'ExpressionStatement') continue;
-    const expression = unwrapExpr(stmt.expression);
-    if (expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left)) hasCJS = true;
+    if (!hasCJS && stmt.type === 'ExpressionStatement') {
+      const expression = unwrapExpr(stmt.expression);
+      if (expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left)) hasCJS = true;
+    }
   }
   return hasCJS;
 }
