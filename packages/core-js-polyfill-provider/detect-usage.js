@@ -114,21 +114,21 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   if (!seen) seen = new Set();
   if (seen.has(name)) return null;
   seen.add(name);
+  // single binding lookup — re-used by polyfillHint, type gate, and VariableDeclarator init walk
+  const binding = adapter.getBinding(scope, name);
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
   // downstream proxy-global / constructor recognition survives the rewrite
-  const hintBinding = adapter.getBinding(scope, name);
-  if (hintBinding?.polyfillHint
-    && (CAPITALISED_IDENT.test(hintBinding.polyfillHint) || POSSIBLE_GLOBAL_OBJECTS.has(hintBinding.polyfillHint))) {
-    return hintBinding.polyfillHint;
-  }
+  const hint = binding?.polyfillHint;
+  if (hint && (CAPITALISED_IDENT.test(hint) || POSSIBLE_GLOBAL_OBJECTS.has(hint))) return hint;
   const bindingType = adapter.getBindingNodeType(scope, name);
   if (bindingType === 'ImportSpecifier' || bindingType === 'ImportDefaultSpecifier'
     || bindingType === 'ImportNamespaceSpecifier') return null;
   if (bindingType === 'VariableDeclarator') {
-    const binding = adapter.getBinding(scope, name);
-    const { init } = binding.node;
+    // check constantViolations before dereferencing `.node.init/.id` — malformed
+    // binding shapes can leave those undefined
     if (binding.constantViolations?.length) return null;
+    const { init } = binding.node;
     const pattern = binding.node.id;
     // `{ from, ...rest } = Array` - rest !=== init
     const props = pattern?.properties ?? pattern?.elements;
@@ -140,21 +140,18 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
       if (alias) return alias;
     }
     if (pattern && pattern.type !== 'Identifier') return null;
-    if (init?.type === 'Identifier') {
-      // unbound -> global; self-reference (`var Map = Map`) -> global; bound -> follow chain
-      // (which hits the top-level polyfillHint translation for plugin-managed imports)
-      if (!adapter.hasBinding(scope, init.name) || init.name === name) return init.name;
-      return resolveBindingToGlobal(init.name, scope, adapter, seen);
+    if (!init) return null;
+    // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value out
+    // only when the preceding expressions are side-effect-free
+    const unwrapped = unwrapParens(init);
+    if (unwrapped?.type === 'Identifier') {
+      // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
+      // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
+      if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
+      return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
     }
-    if (init) {
-      const unwrapped = unwrapParens(init);
-      if (unwrapped.type === 'Identifier') {
-        if (!adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
-        return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
-      }
-      if (unwrapped.type === 'MemberExpression' || unwrapped.type === 'OptionalMemberExpression') {
-        return resolveObjectName(unwrapped, scope, adapter, seen);
-      }
+    if (unwrapped?.type === 'MemberExpression' || unwrapped?.type === 'OptionalMemberExpression') {
+      return resolveObjectName(unwrapped, scope, adapter, seen);
     }
   }
   // param, catch, class name - never a global
