@@ -26,12 +26,14 @@ const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`]/;
 // ES spec LineTerminator. anchors `//`-comment scans, ASI boundary checks
 export const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
 
-// scan backwards past whitespace and comments; -1 if we walked off the start
+// scan backwards past whitespace and comments; -1 if we walked off the start.
+// ES line-terminators include U+2028 / U+2029 in addition to LF / CR
 function prevSignificantPos(src, pos) {
   let i = pos - 1;
   while (i >= 0) {
     const ch = src[i];
-    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r'
+      || ch === '\u2028' || ch === '\u2029') {
       i--;
       continue;
     }
