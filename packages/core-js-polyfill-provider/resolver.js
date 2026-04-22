@@ -91,12 +91,14 @@ function resolveHint(desc, meta) {
   }
   if (!depSet.size) return null;
   const dependencies = [...depSet];
+  // `rest` is inflated to `[first, second, ...]` only on the 2nd+ match in the loop above,
+  // so it always holds >=2 items - filterGroups covers multi-variant AND semantics. no
+  // single-group fast path needed (would be dead code here; single-match uses `first` branch)
   const filterGroups = [];
   for (const d of rest) {
     if (!(d && typeof d === 'object' && d.filters?.length)) return { dependencies };
     filterGroups.push(d.filters);
   }
-  if (filterGroups.length === 1) return { dependencies, filters: filterGroups[0] };
   return { dependencies, filterGroups };
 }
 
