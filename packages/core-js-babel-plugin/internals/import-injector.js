@@ -30,7 +30,7 @@ export default class ImportInjector extends ImportInjectorState {
     if (super.isNameTaken(name)) return true;
     const { scope } = this.#programPath;
     const program = scope.getProgramParent();
-    // `program.globals` captures undeclared identifier uses — sloppy-mode assignment
+    // `program.globals` captures undeclared identifier uses - sloppy-mode assignment
     // targets (`_Map = foo()`) and unbound reads (`Map` as NewExpression callee) both
     // land here. without it, UID generator would pick `_Map` and collide with a user's
     // accidental `_Map = ...` sloppy global (reassigning our const import throws at runtime)
@@ -53,7 +53,7 @@ export default class ImportInjector extends ImportInjectorState {
   // colliding with earlier slots.
   // `declare=true` uses scope.push; `false` leaves the declaration to the caller (e.g.
   // destructuring extracts its own `const`). arrow-expression-body is normalized post-pass
-  // by `normalizeArrowRefParams` — see there for why it can't run in-visit
+  // by `normalizeArrowRefParams` - see there for why it can't run in-visit
   generateRef(scope, declare = true) {
     const name = this.generateRefName(n => scope.hasBinding(n));
     this.#refs.add(name);
@@ -65,7 +65,7 @@ export default class ImportInjector extends ImportInjectorState {
   // `scope.push` on an arrow with expression body appends the ref as a trailing parameter
   // instead of block-converting (Babel fallback when there's no block to host `var _ref;`).
   // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
-  // container pointers still point at the pre-convert arrow.body slot — they clobber the
+  // container pointers still point at the pre-convert arrow.body slot - they clobber the
   // new block when they fire
   normalizeArrowRefParams() {
     if (!this.#refs.size) return;

@@ -26,24 +26,28 @@ export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEnt
 // interpretation against the previous expression - ASI doesn't fire between them
 const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`']);
 
-// consume trailing whitespace + one newline so the removed line doesn't leave a blank gap;
-// must not eat the following line's indent. oxc also extends `ImportDeclaration.end` to
-// include a trailing `;` - when that `;` was actually guarding the next statement's leading
-// `(` / `[` / `` ` `` / ..., removal silently turns `var x = 1\n(fn)()` into a call
+// prev ending in `;` is the only case we can cheaply prove safe - `}` can close a function/class
+// expr and still fuse (`function(){}`hello`` is a tag call)
+function guardAsiAtBoundary(ms, prevEnd, removalEnd) {
+  let nextIdx = removalEnd;
+  while (nextIdx < ms.original.length && /\s/.test(ms.original[nextIdx])) nextIdx++;
+  if (!ASI_HAZARD_STARTS.has(ms.original[nextIdx])) return;
+  let prevIdx = prevEnd - 1;
+  while (prevIdx >= 0 && /\s/.test(ms.original[prevIdx])) prevIdx--;
+  if (prevIdx < 0 || ms.original[prevIdx] === ';') return;
+  ms.prependLeft(removalEnd, ';');
+}
+
+// drops a top-level statement including its trailing newline so it doesn't leave a blank gap;
+// must not eat the following line's indent. oxc extends `ImportDeclaration.end` to include
+// a trailing `;` - when that `;` was actually guarding the next statement's leading
+// `(` / `[` / `` ` `` / ..., removal silently turns `var x = 1\n(fn)()` into a call, so
+// `guardAsiAtBoundary` re-injects a `;` when the boundary would fuse
 export function removeTopLevelStatement(ms, node) {
   let { end } = node;
   while (end < ms.original.length && (ms.original[end] === ' ' || ms.original[end] === '\t')) end++;
   if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
   else if (ms.original[end] === '\n' || ms.original[end] === '\r') end++;
   ms.remove(node.start, end);
-  // inject `;` at the boundary when the next statement's leading char would fuse with the
-  // previous one's tail. prev ending in `;` is the only case we can cheaply prove safe -
-  // `}` can close a function/class expr and still fuse (`function(){}`hello`` is a tag call)
-  let nextIdx = end;
-  while (nextIdx < ms.original.length && /\s/.test(ms.original[nextIdx])) nextIdx++;
-  if (!ASI_HAZARD_STARTS.has(ms.original[nextIdx])) return;
-  let prevIdx = node.start - 1;
-  while (prevIdx >= 0 && /\s/.test(ms.original[prevIdx])) prevIdx--;
-  if (prevIdx < 0 || ms.original[prevIdx] === ';') return;
-  ms.prependLeft(end, ';');
+  guardAsiAtBoundary(ms, node.start, end);
 }

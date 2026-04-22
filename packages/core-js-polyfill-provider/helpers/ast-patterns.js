@@ -48,13 +48,20 @@ export function isTSTypeOnlyIdentifier(parent, parentKey) {
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
 
-// function-like types that carry `params` — ObjectPattern used as a parameter lives
+// function-like types that carry `params` - ObjectPattern used as a parameter lives
 // either directly under one of these, or wrapped in an AssignmentPattern for the
 // `function({ x } = default) {}` form
+// ObjectMethod / ClassMethod are babel-only - oxc emits FunctionExpression under a
+// `value` slot (shorthand-method) or represents methods as Property/MethodDefinition
+// with FunctionExpression value. Keeping both lets the helper work across adapters
+// without relying on the caller to unwrap `value`
 const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
   'FunctionDeclaration',
   'FunctionExpression',
   'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassMethod',
+  'ClassPrivateMethod',
 ]);
 
 // true when `parent`/`grandparent` describe an ObjectPattern at function-parameter
@@ -71,12 +78,17 @@ export function isFunctionParamDestructureParent(parent, grandparent, objectPatt
 // single-chain nested destructure shape: `const { X: { y } } = Z`.
 // inner + outer patterns each hold exactly one property and the declaration carries a
 // single declarator. only under this shape can we safely flatten to `const y = _polyfill`
-// — any sibling would be silently lost by a full declarator replace
+// - any sibling would be silently lost by a full declarator replace
 export function isSingleNestedProxyChain(innerPattern, outerPattern, declaration) {
   return innerPattern?.type === 'ObjectPattern' && (innerPattern.properties?.length ?? 0) === 1
     && outerPattern?.type === 'ObjectPattern' && (outerPattern.properties?.length ?? 0) === 1
     && declaration?.type === 'VariableDeclaration' && declaration.declarations?.length === 1;
 }
+// prototype-method polyfills bind `this` to their first arg, but a tagged-template call
+// passes `(strings, ...values)` - the polyfilled fn would treat the `strings` array as
+// the receiver and break. static methods tagged as template are just odd user code
+// (`Array.of\`…\``) - the polyfill is a plain function and runs correctly regardless,
+// so we only skip the prototype case
 export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
   && parent?.type === 'TaggedTemplateExpression'
   && parent.tag === node;
@@ -122,6 +134,22 @@ function collectForXWriteMembers(node, out) {
   }
 }
 
+// key: for-x `parent.left` AST node; value: collected write-target MemberExpressions.
+// a body with N identifier reads triggers `isForXWriteTarget` N times, each scanning
+// up to the enclosing for-x - collecting the same set repeatedly. cache by node identity
+// so the work amortizes over the body at the cost of one WeakMap lookup per read
+const FOR_X_WRITES_CACHE = new WeakMap();
+
+function getForXWrites(leftNode) {
+  let writes = FOR_X_WRITES_CACHE.get(leftNode);
+  if (!writes) {
+    writes = [];
+    collectForXWriteMembers(leftNode, writes);
+    FOR_X_WRITES_CACHE.set(leftNode, writes);
+  }
+  return writes;
+}
+
 // `for (obj.key of/in ...)` rebinds obj.key each iteration, aliasing the prototype method.
 // Both the write target (bare or nested in a destructuring pattern) and matching reads in
 // the body target a local write, not the inherited method - polyfilling either is wrong
@@ -136,8 +164,7 @@ export function isForXWriteTarget(path) {
     const parent = current.node;
     if (!parent) break;
     if (parent.type !== 'ForOfStatement' && parent.type !== 'ForInStatement') continue;
-    const writes = [];
-    collectForXWriteMembers(parent.left, writes);
+    const writes = getForXWrites(parent.left);
     if (writes.some(m => m === node || memberShapeEqual(m, node))) return true;
   }
   return false;
@@ -171,7 +198,7 @@ export function unwrapRuntimeExpr(node) {
   return node;
 }
 
-// generic type arguments at a use-site (`Array<string>`) — babel: `typeParameters`,
+// generic type arguments at a use-site (`Array<string>`) - babel: `typeParameters`,
 // oxc TS-ESTree: `typeArguments`. class `extends` uses `superTypeParameters` /
 // `superTypeArguments` under the same split
 export const getTypeArgs = node => node?.typeParameters ?? node?.typeArguments;
@@ -215,7 +242,7 @@ function isCommonJSAssignTarget(left) {
 export const hasTopLevelESM = program => program.body.some(n => ESM_MARKER_TYPES.has(n.type));
 
 // shadowed `require` makes its calls user-authored no-ops, not real core-js imports.
-// per-body cache — same body walked by multiple passes (detect-usage + detect-entry)
+// per-body cache - same body walked by multiple passes (detect-usage + detect-entry)
 const REQUIRE_SHADOW_CACHE = new WeakMap();
 export function declaresRequireBinding(body) {
   if (!body || typeof body !== 'object') return false;
@@ -291,7 +318,7 @@ export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
 }
 
 // conservative: true when the subtree may observe/cause side effects, false only when provably pure.
-// per-node WeakMap cache — same subtree is queried by nested destructure / SE-extract paths
+// per-node WeakMap cache - same subtree is queried by nested destructure / SE-extract paths
 const SIDE_EFFECTS_CACHE = new WeakMap();
 export function mayHaveSideEffects(node) {
   if (!node) return false;
@@ -308,7 +335,7 @@ function computeSideEffects(node) {
   if (type === 'ArrayExpression') return node.elements.some(mayHaveSideEffects);
   if (type === 'ObjectExpression') {
     // `{ ...obj }` invokes `obj`'s Proxy traps (ownKeys / getOwnPropertyDescriptor / get)
-    // — can't prove purity from source alone
+    // - can't prove purity from source alone
     return node.properties.some(p => p?.type === 'SpreadElement' || mayHaveSideEffects(p));
   }
   if (type === 'BinaryExpression' || type === 'LogicalExpression') {

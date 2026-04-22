@@ -44,7 +44,7 @@ export function globalProxyMemberName(node, scope, adapter) {
   return memberKeyName(node);
 }
 
-// `class C extends MyPromise { super.try(...) }` — `buildSuperStaticMeta` sets
+// `class C extends MyPromise { super.try(...) }` - `buildSuperStaticMeta` sets
 // `superMeta.object` to the binding name (`MyPromise`), but resolver tables key by global
 // (`statics.Promise.try`). returns superMeta with `.object` rewired to the registered
 // global hint, or the input unchanged when the injector doesn't know the name.
@@ -57,7 +57,7 @@ export function resolveSuperImportName(injector, superMeta) {
 
 // `super.X` in a static method -> static meta on the parent class. `resolveSuperType`
 // dispatches on AST shape (Identifier alias chains / MemberExpression proxy-global chains).
-// oxc-parser preserves `ParenthesizedExpression` wrappers that babel strips — peel first
+// oxc-parser preserves `ParenthesizedExpression` wrappers that babel strips - peel first
 export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
   // unwrap TS casts too: `class C extends (Base as typeof Base)` should resolve to Base
@@ -138,14 +138,14 @@ export function createClassHelpers(t, adapter) {
         name = init.name;
         continue;
       }
-      // `const A = globalThis.Promise; class C extends A` — alias init points at a proxy-global
+      // `const A = globalThis.Promise; class C extends A` - alias init points at a proxy-global
       // member. terminate the walk with the final member name (`Promise`) instead of bailing
       return globalProxyMemberName(init, scope, adapter) ?? null;
     }
     return null;
   }
 
-  // common path for `super.X` and `this.X` in static context — both resolve to the same
+  // common path for `super.X` and `this.X` in static context - both resolve to the same
   // `<SuperClass>.X` static meta since JS looks up unresolved static names on the
   // super class's static surface
   function resolveStaticInheritedMember(path) {
@@ -175,7 +175,7 @@ export function createClassHelpers(t, adapter) {
     return names;
   }
 
-  // `this.X` is shadowed when the class declares its own `X` of the matching kind —
+  // `this.X` is shadowed when the class declares its own `X` of the matching kind -
   // static-ctx checks static members, instance-ctx checks instance members. nested
   // non-arrow fn rebinds `this`, so ownership can't be proven there
   function isShadowedByClassOwnMember(path, key) {
@@ -190,7 +190,7 @@ export function createClassHelpers(t, adapter) {
     ownNamesCache = new WeakMap();
   }
 
-  // true when `path` lives inside a static method or static block — `this` there is the
+  // true when `path` lives inside a static method or static block - `this` there is the
   // constructor, so unshadowed `this.X` reads the super class's static surface
   function isInStaticContext(path) {
     return !!findEnclosingClassMember(path)?.isStatic;
@@ -221,5 +221,8 @@ export function createClassHelpers(t, adapter) {
 export function symbolKeyToEntry(key) {
   if (!key?.startsWith('Symbol.')) return null;
   const prop = key.slice(7);
+  // well-known symbols all start lowercase; `Symbol.` / `Symbol.XYZ` would produce
+  // `symbol/` / `symbol/-x-y-z` - malformed entries that silently miss the lookup
+  if (!prop || prop[0] < 'a' || prop[0] > 'z') return null;
   return `symbol/${ prop.replaceAll(/[A-Z]/g, c => `-${ c.toLowerCase() }`) }`;
 }
