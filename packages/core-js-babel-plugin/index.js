@@ -6,6 +6,7 @@ import {
   isDeleteTarget,
   isForXWriteTarget,
   isFunctionParamDestructureParent,
+  isIdentifierPropValue,
   isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget as isUpdateParent,
@@ -237,8 +238,7 @@ export default function plugin(api, options) {
       function handleParameterDestructure(prop, kind, entry, hintName) {
         if (kind === 'instance') return;
         if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
-        const { value } = prop.node;
-        if (!t.isIdentifier(value) && !(t.isAssignmentPattern(value) && t.isIdentifier(value.left))) return;
+        if (!isIdentifierPropValue(prop.node.value)) return;
         const id = injectPureImport(entry, hintName);
         const objectPattern = prop.parentPath;
         const targetPath = findSynthSwapTargetPath(objectPattern?.parentPath, objectPattern);
