@@ -3,8 +3,8 @@
 // prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
-// `async-iterator` → `asyncIterator` (keeps leading char lowercase for Symbol names);
-// `weak-map` / `promise` → `WeakMap` / `Promise` via the Pascal variant
+// `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
+// `weak-map` / `promise` -> `WeakMap` / `Promise` via the Pascal variant
 const DASH_WORD = /-(?<c>\w)/g;
 
 export const kebabToCamel = str => str.replaceAll(DASH_WORD, (_, c) => c.toUpperCase());
@@ -157,6 +157,16 @@ const isNamedIdent = (node, name) => node?.type === 'Identifier' && node.name ==
 // so downstream matchers treat `(x)` and `x` identically without probing the parser
 export function unwrapParens(node) {
   while (node?.type === 'ParenthesizedExpression') node = node.expression;
+  return node;
+}
+
+// broader unwrap: strips parens, optional chains, AND TS expression wrappers
+// (`as`, `satisfies`, `!`) so callers see the runtime-effective expression
+export function unwrapRuntimeExpr(node) {
+  while (node && (node.type === 'ParenthesizedExpression'
+    || node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
+    node = node.expression;
+  }
   return node;
 }
 
