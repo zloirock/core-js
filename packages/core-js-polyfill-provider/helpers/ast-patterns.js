@@ -83,6 +83,15 @@ export function isFunctionParamDestructureParent(parent, grandparent, objectPatt
     && !!grandparent && FUNCTION_LIKE_PARAM_OWNER_TYPES.has(grandparent.type);
 }
 
+// ObjectPattern prop value is a synth-swap eligible binding: `{key}` / `{key: bound}` /
+// `{key = D}` / `{key: bound = D}`. rejects nested patterns (`{key: {a}}`) and rest -
+// those don't fit the synth-swap receiver substitution model. shared between babel-plugin's
+// `handleParameterDestructure` and unplugin's `handleParameterDestructurePure`
+export function isIdentifierPropValue(value) {
+  if (value?.type === 'Identifier') return true;
+  return value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier';
+}
+
 // single-chain nested destructure shape: `const { X: { y } } = Z`.
 // inner + outer patterns each hold exactly one property and the declaration carries a
 // single declarator. only under this shape can we safely flatten to `const y = _polyfill`

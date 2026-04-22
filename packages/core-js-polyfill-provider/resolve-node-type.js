@@ -1084,10 +1084,15 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function isAssignableTo(candidate, target) {
-    if (typesEqual(candidate, target)) return true;
+    if (typesEqual(candidate, target)) {
+      // matching outer type (e.g. both Array) - require inner distinction for container types
+      // so `Extract<Array<number>|Array<string>, Array<string>>` narrows correctly. target with
+      // no inner (bare `Array`) accepts any inner (covariant); mismatched inners reject
+      if (!target.inner) return true;
+      return innersEqual(candidate.inner, target.inner);
+    }
     // any non-primitive is assignable to object / Object
-    if (!candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object')) return true;
-    return false;
+    return !candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object');
   }
 
   function resolveExtractExclude(first, second, scope, depth, keep) {
