@@ -2572,31 +2572,43 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth, subst);
   }
 
-  // `x.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for other
-  // shapes. `conditionTrue` flips the sign when the guard sits in an `else` / false-branch
-  function parseDiscriminantCheck(test, varName, conditionTrue) {
+  // serialize `x`, `this.data`, `obj.a.b` — null for computed / shapes we don't probe
+  function pathKey(node) {
+    if (node?.type === 'Identifier') return node.name;
+    if (node?.type === 'ThisExpression') return 'this';
+    if (node?.type === 'MemberExpression' && !node.computed
+      && node.property?.type === 'Identifier') {
+      const parent = pathKey(node.object);
+      return parent === null ? null : `${ parent }.${ node.property.name }`;
+    }
+    return null;
+  }
+
+  // `<path>.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for
+  // other shapes. `conditionTrue` flips the sign when the guard sits in an else-branch
+  function parseDiscriminantCheck(test, targetKey, conditionTrue) {
     if (test?.type !== 'BinaryExpression') return null;
     const isEq = test.operator === '===' || test.operator === '==';
     const isNeq = test.operator === '!==' || test.operator === '!=';
     if (!isEq && !isNeq) return null;
     const left = unwrapParens(test.left);
     const right = unwrapParens(test.right);
-    const pair = memberLiteralPair(left, right, varName) ?? memberLiteralPair(right, left, varName);
+    const pair = memberLiteralPair(left, right, targetKey) ?? memberLiteralPair(right, left, targetKey);
     return pair && { ...pair, positive: isEq === conditionTrue };
   }
 
-  function memberLiteralPair(memberExpr, literalNode, varName) {
+  function memberLiteralPair(memberExpr, literalNode, targetKey) {
     if (memberExpr?.type !== 'MemberExpression' || memberExpr.computed) return null;
-    if (memberExpr.object?.type !== 'Identifier' || memberExpr.object.name !== varName) return null;
     if (memberExpr.property?.type !== 'Identifier') return null;
+    if (pathKey(memberExpr.object) !== targetKey) return null;
     const value = literalKeyValue(literalNode);
     return value === null ? null : { field: memberExpr.property.name, value };
   }
 
-  // walk up collecting `x.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`
-  function findDiscriminantGuards(varPath) {
+  // walk up collecting `<path>.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`.
+  // `targetKey` covers arbitrary LHS shapes (Identifier / `this.x` / `obj.a.b`)
+  function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
-    const { name } = varPath.node;
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
       let test;
@@ -2609,16 +2621,19 @@ function createResolveNodeType(babelNodeType, t) {
         conditionTrue = true;
         test = parent.node.left;
       } else continue;
-      const guard = parseDiscriminantCheck(test, name, conditionTrue);
+      const guard = parseDiscriminantCheck(test, targetKey, conditionTrue);
       if (guard) guards.push(guard);
     }
     return guards;
   }
 
   function narrowDiscriminatedUnion(objectPath, annotation, scope) {
+    // cheap early exit before `followTypeAliasChain` spins up the alias walker
+    const targetKey = pathKey(objectPath.node);
+    if (!targetKey) return null;
     const { node: aliased } = followTypeAliasChain(annotation, scope);
     if (aliased?.type !== 'TSUnionType' && aliased?.type !== 'UnionTypeAnnotation') return null;
-    const guards = findDiscriminantGuards(objectPath);
+    const guards = findDiscriminantGuards(objectPath, targetKey);
     if (!guards.length) return null;
     // permissive: branches with unresolvable discriminant members pass through
     const filtered = aliased.types.filter(branch => {
@@ -2654,11 +2669,10 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     if (!annotation) return null;
-    // discriminated union narrowing: `if (x.kind === 'a') { x.data }` -> restrict Foo
-    // to the `{ kind:'a'; data: T }` branch before member lookup
-    if (t.isIdentifier(objectPath.node)) {
-      annotation = narrowDiscriminatedUnion(objectPath, annotation, scope) ?? annotation;
-    }
+    // discriminated union narrowing: `if (x.kind === 'a') { x.data }` — restrict Foo
+    // to the `{ kind:'a'; data: T }` branch. works for any serialisable LHS path
+    // (Identifier / `this.x` / `obj.a.b`); computed / call-expression paths bail
+    annotation = narrowDiscriminatedUnion(objectPath, annotation, scope) ?? annotation;
     // `x: typeof obj` / `x: typeof fn` - follow TSTypeQuery to runtime binding, delegate there
     if (annotation.type === 'TSTypeQuery') {
       const resolved = resolveTypeQueryBinding(annotation, scope);
