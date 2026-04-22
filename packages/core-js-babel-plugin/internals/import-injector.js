@@ -230,10 +230,12 @@ export default class ImportInjector extends ImportInjectorState {
       || (stmt.type === 'VariableDeclaration'
         && stmt.declarations.every(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
     const refs = [];
+    const refIndices = [];
     let importEnd = 0;
     for (let i = 0; i < body.length; i++) {
       if (isRefOnly(body[i])) {
         refs.push(body[i]);
+        refIndices.push(i);
         continue;
       }
       if (isImport(body[i])) {
@@ -243,9 +245,12 @@ export default class ImportInjector extends ImportInjectorState {
       break;
     }
     if (!refs.length || importEnd === 0) return;
-    const kept = body.filter(s => !refs.includes(s));
+    const refSet = new Set(refs);
+    const kept = body.filter(s => !refSet.has(s));
     // importEnd counted against original indices including refs; subtract refs that preceded it
-    const insertAt = importEnd - refs.filter(r => body.indexOf(r) < importEnd).length;
+    let refsBeforeImportEnd = 0;
+    for (const idx of refIndices) if (idx < importEnd) refsBeforeImportEnd++;
+    const insertAt = importEnd - refsBeforeImportEnd;
     const merged = this.#t.variableDeclaration('var', refs.flatMap(s => s.declarations));
     kept.splice(insertAt, 0, merged);
     this.#programPath.node.body = kept;

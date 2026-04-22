@@ -18,7 +18,9 @@ const SFC_DEFAULT_JS_RE = /[&?](?:astro|svelte|vue)&type=(?:module|script)(?:&|$
 // just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
 // user source
 export function shouldTransform(id) {
-  if (id.includes('\0') || id.includes('?commonjs-')) return false;
+  // `\0` marks virtual modules (rollup / vite); `?commonjs-*` / `?commonjsExternal`
+  // cover Rollup commonjs-plugin proxy/external bodies
+  if (id.includes('\0') || id.includes('?commonjs-') || id.includes('?commonjsExternal')) return false;
   // strip query/hash up-front so `lang=d.ts` or `?output=main.js` don't fool the
   // `$`-anchored regex into treating the id as a JS/TS file. performing the strip
   // unconditionally is cheaper than adding a `.includes('?')` fast-path guard
