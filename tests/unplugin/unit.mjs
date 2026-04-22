@@ -115,10 +115,18 @@ checkPartialOverlapThrows();
 function checkOutOfBoundsThrows() {
   const code = '0123456789';
   const q = new TransformQueue(code, new MagicString(code));
-  try { q.add(-1, 5, 'X'); counts.failed++; }
-  catch (e) { /out of bounds/.test(e.message) ? counts.passed++ : counts.failed++; }
-  try { q.add(5, 20, 'X'); counts.failed++; }
-  catch (e) { /out of bounds/.test(e.message) ? counts.passed++ : counts.failed++; }
+  try {
+    q.add(-1, 5, 'X');
+    counts.failed++;
+  } catch (error) {
+    /out of bounds/.test(error.message) ? counts.passed++ : counts.failed++;
+  }
+  try {
+    q.add(5, 20, 'X');
+    counts.failed++;
+  } catch (error) {
+    /out of bounds/.test(error.message) ? counts.passed++ : counts.failed++;
+  }
 }
 checkOutOfBoundsThrows();
 
