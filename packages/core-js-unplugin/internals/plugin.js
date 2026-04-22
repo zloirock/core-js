@@ -1631,6 +1631,7 @@ export default function createPlugin(options) {
         // parent is already unwrapped past parens/chain/TS above
         if (isDeleteTarget(parent)) return;
 
+        let inheritedStatic = false;
         if (meta.kind === 'property') {
           if (node.type === 'Property' && metaPath.parent?.type === 'ObjectPattern') {
             return handleDestructuringPure(meta, metaPath, node);
@@ -1643,8 +1644,10 @@ export default function createPlugin(options) {
           if (node.object?.type === 'ThisExpression' && isShadowedByClassOwnMember(metaPath, meta.key)) return;
           // `super.X` and unshadowed `this.X` in static ctx resolve against the super
           // class's static surface via the same path - `this` in static ctx is the
-          // constructor, so inherited static lookup behaves exactly like `super.X`
-          if (isInheritedStaticLookup(metaPath)) {
+          // constructor, so inherited static lookup behaves exactly like `super.X`.
+          // cache the predicate so the instance-fallback bail below doesn't re-walk
+          inheritedStatic = isInheritedStaticLookup(metaPath);
+          if (inheritedStatic) {
             const inheritedMeta = resolveStaticInheritedMember(metaPath);
             if (!inheritedMeta) return;
             // `extends MyPromise` (user-aliased pure import) - map binding to global hint
@@ -1669,7 +1672,7 @@ export default function createPlugin(options) {
         // on the super class - resolve() falls back to instance. for super: syntactically
         // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
         // `_at(this)` would treat the class as an array. either way, bail
-        if (kind === 'instance' && node.type === 'MemberExpression' && isInheritedStaticLookup(metaPath)) return;
+        if (kind === 'instance' && node.type === 'MemberExpression' && inheritedStatic) return;
         const binding = injectPureImport(importEntry, hintName);
 
         // mark proxy global (globalThis, self, etc.) as skipped to prevent
