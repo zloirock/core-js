@@ -903,16 +903,21 @@ function createResolveNodeType(babelNodeType, t) {
       const unwrapped = unwrapTypeAnnotation(node);
       return subst ? applyAliasSubstDeep(unwrapped, subst) : unwrapped;
     };
+    const resolveBranch = member => findTypeMember(withSubst(unwrapTypeAnnotation(member)), key, scope, depth + 1);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
-      const found = [];
-      for (const member of aliased.types) {
-        const substituted = withSubst(unwrapTypeAnnotation(member));
-        const memberType = findTypeMember(substituted, key, scope, depth + 1);
-        if (memberType) found.push(memberType);
-      }
+      const found = aliased.types.map(resolveBranch).filter(Boolean);
       if (!found.length) return null;
       if (found.length === 1) return found[0];
       return { type: aliased.type, types: found };
+    }
+    // intersection: first match wins — parts contribute disjoint keys (duplicate-key
+    // intersections are ill-formed at the TS level anyway)
+    if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
+      for (const member of aliased.types) {
+        const resolved = resolveBranch(member);
+        if (resolved) return resolved;
+      }
+      return null;
     }
     // tuple numeric index: `type Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`
     if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
