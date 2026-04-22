@@ -1614,6 +1614,31 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // narrow infer pattern: `T extends (infer U)[] ? U : X` / `T extends Array<infer U> ? U : X`.
+  // when the pattern matches AND checkType's substituted type is an array-like, returns the
+  // element type. any other shape (nested infers, non-array containers, trueType != U) -> null,
+  // caller falls back to plain branch resolution
+  function resolveInferElementPattern(node, typeParamMap, scope, depth, seen) {
+    const inferName = matchArrayInferPattern(node.extendsType);
+    if (!inferName) return null;
+    if (typeRefName(node.trueType) !== inferName) return null;
+    const checkType = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
+    return checkType ? resolveInnerType(checkType) : null;
+  }
+
+  // extracts `U` from `(infer U)[]` or `Array<infer U>`; null otherwise
+  function matchArrayInferPattern(extendsType) {
+    const node = unwrapTypeAnnotation(extendsType);
+    if (node?.type === 'TSArrayType' && node.elementType?.type === 'TSInferType') {
+      return node.elementType.typeParameter?.name?.name ?? node.elementType.typeParameter?.name;
+    }
+    if (node?.type === 'TSTypeReference' && typeRefName(node) === 'Array') {
+      const arg = getTypeArgs(node)?.params?.[0];
+      if (arg?.type === 'TSInferType') return arg.typeParameter?.name?.name ?? arg.typeParameter?.name;
+    }
+    return null;
+  }
+
   function resolveUnionType(leftPath, rightPath) {
     const left = resolveNodeType(leftPath);
     const right = resolveNodeType(rightPath);
@@ -2257,8 +2282,13 @@ function createResolveNodeType(babelNodeType, t) {
       || (node.type === 'TSTypeOperator' && node.operator !== 'keyof')) {
       return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1, seen);
     }
-    // conditional type: T extends U ? X : Y - substitute in branches
+    // conditional type: T extends U ? X : Y - substitute in branches. narrow infer-pattern
+    // support handles the common `T extends (infer U)[] ? U : never` / `T extends Array<infer U> ? U : never`
+    // shapes by short-circuiting to the checkType's element type. anything more complex
+    // (nested infers, Promise unwrap chains) falls back to branch-folding without binding
     if (node.type === 'TSConditionalType') {
+      const inferred = resolveInferElementPattern(node, typeParamMap, scope, depth, seen);
+      if (inferred) return inferred;
       return resolveConditionalBranches(
         substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1, seen),
         substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1, seen));
