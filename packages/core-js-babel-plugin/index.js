@@ -213,7 +213,9 @@ export default function plugin(api, options) {
 
       // parameter destructure polyfill. only static/global fit here; instance methods need a
       // receiver. synth-swap when `findSynthSwapTargetPath` identifies a safe Identifier
-      // receiver; otherwise inline-default `{p = _polyfill}` (fires only on undefined property)
+      // receiver; otherwise inline-default `{p = _polyfill}` (fires only on undefined property).
+      // bare param without IIFE / receiver `function({ from }) {}` bails by design - `from`
+      // could be ANY value the caller passes, not necessarily Array.from
       function handleParameterDestructure(prop, kind, entry, hintName) {
         if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
         if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
@@ -339,7 +341,6 @@ export default function plugin(api, options) {
       }
 
       const {
-        resolveSuperMember,
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
         isShadowedByClassOwnMember,
@@ -350,7 +351,7 @@ export default function plugin(api, options) {
         resolveUsage,
         injectModulesForModeEntry,
         isDisabled,
-        resolveSuperMember,
+        resolveStaticInheritedMember,
       });
 
       // any detached ancestor puts our node outside the live AST - polyfill emission
@@ -431,6 +432,27 @@ export default function plugin(api, options) {
         }
       }
 
+      // `X in Y` rewrite. symbol-sourced LHS (`Symbol.X in obj` / alias binding) takes the
+      // symbol-in polyfill path; string-sourced LHS (`'Symbol.X' in Obj`) falls through to
+      // the string-key lookup and emits `true` only if the static table matches the literal
+      function handleInExpression(meta, path) {
+        const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
+        if (symbolIn && isEntryNeeded(symbolIn.entry)) {
+          const id = injectPureImport(symbolIn.entry, symbolIn.hint);
+          if (meta.key === 'Symbol.iterator') {
+            path.replaceWith(t.callExpression(id, [path.node.right]));
+          } else {
+            path.get('left').replaceWith(id);
+          }
+          return;
+        }
+        if (meta.object) {
+          // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
+          const resolved = resolvePureOrGlobalFallback(meta, path);
+          if (resolved.result) path.replaceWith(t.booleanLiteral(true));
+        }
+      }
+
       // stash return type on CallExpression before callee replacement so downstream
       // resolveNodeType can still determine e.g. Promise.all -> Array
       function annotateCallReturnType(path) {
@@ -442,32 +464,13 @@ export default function plugin(api, options) {
         if (hint) callParent.node.coreJSResolvedType = hint;
       }
 
-      // eslint-disable-next-line max-statements -- ok
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
         // JSX tag reaches here via ReferencedIdentifier; a JSX slot cannot host a renamed
         // Identifier, and `<_Map/>` would call the polyfill as a React component at runtime
         if (path.node.type === 'JSXIdentifier') return;
 
-        if (meta.kind === 'in') {
-          // symbol-sourced LHS (`Symbol.X in obj` / alias binding) takes the symbol-in
-          // polyfill path; string-sourced LHS (`'Symbol.X' in Obj`) falls through to the
-          // string-key lookup and emits `true` only if the static table matches the literal
-          const symbolIn = meta.symbolSourced ? resolveSymbolInEntry(meta.key) : null;
-          if (symbolIn && isEntryNeeded(symbolIn.entry)) {
-            const id = injectPureImport(symbolIn.entry, symbolIn.hint);
-            if (meta.key === 'Symbol.iterator') {
-              path.replaceWith(t.callExpression(id, [path.node.right]));
-            } else {
-              path.get('left').replaceWith(id);
-            }
-          } else if (meta.object) {
-            // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
-            const resolved = resolvePureOrGlobalFallback(meta, path);
-            if (resolved.result) path.replaceWith(t.booleanLiteral(true));
-          }
-          return;
-        }
+        if (meta.kind === 'in') return handleInExpression(meta, path);
 
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
         if (isDeleteTarget(unwrapTSExpressionParent(path).parentPath?.node)) return;
