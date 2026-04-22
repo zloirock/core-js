@@ -124,6 +124,10 @@ export function createPolyfillResolver(options, {
 
   function enhanceMeta(meta, path, desc) {
     if (!meta) return meta;
+    // defensive: enhanceMeta is only reachable for kind==='instance', whose callers always
+    // pass a path; but keep the guard cheap to avoid future regressions if a pathless
+    // instance lookup is ever added
+    if (!path) return meta;
     if (meta.placement === 'prototype' && TYPE_HINTS.has(objectToTypeHint(meta.object))) return meta;
     const hint = toHint(resolvePropertyObjectType(path));
     if (hint) {
@@ -138,6 +142,10 @@ export function createPolyfillResolver(options, {
   }
 
   function filter(name, args, path) {
+    // some callers (e.g. unplugin's `planInnerProp` for nested proxy-global destructure)
+    // resolve meta without a live AST path. without it we can't evaluate filters, so
+    // don't reject - conservative over-inject beats a crash or silent dead-code strip
+    if (!path) return false;
     const { node } = path;
     // walk through ParenthesizedExpression wrappers (ESTree/oxc-parser preserves them; Babel strips them)
     let callPath = path.parentPath;

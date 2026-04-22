@@ -92,6 +92,21 @@ export function isIdentifierPropValue(value) {
   return value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier';
 }
 
+// synth-swap rewrite emits `{ key: value, ... }` reconstructed from ObjectPattern properties.
+// any property that can't be losslessly replayed as that literal must force a bail:
+// - computed keys may carry side effects (`{[fn()]: x}`) that would fire at wrong times
+// - RestElement / SpreadElement have no literal-prop equivalent
+// - non-Identifier keys (numeric / string literal) aren't expressible without source slicing
+// callers bail to inline-default when this check fails. shared between babel-plugin and unplugin
+// accepts both Babel `ObjectProperty` and ESTree `Property` node types
+export function isSynthSimpleObjectPattern(objectPattern) {
+  for (const p of objectPattern.properties) {
+    if (p.type !== 'ObjectProperty' && p.type !== 'Property') return false;
+    if (p.computed || p.key?.type !== 'Identifier') return false;
+  }
+  return true;
+}
+
 // single-chain nested destructure shape: `const { X: { y } } = Z`.
 // inner + outer patterns each hold exactly one property and the declaration carries a
 // single declarator. only under this shape can we safely flatten to `const y = _polyfill`
