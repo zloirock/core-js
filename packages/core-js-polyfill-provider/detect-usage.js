@@ -125,6 +125,8 @@ function isStaticPlacement(name) {
   return null;
 }
 
+const IMPORT_BINDING_TYPES = new Set(['ImportSpecifier', 'ImportDefaultSpecifier', 'ImportNamespaceSpecifier']);
+
 function resolveBindingToGlobal(name, scope, adapter, seen) {
   if (!seen) seen = new Set();
   if (seen.has(name)) return null;
@@ -137,39 +139,42 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   const hint = binding?.polyfillHint;
   if (hint && (CAPITALISED_IDENT.test(hint) || POSSIBLE_GLOBAL_OBJECTS.has(hint))) return hint;
   const bindingType = adapter.getBindingNodeType(scope, name);
-  if (bindingType === 'ImportSpecifier' || bindingType === 'ImportDefaultSpecifier'
-    || bindingType === 'ImportNamespaceSpecifier') return null;
-  if (bindingType === 'VariableDeclarator') {
-    // check constantViolations before dereferencing `.node.init/.id` - malformed
-    // binding shapes can leave those undefined
-    if (binding.constantViolations?.length) return null;
-    const { init } = binding.node;
-    const pattern = binding.node.id;
-    // `{ from, ...rest } = Array` - rest !=== init
-    const props = pattern?.properties ?? pattern?.elements;
-    if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
-    // destructures bind `name` to a property of init, not init itself. proxy-global shorthand
-    // (`{ Symbol } = globalThis`) is the only exception - aliases to the property key
-    if (pattern?.type === 'ObjectPattern' && init) {
-      const alias = resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen);
-      if (alias) return alias;
-    }
-    if (pattern && pattern.type !== 'Identifier') return null;
-    if (!init) return null;
-    // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value out
-    // only when the preceding expressions are side-effect-free
-    const unwrapped = unwrapParens(init);
-    if (unwrapped?.type === 'Identifier') {
-      // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
-      // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
-      if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
-      return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
-    }
-    if (unwrapped?.type === 'MemberExpression' || unwrapped?.type === 'OptionalMemberExpression') {
-      return resolveObjectName(unwrapped, scope, adapter, seen);
-    }
+  // imports without a polyfillHint don't map to a known global (their binding could point at
+  // any user-imported value); param / catch / class name fall through to the final null
+  if (IMPORT_BINDING_TYPES.has(bindingType)) return null;
+  if (bindingType === 'VariableDeclarator') return resolveVariableBindingToGlobal(name, binding, scope, adapter, seen);
+  return null;
+}
+
+function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen) {
+  // check constantViolations before dereferencing `.node.init/.id` - malformed
+  // binding shapes can leave those undefined
+  if (binding.constantViolations?.length) return null;
+  const { init } = binding.node;
+  const pattern = binding.node.id;
+  // `{ from, ...rest } = Array` - rest !=== init
+  const props = pattern?.properties ?? pattern?.elements;
+  if (props?.some(p => p?.type === 'RestElement' && p.argument?.name === name)) return null;
+  // destructures bind `name` to a property of init, not init itself. proxy-global shorthand
+  // (`{ Symbol } = globalThis`) is the only exception - aliases to the property key
+  if (pattern?.type === 'ObjectPattern' && init) {
+    const alias = resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen);
+    if (alias) return alias;
   }
-  // param, catch, class name - never a global
+  if (pattern && pattern.type !== 'Identifier') return null;
+  if (!init) return null;
+  // parens/chain/TS wrappers vanish; SequenceExpression pulls the effective value out
+  // only when the preceding expressions are side-effect-free
+  const unwrapped = unwrapParens(init);
+  if (unwrapped?.type === 'Identifier') {
+    // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
+    // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
+    if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
+    return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
+  }
+  if (unwrapped?.type === 'MemberExpression' || unwrapped?.type === 'OptionalMemberExpression') {
+    return resolveObjectName(unwrapped, scope, adapter, seen);
+  }
   return null;
 }
 
@@ -197,6 +202,18 @@ export function patternBindingName(node) {
   return node?.type === 'Identifier' ? node.name : null;
 }
 
+// walks a chain of proxy-global links (`globalThis.self.window.X`) to its root identifier;
+// returns true when the root is a proxy global and every intermediate link is also one
+function resolveProxyGlobalRoot(receiver, scope, adapter, seen) {
+  let obj = unwrapParens(receiver);
+  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
+    const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter) : obj.property?.name;
+    if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
+    obj = unwrapParens(obj.object);
+  }
+  return obj.type === 'Identifier' && isProxyGlobalIdentifier(obj, scope, adapter, seen);
+}
+
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
 // (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow
 export function resolveObjectName(objectNode, scope, adapter, seen) {
@@ -207,38 +224,13 @@ export function resolveObjectName(objectNode, scope, adapter, seen) {
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
-  // globalThis[`Array`] - computed string-resolvable proxy access
-  if (objectNode.computed) {
-    return resolveComputedProxyName(objectNode, scope, adapter, seen);
-  }
-  // globalThis.Array, self.Promise, globalThis.globalThis.Array - walk past chained proxy globals
-  // handles mixed chains: globalThis['self'].Array, globalThis.self['self'].Promise
-  if (objectNode.property.type !== 'Identifier') return null;
-  let inner = unwrapParens(objectNode.object);
-  while (inner.type === 'MemberExpression' || inner.type === 'OptionalMemberExpression') {
-    const memberKey = inner.computed ? resolveKey(inner.property, true, scope, adapter) : inner.property?.name;
-    if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return null;
-    inner = unwrapParens(inner.object);
-  }
-  if (inner.type !== 'Identifier') return null;
-  if (!isProxyGlobalIdentifier(inner, scope, adapter, seen)) return null;
-  return objectNode.property.name;
-}
-
-// globalThis['Array'] / globalThis['self']['Array'] -> 'Array'
-function resolveComputedProxyName(node, scope, adapter, seen) {
-  const key = resolveKey(node.property, true, scope, adapter);
-  if (!key) return null;
-  // walk through chained proxy globals to the root identifier
-  let obj = unwrapParens(node.object);
-  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
-    const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter) : obj.property?.name;
-    if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return null;
-    obj = unwrapParens(obj.object);
-  }
-  if (obj.type !== 'Identifier') return null;
-  if (!isProxyGlobalIdentifier(obj, scope, adapter, seen)) return null;
-  return key;
+  // computed: globalThis[`Array`] resolves the bracket expression; non-computed reads the
+  // identifier name directly. either way the receiver chain must bottom out on a proxy global
+  const propertyName = objectNode.computed
+    ? resolveKey(objectNode.property, true, scope, adapter)
+    : objectNode.property.type === 'Identifier' ? objectNode.property.name : null;
+  if (!propertyName) return null;
+  return resolveProxyGlobalRoot(objectNode.object, scope, adapter, seen) ? propertyName : null;
 }
 
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
@@ -594,25 +586,16 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
   if (!initNode) return { kind: 'property', object: null, key, placement: null };
   // oxc-parser preserves ParenthesizedExpression (Babel strips them)
   const unwrapped = unwrapParens(initNode);
-  // `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
-  // that resolves to a known global (for `??`/`||` the fallback is usually on the right,
-  // for `&&` it's always the right).
-  // `fromFallback` disables the destructure replacement when the runtime value may come
-  // from either branch - `&&` is always conditional (primary only when left truthy, else
-  // falsy left), so always flag; `??`/`||` flag only when the fallback is the resolved side
-  if (unwrapped.type === 'LogicalExpression') {
-    const primary = unwrapped.operator === '&&' ? unwrapped.right : unwrapped.left;
-    const meta = buildDestructuringInitMeta(primary, key, scope, adapter);
-    if (meta.object) return unwrapped.operator === '&&' ? { ...meta, fromFallback: true } : meta;
-    // for `&&` both primary and fallback are the same (right), no point retrying
-    if (unwrapped.operator === '&&') return meta;
-    const fallback = buildDestructuringInitMeta(unwrapped.right, key, scope, adapter);
-    if (fallback.object) return { ...fallback, fromFallback: true };
-    return fallback;
-  }
-  // `(0, Array)`: sequence evaluates to its last expression
-  if (unwrapped.type === 'SequenceExpression') {
-    return buildDestructuringInitMeta(unwrapped.expressions.at(-1), key, scope, adapter);
+  // branch handlers for binary / sequence / conditional shapes recurse with the per-branch
+  // expression; pure positional resolution falls through to the type-specific cases below
+  switch (unwrapped.type) {
+    case 'LogicalExpression':
+      return resolveLogicalDestructureMeta(unwrapped, key, scope, adapter);
+    case 'SequenceExpression':
+      // `(0, Array)`: sequence evaluates to its last expression
+      return buildDestructuringInitMeta(unwrapped.expressions.at(-1), key, scope, adapter);
+    case 'ConditionalExpression':
+      return resolveConditionalDestructureMeta(unwrapped, key, scope, adapter);
   }
   // `const { from } = Array` or `const { from } = globalThis.Array`
   if (unwrapped.type === 'Identifier' || unwrapped.type === 'MemberExpression'
@@ -626,6 +609,33 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
     return { kind: 'property', object: 'string', key, placement: 'prototype' };
   }
   return { kind: 'property', object: null, key, placement: null };
+}
+
+// `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
+// that resolves to a known global (for `??`/`||` the fallback is usually on the right,
+// for `&&` it's always the right).
+// `fromFallback` disables the destructure replacement when the runtime value may come
+// from either branch - `&&` is always conditional (primary only when left truthy, else
+// falsy left), so always flag; `??`/`||` flag only when the fallback is the resolved side
+function resolveLogicalDestructureMeta(node, key, scope, adapter) {
+  const isAnd = node.operator === '&&';
+  const primary = isAnd ? node.right : node.left;
+  const meta = buildDestructuringInitMeta(primary, key, scope, adapter);
+  if (meta.object) return isAnd ? { ...meta, fromFallback: true } : meta;
+  // for `&&` both primary and fallback are the same (right), no point retrying
+  if (isAnd) return meta;
+  const fallback = buildDestructuringInitMeta(node.right, key, scope, adapter);
+  return fallback.object ? { ...fallback, fromFallback: true } : fallback;
+}
+
+// `cond ? Array : Set`: try both branches; flag fromFallback so destructure replacement
+// bails (the runtime value depends on `cond`). without this branching, the conditional
+// would fall through to the positional case and miss polyfill resolution entirely
+function resolveConditionalDestructureMeta(node, key, scope, adapter) {
+  const consequent = buildDestructuringInitMeta(node.consequent, key, scope, adapter);
+  const alternate = buildDestructuringInitMeta(node.alternate, key, scope, adapter);
+  const resolved = consequent.object ? consequent : alternate.object ? alternate : null;
+  return resolved ? { ...resolved, fromFallback: true } : consequent;
 }
 
 export function canTransformDestructuring({ parentType, parentInit, grandParentType }) {
