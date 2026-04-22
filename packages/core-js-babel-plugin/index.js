@@ -663,6 +663,8 @@ export default function plugin(api, options) {
       // --- pre(): main traverse before other plugins (TS types alive, destructuring intact) ---
 
       function preTraverse(path, visitors) {
+        // defensive — sibling plugin may have destroyed Program before our pre fires
+        if (!path?.node) return;
         initFile(path);
         if (skipFile) return;
         path.traverse(visitors);
