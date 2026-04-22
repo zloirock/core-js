@@ -165,6 +165,11 @@ export function createPolyfillContext({
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
   const modulesForEntryCache = new Map();
 
+  // semantic check (do patterns match any known module for the target version?) runs in
+  // createPolyfillContext rather than initPluginOptions because `modulesSetForTargetVersion`
+  // is target-derived and not available at options-parsing time. `buildShouldInjectPolyfill`
+  // already ran in initPluginOptions but returns a lazy fn - no observable behavior depends
+  // on this order, so the split is acceptable
   validateIncludeExclude(include, exclude, modulesSetForTargetVersion, method);
 
   function resolveModule(mod) {

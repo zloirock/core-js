@@ -23,7 +23,9 @@ export default class SnapshotCache {
   store(id, entry) {
     const key = normalizeKey(id);
     // double-call is legit in dev-servers (Vite --force, HMR re-invalidation) - gate the
-    // diagnostic under `debug` so it only fires when the user is actively investigating
+    // diagnostic under `debug` so it only fires when the user is actively investigating.
+    // last-write-wins is the right semantic for HMR: the latest pre is the one whose source
+    // post will see, so its snapshot is the current truth
     if (this.#debug && this.#snapshots.has(key) && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console -- opt-in diagnostic
       console.warn(`[core-js-unplugin] pre-pass called twice for ${ id }; latest snapshot wins`);
