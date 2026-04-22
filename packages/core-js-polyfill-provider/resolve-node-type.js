@@ -33,6 +33,20 @@ const {
 
 const { assign, create, hasOwn } = Object;
 
+// side-channel cycle flag: Set instances that hit a declaration-cycle during a walk.
+// per-walk, keyed on the decl-set's identity so parent frames can detect cycles without
+// a monkey-patched `.hadCycle` property (which would be lost on any defensive clone)
+const cycleSeenSets = new WeakSet();
+
+// snapshot the pre-call cycle state; returned predicate reports whether the flag flipped
+// during the caller's work. used by interface/class `extends` walks to distinguish "no
+// parent matched" (safe fallback to $Object) from "cyclic extends poisoned the result"
+// (must NOT fall back - returns null so the generic polyfill plugin stays emitted)
+function cycleFlipDetector(visited) {
+  const preCycle = cycleSeenSets.has(visited);
+  return () => !preCycle && cycleSeenSets.has(visited);
+}
+
 // eslint-disable-next-line max-statements -- factory of type inference engine
 function createResolveNodeType(babelNodeType, t) {
   // --- AST walkers & predicates ---
@@ -697,11 +711,13 @@ function createResolveNodeType(babelNodeType, t) {
     const declaration = findTypeDeclaration(name, scope);
     if (!declaration) return null;
     // `interface A extends B; interface B extends A` - MAX_DEPTH catches the loop, but a
-    // per-walk decl-set short-circuits it at the second visit. `hadCycle` piggybacked on
-    // the Set so parent frames know to return null instead of defaulting to $Object - an
+    // per-walk decl-set short-circuits it at the second visit. cycle-detection uses a
+    // side-channel WeakSet keyed on the decl-set identity instead of a monkey-patched
+    // property - that way `new Set(visited)` (should a caller ever clone) doesn't silently
+    // forget the cycle flag; the cloned Set is simply a different identity with no flag.
     // unknowable cyclic type must NOT masquerade as `Object` (it suppresses generic polyfill)
     if (seen?.has(declaration)) {
-      seen.hadCycle = true;
+      cycleSeenSets.add(seen);
       return null;
     }
     const visited = seen ?? new Set();
@@ -718,7 +734,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (isInterfaceDeclaration(declaration)) {
       const parents = declaration.extends;
       if (parents?.length) {
-        const preCycle = visited.hadCycle === true;
+        const cycleFlipped = cycleFlipDetector(visited);
         for (const parent of parents) {
           const base = extendsId(parent);
           if (base.type !== 'Identifier') continue;
@@ -727,11 +743,14 @@ function createResolveNodeType(babelNodeType, t) {
             || resolveUserDefinedType(base.name, parent, scope, depth + 1, typeParamMap, visited);
           if (result) return result;
         }
-        if (!preCycle && visited.hadCycle === true) return null;
+        if (cycleFlipped()) return null;
       }
       return new $Object('Object');
     }
-    // class as a type: walk `extends` for known container (`Array<T>`) or user parent
+    // class as a type: walk `extends` for known container (`Array<T>`) or user parent.
+    // cyclic class extends should NOT fall back to `$Object('Object')` - that masquerades
+    // as a concrete type and suppresses the generic polyfill plugin emits for unknowable
+    // receivers. mirrors the interface-branch cycle handling above
     if (isClassLikeDeclaration(declaration)) {
       const superClass = declaration.superClass ?? declaration.extends?.[0]?.id;
       if (superClass?.type !== 'Identifier') return new $Object('Object');
@@ -742,13 +761,10 @@ function createResolveNodeType(babelNodeType, t) {
       };
       const ctor = resolveKnownConstructor(superClass.name);
       if (ctor) return resolveKnownContainerType(superClass.name, ctor, parentRef, resolve) || ctor;
-      const preCycle = visited.hadCycle === true;
+      const cycleFlipped = cycleFlipDetector(visited);
       const result = resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap, visited);
       if (result) return result;
-      // mirror the interface-branch cycle handling: cyclic class extends should NOT fall
-      // back to `$Object('Object')` - that masquerades as a concrete type and suppresses
-      // the generic polyfill plugin emits for unknowable receivers
-      if (!preCycle && visited.hadCycle === true) return null;
+      if (cycleFlipped()) return null;
       return new $Object('Object');
     }
     return null;
@@ -2576,22 +2592,33 @@ function createResolveNodeType(babelNodeType, t) {
     return foldUnionTypes(resolvedReturns, r => r) ?? resolvedReturns[0];
   }
 
-  // union method calls - for `x: A | B` calling `x.foo()`, resolve in each branch
-  // and fold the per-branch return types. mirrors findTypeMember's union handling for properties
+  // union/intersection method calls - for `x: A | B` or `x: A & B` calling `x.foo()`,
+  // resolve in each branch. union folds per-branch return types; intersection picks the
+  // first branch that resolves (intersection members are additive, so any match is valid).
+  // mirrors findTypeMember's handling for properties
   function resolveMemberCallReturn(annotation, name, scope, resolve, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
+    const applySubst = branch => {
+      const unwrapped = unwrapTypeAnnotation(branch);
+      return subst ? applyAliasSubstDeep(unwrapped, subst) : unwrapped;
+    };
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       let result = null;
       for (const branch of aliased.types) {
-        // apply subst so generic alias branches (`type Foo<T> = A | B<T>`) keep their bindings
-        const substituted = subst ? applyAliasSubstDeep(unwrapTypeAnnotation(branch), subst) : unwrapTypeAnnotation(branch);
-        const branchResult = resolveMemberCallReturn(substituted, name, scope, resolve, depth + 1);
+        const branchResult = resolveMemberCallReturn(applySubst(branch), name, scope, resolve, depth + 1);
         if (!branchResult) return null;
         result = commonType(result, branchResult);
         if (!result) return null;
       }
       return result;
+    }
+    if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
+      for (const branch of aliased.types) {
+        const branchResult = resolveMemberCallReturn(applySubst(branch), name, scope, resolve, depth + 1);
+        if (branchResult) return branchResult;
+      }
+      return null;
     }
     return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth, subst);
   }
