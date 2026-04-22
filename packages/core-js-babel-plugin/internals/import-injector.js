@@ -51,16 +51,24 @@ export default class ImportInjector extends ImportInjectorState {
   // own UID generator - Babel's scope.generateUidIdentifier strips trailing digits,
   // so after `_ref9` it would hand out `_ref` / `_ref2` instead of `_ref10` / `_ref11`,
   // colliding with earlier slots.
-  // `declare=true` uses scope.push; `false` leaves the declaration to the caller (e.g.
-  // destructuring extracts its own `const`). arrow-expression-body is normalized post-pass
-  // by `normalizeArrowRefParams` - see there for why it can't run in-visit
-  generateRef(scope, declare = true) {
+  // callers choose:
+  //   `generateDeclaredRef(scope)` - `scope.push({id})` emits `var _refN;` at the target block
+  //   `generateLocalRef(scope)`    - UID only (caller emits its own `const _refN = ...` inline)
+  // arrow-expression-body declarations are normalized post-pass by `normalizeArrowRefParams`
+  // (see there for why it can't run in-visit)
+  #generateRefId(scope) {
     const name = this.generateRefName(n => scope.hasBinding(n));
     this.#refs.add(name);
-    const id = this.#t.identifier(name);
-    if (declare) scope.push({ id });
+    return this.#t.identifier(name);
+  }
+
+  generateDeclaredRef(scope) {
+    const id = this.#generateRefId(scope);
+    scope.push({ id });
     return id;
   }
+
+  generateLocalRef(scope) { return this.#generateRefId(scope); }
 
   // `scope.push` on an arrow with expression body appends the ref as a trailing parameter
   // instead of block-converting (Babel fallback when there's no block to host `var _ref;`).

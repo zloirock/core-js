@@ -7,7 +7,9 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 // so we never evict: the unplugin wrapper calls `reset()` on `buildEnd` to bound retention.
 // ids are normalized (strip ?query / #hash + backslash -> forward slash) so a bundler that
 // visits `foo.js` in pre and `foo.js?v=1` in post still finds the snapshot; on Windows a
-// bundler that normalizes `C:\src\foo.js` <-> `C:/src/foo.js` between passes also matches
+// bundler that normalizes `C:\src\foo.js` <-> `C:/src/foo.js` between passes also matches.
+// long-running dev-servers accumulate snapshots between rebuilds - buildEnd per invocation
+// drains them; pre-only-visited ids in a single invocation still leak until buildEnd fires
 function normalizeKey(id) {
   return stripQueryHash(id).replaceAll('\\', '/');
 }
@@ -39,6 +41,15 @@ export default class SnapshotCache {
     if (entry) this.#snapshots.delete(key);
     return entry ?? null;
   }
+
+  // explicit eviction for callers that know an id won't be revisited (e.g. HMR invalidated
+  // the module). avoids unbounded accumulation in long-running dev-servers that never hit
+  // `reset()` between builds
+  evict(id) {
+    this.#snapshots.delete(normalizeKey(id));
+  }
+
+  size() { return this.#snapshots.size; }
 
   reset() {
     this.#snapshots.clear();
