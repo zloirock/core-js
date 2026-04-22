@@ -110,9 +110,13 @@ export default class ImportInjectorState {
   // last-write-wins: only called from `handleDestructureProxyGlobal` which fires per
   // proxy-global destructure site. user code that destructures the same alias name twice
   // from a proxy global in different scopes is rare; flat-map is sufficient because babel's
-  // own scope.getBinding handles real shadowing - the alias map only carries hint info
+  // own scope.getBinding handles real shadowing - the alias map only carries hint info.
+  // also reserves the name in usedNames so uniqueName can't reuse it - defensive: scope
+  // binding already blocks inner reuse, but this catches anyone querying isNameTaken
+  // through the State surface directly (rootScope may not see inner destructure bindings)
   registerGlobalAlias(name, globalName) {
     this.#globalAliases.set(name, globalName);
+    this.usedNames.add(name);
   }
 
   // unified lookup for the adapter's `getBinding` - pure-import or global-alias, whichever
