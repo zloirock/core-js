@@ -65,7 +65,7 @@ const stripLeadingPrefix = p => {
 
 // normalize the import source to a canonical entry path so we can look it up in the `entries`
 // map: forward slashes only, no query/hash, no protocol, no trailing `/index` or `.{c,m}js`.
-// strip query/hash BEFORE slash replacement — UNC prefixes (`\\?\`, `\\.\`) embed `?`/`.` at
+// strip query/hash BEFORE slash replacement - UNC prefixes (`\\?\`, `\\.\`) embed `?`/`.` at
 // index 2 and stripQueryHash uses the backslash form to skip them. replacing backslashes
 // first would collapse `\\?\` to `//?/` and truncate the path at the bogus `?` marker
 function normalizeImportPath(path) {
@@ -159,7 +159,7 @@ export function createPolyfillContext({
   version = normalizeCoreJSVersion(version);
 
   // dedup: users sometimes list the main `pkg` inside `additionalPackages` or repeat an alias.
-  // Set preserves first-match order — hot-loop `stripPkgPrefix` hits main pkg first
+  // Set preserves first-match order - hot-loop `stripPkgPrefix` hits main pkg first
   const packages = [...new Set([pkg, ...additionalPackages ?? []].map(p => p.toLowerCase()))];
   const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
   const modulesSetForTargetVersion = new Set(getModulesListForTargetVersion(version));
