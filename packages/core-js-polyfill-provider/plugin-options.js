@@ -5,7 +5,7 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { isForXWriteTarget, isTSTypeOnlyIdentifier, patternToRegExp, symbolKeyToEntry } from './helpers.js';
+import { isForXWriteTarget, isTSTypeOnlyIdentifier, patternToRegExp, symbolKeyToEntry, validatePatternList } from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
@@ -101,6 +101,11 @@ function validateOptions({
   if (!isEmpty(shouldInjectPolyfill) && typeof shouldInjectPolyfill !== 'function') {
     throw optionTypeError('shouldInjectPolyfill', 'a function, or undefined', shouldInjectPolyfill);
   }
+  // shape-validate include/exclude before the conflict check below. otherwise a config
+  // like `{ include: [42n], shouldInjectPolyfill: fn }` surfaces "conflict with shouldInjectPolyfill"
+  // and hides the real error (bad element type) until the caller resolves the conflict first
+  validatePatternList('include', include);
+  validatePatternList('exclude', exclude);
   // empty arrays don't conflict with shouldInjectPolyfill - only non-empty include/exclude do
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
     throw new TypeError('`include` and `exclude` are not supported when using `shouldInjectPolyfill`');
