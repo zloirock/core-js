@@ -1,6 +1,7 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
 import ImportInjectorState from '@core-js/polyfill-provider/import-state';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
+import { skipBlockComment } from './plugin-helpers.js';
 
 export default class ImportInjector extends ImportInjectorState {
   // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot
@@ -38,17 +39,25 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   #rehydrate(snap) {
-    for (const g of snap.globals) this.globalImports.add(g);
-    for (const [k, v] of snap.pure) this.pureImports.set(k, v);
-    for (const n of snap.usedNames) this.usedNames.add(n);
-    for (const n of snap.unusedNames) this.#unusedNames.add(n);
-    for (const g of snap.existingGlobals) this.existingGlobalImports.add(g);
-    for (const [k, v] of snap.existingPure) this.existingPureImports.set(k, v);
-    for (const r of snap.refs) this.#refs.add(r);
+    // defensive `?? EMPTY` for every field: SnapshotCache persists across long-running dev
+    // servers, and a plugin-version upgrade mid-session could bring in a snapshot missing
+    // newer fields. treating undefined as empty matches what a fresh injector would do.
+    // EMPTY_* are allocated once per rehydrate to keep iteration alloc-free when fields
+    // are present (most common case)
+    const EMPTY_ARR = [];
+    const EMPTY_MAP = new Map();
+    for (const g of snap.globals ?? EMPTY_ARR) this.globalImports.add(g);
+    for (const [k, v] of snap.pure ?? EMPTY_MAP) this.pureImports.set(k, v);
+    for (const n of snap.usedNames ?? EMPTY_ARR) this.usedNames.add(n);
+    for (const n of snap.unusedNames ?? EMPTY_ARR) this.#unusedNames.add(n);
+    for (const g of snap.existingGlobals ?? EMPTY_ARR) this.existingGlobalImports.add(g);
+    for (const [k, v] of snap.existingPure ?? EMPTY_MAP) this.existingPureImports.set(k, v);
+    for (const r of snap.refs ?? EMPTY_ARR) this.#refs.add(r);
     // pre's `var X;` is already in post's input - don't re-emit. older snapshots
     // without `flushedRefs` fall back to all refs (over-conservative, never wrong)
-    for (const r of snap.flushedRefs ?? snap.refs) this.#flushedRefs.add(r);
+    for (const r of snap.flushedRefs ?? snap.refs ?? EMPTY_ARR) this.#flushedRefs.add(r);
     this.rehydrateSuffixState(snap.suffixState);
+    this.rehydrateImportInfoByName(snap.importInfoByName);
   }
 
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
@@ -68,6 +77,7 @@ export default class ImportInjector extends ImportInjectorState {
       existingGlobals: new Set(this.existingGlobalImports),
       existingPure: new Map(this.existingPureImports),
       suffixState: this.captureSuffixState(),
+      importInfoByName: this.captureImportInfoByName(),
     };
   }
 
@@ -183,18 +193,24 @@ function skipShebang(src, pos) {
   return src.length;
 }
 
-// land insertion on the next line: skip trailing whitespace, inline comment, line
-// terminator. without comment-skip, `'use strict' // x\nfoo()` would shred the comment
+// land insertion on the next line: skip trailing whitespace and any chain of inline
+// comments, then advance past the line terminator. without multi-comment handling,
+// `"use strict"; /*a*/ //b\nfoo()` would land between `/*a*/` and `//b`, shredding `//b`
+// (or injecting import INTO the line comment so it gets commented out at runtime)
 function skipLineEnd(src, pos) {
   let p = pos;
-  while (src[p] === ' ' || src[p] === '\t') p++;
-  if (src[p] === '/' && src[p + 1] === '/') {
-    while (p < src.length && src[p] !== '\n' && src[p] !== '\r') p++;
-  } else if (src[p] === '/' && src[p + 1] === '*') {
-    const end = src.indexOf('*/', p + 2);
-    if (end === -1) return src.length;
-    p = end + 2;
+  for (;;) {
     while (src[p] === ' ' || src[p] === '\t') p++;
+    if (src[p] === '/' && src[p + 1] === '/') {
+      while (p < src.length && src[p] !== '\n' && src[p] !== '\r') p++;
+      break;
+    }
+    if (src[p] === '/' && src[p + 1] === '*') {
+      p = skipBlockComment(src, p);
+      if (p === src.length) return p;
+      continue;
+    }
+    break;
   }
   if (src[p] === '\r' && src[p + 1] === '\n') return p + 2;
   if (src[p] === '\n' || src[p] === '\r') return p + 1;
