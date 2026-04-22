@@ -22,8 +22,10 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
 }
 
 // non-overlapping jumpsize - polyfill needles embed syntactic delimiters (`.`, `(`,
-// identifiers) that cannot self-overlap
+// identifiers) that cannot self-overlap. empty needle is a caller bug — guard so
+// indexOf('', ...) doesn't infinite-loop (pos never advances)
 export function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
+  if (!needle.length) return 0;
   let count = 0;
   for (let pos = haystack.indexOf(needle, rangeStart);
     pos !== -1 && pos + needle.length <= rangeEnd;
@@ -188,6 +190,9 @@ export default class TransformQueue {
     this.#ms = ms;
   }
 
+  // rewriteHint shape (set by plugin.js; read by `substituteInner`):
+  //   { rootRaw?: string, guardRef?: string, deoptPositions?: number[], objectStart?: number }
+  // — used to rebuild inner needles when an outer transform rewrote the chain root
   add(start, end, content, guardedRoot, rewriteHint) {
     // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
     // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
@@ -242,7 +247,12 @@ export default class TransformQueue {
     const entry = rList.shift();
     if (!rList.length) this.#byRange.delete(rKey);
     this.#transforms.delete(entry);
-    if (entry.guardedRoot) removeFrom(this.#byGuardedRoot, entry.guardedRoot, entry);
+    if (entry.guardedRoot) {
+      removeFrom(this.#byGuardedRoot, entry.guardedRoot, entry);
+      // drop the maxEnd cache entry when the guarded root is fully drained — otherwise
+      // `hasGuardFor` keeps consulting a stale upper bound and falls through to linear scan
+      if (!this.#byGuardedRoot.has(entry.guardedRoot)) this.#maxEndByGuardedRoot.delete(entry.guardedRoot);
+    }
     const sorted = this.#sorted;
     // binary search by start, then walk the equal-start run for entry identity
     let si = lowerBound(sorted, start);

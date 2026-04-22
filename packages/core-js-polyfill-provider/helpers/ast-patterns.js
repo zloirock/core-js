@@ -9,7 +9,8 @@ const DASH_WORD = /-(?<c>\w)/g;
 
 export const kebabToCamel = str => str.replaceAll(DASH_WORD, (_, c) => c.toUpperCase());
 
-export const kebabToPascal = str => str ? kebabToCamel(str[0].toUpperCase() + str.slice(1)) : str;
+export const kebabToPascal = str => typeof str === 'string' && str
+  ? kebabToCamel(str[0].toUpperCase() + str.slice(1)) : null;
 
 // type-only expression wrappers - runtime no-ops that forward to their `.expression` child
 export const TS_EXPR_WRAPPERS = new Set([
@@ -213,8 +214,17 @@ function isCommonJSAssignTarget(left) {
 
 export const hasTopLevelESM = program => program.body.some(n => ESM_MARKER_TYPES.has(n.type));
 
-// shadowed `require` makes its calls user-authored no-ops, not real core-js imports
+// shadowed `require` makes its calls user-authored no-ops, not real core-js imports.
+// per-body cache — same body walked by multiple passes (detect-usage + detect-entry)
+const REQUIRE_SHADOW_CACHE = new WeakMap();
 export function declaresRequireBinding(body) {
+  if (!body || typeof body !== 'object') return false;
+  if (REQUIRE_SHADOW_CACHE.has(body)) return REQUIRE_SHADOW_CACHE.get(body);
+  const result = computeDeclaresRequire(body);
+  REQUIRE_SHADOW_CACHE.set(body, result);
+  return result;
+}
+function computeDeclaresRequire(body) {
   let found = false;
   const mark = id => {
     if (id.name === 'require') found = true;
@@ -280,15 +290,27 @@ export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
   return isInTypeAnnotation;
 }
 
-// conservative: true when the subtree may observe/cause side effects, false only when provably pure
+// conservative: true when the subtree may observe/cause side effects, false only when provably pure.
+// per-node WeakMap cache — same subtree is queried by nested destructure / SE-extract paths
+const SIDE_EFFECTS_CACHE = new WeakMap();
 export function mayHaveSideEffects(node) {
   if (!node) return false;
+  if (SIDE_EFFECTS_CACHE.has(node)) return SIDE_EFFECTS_CACHE.get(node);
+  const result = computeSideEffects(node);
+  SIDE_EFFECTS_CACHE.set(node, result);
+  return result;
+}
+function computeSideEffects(node) {
   const { type } = node;
   if (ALWAYS_EFFECTFUL_TYPES.has(type)) return true;
   if (type === 'UnaryExpression') return node.operator === 'delete' || mayHaveSideEffects(node.argument);
   if (type === 'SequenceExpression' || type === 'TemplateLiteral') return node.expressions.some(mayHaveSideEffects);
   if (type === 'ArrayExpression') return node.elements.some(mayHaveSideEffects);
-  if (type === 'ObjectExpression') return node.properties.some(mayHaveSideEffects);
+  if (type === 'ObjectExpression') {
+    // `{ ...obj }` invokes `obj`'s Proxy traps (ownKeys / getOwnPropertyDescriptor / get)
+    // — can't prove purity from source alone
+    return node.properties.some(p => p?.type === 'SpreadElement' || mayHaveSideEffects(p));
+  }
   if (type === 'BinaryExpression' || type === 'LogicalExpression') {
     return mayHaveSideEffects(node.left) || mayHaveSideEffects(node.right);
   }
