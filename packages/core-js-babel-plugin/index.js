@@ -99,7 +99,11 @@ export default function plugin(api, options) {
       // receiver -> `{p: _polyfill, q: R.q, ...}` synth-swap targets, deferred to programExit
       // so every sibling prop visits against the ORIGINAL receiver first (mid-visit swap
       // would route later siblings to the partial synth and miss their polyfill). populated
-      // from two shapes - param-default `function({p} = R)` and arrow IIFE `(({p}) => ...)(R)`
+      // from two shapes - param-default `function({p} = R)` and arrow IIFE `(({p}) => ...)(R)`.
+      // keyed on the receiver AST node identity - sibling plugins that clone nodes via
+      // `t.cloneNode` would produce fresh identities and fragment the swap. under standard
+      // babel plugin ordering this is safe; coexistence with plugins that clone a common
+      // ancestor is not supported
       let synthSwapByReceiver = new WeakMap();
       let pendingSynthSwaps = [];
 
@@ -239,6 +243,11 @@ export default function plugin(api, options) {
       // `const { Array: { from } } = globalThis` -> `const from = _Array$from`.
       // non-Identifier inner value / AssignmentPattern default fall back to the param-default
       // path - those can't be trivially flattened
+      // only VariableDeclaration-hosted nested destructure (`const { Array: { from } } = globalThis`)
+      // is flattened. AssignmentExpression form (`({ Array: { from } } = globalThis)`) would
+      // require extracting to a declaration above the expression, changing statement shape -
+      // deferred because the expression's return value semantics differ. AssignmentExpression
+      // keeps native `Array.from`; callers who need the polyfill can restructure to var decl
       function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
         if (!t.isIdentifier(prop.node.value)) return false;
         const innerPattern = prop.parentPath;
@@ -254,7 +263,10 @@ export default function plugin(api, options) {
         const wasLastOuter = outerPattern.node.properties.length === 1;
         const willRemoveDeclarator = wasLastInner && wasLastOuter;
         // seed skippedNodes for the subtree about to be orphaned so scheduled visitor
-        // re-entries short-circuit; handleIdentifier's `!path.parent` guard backs this up
+        // re-entries short-circuit; handleIdentifier's `!path.parent` guard backs this up.
+        // NOT calling scope.registerDeclaration on the new binding: attempting it triggered
+        // "Duplicate declaration" errors in e2e when the enclosing `scope.crawl()` later
+        // re-scanned. skippedNodes + programExit's implicit crawl are sufficient
         const skipSubtree = willRemoveDeclarator ? declarator.node : prop.node;
         t.traverseFast(skipSubtree, node => { skippedNodes.add(node); });
         // single-declarator simple-chain: replaceWith preserves leading comments
@@ -690,7 +702,10 @@ export default function plugin(api, options) {
 
       function programExit(path) {
         if (!helperVisitors) return;
-        // re-traverse new body nodes (helpers from class/spread/destructuring transforms)
+        // re-traverse new body nodes (helpers from class/spread/destructuring transforms).
+        // runs BEFORE synth-swap emission below: helper-visitors queue polyfill imports for
+        // identifiers that synth-swap could then consume. reversing the order would emit
+        // synth-swap against a pre-scan state that misses helper-injected globals
         for (const childPath of path.get('body')) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
         }
@@ -819,7 +834,7 @@ export default function plugin(api, options) {
               if (!param.properties?.length) return;
               // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
               // - keeps one naming scheme across the plugin and matches unplugin's output shape
-              const ref = injector.generateRef(path.scope, false);
+              const ref = injector.generateLocalRef(path.scope);
               path.get('body').unshiftContainer('body', [
                 t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
               ]);
