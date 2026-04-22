@@ -481,11 +481,20 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveTypeofFromSegments(collectQualifiedSegments(node.exprName), scope);
   }
 
+  // computed enum initializers: TS evaluates `1 + 2` / `'a' + 'b'` at compile time;
+  // we can't but operand-shape inference covers the common cases. TemplateLiteral always
+  // yields string; BinaryExpression preserves the kind if both operands match
   function resolveEnumMemberKind(initializer) {
     if (!initializer) return 'number'; // implicit numeric
-    if (babelNodeType(initializer) === 'StringLiteral') return 'string';
-    if (babelNodeType(initializer) === 'NumericLiteral' || initializer.type === 'UnaryExpression') return 'number';
-    return null; // template literal, expression, etc.
+    const nodeType = babelNodeType(initializer);
+    if (nodeType === 'StringLiteral') return 'string';
+    if (nodeType === 'NumericLiteral' || initializer.type === 'UnaryExpression') return 'number';
+    if (initializer.type === 'TemplateLiteral') return 'string';
+    if (initializer.type === 'BinaryExpression') {
+      const left = resolveEnumMemberKind(initializer.left);
+      return left && left === resolveEnumMemberKind(initializer.right) ? left : null;
+    }
+    return null;
   }
 
   // ESTree (oxc-parser): members under body.members; Babel: directly on declaration
@@ -1479,8 +1488,10 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function resolveNumericType(path) {
-    const resolved = resolveNodeType(path);
-    // `number` if resolving is not possible - acceptable assumption within `core-js`
+    // `resolveNodeType` on a bare Identifier stops at the identifier itself without
+    // descending to its binding init - `resolvePath` walks `const x = BigInt(1)` so
+    // `x++` sees the BigInt-typed init. `number` fallback kept for unresolvable paths
+    const resolved = resolveNodeType(resolvePath(path));
     return new $Primitive(primitiveTypeOf(resolved) === 'bigint' ? 'bigint' : 'number');
   }
 
