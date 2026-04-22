@@ -306,17 +306,29 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
   return { injectModulesForEntry, injectModulesForModeEntry, outputDebug };
 }
 
+// bail when the usage is syntactically present but carries no runtime read - polyfilling
+// would be pure over-injection. covers: plugin's disable marker, TS type-only contexts,
+// and for-x LHS where the MemberExpression targets a local write, not a prototype lookup
+function shouldSkipUsageDispatch(meta, path, isDisabled) {
+  if (isDisabled(path.node)) return true;
+  if (path?.parentPath?.node?.type === 'TSTypeQuery') return true;
+  if (isTSTypeOnlyIdentifier(path?.parent, path?.key)) return true;
+  return meta.kind === 'property' && path?.node && isForXWriteTarget(path);
+}
+
+// `super.X(...)` in a static method of `extends KnownGlobal { ... }`: regular MemberExpression
+// resolution produces `{object: null, placement: 'prototype'}` which never matches
+// `Array.from` etc. retry with a synthetic static meta against the parent class
+function tryResolveSuperStaticMeta(meta, path, resolveStaticInheritedMember) {
+  if (!resolveStaticInheritedMember) return null;
+  if (meta.kind !== 'property' || meta.placement !== 'prototype' || meta.object !== null) return null;
+  if (path?.node?.type !== 'MemberExpression' || path.node.object?.type !== 'Super') return null;
+  return resolveStaticInheritedMember(path);
+}
+
 export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEntry, isDisabled, resolveStaticInheritedMember }) {
   function dispatch(meta, path) {
-    if (isDisabled(path.node)) return;
-    // `typeof Map` is a type-level operator: the identifier never appears at runtime, so
-    // polyfilling it is pure over-injection. narrow to TSTypeQuery only; `as Map<...>` and
-    // `let x: Map` keep current behavior (runtime-cast heuristic assumes later Map usage)
-    if (path?.parentPath?.node?.type === 'TSTypeQuery') return;
-    // `export { type Set }` / `type Set = …` / `interface Set {…}` - TS type-only contexts
-    if (isTSTypeOnlyIdentifier(path?.parent, path?.key)) return;
-    // for-x LHS and shadowed body reads target a local write, not the prototype
-    if (meta.kind === 'property' && path?.node && isForXWriteTarget(path)) return;
+    if (shouldSkipUsageDispatch(meta, path, isDisabled)) return;
     if (meta.kind === 'in') {
       const entry = symbolKeyToEntry(meta.key);
       if (entry) injectModulesForModeEntry(entry);
@@ -335,16 +347,8 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
     }
   }
   return (meta, path) => {
-    // `super.X(...)` in a static method of `extends KnownGlobal { ... }`: regular MemberExpression
-    // resolution produces `{object: null, placement: 'prototype'}` which never matches
-    // `Array.from` etc. retry with a synthetic static meta against the parent class
-    if (resolveStaticInheritedMember && meta.kind === 'property' && meta.placement === 'prototype'
-      && meta.object === null && path?.node?.type === 'MemberExpression'
-      && path.node.object?.type === 'Super') {
-      const superMeta = resolveStaticInheritedMember(path);
-      if (superMeta) return dispatch(superMeta, path);
-    }
-    return dispatch(meta, path);
+    const superMeta = tryResolveSuperStaticMeta(meta, path, resolveStaticInheritedMember);
+    return dispatch(superMeta ?? meta, path);
   };
 }
 
