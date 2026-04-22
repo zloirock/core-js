@@ -134,6 +134,12 @@ export default class ImportInjectorState {
     return name;
   }
 
+  // handoff for phase: 'pre+post' so post's `uniqueName` doesn't re-probe pre's N names
+  captureSuffixState() { return new Map(this.#nextSuffixByPrefix); }
+  rehydrateSuffixState(captured) {
+    if (captured) for (const [prefix, next] of captured) this.#nextSuffixByPrefix.set(prefix, next);
+  }
+
   isNameTaken(name) { return this.usedNames.has(name); }
 
   // `_ref, _ref2, _ref3, ...`. `extraCheck` covers bindings the injector doesn't track
