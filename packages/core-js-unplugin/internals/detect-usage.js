@@ -147,7 +147,7 @@ function buildDestructuringMeta(propNode, parentPath) {
     case 'VariableDeclarator': initNode = parent.node.init; break;
     case 'AssignmentExpression': initNode = parent.node.right; break;
     case 'AssignmentPattern':
-      // `function({ from } = Array)` — AssignmentPattern wraps the param. Route `parent.right`
+      // `function({ from } = Array)` - AssignmentPattern wraps the param. Route `parent.right`
       // as the destructure receiver so `from` resolves to `Array.from`. without this the
       // fall-through emits typeless meta and the polyfill isn't injected
       if (isFunctionParamDestructureParent(parent.node, parent.parentPath?.node, objectPattern.node)) {
@@ -155,8 +155,8 @@ function buildDestructuringMeta(propNode, parentPath) {
       }
       break;
     case 'Property': {
-      // nested pattern `{ Array: { from } } = globalThis` — inner Property's outer chain:
-      // Property → ObjectPattern → VariableDeclarator. resolve outer init; if proxy-global,
+      // nested pattern `{ Array: { from } } = globalThis` - inner Property's outer chain:
+      // Property -> ObjectPattern -> VariableDeclarator. resolve outer init; if proxy-global,
       // return structured meta with outer key as receiver and inner as key
       const outerPattern = parent.parentPath;
       const outerDecl = outerPattern?.parentPath;
@@ -339,7 +339,7 @@ function walkDecorators(parentPath, decoratorVisitors) {
 
 export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals = false, walkAnnotations = true }) {
   const handledObjects = new WeakSet();
-  // estree-toolkit doesn't expose `binding.kind` — walk up to the enclosing VariableDeclaration
+  // estree-toolkit doesn't expose `binding.kind` - walk up to the enclosing VariableDeclaration
   const isSelfRefVarBinding = createSelfRefVarGuard(
     b => (b?.path?.parent ?? b?.path?.parentPath?.node)?.kind,
   );
@@ -362,7 +362,7 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
     if (path.scope?.hasBinding(node.name)) {
-      // self-reference `var X = X` — hoisted var init reads the outer (global) scope
+      // self-reference `var X = X` - hoisted var init reads the outer (global) scope
       // before the local is assigned. narrow via cached binding check; exclude let/const
       // (TDZ error) and ImportSpecifiers. `node.name` equals binding's own name by lookup
       if (!isSelfRefVarBinding(path.scope?.getBinding?.(node.name))) return;
@@ -378,7 +378,7 @@ export function createUsageVisitors({ onUsage, onWarning, suppressProxyGlobals =
 
   function memberExpressionVisitor(path) {
     const { node, parent, key: parentKey } = path;
-    // `globalThis.Map ||= X` — check BEFORE `isReferenced` rejects (write-context member)
+    // `globalThis.Map ||= X` - check BEFORE `isReferenced` rejects (write-context member)
     // and before child-visitor rewrites the object identifier into `_globalThis`
     if (onWarning) {
       const warning = checkLogicalAssignLhsMember(node, parent);
