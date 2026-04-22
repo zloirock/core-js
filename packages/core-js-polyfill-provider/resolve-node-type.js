@@ -277,12 +277,16 @@ function createResolveNodeType(babelNodeType, t) {
   function followTypeAliasChain(node, scope) {
     let depth = MAX_DEPTH;
     let subst = null;
+    // bail on cycle (`type A = B; type B = A;`) before depth exhausts and subst balloons
+    const visited = new Set();
     node = unwrapTypeAnnotation(node);
     while (depth-- && (node?.type === 'TSTypeReference' || node?.type === 'GenericTypeAnnotation')) {
       const refName = typeRefName(node);
       if (!refName) break;
       const decl = findTypeDeclaration(refName, scope);
       if (!isTypeAlias(decl)) break;
+      if (visited.has(decl)) break;
+      visited.add(decl);
       // accumulate type parameter substitutions for generic aliases
       const declParams = decl.typeParameters?.params;
       const usageArgs = getTypeArgs(node)?.params;
@@ -307,20 +311,14 @@ function createResolveNodeType(babelNodeType, t) {
     // resolves through to T (substituted) instead of stopping at the mapped type
     if (node?.type === 'TSMappedType') {
       const passthrough = unwrapMappedTypePassthrough(node);
-      if (passthrough) node = unwrapTypeAnnotation(subst ? applyAliasSubst(passthrough, subst) : passthrough);
+      if (passthrough) node = unwrapTypeAnnotation(subst ? applyAliasSubstDeep(passthrough, subst) : passthrough);
     }
     return { node, subst };
   }
 
-  // substitute direct type parameter references through a subst map from followTypeAliasChain
-  function applyAliasSubst(node, subst) {
-    if (!subst) return node;
-    const name = typeRefName(node);
-    return name && subst.has(name) ? subst.get(name) : node;
-  }
-
-  // deep variant of applyAliasSubst: recurses into refs/args/arrays/tuples/unions so
-  // interface-extends args reach inherited members after getTypeMembers flattens them
+  // substitute type-param references through `followTypeAliasChain`'s subst map.
+  // recurses into refs/args/arrays/tuples/unions so interface-extends args reach
+  // inherited members after getTypeMembers flattens them
   function substSlot(node, slot, subst, depth) {
     const next = applyAliasSubstDeep(node[slot], subst, depth + 1);
     return next === node[slot] ? node : { ...node, [slot]: next };
@@ -590,8 +588,19 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // per-scope cache for single-segment lookups (the vast majority of callsites).
+  // dotted `a.b.c` paths aren't cached — they traverse further at each step
+  let typeDeclCache = new WeakMap();
   function findTypeDeclaration(name, scope) {
-    return walkScopesForDecl(name, scope, null);
+    if (!scope || typeof name !== 'string' || name.includes('.')) return walkScopesForDecl(name, scope, null);
+    let byName = typeDeclCache.get(scope);
+    if (!byName) {
+      byName = new Map();
+      typeDeclCache.set(scope, byName);
+    } else if (byName.has(name)) return byName.get(name);
+    const decl = walkScopesForDecl(name, scope, null);
+    byName.set(name, decl);
+    return decl;
   }
 
   // all `interface X {}` siblings at the first scope level that contains one
@@ -886,12 +895,13 @@ function createResolveNodeType(babelNodeType, t) {
   function findTypeMember(objectType, key, scope, depth = 0) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
-    // unwrap wrapper before subst since applyAliasSubst only looks at top-level type name
+    // union member may itself be a wrapped generic (`Inner<T>` / `T[]`); deep subst
+    // descends into the inner type-param
     const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
     const withSubst = node => {
       if (!node) return node;
       const unwrapped = unwrapTypeAnnotation(node);
-      return subst ? applyAliasSubst(unwrapped, subst) : unwrapped;
+      return subst ? applyAliasSubstDeep(unwrapped, subst) : unwrapped;
     };
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = [];
@@ -958,7 +968,8 @@ function createResolveNodeType(babelNodeType, t) {
     }
     if (resolvedType.type === 'ObjectTypeAnnotation' && resolvedType.indexers?.length) {
       const indexerValue = resolvedType.indexers[0].value;
-      return flowSubst ? applyAliasSubst(indexerValue, flowSubst) : indexerValue;
+      // deep subst — Flow indexer value can be a wrapped generic (`{[K]: T[]}`)
+      return flowSubst ? applyAliasSubstDeep(indexerValue, flowSubst) : indexerValue;
     }
     return null;
   }
@@ -1011,7 +1022,7 @@ function createResolveNodeType(babelNodeType, t) {
   function findTupleElement(objectType, index, scope) {
     if (index < 0) return null;
     // `Parameters<typeof fn>[N]` / `ConstructorParameters<typeof Cls>[N]` - N-th param's
-    // annotation; rest param unwraps `T[]` → T and covers every index ≥ its position
+    // annotation; rest param unwraps `T[]` -> T and covers every index ≥ its position
     const params = resolveParametersParams(objectType, scope);
     if (params) {
       for (let i = 0; i < params.length; i++) {
@@ -1690,7 +1701,9 @@ function createResolveNodeType(babelNodeType, t) {
     const params = getTypeArgs(ref)?.params;
     if (!params?.length) return null;
     if (!subst) return params;
-    return params.map(p => applyAliasSubst(p, subst));
+    // `Generator<T[]>` carries the type-param inside `TSArrayType` / `TSUnionType` —
+    // deep subst descends into it
+    return params.map(p => applyAliasSubstDeep(p, subst));
   }
 
   // resolve a specific Generator/AsyncGenerator type parameter from an expression
@@ -3076,6 +3089,9 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve obj.prop annotation by chaining through the object's type, applying generic subst
   function resolveMemberAnnotation(path, depth) {
+    // caller (`findExpressionAnnotation`) filters `computed` / non-Identifier property —
+    // defensive guard here so direct callers (tests, future patches) don't crash on `obj['x']`
+    if (path.node.computed || path.node.property?.type !== 'Identifier') return null;
     const objInfo = findExpressionAnnotation(path.get('object'), depth + 1);
     if (!objInfo) return null;
     const unwrapped = unwrapTypeAnnotation(objInfo.annotation);
@@ -3606,8 +3622,8 @@ function createResolveNodeType(babelNodeType, t) {
       const pos = effectiveAp.node.start;
       if (pos === undefined || pos === null) continue;
       // walk to the directly-wrapping statement:
-      //   AssignmentExpression → ExpressionStatement
-      //   VariableDeclarator    → VariableDeclaration (one step up)
+      //   AssignmentExpression -> ExpressionStatement
+      //   VariableDeclarator -> VariableDeclaration (one step up)
       const stmtType = isVarDecl ? 'VariableDeclaration' : 'ExpressionStatement';
       let stmt = effectiveAp;
       while (stmt && stmt.node.type !== stmtType) stmt = stmt.parentPath;
@@ -4130,6 +4146,7 @@ function createResolveNodeType(babelNodeType, t) {
     sortedAssignmentCache = new WeakMap();
     guardsCache = new WeakMap();
     resolveCache = new WeakMap();
+    typeDeclCache = new WeakMap();
   }
 
   function resolveNodeType(path) {
