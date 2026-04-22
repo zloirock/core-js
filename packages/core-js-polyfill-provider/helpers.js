@@ -19,6 +19,7 @@ export {
   kebabToCamel,
   kebabToPascal,
   mayHaveSideEffects,
+  singleQuasiString,
   unwrapExportedDeclaration,
   unwrapParens,
   walkPatternIdentifiers,
