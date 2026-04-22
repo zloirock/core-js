@@ -1636,13 +1636,18 @@ function createResolveNodeType(babelNodeType, t) {
     return checkType ? resolveInnerType(checkType) : null;
   }
 
-  // extracts `U` from `(infer U)[]` or `Array<infer U>`; null otherwise
+  // extracts `U` from `(infer U)[]`, `Array<infer U>`, `ReadonlyArray<infer U>`,
+  // `readonly (infer U)[]`; null otherwise. runtime element type is identical across
+  // these four forms, so resolver treats them uniformly
   function matchArrayInferPattern(extendsType) {
-    const node = unwrapTypeAnnotation(extendsType);
+    let node = unwrapTypeAnnotation(extendsType);
+    // peel `readonly X` modifier (TSTypeOperator operator='readonly')
+    if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') node = node.typeAnnotation;
     if (node?.type === 'TSArrayType' && node.elementType?.type === 'TSInferType') {
       return node.elementType.typeParameter?.name?.name ?? node.elementType.typeParameter?.name;
     }
-    if (node?.type === 'TSTypeReference' && typeRefName(node) === 'Array') {
+    if (node?.type === 'TSTypeReference'
+      && (typeRefName(node) === 'Array' || typeRefName(node) === 'ReadonlyArray')) {
       const arg = getTypeArgs(node)?.params?.[0];
       if (arg?.type === 'TSInferType') return arg.typeParameter?.name?.name ?? arg.typeParameter?.name;
     }
