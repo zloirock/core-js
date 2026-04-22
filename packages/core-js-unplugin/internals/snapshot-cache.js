@@ -5,13 +5,16 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 // post lands the declaration via `#rehydrate(inherit)`. losing the snapshot after pre
 // has rewritten the source means post can't re-emit imports and refs go dangling at runtime,
 // so we never evict: the unplugin wrapper calls `reset()` on `buildEnd` to bound retention.
-// ids are normalized (strip ?query / #hash + backslash -> forward slash) so a bundler that
-// visits `foo.js` in pre and `foo.js?v=1` in post still finds the snapshot; on Windows a
-// bundler that normalizes `C:\src\foo.js` <-> `C:/src/foo.js` between passes also matches.
+// ids are normalized (strip ?query / #hash + backslash -> forward slash + strip Vite-style
+// scheme prefixes) so a bundler that visits `foo.js` in pre and `foo.js?v=1` in post still
+// finds the snapshot; on Windows a bundler that normalizes `C:\src\foo.js` <-> `C:/src/foo.js`
+// between passes also matches. Vite dev-server may expose the same file as `file:///abs/foo.js`
+// (pre-resolve) and `/@fs/abs/foo.js` (post-resolve via FS prefix) - both strip to `/abs/foo.js`.
 // long-running dev-servers accumulate snapshots between rebuilds - buildEnd per invocation
 // drains them; pre-only-visited ids in a single invocation still leak until buildEnd fires
+const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs)/;
 function normalizeKey(id) {
-  return stripQueryHash(id).replaceAll('\\', '/');
+  return stripQueryHash(id).replaceAll('\\', '/').replace(VITE_SCHEME_PREFIX_RE, '');
 }
 
 export default class SnapshotCache {

@@ -14,6 +14,12 @@ const SFC_LANG_RE = /[&?]lang=[cm]?[jt]sx?(?:&|$)/;
 // SFC sub-block missing `lang=`: Svelte 5 / Vue / Astro default `<script>` to JS
 const SFC_DEFAULT_JS_RE = /[&?](?:astro|svelte|vue)&type=(?:module|script)(?:&|$)/;
 
+// Vite asset-import queries: `?url`, `?raw`, `?worker`, `?worklet`, `?inline` transform
+// the module into a URL / string / instantiated Worker etc; the resolved body isn't
+// user-authored JS (even though the path has a JS extension). skip to avoid injecting
+// polyfills into the Vite asset plugin's own synthetic output
+const VITE_ASSET_QUERY_RE = /[&?](?:inline|raw|url|worker|worklet)(?:=|$|&)/;
+
 // `\0` marks virtual modules (some bundlers embed it mid-id in the query component, not
 // just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
 // user source
@@ -21,6 +27,7 @@ export function shouldTransform(id) {
   // `\0` marks virtual modules (rollup / vite); `?commonjs-*` / `?commonjsExternal`
   // cover Rollup commonjs-plugin proxy/external bodies
   if (id.includes('\0') || id.includes('?commonjs-') || id.includes('?commonjsExternal')) return false;
+  if (VITE_ASSET_QUERY_RE.test(id)) return false;
   // strip query/hash up-front so `lang=d.ts` or `?output=main.js` don't fool the
   // `$`-anchored regex into treating the id as a JS/TS file. performing the strip
   // unconditionally is cheaper than adding a `.includes('?')` fast-path guard

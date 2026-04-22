@@ -135,10 +135,22 @@ function upperBound(ranges, target) {
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
 export function mergeEqualRange(a, b, originalNeedle) {
-  const aIsWrapper = a.includes(originalNeedle);
-  const wrapper = aIsWrapper ? a : b;
-  const inner = aIsWrapper ? b : a;
-  return wrapper.includes(originalNeedle) ? wrapper.replace(originalNeedle, () => inner) : inner;
+  const aFirst = a.indexOf(originalNeedle);
+  const wrapper = aFirst !== -1 ? a : b;
+  const inner = aFirst !== -1 ? b : a;
+  const first = aFirst !== -1 ? aFirst : wrapper.indexOf(originalNeedle);
+  if (first === -1) return inner;
+  // assert single-occurrence invariant: if a new outer-transform shape emits the needle
+  // twice, only the first slot would be swapped in silently; flag the regression loudly
+  // instead of shipping corrupt output. slice+includes allocates once on the assert path
+  // (rare miss) instead of pulling in a second `indexOf` with a start position
+  if (wrapper.slice(first + originalNeedle.length).includes(originalNeedle)) {
+    throw new Error(`mergeEqualRange invariant: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
+  }
+  // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
+  // `$n` interpretation if `inner` contains those tokens (user source with `$&` or polyfill
+  // names with `$`). also one fewer scan of `wrapper` than a non-regex replace would cost
+  return wrapper.slice(0, first) + inner + wrapper.slice(first + originalNeedle.length);
 }
 
 // composite key for the (start, end) range index
