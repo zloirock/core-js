@@ -576,7 +576,12 @@ export default function createPlugin(options) {
           const deoptPositions = [];
           let cur = chainChild(node);
           while (cur && typeof cur === 'object') {
-            if (cur.optional) deoptPositions.push(cur.object?.end ?? cur.callee?.end);
+            // TS wrappers (TSAsExpression etc) have no `.object` / `.callee`; skip the position
+            // entry rather than pushing undefined (stripOptionalDots would NaN on undefined pos)
+            if (cur.optional) {
+              const pos = cur.object?.end ?? cur.callee?.end;
+              if (pos !== undefined) deoptPositions.push(pos);
+            }
             if (cur === optionalNode) break;
             cur = chainChild(cur);
           }
