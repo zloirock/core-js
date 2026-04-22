@@ -2,8 +2,9 @@ import { findUniqueName, kebabToPascal } from './helpers.js';
 
 // post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
-// `_ref0`/`_ref1` stay out of adoption - would otherwise get a spurious `var _ref0;`
-export const ORPHAN_REF_PATTERN = /^_ref(?:[2-9]|\d{2,})?$/;
+// `_ref0`/`_ref1`/leading-zero forms (`_ref01`) stay out of adoption - our generator
+// never emits them, so they must belong to user code
+export const ORPHAN_REF_PATTERN = /^_ref(?:[2-9]|[1-9]\d+)?$/;
 
 // bare-class and `/constructor` entries PascalCase the first segment to the global name.
 // method / instance / helper entries (`promise/try`, `array/from`, `array/instance/at`, ...)
