@@ -7,6 +7,7 @@ import {
   isForXWriteTarget,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
+  isSynthSimpleObjectPattern,
   isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget as isUpdateParent,
@@ -239,13 +240,15 @@ export default function plugin(api, options) {
         if (kind === 'instance') return;
         if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
         if (!isIdentifierPropValue(prop.node.value)) return;
-        const id = injectPureImport(entry, hintName);
         const objectPattern = prop.parentPath;
-        const targetPath = findSynthSwapTargetPath(objectPattern?.parentPath, objectPattern);
+        const targetPath = isSynthSimpleObjectPattern(objectPattern.node)
+          ? findSynthSwapTargetPath(objectPattern?.parentPath, objectPattern) : null;
         if (!targetPath) {
-          emitParamInlineDefault(prop, id);
+          emitParamInlineDefault(prop, injectPureImport(entry, hintName));
           return;
         }
+        // defer injectPureImport until programExit emits the synth. if a sibling plugin
+        // mutates targetPath before then, the swap is skipped and no dead import is left
         const receiver = targetPath.node;
         let pending = synthSwapByReceiver.get(receiver);
         if (!pending) {
@@ -253,7 +256,7 @@ export default function plugin(api, options) {
           synthSwapByReceiver.set(receiver, pending);
           pendingSynthSwaps.push(pending);
         }
-        pending.polyfills.set(prop.node.key.name, id);
+        pending.polyfills.set(prop.node.key.name, { entry, hintName });
       }
 
       // `const { Array: { from } } = globalThis` -> `const from = _Array$from`.
@@ -468,7 +471,10 @@ export default function plugin(api, options) {
         if (symbolIn && isEntryNeeded(symbolIn.entry)) {
           const id = injectPureImport(symbolIn.entry, symbolIn.hint);
           if (meta.key === 'Symbol.iterator') {
-            path.replaceWith(t.callExpression(id, [path.node.right]));
+            // cloneNode avoids sharing the original node between the replaced BinaryExpression
+            // subtree and the new CallExpression arg - defensive against sibling plugins that
+            // might hold a reference to the old tree
+            path.replaceWith(t.callExpression(id, [t.cloneNode(path.node.right)]));
           } else {
             path.get('left').replaceWith(id);
           }
@@ -762,9 +768,9 @@ export default function plugin(api, options) {
           const synthProps = [];
           for (const p of objectPatternNode.properties) {
             if (!t.isObjectProperty(p) || p.computed || !t.isIdentifier(p.key)) continue;
-            const polyfill = polyfills.get(p.key.name);
-            const value = polyfill
-              ? t.cloneNode(polyfill)
+            const pending = polyfills.get(p.key.name);
+            const value = pending
+              ? t.cloneNode(injectPureImport(pending.entry, pending.hintName))
               : t.memberExpression(t.cloneNode(receiver), t.identifier(p.key.name));
             synthProps.push(t.objectProperty(t.identifier(p.key.name), value));
           }
