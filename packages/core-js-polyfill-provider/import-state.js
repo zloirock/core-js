@@ -131,6 +131,12 @@ export default class ImportInjectorState {
     this.referencedInSource = new Set();
   }
 
+  // counterpart for tests / future callers that need to revert post-pass dead-import filtering
+  // back to "emit everything" without rebuilding the injector. cheap symmetry with the enable
+  disableReferenceTracking() {
+    this.referencedInSource = null;
+  }
+
   trackReferencedName(name) {
     this.referencedInSource?.add(name);
   }
