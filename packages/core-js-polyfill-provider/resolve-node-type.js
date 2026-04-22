@@ -4,6 +4,7 @@ import {
   getSuperTypeArgs,
   getTypeArgs,
   globalProxyMemberName,
+  singleQuasiString,
   unwrapExportedDeclaration,
   unwrapParens,
 } from './helpers.js';
@@ -1455,6 +1456,17 @@ function createResolveNodeType(babelNodeType, t) {
             scope,
             depth + 1,
           ));
+        }
+        // template-literal type index `T[\`foo\`]` without interpolations is equivalent to
+        // `T['foo']` - TS-level evaluation of the template yields a plain string literal.
+        // interpolations (`T[\`_${K}\`]`) would require compile-time type-string computation
+        // (mapped-type renamers like `as \`_${K & string}\``); conservative bail for now.
+        // TS wraps template literals in TSLiteralType { literal: TemplateLiteral }; unwrap first
+        const literalIndex = node.indexType?.type === 'TSLiteralType' ? node.indexType.literal : node.indexType;
+        const quasi = singleQuasiString(literalIndex);
+        if (quasi !== null) {
+          const member = findTypeMember(node.objectType, quasi, scope);
+          return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
         }
         if (node.indexType?.type !== 'TSLiteralType') return null;
         const { literal } = node.indexType;

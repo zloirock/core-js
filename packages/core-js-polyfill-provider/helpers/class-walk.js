@@ -1,5 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { unwrapRuntimeExpr } from './ast-patterns.js';
+import { singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
 
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
@@ -26,8 +26,10 @@ function memberKeyName(node) {
   if (computed && property?.type === 'StringLiteral') return property.value;
   // ESTree (oxc) uses `Literal` with a string value for string literals
   if (computed && property?.type === 'Literal' && typeof property.value === 'string') return property.value;
-  if (computed && property?.type === 'TemplateLiteral'
-    && property.expressions.length === 0 && property.quasis.length === 1) return property.quasis[0].value.cooked;
+  if (computed) {
+    const quasi = singleQuasiString(property);
+    if (quasi !== null) return quasi;
+  }
   return null;
 }
 
@@ -83,10 +85,7 @@ export function createClassHelpers(t, adapter) {
     if (!key) return null;
     if (!computed && t.isIdentifier(key)) return key.name;
     if (t.isStringLiteral(key)) return key.value;
-    if (t.isTemplateLiteral(key) && key.expressions.length === 0 && key.quasis.length === 1) {
-      return key.quasis[0].value.cooked;
-    }
-    return null;
+    return singleQuasiString(key);
   }
 
   function classMemberKeyName(m) {
