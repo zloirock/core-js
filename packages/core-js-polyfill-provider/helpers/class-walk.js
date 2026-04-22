@@ -119,6 +119,19 @@ export function createClassHelpers(t, adapter) {
     return backfill(visited, null);
   }
 
+  // find `{ key: binding }` or shorthand `{ key }` in ObjectPattern where value binds
+  // to targetName; null when not found / shape unsupported. return the proxy-member key
+  function findDestructureKeyForBinding(objectPattern, targetName) {
+    for (const p of objectPattern.properties ?? []) {
+      if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
+      if (p.computed || p.key?.type !== 'Identifier') continue;
+      const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
+      if (value?.type !== 'Identifier' || value.name !== targetName) continue;
+      return p.key.name;
+    }
+    return null;
+  }
+
   // follow `const X = Y` aliases to the first unshadowed global; null on real local
   // bindings. ES imports pass through so `resolveSuperImportName` can map them back
   // to the original global via the injector's `#byName` registry
@@ -137,6 +150,15 @@ export function createClassHelpers(t, adapter) {
       // strip parens + TS casts (`const A = Promise as typeof Promise`); without TS-strip
       // the alias chain bails and `super.X` doesn't resolve to the wrapped Promise
       const init = unwrapRuntimeExpr(decl.init);
+      // `const { Promise: MyP } = globalThis; class C extends MyP { super.try() }` - ObjectPattern
+      // destructure from a proxy-global is equivalent to `const MyP = globalThis.Promise` (alias
+      // chain via member). babel-plugin mutates AST before this runs so binding.path points at
+      // the rewritten simple form - but unplugin keeps raw destructure, so resolve it here.
+      // only proxy-global roots count; user destructure like `const { x } = getObj()` bails
+      if (decl.id?.type === 'ObjectPattern' && isProxyGlobalIdentifierNode(init, scope, adapter)) {
+        const keyName = findDestructureKeyForBinding(decl.id, name);
+        return keyName ?? null;
+      }
       if (init?.type === 'Identifier') {
         name = init.name;
         continue;
