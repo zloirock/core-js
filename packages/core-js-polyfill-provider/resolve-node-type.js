@@ -2154,6 +2154,16 @@ function createResolveNodeType(babelNodeType, t) {
       case 'TSConstructorType':
       case 'FunctionTypeAnnotation':
         return hasTypeParamReference(node.returnType ?? node.typeAnnotation, typeParamNames, depth + 1);
+      // mapped type carries the constraint (`K in keyof T`) and body (`T[K]`); both can
+      // reference type params. without this branch an outer function returning a raw
+      // mapped type (not wrapped in TSTypeReference) skips substitution and loses inner
+      case 'TSMappedType':
+        return (node.typeParameter && hasTypeParamReference(node.typeParameter.constraint, typeParamNames, depth + 1))
+          || hasTypeParamReference(node.typeAnnotation, typeParamNames, depth + 1);
+      // `typeof x` references the type of a value binding; when x itself is typed by
+      // a type param (rare: `declare const x: T; typeof x`), substitution is needed
+      case 'TSTypeQuery':
+        return typeof node.exprName?.name === 'string' && typeParamNames.has(node.exprName.name);
     }
     return false;
   }
@@ -3843,14 +3853,29 @@ function createResolveNodeType(babelNodeType, t) {
   // return type is a `TSTypePredicate`. `asserts` flag picks between the two predicate forms:
   //   `x is T`         - narrows only inside the truthy branch; callers pass `asserts=false`
   //   `asserts x is T` - narrows after the call completes normally; callers pass `asserts=true`
+  // three annotation locations for a predicate:
+  //   function isStr(x): x is string { ... }   -> FunctionDeclaration.returnType
+  //   const isStr = (x): x is string => ...    -> init ArrowFunctionExpression.returnType
+  //   const isStr: (x) => x is string = impl   -> VariableDeclarator.id.typeAnnotation.TSFunctionType
+  // the last form is common when `impl` has no inline annotation (e.g. `const f: T = other`).
+  // babel quirk: TSFunctionType stores the return type under `.typeAnnotation`, not `.returnType`
+  function resolveBindingReturnType(declNode) {
+    if (t.isFunction(declNode)) return unwrapTypeAnnotation(declNode.returnType);
+    if (!t.isVariableDeclarator(declNode)) return null;
+    if (declNode.init && t.isFunction(declNode.init)) {
+      const inline = unwrapTypeAnnotation(declNode.init.returnType);
+      if (inline) return inline;
+    }
+    const bindingAnnotation = unwrapTypeAnnotation(declNode.id?.typeAnnotation);
+    if (bindingAnnotation?.type !== 'TSFunctionType') return null;
+    return unwrapTypeAnnotation(bindingAnnotation.typeAnnotation ?? bindingAnnotation.returnType);
+  }
+
   function resolvePredicateGuard(callee, scope, negated, asserts) {
     if (!scope || callee.type !== 'Identifier') return null;
     const binding = scope.getBinding(callee.name);
     if (!binding) return null;
-    const declNode = binding.path.node;
-    const fnNode = t.isVariableDeclarator(declNode) ? declNode.init : declNode;
-    if (!fnNode || !t.isFunction(fnNode)) return null;
-    const returnType = unwrapTypeAnnotation(fnNode.returnType);
+    const returnType = resolveBindingReturnType(binding.path.node);
     if (returnType?.type !== 'TSTypePredicate' || !!returnType.asserts !== asserts) return null;
     const resolved = resolveTypeAnnotation(returnType.typeAnnotation, binding.path.scope);
     return guardFromResolvedType(resolved, negated);
