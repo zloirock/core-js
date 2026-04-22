@@ -959,17 +959,24 @@ export default function createPlugin(options) {
       }
 
       // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
-      // Identifier receiver; otherwise inline-default `{p = _polyfill}`
+      // Identifier receiver; otherwise inline-default `{p = _polyfill}`.
+      // AssignmentPattern value (`{from = []}`): accept and polyfill via synth-swap - the
+      // user's default becomes dead code because synth-polyfilled property is always defined
       function handleParameterDestructurePure(meta, metaPath, propNode) {
         const { value } = propNode;
-        if (value?.type !== 'Identifier') return;
+        const isAssign = value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier';
+        if (value?.type !== 'Identifier' && !isAssign) return;
         const pureResult = resolvePure(meta, metaPath);
         if (!pureResult || pureResult.kind === 'instance') return;
         const binding = injectPureImport(pureResult.entry, pureResult.hintName);
         const objectPattern = metaPath.parent;
         const receiver = findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern);
         if (!receiver) {
-          ms.appendRight(value.end, ` = ${ binding }`);
+          // no receiver for synth-swap: fall back to inline default. for AssignmentPattern,
+          // rewrite the user's default to the polyfill id (left side is the binding, right
+          // side is the default expression); for bare Identifier append ` = polyfill`
+          if (isAssign) transforms.add(value.right.start, value.right.end, binding);
+          else ms.appendRight(value.end, ` = ${ binding }`);
           return;
         }
         // synth-swap owns the receiver - identifier visitor would race on the same range
