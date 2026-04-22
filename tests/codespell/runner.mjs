@@ -14,6 +14,7 @@ const ignoreWords = [
   'importEnd',
   'larg',
   'outLow',
+  'prevEnd',
   'statics',
   'throughTS',
 ];
