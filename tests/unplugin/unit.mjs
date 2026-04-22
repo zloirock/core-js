@@ -232,6 +232,9 @@ function checkSnapshotKeyNormalization() {
   check('SnapshotCache/file:// <-> /@fs', cache.take('/@fs/abs/foo.js')?.tag, 'D');
   cache.store('/@fs/abs/bar.js', { tag: 'E' });
   check('SnapshotCache//@fs <-> file://', cache.take('file:///abs/bar.js')?.tag, 'E');
+  // multi-slash collapse: bundler path-join quirk produces `pkg//sub/foo`
+  cache.store('core-js-pure//full/foo.js', { tag: 'F' });
+  check('SnapshotCache/collapse repeated slashes', cache.take('core-js-pure/full/foo.js')?.tag, 'F');
 }
 checkSnapshotKeyNormalization();
 
