@@ -174,6 +174,15 @@ export default class ImportInjectorState {
     if (captured) for (const [prefix, next] of captured) this.#nextSuffixByPrefix.set(prefix, next);
   }
 
+  // handoff for phase: 'pre+post' so post's `getPureImport(name)` resolves to the same
+  // {source, hint} pre saw. without it super-mapping (`class C extends MyPromise { super.try() }`)
+  // regresses in post because `addPureImport` early-returns on existing entry before writing
+  // into `#importInfoByName`
+  captureImportInfoByName() { return new Map(this.#importInfoByName); }
+  rehydrateImportInfoByName(captured) {
+    if (captured) for (const [name, info] of captured) this.#importInfoByName.set(name, info);
+  }
+
   isNameTaken(name) { return this.usedNames.has(name); }
 
   // `_ref, _ref2, _ref3, ...`. `extraCheck` covers bindings the injector doesn't track
