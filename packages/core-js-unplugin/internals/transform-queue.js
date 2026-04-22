@@ -185,6 +185,16 @@ function removeFrom(map, key, value) {
   else list.splice(idx, 1);
 }
 
+// rewriteHint factory: packages the composition data that `substituteInner` needs to
+// reconstruct inner needles when an outer transform rewrote the chain root. caller passes
+// non-null `rootRaw` + `guardRef` together (guard guarantees `rootRaw` was replaced);
+// `deoptPositions` / `objectStart` aid `deoptionalizeNeedle` in aligning offsets after
+// optional-chain stripping. returns null when the outer didn't install a guard
+export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectStart }) {
+  if (!guardRef) return null;
+  return { rootRaw, guardRef, deoptPositions, objectStart };
+}
+
 // deferred transform queue for usage-pure: collects text replacements during traversal,
 // composes nested transforms, applies after traversal
 export default class TransformQueue {
@@ -209,9 +219,6 @@ export default class TransformQueue {
     this.#ms = ms;
   }
 
-  // rewriteHint shape (set by plugin.js; read by `substituteInner`):
-  //   { rootRaw?: string, guardRef?: string, deoptPositions?: number[], objectStart?: number }
-  // - used to rebuild inner needles when an outer transform rewrote the chain root
   add(start, end, content, guardedRoot, rewriteHint) {
     // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
     // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
