@@ -208,9 +208,8 @@ export function createClassHelpers(t, adapter) {
 
   return {
     resolveStaticInheritedMember,
-    // legacy aliases kept for external callers (usage-global uses `resolveSuperMember` only)
+    // legacy alias used by existing callers; new code should call `resolveStaticInheritedMember`
     resolveSuperMember: resolveStaticInheritedMember,
-    resolveThisStaticMember: resolveStaticInheritedMember,
     isInStaticContext,
     isInheritedStaticLookup,
     isShadowedByClassOwnMember,
