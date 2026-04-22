@@ -348,7 +348,7 @@ export default function createPlugin(options) {
     // usage-pure mode
     if (method === 'usage-pure') {
       const skippedNodes = new WeakSet();
-      // declarations already rewritten by the nested-proxy batch flatten — subsequent
+      // declarations already rewritten by the nested-proxy batch flatten - subsequent
       // visits of other polyfillable inner props in the same declaration skip early
       const flattenedNestedDecls = new WeakSet();
       const transforms = new TransformQueue(code, ms);
@@ -454,7 +454,7 @@ export default function createPlugin(options) {
       }
 
       // wrap a polyfill binding in a source-level SequenceExpression carrying any side
-      // effects collected from the receiver / computed-key. noop when empty — callers can
+      // effects collected from the receiver / computed-key. noop when empty - callers can
       // invoke unconditionally. mirrors `withSideEffects` in babel-plugin, text-based
       function wrapSideEffects(binding, sideEffects) {
         return sideEffects?.length
@@ -463,7 +463,7 @@ export default function createPlugin(options) {
       }
 
       // a `(`-leading replacement at a statement-leading slot can fuse with the previous
-      // line into a call (`a\n(...)` → `a(...)`); inject `;` only when both conditions hit
+      // line into a call (`a\n(...)` -> `a(...)`); inject `;` only when both conditions hit
       function asiGuardLeadingParen(replacement, metaPath, start) {
         return replacement[0] === '('
           && startsEnclosingStatement(metaPath, start)
@@ -472,7 +472,7 @@ export default function createPlugin(options) {
           : replacement;
       }
 
-      // source of `node` with its outer `ParenthesizedExpression` wrapper dropped — except
+      // source of `node` with its outer `ParenthesizedExpression` wrapper dropped - except
       // when the inner is a `SequenceExpression` (dropping the parens changes semantics)
       function unwrapParensSrc(node) {
         return nodeSrc(node.type === 'ParenthesizedExpression'
@@ -765,7 +765,7 @@ export default function createPlugin(options) {
         addInstanceTransform(binding, node, parent, metaPath, isCallParent,
           isCallParent && (parent.arguments.length > 0 || parent.optional));
         if (node.property) skipWrappedNode(node.property);
-        // `obj[Symbol[Symbol.iterator]]` — outer rewrite emits `_getIteratorMethod(Symbol)`
+        // `obj[Symbol[Symbol.iterator]]` - outer rewrite emits `_getIteratorMethod(Symbol)`
         // with the receiver pasted as raw text. if that receiver is itself a bare polyfillable
         // global (Symbol, Map, …), queue a nested transform so the final composed output
         // reads `_getIteratorMethod(_Symbol)`. mirrors babel, whose AST clone revisits the
@@ -879,7 +879,7 @@ export default function createPlugin(options) {
       }
 
       // find the call-arg node a bare-ObjectPattern IIFE param resolves to. arrow-only on
-      // purpose — FunctionExpression IIFE would leak the synth into `arguments[i]`.
+      // purpose - FunctionExpression IIFE would leak the synth into `arguments[i]`.
       // expands inline-array spreads (`...[R]`) the same way `resolveCallArgument` does;
       // non-literal spread returns null (static index unknown)
       function detectIifeArgReceiver(wrapperPath, objectPattern) {
@@ -939,7 +939,7 @@ export default function createPlugin(options) {
           ms.appendRight(value.end, ` = ${ binding }`);
           return;
         }
-        // synth-swap owns the receiver — identifier visitor would race on the same range
+        // synth-swap owns the receiver - identifier visitor would race on the same range
         skippedNodes.add(receiver);
         let pending = state.synthSwaps.get(receiver);
         if (!pending) {
@@ -951,7 +951,7 @@ export default function createPlugin(options) {
 
       // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
       // binding info; null when not polyfillable as a global. `resolvePure` without path is
-      // safe for `kind: 'global'` — `enhanceMeta`'s path-dependent `resolvePropertyObjectType`
+      // safe for `kind: 'global'` - `enhanceMeta`'s path-dependent `resolvePropertyObjectType`
       // only fires for instance kind, and global-meta inputs never resolve to instance
       function resolveGlobalPolyfill(name) {
         const pure = resolvePure({ kind: 'global', name });
@@ -961,7 +961,7 @@ export default function createPlugin(options) {
       // `const { Array: { from, of } } = globalThis` -> `const from = _Array$from; const of = _Array$of;`
       // batch-rewrite on first visit: walk all declarators, extract every polyfillable inner
       // binding, rebuild the declaration with siblings (or drop entirely). subsequent visits
-      // are no-ops. scope limited to proxy-global receiver (globalThis/self/window) — plain
+      // are no-ops. scope limited to proxy-global receiver (globalThis/self/window) - plain
       // `{ from } = Array` is handled by the state machine below
       function tryFlattenNestedProxyDestructurePure(metaPath) {
         if (metaPath.node.value?.type !== 'Identifier') return false;
@@ -976,7 +976,7 @@ export default function createPlugin(options) {
         const perDecl = declaration.declarations.map(d => rewriteProxyNestedDeclarator(d, metaPath.scope));
         if (!perDecl.some(r => r.extractions.length)) return false;
         flattenedNestedDecls.add(declaration);
-        // suppress every original descendant — queued visits on init / inner / sibling-prop
+        // suppress every original descendant - queued visits on init / inner / sibling-prop
         // handlers would either trip transform-queue composition or re-emit polyfills
         walkAstNodes(declaration, node => skippedNodes.add(node));
         const parentNode = declPath.parentPath?.node;
@@ -986,7 +986,7 @@ export default function createPlugin(options) {
         return true;
       }
 
-      // for-init: single `kind d1, d2, d3` — `\n`-separated statements parse as for-init-test-
+      // for-init: single `kind d1, d2, d3` - `\n`-separated statements parse as for-init-test-
       // update with the middle declaration as test, a syntax error.
       // block-level: extractions split to separate statements (match babel), preserved
       // declarators collapse into one trailing `kind` statement
@@ -1028,9 +1028,9 @@ export default function createPlugin(options) {
       }
 
       // proxy-global outer prop (`globalThis.Foo` access via destructure). three shapes:
-      //   - `{ Foo: { bar, ... } }` — inner pattern, extract static methods
-      //   - `{ Foo }` shorthand — polyfill Foo as a global
-      //   - `{ Foo: alias }` aliased — same, different local name
+      //   - `{ Foo: { bar, ... } }` - inner pattern, extract static methods
+      //   - `{ Foo }` shorthand - polyfill Foo as a global
+      //   - `{ Foo: alias }` aliased - same, different local name
       function planOuterProp(outerProp) {
         if (outerProp.type !== 'Property' || outerProp.computed
           || outerProp.key?.type !== 'Identifier') {
@@ -1060,10 +1060,10 @@ export default function createPlugin(options) {
         return { preservedSrc: nodeSrc(outerProp) };
       }
 
-      // inner prop (static method on the nested global): `{ Array: { from } }` — `from` on
+      // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on
       // `Array`. only simple Identifier values; rest / default / non-Identifier / unknown
       // keys fall back to `preservedSrc`. uses the bare `resolveBuiltIn` meta resolver first
-      // to filter instance kind — `resolvePure` with no path would crash on `enhanceMeta`'s
+      // to filter instance kind - `resolvePure` with no path would crash on `enhanceMeta`'s
       // `isMemberLike(path)` for instance resolutions
       function planInnerProp(prop, receiverName) {
         if (prop.type !== 'Property' || prop.computed
@@ -1098,7 +1098,7 @@ export default function createPlugin(options) {
         }
         if (!preservedOuter.length) return { extractions, preservedSrc: null };
         // partial flatten: preserved declarator still destructures from the receiver,
-        // so polyfill it — old runtimes without `globalThis` / `self` would crash otherwise
+        // so polyfill it - old runtimes without `globalThis` / `self` would crash otherwise
         const receiverPure = resolveGlobalPolyfill(plan.receiver);
         const initSrc = receiverPure
           ? injectPureImport(receiverPure.entry, receiverPure.hintName)
@@ -1109,14 +1109,14 @@ export default function createPlugin(options) {
         };
       }
 
-      // pre-pass helper: true when every outer prop was fully consumed — flatten will
+      // pre-pass helper: true when every outer prop was fully consumed - flatten will
       // discard the declarator's init, so `_globalThis` injection can be suppressed
       function canFullyConsumeProxyDeclarator(d, scope) {
         const plan = planProxyNestedDeclarator(d, scope);
         return !!plan && plan.outerProps.every(p => p.preservedSrc === null);
       }
 
-      // recursive AST walker — seeds skippedNodes before batch overwrite so queued visits
+      // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
       // on descendants short-circuit (no duplicate polyfill inject from sibling handlers)
       function walkAstNodes(root, visit) {
         if (!root || typeof root !== 'object' || typeof root.type !== 'string') return;
@@ -1130,13 +1130,13 @@ export default function createPlugin(options) {
 
       function handleDestructuringPure(meta, metaPath, propNode) {
         // IIFE / parameter destructure: ObjectPattern's parent is a function (or an
-        // AssignmentPattern default at function-param position — `function({ x } = Y)`)
+        // AssignmentPattern default at function-param position - `function({ x } = Y)`)
         const patternParent = metaPath.parentPath?.parentPath?.node;
         const patternGrandparent = metaPath.parentPath?.parentPath?.parentPath?.node;
         if (isFunctionParamDestructureParent(patternParent, patternGrandparent, metaPath.parent)) {
           return handleParameterDestructurePure(meta, metaPath, propNode);
         }
-        // nested proxy-global destructure `{ Array: { from } } = globalThis` — default
+        // nested proxy-global destructure `{ Array: { from } } = globalThis` - default
         // wouldn't fire (Array.from is always non-undefined on the target engines, just
         // potentially buggy). flatten to `const from = _Array$from` when both inner + outer
         // patterns hold only this one chain; fall back to param-default for complex shapes
@@ -1203,7 +1203,7 @@ export default function createPlugin(options) {
             : isAssignment ? declaratorPath?.node?.right : declaratorPath?.node?.init;
 
         if (!state.destructuring.has(objectPattern)) {
-          // only allocate `_refN` on first-seen pattern — a multi-property pattern visits
+          // only allocate `_refN` on first-seen pattern - a multi-property pattern visits
           // once per polyfillable key, and generating a ref each time would inflate the
           // UID counter without using the later IDs (state.destructuring.set only fires
           // on first visit, so subsequent IDs are abandoned)
@@ -1317,7 +1317,7 @@ export default function createPlugin(options) {
       }
 
       // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
-      // after main traverse — full polyfill set per receiver known only after sibling visits.
+      // after main traverse - full polyfill set per receiver known only after sibling visits.
       // non-polyfilled siblings read from pure receiver when receiver itself is polyfillable
       // (raw `Promise.custom` on IE11 would ReferenceError before the destructure runs)
       function applySynthSwaps() {
@@ -1494,8 +1494,10 @@ export default function createPlugin(options) {
           const resolved = resolvePureOrGlobalFallback(meta, metaPath);
           if (resolved.result) {
             transforms.add(node.start, node.end, 'true');
-            // prevent child visitors from adding unused imports for the replaced expression
-            skippedNodes.add(node.right);
+            // marking only `node.right` leaves nested identifiers (`foo.bar.baz` -> `foo`)
+            // visible to child visitors, which would emit spurious polyfill imports for
+            // code the `'true'` replacement has already discarded
+            walkAstNodes(node.right, n => skippedNodes.add(n));
             skipProxyGlobal(node.right);
           }
         }
@@ -1579,15 +1581,15 @@ export default function createPlugin(options) {
           if (isUpdateTarget(parent)) return;
           if (isForXWriteTarget(metaPath)) return;
           if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-          // shadow check for `this.X` — polyfill would bypass the user's own member
+          // shadow check for `this.X` - polyfill would bypass the user's own member
           if (node.object?.type === 'ThisExpression' && isShadowedByClassOwnMember(metaPath, meta.key)) return;
           // `super.X` and unshadowed `this.X` in static ctx resolve against the super
-          // class's static surface via the same path — `this` in static ctx is the
+          // class's static surface via the same path - `this` in static ctx is the
           // constructor, so inherited static lookup behaves exactly like `super.X`
           if (isInheritedStaticLookup(metaPath)) {
             const inheritedMeta = resolveStaticInheritedMember(metaPath);
             if (!inheritedMeta) return;
-            // `extends MyPromise` (user-aliased pure import) — map binding to global hint
+            // `extends MyPromise` (user-aliased pure import) - map binding to global hint
             meta = resolveSuperImportName(injector, inheritedMeta);
           }
           if (isTaggedTemplateTag(parent, node, meta.placement)) return;
@@ -1606,7 +1608,7 @@ export default function createPlugin(options) {
         if (!pureResult) return;
         const { entry: importEntry, kind, hintName } = pureResult;
         // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
-        // on the super class — resolve() falls back to instance. for super: syntactically
+        // on the super class - resolve() falls back to instance. for super: syntactically
         // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
         // `_at(this)` would treat the class as an array. either way, bail
         if (kind === 'instance' && node.type === 'MemberExpression' && isInheritedStaticLookup(metaPath)) return;
@@ -1626,7 +1628,7 @@ export default function createPlugin(options) {
       // pre-pass: detect declarations that WILL be fully flattened (every outer prop
       // resolvable as proxy-global shorthand or nested static method). the outer rewrite
       // discards the init span, so suppress handleIdentifier's `_globalThis` injection
-      // for it — otherwise a now-dead import leaks into the final bundle
+      // for it - otherwise a now-dead import leaks into the final bundle
       traverse(ast, {
         $: { scope: true },
         VariableDeclaration(path) {
