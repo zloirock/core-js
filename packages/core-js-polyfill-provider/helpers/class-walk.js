@@ -120,14 +120,21 @@ export function createClassHelpers(t, adapter) {
   }
 
   // find `{ key: binding }` or shorthand `{ key }` in ObjectPattern where value binds
-  // to targetName; null when not found / shape unsupported. return the proxy-member key
+  // to targetName; null when not found / shape unsupported. return the proxy-member key.
+  // accepts both Identifier keys (`{ Promise: MyP }`) and string-literal keys (`{ 'Promise': MyP }`)
+  // - both forms resolve to the same runtime property at destructure time
   function findDestructureKeyForBinding(objectPattern, targetName) {
     for (const p of objectPattern.properties ?? []) {
       if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
-      if (p.computed || p.key?.type !== 'Identifier') continue;
+      if (p.computed) continue;
+      let keyName = null;
+      if (p.key?.type === 'Identifier') keyName = p.key.name;
+      else if (p.key?.type === 'StringLiteral') keyName = p.key.value;
+      else if (p.key?.type === 'Literal' && typeof p.key.value === 'string') keyName = p.key.value;
+      if (!keyName) continue;
       const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
       if (value?.type !== 'Identifier' || value.name !== targetName) continue;
-      return p.key.name;
+      return keyName;
     }
     return null;
   }
