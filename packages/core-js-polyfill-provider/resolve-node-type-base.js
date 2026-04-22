@@ -2,7 +2,10 @@
 // the factory file focused on the resolver itself
 const { assign, create, entries, keys } = Object;
 
-// shared recursion budget for all resolvers - alias chains, runtime walks, guard traversals
+// shared recursion budget for all resolvers - alias chains, runtime walks, guard traversals.
+// 64 is comfortably above realistic TS type / alias chain depth (typical: 5-10; pathological
+// user code: 20-30) while small enough to stack-bound a pathological loop. split into
+// profile-specific constants by necessity (when a call site needs a tighter or looser cap)
 export const MAX_DEPTH = 64;
 
 export const PRIMITIVE_WRAPPERS = assign(create(null), {
