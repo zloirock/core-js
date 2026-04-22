@@ -1010,13 +1010,21 @@ export default function createPlugin(options) {
       //   { receiver, outerProps: [{ extractions?, preservedSrc }] }
       // preservedSrc === null -> outer prop was fully consumed (drop).
       // null when the init isn't a proxy-global ObjectPattern source or nothing matches
+      // pre-pass walks every declarator for `canFullyConsume...`; main pass walks the same
+      // declarators again via `rewriteProxy...`. cache by node identity to avoid double work
+      const planCache = new WeakMap();
       function planProxyNestedDeclarator(declarator, scope) {
-        if (declarator.id?.type !== 'ObjectPattern' || !declarator.id.properties.length) return null;
-        const receiver = declarator.init ? sharedResolveObjectName(declarator.init, scope, estreeAdapter) : null;
-        if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
-        const outerProps = declarator.id.properties.map(planOuterProp);
-        const consumedAny = outerProps.some(p => p.extractions?.length);
-        return consumedAny ? { receiver, outerProps } : null;
+        if (planCache.has(declarator)) return planCache.get(declarator);
+        let plan = null;
+        if (declarator.id?.type === 'ObjectPattern' && declarator.id.properties.length) {
+          const receiver = declarator.init ? sharedResolveObjectName(declarator.init, scope, estreeAdapter) : null;
+          if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
+            const outerProps = declarator.id.properties.map(planOuterProp);
+            if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps };
+          }
+        }
+        planCache.set(declarator, plan);
+        return plan;
       }
 
       // proxy-global outer prop (`globalThis.Foo` access via destructure). three shapes:
@@ -1580,8 +1588,7 @@ export default function createPlugin(options) {
             const inheritedMeta = resolveStaticInheritedMember(metaPath);
             if (!inheritedMeta) return;
             // `extends MyPromise` (user-aliased pure import) — map binding to global hint
-            resolveSuperImportName(injector, inheritedMeta);
-            meta = inheritedMeta;
+            meta = resolveSuperImportName(injector, inheritedMeta);
           }
           if (isTaggedTemplateTag(parent, node, meta.placement)) return;
           if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
