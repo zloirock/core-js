@@ -279,7 +279,10 @@ export default function (t, { getInjector } = {}) {
   // bodyless control statement with side-effect: wrap in block to keep scope.
   // `cloneDeep` is necessary - the original `initNode` is still referenced by the
   // about-to-be-replaced declaration's path; reusing it would create node-identity aliasing
-  // that babel's path tracker mishandles. expensive (deep walk) but bounded by init AST size
+  // that babel's path tracker mishandles. expensive (deep walk) but bounded by init AST size.
+  // deliberately keeps the trailing value of `(se(), Array)` uncut (unlike `deferSideEffect`'s
+  // `trimSideEffectTail`) - existing fixtures encode the full sequence as a signal that the
+  // block came from a destructure-init extraction
   function wrapBodylessWithSideEffect(declaration, initNode, extractedDeclaration) {
     declaration.replaceWith(t.blockStatement([
       t.expressionStatement(t.cloneDeep(initNode)),
@@ -289,7 +292,11 @@ export default function (t, { getInjector } = {}) {
 
   // for-init with SE: keep SE inline so it doesn't escape the loop
   // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
-  // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call
+  // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call.
+  // the instance branch mutates the VariableDeclarator id/init in place; babel's scope
+  // tracker doesn't observe raw property assignments, so we register the new binding
+  // explicitly. without this, a later visit that scans `at` inside the for body would see
+  // an unbound identifier and route it through the global resolver
   function handleForInitSE(declaration, parent, localBinding, value, scope, isStatic) {
     if (isStatic) {
       // static polyfill import - SE needs a dummy binding to stay in for-init
@@ -299,9 +306,9 @@ export default function (t, { getInjector } = {}) {
         t.variableDeclarator(ref, t.cloneDeep(parent.node.init)),
         t.variableDeclarator(localBinding, value));
     } else {
-      // instance call already embeds the init - SE preserved by the call itself
       parent.node.id = localBinding;
       parent.node.init = value;
+      parent.scope?.registerDeclaration(parent);
     }
   }
 
