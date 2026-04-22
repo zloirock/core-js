@@ -210,6 +210,8 @@ check('ORPHAN_REF/_ref2', ORPHAN_REF_PATTERN.test('_ref2'), true);
 check('ORPHAN_REF/_ref10', ORPHAN_REF_PATTERN.test('_ref10'), true);
 check('ORPHAN_REF/_ref0', ORPHAN_REF_PATTERN.test('_ref0'), false);
 check('ORPHAN_REF/_ref1', ORPHAN_REF_PATTERN.test('_ref1'), false);
+check('ORPHAN_REF/_ref01', ORPHAN_REF_PATTERN.test('_ref01'), false);
+check('ORPHAN_REF/_ref09', ORPHAN_REF_PATTERN.test('_ref09'), false);
 check('ORPHAN_REF/_refX', ORPHAN_REF_PATTERN.test('_refX'), false);
 check('ORPHAN_REF/empty', ORPHAN_REF_PATTERN.test(''), false);
 
