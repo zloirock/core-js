@@ -22,7 +22,7 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
 }
 
 // non-overlapping jumpsize - polyfill needles embed syntactic delimiters (`.`, `(`,
-// identifiers) that cannot self-overlap. empty needle is a caller bug — guard so
+// identifiers) that cannot self-overlap. empty needle is a caller bug - guard so
 // indexOf('', ...) doesn't infinite-loop (pos never advances)
 export function countOccurrences(haystack, needle, rangeStart = 0, rangeEnd = haystack.length) {
   if (!needle.length) return 0;
@@ -58,10 +58,10 @@ function replaceNthOccurrence(str, needle, replacement, n) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
-// `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` — naive `replaceAll('?.', '.')`
+// `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` - naive `replaceAll('?.', '.')`
 // produces `.(` that never matches the `(` emitted by the inner transform.
 // `needle[offset + 2]` returns `undefined` when `?.` sits at the very end of the needle;
-// that compares unequal to `(` / `[` and falls through to the `.` branch — no bounds check needed
+// that compares unequal to `(` / `[` and falls through to the `.` branch - no bounds check needed
 export function deoptionalizeNeedle(needle) {
   return needle.replaceAll('?.', (_, offset) => {
     const next = needle[offset + 2];
@@ -178,7 +178,7 @@ export default class TransformQueue {
   #prefixMaxEnd = [];
   // guardedRoot -> entries. linear scan per query, M typically ≤ 2-3 in practice
   #byGuardedRoot = new Map();
-  // per-root widest `.end` — fast-reject for `hasGuardFor` when `query.end > max`.
+  // per-root widest `.end` - fast-reject for `hasGuardFor` when `query.end > max`.
   // not decremented on extract: an overstated cache falls through to the linear scan
   // (still correct), understated would drop valid matches
   #maxEndByGuardedRoot = new Map();
@@ -192,7 +192,7 @@ export default class TransformQueue {
 
   // rewriteHint shape (set by plugin.js; read by `substituteInner`):
   //   { rootRaw?: string, guardRef?: string, deoptPositions?: number[], objectStart?: number }
-  // — used to rebuild inner needles when an outer transform rewrote the chain root
+  // - used to rebuild inner needles when an outer transform rewrote the chain root
   add(start, end, content, guardedRoot, rewriteHint) {
     // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
     // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
@@ -211,12 +211,12 @@ export default class TransformQueue {
     updatePrefixMaxOnInsert(this.#sorted, this.#prefixMaxEnd, pos);
   }
 
-  // strict containment only — equal range isn't "guarded" (both transforms must apply)
+  // strict containment only - equal range isn't "guarded" (both transforms must apply)
   hasGuardFor(start, end, root) {
     if (!root) return false;
     const maxEnd = this.#maxEndByGuardedRoot.get(root);
     if (maxEnd === undefined || maxEnd < end) return false;
-    // extract drains #byGuardedRoot but not the maxEnd cache — defensive null-check
+    // extract drains #byGuardedRoot but not the maxEnd cache - defensive null-check
     const list = this.#byGuardedRoot.get(root);
     if (!list) return false;
     for (const t of list) {
@@ -249,7 +249,7 @@ export default class TransformQueue {
     this.#transforms.delete(entry);
     if (entry.guardedRoot) {
       removeFrom(this.#byGuardedRoot, entry.guardedRoot, entry);
-      // drop the maxEnd cache entry when the guarded root is fully drained — otherwise
+      // drop the maxEnd cache entry when the guarded root is fully drained - otherwise
       // `hasGuardFor` keeps consulting a stale upper bound and falls through to linear scan
       if (!this.#byGuardedRoot.has(entry.guardedRoot)) this.#maxEndByGuardedRoot.delete(entry.guardedRoot);
     }
@@ -267,13 +267,15 @@ export default class TransformQueue {
   // compose nested transforms and apply to magic-string
   apply() {
     if (!this.#transforms.size) return;
-    const transforms = [...this.#transforms];
-    const sortedByStart = [...this.#transforms].sort((a, b) => a.start - b.start || b.end - a.end);
-    this.#assertNoPartialOverlap(sortedByStart);
+    // single snapshot, sorted asc by start; fast path reverses in place, slow path re-sorts
+    // in place. `#hasNesting` guarantees distinct starts on the fast-path branch so `reverse()`
+    // produces a safe right-to-left application order without losing tie-break information
+    const transforms = [...this.#transforms].sort((a, b) => a.start - b.start || b.end - a.end);
+    this.#assertNoPartialOverlap(transforms);
 
     // fast path: no nesting - apply right-to-left
-    if (!this.#hasNesting(sortedByStart)) {
-      transforms.sort((a, b) => b.start - a.start);
+    if (!this.#hasNesting(transforms)) {
+      transforms.reverse();
       for (const t of transforms) this.#ms.overwrite(t.start, t.end, t.content);
       return;
     }
@@ -355,7 +357,7 @@ export default class TransformQueue {
     }
   }
 
-  // true on full containment or equal range (slow compose path handles both — equal-range
+  // true on full containment or equal range (slow compose path handles both - equal-range
   // merge folds into the wrapper); false on no overlap (fast path, right-to-left apply)
   #hasNesting(sorted) {
     if (sorted.length < 2) return false;
@@ -374,7 +376,7 @@ export default class TransformQueue {
       if (curr.end > prev.end && curr.start < prev.end) {
         throw new Error('[core-js] transform-queue: partial overlap between transforms '
           + `[${ prev.start },${ prev.end }) and [${ curr.start },${ curr.end }). this is a `
-          + 'composition bug — please report with a reproducer.');
+          + 'composition bug - please report with a reproducer.');
       }
     }
   }

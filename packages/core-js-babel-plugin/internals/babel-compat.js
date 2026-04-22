@@ -311,7 +311,7 @@ export default function (t, { getInjector } = {}) {
     newPath.scope.registerDeclaration(newPath);
   }
 
-  // `(inner(), Array)` — when we lift the init as a standalone statement only the
+  // `(inner(), Array)` - when we lift the init as a standalone statement only the
   // side-effectful head is needed; the trailing value (`Array`, read by the destructure)
   // becomes a no-op read once extraction leaves no destructure target. trim it so the
   // emitted ExpressionStatement reads `inner();` instead of `inner(), Array;`
@@ -330,6 +330,10 @@ export default function (t, { getInjector } = {}) {
     const body = parentNode?.body ?? parentNode?.consequent;
     if (Array.isArray(body)) {
       const index = originalDeclKeys.get(containerPath.node) ?? stmt.key;
+      // processDeferredSideEffects assumes each queued `node` is an ExpressionStatement
+      // (the re-traversal visitor walks only its body and spawns nested polyfills from
+      // `.expression`). emit as ExpressionStatement unconditionally; a future caller that
+      // wants a different statement type must teach the consumer or wrap on its own
       deferredSideEffects.push({
         body, index,
         seq: deferredSideEffects.length,
