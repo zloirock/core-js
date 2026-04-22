@@ -9,6 +9,7 @@ import {
   isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
   isUpdateTarget as isUpdateParent,
+  mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
   resolveSuperImportName,
@@ -192,15 +193,25 @@ export default function plugin(api, options) {
           if (aP.isSpreadElement()) {
             if (!aP.get('argument').isArrayExpression()) return null;
             for (const elP of aP.get('argument').get('elements')) {
-              if (i === paramIndex) return elP;
+              if (i === paramIndex) return unwrapSequenceTail(elP);
               i++;
             }
             continue;
           }
-          if (i === paramIndex) return aP;
+          if (i === paramIndex) return unwrapSequenceTail(aP);
           i++;
         }
         return null;
+      }
+
+      // `(fn, R)` as an IIFE arg evaluates to its last expression. side-effect-free preceding
+      // expressions can be dropped from the synth target resolution (R becomes the receiver);
+      // preceding effects leave the path as-is so synth-swap bails back to inline-default
+      function unwrapSequenceTail(argPath) {
+        if (!argPath?.isSequenceExpression()) return argPath;
+        const exprs = argPath.get('expressions');
+        if (exprs.slice(0, -1).some(e => mayHaveSideEffects(e.node))) return argPath;
+        return exprs.at(-1) ?? argPath;
       }
 
       // NodePath whose `.node` becomes the synth object; null means inline-default fallback.
@@ -487,6 +498,7 @@ export default function plugin(api, options) {
         // walk past TS wrappers to detect `delete obj.at!` / `delete (obj.at as any)`
         if (isDeleteTarget(unwrapTSExpressionParent(path).parentPath?.node)) return;
 
+        let inheritedStatic = false;
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
             if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)) return;
@@ -501,8 +513,10 @@ export default function plugin(api, options) {
             if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
             // `super.X` and unshadowed `this.X` in static ctx resolve against the super
             // class's static surface via the same path - `this` in static ctx is the
-            // constructor, so inherited static lookup behaves exactly like `super.X`
-            if (isInheritedStaticLookup(path)) {
+            // constructor, so inherited static lookup behaves exactly like `super.X`.
+            // cache the predicate so the instance-fallback bail below doesn't re-walk
+            inheritedStatic = isInheritedStaticLookup(path);
+            if (inheritedStatic) {
               const inheritedMeta = resolveStaticInheritedMember(path);
               if (!inheritedMeta) return;
               // `extends MyPromise` (user-aliased pure import) - map binding to global hint
@@ -538,7 +552,7 @@ export default function plugin(api, options) {
           // on the super class - resolve() falls back to instance. for super: syntactically
           // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
           // `_at(this)` would treat the class as an array. either way, bail
-          if (kind === 'instance' && isInheritedStaticLookup(path)) return;
+          if (kind === 'instance' && inheritedStatic) return;
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
             const innerChain = findInnerPolyChain(path);
