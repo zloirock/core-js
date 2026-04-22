@@ -256,14 +256,22 @@ function unwrapExpr(node) {
   return node;
 }
 
-const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression' && !node.computed
-  && isNamedIdent(unwrapExpr(node.object), objName) && isNamedIdent(node.property, propName);
+// `module.exports` OR `module['exports']` / `module["exports"]`: computed form carrying a
+// literal string `'exports'` is the same CJS shape at runtime, just less common in source
+function isStringLiteralWithValue(node, value) {
+  if (node?.type === 'StringLiteral' && node.value === value) return true;
+  return node?.type === 'Literal' && node.value === value;
+}
+const matchesMemberName = (node, name) => (!node.computed && isNamedIdent(node.property, name))
+  || (node.computed && isStringLiteralWithValue(node.property, name));
+const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression'
+  && isNamedIdent(unwrapExpr(node.object), objName) && matchesMemberName(node, propName);
 
 // walks the MemberExpression chain - any ancestor rooted at `exports` or `module.exports` matches
 function isCommonJSAssignTarget(left) {
   let node = unwrapExpr(left);
   while (node?.type === 'MemberExpression') {
-    if (!node.computed && isStaticMember(node, 'module', 'exports')) return true;
+    if (isStaticMember(node, 'module', 'exports')) return true;
     const obj = unwrapExpr(node.object);
     if (isNamedIdent(obj, 'exports')) return true;
     node = obj;
