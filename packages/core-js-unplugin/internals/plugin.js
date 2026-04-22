@@ -39,7 +39,7 @@ import {
 } from '@core-js/polyfill-provider/detect-usage';
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
-import TransformQueue from './transform-queue.js';
+import TransformQueue, { createRewriteHint } from './transform-queue.js';
 import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 import {
@@ -744,10 +744,10 @@ export default function createPlugin(options) {
         }
         // composition hint: outer rewrites `rootRaw -> guardRef` + strips `?.`, so
         // substituteInner can rebuild a matching needle when the raw slice is gone
-        const rewriteHint = preAllocatedGuardRef
-            ? { rootRaw, guardRef: preAllocatedGuardRef, deoptPositions, objectStart: node.object.start }
-            : null;
-        transforms.add(start, end, replacement, optionalRoot ? rootNode : null, rewriteHint);
+        const hint = createRewriteHint({
+          rootRaw, guardRef: preAllocatedGuardRef, deoptPositions, objectStart: node.object.start,
+        });
+        transforms.add(start, end, replacement, optionalRoot ? rootNode : null, hint);
         if (isCall) skippedNodes.add(parent);
         skipProxyGlobal(node);
       }
