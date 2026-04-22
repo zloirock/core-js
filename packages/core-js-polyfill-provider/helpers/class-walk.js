@@ -1,5 +1,15 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { unwrapParens } from './ast-patterns.js';
+import { TS_EXPR_WRAPPERS } from './ast-patterns.js';
+
+// strip parens, optional `ChainExpression`, and TS expression wrappers (`as`,
+// `satisfies`, `!`) so callers see the runtime expression
+function unwrapClassExpr(node) {
+  while (node && (node.type === 'ParenthesizedExpression'
+    || node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
+    node = node.expression;
+  }
+  return node;
+}
 
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
@@ -27,22 +37,18 @@ function memberKeyName(node) {
   return null;
 }
 
-function unwrapChainExpression(node) {
-  return node?.type === 'ChainExpression' ? node.expression : node;
-}
-
 // `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis.self.X` -> 'X', else null.
 // babel: `OptionalMemberExpression`; ESTree/oxc: `ChainExpression { MemberExpression { optional } }`.
 // walks intermediate proxy-global links (`globalThis.self` / `globalThis.window`) so deeper
 // chains still resolve to the final key
 export function globalProxyMemberName(node, scope, adapter) {
-  node = unwrapChainExpression(node);
+  node = unwrapClassExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-  let object = unwrapChainExpression(node.object);
+  let object = unwrapClassExpr(node.object);
   while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
     const linkName = memberKeyName(object);
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
-    object = unwrapChainExpression(object.object);
+    object = unwrapClassExpr(object.object);
   }
   if (!isProxyGlobalIdentifierNode(object, scope, adapter)) return null;
   return memberKeyName(node);
@@ -50,12 +56,13 @@ export function globalProxyMemberName(node, scope, adapter) {
 
 // `class C extends MyPromise { super.try(...) }` — `buildSuperStaticMeta` sets
 // `superMeta.object` to the binding name (`MyPromise`), but resolver tables key by global
-// (`statics.Promise.try`). mutate in place to the registered global hint so lookup succeeds.
-// `injector` is the plugin's ImportInjectorState instance; no-op if it doesn't know the name
+// (`statics.Promise.try`). returns superMeta with `.object` rewired to the registered
+// global hint, or the input unchanged when the injector doesn't know the name.
+// pure (non-mutating) so caller cache reuse stays safe
 export function resolveSuperImportName(injector, superMeta) {
-  if (!superMeta?.object || !injector) return;
+  if (!superMeta?.object || !injector) return superMeta;
   const imp = injector.getPureImport(superMeta.object);
-  if (imp) superMeta.object = imp.hint;
+  return imp ? { ...superMeta, object: imp.hint } : superMeta;
 }
 
 // `super.X` in a static method -> static meta on the parent class. `resolveSuperType`
@@ -63,7 +70,8 @@ export function resolveSuperImportName(injector, superMeta) {
 // oxc-parser preserves `ParenthesizedExpression` wrappers that babel strips — peel first
 export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
-  const superClass = unwrapParens(classNode.superClass);
+  // unwrap TS casts too: `class C extends (Base as typeof Base)` should resolve to Base
+  const superClass = unwrapClassExpr(classNode.superClass);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
   return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
@@ -133,8 +141,9 @@ export function createClassHelpers(t, adapter) {
       if (decl?.type === 'ImportDefaultSpecifier' || decl?.type === 'ImportSpecifier'
         || decl?.type === 'ImportNamespaceSpecifier') return name;
       if (decl?.type !== 'VariableDeclarator') return null;
-      // oxc-parser preserves `const X = (Y)` ParenthesizedExpression; peel to match babel
-      const init = unwrapParens(decl.init);
+      // strip parens + TS casts (`const A = Promise as typeof Promise`); without TS-strip
+      // the alias chain bails and `super.X` doesn't resolve to the wrapped Promise
+      const init = unwrapClassExpr(decl.init);
       if (init?.type === 'Identifier') {
         name = init.name;
         continue;
