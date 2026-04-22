@@ -66,7 +66,10 @@ export default class ImportInjector extends ImportInjectorState {
   // instead of block-converting (Babel fallback when there's no block to host `var _ref;`).
   // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
   // container pointers still point at the pre-convert arrow.body slot - they clobber the
-  // new block when they fire
+  // new block when they fire.
+  // safety: `refNames.has(p.name)` requires the arrow's trailing param to be in `#refs`,
+  // which only contains names this injector allocated. user-written `_ref` arrow params
+  // never enter `#refs` because `generateRefName` consults `scope.hasBinding` to skip them
   normalizeArrowRefParams() {
     if (!this.#refs.size) return;
     const t = this.#t;
@@ -95,7 +98,11 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // drop `var _refN;` declarators left by stale visits (outer `replaceWith` discarded the
-  // emission but kept the scope.push), then renumber survivors so the output matches unplugin
+  // emission but kept the scope.push), then renumber survivors so the output matches unplugin.
+  // `scope.crawl()` is O(program size) but runs once per file at programExit - amortized
+  // over all in-file polyfill rewrites it's negligible vs the O(N) traversal that already
+  // happened. necessary: stale paths from sibling `replaceWith` leave the scope-binding map
+  // out of sync with the live AST
   pruneUnusedRefs() {
     if (!this.#refs.size) return;
     this.#programPath.scope.crawl();
