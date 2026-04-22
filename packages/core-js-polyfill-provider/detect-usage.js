@@ -145,7 +145,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   if (!seen) seen = new Set();
   if (seen.has(name)) return null;
   seen.add(name);
-  // single binding lookup - re-used by polyfillHint, type gate, and VariableDeclarator init walk
+  // single binding lookup - reused by polyfillHint, type gate, and VariableDeclarator init walk
   const binding = adapter.getBinding(scope, name);
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
