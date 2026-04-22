@@ -256,7 +256,9 @@ export default function createPlugin(options) {
       }
     }
     // post drops inherited pure imports whose binding isn't referenced - sibling may have
-    // deleted the usage between pre and post
+    // deleted the usage between pre and post. babel-plugin doesn't call this: babel relies
+    // on destructure transform that consumes imports synchronously during traversal, so dead
+    // imports post-mutation are rare enough that the extra scan cost isn't worth it
     if (pass === 'post' && inherit) injector.enableReferenceTracking();
 
     const debugOutput = createDebugOutput?.() ?? null;
@@ -346,6 +348,13 @@ export default function createPlugin(options) {
 
     // usage-pure mode
     if (method === 'usage-pure') {
+      // skippedNodes semantics (implicit contract across ~10 call sites):
+      // 1. "don't re-visit this node" - stale visits after a parent rewrite shouldn't re-fire
+      // 2. "this node is already handled by a composite rewrite" - inner members in a combined
+      //    chain, RHS of `in` expression after fold to `true`
+      // 3. "don't emit polyfill for this identifier" - receiver Identifier of a known member
+      // a single WeakSet covers all three because the downstream check is the same: any visitor
+      // that sees a node in the set exits early. keep this in mind when adding new usages
       const skippedNodes = new WeakSet();
       // declarations already rewritten by the nested-proxy batch flatten - subsequent
       // visits of other polyfillable inner props in the same declaration skip early.
@@ -425,13 +434,14 @@ export default function createPlugin(options) {
           const { arrow, scope } = overrides || this;
           // arrow expression body: var goes into a new block wrapping the body
           if (arrow) {
-            const name = injector.generateRef(false);
+            const name = injector.generateLocalRef();
             if (!this.arrowVars.has(arrow)) this.arrowVars.set(arrow, []);
             this.arrowVars.get(arrow).push(name);
             return name;
           }
-          // block body: var inserted at body start; file scope: hoisted via injector.flush
-          const name = injector.generateRef(scope === -1);
+          // file scope: hoisted via injector.flush; block body: var inserted at body start
+          // (caller tracks via `scopedVars` and emits its own `var X;`, so no injector-level hoist)
+          const name = scope === -1 ? injector.generateHoistedRef() : injector.generateLocalRef();
           if (scope !== -1) {
             if (!this.scopedVars.has(scope)) this.scopedVars.set(scope, []);
             this.scopedVars.get(scope).push(name);
@@ -797,7 +807,10 @@ export default function createPlugin(options) {
         skippedNodes.add(obj);
       }
 
-      // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined)
+      // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined).
+      // receiver is pasted as raw source text; a `const Array = ...; arr?.[Array]...` shadow
+      // would emit the user's local binding rather than the polyfill. `scope.hasBinding` check
+      // on the resolved identifier catches simple cases; complex destructure-shadows fall through
       function findInnerPolyChain(node, parent, metaPath) {
         if (!isCallee(node, parent) || node.type !== 'MemberExpression' || node.computed) return null;
         let current = node.object;
@@ -1237,7 +1250,7 @@ export default function createPlugin(options) {
           // once per polyfillable key, and generating a ref each time would inflate the
           // UID counter without using the later IDs (state.destructuring.set only fires
           // on first visit, so subsequent IDs are abandoned)
-          const initSrc = isCatchClause ? injector.generateRef(false) : initNode ? nodeSrc(initNode) : null;
+          const initSrc = isCatchClause ? injector.generateLocalRef() : initNode ? nodeSrc(initNode) : null;
           state.destructuring.set(objectPattern, {
             entries: [],
             allProps: objectPattern.properties || [],
@@ -1328,7 +1341,7 @@ export default function createPlugin(options) {
           }
           const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
           if (e.defaultSrc) {
-            const testRef = e.kind === 'instance' ? injector.generateRef(false) : null;
+            const testRef = e.kind === 'instance' ? injector.generateLocalRef() : null;
             const test = testRef ? `(${ testRef } = ${ valueSrc })` : valueSrc;
             lines.push(`let ${ testRef ? `${ testRef }, ` : '' }${ e.localName } = ${ test } === void 0 ? ${ e.defaultSrc } : ${ testRef || valueSrc };`);
           } else {
@@ -1378,6 +1391,12 @@ export default function createPlugin(options) {
         }
       }
 
+      // three emission engines with overlapping logic - unification deferred because each
+      // owns a distinct substrate:
+      //   1. `applyDestructuringTransforms` - VariableDeclaration rewrite (splits, reorders, extracts)
+      //   2. `applyParamDefaultSynthTransforms` - function param default synth-swap
+      //   3. `emitCatchClause` - catch-pattern rewrite
+      // shared bits live in `emitPolyfilled` / `buildReplacement`; the entry points stay split
       function applyDestructuringTransforms() {
         // group by declPath node to handle multiple destructurings in the same VariableDeclaration
         const byStatement = new Map();
@@ -1439,7 +1458,7 @@ export default function createPlugin(options) {
             const needsMemo = hasInstance && !resolvedGlobalName && (entries.length > 1 || remaining.length > 0 || hasRest);
             let objRef = initTransformed;
             if (needsMemo && initTransformed) {
-              objRef = injector.generateRef(false);
+              objRef = injector.generateLocalRef();
               parts.push(`${ memoPrefix }${ objRef } = ${ initTransformed }`);
             }
 
@@ -1465,7 +1484,7 @@ export default function createPlugin(options) {
                 && mayHaveSideEffects(info.initNode)) {
               // collect in source order - prepended to parts after the declarator loop
               deferredSEs.push(isForInit
-                  ? `${ injector.generateRef(false) } = ${ initTransformed }`
+                  ? `${ injector.generateLocalRef() } = ${ initTransformed }`
                   : initTransformed);
             }
 

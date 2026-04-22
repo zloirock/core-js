@@ -15,7 +15,11 @@ function isProxyGlobalIdentifierNode(node, scope, adapter) {
 }
 
 // extract a member property's name as a string (identifier, string literal, single-quasi template);
-// null when the key isn't statically resolvable
+// null when the key isn't statically resolvable.
+// this helper is adapter-free (operates on raw AST nodes); the dual `StringLiteral` / `Literal`
+// check is the cross-parser dispatch - babel emits `StringLiteral`, oxc emits `Literal`.
+// adapter-aware callers should go through `adapter.isStringLiteral` (see `types.isStringLiteral`
+// warning in `unplugin/internals/estree-compat.js`)
 function memberKeyName(node) {
   const { property, computed } = node;
   if (!computed && property?.type === 'Identifier') return property.name;

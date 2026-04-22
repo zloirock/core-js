@@ -345,7 +345,11 @@ function asSymbolRef(node, scope, adapter, seen) {
 // because the usage transform mutates `init.name` (X -> _X) after the first visit, so a
 // non-cached recheck on later references would miss the invariant.
 // `getKind` varies by adapter: babel has `binding.kind`, estree-toolkit reads `kind` off
-// the parent VariableDeclaration
+// the parent VariableDeclaration.
+// intentionally `var`-only: `let`/`const` self-ref (`let X = X`) hits the TDZ at runtime,
+// so plugin shouldn't invent a global mapping. the duplicated shape in `resolveBindingToGlobal`
+// for any kind exists because that code path handles the already-mutated binding (post-rewrite
+// shape) and needs to resolve through it regardless of kind
 export function createSelfRefVarGuard(getKind) {
   const cache = new WeakMap();
   return function isSelfRefVarBinding(binding) {
@@ -413,7 +417,10 @@ export function handleMemberExpressionNode(node, scope, adapter, handledObjects,
     return { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
   }
   const meta = buildMemberMeta(node, scope, adapter);
-  if (meta) markHandledObjects(node, handledObjects, suppressProxyGlobals);
+  // only mark when we actually resolved a receiver: meta.object === null means
+  // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
+  // and the receiver identifier-visitor may still need to polyfill it as a standalone global
+  if (meta?.object) markHandledObjects(node, handledObjects, suppressProxyGlobals);
   return meta;
 }
 
@@ -499,9 +506,10 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
     && isSymbolSourcedKey(node.left, scope, adapter)) {
     return { kind: 'in', key: resolvedLeft, object: null, placement: null, symbolSourced: true };
   }
-  // 'key' in Object - string key in static/global object
+  // 'key' in Object - string key in static/global object. fresh `seen` Set because this
+  // is a top-level entry point; downstream recursion through `resolveObjectName` reuses it
   if (resolvedLeft) {
-    const objectName = resolveObjectName(node.right, scope, adapter);
+    const objectName = resolveObjectName(node.right, scope, adapter, new Set());
     if (objectName) {
       const placement = isStaticPlacement(objectName);
       if (placement) return { kind: 'in', key: resolvedLeft, object: objectName, placement };
@@ -540,6 +548,10 @@ function markSubsumedProxyChain(node, handledObjects) {
 
 // mark handled objects after processing a MemberExpression meta
 // suppresses duplicate Identifier visitor firing for the object part
+// called when `buildMemberMeta` returned truthy meta (receiver + key resolved). even when
+// `meta.object === null` (receiver Identifier didn't match `isStaticPlacement` - bound local
+// variable), marking the receiver is correct: a local binding shouldn't produce a polyfill
+// import via the identifier visitor, so suppression is the right behaviour
 function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
   const obj = unwrapParens(node.object);
   if (obj.type === 'Identifier' && !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) {

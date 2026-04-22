@@ -53,7 +53,10 @@ export default class ImportInjector extends ImportInjectorState {
 
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
   // (dev-server HMR, --force, double pre). `suffixState` carries the per-prefix counter
-  // so post's `uniqueName` resumes at the next free slot instead of re-probing pre's N names
+  // so post's `uniqueName` resumes at the next free slot instead of re-probing pre's N names.
+  // deliberately SKIPS per-callback state (`state.scopedVars` / `arrowVars` / `destructuring`
+  // / `synthSwaps`) - those track in-flight rewrites that applied in pre and whose resulting
+  // text is already in the source post re-parses. re-instating them in post would double-apply
   snapshot() {
     return {
       globals: new Set(this.globalImports),
@@ -75,12 +78,17 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // numbering is shared via `ImportInjectorState.generateRefName`; we track hoisted names
-  // locally so flush() can emit the `var _ref, _ref2, ...;` declaration
-  generateRef(hoisted = true) {
+  // locally so flush() can emit the `var _ref, _ref2, ...;` declaration.
+  // callers choose:
+  //   `generateHoistedRef()` - queues `var _refN;` at flush (caller writes `_refN = ...`)
+  //   `generateLocalRef()`   - UID only (caller emits its own `const _refN = ...` inline)
+  generateHoistedRef() {
     const name = this.generateRefName();
-    if (hoisted) this.#refs.add(name);
+    this.#refs.add(name);
     return name;
   }
+
+  generateLocalRef() { return this.generateRefName(); }
 
   // orphan post: snapshot lost, input is pre's output with `_ref = ...` assignments.
   // caller filters user-owned bindings; `#flushedRefs` skip avoids dup `var _ref;`
