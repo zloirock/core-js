@@ -12,6 +12,7 @@ import {
   isDeleteTarget,
   isForXWriteTarget,
   isFunctionParamDestructureParent,
+  isIdentifierPropValue,
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
@@ -964,8 +965,8 @@ export default function createPlugin(options) {
       // user's default becomes dead code because synth-polyfilled property is always defined
       function handleParameterDestructurePure(meta, metaPath, propNode) {
         const { value } = propNode;
-        const isAssign = value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier';
-        if (value?.type !== 'Identifier' && !isAssign) return;
+        if (!isIdentifierPropValue(value)) return;
+        const isAssign = value.type === 'AssignmentPattern';
         const pureResult = resolvePure(meta, metaPath);
         if (!pureResult || pureResult.kind === 'instance') return;
         const binding = injectPureImport(pureResult.entry, pureResult.hintName);
