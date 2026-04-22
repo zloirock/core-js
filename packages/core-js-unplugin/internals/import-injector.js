@@ -47,10 +47,12 @@ export default class ImportInjector extends ImportInjectorState {
     // pre's `var X;` is already in post's input — don't re-emit. older snapshots
     // without `flushedRefs` fall back to all refs (over-conservative, never wrong)
     for (const r of snap.flushedRefs ?? snap.refs) this.#flushedRefs.add(r);
+    this.rehydrateSuffixState(snap.suffixState);
   }
 
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
-  // (dev-server HMR, --force, double pre)
+  // (dev-server HMR, --force, double pre). `suffixState` carries the per-prefix counter
+  // so post's `uniqueName` resumes at the next free slot instead of re-probing pre's N names
   snapshot() {
     return {
       globals: new Set(this.globalImports),
@@ -61,6 +63,7 @@ export default class ImportInjector extends ImportInjectorState {
       flushedRefs: [...this.#flushedRefs],
       existingGlobals: new Set(this.existingGlobalImports),
       existingPure: new Map(this.existingPureImports),
+      suffixState: this.captureSuffixState(),
     };
   }
 
