@@ -1,4 +1,5 @@
 import {
+  ESM_MARKER_TYPES,
   createClassHelpers,
   detectCommonJS,
   hasTopLevelESM,
@@ -314,8 +315,17 @@ export default function plugin(api, options) {
 
       // apply a resolved polyfill to an ObjectProperty path: dispatches to either the
       // function-parameter destructure path (`function({ from }) {}` form) or the regular
-      // VariableDeclarator / AssignmentExpression destructure path
-      function handleObjectPropertyResult(prop, kind, entry, hintName) {
+      // VariableDeclarator / AssignmentExpression destructure path.
+      // `meta` carries `fromFallback` for conditional init (`const { from } = cond ? Array : Set`):
+      // rewriting would substitute the polyfill id for the whole receiver, breaking the other
+      // branch (`_Set.from` is undefined). pure mode has no side-effect import channel either,
+      // so we leave the code intact and warn - runtime correctness depends on which branch
+      // fires and on native availability
+      function handleObjectPropertyResult(prop, meta, kind, entry, hintName) {
+        if (meta?.fromFallback) {
+          debugOutput?.warn(`conditional destructure with polyfill candidate left untouched ("${ meta.key }" on fallback branch) - runtime availability depends on the selected branch`);
+          return;
+        }
         const objectPattern = prop.parentPath;
         const patternParent = objectPattern?.parentPath;
         if (isFunctionParamDestructureParent(patternParent?.node, patternParent?.parentPath?.node, objectPattern?.node)) {
@@ -549,7 +559,7 @@ export default function plugin(api, options) {
         if (!result) {
           // [Symbol.iterator] in destructuring: resolve returns null, use getIteratorMethod
           if (path.isObjectProperty() && path.node.computed && meta.key === 'Symbol.iterator') {
-            handleObjectPropertyResult(path, 'instance', 'get-iterator-method', 'getIteratorMethod');
+            handleObjectPropertyResult(path, meta, 'instance', 'get-iterator-method', 'getIteratorMethod');
           }
           return;
         }
@@ -557,7 +567,7 @@ export default function plugin(api, options) {
         const { entry, kind, hintName } = result;
 
         if (path.isObjectProperty()) {
-          if (!meta.fromFallback) handleObjectPropertyResult(path, kind, entry, hintName);
+          handleObjectPropertyResult(path, meta, kind, entry, hintName);
         } else {
           // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
           // on the super class - resolve() falls back to instance. for super: syntactically
@@ -597,9 +607,16 @@ export default function plugin(api, options) {
 
       function entryGlobalCallback(source, path) {
         if (isDisabled(path.node)) return;
-        if (!path.node.loc) return;
         const entry = getCoreJSEntry(source);
         if (entry === null) return;
+        // synthesized-by-sibling imports lack `loc`; skip to avoid double-processing an
+        // entry another plugin pre-injected (same user-facing entry -> duplicate module
+        // side-effects). surface the skip through debug so users understand why an entry
+        // in the output didn't expand into individual modules
+        if (!path.node.loc) {
+          debugOutput?.warn(`skipped location-less entry import "${ source }" (likely sibling-plugin synthesized)`);
+          return;
+        }
         // `createEntryVisitors` hands us every specifier-less import; mark only actual
         // core-js entries so `import 'lodash'` doesn't mask "entry not found"
         debugOutput?.markEntryFound();
@@ -788,16 +805,6 @@ export default function plugin(api, options) {
       }
 
       // --- post(): detect sibling CJS transform ---
-
-      // ANY remaining top-level ESM marker means the file is still ESM; switching to
-      // `require` would produce mixed output. also catches `export foo`-only files
-      // (no imports) where checking ImportDeclaration alone would misfire
-      const ESM_MARKER_TYPES = new Set([
-        'ImportDeclaration',
-        'ExportNamedDeclaration',
-        'ExportDefaultDeclaration',
-        'ExportAllDeclaration',
-      ]);
 
       function postHook() {
         if (!injector) return;
