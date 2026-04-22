@@ -114,7 +114,12 @@ function upperBound(ranges, target) {
 // equal-range merge: arrow body wrapper + inner polyfill share the same [start, end].
 // the "wrapper" contains the original source as substring; the "inner" doesn't.
 // function-form replace bypasses `$&` / `$1` / `$'` / `` $` `` interpretation if `inner`
-// happens to contain those tokens (e.g. user source with `$&` or polyfill names with `$`)
+// happens to contain those tokens (e.g. user source with `$&` or polyfill names with `$`).
+// invariant: outer transforms emit at most one verbatim copy of the inner needle (the
+// arrow-wrapper / synth-swap shapes preserve the source slice exactly once). a wrapper
+// containing the needle multiple times would silently ignore later occurrences here -
+// no caller currently produces that shape, but watch this if a new outer transform shape
+// emits the original needle in two slots
 export function mergeEqualRange(a, b, originalNeedle) {
   const aIsWrapper = a.includes(originalNeedle);
   const wrapper = aIsWrapper ? a : b;
