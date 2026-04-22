@@ -356,7 +356,10 @@ export default function plugin(api, options) {
       // any detached ancestor puts our node outside the live AST - polyfill emission
       // would land nowhere. verify each link still occupies its prior position in the parent
       // via direct index lookup (`parent[listKey][key]`); avoids the O(N) `list.includes`
-      // per ancestor that ballooned into O(depth×width) on deep member-chains in large files
+      // per ancestor that ballooned into O(depth*width) on deep member-chains in large files.
+      // `slot !== cur.node` catches babel's stale path keys after sibling `.remove()`: when
+      // babel hasn't re-indexed yet, `cur.key` may still point at the array slot but the
+      // slot now contains a different node (or `undefined` after the splice)
       function isOrphaned(path) {
         for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
           if (cur.removed) return true;
@@ -731,6 +734,10 @@ export default function plugin(api, options) {
           targetPath.replaceWith(t.objectExpression(synthProps));
         }
         injector?.flush();
+        // ordering: normalize THEN prune. normalize converts arrow-expression-body to block
+        // and lifts trailing-`_ref` params into `var _ref;`. prune then walks scope bindings -
+        // which now reflect the normalized layout - to drop unused ones. swapping order would
+        // leave dead refs as arrow params (prune ignores params; only block-scoped vars qualify)
         injector?.normalizeArrowRefParams();
         injector?.pruneUnusedRefs();
         injector?.reorderRefsAfterImports();
@@ -769,6 +776,10 @@ export default function plugin(api, options) {
           pre() {
             initFile(this.file.path);
             if (!skipFile) {
+              // Program is a one-shot setup hook called with the FILE path (not Program path);
+              // path.traverse() with `Program: enter` would invoke it with the Program-node path
+              // and break the entry-import scan. ImportDeclaration is a normal visitor; the split
+              // dispatch is intentional, not stylistic
               if (entryVisitors.Program) entryVisitors.Program(this.file.path);
               this.file.path.traverse({ ImportDeclaration: entryVisitors.ImportDeclaration });
             }
