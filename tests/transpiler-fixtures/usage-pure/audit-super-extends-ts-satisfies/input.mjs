@@ -1,6 +1,5 @@
-// `const A = Promise satisfies typeof Promise` — TSSatisfiesExpression variant of M-15.
-// same treatment as `as` cast: `unwrapClassExpr` strips TS wrapper so alias chain
-// resolves through to Promise.try and gets polyfilled via super-import mapping
+// TSSatisfiesExpression wrapper on the super-class alias — alias chain resolves
+// through to Promise and `super.try` gets polyfilled
 const A = Promise satisfies typeof Promise;
 class C extends A {
   static run() { return super.try(() => 1); }

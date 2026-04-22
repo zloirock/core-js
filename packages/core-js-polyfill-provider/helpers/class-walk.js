@@ -1,15 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { TS_EXPR_WRAPPERS } from './ast-patterns.js';
-
-// strip parens, optional `ChainExpression`, and TS expression wrappers (`as`,
-// `satisfies`, `!`) so callers see the runtime expression
-function unwrapClassExpr(node) {
-  while (node && (node.type === 'ParenthesizedExpression'
-    || node.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
-    node = node.expression;
-  }
-  return node;
-}
+import { unwrapRuntimeExpr } from './ast-patterns.js';
 
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
@@ -42,13 +32,13 @@ function memberKeyName(node) {
 // walks intermediate proxy-global links (`globalThis.self` / `globalThis.window`) so deeper
 // chains still resolve to the final key
 export function globalProxyMemberName(node, scope, adapter) {
-  node = unwrapClassExpr(node);
+  node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-  let object = unwrapClassExpr(node.object);
+  let object = unwrapRuntimeExpr(node.object);
   while (object?.type === 'MemberExpression' || object?.type === 'OptionalMemberExpression') {
     const linkName = memberKeyName(object);
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
-    object = unwrapClassExpr(object.object);
+    object = unwrapRuntimeExpr(object.object);
   }
   if (!isProxyGlobalIdentifierNode(object, scope, adapter)) return null;
   return memberKeyName(node);
@@ -71,7 +61,7 @@ export function resolveSuperImportName(injector, superMeta) {
 export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
   if (classNode?.type !== 'ClassDeclaration' && classNode?.type !== 'ClassExpression') return null;
   // unwrap TS casts too: `class C extends (Base as typeof Base)` should resolve to Base
-  const superClass = unwrapClassExpr(classNode.superClass);
+  const superClass = unwrapRuntimeExpr(classNode.superClass);
   if (!superClass) return null;
   const resolved = resolveSuperType(superClass);
   return resolved ? { kind: 'property', object: resolved, key, placement: 'static' } : null;
@@ -143,7 +133,7 @@ export function createClassHelpers(t, adapter) {
       if (decl?.type !== 'VariableDeclarator') return null;
       // strip parens + TS casts (`const A = Promise as typeof Promise`); without TS-strip
       // the alias chain bails and `super.X` doesn't resolve to the wrapped Promise
-      const init = unwrapClassExpr(decl.init);
+      const init = unwrapRuntimeExpr(decl.init);
       if (init?.type === 'Identifier') {
         name = init.name;
         continue;
