@@ -372,6 +372,16 @@ function isImportBinding(name, scope, adapter) {
   return type === 'ImportSpecifier' || type === 'ImportDefaultSpecifier' || type === 'ImportNamespaceSpecifier';
 }
 
+// direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
+// / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
+// via `enhanceMeta`, not here
+function tryBuildPrototypeMeta(obj, key, scope, adapter) {
+  if (obj.type !== 'MemberExpression' && obj.type !== 'OptionalMemberExpression') return null;
+  if (resolveKey(obj.property, obj.computed, scope, adapter) !== 'prototype') return null;
+  const protoName = resolveObjectName(obj.object, scope, adapter);
+  return protoName ? { kind: 'property', object: protoName, key, placement: 'prototype' } : null;
+}
+
 function buildMemberMeta(node, scope, adapter) {
   // collect side effects from both the receiver and the computed-key so a polyfill
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
@@ -387,15 +397,7 @@ function buildMemberMeta(node, scope, adapter) {
     ? resolveKey(unwrapParensCollectingEffects(node.property, sideEffects), true, scope, adapter)
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
-  // direct `X.prototype.Y` -> instance-method on X. indirect alias (`const P = X.prototype`
-  // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
-  // via `enhanceMeta`
-  let meta = null;
-  if ((obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression')
-    && resolveKey(obj.property, obj.computed, scope, adapter) === 'prototype') {
-    const protoName = resolveObjectName(obj.object, scope, adapter);
-    if (protoName) meta = { kind: 'property', object: protoName, key, placement: 'prototype' };
-  }
+  let meta = tryBuildPrototypeMeta(obj, key, scope, adapter);
   if (!meta) {
     const objectName = resolveObjectName(obj, scope, adapter);
     if (!objectName && obj.type === 'Identifier' && isImportBinding(obj.name, scope, adapter)) return null;

@@ -215,8 +215,13 @@ export default class TransformQueue {
   add(start, end, content, guardedRoot, rewriteHint) {
     // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
     // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
-    // (and any `start > end`) as a caller bug immediately rather than corrupting silently
+    // (and any `start > end`) as a caller bug immediately rather than corrupting silently.
+    // out-of-bounds ranges are also caller bugs (offset arithmetic slipped past source bounds) -
+    // catching them here pinpoints the bad callsite; MagicString would throw a less specific error
     if (start >= end) throw new RangeError(`[core-js] transform-queue: invalid range [${ start },${ end })`);
+    if (start < 0 || end > this.#code.length) {
+      throw new RangeError(`[core-js] transform-queue: range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
+    }
     const entry = { start, end, content, guardedRoot, rewriteHint };
     this.#transforms.add(entry);
     pushOrInit(this.#byRange, rangeKey(start, end), entry);
