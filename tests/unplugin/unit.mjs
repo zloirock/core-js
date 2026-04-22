@@ -110,6 +110,18 @@ function checkPartialOverlapThrows() {
 }
 checkPartialOverlapThrows();
 
+// out-of-bounds ranges are caller bugs - range check catches offset arithmetic slipping
+// past source bounds with a specific error instead of letting MagicString produce opaque output
+function checkOutOfBoundsThrows() {
+  const code = '0123456789';
+  const q = new TransformQueue(code, new MagicString(code));
+  try { q.add(-1, 5, 'X'); counts.failed++; }
+  catch (e) { /out of bounds/.test(e.message) ? counts.passed++ : counts.failed++; }
+  try { q.add(5, 20, 'X'); counts.failed++; }
+  catch (e) { /out of bounds/.test(e.message) ? counts.passed++ : counts.failed++; }
+}
+checkOutOfBoundsThrows();
+
 // --- ImportInjector.snapshot() ---
 // snapshot must hand the post-pass an immutable view; mutating the pre injector after
 // a snapshot was taken should NOT leak into the snapshot's collections
