@@ -1,5 +1,4 @@
-// direct self-cycle: visited Set bails on the first repeat instead of letting
-// MAX_DEPTH counter exhaust through 64 useless iterations
+// direct self-cycle type alias — resolution bails immediately without hanging
 type Self = Self;
 declare const x: Self;
 const r = (x as any).at(0);
