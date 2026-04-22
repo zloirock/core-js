@@ -38,9 +38,9 @@ export function createBabelAdapter(getInjector = () => null) {
     },
     getBinding(scope, name) {
       // `polyfillHint` lets `resolveBindingToGlobal` walk back to the source global through:
-      // (a) injector's pure-import table — `_Symbol` / `_globalThis` after in-place AST
-      // rewrite; (b) globalAlias table — user destructure aliases (`{Symbol: S} = globalThis`
-      // → `S`) whose mutated binding shape `resolveBindingToGlobal` can't walk on its own.
+      // (a) injector's pure-import table - `_Symbol` / `_globalThis` after in-place AST
+      // rewrite; (b) globalAlias table - user destructure aliases (`{Symbol: S} = globalThis`
+      // -> `S`) whose mutated binding shape `resolveBindingToGlobal` can't walk on its own.
       // hint-only fallback handles babel scope-tracker lag after `replaceWith` during
       // traversal (scope.getBinding empty even though the AST has the declaration)
       const info = getInjector()?.getBindingInfo(name) ?? null;
@@ -108,14 +108,14 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     if (updateCheck?.isUpdateExpression()) return;
     const { node } = path;
     if (path.scope.getBindingIdentifier(node.name)) {
-      // self-reference `var X = X` — hoisted var init references its own name, which at
+      // self-reference `var X = X` - hoisted var init references its own name, which at
       // runtime reads from the outer (global) scope before the local is assigned. narrow
       // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
       // are excluded so user-owned pure imports (e.g. `const MyPromiseTry = …`) don't get
       // re-routed through generic-global polyfill
       if (!isSelfRefVarBinding(path.scope.getBinding(node.name))) return;
       // name equals the binding's own name (we looked up `binding` by `node.name`), so
-      // `isKnownGlobalName(node.name)` is sufficient — `resolveBindingToGlobal` would
+      // `isKnownGlobalName(node.name)` is sufficient - `resolveBindingToGlobal` would
       // walk a now-mutated `init` and give an unreliable answer
       if (!isKnownGlobalName(node.name)) return;
       if (handledObjects.has(node)) return;
@@ -129,7 +129,7 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
 
   function handleMemberExpression(path) {
     const { node } = path;
-    // `globalThis.Map ||= X` — check BEFORE inner-identifier visit rewrites `globalThis`
+    // `globalThis.Map ||= X` - check BEFORE inner-identifier visit rewrites `globalThis`
     // into `_globalThis` (at which point `POSSIBLE_GLOBAL_OBJECTS.has(_globalThis)` is false)
     if (onWarning) {
       const warning = checkLogicalAssignLhsMember(node, path.parent);
@@ -140,7 +140,7 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     if (meta) onUsage(meta, path);
   }
 
-  // nested pattern `{ Array: { from } } = globalThis` — inner ObjectPattern lives under
+  // nested pattern `{ Array: { from } } = globalThis` - inner ObjectPattern lives under
   // an outer ObjectProperty. if the outer chain terminates in a VariableDeclarator with
   // a proxy-global init, the outer key names the static receiver for inner bindings
   function emitNestedDestructureMeta(path, outerProp) {
@@ -178,7 +178,7 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
       initPath = parent.get('right');
     } else if (parent.isAssignmentPattern()
       && isFunctionParamDestructureParent(parent.node, parent.parentPath?.node, objectPattern.node)) {
-      // `function({ from } = Array)` — AssignmentPattern wraps the param; the default
+      // `function({ from } = Array)` - AssignmentPattern wraps the param; the default
       // expression is the receiver that our destructure targets when the arg is omitted.
       // without this branch handleDestructuring emits typeless meta and loses the `Array`
       // linkage, so `from` never resolves to `Array.from`

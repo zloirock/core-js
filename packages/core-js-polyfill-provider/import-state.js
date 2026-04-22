@@ -1,21 +1,35 @@
 import { findUniqueName, kebabToPascal } from './helpers.js';
 
-// post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` — the names
+// post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
-// `_ref0`/`_ref1` stay out of adoption — would otherwise get a spurious `var _ref0;`
+// `_ref0`/`_ref1` stay out of adoption - would otherwise get a spurious `var _ref0;`
 export const ORPHAN_REF_PATTERN = /^_ref(?:[2-9]|\d{2,})?$/;
 
 // bare-class and `/constructor` entries PascalCase the first segment to the global name.
 // method / instance / helper entries (`promise/try`, `array/from`, `array/instance/at`, ...)
 // return null: the user's binding is the function, not the class, so mapping to a global
 // would make `super.X` on `class extends MyMethod` get polyfilled as if MyMethod were the
-// class — silently "fixing" broken user code the plugin has no business touching
+// class - silently "fixing" broken user code the plugin has no business touching.
+// numeric-leading segments (`42`) can't be real global identifiers; bail early so downstream
+// consumers don't carry a junk hint that only gets filtered at lookup time
 export const entryToGlobalHint = entry => {
   if (!entry) return null;
   const [head, ...rest] = entry.split('/');
   if (rest.length && rest.at(-1) !== 'constructor') return null;
-  return kebabToPascal(head) || null;
+  const hint = kebabToPascal(head);
+  if (!hint || hint[0] < 'A' || hint[0] > 'Z') return null;
+  return hint;
 };
+
+// returns the next suffix to seed `#nextSuffixByPrefix` after `findUniqueName` produced
+// `name`. bare prefix -> reserve slot 2 (babel skip-1); numeric tail -> advance by 1.
+// non-numeric tail (subclass override) -> null, signalling "leave cache untouched"
+function nextSuffixFromName(name, prefix) {
+  const slice = name.slice(prefix.length);
+  if (slice === '') return 2;
+  if (/^\d+$/.test(slice)) return +slice + 1;
+  return null;
+}
 
 // import-emitter state; each plugin subclasses and implements `flush()`.
 // augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass
@@ -68,7 +82,7 @@ export default class ImportInjectorState {
   }
 
   registerUserPureImport(entry, name) {
-    // first-write-wins — sibling AST transforms could re-register `name` with a different
+    // first-write-wins - sibling AST transforms could re-register `name` with a different
     // source; keeping the first keeps downstream super-mapping deterministic
     if (this.#importInfoByName.has(name)) return;
     const source = `${ this.mode }/${ entry }`;
@@ -97,8 +111,11 @@ export default class ImportInjectorState {
     this.#globalAliases.set(name, globalName);
   }
 
-  // unified lookup for the adapter's `getBinding` — pure-import or global-alias, whichever
-  // hits first. `source` is null for aliases (no standalone import for them)
+  // unified lookup for the adapter's `getBinding` - pure-import or global-alias, whichever
+  // hits first. shape is `{ hint, source }` in both cases; callers only read these fields
+  // and don't branch on kind, so the overlap is intentional. `source` is null for aliases
+  // (they're synthetic bindings with no standalone import); use `getPureImport(name)` when
+  // you need pure-specific fields (e.g. full entry path)
   getBindingInfo(name) {
     const pure = this.#importInfoByName.get(name);
     if (pure) return { hint: pure.hint, source: pure.source };
@@ -128,9 +145,12 @@ export default class ImportInjectorState {
     const name = findUniqueName(prefix, startSuffix,
       n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false));
     this.usedNames.add(name);
-    // bare reserves slot 1 so next call skips `_hint1` (babel skip-1); numbered advances
-    const slice = name.slice(prefix.length);
-    this.#nextSuffixByPrefix.set(prefix, (slice === '' ? 1 : +slice) + 1);
+    // bare reserves slot 1 so next call skips `_hint1` (babel skip-1); numbered advances.
+    // non-numeric tails (e.g. a subclass overrode `findUniqueName` to return `_ref_foo`)
+    // would NaN-poison the cache through `+slice` - leave the slot untouched so the next
+    // call re-probes from the prior position
+    const next = nextSuffixFromName(name, prefix);
+    if (next !== null) this.#nextSuffixByPrefix.set(prefix, next);
     return name;
   }
 
