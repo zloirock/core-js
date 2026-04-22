@@ -62,6 +62,17 @@ const shouldTransformCases = [
   // Rollup internals
   ['/src/foo.js?commonjs-proxy', false, 'rollup commonjs proxy'],
   ['\0virtual:entry', false, 'rollup virtual module'],
+  // Vite asset-import queries: resolved body isn't user JS even though path looks like one
+  ['/src/img.js?url', false, 'Vite ?url'],
+  ['/src/data.js?raw', false, 'Vite ?raw'],
+  ['/src/worker.js?worker', false, 'Vite ?worker'],
+  ['/src/worklet.js?worklet', false, 'Vite ?worklet'],
+  ['/src/style.js?inline', false, 'Vite ?inline'],
+  ['/src/foo.js?url&v=1', false, 'Vite ?url with extra query'],
+  ['/src/foo.js?v=1&url', false, 'Vite ?url trailing'],
+  // near-misses that should NOT match (substring or suffix only)
+  ['/src/curly.js?curl=x', true, 'query containing "url" as substring'],
+  ['/src/foo.js?v=unrelated', true, 'no asset-query key'],
 ];
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
@@ -172,6 +183,25 @@ function checkAdoptOrphanRespectsFlushed() {
 }
 checkAdoptOrphanRespectsFlushed();
 
+// --- flush() skips through multi-comment directive tails ---
+// directiveEnd lands after `"use strict";`; skipLineEnd must walk past `/*a*/ //b` so the
+// injected import block appears on its own line, not shoved into the middle of the comment
+// chain (which would shred `//b` or comment-out the import itself at runtime)
+function checkFlushPastChainedComments() {
+  const src = '"use strict"; /*a*/ //b\nfoo();';
+  const ms = new MagicString(src);
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms, directiveEnd: 13 });
+  inj.globalImports.add('es.promise.try');
+  inj.flush();
+  const out = ms.toString();
+  // import block must land AFTER the newline following `//b`, not before it
+  const importIdx = out.indexOf('import "core-js/modules/es.promise.try"');
+  const commentIdx = out.indexOf('//b');
+  const newlineAfterComment = out.indexOf('\n', commentIdx);
+  check('skipLineEnd/imports after chained comments', importIdx > newlineAfterComment, true);
+}
+checkFlushPastChainedComments();
+
 // --- ORPHAN_REF_PATTERN ---
 // matches plugin-emitted refs (`_ref`, `_ref2`, `_ref3`, ...) but rejects `_ref0`/`_ref1`
 // which user-code may use; the plugin never emits these (skip-1 babel UID convention)
@@ -195,6 +225,11 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/baz.js#anchor', { tag: 'C' });
   check('SnapshotCache/strip hash', cache.take('/src/baz.js')?.tag, 'C');
   check('SnapshotCache/take consumes', cache.take('/src/foo.js'), null);
+  // Vite dev-server: pre may see `file:///abs/foo.js`, post may see `/@fs/abs/foo.js`
+  cache.store('file:///abs/foo.js', { tag: 'D' });
+  check('SnapshotCache/file:// <-> /@fs', cache.take('/@fs/abs/foo.js')?.tag, 'D');
+  cache.store('/@fs/abs/bar.js', { tag: 'E' });
+  check('SnapshotCache//@fs <-> file://', cache.take('file:///abs/bar.js')?.tag, 'E');
 }
 checkSnapshotKeyNormalization();
 

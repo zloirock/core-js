@@ -484,16 +484,26 @@ function createResolveNodeType(babelNodeType, t) {
 
   // computed enum initializers: TS evaluates `1 + 2` / `'a' + 'b'` at compile time;
   // we can't but operand-shape inference covers the common cases. TemplateLiteral always
-  // yields string; BinaryExpression preserves the kind if both operands match
+  // yields string; BinaryExpression preserves the kind if both operands match.
+  // ESTree preserves ParenthesizedExpression wrappers (babel strips them); unwrap so
+  // `enum E { A = (1 + 2) }` resolves through BinaryExpression's operand-shape check
   function resolveEnumMemberKind(initializer) {
-    if (!initializer) return 'number'; // implicit numeric
-    const nodeType = babelNodeType(initializer);
+    let init = initializer;
+    while (init?.type === 'ParenthesizedExpression') init = init.expression;
+    if (!init) return 'number'; // implicit numeric
+    const nodeType = babelNodeType(init);
     if (nodeType === 'StringLiteral') return 'string';
-    if (nodeType === 'NumericLiteral' || initializer.type === 'UnaryExpression') return 'number';
-    if (initializer.type === 'TemplateLiteral') return 'string';
-    if (initializer.type === 'BinaryExpression') {
-      const left = resolveEnumMemberKind(initializer.left);
-      return left && left === resolveEnumMemberKind(initializer.right) ? left : null;
+    // numeric UnaryExpression: `+`/`-`/`~` yield number; `!` yields boolean (invalid as
+    // enum initializer but TS would reject at compile time); `typeof`/`void`/`delete`
+    // yield non-number. limit to arithmetic operators to stay precise
+    if (init.type === 'UnaryExpression') {
+      return init.operator === '+' || init.operator === '-' || init.operator === '~' ? 'number' : null;
+    }
+    if (nodeType === 'NumericLiteral') return 'number';
+    if (init.type === 'TemplateLiteral') return 'string';
+    if (init.type === 'BinaryExpression') {
+      const left = resolveEnumMemberKind(init.left);
+      return left && left === resolveEnumMemberKind(init.right) ? left : null;
     }
     return null;
   }
