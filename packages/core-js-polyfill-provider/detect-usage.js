@@ -957,6 +957,13 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
   for (const node of ast.body ?? []) {
     if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
       if (!onPureImport || !mainPkgs || !modePrefix) continue;
+      // `import type X from '@core-js/pure/...'` - declaration-level `importKind: 'type'` marks
+      // the whole ImportDeclaration as type-only. babel puts this flag on the declaration; oxc
+      // on specifiers. defaultSpecifierNames already filters per-specifier `importKind`, so
+      // here we only need to skip the declaration-level case. type-only imports are erased
+      // at runtime (TS stripping), so dedup'ing against their names would route runtime calls
+      // through an undefined binding
+      if (node.importKind === 'type' || node.exportKind === 'type') continue;
       const source = adapter.getStringValue(node.source);
       if (typeof source !== 'string') continue;
       const names = defaultSpecifierNames(node);
