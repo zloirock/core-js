@@ -258,9 +258,11 @@ export default class TransformQueue {
   apply() {
     if (!this.#transforms.size) return;
     const transforms = [...this.#transforms];
+    const sortedByStart = [...this.#transforms].sort((a, b) => a.start - b.start || b.end - a.end);
+    this.#assertNoPartialOverlap(sortedByStart);
 
     // fast path: no nesting - apply right-to-left
-    if (!this.#hasNesting()) {
+    if (!this.#hasNesting(sortedByStart)) {
       transforms.sort((a, b) => b.start - a.start);
       for (const t of transforms) this.#ms.overwrite(t.start, t.end, t.content);
       return;
@@ -343,13 +345,26 @@ export default class TransformQueue {
     }
   }
 
-  // detect if any transform range is fully contained within another
-  #hasNesting() {
-    if (this.#transforms.size < 2) return false;
-    const sorted = [...this.#transforms].sort((a, b) => a.start - b.start || b.end - a.end);
+  // true on full containment (slow compose path), false on no overlap (fast path)
+  #hasNesting(sorted) {
+    if (sorted.length < 2) return false;
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i].end <= sorted[i - 1].end) return true;
     }
     return false;
+  }
+
+  // partial overlap (`[10,20) ∩ [15,25)`) would trip MagicString.overwrite with a
+  // generic "already edited" error; surface ranges here for diagnostic
+  #assertNoPartialOverlap(sorted) {
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      if (curr.end > prev.end && curr.start < prev.end) {
+        throw new Error('[core-js] transform-queue: partial overlap between transforms '
+          + `[${ prev.start },${ prev.end }) and [${ curr.start },${ curr.end }). this is a `
+          + 'composition bug — please report with a reproducer.');
+      }
+    }
   }
 }

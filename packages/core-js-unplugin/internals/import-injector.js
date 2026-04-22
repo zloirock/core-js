@@ -44,21 +44,23 @@ export default class ImportInjector extends ImportInjectorState {
     for (const g of snap.existingGlobals) this.existingGlobalImports.add(g);
     for (const [k, v] of snap.existingPure) this.existingPureImports.set(k, v);
     this.#refs.push(...snap.refs);
-    // pre already emitted `var ...` for these refs into its transformed output (which is
-    // post's input); don't re-emit or we'd get two declarations at the same position
-    for (const r of snap.refs) this.#flushedRefs.add(r);
+    // pre's `var X;` is already in post's input — don't re-emit. older snapshots
+    // without `flushedRefs` fall back to all refs (over-conservative, never wrong)
+    for (const r of snap.flushedRefs ?? snap.refs) this.#flushedRefs.add(r);
   }
 
-  // raw references - pre is discarded right after finalize, post's #rehydrate copies
+  // shallow-copy collections so post sees a stable view even if pre keeps mutating
+  // (dev-server HMR, --force, double pre)
   snapshot() {
     return {
-      globals: this.globalImports,
-      pure: this.pureImports,
-      usedNames: this.usedNames,
-      unusedNames: this.#unusedNames,
-      refs: this.#refs,
-      existingGlobals: this.existingGlobalImports,
-      existingPure: this.existingPureImports,
+      globals: new Set(this.globalImports),
+      pure: new Map(this.pureImports),
+      usedNames: new Set(this.usedNames),
+      unusedNames: new Set(this.#unusedNames),
+      refs: [...this.#refs],
+      flushedRefs: [...this.#flushedRefs],
+      existingGlobals: new Set(this.existingGlobalImports),
+      existingPure: new Map(this.existingPureImports),
     };
   }
 
@@ -76,10 +78,11 @@ export default class ImportInjector extends ImportInjectorState {
     return name;
   }
 
-  // orphan post: snapshot lost, input is pre's output with `_ref = ...` free assignments.
-  // caller filters user-owned `let _ref` declarations before invoking
+  // orphan post: snapshot lost, input is pre's output with `_ref = ...` assignments.
+  // caller filters user-owned bindings; `#flushedRefs` skip avoids dup `var _ref;`
   adoptOrphanRefs(orphanRefs) {
     for (const ref of orphanRefs) {
+      if (this.#flushedRefs.has(ref)) continue;
       if (!this.#refs.includes(ref)) this.#refs.push(ref);
       this.usedNames.add(ref);
     }
@@ -163,11 +166,19 @@ function skipShebang(src, pos) {
   return src.length;
 }
 
-// advance past trailing horizontal whitespace + the first line ending so insertion lands
-// on the next line - `'use strict' \n` would otherwise splice between quote and space
+// land insertion on the next line: skip trailing whitespace, inline comment, line
+// terminator. without comment-skip, `'use strict' // x\nfoo()` would shred the comment
 function skipLineEnd(src, pos) {
   let p = pos;
   while (src[p] === ' ' || src[p] === '\t') p++;
+  if (src[p] === '/' && src[p + 1] === '/') {
+    while (p < src.length && src[p] !== '\n' && src[p] !== '\r') p++;
+  } else if (src[p] === '/' && src[p + 1] === '*') {
+    const end = src.indexOf('*/', p + 2);
+    if (end === -1) return src.length;
+    p = end + 2;
+    while (src[p] === ' ' || src[p] === '\t') p++;
+  }
   if (src[p] === '\r' && src[p + 1] === '\n') return p + 2;
   if (src[p] === '\n' || src[p] === '\r') return p + 1;
   return p;
