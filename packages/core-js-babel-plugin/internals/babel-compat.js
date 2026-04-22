@@ -15,6 +15,7 @@ export default function (t, { getInjector } = {}) {
 
   function reset() {
     originalDeclKeys = new WeakMap();
+    deferredSideEffects.length = 0;
     isInTypeAnnotation.reset();
   }
 
