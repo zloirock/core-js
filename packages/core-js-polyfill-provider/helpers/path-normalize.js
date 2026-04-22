@@ -3,7 +3,9 @@ import entriesMap from '@core-js/compat/entries' with { type: 'json' };
 
 // strip Vite-style `?import` / `?t=123` / `#hash` suffixes from a module id.
 // Windows UNC prefixes `\\?\` (long-path) and `\\.\` (device) embed `?`/`.` at index 2 -
-// skip the 4-char prefix so the search doesn't mistake them for a query separator
+// skip the 4-char prefix so the search doesn't mistake them for a query separator.
+// lives in path-namespace despite being consumed by AST plugins because the operation is
+// purely string normalization on a module-id string - no AST awareness needed
 export function stripQueryHash(id) {
   const offset = id.startsWith('\\\\?\\') || id.startsWith('\\\\.\\') ? 4 : 0;
   const at = id.slice(offset).search(/[#?]/);
