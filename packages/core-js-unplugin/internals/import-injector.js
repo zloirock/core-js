@@ -5,12 +5,13 @@ import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 export default class ImportInjector extends ImportInjectorState {
   // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot
   // inherit. refs (`var _refN;`) ARE emitted in pre regardless, so pre's output is valid in
-  // strict mode (ESM) even when post is skipped — otherwise `_ref = foo()` is an undeclared
+  // strict mode (ESM) even when post is skipped - otherwise `_ref = foo()` is an undeclared
   // assignment that throws ReferenceError at runtime
   #deferImports = false;
   #directiveEnd = 0;
   #ms;
-  #refs = [];
+  // iteration order is insertion-preserving, so emitted `var _ref, _ref2, ...;` stays stable
+  #refs = new Set();
   // refs already written to `ms` by a prior flush (or inherited from pre via snapshot).
   // lets post emit only the delta so pre + post doesn't produce duplicate `var X;` lines
   #flushedRefs = new Set();
@@ -43,8 +44,8 @@ export default class ImportInjector extends ImportInjectorState {
     for (const n of snap.unusedNames) this.#unusedNames.add(n);
     for (const g of snap.existingGlobals) this.existingGlobalImports.add(g);
     for (const [k, v] of snap.existingPure) this.existingPureImports.set(k, v);
-    this.#refs.push(...snap.refs);
-    // pre's `var X;` is already in post's input — don't re-emit. older snapshots
+    for (const r of snap.refs) this.#refs.add(r);
+    // pre's `var X;` is already in post's input - don't re-emit. older snapshots
     // without `flushedRefs` fall back to all refs (over-conservative, never wrong)
     for (const r of snap.flushedRefs ?? snap.refs) this.#flushedRefs.add(r);
     this.rehydrateSuffixState(snap.suffixState);
@@ -77,7 +78,7 @@ export default class ImportInjector extends ImportInjectorState {
   // locally so flush() can emit the `var _ref, _ref2, ...;` declaration
   generateRef(hoisted = true) {
     const name = this.generateRefName();
-    if (hoisted) this.#refs.push(name);
+    if (hoisted) this.#refs.add(name);
     return name;
   }
 
@@ -86,7 +87,7 @@ export default class ImportInjector extends ImportInjectorState {
   adoptOrphanRefs(orphanRefs) {
     for (const ref of orphanRefs) {
       if (this.#flushedRefs.has(ref)) continue;
-      if (!this.#refs.includes(ref)) this.#refs.push(ref);
+      this.#refs.add(ref);
       this.usedNames.add(ref);
     }
   }
@@ -121,7 +122,7 @@ export default class ImportInjector extends ImportInjectorState {
     else this.#ms.prepend(block);
   }
 
-  // `import "…"` / `var X = require("…")` — dispatched by `importStyle`. side-effect-only
+  // `import "…"` / `var X = require("…")` - dispatched by `importStyle`. side-effect-only
   // globals first, then pure-import bindings. `referencedInSource` filters dead imports
   // when the caller tracks usage
   #appendImportLines(lines) {
@@ -143,7 +144,8 @@ export default class ImportInjector extends ImportInjectorState {
   // `var _ref, _ref2, ...;` for refs this flush hasn't written yet. pre's emission makes
   // the output strict-mode safe; post's emission adds any new refs post allocated
   #appendRefLines(lines) {
-    const newRefs = this.#refs.filter(r => !this.#flushedRefs.has(r));
+    const newRefs = [];
+    for (const r of this.#refs) if (!this.#flushedRefs.has(r)) newRefs.push(r);
     if (!newRefs.length) return;
     lines.push(`var ${ newRefs.join(', ') };`);
     for (const r of newRefs) this.#flushedRefs.add(r);
