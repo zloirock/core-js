@@ -11,6 +11,8 @@ const DTS_RE = /\.d\.[cm]?tsx?$/;
 // declaration-block `lang=d.ts` wouldn't match this pattern anyway (the `[cm]?[jt]sx?`
 // alternation demands a `[jt]` char, which `d.ts` doesn't have)
 const SFC_LANG_RE = /[&?]lang=[cm]?[jt]sx?(?:&|$)/;
+// SFC sub-block missing `lang=`: Svelte 5 / Vue / Astro default `<script>` to JS
+const SFC_DEFAULT_JS_RE = /[&?](?:astro|svelte|vue)&type=(?:module|script)(?:&|$)/;
 
 // `\0` marks virtual modules (some bundlers embed it mid-id in the query component, not
 // just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
@@ -22,7 +24,9 @@ export function shouldTransform(id) {
   // unconditionally is cheaper than adding a `.includes('?')` fast-path guard
   const base = stripQueryHash(id);
   if (JS_RE.test(base) && !DTS_RE.test(base)) return true;
-  return SFC_LANG_RE.test(id);
+  if (SFC_LANG_RE.test(id)) return true;
+  // explicit non-JS `lang=` (e.g. `lang=d.ts`, `lang=scss`) blocks the default-JS fallback
+  return !id.includes('lang=') && SFC_DEFAULT_JS_RE.test(id);
 }
 
 const VALID_PHASES = ['pre', 'post', 'pre+post'];
