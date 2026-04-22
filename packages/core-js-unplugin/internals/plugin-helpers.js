@@ -3,8 +3,11 @@ import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 
 // unplugin parses exclusively via oxc, which represents directives as top-of-body
 // ExpressionStatement nodes with `.directive: string` (babel uses a separate
-// `Program.directives` array - out of scope here)
-export const isDirectiveStatement = n => n?.type === 'ExpressionStatement' && typeof n.directive === 'string';
+// `Program.directives` array - out of scope here). empty-string directive (`"";`) is
+// technically parser-emitable but not a valid prologue - reject so we don't count it
+// as directive-end
+export const isDirectiveStatement = n => n?.type === 'ExpressionStatement'
+  && typeof n.directive === 'string' && n.directive.length > 0;
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none
 export function directivePrologueEnd(ast) {
@@ -27,8 +30,9 @@ export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 // a single char; over-fusing adds a spurious `;` guard but doesn't break output
 const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`}]/;
 
-// ES spec LineTerminator. anchors `//`-comment scans, ASI boundary checks
-export const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
+// ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). per-char check for
+// hot loops where a regex-per-test would allocate the match array
+export const isLineTerminator = ch => ch === '\n' || ch === '\r' || ch === '\u2028' || ch === '\u2029';
 
 // forward-scan past a block comment whose opener is at `p` (caller has verified
 // `src[p]==='/' && src[p+1]==='*'`). returns position after `*/`, or `src.length`
@@ -56,9 +60,11 @@ function prevSignificantPos(src, pos) {
       i = start - 1;
       continue;
     }
-    // line comment: if `//` lives earlier on the same line, current char is inside it
+    // line comment: if `//` lives earlier on the same line, current char is inside it.
+    // ES spec LineTerminator includes LS (U+2028) and PS (U+2029) alongside LF / CR -
+    // `isLineTerminator` covers all four so current-line scan stops at the right boundary
     let lineStart = i;
-    while (lineStart > 0 && src[lineStart - 1] !== '\n' && src[lineStart - 1] !== '\r') lineStart--;
+    while (lineStart > 0 && !isLineTerminator(src[lineStart - 1])) lineStart--;
     const slash = src.indexOf('//', lineStart);
     if (slash !== -1 && slash <= i) {
       i = slash - 1;
