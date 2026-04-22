@@ -120,7 +120,10 @@ export default function (t, { getInjector } = {}) {
     }
     if (!chainStart) return [null, node.object];
     const key = chainStart.isOptionalMemberExpression() ? 'object' : 'callee';
-    // skip null-check when the optional is on a polyfillable expression (replacement consumes `?.`)
+    // skip null-check when the optional is on a polyfillable expression (replacement consumes `?.`).
+    // reassigning `chainStart.node[key]` swaps the receiver / callee with the memoized ref —
+    // computed property nodes (`.property`) and call arguments (`.arguments`) on the same chainStart
+    // remain untouched, so computed-property bootstrapping isn't disturbed
     let check = null;
     if (!skipOptional?.(chainStart.node, path.scope)) {
       let ref;
@@ -266,7 +269,10 @@ export default function (t, { getInjector } = {}) {
     declaration.replaceWithMultiple(stmts);
   }
 
-  // bodyless control statement with side-effect: wrap in block to keep scope
+  // bodyless control statement with side-effect: wrap in block to keep scope.
+  // `cloneDeep` is necessary - the original `initNode` is still referenced by the
+  // about-to-be-replaced declaration's path; reusing it would create node-identity aliasing
+  // that babel's path tracker mishandles. expensive (deep walk) but bounded by init AST size
   function wrapBodylessWithSideEffect(declaration, initNode, extractedDeclaration) {
     declaration.replaceWith(t.blockStatement([
       t.expressionStatement(t.cloneDeep(initNode)),
