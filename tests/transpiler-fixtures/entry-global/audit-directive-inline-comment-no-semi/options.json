@@ -6,7 +6,7 @@
         "method": "entry-global",
         "version": "4.0",
         "targets": {
-          "node": "current"
+          "chrome": "130"
         }
       }
     ]
