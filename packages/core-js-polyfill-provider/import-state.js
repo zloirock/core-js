@@ -107,6 +107,10 @@ export default class ImportInjectorState {
   // mutate, keeps the table empty
   #globalAliases = new Map();
 
+  // last-write-wins: only called from `handleDestructureProxyGlobal` which fires per
+  // proxy-global destructure site. user code that destructures the same alias name twice
+  // from a proxy global in different scopes is rare; flat-map is sufficient because babel's
+  // own scope.getBinding handles real shadowing - the alias map only carries hint info
   registerGlobalAlias(name, globalName) {
     this.#globalAliases.set(name, globalName);
   }
