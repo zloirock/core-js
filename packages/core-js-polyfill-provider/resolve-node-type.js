@@ -1324,7 +1324,11 @@ function createResolveNodeType(babelNodeType, t) {
       // TS `object` keyword = any non-primitive, too broad to narrow polyfills
       case 'TSObjectKeyword':
         return new $Object(null);
-      // TS `{}` without members = any non-nullish (includes primitives) - treat as unknown
+      // TS `{}` without members matches ANY non-nullish runtime value - primitives (string,
+      // number, bigint, boolean, symbol), functions, all constructor objects (Array, Map,
+      // Promise, Date, ...), user classes. returning `$Object('Object')` would narrow to
+      // Object-methods only and misroute `.at()` / `.includes()` etc; null routes through
+      // `resolveHint` common/rest fallback which is the correct conservative choice
       case 'TSTypeLiteral':
       case 'ObjectTypeAnnotation':
         return null;
