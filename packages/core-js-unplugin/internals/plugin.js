@@ -318,7 +318,6 @@ export default function createPlugin(options) {
     }
 
     const {
-      resolveSuperMember,
       resolveStaticInheritedMember,
       isInheritedStaticLookup,
       isShadowedByClassOwnMember,
@@ -327,7 +326,7 @@ export default function createPlugin(options) {
     // usage-global mode
     if (method === 'usage-global') {
       const usageGlobalCallback = createUsageGlobalCallback({
-        resolveUsage, injectModulesForModeEntry, isDisabled, resolveSuperMember,
+        resolveUsage, injectModulesForModeEntry, isDisabled, resolveStaticInheritedMember,
       });
 
       const usageVisitors = createUsageVisitors({
@@ -349,12 +348,17 @@ export default function createPlugin(options) {
     if (method === 'usage-pure') {
       const skippedNodes = new WeakSet();
       // declarations already rewritten by the nested-proxy batch flatten - subsequent
-      // visits of other polyfillable inner props in the same declaration skip early
+      // visits of other polyfillable inner props in the same declaration skip early.
+      // pre / main scope-resolution divergence: pre may flatten a decl that main re-enters
+      // from a different code path. the WeakSet survives both passes (scoped to one runTransform
+      // invocation), so the second pass sees the flag and bails before re-flattening
       const flattenedNestedDecls = new WeakSet();
       const transforms = new TransformQueue(code, ms);
 
       // cache setScope walk-up result per leaf node - each node's enclosing scope is
-      // fixed by its position in the AST, so the walk is purely a function of the node
+      // fixed by its position in the AST, so the walk is purely a function of the node.
+      // multiple traverse passes within one runTransform are SAFE (same AST, same node identity);
+      // a fresh AST per file invalidates the cache via WeakMap GC
       const scopeCache = new WeakMap();
 
       // per-callback mutable state + deferred collections
@@ -655,7 +659,8 @@ export default function createPlugin(options) {
           const end = isCall ? parent.end : node.end;
           // dedup by rootNode identity: `x.at(a?.b.at(0))` has outer guard for `x` (none),
           // inner for `a` - skipping inner because it's range-contained would drop the
-          // `a == null ? void 0 :` and crash on `a === null`
+          // `a == null ? void 0 :` and crash on `a === null`. strict identity is intentional;
+          // semantically-equivalent-but-distinct AST node instances stay independent
           if (transforms.hasGuardFor(start, end, rootNode)) root = null;
         }
         return { optionalRoot: root, rootRaw, deoptPositions, rootNode };
@@ -759,8 +764,12 @@ export default function createPlugin(options) {
 
       function handleSymbolIterator(meta, node, parent, metaPath) {
         const isCallParent = isCallee(node, parent);
-        // get-iterator returns the materialized iterator; get-iterator-method returns the method
-        // use get-iterator only for plain CallExpression with no args - never for NewExpression
+        // get-iterator returns the materialized iterator; get-iterator-method returns the method.
+        // use get-iterator only for plain CallExpression with no args - never for NewExpression.
+        // `parent.optional` covers `arr[Symbol.iterator]?.()`; optional chains higher up the
+        // tree (`arr?.[Symbol.iterator]()`) wrap the call in a ChainExpression and aren't
+        // detectable here without walking ancestors - stays on get-iterator-method (correct,
+        // just less compact than get-iterator)
         const isPlainCall = isCallParent && parent.type === 'CallExpression';
         const entry = isPlainCall && parent.arguments.length === 0 && !parent.optional
             ? 'get-iterator' : 'get-iterator-method';
@@ -922,6 +931,10 @@ export default function createPlugin(options) {
       // receiver node to swap; null means inline-default fallback. handles
       // `function({p} = R)` (AssignmentPattern.right) and arrow IIFE `(({p}) => body)(R)`
       // (call-arg node, expanding inline-array spreads)
+      // unplugin-only counterpart of `findSynthSwapTargetPath` from babel-plugin/index.js;
+      // text-emission needs the receiver bounds to splice the synth swap, while babel mutates
+      // the AssignmentPattern.right node in place. duplication is intentional - the underlying
+      // operation differs (text vs AST), shared shape-checking already lives in `astHelpers`
       function findSynthSwapReceiver(wrapperPath, objectPattern) {
         if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
         const wrapper = wrapperPath?.node;
@@ -1020,7 +1033,9 @@ export default function createPlugin(options) {
       // preservedSrc === null -> outer prop was fully consumed (drop).
       // null when the init isn't a proxy-global ObjectPattern source or nothing matches
       // pre-pass walks every declarator for `canFullyConsume...`; main pass walks the same
-      // declarators again via `rewriteProxy...`. cache by node identity to avoid double work
+      // declarators again via `rewriteProxy...`. cache by node identity to avoid double work -
+      // amortizes the double traverse to one logical plan per declarator (O(1) lookup on the
+      // second visit instead of re-scanning every property)
       const planCache = new WeakMap();
       function planProxyNestedDeclarator(declarator, scope) {
         if (planCache.has(declarator)) return planCache.get(declarator);
@@ -1139,6 +1154,10 @@ export default function createPlugin(options) {
         }
       }
 
+      // Symbol.iterator handling is split across `handleSymbolIterator` (member-call form),
+      // this fn (property-destructure form `{ [Symbol.iterator]: it } = obj`), and the catch
+      // emit loop. unification would require a unified meta shape across the three call sites,
+      // not currently warranted - each call site has different bound/unbound receiver semantics
       function handleDestructuringPure(meta, metaPath, propNode) {
         // IIFE / parameter destructure: ObjectPattern's parent is a function (or an
         // AssignmentPattern default at function-param position - `function({ x } = Y)`)
@@ -1336,7 +1355,10 @@ export default function createPlugin(options) {
       // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
       // after main traverse - full polyfill set per receiver known only after sibling visits.
       // non-polyfilled siblings read from pure receiver when receiver itself is polyfillable
-      // (raw `Promise.custom` on IE11 would ReferenceError before the destructure runs)
+      // (raw `Promise.custom` on IE11 would ReferenceError before the destructure runs).
+      // partial-rewrite risk: an exception inside the loop leaves `state.synthSwaps` half-applied
+      // (some transforms queued, others lost). recovery semantics intentional: catch-and-continue
+      // would silently produce inconsistent output, hard fail surfaces the bug to the user
       function applySynthSwaps() {
         for (const [, { receiver, objectPattern, polyfills }] of state.synthSwaps) {
           if (receiver?.type !== 'Identifier' || objectPattern?.type !== 'ObjectPattern') continue;
