@@ -230,10 +230,15 @@ export default function plugin(api, options) {
       // receiver. synth-swap when `findSynthSwapTargetPath` identifies a safe Identifier
       // receiver; otherwise inline-default `{p = _polyfill}` (fires only on undefined property).
       // bare param without IIFE / receiver `function({ from }) {}` bails by design - `from`
-      // could be ANY value the caller passes, not necessarily Array.from
+      // could be ANY value the caller passes, not necessarily Array.from.
+      // AssignmentPattern (`{from = []} = Array`): accept both `{key: binding}` and
+      // `{key = default}` shapes. the user's default becomes dead code under synth-swap
+      // (polyfill id is always defined) but stays syntactically intact in the output
       function handleParameterDestructure(prop, kind, entry, hintName) {
-        if (kind === 'instance' || !t.isIdentifier(prop.node.value)) return;
+        if (kind === 'instance') return;
         if (prop.node.computed || !t.isIdentifier(prop.node.key)) return;
+        const { value } = prop.node;
+        if (!t.isIdentifier(value) && !(t.isAssignmentPattern(value) && t.isIdentifier(value.left))) return;
         const id = injectPureImport(entry, hintName);
         const objectPattern = prop.parentPath;
         const targetPath = findSynthSwapTargetPath(objectPattern?.parentPath, objectPattern);
