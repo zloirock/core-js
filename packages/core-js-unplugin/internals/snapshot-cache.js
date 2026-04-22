@@ -13,8 +13,15 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 // long-running dev-servers accumulate snapshots between rebuilds - buildEnd per invocation
 // drains them; pre-only-visited ids in a single invocation still leak until buildEnd fires
 const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs)/;
+// multi-slash collapse: some bundler path joins produce `pkg//sub/foo` when a trailing
+// slash meets a leading slash; canonicalize to single-slash so pre and post match even
+// if one pass saw a doubled form
+const REPEATED_SLASHES_RE = /\/{2,}/g;
 function normalizeKey(id) {
-  return stripQueryHash(id).replaceAll('\\', '/').replace(VITE_SCHEME_PREFIX_RE, '');
+  return stripQueryHash(id)
+    .replaceAll('\\', '/')
+    .replace(VITE_SCHEME_PREFIX_RE, '')
+    .replaceAll(REPEATED_SLASHES_RE, '/');
 }
 
 export default class SnapshotCache {
