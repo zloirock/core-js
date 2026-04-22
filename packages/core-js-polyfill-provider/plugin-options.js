@@ -1,3 +1,7 @@
+// this file mixes setup (option validation, target resolution, debug factory) with
+// hot-path callbacks (`createUsageGlobalCallback`, `dispatch`). split is deferred:
+// they share enough state (parsedTargets, debug, options) that splitting would force
+// a larger context object across the boundary
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
@@ -302,7 +306,7 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
   return { injectModulesForEntry, injectModulesForModeEntry, outputDebug };
 }
 
-export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEntry, isDisabled, resolveSuperMember }) {
+export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEntry, isDisabled, resolveStaticInheritedMember }) {
   function dispatch(meta, path) {
     if (isDisabled(path.node)) return;
     // `typeof Map` is a type-level operator: the identifier never appears at runtime, so
@@ -334,10 +338,10 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
     // `super.X(...)` in a static method of `extends KnownGlobal { ... }`: regular MemberExpression
     // resolution produces `{object: null, placement: 'prototype'}` which never matches
     // `Array.from` etc. retry with a synthetic static meta against the parent class
-    if (resolveSuperMember && meta.kind === 'property' && meta.placement === 'prototype'
+    if (resolveStaticInheritedMember && meta.kind === 'property' && meta.placement === 'prototype'
       && meta.object === null && path?.node?.type === 'MemberExpression'
       && path.node.object?.type === 'Super') {
-      const superMeta = resolveSuperMember(path);
+      const superMeta = resolveStaticInheritedMember(path);
       if (superMeta) return dispatch(superMeta, path);
     }
     return dispatch(meta, path);
