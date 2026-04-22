@@ -20,11 +20,24 @@ export function directivePrologueEnd(ast) {
 export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
 // chars that, as the previous statement's last token, fuse with a leading `(` on the
-// next line into a call expression (parser continues without ASI)
-const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`]/;
+// next line into a call expression (parser continues without ASI).
+// `}` included conservatively: FunctionDeclaration / BlockStatement terminate without ASI
+// concern, but FunctionExpression in an incomplete statement (`let x = function(){}\n(1,2)`
+// - parser treats as `x = (function(){})(1,2)`) fuses. we can't distinguish the two from
+// a single char; over-fusing adds a spurious `;` guard but doesn't break output
+const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`}]/;
 
 // ES spec LineTerminator. anchors `//`-comment scans, ASI boundary checks
 export const LINE_TERMINATOR = /[\n\r\u2028\u2029]/;
+
+// forward-scan past a block comment whose opener is at `p` (caller has verified
+// `src[p]==='/' && src[p+1]==='*'`). returns position after `*/`, or `src.length`
+// when the comment is unterminated (defensive; parser would have rejected the source,
+// but raw-text scanners upstream of parse must not loop forever)
+export function skipBlockComment(src, p) {
+  const end = src.indexOf('*/', p + 2);
+  return end === -1 ? src.length : end + 2;
+}
 
 // scan backwards past whitespace and comments; -1 if we walked off the start.
 // ES line-terminators include U+2028 / U+2029 in addition to LF / CR
