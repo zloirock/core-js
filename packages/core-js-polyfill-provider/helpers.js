@@ -14,6 +14,7 @@ export {
   isFunctionParamDestructureParent,
   isSingleNestedProxyChain,
   isTSTypeOnlyIdentifier,
+  isIdentifierPropValue,
   isTaggedTemplateTag,
   isUpdateTarget,
   kebabToCamel,
