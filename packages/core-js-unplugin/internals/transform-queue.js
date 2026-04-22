@@ -345,7 +345,8 @@ export default class TransformQueue {
     }
   }
 
-  // true on full containment (slow compose path), false on no overlap (fast path)
+  // true on full containment or equal range (slow compose path handles both — equal-range
+  // merge folds into the wrapper); false on no overlap (fast path, right-to-left apply)
   #hasNesting(sorted) {
     if (sorted.length < 2) return false;
     for (let i = 1; i < sorted.length; i++) {
