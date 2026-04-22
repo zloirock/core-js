@@ -267,6 +267,10 @@ function makeFrameScope(parentScope, localDecls) {
   return frame;
 }
 
+// module-level cache: keyed on fn AST node identity. plugin instances each parse their own
+// AST, so node-identity is per-instance and cache entries never leak across instances.
+// only risks staleness if an external caller hands the same node to two configurations,
+// which the unplugin / babel-plugin pipeline doesn't do
 const LOCALS_CACHE = new WeakMap();
 
 function collectFunctionLocals(fnNode) {

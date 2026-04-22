@@ -345,7 +345,9 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
 }
 
 // returns a factory: each call creates an isolated per-file debug collector
-// safe for concurrent transforms (e.g. Vite parallel file processing)
+// safe for concurrent transforms (e.g. Vite parallel file processing).
+// `targetsStr` snapshot at factory creation time is intentional - `parsedTargets` is
+// derived once from the user's options and never mutates afterwards
 function createDebugOutputFactory({ method, parsedTargets }) {
   const targetsStr = parsedTargets
     ? JSON.stringify(fromEntries([...parsedTargets].map(([e, v]) => [e, String(v)])), null, 2)
