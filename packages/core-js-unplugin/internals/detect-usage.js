@@ -100,7 +100,10 @@ export const estreeAdapter = {
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
-    // expose source for import bindings so resolveKey() can infer Symbol.<name>
+    // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
+    // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
+    // raw module source at this interface is deliberate - not a leak, just the minimum
+    // parser-agnostic info the provider requires to infer well-known symbol imports
     let importSource = null;
     if (IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)) {
       importSource = b.path.parent?.source?.value ?? null;
