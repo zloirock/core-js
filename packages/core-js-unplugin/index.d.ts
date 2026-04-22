@@ -18,11 +18,11 @@ interface Options {
   /** browserslist targets */
   targets?: Targets;
   /** include polyfill modules by module name (e.g. `'es.array.at'`) or pattern.
-   *  String patterns are raw regex syntax (not glob) anchored to start/end — a leading `es.`
+   *  String patterns are raw regex syntax (not glob) anchored to start/end - a leading `es.`
    *  matches any submodule, `*` is a regex quantifier. Entry paths (`'array/at'`) are allowed
    *  only for `method: 'usage-pure'`. */
   include?: readonly (string | RegExp)[];
-  /** exclude polyfill modules — same pattern semantics as `include` */
+  /** exclude polyfill modules - same pattern semantics as `include` */
   exclude?: readonly (string | RegExp)[];
   /** enable debug output */
   debug?: boolean;

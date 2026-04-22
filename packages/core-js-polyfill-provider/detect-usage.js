@@ -44,13 +44,28 @@ const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers)
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/;
 
+// true when `node` binds the module's default export (either as default specifier or
+// as named `default` re-export). namespace bindings and other named specifiers reject -
+// they alias something other than the module's default, even if the module-source matches
+function bindsModuleDefault(node) {
+  if (!node) return true; // adapter-supplied virtual binding (no AST node) - treat as default
+  if (node.type === 'ImportDefaultSpecifier') return true;
+  if (node.type === 'ImportSpecifier') {
+    const importedName = node.imported?.name ?? node.imported?.value;
+    return !importedName || importedName === 'default';
+  }
+  return false;
+}
+
 // resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
 // `polyfillHint` (in-place AST mutation leaves this on the binding) and `importSource`
-// (real `import X from '.../symbol/iterator'` that the plugin emitted)
+// (real `import X from '.../symbol/iterator'` that the plugin emitted). symbol modules
+// export the well-known Symbol as their default - only default bindings count as Symbol.X refs
 function bindingSymbolKey(binding) {
   if (binding.polyfillHint?.startsWith('Symbol.')) return binding.polyfillHint;
   const match = binding.importSource && SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
-  return match ? `Symbol.${ kebabToCamel(match.groups.name) }` : null;
+  if (!match || !bindsModuleDefault(binding.node)) return null;
+  return `Symbol.${ kebabToCamel(match.groups.name) }`;
 }
 
 // LHS of `Map ||= ...` reads the global before polyfill loads (ReferenceError); the
@@ -63,7 +78,7 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
     + `(read-only import binding); expected runtime engine to provide \`${ identifier.name }\``;
 }
 
-// `globalThis.Map ||= X` — MemberExpression LHS form. called from MemberExpression visitor
+// `globalThis.Map ||= X` - MemberExpression LHS form. called from MemberExpression visitor
 // before inner-identifier transformation mutates `globalThis` -> `_globalThis`; receiver and
 // property still carry their pre-transform names at this visitation point
 export function checkLogicalAssignLhsMember(memberNode, parent) {
@@ -84,7 +99,7 @@ const MAX_KEY_DEPTH = 64;
 // walks transparent wrappers (parens / chains / TS casts) and SequenceExpression.
 // two modes via the optional `effects` out-param:
 //   - omitted: bail on sequences whose preceding elements have side effects (caller can't
-//     preserve them — e.g. inner resolveKey recursion, handleBinaryIn). keeps the sequence
+//     preserve them - e.g. inner resolveKey recursion, handleBinaryIn). keeps the sequence
 //     intact so no fn() gets silently dropped
 //   - array: always unwrap, pushing side-effect preceding elements into `effects` for the
 //     caller to re-attach via a SequenceExpression wrap around the polyfill replacement
@@ -114,7 +129,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   if (!seen) seen = new Set();
   if (seen.has(name)) return null;
   seen.add(name);
-  // single binding lookup — re-used by polyfillHint, type gate, and VariableDeclarator init walk
+  // single binding lookup - re-used by polyfillHint, type gate, and VariableDeclarator init walk
   const binding = adapter.getBinding(scope, name);
   // plugin-managed pure-import mutation (`globalThis` -> `_globalThis` / `Symbol` -> `_Symbol`)
   // leaves a real import binding; adapter's `polyfillHint` carries the source global name so
@@ -125,7 +140,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   if (bindingType === 'ImportSpecifier' || bindingType === 'ImportDefaultSpecifier'
     || bindingType === 'ImportNamespaceSpecifier') return null;
   if (bindingType === 'VariableDeclarator') {
-    // check constantViolations before dereferencing `.node.init/.id` — malformed
+    // check constantViolations before dereferencing `.node.init/.id` - malformed
     // binding shapes can leave those undefined
     if (binding.constantViolations?.length) return null;
     const { init } = binding.node;
@@ -161,7 +176,7 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
 // `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
 // returns the property key or null when init isn't a proxy-global or `name` isn't matched.
 // nested patterns (`const { A: { B } }`) are not followed - conservative single-level alias only.
-// only known-global-shaped keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned —
+// only known-global-shaped keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned -
 // `const { foo } = globalThis` should not push `'foo'` into downstream global lookups
 function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen) {
   const receiver = resolveObjectName(init, scope, adapter, seen);
@@ -273,7 +288,7 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
         const { init } = binding.node;
         if (init) return resolveKey(init, true, scope, adapter, nextSeen, depth + 1);
       }
-      // plugin-managed binding — either via `polyfillHint` (in-place AST mutation)
+      // plugin-managed binding - either via `polyfillHint` (in-place AST mutation)
       // or real import from `core-js/.../symbol/X`
       const key = bindingSymbolKey(binding);
       if (key) return key;
@@ -320,7 +335,7 @@ function asSymbolRef(node, scope, adapter, seen) {
   return unwrapped && resolvesToGlobalSymbol(unwrapped, scope, adapter, seen) ? { raw: node, unwrapped } : null;
 }
 
-// `var X = X` — hoisted var init references its own name, which at runtime reads the
+// `var X = X` - hoisted var init references its own name, which at runtime reads the
 // outer (global) scope before the local is assigned. Factory wraps a per-binding cache
 // because the usage transform mutates `init.name` (X -> _X) after the first visit, so a
 // non-cached recheck on later references would miss the invariant.
@@ -403,10 +418,10 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   if (depth > MAX_KEY_DEPTH) return false;
   node = unwrapParens(node);
   const { type } = node;
-  // string-folded sources — plain strings, not the symbol
+  // string-folded sources - plain strings, not the symbol
   if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
     || (type === 'BinaryExpression' && node.operator === '+')) return false;
-  // Symbol[.X] direct / via chained proxy-global — canonical symbol-ref shape
+  // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
     return !!asSymbolRef(node.object, scope, adapter, new Set(seen));
   }
@@ -415,7 +430,7 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   nextSeen.add(node.name);
   const binding = adapter.getBinding(scope, node.name);
   if (!binding || binding.constantViolations?.length) return false;
-  // binding indirection — `const k = Symbol.iterator; k in X` resolves through init
+  // binding indirection - `const k = Symbol.iterator; k in X` resolves through init
   if (binding.node?.type === 'VariableDeclarator' && binding.node.init) {
     return isSymbolSourcedKey(binding.node.init, scope, adapter, nextSeen, depth + 1);
   }
@@ -445,7 +460,7 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
     ? asSymbolRef(left.object, scope, adapter) : null;
   if (ref) {
     const name = resolveKey(left.property, left.computed, scope, adapter);
-    // nested `Symbol[Symbol.X]` — `resolveKey` already returns `Symbol.X`; double-prefixing
+    // nested `Symbol[Symbol.X]` - `resolveKey` already returns `Symbol.X`; double-prefixing
     // would build invalid `Symbol.Symbol.X`. user code (`Symbol[Symbol.iterator]` evaluates
     // to undefined regardless) is runtime-broken; bail rather than carry an invalid key
     if (name && !name.includes('.')) {
@@ -466,9 +481,9 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
       return { kind: 'in', key, object: null, placement: null, symbolSourced: true };
     }
   }
-  // identifier bound to Symbol.X — `const k = Symbol.iterator; k in obj` works regardless of
+  // identifier bound to Symbol.X - `const k = Symbol.iterator; k in obj` works regardless of
   // object type. literal-string sources that happen to spell `Symbol.X` (`'Symbol.iterator'`,
-  // `` `Symbol.iterator` ``, `'Symbol.' + 'iterator'`) are NOT symbol refs — `isSymbolSourcedKey`
+  // `` `Symbol.iterator` ``, `'Symbol.' + 'iterator'`) are NOT symbol refs - `isSymbolSourcedKey`
   // filters them out; they fall through to the string-key branch below.
   // single-`.` shape filters out double-prefixed `Symbol.Symbol.X` from nested `Symbol[Symbol.X]`
   const resolvedLeft = resolveKey(node.left, true, scope, adapter);
@@ -834,7 +849,7 @@ export function getEntrySource(node, adapter, scope) {
     return adapter.getStringValue(node.source);
   }
   if (node.type !== 'ExpressionStatement') return null;
-  // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` — parsers
+  // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
   const expr = unwrapParens(node.expression);
   // require('core-js/...')
@@ -871,12 +886,15 @@ function matchEntrySubpath(source, pkgs, subPrefix) {
   return null;
 }
 
-function defaultSpecifierName(node) {
+function defaultSpecifierNames(node) {
   // `import X from` and `import { default as X } from` bind the same module export;
-  // the latter form (Babel's own codegen for transpiled defaults) must dedup too
-  const spec = node.specifiers?.find(s => s.type === 'ImportDefaultSpecifier'
-    || (s.type === 'ImportSpecifier' && (s.imported?.name ?? s.imported?.value) === 'default'));
-  return spec?.local?.name ?? null;
+  // a user can legitimately stack both forms on one declaration (`import Def, { default as Alt }
+  // from 'x'`) - surface every name so downstream registers both hints, not just the first
+  const out = [];
+  for (const s of node.specifiers ?? []) {
+    if (bindsModuleDefault(s) && s.local?.name) out.push(s.local.name);
+  }
+  return out;
 }
 
 // dual-API stub: Babel (`getBindingIdentifier`) + ESTree (`hasBinding`) adapters
@@ -899,10 +917,10 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
       if (!onPureImport || !mainPkgs || !modePrefix) continue;
       const source = adapter.getStringValue(node.source);
       if (typeof source !== 'string') continue;
-      const name = defaultSpecifierName(node);
-      if (!name) continue;
+      const names = defaultSpecifierNames(node);
+      if (!names.length) continue;
       const entry = matchEntrySubpath(source, mainPkgs, modePrefix);
-      if (entry) onPureImport(entry, name, node);
+      if (entry) for (const name of names) onPureImport(entry, name, node);
       continue;
     }
     const source = getEntrySource(node, adapter, shadowScope);
@@ -927,7 +945,7 @@ export function checkTypeAnnotations(node, onGlobal) {
       if (p.default) walkTypeAnnotationGlobals(p.default, onGlobal);
     }
   }
-  // class `extends Foo<T>` — Babel: `superTypeParameters`, oxc TS-ESTree: `superTypeArguments`
+  // class `extends Foo<T>` - Babel: `superTypeParameters`, oxc TS-ESTree: `superTypeArguments`
   const superArgs = getSuperTypeArgs(node);
   if (superArgs) walkTypeAnnotationGlobals(superArgs, onGlobal);
 }
