@@ -393,6 +393,10 @@ function buildMemberMeta(node, scope, adapter) {
   // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
   // walk is cheap; avoids threading an "already-unwrapped" flag through every caller
   const obj = unwrapParensCollectingEffects(node.object, sideEffects);
+  // `this.#foo` / `obj.#field` - private field access; not a candidate for any polyfill
+  // table (keys never carry `#` prefix). skip explicitly so downstream resolver scans
+  // don't chase a doomed key lookup
+  if (!node.computed && node.property?.type === 'PrivateIdentifier') return null;
   // computed keys may arrive wrapped in TS constructs (`obj[(k) as any]`, `obj[k!]`) -
   // resolveKey can't walk identifier-alias chain through a TS expression wrapper root
   const key = node.computed
@@ -859,9 +863,11 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
   }
 }
 
-// the polyfill replacement consumes `?.`, so the receiver null-check is redundant
+// the polyfill replacement consumes `?.`, so the receiver null-check is redundant.
+// ESTree (oxc) preserves ParenthesizedExpression around the object (`(globalThis)?.Array`),
+// which babel strips - unwrap here so the optimization fires for both parsers
 export function isPolyfillableOptional(node, scope, adapter, resolve) {
-  const obj = node.object;
+  const obj = unwrapParens(node.object);
   if (obj?.type !== 'Identifier' || adapter.hasBinding(scope, obj.name)) return false;
   if (resolve({ kind: 'global', name: obj.name })) return true;
   const key = !node.computed && node.property?.type === 'Identifier' && node.property.name;
@@ -986,6 +992,12 @@ export function checkTypeAnnotations(node, onGlobal) {
     for (const param of node.params) {
       const p = param.type === 'AssignmentPattern' ? param.left : param;
       if (p.typeAnnotation) walkTypeAnnotationGlobals(p.typeAnnotation, onGlobal);
+      // RestElement parser divergence: babel puts `typeAnnotation` directly on the rest
+      // element (covered above); oxc TS-ESTree places it on the inner `argument` (Identifier).
+      // check both slots so `function f(...args: Array<Foo>)` detects Foo on both parsers
+      if (p.type === 'RestElement' && p.argument?.typeAnnotation) {
+        walkTypeAnnotationGlobals(p.argument.typeAnnotation, onGlobal);
+      }
     }
   }
   if (node.typeParameters?.params) {
