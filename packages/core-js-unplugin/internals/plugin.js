@@ -13,6 +13,7 @@ import {
   isForXWriteTarget,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
+  isSynthSimpleObjectPattern,
   isTaggedTemplateTag,
   isUpdateTarget,
   mayHaveSideEffects,
@@ -971,7 +972,13 @@ export default function createPlugin(options) {
         if (!pureResult || pureResult.kind === 'instance') return;
         const binding = injectPureImport(pureResult.entry, pureResult.hintName);
         const objectPattern = metaPath.parent;
-        const receiver = findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern);
+        // synth-swap emits `{key: value, ...}` from non-computed Identifier-keyed props.
+        // any computed / RestElement / non-Identifier key can't be reconstructed from AST
+        // alone (source slices + possible side-effects in computed keys). bail to inline
+        // default for the current prop - the original `= Receiver` + the sibling computed
+        // prop stay intact in the output
+        const receiver = isSynthSimpleObjectPattern(objectPattern)
+          ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern) : null;
         if (!receiver) {
           // no receiver for synth-swap: fall back to inline default. for AssignmentPattern,
           // rewrite the user's default to the polyfill id (left side is the binding, right
