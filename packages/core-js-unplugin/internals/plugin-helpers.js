@@ -3,7 +3,7 @@ import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 
 // unplugin parses exclusively via oxc, which represents directives as top-of-body
 // ExpressionStatement nodes with `.directive: string` (babel uses a separate
-// `Program.directives` array — out of scope here)
+// `Program.directives` array - out of scope here)
 export const isDirectiveStatement = n => n?.type === 'ExpressionStatement' && typeof n.directive === 'string';
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none
@@ -69,7 +69,7 @@ export function startsEnclosingStatement(path, pos) {
   return p?.node?.start === pos;
 }
 
-// orphan-ref heuristic: our plugin emits `_ref = foo()` / `_ref = obj.x` — RHS always complex.
+// orphan-ref heuristic: our plugin emits `_ref = foo()` / `_ref = obj.x` - RHS always complex.
 // user sloppy-mode `_ref = 1` / `_ref = 'x'` with a literal RHS is user code
 function isComplexOrphanRhs(rhs) {
   if (!rhs) return false;
@@ -121,7 +121,7 @@ export function collectAllBindingNames(ast) {
         // `_ref = foo()` / `_ref = obj.bar` with complex RHS fits our emit shape: candidate
         // for orphan adoption, NOT reserved (adoption gate requires name NOT in `names`).
         // everything else (non-orphan pattern, or orphan pattern with literal RHS) is user
-        // code — reserve so our UID generator doesn't reuse a name the user writes to
+        // code - reserve so our UID generator doesn't reuse a name the user writes to
         if (node.operator === '=' && node.left?.type === 'Identifier') {
           if (ORPHAN_REF_PATTERN.test(node.left.name) && isComplexOrphanRhs(node.right)) {
             orphanRefs.add(node.left.name);
@@ -141,7 +141,7 @@ export function collectAllBindingNames(ast) {
 }
 
 // source string (lowercased) of `require('@pkg/...')`, or null. covers both bare
-// side-effect form and `var X = require(...)` init form — the plugin emits either
+// side-effect form and `var X = require(...)` init form - the plugin emits either
 // depending on `importStyle`, and the fingerprint must catch both
 function requireCallSource(expr) {
   if (expr?.type !== 'CallExpression') return null;

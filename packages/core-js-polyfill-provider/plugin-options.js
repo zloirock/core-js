@@ -13,9 +13,9 @@ export function sortByPolyfillOrder(modules) {
   return [...modules].sort((a, b) => (polyfillOrder.get(a) ?? Infinity) - (polyfillOrder.get(b) ?? Infinity) || 0);
 }
 
-// JSON.stringify renders NaN/Infinity as `null` and Symbol/undefined/function as `undefined` —
+// JSON.stringify renders NaN/Infinity as `null` and Symbol/undefined/function as `undefined` -
 // useless for type-mismatch diagnostics; use their native toString for the outliers.
-// class instances serialize as plain `{…}` — prefix with constructor name so users distinguish
+// class instances serialize as plain `{…}` - prefix with constructor name so users distinguish
 // `new Targets()` from `{ ie: 11 }` object-literal in the error.
 // JSON.stringify of a circular value throws; fall back to `[Object]` so validation
 // reports the option error instead of propagating the TypeError
@@ -120,9 +120,14 @@ function validateOptions({
     if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
   }
   // positive whitelist for `targetsParser`: `function` / `boolean` / `number` / etc. trigger
-  // opaque "Unknown browser query" from browserslist downstream — reject them here
-  if (!isEmpty(targets) && typeof targets !== 'string' && !Array.isArray(targets) && !isPlainObject(targets)) {
-    throw optionTypeError('targets', 'a string, array, or plain object', targets);
+  // opaque "Unknown browser query" from browserslist downstream - reject them here.
+  // empty string silently triggers the browserslist-config fallback (`''` is falsy), which
+  // looks like an accidental mis-configuration rather than an intentional opt-out
+  if (!isEmpty(targets)) {
+    if (typeof targets !== 'string' && !Array.isArray(targets) && !isPlainObject(targets)) {
+      throw optionTypeError('targets', 'a string, array, or plain object', targets);
+    }
+    if (targets === '') throw optionTypeError('targets', 'a non-empty string, array, or plain object', '');
   }
 }
 
@@ -172,7 +177,7 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
       // wrap in a fresh Error so readonly `.message`, frozen Error, or primitive throw
       // (`throw 'str'`/`throw 42`/`throw null`) can't swallow the diagnostic via a TypeError
       // on reassignment. both `.message` access and `String(error)` may re-throw on adversarial
-      // Proxy objects — guard each step so the wrapper never masks the user bug with a secondary
+      // Proxy objects - guard each step so the wrapper never masks the user bug with a secondary
       // diagnostic. `cause` preserves the original for debuggers
       let originalMessage;
       try {
@@ -304,7 +309,7 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
     // polyfilling it is pure over-injection. narrow to TSTypeQuery only; `as Map<...>` and
     // `let x: Map` keep current behavior (runtime-cast heuristic assumes later Map usage)
     if (path?.parentPath?.node?.type === 'TSTypeQuery') return;
-    // `export { type Set }` / `type Set = …` / `interface Set {…}` — TS type-only contexts
+    // `export { type Set }` / `type Set = …` / `interface Set {…}` - TS type-only contexts
     if (isTSTypeOnlyIdentifier(path?.parent, path?.key)) return;
     // for-x LHS and shadowed body reads target a local write, not the prototype
     if (meta.kind === 'property' && path?.node && isForXWriteTarget(path)) return;

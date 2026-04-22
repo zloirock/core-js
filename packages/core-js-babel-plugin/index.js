@@ -99,7 +99,7 @@ export default function plugin(api, options) {
       // receiver -> `{p: _polyfill, q: R.q, ...}` synth-swap targets, deferred to programExit
       // so every sibling prop visits against the ORIGINAL receiver first (mid-visit swap
       // would route later siblings to the partial synth and miss their polyfill). populated
-      // from two shapes — param-default `function({p} = R)` and arrow IIFE `(({p}) => ...)(R)`
+      // from two shapes - param-default `function({p} = R)` and arrow IIFE `(({p}) => ...)(R)`
       let synthSwapByReceiver = new WeakMap();
       let pendingSynthSwaps = [];
 
@@ -120,7 +120,7 @@ export default function plugin(api, options) {
       }
 
       // wrap a polyfill id in a SequenceExpression preserving side effects collected from
-      // the receiver / computed-key. noop when `sideEffects` is empty or absent — emission
+      // the receiver / computed-key. noop when `sideEffects` is empty or absent - emission
       // sites can call unconditionally
       function withSideEffects(id, sideEffects) {
         return sideEffects?.length
@@ -162,7 +162,7 @@ export default function plugin(api, options) {
         return true;
       }
 
-      // inline-default `{ p = _polyfill }` — only fires on undefined property. used when
+      // inline-default `{ p = _polyfill }` - only fires on undefined property. used when
       // synth-swap can't run (complex receiver, rest element, no default wrapper): it misses
       // the buggy-present native case, but preserves receiver evaluation semantics
       function emitParamInlineDefault(prop, id) {
@@ -171,7 +171,7 @@ export default function plugin(api, options) {
       }
 
       // find the NodePath of the call-arg a bare-ObjectPattern IIFE param resolves to.
-      // arrow-only on purpose — FunctionExpression IIFE would leak the synth into
+      // arrow-only on purpose - FunctionExpression IIFE would leak the synth into
       // `arguments[i]`; arrow has no own `arguments` binding. expands inline-array spreads
       // (`...[R]`) the same way `resolveCallArgument` does; non-literal spread returns null
       function detectIifeArgPath(wrapper, objectPattern) {
@@ -236,7 +236,7 @@ export default function plugin(api, options) {
 
       // `const { Array: { from } } = globalThis` -> `const from = _Array$from`.
       // non-Identifier inner value / AssignmentPattern default fall back to the param-default
-      // path — those can't be trivially flattened
+      // path - those can't be trivially flattened
       function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
         if (!t.isIdentifier(prop.node.value)) return false;
         const innerPattern = prop.parentPath;
@@ -290,13 +290,13 @@ export default function plugin(api, options) {
           return;
         }
         // nested proxy-global destructure: `{ Array: { from } } = globalThis`. default
-        // (`from = _Array$from`) wouldn't fire — `globalThis.Array` is always present and
+        // (`from = _Array$from`) wouldn't fire - `globalThis.Array` is always present and
         // `Array.from` is non-undefined on every engine we target (may just be buggy).
         // flatten the outer structure when it's a single-nested shape: replace the whole
         // VariableDeclarator with `const from = _Array$from` so the polyfill ALWAYS wins
         if (patternParent?.isObjectProperty() && kind !== 'instance') {
           if (tryFlattenNestedProxyDestructure(prop, entry, hintName)) return;
-          // fallback: non-single shape (outer has siblings) — inline default as last resort
+          // fallback: non-single shape (outer has siblings) - inline default as last resort
           handleParameterDestructure(prop, kind, entry, hintName);
           return;
         }
@@ -314,7 +314,7 @@ export default function plugin(api, options) {
           value = injectPureImport(entry, hintName);
         }
         // proxy-global alias (`{ Symbol: S = default } = globalThis`): AST mutation below
-        // rewrites init to `_Symbol === void 0 ? default : _Symbol` — `resolveBindingToGlobal`
+        // rewrites init to `_Symbol === void 0 ? default : _Symbol` - `resolveBindingToGlobal`
         // can't walk that ConditionalExpression, so register S -> 'Symbol' up front
         if (kind === 'global') {
           const localName = patternBindingName(prop.node.value);
@@ -478,16 +478,16 @@ export default function plugin(api, options) {
             if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
             if (isForXWriteTarget(path)) return;
             if (isUpdateParent(unwrapTSExpressionParent(path).parentPath?.node)) return;
-            // shadow check for `this.X` — polyfill would bypass the user's own member
+            // shadow check for `this.X` - polyfill would bypass the user's own member
             // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
             // `super.X` and unshadowed `this.X` in static ctx resolve against the super
-            // class's static surface via the same path — `this` in static ctx is the
+            // class's static surface via the same path - `this` in static ctx is the
             // constructor, so inherited static lookup behaves exactly like `super.X`
             if (isInheritedStaticLookup(path)) {
               const inheritedMeta = resolveStaticInheritedMember(path);
               if (!inheritedMeta) return;
-              // `extends MyPromise` (user-aliased pure import) — map binding to global hint
+              // `extends MyPromise` (user-aliased pure import) - map binding to global hint
               meta = resolveSuperImportName(injector, inheritedMeta);
             }
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
@@ -517,7 +517,7 @@ export default function plugin(api, options) {
           if (!meta.fromFallback) handleObjectPropertyResult(path, kind, entry, hintName);
         } else {
           // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
-          // on the super class — resolve() falls back to instance. for super: syntactically
+          // on the super class - resolve() falls back to instance. for super: syntactically
           // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
           // `_at(this)` would treat the class as an array. either way, bail
           if (kind === 'instance' && isInheritedStaticLookup(path)) return;
@@ -526,9 +526,11 @@ export default function plugin(api, options) {
             const innerChain = findInnerPolyChain(path);
             if (innerChain) {
               const innerId = injectPureImport(innerChain.innerEntry, innerChain.innerHintName);
-              // skip inner callee's queued visit — its subtree is replaced by the combined
-              // emission and a stale visit would allocate a dead `_ref` via extractCheck
-              skippedNodes.add(innerChain.innerCallee);
+              // skip inner callee + descendants: traversal already queued identifier visits
+              // for `.object` / TS wrappers; those siblings would allocate a dead `_ref` via
+              // extractCheck even after the callee itself is marked. traverseFast covers
+              // arbitrary depth (parens, `foo as any`, nested member chains)
+              t.traverseFast(innerChain.innerCallee, node => { skippedNodes.add(node); });
               replaceInstanceChainCombined(path, id, { ...innerChain, innerId });
               return;
             }
@@ -538,7 +540,7 @@ export default function plugin(api, options) {
           } else {
             const wasOptional = (annotateCallReturnType(path), path.node.optional);
             const replacePath = unwrapTSExpressionParent(path);
-            // `Symbol[(fn(), 'iterator')]` / `(fn(), Array).from(x)` — preserve fn() via
+            // `Symbol[(fn(), 'iterator')]` / `(fn(), Array).from(x)` - preserve fn() via
             // SequenceExpression wrap since the MemberExpression replacement discards its
             // receiver/computed-key subtree
             replacePath.replaceWith(withSideEffects(id, meta.sideEffects));
@@ -602,7 +604,7 @@ export default function plugin(api, options) {
         debugOutput = createDebugOutput?.() ?? null;
         const { comments } = path.hub.file.ast;
         // babel lifts directives into Program.directives, so body[0] is already post-prologue.
-        // `directives === true` signals `disable-file` — collapse both skip sources into one write
+        // `directives === true` signals `disable-file` - collapse both skip sources into one write
         const directives = isInternalCoreJS ? null : parseDisableDirectives(comments, undefined, path.node.body[0]?.start, path.node);
         const fileDisabled = directives === true;
         skipFile = isInternalCoreJS || fileDisabled;
@@ -663,7 +665,7 @@ export default function plugin(api, options) {
       // --- pre(): main traverse before other plugins (TS types alive, destructuring intact) ---
 
       function preTraverse(path, visitors) {
-        // defensive — sibling plugin may have destroyed Program before our pre fires
+        // defensive - sibling plugin may have destroyed Program before our pre fires
         if (!path?.node) return;
         initFile(path);
         if (skipFile) return;
@@ -700,7 +702,7 @@ export default function plugin(api, options) {
               // same predicate as the primary visitor - skip disabled / type-annotation /
               // delete-target positions so this sweep doesn't overrule their exclusions
               if (shouldSkipPath(idPath)) return;
-              // mirror `handleIdentifier` — TS type-only positions never need a polyfill
+              // mirror `handleIdentifier` - TS type-only positions never need a polyfill
               if (isTSTypeOnlyIdentifier(idPath.parent, idPath.key)) return;
               // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
               if (isHandled?.(idPath.node)) return;
@@ -712,7 +714,7 @@ export default function plugin(api, options) {
         // sibling props have now been visited against the original receiver, so the key set
         // is final. synth covers every destructured key: polyfilled -> polyfill id; native ->
         // `R.key` ref. skip if the shape was mutated by another plugin (orphaned / non-
-        // Identifier receiver / non-ObjectPattern) — losing the polyfill is preferable to
+        // Identifier receiver / non-ObjectPattern) - losing the polyfill is preferable to
         // emitting against an unexpected shape
         for (const { targetPath, objectPatternNode, polyfills } of pendingSynthSwaps) {
           const receiver = targetPath.node;
@@ -751,7 +753,7 @@ export default function plugin(api, options) {
         if (!injector) return;
         // late style-switch is a safety-net for sibling plugins that strip all ESM markers
         // (e.g. `commonjs` rewriters) after our traversal. skip it once we've already
-        // flushed imports — switching now would mix ESM (already emitted) with CJS (new)
+        // flushed imports - switching now would mix ESM (already emitted) with CJS (new)
         if (!injector.hasFlushed && importStyleOption === undefined && importStyle === 'import'
           && !this.file.path.node.body.some(n => ESM_MARKER_TYPES.has(n.type))) {
           injector.importStyle = 'require';
@@ -795,7 +797,7 @@ export default function plugin(api, options) {
             CatchClause(path) {
               const { param } = path.node;
               // ArrayPattern destructuring in catch can't be polyfilled by property rewrite
-              // (bindings are positional, not named), so extracting it is pure overhead —
+              // (bindings are positional, not named), so extracting it is pure overhead -
               // unplugin keeps it inline and babel should mirror that. ObjectPattern still
               // needs extraction because `{ key = default }` and polyfillable key lookups
               // require a named receiver (`_ref`) to rewrite against
