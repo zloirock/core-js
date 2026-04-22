@@ -231,6 +231,11 @@ function forEachChildNode(node, visit) {
 // `listKey` = null, `container` = parent node. consumers like `getStatementSiblings` rely
 // on numeric key + listKey to recognise statement-in-block position
 function makeSynthPath(node, parent, parentKey, parentPath, scope, listKey = null, container = null) {
+  // cache `.get(key)` results per synth-path so repeated `path.get('object')` calls within
+  // one traversal return the same wrapper. downstream consumers that identity-check
+  // descendants (scope lookups, handled-object Sets) see stable paths. array branches cached
+  // as-a-whole; same key always returns the same array of child paths
+  const childCache = new Map();
   const self = {
     node,
     parent,
@@ -240,9 +245,13 @@ function makeSynthPath(node, parent, parentKey, parentPath, scope, listKey = nul
     container: container ?? parent,
     scope,
     get(key) {
+      if (childCache.has(key)) return childCache.get(key);
       const value = node?.[key];
-      if (Array.isArray(value)) return value.map((el, i) => makeSynthPath(el, node, i, self, scope, key, value));
-      return makeSynthPath(value ?? null, node, key, self, scope, null, node);
+      const result = Array.isArray(value)
+        ? value.map((el, i) => makeSynthPath(el, node, i, self, scope, key, value))
+        : makeSynthPath(value ?? null, node, key, self, scope, null, node);
+      childCache.set(key, result);
+      return result;
     },
   };
   return self;
