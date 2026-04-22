@@ -1,3 +1,6 @@
+// `POSSIBLE_GLOBAL_OBJECTS` import here is intentional: the resolver branches on
+// "is the receiver a proxy global?" to avoid recursing on `globalThis.X` -> `globalThis.X.X`.
+// abstracting this would require an extra adapter layer for one Set lookup - kept inline
 import { POSSIBLE_GLOBAL_OBJECTS, kebabToPascal } from './helpers.js';
 import { TYPE_HINTS } from './resolve-node-type.js';
 import { initPluginOptions } from './plugin-options.js';
@@ -216,6 +219,9 @@ export function createPolyfillResolver(options, {
     };
   }
 
+  // two distinct lookups, not a duplicate: first resolves the property meta against
+  // `statics.<X>.<key>`; on miss, retries with the bare global meta against `globals.<X>`.
+  // both calls go through the same `resolve` registry but consult different keys
   function resolvePureOrGlobalFallback(meta, path) {
     const normal = resolvePure(meta, path);
     if (normal) return { result: normal, fallback: null };

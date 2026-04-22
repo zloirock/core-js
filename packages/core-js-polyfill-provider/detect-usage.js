@@ -96,23 +96,36 @@ export function checkLogicalAssignLhsMember(memberNode, parent) {
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains
 const MAX_KEY_DEPTH = 64;
 
-// walks transparent wrappers (parens / chains / TS casts) and SequenceExpression.
-// two modes via the optional `effects` out-param:
-//   - omitted: bail on sequences whose preceding elements have side effects (caller can't
-//     preserve them - e.g. inner resolveKey recursion, handleBinaryIn). keeps the sequence
-//     intact so no fn() gets silently dropped
-//   - array: always unwrap, pushing side-effect preceding elements into `effects` for the
-//     caller to re-attach via a SequenceExpression wrap around the polyfill replacement
-function unwrapParens(node, effects) {
+// transparent wrapper types - both unwrap modes peel them identically
+const TRANSPARENT_WRAPPER_TYPES = new Set(['ParenthesizedExpression', 'ChainExpression']);
+
+function isTransparentWrapper(node) {
+  return TRANSPARENT_WRAPPER_TYPES.has(node.type) || TS_EXPR_WRAPPERS.has(node.type);
+}
+
+// SequenceExpression bail mode: stop unwrapping when preceding elements carry side effects.
+// caller can't preserve them (inner resolveKey recursion, handleBinaryIn) - keep sequence intact
+function unwrapParens(node) {
   while (node) {
-    if (node.type === 'ParenthesizedExpression' || node.type === 'ChainExpression'
-      || TS_EXPR_WRAPPERS.has(node.type)) {
+    if (isTransparentWrapper(node)) {
       node = node.expression;
     } else if (node.type === 'SequenceExpression') {
       const preceding = node.expressions.slice(0, -1);
-      if (effects) {
-        for (const e of preceding) if (mayHaveSideEffects(e)) effects.push(e);
-      } else if (preceding.some(mayHaveSideEffects)) break;
+      if (preceding.some(mayHaveSideEffects)) break;
+      node = node.expressions.at(-1);
+    } else break;
+  }
+  return node;
+}
+
+// SequenceExpression collect mode: push side-effect preceding elements into `effects` for
+// the caller to re-attach via a SequenceExpression wrap around the polyfill replacement
+function unwrapParensCollectingEffects(node, effects) {
+  while (node) {
+    if (isTransparentWrapper(node)) {
+      node = node.expression;
+    } else if (node.type === 'SequenceExpression') {
+      for (const e of node.expressions.slice(0, -1)) if (mayHaveSideEffects(e)) effects.push(e);
       node = node.expressions.at(-1);
     } else break;
   }
@@ -360,11 +373,14 @@ function buildMemberMeta(node, scope, adapter) {
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
   // them via a SequenceExpression wrap in the plugin's emission path
   const sideEffects = [];
-  const obj = unwrapParens(node.object, sideEffects);
+  // `obj` is then passed to `resolveObjectName` which calls `unwrapParens` again - idempotent
+  // for already-unwrapped Identifier / MemberExpression (O(1) no-op), so the apparent duplicate
+  // walk is cheap; avoids threading an "already-unwrapped" flag through every caller
+  const obj = unwrapParensCollectingEffects(node.object, sideEffects);
   // computed keys may arrive wrapped in TS constructs (`obj[(k) as any]`, `obj[k!]`) -
   // resolveKey can't walk identifier-alias chain through a TS expression wrapper root
   const key = node.computed
-    ? resolveKey(unwrapParens(node.property, sideEffects), true, scope, adapter)
+    ? resolveKey(unwrapParensCollectingEffects(node.property, sideEffects), true, scope, adapter)
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
   // direct `X.prototype.Y` -> instance-method on X. indirect alias (`const P = X.prototype`
