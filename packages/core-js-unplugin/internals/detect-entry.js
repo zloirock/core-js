@@ -1,6 +1,7 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage';
 import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers';
 import { estreeAdapter } from './detect-usage.js';
+import { skipBlockComment } from './plugin-helpers.js';
 
 // detect and transform core-js entry imports (entry-global mode)
 export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
@@ -26,11 +27,30 @@ export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEnt
 // interpretation against the previous expression - ASI doesn't fire between them
 const ASI_HAZARD_STARTS = new Set(['(', '[', '/', '+', '-', '`']);
 
+// advance past whitespace and line/block comments; returns the first significant char index.
+// without comment-skip, a `/` starting a line comment would trip the ASI_HAZARD check (`/` is
+// also the hazard char for division/regex), emitting a spurious `;` before a comment
+function skipWhitespaceAndComments(src, pos) {
+  let p = pos;
+  for (;;) {
+    while (p < src.length && /\s/.test(src[p])) p++;
+    if (src[p] === '/' && src[p + 1] === '/') {
+      while (p < src.length && src[p] !== '\n' && src[p] !== '\r') p++;
+      continue;
+    }
+    if (src[p] === '/' && src[p + 1] === '*') {
+      p = skipBlockComment(src, p);
+      if (p === src.length) return p;
+      continue;
+    }
+    return p;
+  }
+}
+
 // prev ending in `;` is the only case we can cheaply prove safe - `}` can close a function/class
 // expr and still fuse (`function(){}`hello`` is a tag call)
 function guardAsiAtBoundary(ms, prevEnd, removalEnd) {
-  let nextIdx = removalEnd;
-  while (nextIdx < ms.original.length && /\s/.test(ms.original[nextIdx])) nextIdx++;
+  const nextIdx = skipWhitespaceAndComments(ms.original, removalEnd);
   if (!ASI_HAZARD_STARTS.has(ms.original[nextIdx])) return;
   let prevIdx = prevEnd - 1;
   while (prevIdx >= 0 && /\s/.test(ms.original[prevIdx])) prevIdx--;

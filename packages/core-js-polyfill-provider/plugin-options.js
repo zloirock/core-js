@@ -34,6 +34,9 @@ function formatReceived(value) {
   if (typeof value === 'symbol') return value.toString();
   if (typeof value === 'function') return `[Function${ value.name ? ` ${ value.name }` : '' }]`;
   if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
+  // JSON.stringify throws on BigInt; formatting as `42n` keeps the option-type error
+  // readable instead of degrading to `[Object]`
+  if (typeof value === 'bigint') return `${ value }n`;
   if (value === undefined) return 'undefined';
   if (typeof value === 'object' && value !== null && !isPlainObject(value) && !Array.isArray(value)) {
     const ctorName = value.constructor?.name;
