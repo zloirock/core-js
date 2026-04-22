@@ -592,6 +592,10 @@ export default function createPlugin(options) {
           if (/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)) {
             guard = `${ optionalRoot } == null ? void 0 : `;
           } else {
+            // `preAllocatedGuardRef` is allocated by the caller (combined-chain shape) and
+            // expected to live in the same scope as the use site - same `state.setScope()`
+            // applies to both pre-allocation and consumption. fallback `state.genRef()` reads
+            // current scope at allocation time, which is the same scope this transform emits in
             guardRef = preAllocatedGuardRef ?? state.genRef();
             // ASI safety: place `null` first so the replacement starts with the `null`
             // keyword (not `(`). Otherwise an unterminated previous statement like
@@ -881,7 +885,10 @@ export default function createPlugin(options) {
       // find the call-arg node a bare-ObjectPattern IIFE param resolves to. arrow-only on
       // purpose - FunctionExpression IIFE would leak the synth into `arguments[i]`.
       // expands inline-array spreads (`...[R]`) the same way `resolveCallArgument` does;
-      // non-literal spread returns null (static index unknown)
+      // non-literal spread returns null (static index unknown).
+      // ArrowFunctionExpression-only by design: `function() {}` IIFE has its own `this`
+      // binding, so the destructure-receiver semantics differ enough that synth-swap
+      // would be unsafe. arrow-only is a deliberate narrowing
       function detectIifeArgReceiver(wrapperPath, objectPattern) {
         if (wrapperPath?.node?.type !== 'ArrowFunctionExpression') return null;
         const paramIndex = wrapperPath.node.params.indexOf(objectPattern);
@@ -966,7 +973,9 @@ export default function createPlugin(options) {
       function tryFlattenNestedProxyDestructurePure(metaPath) {
         if (metaPath.node.value?.type !== 'Identifier') return false;
         // walk inner Property -> inner ObjectPattern -> outer Property -> outer ObjectPattern
-        // -> VariableDeclarator -> VariableDeclaration (5 levels)
+        // -> VariableDeclarator -> VariableDeclaration (5 levels). the bottom check below
+        // (`type !== 'VariableDeclaration'`) gates against any unexpected wrapper at any
+        // intermediate level - a foreign node would mis-match the type check and bail safely
         const declPath = metaPath.parentPath?.parentPath?.parentPath?.parentPath?.parentPath;
         const declaration = declPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
@@ -1117,7 +1126,9 @@ export default function createPlugin(options) {
       }
 
       // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
-      // on descendants short-circuit (no duplicate polyfill inject from sibling handlers)
+      // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
+      // O(N) per call where N is subtree size; callers feed it small subtrees (declarator,
+      // RHS of `in`, inner-callee chain) so total amortized cost across the file is bounded
       function walkAstNodes(root, visit) {
         if (!root || typeof root !== 'object' || typeof root.type !== 'string') return;
         visit(root);
@@ -1256,7 +1267,10 @@ export default function createPlugin(options) {
                   case 'MemberExpression':
                   case 'OptionalMemberExpression':
                     // mark proxy-global member chains (globalThis.Promise) but not
-                    // instance methods (arr.slice) - instance methods compose correctly
+                    // instance methods (arr.slice) - instance methods compose correctly.
+                    // computed keys (`arr[Promise]`) are NOT walked: a global referenced as a
+                    // computed key IS a real read and SHOULD get its polyfill import via the
+                    // identifier visitor; skipping would lose that
                     if (findProxyGlobal(cur)) skippedNodes.add(cur);
                     cur = cur.object;
                     break;
@@ -1302,7 +1316,10 @@ export default function createPlugin(options) {
             lines.push(`let ${ e.localName } = ${ valueSrc };`);
           }
         }
-        // rest element: rebuild full pattern with polyfilled keys renamed to unused bindings
+        // rest element: rebuild full pattern with polyfilled keys renamed to unused bindings.
+        // `polyfillKeyContent` is `extractContent(p.key.start, p.key.end)` - the key expression
+        // bounds exclude the surrounding `[` `]`, so wrapping unconditionally is safe (no
+        // double-bracket risk). would only matter if a future caller passes pre-bracketed text
         if (hasRest) {
           const rebuiltProps = allProps.map(p => {
             const e = entryByProp.get(p);
