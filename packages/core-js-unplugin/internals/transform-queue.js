@@ -62,6 +62,10 @@ function replaceNthOccurrence(str, needle, replacement, n) {
 // produces `.(` that never matches the `(` emitted by the inner transform.
 // `needle[offset + 2]` returns `undefined` when `?.` sits at the very end of the needle;
 // that compares unequal to `(` / `[` and falls through to the `.` branch - no bounds check needed
+// raw text transform - not AST-aware. `?.` inside a template literal (`` `a?.b` ``) or a
+// regular string would also be rewritten. in practice the needle is always a slice of an
+// AST MemberExpression / CallExpression range where strings can't appear in the optional
+// position - the malformed-needle risk is bounded by the caller supplying correct ranges
 export function deoptionalizeNeedle(needle) {
   return needle.replaceAll('?.', (_, offset) => {
     const next = needle[offset + 2];
@@ -71,10 +75,20 @@ export function deoptionalizeNeedle(needle) {
 
 // try needle shapes: raw slice -> deoptionalized -> guardRef-rewritten
 // (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
+// after-char gate: only consider `needle.startsWith(rootRaw)` valid when the char after
+// `rootRaw` is a structural token delimiter (`.`, `?`, `[`, `(`), not an identifier
+// continuation. prevents `foo.barBaz` being treated as a `foo.bar` root match
+function hasRootBoundary(needle, rootLength) {
+  if (needle.length === rootLength) return true;
+  const next = needle[rootLength];
+  return next === '.' || next === '?' || next === '[' || next === '(';
+}
+
 function substituteInner(content, needle, replacement, nth, outerHint) {
   const candidates = [needle];
   if (needle.includes('?.')) candidates.push(deoptionalizeNeedle(needle));
-  if (outerHint?.rootRaw && outerHint.guardRef && needle.startsWith(outerHint.rootRaw)) {
+  if (outerHint?.rootRaw && outerHint.guardRef
+    && needle.startsWith(outerHint.rootRaw) && hasRootBoundary(needle, outerHint.rootRaw.length)) {
     candidates.push(outerHint.guardRef + deoptionalizeNeedle(needle.slice(outerHint.rootRaw.length)));
   }
   for (const candidate of candidates) {
@@ -289,7 +303,13 @@ export default class TransformQueue {
     // innermost first: smaller ranges before larger, right-to-left for same-level
     transforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
 
-    // phase 1: compose - #sorted is already maintained asc by start
+    // phase 1: compose - #sorted is already maintained asc by start.
+    // if an outer transform content ALREADY contains a formatted guard (e.g. from a prior
+    // compose iteration on the same outer), the second pass below would detect the inner
+    // needle inside the formatted string and replace again, producing a double-guard.
+    // bounded by `rewriteHint` shape: guardRef-bearing hints mean the outer already
+    // consumed its guard, and `substituteInner` rebuilds the guard-prefixed needle rather
+    // than the bare root - no second fold applies
     const byStart = this.#sorted;
     const composedContent = new Map(); // transform -> composed content string
     const composed = [];
