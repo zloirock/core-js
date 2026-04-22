@@ -64,10 +64,12 @@ function resolveHint(desc, meta) {
   // `desc` doesn't specialise for
   if (hasOwn(desc, 'rest') && (!includedHints || hasHintNotIn(includedHints, desc))) add(desc.rest);
 
-  // narrowing must still surface `common` for descriptors with no type-specialised variants
-  // (descriptors that DO have type variants stay strict - the matching types were ruled out)
+  // narrowing must still surface `common` when desc has no type variants.
+  // both `includedHints` (typeof-positive) and `excludedHints` (typeof-negative) trigger —
+  // `common` is type-agnostic. desc with type variants stays strict (types ruled out)
   if (first === null) {
-    return includedHints && hasOwn(desc, 'common') && !descHasTypeHints(desc) ? desc.common : null;
+    return (includedHints || excludedHints) && hasOwn(desc, 'common') && !descHasTypeHints(desc)
+      ? desc.common : null;
   }
   if (rest === null) return first;
 
