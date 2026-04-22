@@ -24,7 +24,8 @@ export default function (t, { getInjector } = {}) {
   // unplugin's source-text regex, especially inside optional chains
   const isSafeToReuse = node => t.isIdentifier(node) || t.isThisExpression(node);
 
-  const generateRef = (scope, declare = true) => getInjector().generateRef(scope, declare);
+  const generateRef = scope => getInjector().generateDeclaredRef(scope);
+  const generateLocalRef = scope => getInjector().generateLocalRef(scope);
   const generateUnusedId = () => t.identifier(getInjector().generateUnusedName());
 
   function memoize(node, scope) {
@@ -167,7 +168,11 @@ export default function (t, { getInjector } = {}) {
   function replaceInstanceLike(path, id, skipOptional) {
     // (arr?.includes)(1) - parenthesized optional callee breaks the chain.
     // replace only the member expression, keep the original call site.
-    // only for optional chains - non-optional (arr.includes)(1) preserves this
+    // only for optional chains - non-optional (arr.includes)(1) at runtime is
+    // `arr.includes.call(undefined, 1)` (detached `this`), which polyfill emission would
+    // "fix" to `_includes.call(arr, 1)` with `this=arr`. changing a broken-runtime case
+    // to a working one silently is design-dilemma: conservative path preserves the non-
+    // optional shape verbatim, users who rely on the parenthesized detach get a lint
     if ((path.node.extra?.parenthesized || unwrapTSExpressionParent(path).node.extra?.parenthesized)
       && path.isOptionalMemberExpression()) {
       const [check, object, embed] = extractCheck(path, skipOptional);
@@ -196,7 +201,9 @@ export default function (t, { getInjector } = {}) {
   // Babel-style OR-chain for `(recv)?.inner?.(ia).outer(oa)`: runs outer directly on
   // `_m.call(_a, ia)` so value-undef (e.g. `[].at(99)`) reaches `_outer()` and throws
   // like native, while each `?.` contributes its own `null == ...` test.
-  // caller (findInnerPolyChain) guarantees outer is a call expression
+  // caller (findInnerPolyChain) guarantees outer is a call expression.
+  // unplugin duplicates this as a text-level rewrite (see plugin.js `replaceInstanceChainCombined`);
+  // unification blocked by AST vs text emission asymmetry - the output shape must match bit-for-bit
   function replaceInstanceChainCombined(outerPath, outerId, { innerCallee, innerArgs, innerId }) {
     const callerPath = unwrapTSExpressionParent(outerPath);
     const outerCall = callerPath.parent;
@@ -240,7 +247,7 @@ export default function (t, { getInjector } = {}) {
     // memoize non-identifier init when other properties remain to avoid double evaluation
     if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
       // declare=false: we emit our own `const _ref = init;` below, no extra `var _ref;`
-      const ref = generateRef(path.scope, false);
+      const ref = generateLocalRef(path.scope);
       // for-init: splice as sibling declarator; declaration-level insertBefore would wrap
       // the whole for-init in an arrow-IIFE and lose the loop-header shape
       const isForInit = parent.isVariableDeclarator()
@@ -286,7 +293,7 @@ export default function (t, { getInjector } = {}) {
   function handleForInitSE(declaration, parent, localBinding, value, scope, isStatic) {
     if (isStatic) {
       // static polyfill import - SE needs a dummy binding to stay in for-init
-      const ref = generateRef(scope, false);
+      const ref = generateLocalRef(scope);
       const idx = declaration.node.declarations.indexOf(parent.node);
       if (idx !== -1) declaration.node.declarations.splice(idx, 1,
         t.variableDeclarator(ref, t.cloneDeep(parent.node.init)),
@@ -348,6 +355,11 @@ export default function (t, { getInjector } = {}) {
     }
   }
 
+  // babel-plugin's destructure emission counterpart of unplugin's `handleDestructuringPure`.
+  // kept separate because babel mutates the AST (replaceWith, insertBefore, removeSibling)
+  // while unplugin queues text transforms. shared logic lives in `@core-js/polyfill-provider`
+  // helpers (isFunctionParamDestructureParent, isSingleNestedProxyChain, buildDestructuringInitMeta);
+  // this function owns the AST-mutation side, unplugin owns the text-emission side
   function handleDestructuredProperty(prop, value) {
     const propValue = prop.node.value,
           // captured before default-value processing turns Identifier into ConditionalExpression
