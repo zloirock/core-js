@@ -15,6 +15,7 @@ export {
   isSingleNestedProxyChain,
   isTSTypeOnlyIdentifier,
   isIdentifierPropValue,
+  isSynthSimpleObjectPattern,
   isTaggedTemplateTag,
   isUpdateTarget,
   kebabToCamel,
