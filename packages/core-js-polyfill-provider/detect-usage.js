@@ -44,6 +44,15 @@ const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers)
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/;
 
+// resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
+// `polyfillHint` (in-place AST mutation leaves this on the binding) and `importSource`
+// (real `import X from '.../symbol/iterator'` that the plugin emitted)
+function bindingSymbolKey(binding) {
+  if (binding.polyfillHint?.startsWith('Symbol.')) return binding.polyfillHint;
+  const match = binding.importSource && SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
+  return match ? `Symbol.${ kebabToCamel(match.groups.name) }` : null;
+}
+
 // LHS of `Map ||= ...` reads the global before polyfill loads (ReferenceError); the
 // import binding is read-only anyway, so substitution also throws at write time
 export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
@@ -154,14 +163,17 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
 
 // `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
 // returns the property key or null when init isn't a proxy-global or `name` isn't matched.
-// nested patterns (`const { A: { B } }`) are not followed - conservative single-level alias only
+// nested patterns (`const { A: { B } }`) are not followed - conservative single-level alias only.
+// only known-global-shaped keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned —
+// `const { foo } = globalThis` should not push `'foo'` into downstream global lookups
 function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen) {
   const receiver = resolveObjectName(init, scope, adapter, seen);
   if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
   for (const p of pattern.properties) {
     if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
     if (patternBindingName(p.value) !== name) continue;
-    return resolveKey(p.key, p.computed, scope, adapter);
+    const key = resolveKey(p.key, p.computed, scope, adapter);
+    return key && isStaticPlacement(key) ? key : null;
   }
   return null;
 }
@@ -264,12 +276,10 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
         const { init } = binding.node;
         if (init) return resolveKey(init, true, scope, adapter, nextSeen, depth + 1);
       }
-      // polyfill import binding (e.g., import _Symbol$iterator from '.../symbol/iterator')
-      // - recognize as Symbol.<name> to compensate for in-place AST mutation in babel-plugin
-      if (binding.importSource) {
-        const match = SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
-        if (match) return `Symbol.${ kebabToCamel(match.groups.name) }`;
-      }
+      // plugin-managed binding — either via `polyfillHint` (in-place AST mutation)
+      // or real import from `core-js/.../symbol/X`
+      const key = bindingSymbolKey(binding);
+      if (key) return key;
     }
   }
   // string concatenation: 'a' + 'b'
@@ -412,8 +422,8 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   if (binding.node?.type === 'VariableDeclarator' && binding.node.init) {
     return isSymbolSourcedKey(binding.node.init, scope, adapter, nextSeen, depth + 1);
   }
-  // plugin's own pure-import binding (`import _Symbol$iterator from '.../symbol/iterator'`)
-  return !!binding.importSource && SYMBOL_IMPORT_SOURCE.test(binding.importSource);
+  // plugin-managed: `polyfillHint` (in-place mutation) or real `core-js/.../symbol/X` import
+  return bindingSymbolKey(binding) !== null;
 }
 
 // Symbol.iterator -> is-iterable (replaces the whole BinaryExpression); others -> symbol/X (LHS only)
