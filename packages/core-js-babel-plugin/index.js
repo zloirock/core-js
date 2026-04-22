@@ -488,8 +488,7 @@ export default function plugin(api, options) {
               const inheritedMeta = resolveStaticInheritedMember(path);
               if (!inheritedMeta) return;
               // `extends MyPromise` (user-aliased pure import) — map binding to global hint
-              resolveSuperImportName(injector, inheritedMeta);
-              meta = inheritedMeta;
+              meta = resolveSuperImportName(injector, inheritedMeta);
             }
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
@@ -592,7 +591,6 @@ export default function plugin(api, options) {
         skippedNodes = new WeakSet();
         synthSwapByReceiver = new WeakMap();
         pendingSynthSwaps = [];
-        deferredSideEffects.length = 0;
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
         typeResolvers.reset();
