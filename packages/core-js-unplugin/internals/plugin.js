@@ -1009,7 +1009,7 @@ export default function createPlugin(options) {
         // walk inner Property -> inner ObjectPattern -> outer Property -> outer ObjectPattern
         // -> VariableDeclarator -> VariableDeclaration (5 levels). the bottom check below
         // (`type !== 'VariableDeclaration'`) gates against any unexpected wrapper at any
-        // intermediate level - a foreign node would mis-match the type check and bail safely
+        // intermediate level - a foreign node would mismatch the type check and bail safely
         const declPath = metaPath.parentPath?.parentPath?.parentPath?.parentPath?.parentPath;
         const declaration = declPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
