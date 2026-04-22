@@ -30,9 +30,15 @@ function hasHintNotIn(hints, desc) {
   return false;
 }
 
+// `String(null/undefined)` produces `'null'/'undefined'` - non-null hint slot that TYPE_HINTS
+// would reject anyway, but returning null up front is cheaper and communicates the intent
+function objectToTypeHint(object) {
+  return object === null || object === undefined ? null : String(object).toLowerCase();
+}
+
 function resolveHint(desc, meta) {
   const { placement, object, excludedHints, includedHints, receiverHint } = meta;
-  const hint = object === null || object === undefined ? null : String(object).toLowerCase();
+  const hint = objectToTypeHint(object);
 
   if (placement === 'prototype' && TYPE_HINTS.has(hint)) return lookupByTypeHint(desc, hint, true);
 
@@ -65,7 +71,7 @@ function resolveHint(desc, meta) {
   if (hasOwn(desc, 'rest') && (!includedHints || hasHintNotIn(includedHints, desc))) add(desc.rest);
 
   // narrowing must still surface `common` when desc has no type variants.
-  // both `includedHints` (typeof-positive) and `excludedHints` (typeof-negative) trigger —
+  // both `includedHints` (typeof-positive) and `excludedHints` (typeof-negative) trigger -
   // `common` is type-agnostic. desc with type variants stays strict (types ruled out)
   if (first === null) {
     return (includedHints || excludedHints) && hasOwn(desc, 'common') && !descHasTypeHints(desc)
@@ -115,8 +121,7 @@ export function createPolyfillResolver(options, {
 
   function enhanceMeta(meta, path, desc) {
     if (!meta) return meta;
-    if (meta.object !== null && meta.object !== undefined
-      && meta.placement === 'prototype' && TYPE_HINTS.has(String(meta.object).toLowerCase())) return meta;
+    if (meta.placement === 'prototype' && TYPE_HINTS.has(objectToTypeHint(meta.object))) return meta;
     const hint = toHint(resolvePropertyObjectType(path));
     if (hint) {
       if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };

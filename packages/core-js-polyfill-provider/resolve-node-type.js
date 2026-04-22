@@ -85,8 +85,8 @@ function createResolveNodeType(babelNodeType, t) {
       if (!t.isVariableDeclarator(decl.node) || !decl.node.init) return null;
       return resolveComputedKeyName(decl.node.init, decl.scope ?? scope, depth + 1);
     }
-    // `Enum.A` — TSEnumDeclaration lookup via findTypeDeclaration (scope-chain walk),
-    // not scope.getBinding — estree-toolkit adapter doesn't register enum bindings the
+    // `Enum.A` - TSEnumDeclaration lookup via findTypeDeclaration (scope-chain walk),
+    // not scope.getBinding - estree-toolkit adapter doesn't register enum bindings the
     // same way babel does; type-declaration walker works uniformly for both
     if (key?.type === 'MemberExpression' && !key.computed
       && key.object?.type === 'Identifier' && key.property?.type === 'Identifier') {
@@ -400,7 +400,7 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve `typeof variable` to a type - shared by TS TSTypeQuery and Flow TypeofTypeAnnotation
   function resolveTypeofBinding(name, scope) {
-    // `typeof Enum` (alone in annotation) — enum's runtime value is the enum object itself.
+    // `typeof Enum` (alone in annotation) - enum's runtime value is the enum object itself.
     // TSEnumDeclaration has no typeAnnotation slot so the bindingPath walk below returns null;
     // treat it as $Object('Object') so downstream member inference uses the enum as a receiver
     const typeDecl = findTypeDeclaration(name, scope);
@@ -424,7 +424,7 @@ function createResolveNodeType(babelNodeType, t) {
   // short-circuits to the binding's runtime value (ObjectExpression / class) when available;
   // deeper chains always walk through the type annotation
   function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
-    // `typeof Enum.Member` — TSEnumDeclaration has no typeAnnotation and its bindingPath
+    // `typeof Enum.Member` - TSEnumDeclaration has no typeAnnotation and its bindingPath
     // fallthrough returns null. look it up via findTypeDeclaration and map the member to
     // the enum's value kind ($Primitive('string'|'number'))
     if (memberPath.length === 1) {
@@ -479,7 +479,7 @@ function createResolveNodeType(babelNodeType, t) {
     return declaration.members ?? declaration.body?.members;
   }
 
-  // member's id may be Identifier (babel) or StringLiteral (oxc) — handle both shapes
+  // member's id may be Identifier (babel) or StringLiteral (oxc) - handle both shapes
   function findEnumMember(declaration, name) {
     return enumMembers(declaration)?.find(m => (m.id?.name ?? m.id?.value) === name) ?? null;
   }
@@ -589,7 +589,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // per-scope cache for single-segment lookups (the vast majority of callsites).
-  // dotted `a.b.c` paths aren't cached — they traverse further at each step
+  // dotted `a.b.c` paths aren't cached - they traverse further at each step
   let typeDeclCache = new WeakMap();
   function findTypeDeclaration(name, scope) {
     if (!scope || typeof name !== 'string' || name.includes('.')) return walkScopesForDecl(name, scope, null);
@@ -696,9 +696,9 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const declaration = findTypeDeclaration(name, scope);
     if (!declaration) return null;
-    // `interface A extends B; interface B extends A` — MAX_DEPTH catches the loop, but a
+    // `interface A extends B; interface B extends A` - MAX_DEPTH catches the loop, but a
     // per-walk decl-set short-circuits it at the second visit. `hadCycle` piggybacked on
-    // the Set so parent frames know to return null instead of defaulting to $Object — an
+    // the Set so parent frames know to return null instead of defaulting to $Object - an
     // unknowable cyclic type must NOT masquerade as `Object` (it suppresses generic polyfill)
     if (seen?.has(declaration)) {
       seen.hadCycle = true;
@@ -746,7 +746,7 @@ function createResolveNodeType(babelNodeType, t) {
       const result = resolveUserDefinedType(superClass.name, parentRef, scope, depth + 1, typeParamMap, visited);
       if (result) return result;
       // mirror the interface-branch cycle handling: cyclic class extends should NOT fall
-      // back to `$Object('Object')` — that masquerades as a concrete type and suppresses
+      // back to `$Object('Object')` - that masquerades as a concrete type and suppresses
       // the generic polyfill plugin emits for unknowable receivers
       if (!preCycle && visited.hadCycle === true) return null;
       return new $Object('Object');
@@ -910,7 +910,7 @@ function createResolveNodeType(babelNodeType, t) {
       if (found.length === 1) return found[0];
       return { type: aliased.type, types: found };
     }
-    // intersection: first match wins — parts contribute disjoint keys (duplicate-key
+    // intersection: first match wins - parts contribute disjoint keys (duplicate-key
     // intersections are ill-formed at the TS level anyway)
     if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
       for (const member of aliased.types) {
@@ -973,7 +973,7 @@ function createResolveNodeType(babelNodeType, t) {
     }
     if (resolvedType.type === 'ObjectTypeAnnotation' && resolvedType.indexers?.length) {
       const indexerValue = resolvedType.indexers[0].value;
-      // deep subst — Flow indexer value can be a wrapped generic (`{[K]: T[]}`)
+      // deep subst - Flow indexer value can be a wrapped generic (`{[K]: T[]}`)
       return flowSubst ? applyAliasSubstDeep(indexerValue, flowSubst) : indexerValue;
     }
     return null;
@@ -1414,7 +1414,7 @@ function createResolveNodeType(babelNodeType, t) {
           }
           return null;
         }
-        // `T['a' | 'b']` — union of literal indices. fold each branch back through this same
+        // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
         // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to
         // the widest common type, handing us precise inference when all branches agree
         if (node.indexType?.type === 'TSUnionType') {
@@ -1655,7 +1655,7 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveKnownConstructor(resolveGlobalName(resolveRuntimeExpression(path)));
   }
 
-  // `const { prototype: name } = ...` shape — `name` is bound to the init's `.prototype`
+  // `const { prototype: name } = ...` shape - `name` is bound to the init's `.prototype`
   function isDestructuredAsPrototype(bindingPath, name) {
     if (!t.isVariableDeclarator(bindingPath.node)) return false;
     const { id, init } = bindingPath.node;
@@ -1706,7 +1706,7 @@ function createResolveNodeType(babelNodeType, t) {
     const params = getTypeArgs(ref)?.params;
     if (!params?.length) return null;
     if (!subst) return params;
-    // `Generator<T[]>` carries the type-param inside `TSArrayType` / `TSUnionType` —
+    // `Generator<T[]>` carries the type-param inside `TSArrayType` / `TSUnionType` -
     // deep subst descends into it
     return params.map(p => applyAliasSubstDeep(p, subst));
   }
@@ -2111,9 +2111,9 @@ function createResolveNodeType(babelNodeType, t) {
       const paramAnnotation = unwrapTypeAnnotation(param.typeAnnotation);
       if (!paramAnnotation) continue;
       const name = typeRefName(paramAnnotation);
-      // rest-only generic `function fn<T>(...xs: T[])` — annotation is T[] or Array<T>, bind T
+      // rest-only generic `function fn<T>(...xs: T[])` - annotation is T[] or Array<T>, bind T
       // to the element type of the first rest-arg. spread-call `fn(...arr)` passes `args[0]`
-      // as a SpreadElement whose overall type IS the array — unwrap once to get the element.
+      // as a SpreadElement whose overall type IS the array - unwrap once to get the element.
       // no more params possible after rest, so break regardless
       if (isRest) {
         const elementParamName = innerTypeParamName(paramAnnotation, name);
@@ -2577,7 +2577,7 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveMemberCallReturnFromAnnotation(aliased ?? annotation, name, scope, resolve, depth, subst);
   }
 
-  // serialize `x`, `this.data`, `obj.a.b` — null for computed / shapes we don't probe
+  // serialize `x`, `this.data`, `obj.a.b` - null for computed / shapes we don't probe
   function pathKey(node) {
     if (node?.type === 'Identifier') return node.name;
     if (node?.type === 'ThisExpression') return 'this';
@@ -2674,7 +2674,7 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     if (!annotation) return null;
-    // discriminated union narrowing: `if (x.kind === 'a') { x.data }` — restrict Foo
+    // discriminated union narrowing: `if (x.kind === 'a') { x.data }` - restrict Foo
     // to the `{ kind:'a'; data: T }` branch. works for any serialisable LHS path
     // (Identifier / `this.x` / `obj.a.b`); computed / call-expression paths bail
     annotation = narrowDiscriminatedUnion(objectPath, annotation, scope) ?? annotation;
@@ -2905,7 +2905,13 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // --- Destructuring resolver ---
-  // walk ArrayPattern elements for a target binding, returning index-prefixed key path
+  // walk ArrayPattern elements for a target binding, returning index-prefixed key path.
+  // sentinel conventions:
+  //   - null         not found
+  //   - [-1]         found in rest (-1 signals "whole tail" slice, not an index)
+  //   - [i, ...sub]  found at index i (possibly nested)
+  // `findPatternIndex` below uses `-1` with a DIFFERENT meaning ("not found" scalar); the
+  // return shape (array vs scalar) disambiguates at call sites
   function findArrayPatternKeyPath(arrayPattern, name, scope) {
     for (let i = 0; i < (arrayPattern.elements?.length ?? 0); i++) {
       const el = arrayPattern.elements[i];
@@ -3108,7 +3114,7 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve obj.prop annotation by chaining through the object's type, applying generic subst
   function resolveMemberAnnotation(path, depth) {
-    // caller (`findExpressionAnnotation`) filters `computed` / non-Identifier property —
+    // caller (`findExpressionAnnotation`) filters `computed` / non-Identifier property -
     // defensive guard here so direct callers (tests, future patches) don't crash on `obj['x']`
     if (path.node.computed || path.node.property?.type !== 'Identifier') return null;
     const objInfo = findExpressionAnnotation(path.get('object'), depth + 1);
@@ -3201,7 +3207,10 @@ function createResolveNodeType(babelNodeType, t) {
     return forPath;
   }
 
-  // find the index of a variable in an ArrayPattern, accounting for holes and defaults
+  // find the index of a variable in an ArrayPattern, accounting for holes and defaults.
+  // sentinel: scalar `-1` means "not found" (contrast with `findArrayPatternKeyPath` whose
+  // `[-1]` array signals "found in rest"); `RestElement` matches are skipped here because
+  // callers use this fn only for positional-tuple lookups where rest is a distinct case
   function findPatternIndex(arrayPattern, varName) {
     const { elements } = arrayPattern;
     if (!elements) return -1;
@@ -3315,7 +3324,7 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveAnnotatedMember(annotation, keyName, scope) {
     const unwrapped = unwrapTypeAnnotation(annotation);
     if (!unwrapped) return null;
-    // `typeof Enum` in annotation position — member access on the enum object yields the
+    // `typeof Enum` in annotation position - member access on the enum object yields the
     // enum value kind. findTypeMember doesn't walk TSTypeQuery bodies, so dispatch here
     if (unwrapped.type === 'TSTypeQuery') {
       const segments = collectQualifiedSegments(unwrapped.exprName);
