@@ -177,7 +177,10 @@ export function createClassHelpers(t, adapter) {
 
   // `this.X` is shadowed when the class declares its own `X` of the matching kind -
   // static-ctx checks static members, instance-ctx checks instance members. nested
-  // non-arrow fn rebinds `this`, so ownership can't be proven there
+  // non-arrow fn rebinds `this`, so ownership can't be proven there.
+  // computed-key edge `class C { [this.X] = 1 }`: `this` in the key position binds to
+  // the surrounding scope (not the class), but `getOwnNames` only lists static-key members,
+  // so computed keys can't accidentally produce a shadow match - safe by construction
   function isShadowedByClassOwnMember(path, key) {
     if (typeof key !== 'string') return false;
     const info = findEnclosingClassMember(path);
@@ -208,8 +211,6 @@ export function createClassHelpers(t, adapter) {
 
   return {
     resolveStaticInheritedMember,
-    // legacy alias used by existing callers; new code should call `resolveStaticInheritedMember`
-    resolveSuperMember: resolveStaticInheritedMember,
     isInStaticContext,
     isInheritedStaticLookup,
     isShadowedByClassOwnMember,
