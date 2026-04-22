@@ -100,11 +100,11 @@ function checkPartialOverlapThrows() {
     q.apply();
     counts.failed++;
     echo`${ red('FAIL') } ${ cyan('TransformQueue/partial overlap throws') } :: expected throw`;
-  } catch (e) {
-    if (/partial overlap/.test(e.message)) counts.passed++;
+  } catch (error) {
+    if (/partial overlap/.test(error.message)) counts.passed++;
     else {
       counts.failed++;
-      echo`${ red('FAIL') } ${ cyan('TransformQueue/partial overlap throws') } :: got ${ e.message }`;
+      echo`${ red('FAIL') } ${ cyan('TransformQueue/partial overlap throws') } :: got ${ error.message }`;
     }
   }
 }
