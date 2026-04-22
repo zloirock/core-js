@@ -8,9 +8,13 @@ export function toStatelessRegExp(re) {
 // the string is treated as raw regex syntax (no escaping, no glob shorthand)
 // module names only contain `[a-z0-9.-]` so the only practically-relevant meta char is `.`, which works
 // because `.` matches any char (including the literal `.` separator)
-// returns null on parse failure so callers can decide how to handle malformed patterns
+// returns null on parse failure so callers can decide how to handle malformed patterns.
+// empty string rejected up front - `validatePatternList` already forbids `''`, so accepting
+// a `/^$/` regex here would only matter on non-validated paths and would silently match
+// the empty entry (never a real core-js module name)
 export function patternToRegExp(pattern) {
   if (pattern instanceof RegExp) return toStatelessRegExp(pattern);
+  if (pattern === '') return null;
   try {
     return new RegExp(`^${ pattern }$`);
   } catch {
@@ -33,7 +37,7 @@ export function isEntryPattern(pattern) {
 }
 
 // validate include/exclude option lists: must be arrays of strings or RegExps (or absent).
-// empty strings are rejected — `patternToRegExp('')` → `/^$/` matches zero-length entry-paths
+// empty strings are rejected - `patternToRegExp('')` -> `/^$/` matches zero-length entry-paths
 // and downstream produces a confusing "didn't match any polyfill" message
 export function validatePatternList(name, list) {
   if (list === undefined || list === null) return;
