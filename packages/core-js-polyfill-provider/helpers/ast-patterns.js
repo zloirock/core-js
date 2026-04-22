@@ -3,6 +3,14 @@
 // prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
+// `\`foo\`` - TemplateLiteral with no interpolations, used as a static string key. returns
+// the cooked text; null when interpolations present or node isn't a template literal
+export function singleQuasiString(node) {
+  if (node?.type !== 'TemplateLiteral') return null;
+  if ((node.expressions?.length ?? 0) !== 0 || (node.quasis?.length ?? 0) !== 1) return null;
+  return node.quasis[0].value.cooked;
+}
+
 // `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
 // `weak-map` / `promise` -> `WeakMap` / `Promise` via the Pascal variant
 const DASH_WORD = /-(?<c>\w)/g;

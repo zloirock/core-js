@@ -16,6 +16,7 @@ import {
   globalProxyMemberName,
   kebabToCamel,
   mayHaveSideEffects,
+  singleQuasiString,
   stripQueryHash,
   symbolKeyToEntry,
 } from './helpers.js';
@@ -266,7 +267,8 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   if (adapter.isStringLiteral(node)) return adapter.getStringValue(node);
   // `at` -> 'at'; `${'iter'}${'ator'}` -> 'iterator' when every interpolation resolves to a literal
   if (node.type === 'TemplateLiteral') {
-    if (node.expressions.length === 0 && node.quasis.length === 1) return node.quasis[0].value.cooked;
+    const single = singleQuasiString(node);
+    if (single !== null) return single;
     let out = '';
     for (let i = 0; i < node.quasis.length; i++) {
       out += node.quasis[i].value.cooked;
