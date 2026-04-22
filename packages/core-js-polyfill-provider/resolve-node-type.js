@@ -919,8 +919,11 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return null;
     }
-    // tuple numeric index: `type Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`
+    // tuple numeric index: `type Pair<T> = [T[], string]` / `Pair<number>[0]` -> `number[]`.
+    // `length` resolves to the tuple's static arity (`number` literal); handle separately
+    // so `Number('length') = NaN` doesn't silently drop the lookup
     if (aliased?.type === 'TSTupleType' || aliased?.type === 'TupleTypeAnnotation') {
+      if (key === 'length') return { type: 'TSNumberKeyword' };
       const index = typeof key === 'number' ? key : Number(key);
       if (!Number.isInteger(index) || index < 0) return null;
       const element = findTupleElement(aliased, index, scope);
@@ -1575,15 +1578,31 @@ function createResolveNodeType(babelNodeType, t) {
     const { test, alternate } = path.node;
     if (test.type !== 'BinaryExpression' || test.operator !== '===') return null;
     const { left, right } = test;
-    // pattern: _ref === void 0 ? DEFAULT : _ref
-    if (!isVoidZero(right) || left.type !== 'Identifier') return null;
-    if (alternate.type !== 'Identifier' || alternate.name !== left.name) return null;
+    const refName = checkSelfTernaryRefName(left, right);
+    if (!refName) return null;
+    if (alternate.type !== 'Identifier' || alternate.name !== refName) return null;
     return resolveNodeType(path.get('consequent'));
+  }
+
+  // identify the destructure-ref name from a default-ternary test. babel emits
+  // `_ref === void 0`; swc / esbuild emit `typeof _ref === 'undefined'`. both desugar
+  // the same `function({x = D})` pattern - missing the typeof form silently dropped
+  // type inference for any swc / esbuild output passed through the plugin
+  function checkSelfTernaryRefName(left, right) {
+    if (left.type === 'Identifier' && isVoidZero(right)) return left.name;
+    if (left.type === 'UnaryExpression' && left.operator === 'typeof'
+      && left.argument?.type === 'Identifier' && isUndefinedString(right)) return left.argument.name;
+    return null;
   }
 
   function isVoidZero(node) {
     return node.type === 'UnaryExpression' && node.operator === 'void'
       && babelNodeType(node.argument) === 'NumericLiteral' && node.argument.value === 0;
+  }
+
+  function isUndefinedString(node) {
+    if (babelNodeType(node) === 'StringLiteral' && node.value === 'undefined') return true;
+    return node?.type === 'Literal' && node.value === 'undefined';
   }
 
   function resolveBinaryOperatorType(operator, leftPath, rightPath) {
