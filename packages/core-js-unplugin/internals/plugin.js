@@ -51,7 +51,7 @@ import {
   isBodylessStatementBody,
   isDirectiveStatement,
   KNOWN_BUNDLERS,
-  LINE_TERMINATOR,
+  isLineTerminator,
   NEEDS_GUARD_PARENS,
   NO_REF_NEEDED,
   startsEnclosingStatement,
@@ -508,7 +508,7 @@ export default function createPlugin(options) {
           }
           if (ch === '/' && src[p + 1] === '/') {
             // line comments terminate on any JS LineTerminator (LF/CR/U+2028/U+2029)
-            while (p < src.length && !LINE_TERMINATOR.test(src[p])) p++;
+            while (p < src.length && !isLineTerminator(src[p])) p++;
             continue;
           }
           if (ch === '/' && src[p + 1] === '*') {
