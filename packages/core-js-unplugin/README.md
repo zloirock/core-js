@@ -151,7 +151,7 @@ Like `usage-global`, but replaces usage of standard library features with import
 | `package` | `string` | `'core-js'` / `'@core-js/pure'` | Package name for import paths (defaults depend on `method`) |
 | `additionalPackages` | `string[]` | `[]` | Additional package names to recognize as `core-js` |
 | `include` | `(string \| RegExp)[]` | `[]` | Force include polyfill modules or patterns. String patterns are **raw regex syntax** anchored to start/end (NOT globs) |
-| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules — same pattern semantics as `include` |
+| `exclude` | `(string \| RegExp)[]` | `[]` | Force exclude polyfill modules - same pattern semantics as `include` |
 | `shouldInjectPolyfill` | `function` | `undefined` | Custom function to decide whether to inject a polyfill |
 | `shippedProposals` | `boolean` | `false` | Treat shipped proposals as stable features |
 | `configPath` | `string` | auto | Directory to search for browserslist config (for monorepos) |

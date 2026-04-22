@@ -3,6 +3,7 @@ import { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { entryToGlobalHint, ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/import-state.js';
 import TransformQueue from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
+import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 
 const { cyan, green, red } = chalk;
 
@@ -80,9 +81,11 @@ check('entryToGlobalHint/deep kebab subpath', entryToGlobalHint('typed-array/ins
 // edge cases
 check('entryToGlobalHint/leading slash', entryToGlobalHint('/promise'), null);
 check('entryToGlobalHint/trailing slash', entryToGlobalHint('promise/'), null);
-// numeric first segment passes through `kebabToPascal` unchanged; downstream
-// hint-consumers filter it out because no global matches '42'
-check('entryToGlobalHint/numeric prefix', entryToGlobalHint('42'), '42');
+// numeric-leading / underscore-leading heads can never match a real global identifier —
+// filtered up front so downstream consumers don't carry a junk hint through to the lookup
+check('entryToGlobalHint/numeric prefix', entryToGlobalHint('42'), null);
+check('entryToGlobalHint/underscore prefix', entryToGlobalHint('_foo'), null);
+check('entryToGlobalHint/null', entryToGlobalHint(null), null);
 
 // --- TransformQueue ---
 // partial overlap between two outer transforms — phase 2 must throw with diagnostic
@@ -159,6 +162,21 @@ check('ORPHAN_REF/_ref0', ORPHAN_REF_PATTERN.test('_ref0'), false);
 check('ORPHAN_REF/_ref1', ORPHAN_REF_PATTERN.test('_ref1'), false);
 check('ORPHAN_REF/_refX', ORPHAN_REF_PATTERN.test('_refX'), false);
 check('ORPHAN_REF/empty', ORPHAN_REF_PATTERN.test(''), false);
+
+// --- SnapshotCache key normalization ---
+// pre/post pair must round-trip across query / hash / slash variants. without normalization
+// a Windows bundler that switches between `\` and `/` between passes would lose the snapshot
+function checkSnapshotKeyNormalization() {
+  const cache = new SnapshotCache();
+  cache.store('/src/foo.js', { tag: 'A' });
+  check('SnapshotCache/strip query', cache.take('/src/foo.js?v=1')?.tag, 'A');
+  cache.store('C:\\src\\bar.js', { tag: 'B' });
+  check('SnapshotCache/normalize backslash', cache.take('C:/src/bar.js')?.tag, 'B');
+  cache.store('/src/baz.js#anchor', { tag: 'C' });
+  check('SnapshotCache/strip hash', cache.take('/src/baz.js')?.tag, 'C');
+  check('SnapshotCache/take consumes', cache.take('/src/foo.js'), null);
+}
+checkSnapshotKeyNormalization();
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
