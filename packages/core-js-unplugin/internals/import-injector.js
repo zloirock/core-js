@@ -150,7 +150,11 @@ export default class ImportInjector extends ImportInjectorState {
   }
 
   // `var _ref, _ref2, ...;` for refs this flush hasn't written yet. pre's emission makes
-  // the output strict-mode safe; post's emission adds any new refs post allocated
+  // the output strict-mode safe; post's emission adds any new refs post allocated.
+  // no usage-tracking filter (unlike babel-plugin's `pruneUnusedRefs`): call sites follow
+  // synchronous allocate-and-use discipline - every `state.genRef()` / `generateHoistedRef()`
+  // result is immediately embedded in a replacement string that goes to `transforms.add(...)`.
+  // `preAllocatedGuardRef` is allocated only under conditions that guarantee consumption
   #appendRefLines(lines) {
     const newRefs = [];
     for (const r of this.#refs) if (!this.#flushedRefs.has(r)) newRefs.push(r);
