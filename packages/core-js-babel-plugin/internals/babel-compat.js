@@ -309,21 +309,21 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     ]));
   }
 
-  // for-init with SE: keep SE inline so it doesn't escape the loop
+  // for-init with SE: keep SE inline so it doesn't escape the loop.
   // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
   // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call.
-  // the instance branch mutates the VariableDeclarator id/init in place; babel's scope
-  // tracker doesn't observe raw property assignments, so we register the new binding
-  // explicitly. without this, a later visit that scans `at` inside the for body would see
-  // an unbound identifier and route it through the global resolver
+  // both branches mutate the VariableDeclaration in place; babel's scope tracker doesn't observe
+  // raw property/array mutations, so fresh bindings are re-registered on the mutated path
   function handleForInitSE(declaration, parent, localBinding, value, scope, isStatic) {
     if (isStatic) {
       // static polyfill import - SE needs a dummy binding to stay in for-init
       const ref = generateLocalRef(scope);
       const idx = declaration.node.declarations.indexOf(parent.node);
-      if (idx !== -1) declaration.node.declarations.splice(idx, 1,
+      if (idx === -1) return;
+      declaration.node.declarations.splice(idx, 1,
         t.variableDeclarator(ref, t.cloneDeep(parent.node.init)),
         t.variableDeclarator(localBinding, value));
+      declaration.scope?.registerDeclaration(declaration);
     } else {
       parent.node.id = localBinding;
       parent.node.init = value;
