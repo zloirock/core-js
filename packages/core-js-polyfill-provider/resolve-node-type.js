@@ -1111,8 +1111,18 @@ function createResolveNodeType(babelNodeType, t) {
     return !candidate.primitive && !target.primitive && (!target.constructor || target.constructor === 'Object');
   }
 
-  function resolveExtractExclude(first, second, scope, depth, keep) {
-    const target = resolveTypeAnnotation(second, scope, depth + 1);
+  // resolve a type-arg annotation honoring the caller's generic-substitution map when present,
+  // so utility-type params (`Awaited<T>`, `Extract<T,U>`, etc.) and deep union members bind
+  // against the caller's T/U instead of collapsing to null on raw parameter refs
+  function resolveAnnotationInContext(node, scope, depth, typeParamMap, seen) {
+    return typeParamMap
+      ? substituteTypeParams(node, typeParamMap, scope, depth + 1, seen)
+      : resolveTypeAnnotation(node, scope, depth + 1);
+  }
+
+  function resolveExtractExclude(first, second, scope, depth, keep, typeParamMap, seen) {
+    const resolve = node => resolveAnnotationInContext(node, scope, depth, typeParamMap, seen);
+    const target = resolve(second);
     if (!target) return null;
     let unwrapped = unwrapTypeAnnotation(first);
     if (!unwrapped) return null;
@@ -1124,7 +1134,7 @@ function createResolveNodeType(babelNodeType, t) {
     let anyKept = false;
     for (const member of types) {
       const substituted = subst ? applyAliasSubstDeep(member, subst) : member;
-      const resolved = resolveTypeAnnotation(substituted, scope, depth + 1);
+      const resolved = resolve(substituted);
       if (!resolved) return null;
       if (isAssignableTo(resolved, target) !== keep) continue;
       anyKept = true;
@@ -1191,7 +1201,15 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolveReturnTypeFromTypeQuery(param, scope) {
     const resolved = resolveTypeQueryBinding(param, scope);
-    return isFunctionLike(resolved?.node) ? resolveReturnType(resolved) : null;
+    if (isFunctionLike(resolved?.node)) return resolveReturnType(resolved);
+    // `declare const impl: () => R` / `const impl: (x) => R = ...` - binding isn't function-like
+    // but carries a function-type annotation. `resolveTypeQueryBinding` returns null for the
+    // no-init declare case; re-fetch the binding and read its annotation's return type
+    if (param?.type !== 'TSTypeQuery' || param.exprName?.type !== 'Identifier') return null;
+    const binding = constantBindingPath(param.exprName.name, scope);
+    const annotation = binding ? findBindingAnnotation(binding) : null;
+    const ret = annotation ? functionTypeReturnAnnotation(unwrapTypeAnnotation(annotation)) : null;
+    return ret ? resolveTypeAnnotation(ret, binding.scope) : null;
   }
 
   function resolveKnownContainerType(name, base, node, innerResolver) {
@@ -1222,16 +1240,17 @@ function createResolveNodeType(babelNodeType, t) {
     AsyncIteratorObject: 'AsyncIterator',
   });
 
-  function resolveNamedType(name, node, scope, depth, seen) {
+  function resolveNamedType(name, node, scope, depth, typeParamMap, seen) {
     // PromiseLike / Thenable are structural Promise supertypes for await / Awaited<>;
     // aliasing upfront lets the Promise branch of resolveKnownContainerType handle both
     if (PROMISE_SYNONYMS.has(name)) name = 'Promise';
     if (hasOwn(CONSTRUCTOR_ALIASES, name)) name = CONSTRUCTOR_ALIASES[name];
-    const known = resolveKnownContainerType(name, resolveKnownConstructor(name), node, p => resolveTypeAnnotation(p, scope, depth + 1));
+    const resolveArgInner = arg => resolveAnnotationInContext(arg, scope, depth, typeParamMap, seen);
+    const known = resolveKnownContainerType(name, resolveKnownConstructor(name), node, resolveArgInner);
     if (known) return known;
     const firstArg = () => getTypeArgs(node)?.params[0];
     const resolveArg = (arg, fallback) => arg
-      ? resolveTypeAnnotation(arg, scope, depth + 1) ?? fallback
+      ? resolveArgInner(arg) ?? fallback
       : null;
     // structure-preserving wrappers (T[] stays array, {..} stays object). null fallback
     // to $Object('Object') keeps arg-type=object filters firing for TSTypeLiteral inners
@@ -1251,8 +1270,7 @@ function createResolveNodeType(babelNodeType, t) {
         // tuple approximated as Array<first-param-type> so chained `.at(0)` / `.forEach`
         // resolve; indexed access `T[N]` picks the N-th via `findTupleElement`
         const { param, isRest } = effectiveParam(resolveParametersParams(node, scope)?.[0]);
-        const resolved = param?.typeAnnotation
-          ? resolveTypeAnnotation(param.typeAnnotation, scope, depth + 1) : null;
+        const resolved = param?.typeAnnotation ? resolveArgInner(param.typeAnnotation) : null;
         // `...xs: T[]` - annotation is `T[]`, the tuple element is T
         const inner = isRest ? resolveInnerType(resolved) : resolved;
         return inner && !isNullableOrNever(inner) ? new $Object('Array', inner) : new $Object('Array');
@@ -1276,11 +1294,11 @@ function createResolveNodeType(babelNodeType, t) {
       case 'NonNullable':
       case '$NonMaybeType': {
         const arg = firstArg();
-        return arg ? resolveNonNullableAnnotation(arg, scope, depth) : null;
+        return arg ? resolveNonNullableAnnotation(arg, scope, depth, typeParamMap, seen) : null;
       }
       case 'Awaited': {
         const arg = firstArg();
-        return arg ? unwrapPromise(resolveTypeAnnotation(arg, scope, depth + 1)) : null;
+        return arg ? unwrapPromise(resolveArgInner(arg)) : null;
       }
       case 'ReturnType': {
         const arg = firstArg();
@@ -1295,12 +1313,13 @@ function createResolveNodeType(babelNodeType, t) {
       case 'Extract':
       case 'Exclude': {
         const params = getTypeArgs(node)?.params;
-        return params?.length >= 2 ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract') : null;
+        return params?.length >= 2
+          ? resolveExtractExclude(params[0], params[1], scope, depth, name === 'Extract', typeParamMap, seen) : null;
       }
       // Flow $ReadOnlyArray<T> -> Array with inner type (equivalent to ReadonlyArray<T>)
       case '$ReadOnlyArray': {
         const arg = firstArg();
-        return new $Object('Array', arg ? resolveNonNullableAnnotation(arg, scope, depth) : null);
+        return new $Object('Array', arg ? resolveNonNullableAnnotation(arg, scope, depth, typeParamMap, seen) : null);
       }
       // conservative: unknown for Flow variants we don't model structurally
       case '$Values':
@@ -1613,9 +1632,9 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // resolve a type annotation, returning null for nullable/never types (not useful as inner types)
-  function resolveNonNullableAnnotation(node, scope, depth) {
+  function resolveNonNullableAnnotation(node, scope, depth, typeParamMap, seen) {
     if (!node) return null;
-    const resolved = resolveTypeAnnotation(node, scope, depth + 1);
+    const resolved = resolveAnnotationInContext(node, scope, depth, typeParamMap, seen);
     return resolved && !isNullableOrNever(resolved) ? resolved : null;
   }
 
@@ -2301,9 +2320,11 @@ function createResolveNodeType(babelNodeType, t) {
         const known = resolveKnownContainerType(name, ctor, node,
           p => substituteTypeParams(p, typeParamMap, scope, depth + 1, seen));
         if (known) return known;
-        // user-defined type alias / interface: propagate type parameter substitutions
+        // user-defined type alias / interface: propagate type parameter substitutions.
+        // resolveNamedType also sees the map so utility types (`Awaited<T>`, `NonNullable<T>`,
+        // `Extract<T,U>`, etc.) resolve their args against the caller's T/U binding
         return resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen)
-          ?? resolveNamedType(name, node, scope, depth, seen);
+          ?? resolveNamedType(name, node, scope, depth, typeParamMap, seen);
       }
       return null;
     }
