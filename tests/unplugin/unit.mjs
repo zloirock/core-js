@@ -237,6 +237,16 @@ function checkSnapshotKeyNormalization() {
   // multi-slash collapse: bundler path-join quirk produces `pkg//sub/foo`
   cache.store('core-js-pure//full/foo.js', { tag: 'F' });
   check('SnapshotCache/collapse repeated slashes', cache.take('core-js-pure/full/foo.js')?.tag, 'F');
+  // SFC sub-block queries are block selectors - distinct setup/type/lang combinations must
+  // resolve to different keys, otherwise the later write clobbers the former's snapshot
+  cache.store('/src/App.vue?vue&type=script', { tag: 'sfc-plain' });
+  cache.store('/src/App.vue?vue&type=script&setup=true', { tag: 'sfc-setup' });
+  check('SnapshotCache/sfc type=script', cache.take('/src/App.vue?vue&type=script')?.tag, 'sfc-plain');
+  check('SnapshotCache/sfc setup=true', cache.take('/src/App.vue?vue&type=script&setup=true')?.tag, 'sfc-setup');
+  cache.store('/src/Page.astro?astro&type=script', { tag: 'astro-plain' });
+  cache.store('/src/Page.astro?astro&type=script&lang=ts', { tag: 'astro-ts' });
+  check('SnapshotCache/astro plain', cache.take('/src/Page.astro?astro&type=script')?.tag, 'astro-plain');
+  check('SnapshotCache/astro lang=ts', cache.take('/src/Page.astro?astro&type=script&lang=ts')?.tag, 'astro-ts');
 }
 checkSnapshotKeyNormalization();
 
@@ -268,6 +278,15 @@ checkOrphan('let decl', 'let _ref = foo();', [], ['_ref']);
 // mixed: user's top-level `_ref = X;` + plugin-style nested `_ref2 = foo()` in one file
 checkOrphan('mixed shapes', '_ref = window.x; null == (_ref2 = bar()) ? void 0 : _ref2;',
   ['_ref2'], ['_ref']);
+// scope-depth gate: `_ref = foo()` inside a function is user code regardless of RHS.
+// plugin's orphan emission only happens at module top-level (post-pass rehydrate declares
+// `var _ref;` there), so nested-scope occurrences reserve the name instead of adopting it
+checkOrphan('nested in function body',
+  'function f() { null == (_ref = bar()) ? void 0 : _ref; }', [], ['_ref']);
+checkOrphan('nested in arrow body',
+  'const f = () => null == (_ref = bar()) ? void 0 : _ref;', [], ['_ref']);
+checkOrphan('nested in class method',
+  'class C { run() { null == (_ref = bar()) ? void 0 : _ref; } }', [], ['_ref']);
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
