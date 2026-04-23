@@ -64,6 +64,9 @@ function createResolveNodeType(babelNodeType, t) {
 
   function getKeyName(key) {
     if (key?.type === 'Identifier') return key.name;
+    // `#` prefix keeps private keys disjoint from same-named public members at match time
+    if (key?.type === 'PrivateIdentifier') return `#${ key.name }`;
+    if (key?.type === 'PrivateName') return `#${ key.id.name }`;
     return literalKeyValue(key);
   }
 
@@ -986,13 +989,16 @@ function createResolveNodeType(babelNodeType, t) {
           // class body property: typeAnnotation if present, otherwise we can't infer the type
           if (!member.computed && keyMatchesName(member.key, key)) return withSubst(member.typeAnnotation ?? null);
           break;
-        // ESTree (MethodDefinition) and Babel (ClassMethod) class methods -> generic function type
+        // getter: property access yields the return type (ESTree nests it on `.value.returnType`,
+        // babel carries it directly). setter: `break` so iteration continues to a paired getter
         case 'ClassMethod':
         case 'ClassPrivateMethod':
         case 'TSDeclareMethod':
         case 'MethodDefinition':
-          if (!member.computed && keyMatchesName(member.key, key)) return { type: 'TSFunctionType' };
-          break;
+          if (member.computed || !keyMatchesName(member.key, key)) break;
+          if (member.kind === 'get') return withSubst(member.returnType ?? member.value?.returnType);
+          if (member.kind === 'set') break;
+          return { type: 'TSFunctionType' };
         case 'TSIndexSignature':
           if (!indexSignatureType && member.typeAnnotation) indexSignatureType = member.typeAnnotation;
           break;
@@ -1531,7 +1537,7 @@ function createResolveNodeType(babelNodeType, t) {
   // constant binding (const key = 'prop'; obj[key]) and enum member access (`obj[Enum.A]`)
   function resolveMemberPropertyName(path) {
     const { property, computed } = path.node;
-    if (!computed) return property.type === 'Identifier' ? property.name : null;
+    if (!computed) return getKeyName(property);
     return literalKeyValue(property)
       ?? literalKeyValue(resolveRuntimeExpression(path.get('property')).node)
       ?? resolveComputedKeyName(property, path.scope);
@@ -2542,9 +2548,16 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // babel splits public/private/accessor into distinct types; ESTree uses MethodDefinition /
+  // PropertyDefinition with a PrivateIdentifier key. collapse both shapes to one predicate per
+  // category so resolveClassMemberNode doesn't miss private members
+  const isMethodMember = n => t.isClassMethod(n) || t.isClassPrivateMethod?.(n);
+  const isPropertyMember = n => t.isClassProperty(n) || t.isClassAccessorProperty(n) || t.isClassPrivateProperty?.(n);
+
   function resolveClassMemberNode(member, callPath) {
-    // ESTree MethodDefinition wraps FunctionExpression in .value - unwrap for return type resolution
-    const methodFn = t.isClassMethod(member.node) ? (member.get('value')?.node ? member.get('value') : member) : null;
+    // ESTree MethodDefinition wraps FunctionExpression in `.value`; babel ClassMethod /
+    // ClassPrivateMethod carry body fields directly
+    const methodFn = isMethodMember(member.node) ? (member.get('value')?.node ? member.get('value') : member) : null;
     // TSDeclareMethod (ambient `declare class` body) has no body - only the return-type
     // annotation is available for resolution
     const declaredReturn = member.node.type === 'TSDeclareMethod' ? member.node.returnType : null;
@@ -2556,14 +2569,14 @@ function createResolveNodeType(babelNodeType, t) {
         if (t.isFunction(value?.node)) return resolveReturnType(value, callPath);
       } else if (declaredReturn) {
         return resolveTypeAnnotation(declaredReturn, member.scope);
-      } else if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
+      } else if (isPropertyMember(member.node)) {
         const value = resolveRuntimeExpression(member.get('value'));
         if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath);
       }
       return null;
     }
-    // property access: foo.bar
-    if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
+    // property access: foo.bar or foo.#bar
+    if (isPropertyMember(member.node)) {
       if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation, member.scope);
       const value = member.get('value');
       return value.node ? resolveNodeType(value) : null;
