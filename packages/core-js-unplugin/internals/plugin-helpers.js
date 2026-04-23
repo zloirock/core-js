@@ -88,27 +88,39 @@ export function startsEnclosingStatement(path, pos) {
   return p?.node?.start === pos;
 }
 
-// orphan-ref heuristic: our plugin emits `_ref = foo()` / `_ref = obj.x` - RHS always complex.
-// user sloppy-mode `_ref = 1` / `_ref = 'x'` with a literal RHS is user code
-function isComplexOrphanRhs(rhs) {
-  if (!rhs) return false;
-  return rhs.type === 'CallExpression' || rhs.type === 'OptionalCallExpression'
-    || rhs.type === 'MemberExpression' || rhs.type === 'OptionalMemberExpression'
-    || rhs.type === 'ChainExpression' || rhs.type === 'NewExpression';
+// RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare
+// `_ref = X` assignment as plugin leftover vs user sloppy-mode code
+const PLUGIN_EMIT_RHS_TYPES = new Set([
+  'CallExpression',
+  'ChainExpression',
+  'MemberExpression',
+  'NewExpression',
+  'OptionalCallExpression',
+  'OptionalMemberExpression',
+]);
+
+// orphan-ref heuristic: plugin emits `_ref = foo()` / `_ref = obj.x` as a sub-expression inside
+// a ConditionalExpression guard or a call argument. a stand-alone `_ref = X;` statement is user
+// sloppy-mode code; likewise literal RHS at any depth - user wrote it
+function isPluginShapedOrphanAssign(node, parentType) {
+  if (!node.right || parentType === 'ExpressionStatement') return false;
+  return PLUGIN_EMIT_RHS_TYPES.has(node.right.type);
 }
 
 // `names` covers declarations at every nesting level so UID generation can't collide with
 // `var _at = 1` deep in a function. `orphanRefs` is filtered against `names` by the caller
-// so user `let _ref` isn't adopted as leftover. heap stack avoids overflow
+// so user `let _ref` isn't adopted as leftover. heap stack avoids overflow.
+// parentType carries the containing AST node's type across array-slot hops so the orphan
+// classifier can distinguish `_ref = X;` (ExpressionStatement parent) from nested uses
 export function collectAllBindingNames(ast) {
   const names = new Set();
   const orphanRefs = new Set();
   const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
-  const stack = [ast];
+  const stack = [{ node: ast, parentType: null }];
   while (stack.length) {
-    const node = stack.pop();
+    const { node, parentType } = stack.pop();
     if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
+      for (let i = node.length - 1; i >= 0; i--) stack.push({ node: node[i], parentType });
       continue;
     }
     if (!isASTNode(node)) continue;
@@ -137,12 +149,11 @@ export function collectAllBindingNames(ast) {
         names.add(node.local.name);
         break;
       case 'AssignmentExpression':
-        // `_ref = foo()` / `_ref = obj.bar` with complex RHS fits our emit shape: candidate
-        // for orphan adoption, NOT reserved (adoption gate requires name NOT in `names`).
-        // everything else (non-orphan pattern, or orphan pattern with literal RHS) is user
-        // code - reserve so our UID generator doesn't reuse a name the user writes to
+        // plugin-shaped nested `_ref = foo()` - candidate for orphan adoption, NOT reserved
+        // (adoption gate requires name NOT in `names`). anything else - reserve so our UID
+        // generator can't reuse a name the user writes to
         if (node.operator === '=' && node.left?.type === 'Identifier') {
-          if (ORPHAN_REF_PATTERN.test(node.left.name) && isComplexOrphanRhs(node.right)) {
+          if (ORPHAN_REF_PATTERN.test(node.left.name) && isPluginShapedOrphanAssign(node, parentType)) {
             orphanRefs.add(node.left.name);
           } else {
             names.add(node.left.name);
@@ -153,7 +164,7 @@ export function collectAllBindingNames(ast) {
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const v = node[key];
-      if (Array.isArray(v) || isASTNode(v)) stack.push(v);
+      if (Array.isArray(v) || isASTNode(v)) stack.push({ node: v, parentType: node.type });
     }
   }
   return { names, orphanRefs };
