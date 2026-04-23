@@ -381,10 +381,14 @@ function computeSideEffects(node) {
   if (ALWAYS_EFFECTFUL_TYPES.has(type)) return true;
   if (type === 'UnaryExpression') return node.operator === 'delete' || mayHaveSideEffects(node.argument);
   if (type === 'SequenceExpression' || type === 'TemplateLiteral') return node.expressions.some(mayHaveSideEffects);
-  if (type === 'ArrayExpression') return node.elements.some(mayHaveSideEffects);
+  // `[...a]` invokes `a[Symbol.iterator]` / `{...a}` invokes `a`'s Proxy traps - neither
+  // can be proven pure from source alone. treat SpreadElement as SE uniformly across
+  // Array and Object literals. without this, `const { from } = [1, ...Array]` was
+  // considered SE-free and ran through the no-SE-path by mistake
+  if (type === 'ArrayExpression') {
+    return node.elements.some(el => el?.type === 'SpreadElement' || mayHaveSideEffects(el));
+  }
   if (type === 'ObjectExpression') {
-    // `{ ...obj }` invokes `obj`'s Proxy traps (ownKeys / getOwnPropertyDescriptor / get)
-    // - can't prove purity from source alone
     return node.properties.some(p => p?.type === 'SpreadElement' || mayHaveSideEffects(p));
   }
   if (type === 'BinaryExpression' || type === 'LogicalExpression') {
