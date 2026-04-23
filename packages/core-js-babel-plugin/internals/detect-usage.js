@@ -262,7 +262,11 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
   };
   return {
     ...walkAnnotations ? {
-      'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression'(path) {
+      // babel exposes methods as distinct node types (not MethodDefinition wrappers), so
+      // their params/returnType/typeAnnotation need explicit visitor entries. otherwise
+      // `class C { m(x: Foo): Bar {} }` misses Foo/Bar on babel while unplugin catches them
+      // through the underlying FunctionExpression - parser divergence
+      'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassMethod|ClassPrivateMethod|ObjectMethod'(path) {
         checkTypeAnnotations(path.node, annotationGlobal(path));
       },
       VariableDeclarator(path) {
