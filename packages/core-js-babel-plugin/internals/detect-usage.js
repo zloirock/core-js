@@ -101,10 +101,13 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     // specifiers. babel's `isReferencedIdentifier` marks them as referenced, but no runtime
     // binding exists - polyfilling is pure over-injection (and breaks TS output for exports)
     if (isTSTypeOnlyIdentifier(path.parent, path.key)) return;
-    // UpdateExpression operand (Map++, --Map, Map!++) - read+write context, polyfill import
-    // is read-only so the transform would emit `_Map++` which throws TypeError at runtime
+    // UpdateExpression operand (Map++, --Map, Map!++, (Map)++) - read+write context, polyfill
+    // import is read-only so the transform would emit `_Map++` which throws TypeError at runtime.
+    // peel TS wrappers plus ParenthesizedExpression (parsed when `createParenthesizedExpressions: true`)
     let updateCheck = path.parentPath;
-    while (updateCheck && TS_EXPR_WRAPPERS.has(updateCheck.node?.type)) updateCheck = updateCheck.parentPath;
+    while (updateCheck && (TS_EXPR_WRAPPERS.has(updateCheck.node?.type) || updateCheck.node?.type === 'ParenthesizedExpression')) {
+      updateCheck = updateCheck.parentPath;
+    }
     if (updateCheck?.isUpdateExpression()) return;
     const { node } = path;
     if (path.scope.getBindingIdentifier(node.name)) {
@@ -140,26 +143,42 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     if (meta) onUsage(meta, path);
   }
 
-  // nested pattern `{ Array: { from } } = globalThis` - inner ObjectPattern lives under
-  // an outer ObjectProperty. if the outer chain terminates in a VariableDeclarator with
-  // a proxy-global init, the outer key names the static receiver for inner bindings
+  // nested pattern `{ X: { y } } = Z` - inner ObjectPattern lives under an outer ObjectProperty.
+  // N-deep: resolve the outer key chain to an effective receiver, emit meta accordingly
   function emitNestedDestructureMeta(path, outerProp) {
     const innerKey = sharedResolveKey(path.node.key, path.node.computed, path.scope, adapter);
     if (!innerKey) return;
-    const outerPattern = outerProp.parentPath;
-    const outerDecl = outerPattern?.parentPath;
-    if (outerPattern?.isObjectPattern() && outerDecl?.isVariableDeclarator()) {
-      const initNode = outerDecl.node.init;
-      const receiver = initNode ? sharedResolveObjectName(initNode, outerDecl.scope, adapter) : null;
-      if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
-        const outerKey = sharedResolveKey(outerProp.node.key, outerProp.node.computed, outerDecl.scope, adapter);
-        if (outerKey) {
-          onUsage({ kind: 'property', object: outerKey, key: innerKey, placement: 'static' }, path);
-          return;
-        }
+    const receiverKey = resolveNestedDestructureReceiver(outerProp);
+    onUsage(receiverKey !== null
+      ? { kind: 'property', object: receiverKey, key: innerKey, placement: 'static' }
+      : { kind: 'property', object: null, key: innerKey, placement: null }, path);
+  }
+
+  // walks up the outer property chain until a declarator. returns the last (deepest) outer
+  // key when every intermediate hop is itself a proxy-global name and the declarator's init
+  // is a proxy-global. null -> caller emits typeless meta. `self.Array.from` via nest -> 'Array'
+  function resolveNestedDestructureReceiver(outerProp) {
+    const keys = [];
+    let cur = outerProp;
+    for (;;) {
+      const pattern = cur.parentPath;
+      if (!pattern?.isObjectPattern()) return null;
+      const key = sharedResolveKey(cur.node.key, cur.node.computed, pattern.scope, adapter);
+      if (!key) return null;
+      keys.unshift(key);
+      const parent = pattern.parentPath;
+      if (parent?.isVariableDeclarator()) {
+        const { init } = parent.node;
+        const receiver = init ? sharedResolveObjectName(init, parent.scope, adapter) : null;
+        if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
+        // intermediate keys (everything except the deepest) must all be proxy-global hops,
+        // otherwise the chain describes a user namespace and we can't polyfill
+        if (!keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))) return null;
+        return keys[keys.length - 1];
       }
+      if (!parent?.isObjectProperty()) return null;
+      cur = parent;
     }
-    onUsage({ kind: 'property', object: null, key: innerKey, placement: null }, path);
   }
 
   function handleDestructuring(path) {

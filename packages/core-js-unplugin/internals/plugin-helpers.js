@@ -99,11 +99,35 @@ const PLUGIN_EMIT_RHS_TYPES = new Set([
   'OptionalMemberExpression',
 ]);
 
+// node types that introduce a new `var`-scope boundary. plugin rehydrates orphans as
+// `var _ref;` at module top, which hoists through any nested BlockStatement / CatchClause /
+// ForStatement (they bind `let`/`const` only, `var` hoists past them). functions / classes /
+// static-blocks are real boundaries: `var` hoists at most to their body, not past them.
+// descending into these drops `atTopLevel` so orphan-candidate gating matches the emission
+// invariant (plugin never emits orphan `_ref = X` across a var-scope boundary)
+const SCOPE_REBINDING_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassDeclaration',
+  'ClassExpression',
+  'ClassMethod',
+  'ClassPrivateMethod',
+  'MethodDefinition',
+  // ES2022 class `static { ... }` has its own var-scope; `var` inside doesn't leak to the class
+  'StaticBlock',
+]);
+const isScopeRebinding = node => SCOPE_REBINDING_TYPES.has(node.type);
+
 // orphan-ref heuristic: plugin emits `_ref = foo()` / `_ref = obj.x` as a sub-expression inside
 // a ConditionalExpression guard or a call argument. a stand-alone `_ref = X;` statement is user
-// sloppy-mode code; likewise literal RHS at any depth - user wrote it
-function isPluginShapedOrphanAssign(node, parentType) {
-  if (!node.right || parentType === 'ExpressionStatement') return false;
+// sloppy-mode code; likewise literal RHS at any depth - user wrote it.
+// scope-depth gate: plugin emits orphan assignments only at module top-level (the post-pass
+// rehydrate declares `var _ref;` there). a `_ref = foo()` nested inside a user function is
+// user's sloppy-mode code - adopting it would share state with our module-level `_ref`
+function isPluginShapedOrphanAssign(node, parentType, atTopLevel) {
+  if (!node.right || parentType === 'ExpressionStatement' || !atTopLevel) return false;
   return PLUGIN_EMIT_RHS_TYPES.has(node.right.type);
 }
 
@@ -116,11 +140,14 @@ export function collectAllBindingNames(ast) {
   const names = new Set();
   const orphanRefs = new Set();
   const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
-  const stack = [{ node: ast, parentType: null }];
+  // scope-depth tracks whether we're still at module top-level (outside any function / class
+  // that rebinds `this` / scope). plugin emits its `_ref = X` orphans only at top-level, so
+  // nested-scope assignments are user code regardless of RHS shape
+  const stack = [{ node: ast, parentType: null, atTopLevel: true }];
   while (stack.length) {
-    const { node, parentType } = stack.pop();
+    const { node, parentType, atTopLevel } = stack.pop();
     if (Array.isArray(node)) {
-      for (let i = node.length - 1; i >= 0; i--) stack.push({ node: node[i], parentType });
+      for (let i = node.length - 1; i >= 0; i--) stack.push({ node: node[i], parentType, atTopLevel });
       continue;
     }
     if (!isASTNode(node)) continue;
@@ -153,7 +180,7 @@ export function collectAllBindingNames(ast) {
         // (adoption gate requires name NOT in `names`). anything else - reserve so our UID
         // generator can't reuse a name the user writes to
         if (node.operator === '=' && node.left?.type === 'Identifier') {
-          if (ORPHAN_REF_PATTERN.test(node.left.name) && isPluginShapedOrphanAssign(node, parentType)) {
+          if (ORPHAN_REF_PATTERN.test(node.left.name) && isPluginShapedOrphanAssign(node, parentType, atTopLevel)) {
             orphanRefs.add(node.left.name);
           } else {
             names.add(node.left.name);
@@ -161,10 +188,13 @@ export function collectAllBindingNames(ast) {
         }
         break;
     }
+    // descending into a function / class body: children see `atTopLevel = false` so nested
+    // `_ref = foo()` reserves the name instead of counting as plugin-emitted orphan
+    const childAtTopLevel = atTopLevel && !isScopeRebinding(node);
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const v = node[key];
-      if (Array.isArray(v) || isASTNode(v)) stack.push({ node: v, parentType: node.type });
+      if (Array.isArray(v) || isASTNode(v)) stack.push({ node: v, parentType: node.type, atTopLevel: childAtTopLevel });
     }
   }
   return { names, orphanRefs };
