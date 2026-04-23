@@ -2600,7 +2600,12 @@ function createResolveNodeType(babelNodeType, t) {
     if (isPropertyMember(member.node)) {
       if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation, member.scope);
       const value = member.get('value');
-      return value.node ? resolveNodeType(value) : null;
+      if (!value.node) return null;
+      const resolved = resolveNodeType(value);
+      // `field = null` / `field = undefined` is a sentinel init; real assignments happen
+      // elsewhere in the class. treat purely-nullable inits as unknown so `this.field?.at(x)`
+      // doesn't skip the polyfill via the nullable-receiver short-circuit
+      return resolved && isNullableOrNever(resolved) ? null : resolved;
     }
     // method: getter returns its return type, regular method returns Function
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn) : new $Object('Function');
