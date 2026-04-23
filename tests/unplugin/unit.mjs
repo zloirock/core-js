@@ -75,6 +75,11 @@ const shouldTransformCases = [
   // near-misses that should NOT match (substring or suffix only)
   ['/src/curly.js?curl=x', true, 'query containing "url" as substring'],
   ['/src/foo.js?v=unrelated', true, 'no asset-query key'],
+  // case-insensitive extension match: Windows FS / build tools may upper-case
+  ['/src/App.JS', true, 'uppercase .JS'],
+  ['/src/App.TSX', true, 'uppercase .TSX'],
+  ['/src/App.MJS', true, 'uppercase .MJS'],
+  ['/src/types.D.TS', false, 'uppercase .D.TS still excluded'],
 ];
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
