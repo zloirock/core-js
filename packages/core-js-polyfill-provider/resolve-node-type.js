@@ -1159,13 +1159,12 @@ function createResolveNodeType(babelNodeType, t) {
       const property = findObjectMember(containerPath, name);
       if (!property) return null;
       if (t.isObjectProperty(property.node)) return resolveRuntimeExpression(property.get('value'));
-      // ESTree Property{method:true} wraps FunctionExpression in .value
-      if (t.isObjectMethod(property.node)) return property.get('value')?.node ? property.get('value') : property;
+      if (t.isObjectMethod(property.node)) return methodFnPath(property);
     }
     if (t.isClass(containerPath.node)) {
       const member = findClassMember(containerPath, name, true);
       if (!member) return null;
-      if (t.isClassMethod(member.node)) return member.get('value')?.node ? member.get('value') : member;
+      if (t.isClassMethod(member.node)) return methodFnPath(member);
       if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
         const value = member.get('value');
         return value.node ? resolveRuntimeExpression(value) : null;
@@ -2575,10 +2574,16 @@ function createResolveNodeType(babelNodeType, t) {
   const isMethodMember = n => t.isClassMethod(n) || t.isClassPrivateMethod?.(n);
   const isPropertyMember = n => t.isClassProperty(n) || t.isClassAccessorProperty(n) || t.isClassPrivateProperty?.(n);
 
+  // ESTree MethodDefinition / ObjectMethod wrap the function in `.value`; babel ClassMethod /
+  // ClassPrivateMethod carry body and params directly on the member. caller pre-filters to
+  // method shapes; helper just picks the path that owns the function body
+  function methodFnPath(memberPath) {
+    const value = memberPath.get('value');
+    return value?.node ? value : memberPath;
+  }
+
   function resolveClassMemberNode(member, callPath) {
-    // ESTree MethodDefinition wraps FunctionExpression in `.value`; babel ClassMethod /
-    // ClassPrivateMethod carry body fields directly
-    const methodFn = isMethodMember(member.node) ? (member.get('value')?.node ? member.get('value') : member) : null;
+    const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
     // TSDeclareMethod (ambient `declare class` body) has no body - only the return-type
     // annotation is available for resolution
     const declaredReturn = member.node.type === 'TSDeclareMethod' ? member.node.returnType : null;
@@ -2599,18 +2604,153 @@ function createResolveNodeType(babelNodeType, t) {
     // property access: foo.bar or foo.#bar
     if (isPropertyMember(member.node)) {
       if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation, member.scope);
-      const value = member.get('value');
-      if (!value.node) return null;
-      const resolved = resolveNodeType(value);
-      // `field = null` / `field = undefined` is a sentinel init; real assignments happen
-      // elsewhere in the class. treat purely-nullable inits as unknown so `this.field?.at(x)`
-      // doesn't skip the polyfill via the nullable-receiver short-circuit
-      return resolved && isNullableOrNever(resolved) ? null : resolved;
+      return resolveClassFieldType(member);
     }
     // method: getter returns its return type, regular method returns Function
     if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn) : new $Object('Function');
     if (declaredReturn) return new $Object('Function');
     return null;
+  }
+
+  // mutable field - init alone is unsound (sentinel `#x = null` + later `this.#x = arr()`).
+  // fold init + every assignment to the field; all-nullable collapses to unknown so the
+  // nullable-receiver short-circuit in `resolveCallReturnType` doesn't skip polyfill emission.
+  // private (`#x`) is scope-closed; public / auto-accessor are externally writable, so we also
+  // fold subclass `this.<field>` writes and module-wide `<expr>.<field> = Y` whose receiver
+  // looks like `new ClassName(...)`. anonymous class expressions bail to unknown
+  let classFieldTypeCache = new WeakMap();
+  function resolveClassFieldType(member) {
+    if (classFieldTypeCache.has(member.node)) return classFieldTypeCache.get(member.node);
+    // seed the sentinel before scanning so cross-referencing fields
+    // (`this.a = this.b; this.b = this.a`) bail to unknown instead of recursing forever
+    classFieldTypeCache.set(member.node, null);
+    const fieldName = getKeyName(member.node.key);
+    if (!fieldName) return null;
+    const candidates = collectClassFieldCandidates(member, fieldName);
+    const result = candidates ? foldNonNullableCommon(candidates) : null;
+    classFieldTypeCache.set(member.node, result);
+    return result;
+  }
+
+  // gather every type that could flow into `fieldName` on an instance. null signals
+  // "unknown writer set" (anonymous class expression) - caller treats as no inference
+  function collectClassFieldCandidates(member, fieldName) {
+    const classPath = member.parentPath.parentPath;
+    const candidates = [];
+    const initPath = member.get('value');
+    if (initPath.node) {
+      const initType = resolveNodeType(initPath);
+      if (initType) candidates.push(initType);
+    }
+    collectThisFieldAssignments(classPath, fieldName, candidates);
+    if (t.isClassPrivateProperty?.(member.node)) return candidates;
+    const className = classBindingName(classPath);
+    if (!className) return null;
+    const program = findProgramPath(classPath);
+    if (!program) return candidates;
+    for (const sub of findSubclasses(program, className)) collectThisFieldAssignments(sub, fieldName, candidates);
+    collectExternalFieldAssignments(program, className, fieldName, candidates);
+    return candidates;
+  }
+
+  // commonType-fold skipping nullable/never; collapse to null once union-incompatible so the
+  // polyfill dispatch routes to the safe generic variant
+  function foldNonNullableCommon(types) {
+    let result = null;
+    for (const cand of types) {
+      if (isNullableOrNever(cand)) continue;
+      result = result === null ? cand : commonType(result, cand);
+      if (result === null) break;
+    }
+    return result;
+  }
+
+  // shared gate for `<expr>.<fieldName> = Y` writes: operator `=`, non-computed member,
+  // matching field name. `acceptReceiver` decides which receiver shapes count.
+  // dot-path `p.get('left.object')` is unsupported on unplugin's oxc-wrapped paths, so
+  // chain two `.get` calls explicitly
+  function pushFieldAssignmentType(p, fieldName, acceptReceiver, out) {
+    const { node } = p;
+    if (node.operator !== '=') return;
+    const { left } = node;
+    if (!t.isMemberExpression(left) || left.computed) return;
+    if (getKeyName(left.property) !== fieldName) return;
+    if (!acceptReceiver(p.get('left').get('object'))) return;
+    const rhsType = resolveNodeType(p.get('right'));
+    if (rhsType) out.push(rhsType);
+  }
+
+  // walk instance method bodies, folding in every `this.<field> = Y` assignment. traversal
+  // skips function-like nodes that rebind `this` (regular fns, object methods, nested classes)
+  // but descends into arrow functions (shared `this`). static members skip too: their `this`
+  // is the class itself, unrelated to instance storage. compound assignments (`+=` etc.) are
+  // dropped by `pushFieldAssignmentType`'s operator check
+  function collectThisFieldAssignments(classPath, fieldName, out) {
+    const receiverIsThis = objPath => t.isThisExpression(objPath.node);
+    for (const bodyMember of classPath.get('body').get('body')) {
+      if (bodyMember.node.static || !isMethodMember(bodyMember.node)) continue;
+      const body = methodFnPath(bodyMember).get('body');
+      if (!body.node) continue;
+      body.traverse({
+        'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
+          p.skip();
+        },
+        AssignmentExpression(p) { pushFieldAssignmentType(p, fieldName, receiverIsThis, out); },
+      });
+    }
+  }
+
+  // oxc-wrapped paths don't implement `findParent`; walk the chain directly so unplugin
+  // and babel share this helper
+  function findProgramPath(path) {
+    let current = path;
+    while (current && !t.isProgram(current.node)) current = current.parentPath;
+    return current;
+  }
+
+  // class binding name for identity matching in the external-write scan. `class C {}` exposes
+  // `id`; `const C = class {}` reuses the declarator name. anonymous shapes -> null (caller bails)
+  function classBindingName(classPath) {
+    if (classPath.node.id?.name) return classPath.node.id.name;
+    const { parent } = classPath;
+    if (t.isVariableDeclarator(parent) && parent.init === classPath.node) return parent.id?.name ?? null;
+    return null;
+  }
+
+  // syntactic subclasses in the module: `class X extends <ClassName>`. their instances share
+  // the field storage object, so `this.<field> = Y` inside them contributes to the parent's union
+  function findSubclasses(programPath, className) {
+    const subs = [];
+    programPath.traverse({
+      'ClassDeclaration|ClassExpression'(p) {
+        if (t.isIdentifier(p.node.superClass) && p.node.superClass.name === className) subs.push(p);
+      },
+    });
+    return subs;
+  }
+
+  // does `<expr>` syntactically look like an instance of `className`? matches `new ClassName(...)`
+  // or an Identifier bound to such init. user classes don't carry their name through
+  // `resolveNodeType` (plain `new C()` resolves to `$Object('Object')`), so we pattern-match
+  // directly. factory-returned / reassigned / annotation-only shapes stay outside the scan -
+  // under-counting writes is the already-accepted conservative failure mode
+  function receiverIsClassInstance(exprPath, className) {
+    const { node } = exprPath;
+    if (t.isNewExpression(node) && t.isIdentifier(node.callee) && node.callee.name === className) return true;
+    if (t.isIdentifier(node)) {
+      const init = exprPath.scope?.getBinding(node.name)?.path?.node?.init;
+      return !!init && t.isNewExpression(init) && t.isIdentifier(init.callee) && init.callee.name === className;
+    }
+    return false;
+  }
+
+  // module-wide `<expr>.<fieldName> = Y` where `<expr>` looks like an instance of `className`.
+  // `this.<field>` writes are collected by `collectThisFieldAssignments` and filtered out here
+  function collectExternalFieldAssignments(programPath, className, fieldName, out) {
+    const acceptReceiver = objPath => !t.isThisExpression(objPath.node) && receiverIsClassInstance(objPath, className);
+    programPath.traverse({
+      AssignmentExpression(p) { pushFieldAssignmentType(p, fieldName, acceptReceiver, out); },
+    });
   }
 
   function resolveMergedInterfaceMember(className, scope, name, callPath) {
@@ -2652,8 +2792,7 @@ function createResolveNodeType(babelNodeType, t) {
     const prop = findObjectMember(objectPath, name);
     if (!prop) return null;
     // method call: obj.foo()
-    // ESTree Property{method:true} wraps FunctionExpression in .value - unwrap for return type resolution
-    const propFn = t.isObjectMethod(prop.node) ? (prop.get('value')?.node ? prop.get('value') : prop) : null;
+    const propFn = t.isObjectMethod(prop.node) ? methodFnPath(prop) : null;
     if (callPath) {
       if (propFn) {
         if (prop.node.kind !== 'get') return resolveReturnType(propFn, callPath);
@@ -4369,6 +4508,7 @@ function createResolveNodeType(babelNodeType, t) {
     guardsCache = new WeakMap();
     resolveCache = new WeakMap();
     typeDeclCache = new WeakMap();
+    classFieldTypeCache = new WeakMap();
   }
 
   function resolveNodeType(path) {
