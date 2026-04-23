@@ -5,7 +5,8 @@ import {
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers';
 
-export default function (t, { getInjector } = {}) {
+export default function (t, { getInjector, typeResolvers } = {}) {
+  const { resolveNodeType, toHint } = typeResolvers ?? {};
   // side-effect expressions from destructuring inits - deferred to Program.exit
   const deferredSideEffects = [];
   // original body index of each declaration, before insertBefore shifts it
@@ -32,6 +33,13 @@ export default function (t, { getInjector } = {}) {
     if (isSafeToReuse(node)) return [t.cloneNode(node), t.cloneNode(node)];
     const ref = generateRef(scope);
     return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
+  }
+
+  // resolve the expression's type hint - no-op when the factory was constructed without
+  // typeResolvers (tooling that uses this module for raw AST rewrite only). `null` on
+  // unresolvable types, cheaper on repeat calls thanks to resolveCache
+  function pathTypeHint(p) {
+    return resolveNodeType && toHint ? toHint(resolveNodeType(p)) : null;
   }
 
   // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement)
@@ -127,9 +135,20 @@ export default function (t, { getInjector } = {}) {
     // remain untouched, so computed-property bootstrapping isn't disturbed
     let check = null;
     if (!skipOptional?.(chainStart.node, path.scope)) {
+      const memoHint = pathTypeHint(chainStart.get(key));
       let ref;
       [check, ref] = memoize(chainStart.node[key], path.scope);
-      chainStart.node[key] = t.cloneNode(ref);
+      // stash the memoized value's type hint on the AST-embedded clone so the synthesized
+      // `_ref` identifier (replacing chainStart's receiver/callee) resolves back to the
+      // memoized value's type via the universal `coreJSResolvedType` short-circuit in
+      // resolveNodeType. without this, `?.at` (optional chain trigger) loses its receiver's
+      // hint once extractCheck rewrites M2.object to the ref: `resolveBindingType` can't
+      // recover it because the generated `_ref` identifier has no source-start position,
+      // so `findLastStraightLineAssignment` bails on the ordering check and enhanceMeta
+      // falls through to the generic `common` variant instead of the `array` variant
+      const refClone = t.cloneNode(ref);
+      if (memoHint) refClone.coreJSResolvedType = memoHint;
+      chainStart.node[key] = refClone;
     }
     deoptionalizeNode(chainStart);
     for (let p = chainStart.parentPath; p !== path; p = p.parentPath) {
