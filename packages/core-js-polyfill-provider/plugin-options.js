@@ -139,7 +139,12 @@ function validateOptions({
     if (typeof targets !== 'string' && !Array.isArray(targets) && !isPlainObject(targets)) {
       throw optionTypeError('targets', 'a string, array, or plain object', targets);
     }
-    if (targets === '') throw optionTypeError('targets', 'a non-empty string, array, or plain object', '');
+    // empty string and empty array both silently fall back to browserslist defaults downstream,
+    // which looks like accidental mis-configuration - reject symmetrically
+    const isEmptyArray = Array.isArray(targets) && targets.length === 0;
+    if (targets === '' || isEmptyArray) {
+      throw optionTypeError('targets', 'a non-empty string, array, or plain object', targets);
+    }
   }
 }
 
@@ -177,8 +182,11 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
     }
     return true;
   };
-  // no cache: a user callback may depend on per-file context and a shared cache would
-  // pin the first answer across every subsequent transform call
+  // no cache at THIS layer - each call forwards to userCallback. note: createPolyfillContext
+  // still caches per entry path in `modulesForEntryCache` / `isEntryNeededCache`, so a user
+  // callback that returns different answers for the same module across transform invocations
+  // only takes effect on the first call per entry. build-level (stateless) callbacks work as
+  // expected; per-file thread-local callbacks must remember that contract
   const hasUserCallback = typeof userCallback === 'function';
   return mod => {
     const base = defaultShouldInject(mod);
