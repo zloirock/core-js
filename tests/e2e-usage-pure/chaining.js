@@ -143,3 +143,29 @@ QUnit.test('chain: Iterator.from -> filter -> map -> take -> toArray', assert =>
     .toArray();
   assert.deepEqual(result, [20, 40]);
 });
+
+// --- Deep optional chain - outer receiver types bottom out at primitive via element-tracking ---
+// `arr.at(0)?.at(0).at(0).at(0)`: 4-deep chain on 3-nested array. Outer M4 receiver type
+// resolves to `number`, but the generic-fallback retry polyfills it anyway. Without the
+// retry, the outermost `.at(0)` stayed raw and broke under native-`.at`-less targets
+
+QUnit.test('chain: 4-deep optional `.at(0)` short-circuits when first guard is nullish', assert => {
+  // `arr.at(5)` is out-of-bounds -> undefined; `?.at(0)` short-circuits the entire chain
+  // covers the guard path of the chain polyfill: no inner polyfill fires at runtime
+  const arr = [[[1]]];
+  assert.same(arr.at(5)?.at(0).at(0).at(0), undefined);
+});
+
+QUnit.test('chain: 4-deep optional `.at(0)` reaches outermost polyfill on non-null chain', assert => {
+  const arr = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]];
+  // arr.at(0) = [[1,2],[3,4]] -> .at(0) = [1,2] -> .at(0) = 1 -> `.at(0)` on number throws.
+  // validates the outermost polyfill DOES execute (it's the throw source, not the raw skip)
+  assert.throws(() => arr.at(0)?.at(0).at(0).at(0), TypeError);
+});
+
+QUnit.test('chain: 5-deep optional `.at(0)` - outermost polyfilled, M4 stays raw', assert => {
+  const arr = [[[1]]];
+  // depths: arr=Array[3], arr.at=Array[2], ?.at=Array[1], .at=number, then M4/M5 on number.
+  // the intermediate M4 (inner chain member) stays raw; matches babel's re-visit reach
+  assert.throws(() => arr.at(0)?.at(0).at(0).at(0).at(0), TypeError);
+});
