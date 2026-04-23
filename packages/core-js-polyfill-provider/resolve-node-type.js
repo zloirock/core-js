@@ -2633,9 +2633,14 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // gather every type that could flow into `fieldName` on an instance. null signals
-  // "unknown writer set" (anonymous class expression) - caller treats as no inference
+  // "unknown writer set" (anonymous public class) - caller treats as no inference
   function collectClassFieldCandidates(member, fieldName) {
     const classPath = member.parentPath.parentPath;
+    const isPrivate = t.isClassPrivateProperty?.(member.node);
+    // anonymous public class: external writes untrackable without a name. bail early,
+    // before wasting work on init + class-internal scan that we can't soundly return
+    const className = isPrivate ? null : classBindingName(classPath);
+    if (!isPrivate && !className) return null;
     const candidates = [];
     const initPath = member.get('value');
     if (initPath.node) {
@@ -2643,13 +2648,16 @@ function createResolveNodeType(babelNodeType, t) {
       if (initType) candidates.push(initType);
     }
     collectThisFieldAssignments(classPath, fieldName, candidates);
-    if (t.isClassPrivateProperty?.(member.node)) return candidates;
-    const className = classBindingName(classPath);
-    if (!className) return null;
+    if (isPrivate) return candidates;
     const program = findProgramPath(classPath);
     if (!program) return candidates;
-    for (const sub of findSubclasses(program, className)) collectThisFieldAssignments(sub, fieldName, candidates);
-    collectExternalFieldAssignments(program, className, fieldName, candidates);
+    const index = getModuleFieldIndex(program);
+    for (const sub of index.subclassesBySuper.get(className) ?? []) {
+      collectThisFieldAssignments(sub, fieldName, candidates);
+    }
+    for (const writePath of index.writesByField.get(fieldName) ?? []) {
+      pushIfExternalInstance(writePath, className, candidates);
+    }
     return candidates;
   }
 
@@ -2717,16 +2725,8 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // syntactic subclasses in the module: `class X extends <ClassName>`. their instances share
-  // the field storage object, so `this.<field> = Y` inside them contributes to the parent's union
-  function findSubclasses(programPath, className) {
-    const subs = [];
-    programPath.traverse({
-      'ClassDeclaration|ClassExpression'(p) {
-        if (t.isIdentifier(p.node.superClass) && p.node.superClass.name === className) subs.push(p);
-      },
-    });
-    return subs;
+  function isNewOfClass(node, className) {
+    return t.isNewExpression(node) && t.isIdentifier(node.callee) && node.callee.name === className;
   }
 
   // does `<expr>` syntactically look like an instance of `className`? matches `new ClassName(...)`
@@ -2736,21 +2736,55 @@ function createResolveNodeType(babelNodeType, t) {
   // under-counting writes is the already-accepted conservative failure mode
   function receiverIsClassInstance(exprPath, className) {
     const { node } = exprPath;
-    if (t.isNewExpression(node) && t.isIdentifier(node.callee) && node.callee.name === className) return true;
-    if (t.isIdentifier(node)) {
-      const init = exprPath.scope?.getBinding(node.name)?.path?.node?.init;
-      return !!init && t.isNewExpression(init) && t.isIdentifier(init.callee) && init.callee.name === className;
-    }
-    return false;
+    if (isNewOfClass(node, className)) return true;
+    if (!t.isIdentifier(node)) return false;
+    const init = exprPath.scope?.getBinding(node.name)?.path?.node?.init;
+    return !!init && isNewOfClass(init, className);
   }
 
-  // module-wide `<expr>.<fieldName> = Y` where `<expr>` looks like an instance of `className`.
-  // `this.<field>` writes are collected by `collectThisFieldAssignments` and filtered out here
-  function collectExternalFieldAssignments(programPath, className, fieldName, out) {
-    const acceptReceiver = objPath => !t.isThisExpression(objPath.node) && receiverIsClassInstance(objPath, className);
+  // one pre-filtered write against an instance of `className`. `writePath` comes from the
+  // per-program index, so operator/member/field-name filters are already satisfied; here
+  // we just apply the instance-identity predicate and resolve the RHS
+  function pushIfExternalInstance(writePath, className, out) {
+    const objPath = writePath.get('left').get('object');
+    if (t.isThisExpression(objPath.node)) return;
+    if (!receiverIsClassInstance(objPath, className)) return;
+    const rhsType = resolveNodeType(writePath.get('right'));
+    if (rhsType) out.push(rhsType);
+  }
+
+  // precomputed per-module index for the module-wide flow scan. naive approach does two full
+  // traversals per public field (subclasses + external writes), yielding O(fields x N). build
+  // once, look up by name, turning the total into a single O(N) pass amortized across every
+  // public field query in the module
+  let moduleFieldIndexCache = new WeakMap();
+  function getModuleFieldIndex(programPath) {
+    const cached = moduleFieldIndexCache.get(programPath.node);
+    if (cached) return cached;
+    const writesByField = new Map();
+    const subclassesBySuper = new Map();
+    const pushMultimap = (map, key, value) => {
+      const list = map.get(key);
+      if (list) list.push(value);
+      else map.set(key, [value]);
+    };
     programPath.traverse({
-      AssignmentExpression(p) { pushFieldAssignmentType(p, fieldName, acceptReceiver, out); },
+      'ClassDeclaration|ClassExpression'(p) {
+        const sup = p.node.superClass;
+        if (t.isIdentifier(sup)) pushMultimap(subclassesBySuper, sup.name, p);
+      },
+      AssignmentExpression(p) {
+        const { node } = p;
+        if (node.operator !== '=') return;
+        const { left } = node;
+        if (!t.isMemberExpression(left) || left.computed) return;
+        const name = getKeyName(left.property);
+        if (name) pushMultimap(writesByField, name, p);
+      },
     });
+    const index = { writesByField, subclassesBySuper };
+    moduleFieldIndexCache.set(programPath.node, index);
+    return index;
   }
 
   function resolveMergedInterfaceMember(className, scope, name, callPath) {
@@ -4509,6 +4543,7 @@ function createResolveNodeType(babelNodeType, t) {
     resolveCache = new WeakMap();
     typeDeclCache = new WeakMap();
     classFieldTypeCache = new WeakMap();
+    moduleFieldIndexCache = new WeakMap();
   }
 
   function resolveNodeType(path) {
