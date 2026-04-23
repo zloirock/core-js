@@ -1,9 +1,11 @@
+import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
 import { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { entryToGlobalHint, ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/import-state.js';
 import TransformQueue from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
+import { collectAllBindingNames } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
 const { cyan, green, red } = chalk;
 
@@ -237,6 +239,35 @@ function checkSnapshotKeyNormalization() {
   check('SnapshotCache/collapse repeated slashes', cache.take('core-js-pure/full/foo.js')?.tag, 'F');
 }
 checkSnapshotKeyNormalization();
+
+// --- collectAllBindingNames orphan-ref heuristic ---
+// parent-tracking distinguishes plugin's nested `_ref = X` emission (inside a ConditionalExpression
+// guard or a call argument) from user's stand-alone sloppy-mode `_ref = X;` statement. without
+// parent context, user `_ref = window.data;` at top level matches the complex-RHS heuristic
+// and gets adopted - resulting `var _ref;` shadows the user's intended global assignment
+function collectBindings(src) {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  return collectAllBindingNames(parseSync('unit.js', src).program);
+}
+function checkOrphan(label, src, orphans, names = null) {
+  const result = collectBindings(src);
+  check(`collectBindings/${ label }/orphans`, [...result.orphanRefs].sort().join(','), orphans.join(','));
+  if (names) check(`collectBindings/${ label }/names.has`, names.every(n => result.names.has(n)), true);
+}
+// plugin-shaped: nested `_ref = X` inside a ConditionalExpression (guard emission)
+checkOrphan('nested call', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
+checkOrphan('nested member', 'null == (_ref = foo.bar) ? void 0 : _ref;', ['_ref']);
+checkOrphan('nested new', 'null == (_ref = new Foo()) ? void 0 : _ref;', ['_ref']);
+// user sloppy-mode: stand-alone `_ref = X;` - never plugin's shape regardless of RHS
+checkOrphan('top-level call', '_ref = foo();', [], ['_ref']);
+checkOrphan('top-level member', '_ref = window.data;', [], ['_ref']);
+checkOrphan('top-level new', '_ref = new Foo();', [], ['_ref']);
+checkOrphan('top-level literal', '_ref = 42;', [], ['_ref']);
+// user: `let _ref` reserves, never orphan
+checkOrphan('let decl', 'let _ref = foo();', [], ['_ref']);
+// mixed: user's top-level `_ref = X;` + plugin-style nested `_ref2 = foo()` in one file
+checkOrphan('mixed shapes', '_ref = window.x; null == (_ref2 = bar()) ? void 0 : _ref2;',
+  ['_ref2'], ['_ref']);
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
