@@ -951,9 +951,12 @@ function matchEntrySubpath(source, pkgs, subPrefix) {
 function defaultSpecifierNames(node) {
   // `import X from` and `import { default as X } from` bind the same module export;
   // a user can legitimately stack both forms on one declaration (`import Def, { default as Alt }
-  // from 'x'`) - surface every name so downstream registers both hints, not just the first
+  // from 'x'`) - surface every name so downstream registers both hints, not just the first.
+  // per-specifier `importKind: 'type'` (`import { type default as T } from ...`) is type-only;
+  // it never reaches runtime, so skip to avoid registering a phantom hint
   const out = [];
   for (const s of node.specifiers ?? []) {
+    if (s?.importKind === 'type') continue;
     if (bindsModuleDefault(s) && s.local?.name) out.push(s.local.name);
   }
   return out;
