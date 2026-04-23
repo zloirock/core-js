@@ -1843,6 +1843,14 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveNodeTypeExpression(path) {
     path = resolvePath(path);
 
+    // polyfill-side transformations (memoized optional-chain refs, chained conditional
+    // wrappers, destructure-extracted helpers) stash a pre-mutation type hint on the node
+    // so downstream type resolution can recover the original receiver type even after the
+    // expression has been rewritten. the per-case `CallExpression` check below was the
+    // original narrow form; hoist it here so the same hint survives on Identifier /
+    // ConditionalExpression / other wrappers that the AST-mutation path produces
+    if (path.node.coreJSResolvedType) return typeFromHint(path.node.coreJSResolvedType);
+
     switch (babelNodeType(path.node)) {
       // ESTree wraps optional chains in ChainExpression, preserves parentheses - unwrap
       case 'ChainExpression':
@@ -1899,8 +1907,7 @@ function createResolveNodeType(babelNodeType, t) {
           || resolveKnownGlobalReference(path);
       case 'CallExpression':
       case 'OptionalCallExpression': {
-        // polyfill-replaced call: return type was stashed before callee replacement
-        if (path.node.coreJSResolvedType) return typeFromHint(path.node.coreJSResolvedType);
+        // coreJSResolvedType short-circuit handled at the top of resolveNodeTypeExpression
         const callee = path.get('callee');
         const name = resolveGlobalName(callee);
         if (name) {
