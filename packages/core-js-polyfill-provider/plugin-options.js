@@ -39,7 +39,12 @@ function formatReceived(value) {
   if (typeof value === 'bigint') return `${ value }n`;
   if (value === undefined) return 'undefined';
   if (typeof value === 'object' && value !== null && !isPlainObject(value) && !Array.isArray(value)) {
-    const ctorName = value.constructor?.name;
+    // adversarial Proxy may throw on `.constructor` access - defensive, so formatReceived
+    // never throws a secondary error while we're already reporting the primary one
+    let ctorName = null;
+    try {
+      ctorName = value.constructor?.name;
+    } catch { /* swallow */ }
     return ctorName && ctorName !== 'Object' ? `[${ ctorName }] ${ safeStringify(value) }` : safeStringify(value);
   }
   return safeStringify(value);

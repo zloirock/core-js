@@ -673,7 +673,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // --- Type annotation resolver ---
-  function resolveTypeArgs(decl, node, typeParamMap, scope, depth) {
+  function resolveTypeArgs(decl, node, typeParamMap, scope, depth, seen) {
     const declParams = decl.typeParameters?.params;
     if (!declParams?.length) return typeParamMap;
     const callArgs = getTypeArgs(node)?.params;
@@ -685,7 +685,7 @@ function createResolveNodeType(babelNodeType, t) {
       const arg = callArgs?.[i] ?? declParams[i].default;
       if (!arg) continue;
       const resolved = localMap.size > 0
-        ? substituteTypeParams(arg, localMap, scope, depth + 1)
+        ? substituteTypeParams(arg, localMap, scope, depth + 1, seen)
         : resolveTypeAnnotation(arg, scope, depth + 1);
       if (resolved) {
         localMap.set(typeParamName(declParams[i]), resolved);
@@ -745,7 +745,7 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const visited = seen ?? new Set();
     visited.add(declaration);
-    typeParamMap = resolveTypeArgs(declaration, node, typeParamMap, scope, depth);
+    typeParamMap = resolveTypeArgs(declaration, node, typeParamMap, scope, depth, visited);
     // thread `visited` into the body-resolution closure so self-recursive aliases
     // (`type Rec<T> = Rec<T[]>`) hit the decl-set guard on re-entry instead of
     // growing `typeParamMap` unboundedly until MAX_DEPTH bottom-outs via CPU-burn
@@ -1006,7 +1006,12 @@ function createResolveNodeType(babelNodeType, t) {
         case 'TSPropertySignature':
         case 'TSMethodSignature':
           if (keyMatchesName(member.key, key)) {
-            return member.type === 'TSMethodSignature' ? { type: 'TSFunctionType' } : withSubst(member.typeAnnotation);
+            if (member.type !== 'TSMethodSignature') return withSubst(member.typeAnnotation);
+            // getters are TSMethodSignature kind:'get' but semantically read the return
+            // value, not a function. plain methods -> function type
+            return member.kind === 'get'
+              ? withSubst(member.typeAnnotation ?? member.returnType)
+              : { type: 'TSFunctionType' };
           }
           break;
         case 'ObjectTypeProperty':
@@ -2996,15 +3001,29 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // serialize `x`, `this.data`, `obj.a.b` - null for computed / shapes we don't probe
+  // `.x` / `?.x` - static dotted property access. MemberExpression and OptionalMemberExpression
+  // share the shape; optional-chain short-circuit is orthogonal to the access path
+  function isStaticDotAccess(node) {
+    return (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
+      && !node.computed && node.property?.type === 'Identifier';
+  }
+
   function pathKey(node) {
     if (node?.type === 'Identifier') return node.name;
     if (node?.type === 'ThisExpression') return 'this';
-    if (node?.type === 'MemberExpression' && !node.computed
-      && node.property?.type === 'Identifier') {
+    if (isStaticDotAccess(node)) {
       const parent = pathKey(node.object);
       return parent === null ? null : `${ parent }.${ node.property.name }`;
     }
     return null;
+  }
+
+  // oxc wraps optional chains in ChainExpression (`s?.kind` -> `ChainExpression > Member{optional}`);
+  // babel uses OptionalMemberExpression directly. peel both so downstream sees the member node
+  function peelParensAndChain(node) {
+    node = unwrapParens(node);
+    if (node?.type === 'ChainExpression') node = node.expression;
+    return node;
   }
 
   // `<path>.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for
@@ -3014,15 +3033,14 @@ function createResolveNodeType(babelNodeType, t) {
     const isEq = test.operator === '===' || test.operator === '==';
     const isNeq = test.operator === '!==' || test.operator === '!=';
     if (!isEq && !isNeq) return null;
-    const left = unwrapParens(test.left);
-    const right = unwrapParens(test.right);
+    const left = peelParensAndChain(test.left);
+    const right = peelParensAndChain(test.right);
     const pair = memberLiteralPair(left, right, targetKey) ?? memberLiteralPair(right, left, targetKey);
     return pair && { ...pair, positive: isEq === conditionTrue };
   }
 
   function memberLiteralPair(memberExpr, literalNode, targetKey) {
-    if (memberExpr?.type !== 'MemberExpression' || memberExpr.computed) return null;
-    if (memberExpr.property?.type !== 'Identifier') return null;
+    if (!isStaticDotAccess(memberExpr)) return null;
     if (pathKey(memberExpr.object) !== targetKey) return null;
     const value = literalKeyValue(literalNode);
     return value === null ? null : { field: memberExpr.property.name, value };
@@ -3545,7 +3563,11 @@ function createResolveNodeType(babelNodeType, t) {
     const propName = path.node.property.name;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
-      const raw = m.typeAnnotation ?? m.returnType ?? (m.type === 'TSMethodSignature' ? m : null);
+      // getters are TSMethodSignature with kind:'get' but semantically read the return
+      // type, not a function. regular methods fall through to the method-signature node
+      // so downstream sees a function type for `const fn = obj.method`
+      const isMethodProper = m.type === 'TSMethodSignature' && m.kind !== 'get';
+      const raw = m.typeAnnotation ?? m.returnType ?? (isMethodProper ? m : null);
       if (!raw) continue;
       return { annotation: subst ? applyAliasSubstDeep(raw, subst) : raw, scope: objInfo.scope };
     }
