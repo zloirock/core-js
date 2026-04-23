@@ -1427,7 +1427,11 @@ export default function createPlugin(options) {
         for (const [, { receiver, objectPattern, polyfills }] of state.synthSwaps) {
           if (receiver?.type !== 'Identifier' || objectPattern?.type !== 'ObjectPattern') continue;
           const receiverPure = resolveGlobalPolyfill(receiver.name);
-          const receiverSrc = receiverPure
+          // lazy: `receiverSrc` is only consumed by non-polyfilled sibling props that need to
+          // read off the original receiver. if every prop polyfilled independently, no read
+          // happens and `injectPureImport` would leak a dead `_Promise` import into the bundle
+          let receiverSrc = null;
+          const getReceiverSrc = () => receiverSrc ??= receiverPure
             ? injectPureImport(receiverPure.entry, receiverPure.hintName)
             : receiver.name;
           const entries = [];
@@ -1436,7 +1440,7 @@ export default function createPlugin(options) {
             const polyfill = polyfills.get(p.key.name);
             entries.push(polyfill
               ? `${ p.key.name }: ${ polyfill }`
-              : `${ p.key.name }: ${ receiverSrc }.${ p.key.name }`);
+              : `${ p.key.name }: ${ getReceiverSrc() }.${ p.key.name }`);
           }
           transforms.add(receiver.start, receiver.end, `{ ${ entries.join(', ') } }`);
         }
