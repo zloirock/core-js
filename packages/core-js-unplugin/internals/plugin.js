@@ -1042,6 +1042,22 @@ export default function createPlugin(options) {
         return pure && pure.kind !== 'instance' ? pure : null;
       }
 
+      // intermediate slots permitted on the walk from an inner Property up to the enclosing
+      // VariableDeclaration. any other shape -> foreign wrapper, bail safely
+      const NESTED_DESTRUCTURE_WALK_TYPES = new Set(['ObjectPattern', 'Property', 'VariableDeclarator']);
+
+      // walk Property/ObjectPattern pairs up to the enclosing VariableDeclaration. 2-level
+      // nest is 5 hops, every additional alias-hop adds 2. returns the declaration's path
+      // or null when the chain leaves the allowed-types set
+      function walkUpNestedDestructureToDeclaration(startPath) {
+        let current = startPath;
+        while (current && current.node?.type !== 'VariableDeclaration') {
+          if (!NESTED_DESTRUCTURE_WALK_TYPES.has(current.node?.type)) return null;
+          current = current.parentPath;
+        }
+        return current;
+      }
+
       // `const { Array: { from, of } } = globalThis` -> `const from = _Array$from; const of = _Array$of;`
       // batch-rewrite on first visit: walk all declarators, extract every polyfillable inner
       // binding, rebuild the declaration with siblings (or drop entirely). subsequent visits
@@ -1049,11 +1065,7 @@ export default function createPlugin(options) {
       // `{ from } = Array` is handled by the state machine below
       function tryFlattenNestedProxyDestructurePure(metaPath) {
         if (metaPath.node.value?.type !== 'Identifier') return false;
-        // walk inner Property -> inner ObjectPattern -> outer Property -> outer ObjectPattern
-        // -> VariableDeclarator -> VariableDeclaration (5 levels). the bottom check below
-        // (`type !== 'VariableDeclaration'`) gates against any unexpected wrapper at any
-        // intermediate level - a foreign node would mismatch the type check and bail safely
-        const declPath = metaPath.parentPath?.parentPath?.parentPath?.parentPath?.parentPath;
+        const declPath = walkUpNestedDestructureToDeclaration(metaPath.parentPath);
         const declaration = declPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
         if (flattenedNestedDecls.has(declaration)) return true;
@@ -1115,8 +1127,11 @@ export default function createPlugin(options) {
         return plan;
       }
 
-      // proxy-global outer prop (`globalThis.Foo` access via destructure). three shapes:
-      //   - `{ Foo: { bar, ... } }` - inner pattern, extract static methods
+      // proxy-global outer prop: four shapes
+      //   - `{ Foo: { bar, ... } }` where Foo is a real global - inner pattern holds static methods
+      //   - `{ Self: { ... } }` where Self is itself a proxy-global (`self`/`window`/...) -
+      //     alias hop, recurse through the nested pattern keeping the chain transparent.
+      //     enables N-level nests like `{ self: { window: { Array: { from } } } } = globalThis`
       //   - `{ Foo }` shorthand - polyfill Foo as a global
       //   - `{ Foo: alias }` aliased - same, different local name
       function planOuterProp(outerProp) {
@@ -1124,21 +1139,18 @@ export default function createPlugin(options) {
           || outerProp.key?.type !== 'Identifier') {
           return { preservedSrc: nodeSrc(outerProp) };
         }
-        const globalName = outerProp.key.name;
+        const { name } = outerProp.key;
         if (outerProp.value?.type === 'ObjectPattern') {
-          const extractions = [];
-          const preservedInner = [];
-          for (const innerProp of outerProp.value.properties) {
-            const e = planInnerProp(innerProp, globalName);
-            if (e.extractions?.length) extractions.push(...e.extractions);
-            else preservedInner.push(nodeSrc(innerProp));
-          }
-          if (!extractions.length) return { preservedSrc: nodeSrc(outerProp) };
-          if (!preservedInner.length) return { extractions, preservedSrc: null };
-          return { extractions, preservedSrc: `${ globalName }: { ${ preservedInner.join(', ') } }` };
+          // proxy-global alias hop (`self`/`window`/...): each nested prop goes through the
+          // same outer-prop planner. real-global container: nested props hold static-method
+          // extractions keyed by `name`
+          const planChild = POSSIBLE_GLOBAL_OBJECTS.has(name)
+            ? planOuterProp
+            : innerProp => planInnerProp(innerProp, name);
+          return foldNestedPattern(outerProp, planChild);
         }
         if (outerProp.value?.type === 'Identifier') {
-          const pure = resolveGlobalPolyfill(globalName);
+          const pure = resolveGlobalPolyfill(name);
           if (!pure) return { preservedSrc: nodeSrc(outerProp) };
           return {
             extractions: [{ entry: pure.entry, hint: pure.hintName, localName: outerProp.value.name }],
@@ -1146,6 +1158,22 @@ export default function createPlugin(options) {
           };
         }
         return { preservedSrc: nodeSrc(outerProp) };
+      }
+
+      // fold an ObjectPattern-valued outer prop: plan each child, concat extractions,
+      // rebuild preserved shape. empty extractions -> bail as opaque; all consumed -> null
+      // preservedSrc (caller drops the prop); partial -> `name: { a, b }` with survivors
+      function foldNestedPattern(outerProp, planChild) {
+        const extractions = [];
+        const preservedInner = [];
+        for (const child of outerProp.value.properties) {
+          const e = planChild(child);
+          if (e.extractions?.length) extractions.push(...e.extractions);
+          if (e.preservedSrc !== null && e.preservedSrc !== undefined) preservedInner.push(e.preservedSrc);
+        }
+        if (!extractions.length) return { preservedSrc: nodeSrc(outerProp) };
+        if (!preservedInner.length) return { extractions, preservedSrc: null };
+        return { extractions, preservedSrc: `${ outerProp.key.name }: { ${ preservedInner.join(', ') } }` };
       }
 
       // inner prop (static method on the nested global): `{ Array: { from } }` - `from` on
