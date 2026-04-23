@@ -3,9 +3,11 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 import createPlugin from './internals/plugin.js';
 
 // match JS/TS extensions anchored at end-of-path; `.d.ts` declaration files excluded.
-// Flow (.flow) is not listed - oxc-parser cannot parse Flow syntax
-const JS_RE = /\.[cm]?[jt]sx?$/;
-const DTS_RE = /\.d\.[cm]?tsx?$/;
+// Flow (.flow) is not listed - oxc-parser cannot parse Flow syntax.
+// case-insensitive: Windows FS is typically case-insensitive and build tools may normalize
+// extensions to upper-case (`.JS` / `.TSX`); lower-case-only match would skip those ids
+const JS_RE = /\.[cm]?[jt]sx?$/i;
+const DTS_RE = /\.d\.[cm]?tsx?$/i;
 // Vue / Svelte / Astro SFC sub-blocks travel as `App.vue?vue&type=script&lang=ts` /
 // `App.svelte?ts` / `App.astro?raw`. pattern accepts the same extension alphabet as JS_RE;
 // declaration-block `lang=d.ts` wouldn't match this pattern anyway (the `[cm]?[jt]sx?`
