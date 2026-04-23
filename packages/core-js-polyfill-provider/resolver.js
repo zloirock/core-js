@@ -229,6 +229,34 @@ export function createPolyfillResolver(options, {
     };
   }
 
+  // generic-fallback resolve: look up the `common` entry directly, bypassing the type-hint
+  // narrowing `enhanceMeta` performs. Exists to mirror babel's AST-mutation re-visit behavior -
+  // after an inner polyfill replaces an ancestor, that ancestor's call returns unknown type,
+  // so the outer member's `resolvePropertyObjectType` yields null and `resolveHint` lands on
+  // `common`. Unplugin's text-based rewrite never mutates the AST, so downstream members keep
+  // seeing their "correct" primitive/element type from `known-built-in-return-types` - the
+  // inferred type often has no matching desc variant, so `resolveHint` returns null and the
+  // outer bails. Callers (unplugin's optional-chain retry path) invoke this explicitly when
+  // they've detected the "ancestor polyfill breaks type inference" scenario and want the
+  // generic entry that would have fired on babel's re-visit
+  function resolvePureGeneric(meta, path) {
+    const resolved = resolve(meta);
+    if (!resolved || !hasOwn(resolved.desc, 'pure')) return null;
+    const { kind, desc: { pure: desc } } = resolved;
+    if (kind !== 'instance') return null;
+    if (!hasOwn(desc, 'common')) return null;
+    // pass meta with object stripped so resolveHint's placement-based branch skips and the
+    // `!excludedHints && !includedHints && hasOwn(desc, 'common')` branch picks up common
+    const genericMeta = { ...meta, object: null };
+    const entry = resolvePureEntry(kind, desc, genericMeta, path);
+    if (!entry) return null;
+    return {
+      entry,
+      kind,
+      hintName: pureImportName(kind, resolved.name, entry),
+    };
+  }
+
   // two distinct lookups, not a duplicate: first resolves the property meta against
   // `statics.<X>.<key>`; on miss, retries with the bare global meta against `globals.<X>`.
   // both calls go through the same `resolve` registry but consult different keys
@@ -248,7 +276,7 @@ export function createPolyfillResolver(options, {
   }
 
   return {
-    resolver: { ...ctx, resolveUsage, resolvePure, resolvePureOrGlobalFallback },
+    resolver: { ...ctx, resolveUsage, resolvePure, resolvePureGeneric, resolvePureOrGlobalFallback },
     createDebugOutput,
   };
 }

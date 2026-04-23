@@ -85,7 +85,7 @@ export default function plugin(api, options) {
     handleDestructuredProperty,
     unwrapTSExpressionParent,
     reset: resetASTHelpers,
-  } = createASTHelpers(t, { getInjector: () => injector });
+  } = createASTHelpers(t, { getInjector: () => injector, typeResolvers });
 
   const isWebpack = caller?.(c => c?.name === 'babel-loader');
 
