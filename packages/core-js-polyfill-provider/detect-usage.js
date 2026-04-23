@@ -543,13 +543,27 @@ function resolveComputedSymbolKey(node, scope, adapter) {
 // chain (`handleBinaryIn`'s Symbol.X case) - without the leaf, the identifier visitor fires a
 // parallel polyfill for `globalThis` that the text-transform queue can't compose into the
 // outer's eliminated-needle replacement
-function markSubsumedProxyChain(node, handledObjects) {
-  let current = unwrapParens(node);
-  while (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression') {
-    handledObjects.add(current);
-    current = unwrapParens(current.object);
+// peel and record transparent wrappers (TS casts, parens) along the way. polyfill visitor
+// lookups land on either form depending on the enclosing visitor, so marking both the wrapper
+// and its unwrapped inner matches any of them
+function peelMarkedWrappers(node, handledObjects) {
+  while (node && isTransparentWrapper(node)) {
+    handledObjects.add(node);
+    node = node.expression;
   }
-  if (current.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name)) {
+  return node;
+}
+
+// record the full proxy-global chain (including any wrappers at every level) so the outer
+// rewrite that subsumes it doesn't re-fire on the leaves. handles `(globalThis as any).Symbol.iterator`
+// and deeper nests like `(self as any)[(...)]` uniformly through `peelMarkedWrappers`
+function markSubsumedProxyChain(node, handledObjects) {
+  let current = peelMarkedWrappers(node, handledObjects);
+  while (current && (current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')) {
+    handledObjects.add(current);
+    current = peelMarkedWrappers(current.object, handledObjects);
+  }
+  if (current?.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(current.name)) {
     handledObjects.add(current);
   }
 }

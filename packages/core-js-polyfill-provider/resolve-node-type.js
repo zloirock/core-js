@@ -915,20 +915,49 @@ function createResolveNodeType(babelNodeType, t) {
       return all.length ? all : null;
     }
     if (isClassLikeDeclaration(declaration)) {
-      // class-as-type: merge non-static body entries up the superClass chain, covering
-      // both real and ambient parents (`class C extends DeclareParent {}`)
-      const merged = [];
-      const seen = new Set();
-      for (let cur = declaration; cur && !seen.has(cur); cur = findParentClassDecl(cur, scope)) {
-        seen.add(cur);
-        for (const m of cur.body?.body ?? []) if (!m?.static) merged.push(m);
-      }
-      return merged.length ? merged : null;
+      return collectClassLikeMembers(declaration, segments, scope, depth);
     }
     if (isTypeAlias(declaration)) {
-      return getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1);
+      // substitute the alias's type params into member annotations so
+      // `type Dict<V> = { [k: string]: V }` + `Dict<number[]>[string]` resolves V to number[]
+      const subst = buildSubstMap(declaration.typeParameters?.params, getTypeArgs(objectType)?.params);
+      const members = getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1);
+      if (!members) return null;
+      return subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
     }
     return null;
+  }
+
+  // class-as-type with TS declaration merging: non-static body entries up the superClass chain
+  // (real and ambient parents) plus every sibling `interface <name>` body + its extends chain
+  function collectClassLikeMembers(declaration, segments, scope, depth) {
+    const merged = [];
+    const seen = new Set();
+    for (let cur = declaration; cur && !seen.has(cur); cur = findParentClassDecl(cur, scope)) {
+      seen.add(cur);
+      for (const m of cur.body?.body ?? []) if (!m?.static) merged.push(m);
+    }
+    for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
+      for (const m of iface.body?.body ?? iface.body?.properties ?? []) merged.push(m);
+      appendInterfaceExtendsMembers(iface, scope, depth, merged);
+    }
+    return merged.length ? merged : null;
+  }
+
+  // walk `interface X extends A, B` parents. each parent's members carry through the
+  // `buildParentSubst` mapping so `A<T>.m: T` becomes `m: <instantiated>`
+  function appendInterfaceExtendsMembers(iface, scope, depth, out) {
+    for (const parent of iface.extends ?? []) {
+      const expr = extendsId(parent);
+      if (!expr) continue;
+      const parentRef = expr.type === 'Identifier'
+        ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
+        : expr;
+      const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
+      if (!parentMembers) continue;
+      const subst = buildParentSubst(parentRef, scope);
+      for (const m of parentMembers) out.push(subst ? substMemberAnnotations(m, subst) : m);
+    }
   }
 
   function findTypeMember(objectType, key, scope, depth = 0) {
@@ -1660,9 +1689,15 @@ function createResolveNodeType(babelNodeType, t) {
     return checkType ? resolveInnerType(checkType) : null;
   }
 
-  // extracts `U` from `(infer U)[]`, `Array<infer U>`, `ReadonlyArray<infer U>`,
-  // `readonly (infer U)[]`; null otherwise. runtime element type is identical across
-  // these four forms, so resolver treats them uniformly
+  // `Container<infer U>` is a recognised narrow pattern when the container's `.inner`
+  // slot semantically stores its type parameter - exactly the set of `SINGLE_ELEMENT_COLLECTIONS`
+  // plus Promise (and its structural synonyms, which alias to Promise via `resolveNamedType`)
+  function isInferContainerName(name) {
+    return SINGLE_ELEMENT_COLLECTIONS.has(name) || name === 'Promise' || PROMISE_SYNONYMS.has(name);
+  }
+
+  // extracts `U` from `(infer U)[]`, `readonly (infer U)[]`, or `Container<infer U>`
+  // where Container is a known single-element generic. returns null otherwise
   function matchArrayInferPattern(extendsType) {
     let node = unwrapTypeAnnotation(extendsType);
     // peel `readonly X` modifier (TSTypeOperator operator='readonly')
@@ -1670,8 +1705,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (node?.type === 'TSArrayType' && node.elementType?.type === 'TSInferType') {
       return node.elementType.typeParameter?.name?.name ?? node.elementType.typeParameter?.name;
     }
-    if (node?.type === 'TSTypeReference'
-      && (typeRefName(node) === 'Array' || typeRefName(node) === 'ReadonlyArray')) {
+    if (node?.type === 'TSTypeReference' && isInferContainerName(typeRefName(node))) {
       const arg = getTypeArgs(node)?.params?.[0];
       if (arg?.type === 'TSInferType') return arg.typeParameter?.name?.name ?? arg.typeParameter?.name;
     }
@@ -1820,7 +1854,16 @@ function createResolveNodeType(babelNodeType, t) {
       if (!current.node.superClass) return null;
       const superPath = current.get('superClass');
       const name = resolveGlobalName(superPath);
-      if (name) return resolveKnownConstructor(name);
+      if (name) {
+        const base = resolveKnownConstructor(name);
+        // `class MyArr extends Array<string>` - the super's type argument is the element type
+        // of the instance. resolve through same helper as `new Array<string>()` so the inner
+        // flows into polyfill dispatch (`_atMaybeArray` over generic)
+        const args = getSuperTypeArgs(current.node);
+        return args?.params
+          ? resolveKnownContainerType(name, base, { typeParameters: args }, p => resolveTypeAnnotation(p, current.scope))
+          : base;
+      }
       current = resolveRuntimeExpression(superPath);
       if (!t.isClass(current.node)) return null;
     }
@@ -2787,26 +2830,49 @@ function createResolveNodeType(babelNodeType, t) {
     return index;
   }
 
+  // merged class+interface member lookup. interface body's own members first, then parents
+  // via `extends` - `interface C extends A` lets `A.x` show up on `C` via declaration merging.
+  // resolveMemberFromMembers does the per-member annotation -> type step
   function resolveMergedInterfaceMember(className, scope, name, callPath) {
     const interfaces = findAllTypeDeclarations(className, scope).filter(isInterfaceDeclaration);
     for (const iface of interfaces) {
       // TS: iface.body.body; Flow: iface.body.properties
-      const body = iface.body?.body ?? iface.body?.properties;
-      if (!body) continue;
-      for (const member of body) {
-        if (member.computed) continue;
-        if (!keyMatchesName(member.key, name)) continue;
-        if (member.type === 'TSMethodSignature') {
-          if (callPath) {
-            const returnType = member.returnType ?? member.typeAnnotation;
-            return returnType ? resolveTypeAnnotation(returnType, scope) : null;
-          }
-          return new $Object('Function');
+      const ownBody = iface.body?.body ?? iface.body?.properties;
+      const ownHit = resolveMemberFromMembers(ownBody, name, scope, callPath);
+      if (ownHit) return ownHit;
+      for (const parent of iface.extends ?? []) {
+        const expr = extendsId(parent);
+        if (!expr) continue;
+        const parentRef = expr.type === 'Identifier'
+          ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
+          : expr;
+        const parentMembers = getTypeMembers(parentRef, scope);
+        if (!parentMembers) continue;
+        const subst = buildParentSubst(parentRef, scope);
+        const hit = resolveMemberFromMembers(
+          subst ? parentMembers.map(m => substMemberAnnotations(m, subst)) : parentMembers,
+          name, scope, callPath);
+        if (hit) return hit;
+      }
+    }
+    return null;
+  }
+
+  function resolveMemberFromMembers(members, name, scope, callPath) {
+    if (!members) return null;
+    for (const member of members) {
+      if (member.computed) continue;
+      if (!keyMatchesName(member.key, name)) continue;
+      if (member.type === 'TSMethodSignature') {
+        if (callPath) {
+          const returnType = member.returnType ?? member.typeAnnotation;
+          return returnType ? resolveTypeAnnotation(returnType, scope) : null;
         }
-        if (member.type === 'TSPropertySignature' || member.type === 'ObjectTypeProperty') {
-          const annotation = member.typeAnnotation ?? member.value;
-          return annotation ? resolveTypeAnnotation(annotation, scope) : null;
-        }
+        return new $Object('Function');
+      }
+      if (member.type === 'TSPropertySignature' || member.type === 'ObjectTypeProperty') {
+        const annotation = member.typeAnnotation ?? member.value;
+        return annotation ? resolveTypeAnnotation(annotation, scope) : null;
       }
     }
     return null;

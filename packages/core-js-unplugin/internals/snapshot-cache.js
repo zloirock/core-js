@@ -10,6 +10,8 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 // finds the snapshot; on Windows a bundler that normalizes `C:\src\foo.js` <-> `C:/src/foo.js`
 // between passes also matches. Vite dev-server may expose the same file as `file:///abs/foo.js`
 // (pre-resolve) and `/@fs/abs/foo.js` (post-resolve via FS prefix) - both strip to `/abs/foo.js`.
+// SFC sub-block queries (`?vue&type=script&setup=true`) are block selectors - stripping them
+// would collide distinct scripts of the same file, so keep those queries intact.
 // long-running dev-servers accumulate snapshots between rebuilds - buildEnd per invocation
 // drains them; pre-only-visited ids in a single invocation still leak until buildEnd fires
 const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs)/;
@@ -17,11 +19,24 @@ const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs)/;
 // slash meets a leading slash; canonicalize to single-slash so pre and post match even
 // if one pass saw a doubled form
 const REPEATED_SLASHES_RE = /\/{2,}/g;
-function normalizeKey(id) {
-  return stripQueryHash(id)
+// SFC sub-block query markers: different sub-blocks must resolve to distinct snapshot keys
+const SFC_QUERY_MARKER_RE = /[&?](?:astro|lang=|setup(?:=|&|$)|svelte|type=|vue)/;
+const QUERY_OR_HASH_RE = /[#?]/;
+function normalizePath(path) {
+  return path
     .replaceAll('\\', '/')
     .replace(VITE_SCHEME_PREFIX_RE, '')
     .replaceAll(REPEATED_SLASHES_RE, '/');
+}
+function normalizeKey(id) {
+  if (SFC_QUERY_MARKER_RE.test(id)) {
+    // preserve the query since it identifies the sub-block; still normalize the path prefix
+    const queryStart = id.search(QUERY_OR_HASH_RE);
+    const pathPart = queryStart === -1 ? id : id.slice(0, queryStart);
+    const tail = queryStart === -1 ? '' : id.slice(queryStart);
+    return normalizePath(pathPart) + tail;
+  }
+  return normalizePath(stripQueryHash(id));
 }
 
 export default class SnapshotCache {
