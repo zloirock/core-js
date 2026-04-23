@@ -201,10 +201,15 @@ function removeFrom(map, key, value) {
 // reconstruct inner needles when an outer transform rewrote the chain root. caller passes
 // non-null `rootRaw` + `guardRef` together (guard guarantees `rootRaw` was replaced);
 // `deoptPositions` / `objectStart` aid `deoptionalizeNeedle` in aligning offsets after
-// optional-chain stripping. returns null when the outer didn't install a guard
-export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectStart }) {
+// optional-chain stripping.
+// `absorbsRoot` boolean: set when the transform reused an outer's guardRef rather than
+// installing its own guard. compose skips substitution of any inner contained within the
+// root span (derived from `objectStart` + `rootRaw.length`) - inner's value is already
+// threaded through the outer guard's `_ref = ...` slot. returns null when the outer
+// didn't install a guard and didn't reuse one
+export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot }) {
   if (!guardRef) return null;
-  return { rootRaw, guardRef, deoptPositions, objectStart };
+  return { rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot: !!absorbsRoot };
 }
 
 // deferred transform queue for usage-pure: collects text replacements during traversal,
@@ -374,6 +379,18 @@ export default class TransformQueue {
         const innerContent = composedContent.get(inner) ?? inner.content;
         const needle = this.#code.slice(inner.start, inner.end);
         const innerOffset = inner.start - start;
+        // outer reused an enclosing guard's ref rather than building its own (`absorbsRoot`).
+        // inner's value is already threaded via the outer guard's memoize assignment; direct
+        // substitution here would either leave stale `_ref` occurrences or re-inline the
+        // inner (double-evaluate). any inner contained within the root span (derived from
+        // `objectStart` + `rootRaw.length`) is skipped, including sub-transforms of the root
+        // call (e.g. `Array.from` static MemberExpression inside `Array.from(x)`)
+        if (rewriteHint?.absorbsRoot
+          && rewriteHint.objectStart <= inner.start
+          && inner.end <= rewriteHint.objectStart + rewriteHint.rootRaw.length) {
+          processedRanges.push({ start: inner.start, end: inner.end });
+          continue;
+        }
         // needle position in originalSlice: count from start up to innerOffset, then subtract
         // same-needle occurrences already replaced by strictly-preceding processedRanges.
         // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
