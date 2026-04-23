@@ -1,7 +1,7 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
 import ImportInjectorState from '@core-js/polyfill-provider/import-state';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
-import { skipBlockComment } from './plugin-helpers.js';
+import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
 export default class ImportInjector extends ImportInjectorState {
   // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot
@@ -202,7 +202,9 @@ function skipLineEnd(src, pos) {
   for (;;) {
     while (src[p] === ' ' || src[p] === '\t') p++;
     if (src[p] === '/' && src[p + 1] === '/') {
-      while (p < src.length && src[p] !== '\n' && src[p] !== '\r') p++;
+      // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). `isLineTerminator`
+      // covers all four; literal `\n`/`\r` check misses LS/PS mid-source
+      while (p < src.length && !isLineTerminator(src[p])) p++;
       break;
     }
     if (src[p] === '/' && src[p + 1] === '*') {
@@ -213,6 +215,6 @@ function skipLineEnd(src, pos) {
     break;
   }
   if (src[p] === '\r' && src[p + 1] === '\n') return p + 2;
-  if (src[p] === '\n' || src[p] === '\r') return p + 1;
+  if (isLineTerminator(src[p])) return p + 1;
   return p;
 }
