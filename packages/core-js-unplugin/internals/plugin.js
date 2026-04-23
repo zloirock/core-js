@@ -113,7 +113,7 @@ export default function createPlugin(options) {
   const { method, absoluteImports, importStyle: importStyleOption } = providerOptions;
   const {
     mode, pkg, packages, getModulesForEntry, getCoreJSEntry, isEntryNeeded,
-    resolveUsage, resolvePure, resolvePureOrGlobalFallback,
+    resolveUsage, resolvePure, resolvePureGeneric, resolvePureOrGlobalFallback,
   } = resolver;
   const isWebpack = bundler === 'webpack' || bundler === 'rspack';
 
@@ -668,6 +668,27 @@ export default function createPlugin(options) {
         }
       }
 
+      // is the member the OUTERMOST element of an optional chain? i.e., walking up from its
+      // enclosing call (or the member itself for prop access) we hit a ChainExpression wrapper
+      // before any other MemberExpression/CallExpression. narrow match: babel's AST-mutation
+      // re-visit path only polyfills the outermost chain member (inner bailed members stay raw
+      // because the deoptionalization + replaceWith cascade only re-enters the outer subtree).
+      // matching that scope keeps unplugin's output shape aligned with babel: e.g. 5-deep chain
+      // polyfills M5 via generic fallback, leaves M4 raw the same way babel does
+      function isOutermostOptionalChainMember(path) {
+        // skip past the wrapping call (for instance calls) before checking the chain boundary
+        let current = path?.parentPath;
+        if (current?.node?.type === 'CallExpression' && current.node.callee === path.node) {
+          current = current.parentPath;
+        }
+        // peel wrappers (parens / TS) - they're expression-transparent
+        while (current?.node && (current.node.type === 'ParenthesizedExpression'
+          || TS_EXPR_WRAPPERS.has(current.node.type))) {
+          current = current.parentPath;
+        }
+        return current?.node?.type === 'ChainExpression';
+      }
+
       // resolve optional root + skip redundant guard when nested inside an outer transform
       function resolveOptionalRoot(node, parent, isCall) {
         let { root, rootRaw, deoptPositions, rootNode } = findChainRoot(node);
@@ -722,11 +743,13 @@ export default function createPlugin(options) {
         const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall);
         // inner polyfill sharing the chain root with an outer: reuse outer's guardRef so
         // `fn()` is evaluated once (`_at(_ref).call(_ref, 0)`, not `_at(_ref3 = fn())...`)
+        let reusedOuterRef = null;
         if (!optionalRoot && rootNode && node.object === rootNode) {
           const outerRef = transforms.findOuterGuardRef(rootNode);
           if (outerRef) {
             objectSrc = outerRef;
             isNonIdent = false;
+            reusedOuterRef = outerRef;
           }
         }
         // slice between parens to keep leading/trailing comments and empty-arglist comments
@@ -749,9 +772,17 @@ export default function createPlugin(options) {
           replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, start);
         }
         // composition hint: outer rewrites `rootRaw -> guardRef` + strips `?.`, so
-        // substituteInner can rebuild a matching needle when the raw slice is gone
+        // substituteInner can rebuild a matching needle when the raw slice is gone.
+        // reused-outer-ref case also carries `absorbsRoot` marker so compose skips direct
+        // substitution of the guard root - inner's value flows through outer's `_ref = ...`
+        // assignment, and re-inlining would either corrupt `_ref` (partial replace) or
+        // double-evaluate the inner (full replace)
         const hint = createRewriteHint({
-          rootRaw, guardRef: preAllocatedGuardRef, deoptPositions, objectStart: node.object.start,
+          rootRaw,
+          guardRef: preAllocatedGuardRef ?? reusedOuterRef,
+          deoptPositions,
+          objectStart: node.object.start,
+          absorbsRoot: !!reusedOuterRef,
         });
         transforms.add(start, end, replacement, optionalRoot ? rootNode : null, hint);
         if (isCall) skippedNodes.add(parent);
@@ -1677,7 +1708,7 @@ export default function createPlugin(options) {
           if (meta.key === 'Symbol.iterator') return handleSymbolIterator(meta, node, parent, metaPath);
         }
 
-        const { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
+        let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
         if (fallback && node.type === 'MemberExpression' && node.object?.type !== 'Super') {
           skipProxyGlobal(node);
           const binding = injectPureImport(fallback.entry, fallback.hintName);
@@ -1685,6 +1716,20 @@ export default function createPlugin(options) {
           const end = node.optional ? afterOptional(node.object.end, !node.computed) : node.object.end;
           transforms.add(node.object.start, end, binding);
           return;
+        }
+        // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
+        // ancestor chain got polyfilled. on that re-visit, the now-replaced ancestor's call
+        // returns unknown type, so `resolvePropertyObjectType` yields null and `resolveHint`
+        // lands on `desc.common`. text-based rewrite never mutates the AST, so the outer
+        // sees its "correct" type-inferred primitive (e.g. 4-deep `.at` on a 3-deep array
+        // resolves to `number` via element-tracking) - no matching desc variant, bail.
+        // detect the equivalent scenario proactively. scope matches babel's re-visit reach:
+        // only the OUTERMOST chain member gets the fallback - inner bailed members stay raw
+        // the same way babel leaves them (avoids over-injection relative to babel's output)
+        if (!pureResult && meta.kind === 'property' && node.type === 'MemberExpression'
+          && !inheritedStatic && isOutermostOptionalChainMember(metaPath)) {
+          const generic = resolvePureGeneric(meta, metaPath);
+          if (generic) pureResult = generic;
         }
         if (!pureResult) return;
         const { entry: importEntry, kind, hintName } = pureResult;
