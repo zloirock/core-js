@@ -265,27 +265,32 @@ export default function plugin(api, options) {
       }
 
       // `const { Array: { from } } = globalThis` -> `const from = _Array$from`.
-      // non-Identifier inner value / AssignmentPattern default fall back to the param-default
-      // path - those can't be trivially flattened
-      // only VariableDeclaration-hosted nested destructure (`const { Array: { from } } = globalThis`)
-      // is flattened. AssignmentExpression form (`({ Array: { from } } = globalThis)`) would
-      // require extracting to a declaration above the expression, changing statement shape -
-      // deferred because the expression's return value semantics differ. AssignmentExpression
-      // keeps native `Array.from`; callers who need the polyfill can restructure to var decl
+      // supports N-deep nesting (`const { NS: { Sub: { x } } } = globalThis`): walks up
+      // pattern/property pairs until we hit the declarator, then unwinds the cascade from
+      // innermost-empty-property-removed outward. AssignmentExpression form is NOT flattened
+      // (changing statement shape would lose the expression's return value); only VariableDeclaration
       function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
         if (!t.isIdentifier(prop.node.value)) return false;
-        const innerPattern = prop.parentPath;
-        const outerProp = innerPattern.parentPath;
-        const outerPattern = outerProp?.parentPath;
-        const declarator = outerPattern?.parentPath;
-        if (!declarator?.isVariableDeclarator()) return false;
+        // collect the chain of (property, pattern) pairs leading up to the declarator
+        const chain = [];
+        let currentProp = prop;
+        for (;;) {
+          const pattern = currentProp.parentPath;
+          if (!t.isObjectPattern(pattern?.node)) return false;
+          chain.push({ prop: currentProp, pattern });
+          const parent = pattern.parentPath;
+          if (parent?.isVariableDeclarator()) break;
+          if (!t.isObjectProperty(parent?.node)) return false;
+          currentProp = parent;
+        }
+        const declarator = chain[chain.length - 1].pattern.parentPath;
         const declaration = declarator.parentPath;
         const declCount = declaration.node?.declarations?.length ?? 1;
         const id = injectPureImport(entry, hintName);
         const extractedDeclarator = t.variableDeclarator(t.cloneNode(prop.node.value), t.cloneNode(id));
-        const wasLastInner = innerPattern.node.properties.length === 1;
-        const wasLastOuter = outerPattern.node.properties.length === 1;
-        const willRemoveDeclarator = wasLastInner && wasLastOuter;
+        // cascade: each level removes its property when the inner pattern has no siblings.
+        // `willRemoveDeclarator` iff EVERY level's pattern had this as its sole property
+        const willRemoveDeclarator = chain.every(({ pattern }) => pattern.node.properties.length === 1);
         // seed skippedNodes for the subtree about to be orphaned so scheduled visitor
         // re-entries short-circuit; handleIdentifier's `!path.parent` guard backs this up.
         // NOT calling scope.registerDeclaration on the new binding: attempting it triggered
@@ -293,8 +298,8 @@ export default function plugin(api, options) {
         // re-scanned. skippedNodes + programExit's implicit crawl are sufficient
         const skipSubtree = willRemoveDeclarator ? declarator.node : prop.node;
         t.traverseFast(skipSubtree, node => { skippedNodes.add(node); });
-        // single-declarator simple-chain: replaceWith preserves leading comments
         if (willRemoveDeclarator && declCount === 1) {
+          // single-declarator simple-chain: replaceWith preserves leading comments
           declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
           return true;
         }
@@ -304,16 +309,18 @@ export default function plugin(api, options) {
           && declaration.parentPath.node.init === declaration.node;
         if (isForInit) declarator.insertBefore(extractedDeclarator);
         else declaration.insertBefore(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
-        // splice out the emptied declarator in-place; `.remove()` mid-traversal nulls
-        // path.parent and crashes babel's virtual-type filter on queued inner Identifiers
         if (willRemoveDeclarator && declCount > 1) {
+          // splice out the emptied declarator in-place; `.remove()` mid-traversal nulls
+          // path.parent and crashes babel's virtual-type filter on queued inner Identifiers
           const idx = declaration.node.declarations.indexOf(declarator.node);
           if (idx !== -1) declaration.node.declarations.splice(idx, 1);
           return true;
         }
-        // partial: prune the consumed property; outer prop drops too if its inner pattern emptied
-        prop.remove();
-        if (wasLastInner) outerProp.remove();
+        // partial cascade: remove inner props while their pattern empties out
+        for (const { prop: p, pattern } of chain) {
+          p.remove();
+          if (pattern.node.properties.length > 0) break;
+        }
         return true;
       }
 
@@ -755,6 +762,10 @@ export default function plugin(api, options) {
         for (const childPath of path.get('body')) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
         }
+        // helper-visitor re-traversal may itself queue SEs (nested destructuring inside a
+        // helper body). drain before synth-swap so the lifted SE statements participate in
+        // the same body-index ordering as the primary pass
+        processDeferredSideEffects(path);
         // usage-pure: sibling plugins (regenerator) may mutate original nodes in-place,
         // injecting raw globals (Promise). scan for unbound global Identifiers only -
         // MemberExpression would double-process already-polyfilled chains.
