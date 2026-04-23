@@ -161,8 +161,12 @@ export function createClassHelpers(t, adapter) {
       // destructure from a proxy-global is equivalent to `const MyP = globalThis.Promise` (alias
       // chain via member). babel-plugin mutates AST before this runs so binding.path points at
       // the rewritten simple form - but unplugin keeps raw destructure, so resolve it here.
-      // only proxy-global roots count; user destructure like `const { x } = getObj()` bails
-      if (decl.id?.type === 'ObjectPattern' && isProxyGlobalIdentifierNode(init, scope, adapter)) {
+      // `const { Promise: MyP } = globalThis.self` is the same shape through a proxy chain
+      // (`self`/`window`/... are themselves known globals) - accept MemberExpression inits
+      // whose tail ends at a proxy-global. user destructure like `const { x } = getObj()` bails
+      if (decl.id?.type === 'ObjectPattern'
+        && (isProxyGlobalIdentifierNode(init, scope, adapter)
+          || globalProxyMemberName(init, scope, adapter) !== null)) {
         const keyName = findDestructureKeyForBinding(decl.id, name);
         return keyName ?? null;
       }

@@ -126,11 +126,17 @@ export const isTaggedTemplateTag = (parent, node, placement) => placement === 'p
   && parent.tag === node;
 
 // structural match for MemberExpression chains rooted at Identifier / ThisExpression -
-// recognises the same receiver path written at different source positions
+// recognises the same receiver path written at different source positions. literal property
+// keys (computed-access shape: `obj['at']`, `obj[0]`) compare by value so `obj.at = x`
+// and a later `obj['at']` read resolve to the same shadowed write target
 function memberShapeEqual(a, b) {
   if (!a || !b || a.type !== b.type) return false;
   if (a.type === 'Identifier') return a.name === b.name;
   if (a.type === 'ThisExpression') return true;
+  // babel StringLiteral/NumericLiteral vs ESTree Literal: both carry `.value`
+  if (a.type === 'StringLiteral' || a.type === 'NumericLiteral' || a.type === 'Literal') {
+    return a.value === b.value;
+  }
   if (a.type === 'MemberExpression') {
     return a.computed === b.computed
       && memberShapeEqual(a.object, b.object)
