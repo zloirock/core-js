@@ -309,6 +309,7 @@ export default {
   // https://www.meta.com/experiences/browser/1916519981771802/
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/oculus.json
   // https://whatmyuseragent.com/browser/oc/oculus-browser
+  // Quest Browser after 42 uses a similar version to Chromium
   ChromeAndroidToQuest: [
     [57, '3.0'],
     [61, '4.0'],
