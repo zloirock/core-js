@@ -1,6 +1,7 @@
-// `#box = null` is a sentinel init - real assignments happen in `set`. resolveClassMemberNode
-// must drop nullable-only inits to unknown, else the nullable-receiver short-circuit in
-// resolveCallReturnType skips polyfill emission for `this.#box?.at(0)` entirely
+// class field type is folded across all `this.<field> = X` assignments, not just the init.
+// `#box = null` + `this.#box = Array.from(xs)` unions to Array, selecting `_atMaybeArray`.
+// init-only inference would either skip polyfill (nullable short-circuit in
+// resolveCallReturnType) or pick the generic `_at` variant
 class Maybe {
   #box = null;
   set(xs) { this.#box = Array.from(xs); }
