@@ -67,6 +67,7 @@ export default function plugin(api, options) {
     mode,
     packages,
     pkg,
+    resolvePure,
     resolvePureOrGlobalFallback,
     resolveUsage,
   } = resolver;
@@ -249,8 +250,11 @@ export default function plugin(api, options) {
           return;
         }
         // defer injectPureImport until programExit emits the synth. if a sibling plugin
-        // mutates targetPath before then, the swap is skipped and no dead import is left
+        // mutates targetPath before then, the swap is skipped and no dead import is left.
+        // skip the receiver identifier so the standalone identifier visit doesn't inject a
+        // `_Promise` that would remain unused once synth-swap replaces the receiver
         const receiver = targetPath.node;
+        skippedNodes.add(receiver);
         let pending = synthSwapByReceiver.get(receiver);
         if (!pending) {
           pending = { targetPath, objectPatternNode: objectPattern.node, polyfills: new Map() };
@@ -782,13 +786,22 @@ export default function plugin(api, options) {
         for (const { targetPath, objectPatternNode, polyfills } of pendingSynthSwaps) {
           const receiver = targetPath.node;
           if (!t.isIdentifier(receiver) || objectPatternNode?.type !== 'ObjectPattern') continue;
+          // lazy: only inject the receiver's pure import if a sibling prop needs the raw
+          // receiver read (`_Promise.custom`). all-polyfilled destructures never call through,
+          // keeping the import set clean; fallback is the original identifier when no pure
+          // polyfill exists for the receiver
+          const receiverPure = resolvePure({ kind: 'global', name: receiver.name });
+          const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
+          let receiverRef = null;
+          const getReceiverRef = () => receiverRef ??= isPolyfillableGlobal
+            ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
           const synthProps = [];
           for (const p of objectPatternNode.properties) {
             if (!t.isObjectProperty(p) || p.computed || !t.isIdentifier(p.key)) continue;
             const pending = polyfills.get(p.key.name);
             const value = pending
               ? t.cloneNode(injectPureImport(pending.entry, pending.hintName))
-              : t.memberExpression(t.cloneNode(receiver), t.identifier(p.key.name));
+              : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(p.key.name));
             synthProps.push(t.objectProperty(t.identifier(p.key.name), value));
           }
           targetPath.replaceWith(t.objectExpression(synthProps));
