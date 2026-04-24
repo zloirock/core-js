@@ -70,9 +70,11 @@ function createResolveNodeType(babelNodeType, t) {
     return literalKeyValue(key);
   }
 
-  // T["key"] index literal - unwrap TSLiteralType; literalKeyValue handles null/other shapes
+  // T["key"] / T[0] / T[`key`] index literal - unwrap TSLiteralType; fall through template-literal
+  // for parity with computed-member resolution. null for non-literal / keyof / union indexes
   function indexedAccessKey(indexType) {
-    return literalKeyValue(indexType?.type === 'TSLiteralType' ? indexType.literal : indexType);
+    const literal = indexType?.type === 'TSLiteralType' ? indexType.literal : indexType;
+    return literalKeyValue(literal) ?? singleQuasiString(literal);
   }
 
   // ObjectExpression { key: value, ... } -> value's type for the literal key.
@@ -855,10 +857,22 @@ function createResolveNodeType(babelNodeType, t) {
     return isClassLikeDeclaration(parent) ? parent : null;
   }
 
+  // `Cfg['items']` / chained `Cfg['items']['data']` - resolve the indexed access to its
+  // annotation, then get members of that. without this, `findTypeMember` on a binding
+  // annotated `Cfg['items']` returns null and downstream dispatches to generic polyfill
+  function resolveIndexedAccessMembers(node, scope, depth) {
+    const key = indexedAccessKey(node.indexType);
+    if (key === null) return null;
+    const member = findTypeMember(node.objectType, key, scope);
+    const annotation = member && unwrapTypeAnnotation(member.typeAnnotation ?? member);
+    return annotation ? getTypeMembers(annotation, scope, depth + 1) : null;
+  }
+
   function getTypeMembers(objectType, scope, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
+    if (objectType.type === 'TSIndexedAccessType') return resolveIndexedAccessMembers(objectType, scope, depth);
     // intersection: collect members from all parts
     if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
       const all = [];
