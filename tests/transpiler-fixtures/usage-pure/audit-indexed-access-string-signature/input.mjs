@@ -1,4 +1,4 @@
-// T[string] indexed access — picks up TSIndexSignature with string parameter.
+// T[string] indexed access - picks up TSIndexSignature with string parameter.
 // only TSStringKeyword check is structural-exact; Flow/oxc param shape may differ.
 interface Dict {
   [k: string]: number[];

@@ -1,8 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// discriminated union narrowing via kind tag. Plugin's narrowDiscriminatedUnion
-// filters by `kind === 'x'` literal. Then `.data.at(0)` should resolve through
-// the narrowed-branch's data type (string[]).
+// Discriminated union narrowing via a `kind === 'a'` tag selects the branch
+// whose `data` is `string[]`. `.at(0)` then gets the array-specific polyfill.
 type Shape = {
   kind: 'a';
   data: string[];

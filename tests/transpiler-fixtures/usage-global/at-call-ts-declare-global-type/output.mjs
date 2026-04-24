@@ -2,10 +2,10 @@ import "core-js/modules/es.string.repeat";
 import "core-js/modules/es.string.pad-end";
 import "core-js/modules/es.array.at";
 declare global {
-  // alias chain: followTypeAliasChain path
+  // alias chain: MyStrings -> Strings -> string[]
   type Strings = string[];
   type MyStrings = Strings;
-  // interface: resolveUserDefinedType path
+  // interface field typed as a user alias
   interface Config {
     keys: Strings;
   }

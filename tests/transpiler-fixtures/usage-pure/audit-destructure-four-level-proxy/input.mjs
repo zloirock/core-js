@@ -1,5 +1,5 @@
-// 4-level proxy-global nest: `globalThis.self.window.Array.from`. all three intermediate
-// keys (`self`, `window`, `self` aliases) are themselves in POSSIBLE_GLOBAL_OBJECTS, so
-// the hops-ok check at every level passes and the flatten picks up `Array.from`
+// 4-level nested destructure over a proxy-global chain
+// `{ self: { window: { Array: { from } } } } = globalThis`. every intermediate key
+// is a known global alias, so the pattern flattens to `from = Array.from` polyfill
 const { self: { window: { Array: { from } } } } = globalThis;
 from(xs);

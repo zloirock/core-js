@@ -1,4 +1,4 @@
-// `import { type X }` — type-only import. identifier at ImportSpecifier position must
+// `import { type X }` - type-only import. identifier at ImportSpecifier position must
 // not trigger polyfill injection via `isTSTypeOnlyIdentifier` (importKind='type' guard)
 import { type Set as MySet } from './shim';
 type T = InstanceType<MySet>;
