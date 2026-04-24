@@ -1,7 +1,7 @@
 import _Array$of from "@core-js/pure/actual/array/of";
-// mirror of `audit-static-block-this-inherits-super-polyfill` for the static-method form -
-// `findEnclosingClassMember` treats both `static {}` and `static method()` as static ctx,
-// so `this.of(1, 2)` resolves the same way as in a static block
+// `this.X` in a static method of a class that extends Array - `this` is the class ctor,
+// unshadowed `this.of` reads the super-class's static surface (Array.of). plugin polyfills
+// through Array.of, same as it would for `super.of` or `this.of` in a static block
 class A extends Array {
   static make(x, y) {
     return _Array$of(x, y);
