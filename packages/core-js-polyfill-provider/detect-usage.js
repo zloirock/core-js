@@ -81,9 +81,11 @@ export function checkLogicalAssignLhsGlobal(identifier, parent, isBound) {
 
 // `globalThis.Map ||= X` - MemberExpression LHS form. called from MemberExpression visitor
 // before inner-identifier transformation mutates `globalThis` -> `_globalThis`; receiver and
-// property still carry their pre-transform names at this visitation point
-export function checkLogicalAssignLhsMember(memberNode, parent) {
-  if (!memberNode || memberNode.type !== 'MemberExpression' || memberNode.computed) return null;
+// property still carry their pre-transform names at this visitation point.
+// `isBound` signals that the receiver binds to a user-declared local (`const globalThis = {}`
+// style shadowing) - treat the member assignment as user-object write, not a real global reach
+export function checkLogicalAssignLhsMember(memberNode, parent, isBound) {
+  if (isBound || !memberNode || memberNode.type !== 'MemberExpression' || memberNode.computed) return null;
   const obj = memberNode.object;
   const prop = memberNode.property;
   if (obj?.type !== 'Identifier' || !POSSIBLE_GLOBAL_OBJECTS.has(obj.name)) return null;
@@ -364,10 +366,13 @@ export function createSelfRefVarGuard(getKind) {
     if (!decl || decl.type !== 'VariableDeclarator') return false;
     if (cache.has(decl)) return cache.get(decl);
     const { id, init } = decl;
+    // oxc preserves `ParenthesizedExpression` while babel strips them - peel so
+    // `var Promise = (Promise)` matches the self-ref shape in both parsers
+    const peeled = unwrapParens(init);
     const result = getKind(binding) === 'var'
       && id?.type === 'Identifier'
-      && init?.type === 'Identifier'
-      && init.name === id.name;
+      && peeled?.type === 'Identifier'
+      && peeled.name === id.name;
     cache.set(decl, result);
     return result;
   };
@@ -588,7 +593,10 @@ function markHandledObjects(node, handledObjects, suppressProxyGlobals) {
   if (!suppressProxyGlobals) return;
   // walk down the proxy chain (`globalThis.Object`, `globalThis.self.Promise`, ...) and mark
   // every intermediate MemberExpression so the inner visitor doesn't re-process it. stop at
-  // the proxy global leaf itself - it may need its own polyfill when the outer is not polyfilled
+  // the proxy global leaf itself - it may need its own polyfill when the outer is not polyfilled.
+  // usage-global intentionally does NOT suppress intermediate visits: chains like
+  // `globalThis.self.Object.keys` rely on the `self` member visit to register `web.self`, which
+  // is a real runtime dependency (bare `self` is undefined in workers / strict envs otherwise)
   let current = obj;
   while ((current.type === 'MemberExpression' || current.type === 'OptionalMemberExpression')
     && findProxyGlobal(current)) {
@@ -676,7 +684,16 @@ function resolveLogicalDestructureMeta(node, key, scope, adapter) {
   const isAnd = node.operator === '&&';
   const primary = isAnd ? node.right : node.left;
   const meta = buildDestructuringInitMeta(primary, key, scope, adapter);
-  if (meta.object) return isAnd ? { ...meta, fromFallback: true } : meta;
+  if (meta.object) {
+    if (!isAnd) return meta;
+    // `X && Y` where both sides resolve to the SAME known object - runtime value is Y (which
+    // is same as X for this property). no fromFallback needed, polyfill is safe to apply.
+    // `X && Y` with different resolved objects still bails - `from = (X && Y).from` depends on
+    // X's truthiness to pick between X.from and Y.from, different polyfills per branch
+    const leftMeta = buildDestructuringInitMeta(node.left, key, scope, adapter);
+    if (leftMeta.object === meta.object) return meta;
+    return { ...meta, fromFallback: true };
+  }
   // for `&&` both primary and fallback are the same (right), no point retrying
   if (isAnd) return meta;
   const fallback = buildDestructuringInitMeta(node.right, key, scope, adapter);
@@ -856,6 +873,18 @@ const TYPE_CHILD_KEYS = [
   'body',
 ];
 
+// per-node-type: which property holds the bare Identifier that names a type / runtime binding.
+// `TSTypeReference.typeName` / `GenericTypeAnnotation.id` - bare type names (Flow vs TS).
+// `TSTypeQuery.exprName` - `typeof X` in annotation pulls in the runtime binding `X` as a
+// real global reference. qualified names (TSQualifiedName) land on the Identifier `X` in
+// `typeof NS.X` through the object position - we deliberately take the root `NS` only when
+// it already matches the Identifier shape here
+const TYPE_REFERENCE_SLOTS = {
+  TSTypeReference: 'typeName',
+  GenericTypeAnnotation: 'id',
+  TSTypeQuery: 'exprName',
+};
+
 // walk a type annotation subtree, invoking `onGlobal(name)` for every bare type reference.
 // `isTypeWalkable` keeps the walker out of runtime bodies; `seen` bounds cyclic inputs
 export function walkTypeAnnotationGlobals(annotation, onGlobal) {
@@ -866,11 +895,9 @@ export function walkTypeAnnotationGlobals(annotation, onGlobal) {
     const node = stack.pop();
     if (!node || typeof node !== 'object' || seen.has(node)) continue;
     seen.add(node);
-    if (node.type === 'TSTypeReference' && node.typeName?.type === 'Identifier') {
-      onGlobal(node.typeName.name);
-    } else if (node.type === 'GenericTypeAnnotation' && node.id?.type === 'Identifier') {
-      onGlobal(node.id.name);
-    }
+    const refSlot = TYPE_REFERENCE_SLOTS[node.type];
+    const ref = refSlot ? node[refSlot] : null;
+    if (ref?.type === 'Identifier') onGlobal(ref.name);
     for (const key of TYPE_CHILD_KEYS) {
       const child = node[key];
       if (Array.isArray(child)) {
@@ -919,17 +946,26 @@ export function getEntrySource(node, adapter, scope) {
   // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
   // that preserve `ParenthesizedExpression` would otherwise miss these entry patterns
   const expr = unwrapParens(node.expression);
-  // require('core-js/...')
-  if (expr?.type === 'CallExpression'
-    && expr.callee?.type === 'Identifier'
-    && expr.callee.name === 'require'
-    && expr.arguments?.length === 1) {
-    if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
-    return adapter.getStringValue(expr.arguments[0]);
+  // require('core-js/...'); also handles webpack-style `(0, require)('core-js/...')` by
+  // peeling the SequenceExpression tail (side-effect-free preceding elements drop out) so
+  // tool-generated indirect-require wrappers still register as entries
+  if (expr?.type === 'CallExpression' && expr.arguments?.length === 1) {
+    let { callee } = expr;
+    while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+    if (callee?.type === 'SequenceExpression') {
+      const tail = callee.expressions?.at(-1);
+      if (tail && !callee.expressions.slice(0, -1).some(mayHaveSideEffects)) callee = tail;
+    }
+    if (callee?.type === 'Identifier' && callee.name === 'require') {
+      if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
+      return adapter.getStringValue(expr.arguments[0]);
+    }
   }
   // await import('core-js/...') as a top-level statement (ESM top-level await).
-  // bare `import('...')` without await/then is intentionally ignored - it would discard
-  // the returned promise and create an unhandled rejection, so it's not a real-world entry shape
+  // bare `import('...')` without await is intentionally ignored: it discards the returned
+  // promise (unhandled rejection risk). `import(...).then(cb)` is also ignored - the user
+  // explicitly opted into async runtime loading, so replacing the dynamic import with static
+  // side-effect imports would erase that async shape; see fixture `audit-dynamic-import-then-skip`
   if (expr?.type === 'AwaitExpression') return importExpressionSource(expr.argument, adapter);
   return null;
 }
@@ -942,7 +978,10 @@ const canonicalizeEntrySubpath = s => s.replace(/\.js$/, '').replace(/\/index$/,
 // match `source` against `<pkg>/<subPrefix><rest>` where `pkg` is one of `pkgs`;
 // returns canonicalized `<rest>` or null when no prefix matches or `<rest>` is empty
 function matchEntrySubpath(source, pkgs, subPrefix) {
-  const clean = stripQueryHash(source);
+  // `pkgs` are lowercased by the caller; apply the same normalisation to the source so user
+  // imports with case-mismatched package segments (`'@CORE-JS/PURE/...'`) dedupe against the
+  // config's `@core-js/pure/...` entry instead of emitting duplicate default-imports
+  const clean = stripQueryHash(source).toLowerCase();
   for (const pkg of pkgs) {
     const pkgPrefix = `${ pkg }/`;
     if (!clean.startsWith(pkgPrefix)) continue;

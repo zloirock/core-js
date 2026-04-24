@@ -56,6 +56,22 @@ export function isTSTypeOnlyIdentifier(parent, parentKey) {
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
 
+// ObjectPattern property shapes that require a named receiver (`_ref`) to rewrite against:
+// - RestElement: desugars to `_ref` copy minus polyfilled keys
+// - computed key (`[Symbol.iterator]: x`): key expression may need polyfill substitution
+// - default value (`{ key = fallback }`): `undefined` check on receiver-read picks the default
+// babel uses `ObjectProperty`, oxc uses `Property` - treat both as equivalent here.
+// used by CatchClause extraction gates in both plugins to decide whether a pattern-level
+// rewrite is unavoidable (otherwise `{ bareKey }` destructures without any body reference
+// can stay untouched)
+export function objectPatternPropNeedsReceiverRewrite(prop) {
+  if (!prop) return false;
+  if (prop.type === 'RestElement' || prop.type === 'SpreadElement') return true;
+  if (prop.computed) return true;
+  return (prop.type === 'ObjectProperty' || prop.type === 'Property')
+    && prop.value?.type === 'AssignmentPattern';
+}
+
 // transparent runtime wrappers that can surround an UpdateExpression operand:
 // TS expression wrappers + parser-preserved parens (`createParenthesizedExpressions: true`).
 // distinct from `TS_EXPR_WRAPPERS` alone because ParenthesizedExpression is also transparent
