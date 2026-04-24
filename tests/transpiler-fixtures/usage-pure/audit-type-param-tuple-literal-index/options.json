@@ -3,7 +3,7 @@
     [
       "@core-js",
       {
-        "method": "usage-global",
+        "method": "usage-pure",
         "version": "4.0",
         "targets": {
           "ie": 11
@@ -12,8 +12,6 @@
     ]
   ],
   "parserOpts": {
-    "plugins": [
-      "typescript"
-    ]
+    "plugins": ["typescript"]
   }
 }
