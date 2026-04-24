@@ -1,7 +1,4 @@
-// `Symbol[userInput]` — computed key `userInput` is unbound, so `resolveKey` returns null.
-// `buildMemberMeta` bails (null key), `markHandledObjects` never fires, identifier visitor
-// polyfills the outer `Symbol`. the "overreach" is theoretical — only the resolvable-key
-// path marks `Symbol`, and that path either emits a full replacement (Symbol.iterator →
-// `_Symbol$iterator`) or falls back to `resolvePureOrGlobalFallback` (Symbol.unknownKey →
-// `_Symbol.unknownKey`), both of which subsume the identifier
+// `Symbol[userInput]` - computed key is an unbound identifier, so the member key
+// cannot be resolved. plugin polyfills the outer `Symbol` identifier (constructor)
+// and leaves the dynamic member access in place
 Symbol[userInput];

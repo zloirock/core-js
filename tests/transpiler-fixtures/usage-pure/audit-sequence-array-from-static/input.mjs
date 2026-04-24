@@ -1,3 +1,3 @@
-// resolveObjectName must peel `(0, Array)` receiver so Array.from still polyfills;
-// otherwise the sequence-wrapped call bypasses the static-method detector
+// `(0, Array).from(src)` - a comma-sequence-wrapped receiver must still be recognized
+// as `Array`, so the static call polyfills to Array.from
 (0, Array).from(src);

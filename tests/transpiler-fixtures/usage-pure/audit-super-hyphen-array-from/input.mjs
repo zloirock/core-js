@@ -1,7 +1,7 @@
-// `MyAF` is `Array.from` — a function, not the Array class. `class extends MyAF` +
-// `super.from(x)` reads `.from` off the function, which is undefined. `entryToGlobalHint`
-// rejects method entries (`array/from` isn't `/constructor`), so `MyAF` has no Array hint
-// and `super.from(x)` doesn't resolve. the plugin keeps the user's broken code unchanged
+// `MyAF` is imported from a method entry (`array/from`), which is a function, not the
+// Array constructor. extending a method import is user code that cannot be treated as
+// extending `Array`, so `super.from(x)` has no Array context and no polyfill is emitted;
+// plugin leaves the user's (semantically broken) code unchanged
 import MyAF from '@core-js/pure/actual/array/from';
 class C extends MyAF {
   static collect(x) { return super.from(x); }

@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
-// namespace nesting: NS.Inner.Data — walkStatementsForDecl descends through
+// namespace nesting: NS.Inner.Data - walkStatementsForDecl descends through
 // nested TSModuleDeclaration nodes. Access the nested type, call method.
 namespace NS {
   export namespace Inner {
