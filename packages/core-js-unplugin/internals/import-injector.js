@@ -102,6 +102,14 @@ export default class ImportInjector extends ImportInjectorState {
 
   // orphan post: snapshot lost, input is pre's output with `_ref = ...` assignments.
   // caller filters user-owned bindings; `#flushedRefs` skip avoids dup `var _ref;`
+  // orphan refs adopted from pre's output (post sees the rewritten source but the state
+  // snapshot was lost/disabled). `#flushedRefs.has(ref)` skip guards the shape covered by
+  // `tests/unplugin/unit.mjs:checkAdoptOrphanRespectsFlushed`: a caller re-invokes this
+  // after a re-hydrated state snapshot where `flushedRefs` records pre's already-emitted
+  // var decls, so adopting the same name again would emit a duplicate `var _ref;`.
+  // the guard is only reachable through `snapshot`/`#rehydrate` with manually populated
+  // flushedRefs - production `!inherit` path hits it with an empty flushedRefs, but the
+  // contract is part of the documented orphan-adoption API
   adoptOrphanRefs(orphanRefs) {
     for (const ref of orphanRefs) {
       if (this.#flushedRefs.has(ref)) continue;
