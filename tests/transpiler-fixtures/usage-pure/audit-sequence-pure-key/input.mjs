@@ -1,4 +1,4 @@
-// `(0, 'iterator')` - SequenceExpression with pure preceding. unwrapParens unwinds to
-// the last expression, so resolveKey folds the whole chain to 'iterator'. Symbol[(0,'iterator')]
-// should polyfill as Symbol.iterator
+// `Symbol[(0, 'iterator')]` - sequence expression with a pure preceding operand
+// must fold to its last expression 'iterator', so the whole access is recognised
+// as `Symbol.iterator` and the iterator polyfill is injected
 const x = Symbol[(0, 'iterator')];

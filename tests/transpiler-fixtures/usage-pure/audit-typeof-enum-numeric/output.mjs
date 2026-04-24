@@ -1,6 +1,6 @@
 import _toExponentialMaybeNumber from "@core-js/pure/actual/number/instance/to-exponential";
 var _ref;
-// `typeof Enum` with a numeric enum — `resolveAnnotatedMember`'s TSTypeQuery branch
+// `typeof Enum` with a numeric enum - `resolveAnnotatedMember`'s TSTypeQuery branch
 // maps each member to `$Primitive('number')` via `resolveEnumMemberType`; `.toExponential`
 // on a number narrows to the Number instance method
 enum Num {

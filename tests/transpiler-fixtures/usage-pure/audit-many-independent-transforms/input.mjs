@@ -1,4 +1,4 @@
-// many independent (non-nested) polyfill transforms in one file — hits the fast path
+// many independent (non-nested) polyfill transforms in one file - hits the fast path
 // (`#hasNesting()` returns false) so the sort-desc-by-start + overwrite loop fires.
 // each line triggers a distinct polyfill to verify they don't cross-contaminate
 Array.from(a);

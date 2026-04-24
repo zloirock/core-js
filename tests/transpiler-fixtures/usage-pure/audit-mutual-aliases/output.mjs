@@ -1,5 +1,5 @@
-// mutual const aliases: `const A = B; const B = A`. resolveBindingToGlobal follows
-// A -> B, seen.add(A), then B -> A, seen.has(A) -> return null. Prevents stack overflow
+// mutual const aliases: `const A = B; const B = A` - alias resolution must
+// detect the cycle and bail rather than recursing to a stack overflow
 const A = B;
 const B = A;
 A.prototype.someMethod;
