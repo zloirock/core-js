@@ -1,9 +1,9 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// Instance method `try` is NOT a shadow for `this.try` in a static context - `this` in
-// static is the class constructor, so `this.try` reads the *static* surface, which isn't
-// declared on C. It falls through to the super class's static (Promise.try) and should
-// polyfill. `isShadowedByClassOwnMember` must distinguish instance vs static members.
+// `class C extends Promise` declares `try` as an INSTANCE method - `this.try` in a static
+// context reads the static surface (the ctor), not the instance prototype, so the instance
+// declaration is not a shadow. plugin falls through to Promise.try on the super class's
+// static surface and polyfills accordingly. shadow detection must match member placement
 class C extends _Promise {
   try(x) {
     return x;
