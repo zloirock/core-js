@@ -1339,7 +1339,14 @@ function createResolveNodeType(babelNodeType, t) {
       }
       case 'ReturnType': {
         const arg = firstArg();
-        return arg ? resolveReturnTypeFromTypeQuery(arg, scope) : null;
+        if (!arg) return null;
+        // TSTypeQuery (`ReturnType<typeof fn>`) routes through runtime-binding lookup.
+        // direct function type alias (`type Fn = () => T; ReturnType<Fn>`) has no typeof -
+        // follow the alias chain to reach the function type, then extract return annotation
+        if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope);
+        const { node: aliased } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
+        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
+        return ret ? resolveTypeAnnotation(ret, scope) : null;
       }
       case 'InstanceType': {
         const arg = firstArg();
