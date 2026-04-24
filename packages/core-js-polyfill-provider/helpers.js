@@ -22,6 +22,7 @@ export {
   kebabToCamel,
   kebabToPascal,
   mayHaveSideEffects,
+  propBindingIdentifier,
   singleQuasiString,
   unwrapExportedDeclaration,
   unwrapParens,
