@@ -102,11 +102,19 @@ export function isFunctionParamDestructureParent(parent, grandparent, objectPatt
 // ObjectPattern prop value is a synth-swap eligible binding: `{key}` / `{key: bound}` /
 // `{key = D}` / `{key: bound = D}`. rejects nested patterns (`{key: {a}}`) and rest -
 // those don't fit the synth-swap receiver substitution model. shared between babel-plugin's
-// `handleParameterDestructure` and unplugin's `handleParameterDestructurePure`
-export function isIdentifierPropValue(value) {
-  if (value?.type === 'Identifier') return true;
-  return value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier';
+// `handleParameterDestructure` and unplugin's `handleParameterDestructurePure`.
+// returns the Identifier that receives the binding across all four prop-value shapes:
+// `{ x }` / `{ x: alias }` / `{ x = default }` / `{ x: alias = default }`. null when the value
+// is a nested pattern or any other non-Identifier shape. nested-destructure flatten and
+// inline-default emission both read `.name` off the returned node, so keeping a single
+// extraction helper avoids the AssignmentPattern.left peel being duplicated across call sites
+export function propBindingIdentifier(value) {
+  if (value?.type === 'Identifier') return value;
+  if (value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier') return value.left;
+  return null;
 }
+
+export const isIdentifierPropValue = value => propBindingIdentifier(value) !== null;
 
 // synth-swap rewrite emits `{ key: value, ... }` reconstructed from ObjectPattern properties.
 // any property that can't be losslessly replayed as that literal must force a bail:
