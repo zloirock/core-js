@@ -34,6 +34,7 @@ import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyf
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
+  resolveKey as sharedResolveKey,
   resolveObjectName as sharedResolveObjectName,
   resolveSymbolInEntry,
   isTypeAnnotationNodeType,
@@ -328,7 +329,7 @@ export default function createPlugin(options) {
       resolveStaticInheritedMember,
       isInheritedStaticLookup,
       isShadowedByClassOwnMember,
-    } = createClassHelpers(types, estreeAdapter);
+    } = createClassHelpers(types, estreeAdapter, sharedResolveKey);
 
     // usage-global mode
     if (method === 'usage-global') {
