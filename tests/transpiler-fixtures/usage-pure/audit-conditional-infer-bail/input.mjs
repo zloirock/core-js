@@ -1,6 +1,6 @@
-// conditional with `infer` clause — plugin doesn't implement infer; should
-// resolve trueBranch/falseBranch via resolveTypeAnnotation and skip if they
-// reference the inferred name.
+// conditional type using an `infer` clause - plugin does not attempt to solve
+// `infer` variables at the type level, so the receiver's type stays unresolved.
+// `.includes` falls back to the generic instance-method polyfill
 type Inner<T> = T extends (infer U)[] ? U : never;
 declare const u: Inner<string[]>;
 u.includes('a');

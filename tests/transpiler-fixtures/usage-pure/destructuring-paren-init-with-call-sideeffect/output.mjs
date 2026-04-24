@@ -1,5 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// init has a call inside a composite literal — must be treated as side-effectful
+// init has a call inside a composite literal - must be treated as side-effectful
 const {
   from
 } = {

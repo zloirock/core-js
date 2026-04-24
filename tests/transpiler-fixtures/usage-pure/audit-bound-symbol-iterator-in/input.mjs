@@ -1,6 +1,6 @@
-// indirect-binding path: `k = Symbol.iterator`, then `k in Array`. handleBinaryIn
-// branch 2 (resolvedLeft) emits `{kind: 'in', key: 'Symbol.iterator', ...}` without
-// seeding handledObjects for Symbol on the RHS - but here Symbol appears in `k`'s init
-// only, so identifier visitor sees it once at init, not at the `in` site
+// `k` is bound to `Symbol.iterator` (member expression), then used as left operand
+// of `k in Array`. plugin must follow the binding through the init, recognize the
+// symbol reference, and rewrite `k in Array` to the `isIterable(Array)` polyfill.
+// `Symbol` appears only in `k`'s init, so it gets polyfilled there (once)
 const k = Symbol.iterator;
 k in Array;

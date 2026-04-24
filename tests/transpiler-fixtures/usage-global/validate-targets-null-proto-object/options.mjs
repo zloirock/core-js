@@ -1,4 +1,4 @@
-// `Object.create(null)` is a legitimate plain object — validator must accept it alongside
+// `Object.create(null)` is a legitimate plain object - validator must accept it alongside
 // `Object.prototype`-backed objects
 const targets = Object.create(null);
 targets.ie = 11;

@@ -1,4 +1,5 @@
-// multiply-nested parens on computed key: `((k))` — resolveKey must unwrap fully
+// Multiply-nested parens around a computed key `((k))` still resolve through to
+// `Symbol.iterator`, so the specialized `is-iterable` polyfill fires.
 const k = Symbol.iterator;
 const hasIter = ((k)) in {};
 hasIter;

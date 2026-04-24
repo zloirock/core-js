@@ -1,7 +1,6 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// ConditionalExpression in init - mayHaveSideEffects may or may not apply.
-// markInitGlobals walks both branches (consequent -> left; alternate -> right).
-// `from` from either Array or Promise should resolve via pure.
+// destructuring from a ternary whose branches are different global constructors -
+// `from` should polyfill via Array, and the `Promise` constructor itself should also polyfill
 const {
   from
 } = cond ? Array : _Promise;
