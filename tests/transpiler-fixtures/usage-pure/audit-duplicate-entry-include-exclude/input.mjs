@@ -1,5 +1,4 @@
-// entry-path `array/from` appears in both include and exclude. previously duplicate
-// detection only covered module patterns, so entry-path duplicates silently let exclude
-// win (no polyfill emitted). fix: unified duplicate check across include/exclude covers
-// both module and entry patterns. user gets a clear "matched by both" validation error
+// entry-path `array/from` appears in both `include` and `exclude`. duplicate detection
+// must cover entry-path patterns too (not just module patterns), surfacing a clear
+// "matched by both" validation error instead of silently dropping the polyfill
 Array.from(x);

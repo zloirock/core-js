@@ -1,6 +1,4 @@
-// `Symbol.unknownKey` resolves meta `{object: 'Symbol', key: 'unknownKey', placement: 'static'}`.
-// `markHandledObjects` marks the `Symbol` identifier so the visitor doesn't double-polyfill,
-// then `resolvePureOrGlobalFallback` recovers: unknownKey isn't in the table, but Symbol is
-// a polyfillable global → emit `_Symbol.unknownKey`. validates the "recovery via fallback"
-// design for the `markHandledObjects` overreach
+// `Symbol.unknownKey` - `unknownKey` is not a known static of `Symbol`, so plugin
+// falls back to polyfilling the `Symbol` receiver itself and emits
+// `_Symbol.unknownKey` (preserving the property access intact).
 Symbol.unknownKey;

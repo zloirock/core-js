@@ -1,7 +1,5 @@
-// `additionalPackages.findIndex(…)` disambiguates the "not found" sentinel from
-// a matching `undefined` item. `.find(…)` used to return `undefined` in both cases,
-// so the `!== undefined` check silently skipped and `p.toLowerCase()` crashed late
-// inside createPolyfillContext. fix: surface clear validation TypeError upfront
+// `undefined` item inside `additionalPackages` must raise a clear validation TypeError
+// upfront, not a late crash from `p.toLowerCase()` deep in the polyfill context
 export default {
   plugins: [
     ['@core-js', {
