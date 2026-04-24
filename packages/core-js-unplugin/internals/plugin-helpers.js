@@ -89,7 +89,10 @@ export function startsEnclosingStatement(path, pos) {
 }
 
 // RHS node types the plugin emits for `_ref = ...` memoization - used to classify a bare
-// `_ref = X` assignment as plugin leftover vs user sloppy-mode code
+// `_ref = X` assignment as plugin leftover vs user sloppy-mode code.
+// plugin can also emit array/object literal shapes (destructure-init extraction for proxy-
+// global destructure) and SequenceExpression tails (deferSideEffect trims into `(se(), X)`
+// form), so those are plugin-valid too
 const PLUGIN_EMIT_RHS_TYPES = new Set([
   'CallExpression',
   'ChainExpression',
@@ -97,6 +100,9 @@ const PLUGIN_EMIT_RHS_TYPES = new Set([
   'NewExpression',
   'OptionalCallExpression',
   'OptionalMemberExpression',
+  'ArrayExpression',
+  'ObjectExpression',
+  'SequenceExpression',
 ]);
 
 // node types that introduce a new `var`-scope boundary. plugin rehydrates orphans as
@@ -132,6 +138,10 @@ const USER_ASSIGN_PARENT_TYPES = new Set([
   'WhileStatement',
   'DoWhileStatement',
   'ReturnStatement',
+  // `(_ref = foo(), _ref.x)` in a declaration init is user-authored - plugin never
+  // emits its memo refs inside SequenceExpression tails. without this, user code like
+  // `let r = (_ref = helper(), _ref.x)` gets misclassified as orphan and adopted
+  'SequenceExpression',
 ]);
 
 // orphan-ref heuristic: plugin emits `_ref = foo()` / `_ref = obj.x` as a sub-expression inside
@@ -192,14 +202,27 @@ export function collectAllBindingNames(ast) {
       case 'AssignmentExpression':
         // plugin-shaped nested `_ref = foo()` - candidate for orphan adoption, NOT reserved
         // (adoption gate requires name NOT in `names`). anything else - reserve so our UID
-        // generator can't reuse a name the user writes to
-        if (node.operator === '=' && node.left?.type === 'Identifier') {
-          if (ORPHAN_REF_PATTERN.test(node.left.name) && isPluginShapedOrphanAssign(node, parentType, atTopLevel)) {
+        // generator can't reuse a name the user writes to.
+        // compound ops (`+=`, `||=`, etc.) are always user-authored: the plugin never emits
+        // them, and they imply a pre-existing binding the user writes through - reserve
+        // unconditionally so allocation can't collide with them
+        if (node.left?.type === 'Identifier') {
+          if (node.operator === '=' && ORPHAN_REF_PATTERN.test(node.left.name)
+              && isPluginShapedOrphanAssign(node, parentType, atTopLevel)) {
             orphanRefs.add(node.left.name);
           } else {
             names.add(node.left.name);
           }
         }
+        break;
+      // every Identifier surfaces here - bindings already reserved via their structural case,
+      // but bare references (`console.log(_ref)` where `_ref` is undeclared) land only here.
+      // over-reserving property names from member access / object literal keys is harmless:
+      // plugin never allocates shape like `push` / `at` / etc., only `_ref*` / `_Xxx` UIDs.
+      // undeclared reads in user code would otherwise let plugin claim `_ref` and shadow
+      // `ReferenceError`-throwing references with silent `undefined`
+      case 'Identifier':
+        names.add(node.name);
         break;
     }
     // descending into a function / class body: children see `atTopLevel = false` so nested
