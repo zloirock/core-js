@@ -1,7 +1,7 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// `typeof NS.Sub.value` - multi-level TSQualifiedName. `resolveTypeQuery` walks the full
-// chain via collectTSQualifiedNames + resolveAnnotatedMemberPath so `s` picks up `string`,
-// routing `.at(0)` to String-specific helper
+// `typeof NS.Sub.value` - multi-level qualified-name type query. plugin walks the full
+// annotation chain `NS.Sub.value` to pick up its `string` type, so `.at(0)` routes to
+// the String-specific polyfill rather than a generic instance fallback
 declare const NS: {
   Sub: {
     value: string;

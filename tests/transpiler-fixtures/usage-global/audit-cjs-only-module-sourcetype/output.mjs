@@ -1,6 +1,7 @@
 require("core-js/modules/es.array.at");
-// `sourceType: 'module'` by default, but body has no ESM markers and uses CJS assigns;
-// pre() must detect CJS via `detectCommonJS` and emit `require()` statements, not imports
+// CommonJS body under default `sourceType: 'module'` - no ESM markers, only `module.exports`.
+// plugin must treat this as CJS and emit `require()` statements for its polyfill imports,
+// not ES `import` declarations
 module.exports = {
   items: [].at(-1)
 };
