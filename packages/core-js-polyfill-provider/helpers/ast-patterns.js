@@ -260,6 +260,19 @@ export function unwrapRuntimeExpr(node) {
   return node;
 }
 
+// unwrap a declarator-init expression to its semantic value. SequenceExpression returns
+// its tail at runtime (`(se(), receiver)` evaluates to `receiver`), and oxc preserves
+// ParenthesizedExpression around the commas. combining both lets receiver resolution reach
+// the target identifier through any mix of parens and SE prefixes without each caller
+// reinventing the peel loop
+export function unwrapInitValue(node) {
+  while (true) {
+    if (node?.type === 'ParenthesizedExpression') node = node.expression;
+    else if (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
+    else return node;
+  }
+}
+
 // generic type arguments at a use-site (`Array<string>`) - babel: `typeParameters`,
 // oxc TS-ESTree: `typeArguments`. class `extends` uses `superTypeParameters` /
 // `superTypeArguments` under the same split

@@ -72,6 +72,14 @@ const shouldTransformCases = [
   ['/src/style.js?inline', false, 'Vite ?inline'],
   ['/src/foo.js?url&v=1', false, 'Vite ?url with extra query'],
   ['/src/foo.js?v=1&url', false, 'Vite ?url trailing'],
+  // Vite worker sub-forms: `?worker-module`, `?worker_file` identify ESM-worker / worker-body
+  // bundling stages; transformed body is Vite's synthetic output, not user JS
+  ['/src/worker.js?worker-module', false, 'Vite ?worker-module'],
+  ['/src/worker.js?worker_file', false, 'Vite ?worker_file'],
+  // Vue / Astro SFC style and template halves are CSS / markup, not JS - even with lang=ts
+  // (TS-in-CSS-in-JS edge) the body isn't runnable JS; polyfill injection would corrupt it
+  ['/src/App.vue?vue&type=style&lang=ts', false, 'Vue SFC style block with lang=ts'],
+  ['/src/App.vue?vue&type=template&lang=ts', false, 'Vue SFC template block with lang=ts'],
   // near-misses that should NOT match (substring or suffix only)
   ['/src/curly.js?curl=x', true, 'query containing "url" as substring'],
   ['/src/foo.js?v=unrelated', true, 'no asset-query key'],
@@ -147,6 +155,46 @@ function checkOutOfBoundsThrows() {
   }
 }
 checkOutOfBoundsThrows();
+
+// non-integer start/end (NaN / undefined / string) silently pass the `>=` / `<` checks
+// because NaN comparisons are always false - integer check surfaces the caller bug upfront
+function checkNonIntegerRangeThrows() {
+  const code = '0123456789';
+  const make = () => new TransformQueue(code, new MagicString(code));
+  for (const bad of [[NaN, 5], [undefined, 5], [null, 5], ['5', 8], [5, NaN], [0.5, 5], [5, 5.5]]) {
+    try {
+      make().add(bad[0], bad[1], 'X');
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan('TransformQueue/integer check') } :: accepted ${ JSON.stringify(bad) }`;
+    } catch (error) {
+      /must be integers/.test(error.message) ? counts.passed++ : counts.failed++;
+    }
+  }
+}
+checkNonIntegerRangeThrows();
+
+// non-consecutive partial overlap: sorted by start gives [A=[0,10), B=[3,5), C=[7,14)].
+// consecutive-pair iteration wouldn't flag A vs C (B sits between, neither pair is partial);
+// running max-end catches it. this is the shape agent audit 4 flagged as TQ-13-4
+function checkNonConsecutivePartialOverlapThrows() {
+  const code = '0123456789abcdef';
+  const q = new TransformQueue(code, new MagicString(code));
+  q.add(0, 10, 'A');
+  q.add(3, 5, 'B');
+  q.add(7, 14, 'C');
+  try {
+    q.apply();
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('TransformQueue/non-consecutive partial overlap') } :: expected throw`;
+  } catch (error) {
+    if (/partial overlap/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan('TransformQueue/non-consecutive partial overlap') } :: got ${ error.message }`;
+    }
+  }
+}
+checkNonConsecutivePartialOverlapThrows();
 
 // --- ImportInjector.snapshot() ---
 // snapshot must hand the post-pass an immutable view; mutating the pre injector after
@@ -252,6 +300,15 @@ function checkSnapshotKeyNormalization() {
   cache.store('/src/Page.astro?astro&type=script&lang=ts', { tag: 'astro-ts' });
   check('SnapshotCache/astro plain', cache.take('/src/Page.astro?astro&type=script')?.tag, 'astro-plain');
   check('SnapshotCache/astro lang=ts', cache.take('/src/Page.astro?astro&type=script&lang=ts')?.tag, 'astro-ts');
+  // Vite virtual module: `/@id/virtual:foo` must normalize to `virtual:foo` so pre/post
+  // pair round-trips when the resolver strips the prefix between passes
+  cache.store('/@id/virtual:mod', { tag: 'virt' });
+  check('SnapshotCache//@id/ prefix', cache.take('virtual:mod')?.tag, 'virt');
+  // case-insensitive prefix match - RFC 3986 allows upper-case URL schemes
+  cache.store('FILE:///abs/up.js', { tag: 'upper' });
+  check('SnapshotCache/uppercase FILE://', cache.take('/abs/up.js')?.tag, 'upper');
+  cache.store('/@FS/abs/up2.js', { tag: 'upper-fs' });
+  check('SnapshotCache/uppercase /@FS/', cache.take('/abs/up2.js')?.tag, 'upper-fs');
 }
 checkSnapshotKeyNormalization();
 
@@ -292,6 +349,24 @@ checkOrphan('nested in arrow body',
   'const f = () => null == (_ref = bar()) ? void 0 : _ref;', [], ['_ref']);
 checkOrphan('nested in class method',
   'class C { run() { null == (_ref = bar()) ? void 0 : _ref; } }', [], ['_ref']);
+
+// user-shape assignments in structural control positions: switch-case / throw / loop / if /
+// while / do-while / return heads. plugin never emits `_ref = X` in any of these, so they are
+// always user code and must NOT be adopted as orphans (would shadow the user's intent)
+checkOrphan('switch case test',
+  'switch (x) { case (_ref = foo()): break; }', [], ['_ref']);
+checkOrphan('throw argument',
+  'throw (_ref = foo());', [], ['_ref']);
+checkOrphan('for-init',
+  'for (_ref = foo(); false;) {}', [], ['_ref']);
+checkOrphan('if test',
+  'if (_ref = foo()) {}', [], ['_ref']);
+checkOrphan('while test',
+  'while (_ref = foo()) break;', [], ['_ref']);
+checkOrphan('do-while test',
+  'do {} while (_ref = foo());', [], ['_ref']);
+checkOrphan('return argument',
+  'function g() { return (_ref = foo()); }', [], ['_ref']);
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
