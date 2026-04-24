@@ -148,10 +148,13 @@ export function createClassHelpers(t, adapter, resolveKey) {
 
   // follow `const X = Y` aliases to the first unshadowed global; null on real local
   // bindings. ES imports pass through so `resolveSuperImportName` can map them back
-  // to the original global via the injector's `#byName` registry
-  function resolveSuperClassName(startName, scope) {
+  // to the original global via the injector's `#byName` registry.
+  // `seen` is threaded from the caller so cycle detection survives cross-calls to
+  // `resolveBindingToGlobalName` (which re-enters this function) - without shared state,
+  // mutually-recursive namespace aliases (`const A = NS.P; const NS = { P: A }`) would
+  // bounce between the two resolvers with a fresh Set each hop and stack-overflow
+  function resolveSuperClassName(startName, scope, seen = new Set()) {
     let name = startName;
-    const seen = new Set();
     while (!seen.has(name)) {
       seen.add(name);
       // injector-side hints win over scope-walked bindings: `handleDestructuredProperty`
@@ -191,8 +194,9 @@ export function createClassHelpers(t, adapter, resolveKey) {
       }
       // non-Identifier init: delegate to the unified resolver which handles proxy-global
       // chains AND user-namespace object-literal members. `const A = globalThis.Promise`
-      // / `const A = NS.Promise` both resolve to 'Promise' through the same path
-      return resolveBindingToGlobalName(init, scope);
+      // / `const A = NS.Promise` both resolve to 'Promise' through the same path.
+      // thread `seen` so cycles via namespace-member recursion are detected
+      return resolveBindingToGlobalName(init, scope, seen);
     }
     return null;
   }
@@ -227,10 +231,13 @@ export function createClassHelpers(t, adapter, resolveKey) {
   //  - static class-as-namespace (`class Box { static Promise = Promise }; extends Box.Promise`)
   //  - compositions through any of the above (`const NS = { P: globalThis.Promise }; NS.P`)
   // returns the canonical global name (`'Promise'`, `'Map'`, ...) or null on failure.
-  // recursive over property values so nested namespaces and alias chains compose naturally
-  function resolveBindingToGlobalName(node, scope) {
+  // recursive over property values so nested namespaces and alias chains compose naturally.
+  // `seen` is threaded through so mutually-recursive aliases (`const A = NS.P; const NS = { P: A }`)
+  // don't stack-overflow via cross-calls to `resolveSuperClassName` - both functions share
+  // a single cycle-detection Set for the whole walk
+  function resolveBindingToGlobalName(node, scope, seen = new Set()) {
     const peeled = unwrapRuntimeExpr(node);
-    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope);
+    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen);
     if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
     // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key
     const proxyKey = globalProxyMemberName(peeled, scope, adapter);
@@ -252,7 +259,7 @@ export function createClassHelpers(t, adapter, resolveKey) {
     const value = findNamespaceMemberValue(container, propName);
     // recurse: member value can be any shape the outer resolver handles (Identifier alias,
     // nested proxy-global, another namespace member) - composition falls out for free
-    return value ? resolveBindingToGlobalName(value, scope) : null;
+    return value ? resolveBindingToGlobalName(value, scope, seen) : null;
   }
 
   // common path for `super.X` and `this.X` in static context - both resolve to the same
