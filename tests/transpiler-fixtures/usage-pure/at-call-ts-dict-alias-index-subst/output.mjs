@@ -1,9 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// `type Dict<V> = { [k: string]: V }` + `Dict<number[]>[string]` - getTypeMembers crosses
-// the alias boundary without substituting V with `number[]`. the index signature's
-// annotation then reads V (a type-param ref) instead of the instantiated inner, falling
-// through to generic `_at`. fix: apply buildSubstMap over returned members after alias recurse
+// generic dict alias `Dict<V> = { [k: string]: V }` instantiated as `Dict<number[]>`;
+// string-keyed lookup should yield `number[]` so `.at(-1)` dispatches the array-specific
+// polyfill. plain `_at` would be returned if the type param V leaks through the alias
+// instead of being substituted with `number[]`
 type Dict<V> = {
   [k: string]: V;
 };
