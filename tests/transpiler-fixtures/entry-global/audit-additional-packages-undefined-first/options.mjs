@@ -1,5 +1,5 @@
-// undefined as the first item - previously `findIndex` would return 0, but `find`
-// still returned undefined (matched first item AND the sentinel). fix catches this
+// `undefined` as the first item of `additionalPackages` must raise a validation TypeError,
+// not be confused with a "not found" sentinel during lookup
 export default {
   plugins: [
     ['@core-js', {

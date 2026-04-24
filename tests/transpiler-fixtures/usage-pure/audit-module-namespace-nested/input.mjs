@@ -1,4 +1,4 @@
-// namespace nesting: NS.Inner.Data — walkStatementsForDecl descends through
+// namespace nesting: NS.Inner.Data - walkStatementsForDecl descends through
 // nested TSModuleDeclaration nodes. Access the nested type, call method.
 namespace NS {
   export namespace Inner {

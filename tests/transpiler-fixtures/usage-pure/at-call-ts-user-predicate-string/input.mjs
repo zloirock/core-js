@@ -1,7 +1,6 @@
-// regression: user-defined type predicate `x is string` used to be ignored by
-// parseTypeGuard (only typeof/instanceof/KNOWN_STATIC_TYPE_GUARDS recognized).
-// now we resolve the predicate's return type annotation and build an equivalent
-// typeof guard. expect `_atMaybeString`.
+// user-defined type predicate `x is string` participates in narrowing on par with
+// typeof/instanceof: the predicate's return-type annotation yields an equivalent
+// typeof guard, so `x` narrows to `string` inside `if (isStr(x))`. expect `_atMaybeString`.
 function isStr(x: unknown): x is string {
   return typeof x === 'string';
 }

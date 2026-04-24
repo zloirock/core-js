@@ -1,3 +1,3 @@
-// TSSatisfiesExpression wrapper - unwrapParens peels it via TS_EXPR_WRAPPERS set,
-// asSymbolRef must accept the unwrapped Identifier
+// `(Symbol satisfies unknown).iterator` - TS `satisfies` wrapper must be peeled
+// so the inner `Symbol.iterator` is recognised and polyfilled
 const iter = obj[(Symbol satisfies unknown).iterator];
