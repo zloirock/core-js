@@ -1,6 +1,6 @@
-// `isPropertyMember` covers ClassProperty (public) alongside ClassPrivateProperty, so the
-// same fold runs for `this.box` as for `this.#box` - init `null` unions with `Array.from`
-// assignment to Array, `?.at(0)` picks the array-specific polyfill variant
+// public class field `box` initialized to `null` and later assigned `Array.from(xs)`.
+// plugin widens the field's type to Array (same as for private `#box` fields) so
+// `this.box?.at(0)` picks the array-specific polyfill variant
 class Maybe {
   box = null;
   set(xs) { this.box = Array.from(xs); }

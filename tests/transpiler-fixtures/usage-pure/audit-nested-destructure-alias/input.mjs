@@ -1,7 +1,5 @@
-// Nested destructure alias `{ Array: { from } } = globalThis`. `globalThis.Array` is
-// always present (native, may be buggy) so an inline `from = _Array$from` default would
-// never fire — we must ALWAYS route to the polyfill. tryFlattenNestedProxyDestructure
-// detects the single-chain shape (inner+outer patterns each hold one property, single
-// declarator) and rewrites the whole VariableDeclaration to `const from = _Array$from`
+// single-chain nested destructure `{ Array: { from } } = globalThis`. a default-on-native
+// pattern would never fire because `globalThis.Array` is always present, so the whole
+// declaration must be rewritten to always route `from` to the Array.from polyfill
 const { Array: { from } } = globalThis;
 from([1, 2, 3]);

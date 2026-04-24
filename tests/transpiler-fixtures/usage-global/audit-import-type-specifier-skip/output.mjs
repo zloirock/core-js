@@ -1,4 +1,4 @@
-// `import { type X }` — type-only import. identifier at ImportSpecifier position must
+// `import { type X }` - type-only import. identifier at ImportSpecifier position must
 // not trigger side-effect polyfill injection for X constructor
 import { type Set as MySet } from './shim';
 type T = InstanceType<MySet>;

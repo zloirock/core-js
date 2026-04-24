@@ -1,4 +1,4 @@
-// InstanceType<typeof Cls> — resolveTypeQueryBinding + getTypeMembers InstanceType branch.
+// InstanceType<typeof Cls> - resolveTypeQueryBinding + getTypeMembers InstanceType branch.
 // Here `C` has a .list property (array). Instance type should route to class members.
 class C {
   list: string[] = [];
