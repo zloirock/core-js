@@ -66,14 +66,19 @@ export default class ImportInjectorState {
 
   addPureImport(entry, hint) {
     const source = `${ this.mode }/${ entry }`;
-    if (this.existingPureImports.has(source)) return this.existingPureImports.get(source);
-    if (this.pureImports.has(source)) return this.pureImports.get(source);
+    // mark name so `flush()`'s post-pass dead-import filter keeps it even when the
+    // generated identifier never appeared in source (sibling-injected usage between
+    // pre and post). no-op when tracking isn't enabled. called on every entry - including
+    // dedup hits - so the hint survives even when the first registration was before
+    // reference-tracking was enabled (post-pass inherit case)
+    const existing = this.existingPureImports.get(source) ?? this.pureImports.get(source);
+    if (existing) {
+      this.trackReferencedName(existing);
+      return existing;
+    }
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`);
     this.pureImports.set(source, name);
     this.#importInfoByName.set(name, { source, hint });
-    // mark name so `flush()`'s post-pass dead-import filter keeps it even when the
-    // generated identifier never appeared in source (sibling-injected usage between
-    // pre and post). no-op when tracking isn't enabled
     this.trackReferencedName(name);
     return name;
   }
