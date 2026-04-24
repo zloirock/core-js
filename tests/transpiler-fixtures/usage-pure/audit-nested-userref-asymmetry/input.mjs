@@ -1,7 +1,7 @@
-// user declares `_ref` inside a nested function - not visible at module top-level.
-// babel's `scope.hasBinding('_ref')` at program scope returns false for nested bindings.
-// unplugin's `collectAllBindingNames` walks all scopes blindly, reserving nested names
-// at module level. verify both plugins produce the same output layer regardless
+// user declares `_ref` inside a nested function - lexically invisible at module top-level.
+// name reservation for plugin-generated refs must still see nested user names to avoid
+// reusing them (the plugin's rename pass could otherwise allocate `_ref` at module scope
+// and collide). both plugins normalise this and emit the same ref numbering
 function inner() {
   var _ref = 'user';
   return _ref;
