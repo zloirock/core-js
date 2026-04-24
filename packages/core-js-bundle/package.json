@@ -78,5 +78,8 @@
   "main": "index.js",
   "scripts": {
     "postinstall": "node -e \"try{require('./postinstall')}catch(e){}\""
+  },
+  "engines": {
+    "node": "*"
   }
 }

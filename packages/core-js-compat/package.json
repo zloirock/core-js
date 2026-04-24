@@ -27,5 +27,8 @@
   "types": "index.d.ts",
   "dependencies": {
     "browserslist": "^4.28.2"
+  },
+  "engines": {
+    "node": ">=6.4.0"
   }
 }
