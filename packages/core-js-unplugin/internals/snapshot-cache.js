@@ -15,7 +15,12 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 // - collapse `//` -> `/` so a doubled slash on one side still matches the other
 const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs|\/@id\/)/i;
 const REPEATED_SLASHES_RE = /\/{2,}/g;
-const SFC_QUERY_MARKER_RE = /[&?](?:astro|lang=|setup(?:=|&|$)|svelte|type=|vue)/;
+// only framework SFC markers count as sub-block identifiers. pairing `type=`/`lang=`/`setup`
+// with a framework key (`vue` / `astro` / `svelte`) avoids matching generic `?type=module` or
+// `?lang=en` on non-SFC bundlers that would otherwise get a stray `?type=...` tail kept in
+// the snapshot key - causing pre/post lookups to miss when the same file is visited under
+// slightly different queries in an unrelated transform pipeline
+const SFC_QUERY_MARKER_RE = /[&?](?:astro|svelte|vue)(?:[&=?]|$)/;
 const QUERY_OR_HASH_RE = /[#?]/;
 function normalizePath(path) {
   return path
@@ -50,7 +55,7 @@ export default class SnapshotCache {
     // post will see, so its snapshot is the current truth
     if (this.#debug && this.#snapshots.has(key) && typeof console !== 'undefined') {
       // eslint-disable-next-line no-console -- opt-in diagnostic
-      console.warn(`[core-js-unplugin] pre-pass called twice for ${ id }; latest snapshot wins`);
+      console.warn(`[core-js] pre-pass called twice for ${ id }; latest snapshot wins`);
     }
     this.#snapshots.set(key, entry);
   }
