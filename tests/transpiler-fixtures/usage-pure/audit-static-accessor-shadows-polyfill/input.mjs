@@ -1,8 +1,8 @@
-// Stage-3 auto-accessor declared static with the same name as a super-class static
-// method. `class C extends Array { static accessor from = ... }` - C has its own `from`
-// accessor. Then `this.from(x)` in a static method should bail (shadowed by own member)
-// even though the accessor returns an iterable. `isShadowedByClassOwnMember` scans own
-// names including accessor properties via `isClassAccessorProperty`.
+// Stage-3 auto-accessor declared as a static with the same name as an inherited method.
+// `class C extends Array { static accessor from = [...] }` - C now has its own static `from`
+// accessor that returns an array. `this.from(0)` inside a static method calls the accessor,
+// not Array.from, so polyfill must bail. own-member detection includes accessor properties
+// alongside regular methods and fields
 class C extends Array {
   static accessor from = [1, 2, 3];
   static run() {
