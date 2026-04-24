@@ -1,4 +1,7 @@
 import "core-js/modules/es.object.to-string";
+import "core-js/modules/es.promise.constructor";
+import "core-js/modules/es.promise.catch";
+import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.map.constructor";
 import "core-js/modules/es.map.species";
@@ -18,11 +21,13 @@ import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-collections.iterator";
-// nested TS casts (`as any as unknown`) / non-null (`!`) around update operands - the read
-// side still needs the polyfill. gated behind `if (false)` because assigning to a global is
-// user-bug and would runtime-clobber Map / Set / WeakMap
+// update on a global identifier (Map++) is user bug - assignment coerces to NaN and clobbers
+// the global. plugin nevertheless injects the polyfill for the read side: without it, the
+// global is undefined in IE 11 and the update ReferenceError's before semantics matter.
+// gated behind `if (false)` so the fixture does not rely on runtime semantics of user bugs
 if (false) {
-  Map as any as unknown++;
-  --Set as any as unknown;
-  WeakMap! as any++;
+  Map++;
+  ++Promise;
+  WeakMap--;
+  --Set;
 }
