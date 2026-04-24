@@ -1,4 +1,4 @@
-// `declare module` / `declare const` / `declare function` — type-only hoistings, never runtime.
+// `declare module` / `declare const` / `declare function` - type-only hoistings, never runtime.
 // Map inside a declare block must not trigger polyfill, even if the `Map` identifier appears.
 declare module "polyfilled" {
   export const m: Map<string, number>;

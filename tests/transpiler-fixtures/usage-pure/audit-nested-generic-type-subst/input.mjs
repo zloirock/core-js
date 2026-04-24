@@ -1,4 +1,4 @@
-// generic alias whose body wraps the type-param inside `T[]` — inner Array type
+// generic alias whose body wraps the type-param inside `T[]` - inner Array type
 // resolves through to the array polyfill for `.at`
 type G<T> = Generator<T[]>;
 function* gen(): G<string> { yield ['x']; }

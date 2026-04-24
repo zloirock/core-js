@@ -1,5 +1,5 @@
-// NaN / Infinity / Symbol previously rendered as null / undefined via JSON.stringify —
-// useless for diagnosing. `formatReceived` surfaces them via String / toString
+// diagnostic rendering of `targets: NaN` must surface the actual value (via String/toString),
+// not render as `null` through JSON.stringify
 export default {
   plugins: [
     ['@core-js', {

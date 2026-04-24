@@ -1,6 +1,6 @@
-// synth-swap where every destructured key has a polyfill: the emitted object literal reads
-// only polyfill ids, the receiver `Promise` identifier is not referenced. the receiver pure
-// import must NOT be injected - otherwise an unused `_Promise` leaks into the bundle.
-// two shapes exercise the same applySynthSwaps path (IIFE arg + param default)
+// Destructuring where every key has a polyfill: the receiver `Promise` gets
+// rewritten to an object literal with only polyfill ids, so no `_Promise` import
+// is injected (leaking an unused `_Promise` would bloat the bundle).
+// Two shapes covered: IIFE argument and default parameter.
 (({ resolve }) => resolve)(Promise);
 function fn({ resolve, reject } = Promise) { return [resolve, reject]; }
