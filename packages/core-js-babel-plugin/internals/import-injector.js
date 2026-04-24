@@ -138,6 +138,11 @@ export default class ImportInjector extends ImportInjectorState {
       // `var _ref = (se(), Array)` - side-effectful init must stay even if the var is unused
       if (binding.path.node?.init) continue;
       const declPath = binding.path.parentPath;
+      // CatchClause / FunctionDeclaration params host our binding without a `.declarations` array -
+      // removing them would mutate function signatures / try shapes. skip prune for those hosts:
+      // the param is already effectively "dead" at runtime, and keeping the shape is safer than
+      // fabricating a removal through an incompatible parent
+      if (!declPath?.isVariableDeclaration()) continue;
       if (declPath.node.declarations.length === 1) declPath.remove();
       else binding.path.remove();
       this.#refs.delete(name);
@@ -145,6 +150,14 @@ export default class ImportInjector extends ImportInjectorState {
     if (!this.#refs.size) return;
 
     const taken = new Set(bindings.keys());
+    // mirror `isNameTaken`: allocation consults scope bindings PLUS program.globals/references/uids
+    // to catch undeclared sloppy-mode assignments (`_ref = foo()` as implicit global) and unbound
+    // reads. renumbering only scope-bindings would otherwise collapse a safely-allocated `_ref2`
+    // back onto `_ref`, re-introducing the collision allocation originally avoided
+    const program = this.#programPath.scope.getProgramParent();
+    for (const n of Object.keys(program.globals ?? {})) taken.add(n);
+    for (const n of Object.keys(program.references ?? {})) taken.add(n);
+    for (const n of Object.keys(program.uids ?? {})) taken.add(n);
     for (const name of this.#refs) taken.delete(name);
 
     // identity set of plugin-owned binding objects guards rename against user's nested
@@ -164,6 +177,13 @@ export default class ImportInjector extends ImportInjectorState {
       if (name !== target) renameMap.set(name, target);
     }
     if (!renameMap.size) return;
+
+    // sync `#refs` with post-rename names so subsequent consumers (reorderRefsAfterImports)
+    // match `var _refN;` declarations against the renamed set instead of the stale originals
+    for (const [from, to] of renameMap) {
+      this.#refs.delete(from);
+      this.#refs.add(to);
+    }
 
     this.#programPath.traverse({
       Identifier(p) {
