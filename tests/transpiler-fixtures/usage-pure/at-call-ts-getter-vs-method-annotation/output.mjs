@@ -1,9 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref, _ref2;
-// getter `get list(): number[]` vs method `next(): number[]` - same `number[]` return type,
-// but getter-access reads the value directly (property semantics) while method-access returns
-// a function reference. findTypeMember + resolveMemberAnnotation branch on `kind === 'get'`
-// so `i.list` yields number[] (narrow to array polyfill), while plain method stays function
+// Getter `get list(): number[]` vs method `next(): number[]` - both declare the
+// same return type, but `i.list` is a property access (yielding `number[]`) and
+// `i.next()` is a call (also yielding `number[]`). Both `.at(-1)` sites get the
+// array-specific polyfill.
 interface Iter {
   get list(): number[];
   next(): number[];

@@ -1,4 +1,4 @@
-// mutually-recursive type aliases — resolution bails on cycle
+// mutually-recursive type aliases - resolution bails on cycle
 type A = B;
 type B = A;
 declare const x: A;

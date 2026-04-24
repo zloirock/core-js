@@ -1,7 +1,7 @@
-// scanExistingCoreJSImports: existing `import _Map from '@core-js/pure/actual/map'` is
-// registered as pure import. Subsequent Map reference resolves to this binding, no
-// duplicate import added. Demonstrates `onPureImport` dedup path
+// existing `import _Map from '@core-js/pure/actual/map'` is recognised as a
+// `Map` reference (so `new _Map()` stays as is), while a bare `new Map()` on
+// the next line still gets its own canonical import from the constructor entry
 import _Map from '@core-js/pure/actual/map';
 const m = new _Map();
-// fresh reference should reuse _Map
+// fresh `Map` reference - gets its own import
 const n = new Map();
