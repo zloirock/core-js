@@ -24,6 +24,7 @@ import {
   resolveSuperImportName,
   stripQueryHash,
   TS_EXPR_WRAPPERS,
+  unwrapInitValue,
   unwrapParens,
 } from '@core-js/polyfill-provider/helpers';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
@@ -1073,6 +1074,22 @@ export default function createPlugin(options) {
         const declaration = declPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
         if (flattenedNestedDecls.has(declaration)) return true;
+        const parentNode = declPath.parentPath?.node;
+        const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
+        // oxc wraps `(expr1, expr2)` parens as ParenthesizedExpression - peel before SE check
+        const initOf = i => {
+          let n = declaration.declarations[i].init;
+          if (n?.type === 'ParenthesizedExpression') n = n.expression;
+          return n;
+        };
+        // for-init with SE init can't host a prefix statement outside the loop header.
+        // bail before `rewriteProxyNestedDeclarator` runs - it would inject pure imports
+        // that then go unused when we can't emit the flatten replacement
+        if (isForInit) {
+          for (let i = 0; i < declaration.declarations.length; i++) {
+            if (initOf(i)?.type === 'SequenceExpression') return false;
+          }
+        }
         // per-declarator order preserved so rendering keeps source position
         // (`let i = 0, { Array: { from } } = globalThis` -> `let i = 0, from = _from`)
         const perDecl = declaration.declarations.map(d => rewriteProxyNestedDeclarator(d, metaPath.scope));
@@ -1081,9 +1098,17 @@ export default function createPlugin(options) {
         // suppress every original descendant - queued visits on init / inner / sibling-prop
         // handlers would either trip transform-queue composition or re-emit polyfills
         walkAstNodes(declaration, node => skippedNodes.add(node));
-        const parentNode = declPath.parentPath?.node;
-        const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
-        const replacement = renderFlattenedNestedProxy(perDecl, declaration.kind, isForInit);
+        let replacement = renderFlattenedNestedProxy(perDecl, declaration.kind, isForInit);
+        // preserve SE prefix when init is `(se(), receiver)`: the non-nested destructure path
+        // already lifts SE expressions as statements via `buildDestructuringInitMeta`; do the
+        // same here so nested receivers retain the preceding side-effect semantics
+        if (!isForInit && declaration.declarations.length === 1) {
+          const init = initOf(0);
+          if (init?.type === 'SequenceExpression' && init.expressions.length > 1) {
+            const prefixSrc = init.expressions.slice(0, -1).map(nodeSrc).join(', ');
+            replacement = `${ prefixSrc };\n${ replacement }`;
+          }
+        }
         transforms.add(declaration.start, declaration.end, replacement);
         return true;
       }
@@ -1121,7 +1146,11 @@ export default function createPlugin(options) {
         if (planCache.has(declarator)) return planCache.get(declarator);
         let plan = null;
         if (declarator.id?.type === 'ObjectPattern' && declarator.id.properties.length) {
-          const receiver = declarator.init ? sharedResolveObjectName(declarator.init, scope, estreeAdapter) : null;
+          // `(se(), globalThis)` - unwrap to the semantic init value so nested receivers
+          // resolve through SequenceExpression prefixes + preserved parens. parity with
+          // non-nested destructure which goes through `buildDestructuringInitMeta`
+          const init = unwrapInitValue(declarator.init);
+          const receiver = init ? sharedResolveObjectName(init, scope, estreeAdapter) : null;
           if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
             const outerProps = declarator.id.properties.map(planOuterProp);
             if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps };

@@ -182,13 +182,14 @@ export default class ImportInjector extends ImportInjectorState {
   }
 }
 
-// CR-only line endings are legal JS separators (ES spec LineTerminator) - classic Mac
-// files / manual construction. treat any of LF / CR / CRLF as the shebang terminator
+// ES spec HashbangComment terminates on any LineTerminator (LF / CR / LS / PS). CR-only
+// separators are legal (classic Mac / hand-constructed), as are LS (U+2028) / PS (U+2029)
+// which a bundler may have left intact. shebangs end at the first LineTerminator
 function skipShebang(src, pos) {
   if (src[pos] !== '#' || src[pos + 1] !== '!') return pos;
   for (let i = pos + 2; i < src.length; i++) {
-    if (src[i] === '\n') return i + 1;
-    if (src[i] === '\r') return src[i + 1] === '\n' ? i + 2 : i + 1;
+    if (src[i] === '\r' && src[i + 1] === '\n') return i + 2;
+    if (isLineTerminator(src[i])) return i + 1;
   }
   return src.length;
 }
