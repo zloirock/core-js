@@ -20,6 +20,7 @@ import {
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isTSTypeOnlyIdentifier,
+  unwrapInitValue,
   unwrapParens,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers';
@@ -155,12 +156,15 @@ function buildDestructuringMeta(propNode, parentPath) {
     case 'Property': {
       // nested pattern `{ Array: { from } } = globalThis` - inner Property's outer chain:
       // Property -> ObjectPattern -> VariableDeclarator. resolve outer init; if proxy-global,
-      // return structured meta with outer key as receiver and inner as key
+      // return structured meta with outer key as receiver and inner as key.
+      // peel ParenthesizedExpression + SequenceExpression tails so `(se(), globalThis)` init
+      // still resolves to the proxy-global receiver (parity with non-nested destructure)
       const outerPattern = parent.parentPath;
       const outerDecl = outerPattern?.parentPath;
       if (outerPattern?.node?.type === 'ObjectPattern' && outerDecl?.node?.type === 'VariableDeclarator') {
-        const receiver = outerDecl.node.init
-          ? sharedResolveObjectName(outerDecl.node.init, outerDecl.scope ?? scope, estreeAdapter)
+        const outerInit = unwrapInitValue(outerDecl.node.init);
+        const receiver = outerInit
+          ? sharedResolveObjectName(outerInit, outerDecl.scope ?? scope, estreeAdapter)
           : null;
         if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
           const innerKey = extractPropertyKey(propNode, scope);
