@@ -1,4 +1,5 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// Parenthesized init - peelParens unwraps to resolve global identifier.
-// `initIdentName` must be `Array` after peel. Static `from` polyfilled as global.
+// parenthesized init `const { from } = (Array)` - parens must be peeled to
+// resolve the right-hand side to `Array`, so destructuring `from` polyfills
+// `Array.from`
 const from = _Array$from;
