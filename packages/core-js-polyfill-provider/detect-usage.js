@@ -47,9 +47,12 @@ const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/;
 
 // true when `node` binds the module's default export (either as default specifier or
 // as named `default` re-export). namespace bindings and other named specifiers reject -
-// they alias something other than the module's default, even if the module-source matches
+// they alias something other than the module's default, even if the module-source matches.
+// `null` is accepted as "default-like" for adapter-supplied virtual bindings: the plugin
+// only emits virtual bindings for its own default pure-imports, and reference-tracking
+// / super-mapping rely on this helper returning true in that case
 function bindsModuleDefault(node) {
-  if (!node) return true; // adapter-supplied virtual binding (no AST node) - treat as default
+  if (!node) return true;
   if (node.type === 'ImportDefaultSpecifier') return true;
   if (node.type === 'ImportSpecifier') {
     const importedName = node.imported?.name ?? node.imported?.value;
@@ -205,7 +208,9 @@ function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter,
   for (const p of pattern.properties) {
     if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
     if (patternBindingName(p.value) !== name) continue;
-    const key = resolveKey(p.key, p.computed, scope, adapter);
+    // propagate `seen` so computed keys backed by chained aliases (`const k = A; const A = k;`
+    // -> { [k]: x }) reuse the outer cycle guard instead of starting a fresh walk
+    const key = resolveKey(p.key, p.computed, scope, adapter, seen);
     return key && isStaticPlacement(key) ? key : null;
   }
   return null;
@@ -223,7 +228,9 @@ export function patternBindingName(node) {
 function resolveProxyGlobalRoot(receiver, scope, adapter, seen) {
   let obj = unwrapParens(receiver);
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
-    const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter) : obj.property?.name;
+    // carry `seen` into computed-key resolution so a shared alias chain across the
+    // proxy-global walk and its intermediate member keys can't exceed the cycle guard
+    const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter, seen) : obj.property?.name;
     if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
     obj = unwrapParens(obj.object);
   }
@@ -294,7 +301,10 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   if (node.type === 'Identifier' && computed) {
     // depth ceiling alone doesn't catch short cycles (`a = b; b = a`)
     if (seen?.has(node.name)) return null;
-    const nextSeen = seen ?? new Set();
+    // fork `seen` even when caller supplied one: caller may fall through to sibling
+    // branches (BinaryExpression `+`, TemplateLiteral expressions) after this Identifier
+    // branch - mutating shared state would pollute those independent walks
+    const nextSeen = new Set(seen);
     nextSeen.add(node.name);
     const binding = adapter.getBinding(scope, node.name);
     if (binding && !binding.constantViolations?.length) {
@@ -454,9 +464,17 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   // string-folded sources - plain strings, not the symbol
   if (adapter.isStringLiteral(node) || type === 'TemplateLiteral'
     || (type === 'BinaryExpression' && node.operator === '+')) return false;
-  // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape
+  // Symbol[.X] direct / via chained proxy-global - canonical symbol-ref shape.
+  // also verify the property reads a well-known symbol name (not `Symbol.someUserKey`):
+  // well-known symbols live under specific names exposed by `symbolKeyToEntry`; random
+  // dot-access on Symbol (`Symbol.foo`) resolves to `undefined` at runtime and should
+  // not trigger symbol-routed polyfill dispatch
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
-    return !!asSymbolRef(node.object, scope, adapter, new Set(seen));
+    if (!asSymbolRef(node.object, scope, adapter, new Set(seen))) return false;
+    if (!node.computed && node.property?.type === 'Identifier') {
+      return symbolKeyToEntry(`Symbol.${ node.property.name }`) !== null;
+    }
+    return true;
   }
   if (type !== 'Identifier' || seen?.has(node.name)) return false;
   const nextSeen = seen ?? new Set();

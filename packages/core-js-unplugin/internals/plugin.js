@@ -61,8 +61,6 @@ import {
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
 
-export { collectAllBindingNames } from './plugin-helpers.js';
-
 // estree-toolkit's scope crawler doesn't recognise `TSDeclareFunction` as a scope owner, so
 // it walks into `RestElement` in params via the reference path which throws `This should be
 // handled by findVisiblePathsInPattern`. narrow retype: only when params contain `RestElement`
@@ -95,7 +93,7 @@ export default function createPlugin(options) {
   if (bundler !== undefined && bundler !== null && !KNOWN_BUNDLERS.has(bundler)) {
     const list = [...KNOWN_BUNDLERS].map(b => `'${ b }'`).join(', ');
     // eslint-disable-next-line no-console -- first-run diagnostic
-    console.warn(`[core-js-unplugin] unknown \`bundler\` ${ JSON.stringify(bundler) } - falling back to generic handling (expected one of ${ list })`);
+    console.warn(`[core-js] unknown \`bundler\` ${ JSON.stringify(bundler) } - falling back to generic handling (expected one of ${ list })`);
   }
 
   const snapshots = new SnapshotCache({ debug: !!providerOptions.debug });
@@ -260,11 +258,13 @@ export default function createPlugin(options) {
         for (const node of removed) removeTopLevelStatement(ms, node);
       }
     }
-    // post drops inherited pure imports whose binding isn't referenced - sibling may have
-    // deleted the usage between pre and post. babel-plugin doesn't call this: babel relies
-    // on destructure transform that consumes imports synchronously during traversal, so dead
-    // imports post-mutation are rare enough that the extra scan cost isn't worth it
-    if (pass === 'post' && inherit) injector.enableReferenceTracking();
+    // post drops pure imports whose binding isn't referenced - sibling may have deleted
+    // the usage between pre and post. enable for every post pass, not just `inherit`:
+    // single-post (no pre snapshot, e.g. `phase: 'post'` without `pre`) can still emit
+    // dead imports when a destructure transform drops all uses mid-pass, and the ref-tracking
+    // overhead is negligible. babel-plugin doesn't call this - it resolves destructure
+    // transforms synchronously during traversal
+    if (pass === 'post') injector.enableReferenceTracking();
 
     const debugOutput = createDebugOutput?.() ?? null;
 
@@ -570,8 +570,11 @@ export default function createPlugin(options) {
       }
 
       // walk the chain to find the first non-polyfillable optional,
-      // skipping TS expression wrappers (TSAsExpression, TSNonNullExpression, etc.)
-      function findChainRoot(node) {
+      // skipping TS expression wrappers (TSAsExpression, TSNonNullExpression, etc.).
+      // `scope` is passed to `isPolyfillableOptional` so user-shadowed globals
+      // (`const Promise = MyThing; Promise?.resolve()`) don't get misclassified as
+      // polyfillable - their `.resolve()` chain must keep the `?.` guard in place
+      function findChainRoot(node, scope) {
         function chainChild(n) {
           return n.object || n.callee || (TS_EXPR_WRAPPERS.has(n.type) ? n.expression : null);
         }
@@ -591,7 +594,7 @@ export default function createPlugin(options) {
           }
           return { root: unwrapParensSrc(rootNode), rootRaw: nodeSrc(rootNode), deoptPositions, rootNode };
         }
-        const isPoly = n => isPolyfillableOptional(n, null, estreeAdapter, resolveBuiltIn);
+        const isPoly = n => isPolyfillableOptional(n, scope, estreeAdapter, resolveBuiltIn);
         let current = node.optional ? node : chainChild(node);
         while (current && typeof current === 'object') {
           if (current.optional) {
@@ -694,8 +697,8 @@ export default function createPlugin(options) {
       }
 
       // resolve optional root + skip redundant guard when nested inside an outer transform
-      function resolveOptionalRoot(node, parent, isCall) {
-        let { root, rootRaw, deoptPositions, rootNode } = findChainRoot(node);
+      function resolveOptionalRoot(node, parent, isCall, scope) {
+        let { root, rootRaw, deoptPositions, rootNode } = findChainRoot(node, scope);
         if (root) {
           const start = isCall ? parent.start : node.start;
           const end = isCall ? parent.end : node.end;
@@ -744,7 +747,7 @@ export default function createPlugin(options) {
       function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
         let objectSrc = unwrapParensSrc(node.object);
         let isNonIdent = !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
-        const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall);
+        const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
         // inner polyfill sharing the chain root with an outer: reuse outer's guardRef so
         // `fn()` is evaluated once (`_at(_ref).call(_ref, 0)`, not `_at(_ref3 = fn())...`)
         let reusedOuterRef = null;
