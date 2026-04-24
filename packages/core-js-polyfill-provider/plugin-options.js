@@ -5,7 +5,9 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import { isForXWriteTarget, isTSTypeOnlyIdentifier, patternToRegExp, symbolKeyToEntry, validatePatternList } from './helpers.js';
+import {
+  isForXWriteTarget, isTSTypeOnlyIdentifier, patternToRegExp, safeStringify, symbolKeyToEntry, validatePatternList,
+} from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
@@ -21,18 +23,18 @@ export function sortByPolyfillOrder(modules) {
 // useless for type-mismatch diagnostics; use their native toString for the outliers.
 // class instances serialize as plain `{…}` - prefix with constructor name so users distinguish
 // `new Targets()` from `{ ie: 11 }` object-literal in the error.
-// JSON.stringify of a circular value throws; fall back to `[Object]` so validation
-// reports the option error instead of propagating the TypeError
-function safeStringify(value) {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '[Object]';
-  }
-}
+// `safeStringify` (shared helper) wraps `JSON.stringify` in try/catch so circular structures
+// and adversarial Proxy traps don't mask the primary option error with a stringify crash
 function formatReceived(value) {
   if (typeof value === 'symbol') return value.toString();
-  if (typeof value === 'function') return `[Function${ value.name ? ` ${ value.name }` : '' }]`;
+  if (typeof value === 'function') {
+    // adversarial function with throwing `.name` getter - same defensive rationale as the
+    // `.constructor?.name` try/catch below: don't let formatReceived throw a secondary error
+    // while the primary option-type error is being built
+    let fnName = null;
+    try { fnName = value.name; } catch { /* swallow */ }
+    return `[Function${ fnName ? ` ${ fnName }` : '' }]`;
+  }
   if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
   // JSON.stringify throws on BigInt; formatting as `42n` keeps the option-type error
   // readable instead of degrading to `[Object]`

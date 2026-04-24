@@ -15,12 +15,17 @@ const DTS_RE = /\.d\.[cm]?tsx?$/i;
 const SFC_LANG_RE = /[&?]lang=[cm]?[jt]sx?(?:&|$)/;
 // SFC sub-block missing `lang=`: Svelte 5 / Vue / Astro default `<script>` to JS
 const SFC_DEFAULT_JS_RE = /[&?](?:astro|svelte|vue)&type=(?:module|script)(?:&|$)/;
+// non-JS SFC sub-blocks: `<style lang="ts">` / `<template lang="ts">` exist but their bodies
+// are CSS / markup, not runnable JS. SFC_LANG_RE would accept them on extension match alone;
+// this gate keeps polyfill injection off the style / template halves of the file
+const SFC_NON_JS_TYPE_RE = /[&?]type=(?:style|template)(?:&|$)/;
 
 // Vite asset-import queries: `?url`, `?raw`, `?worker`, `?worklet`, `?inline` transform
 // the module into a URL / string / instantiated Worker etc; the resolved body isn't
 // user-authored JS (even though the path has a JS extension). skip to avoid injecting
-// polyfills into the Vite asset plugin's own synthetic output
-const VITE_ASSET_QUERY_RE = /[&?](?:inline|raw|url|worker|worklet)(?:=|$|&)/;
+// polyfills into the Vite asset plugin's own synthetic output. the `worker` branch also
+// accepts `?worker-module` / `?worker_file` sub-forms that Vite emits for ESM workers
+const VITE_ASSET_QUERY_RE = /[&?](?:inline|raw|url|worker(?:[-_][a-z]+)?|worklet)(?:=|$|&)/;
 
 // `\0` marks virtual modules (some bundlers embed it mid-id in the query component, not
 // just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
@@ -35,7 +40,7 @@ export function shouldTransform(id) {
   // unconditionally is cheaper than adding a `.includes('?')` fast-path guard
   const base = stripQueryHash(id);
   if (JS_RE.test(base) && !DTS_RE.test(base)) return true;
-  if (SFC_LANG_RE.test(id)) return true;
+  if (SFC_LANG_RE.test(id) && !SFC_NON_JS_TYPE_RE.test(id)) return true;
   // explicit non-JS `lang=` (e.g. `lang=d.ts`, `lang=scss`) blocks the default-JS fallback
   return !id.includes('lang=') && SFC_DEFAULT_JS_RE.test(id);
 }
