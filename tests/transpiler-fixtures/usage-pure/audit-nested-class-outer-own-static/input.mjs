@@ -1,8 +1,7 @@
-// Outer class has its own `from` static; inner class is defined inside a static method
-// of the outer and has no `from`. The inner `super.from(x)` should polyfill to Array.from
-// (it extends Array), and the outer's static `from` should not interfere with resolving
-// the inner's super chain. `isShadowedByClassOwnMember` only looks at the class-body
-// directly enclosing the `this`/`super` call, so the outer's shadow is scoped correctly.
+// outer class has its own static `from` (shadowing Promise.from); inner class is declared
+// inside outer's static method and extends Array. inner's `super.from(x)` resolves to
+// Array.from - outer's own shadow is scoped to outer's body and doesn't leak into inner.
+// each class body has its own own-member view for shadow detection
 class Outer extends Promise {
   static from(iter) { return [...iter]; }
   static run() {

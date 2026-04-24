@@ -1,7 +1,6 @@
 import _globalThis from "@core-js/pure/actual/global-this";
-// MemberExpression LHS of logical-assignment - `globalThis.Map ||= X` case separate
-// from bare Identifier (`Map ||= X`). checkLogicalAssignLhsMember fires on enter of
-// the MemberExpression before inner-identifier visit rewrites `globalThis` to
-// `_globalThis`; captures the pre-transform name for a user-friendly warning
+// multiple proxy-global member logical-assigns in one file - each surfaces its own
+// warning tagged with the pre-transform global name (`Symbol`, `WeakMap`), not the
+// post-rewrite identifier, so the diagnostic stays readable
 _globalThis.Symbol ||= {};
 _globalThis.WeakMap ||= {};
