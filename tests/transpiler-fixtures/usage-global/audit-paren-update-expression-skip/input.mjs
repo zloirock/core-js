@@ -1,7 +1,7 @@
-// with `createParenthesizedExpressions: true` babel keeps `(Map)` as a ParenthesizedExpression
-// wrapper. UpdateExpression operand peel previously only stripped TS wrappers, so `(Map)++`
-// slipped past and polyfill injection emitted `_Map++` - runtime TypeError (imports are
-// read-only). fix: also peel ParenthesizedExpression so UpdateExpression context is detected
-function bump() {
+// compile-time assertion: `createParenthesizedExpressions: true` keeps `(Map)` as a wrapper
+// node; the update-operand check must peel it so usage-global injects the polyfill for the
+// read side of `(Map)++`. update on a global is user-bug (assignment coerces to NaN), gated
+// behind `if (false)` - the test subject is plugin output, not runtime semantics of the user bug
+if (false) {
   (Map)++;
 }
