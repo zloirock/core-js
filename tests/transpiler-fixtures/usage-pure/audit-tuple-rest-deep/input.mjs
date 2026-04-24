@@ -1,5 +1,5 @@
-// deep tuple with rest: `[string, ...number[][]]` — findTupleElement walks
-// elements, unwraps rest → extractElementAnnotation. Check substitution still works
+// deep tuple with rest: `[string, ...number[][]]` - findTupleElement walks
+// elements, unwraps rest -> extractElementAnnotation. Check substitution still works
 // when tuple is inside a generic alias.
 type Pair<T> = [string, ...T[]];
 declare const t: Pair<number[]>;

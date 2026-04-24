@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 const from = _Array$from;
-// `const { from, ...Map } = Array` - `...Map` is rest binding (collects remaining Array own-props).
-// resolveBindingToGlobal detects RestElement with argument.name === 'Map' and returns null.
-// Map.prototype.get stays local-bound - no polyfill, correct semantics
+// `const { from, ...Map } = Array` - rest binding named `Map` collects remaining
+// own-props of `Array`, not the global `Map`. So `Map.prototype.get` stays
+// local-bound and is not polyfilled.
 const {
   from: _unused,
   ...Map

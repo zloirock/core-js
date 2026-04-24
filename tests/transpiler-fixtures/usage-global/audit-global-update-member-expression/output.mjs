@@ -6,7 +6,7 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// Map.counter++ — the member is UpdateExpression target. Should NOT mark as usage
+// Map.counter++ - the member is UpdateExpression target. Should NOT mark as usage
 // of Map.counter (read-only polyfill semantics), but the Map constructor itself is
-// still a live reference — need its constructor polyfill.
+// still a live reference - need its constructor polyfill.
 Map.counter++;

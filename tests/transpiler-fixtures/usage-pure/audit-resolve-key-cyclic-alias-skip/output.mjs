@@ -1,6 +1,6 @@
 import _Symbol from "@core-js/pure/actual/symbol/constructor";
-// cyclic alias through computed key must terminate via seen-guard (distinct code path
-// from resolveBindingToGlobal's receiver-chain guard)
+// Cyclic alias `const a = b; const b = a` used as a computed key terminates safely.
+// Plugin falls back to polyfilling the bare `Symbol` (no specialized `Symbol.X` resolution).
 const a = b;
 const b = a;
 _Symbol[a] in obj;
