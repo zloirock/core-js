@@ -131,11 +131,10 @@ export function createClassHelpers(t, adapter) {
   function findDestructureKeyForBinding(objectPattern, targetName) {
     for (const p of objectPattern.properties ?? []) {
       if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
-      if (p.computed) continue;
-      let keyName = null;
-      if (p.key?.type === 'Identifier') keyName = p.key.name;
-      else if (p.key?.type === 'StringLiteral') keyName = p.key.value;
-      else if (p.key?.type === 'Literal' && typeof p.key.value === 'string') keyName = p.key.value;
+      // `staticKeyName` covers Identifier / StringLiteral / single-quasi TemplateLiteral;
+      // ESTree's oxc `Literal` shape with a string value falls through the `isStringLiteral`
+      // check (`nodeType()` maps Literal+string to StringLiteral), so both parser shapes resolve
+      const keyName = staticKeyName(p.key, p.computed);
       if (!keyName) continue;
       const value = p.value?.type === 'AssignmentPattern' ? p.value.left : p.value;
       if (value?.type !== 'Identifier' || value.name !== targetName) continue;
@@ -249,9 +248,11 @@ export function createClassHelpers(t, adapter) {
   }
 
   // gates dispatch to `resolveStaticInheritedMember` plus the downstream instance-fallback
-  // bail. both `super.X` (any ctx; instance super.X is out of scope of our resolver) and
-  // `this.X` in static ctx look up the super class's static chain via `extends`. direct
-  // type-string checks because estree-compat's `types` doesn't export `isSuper`
+  // bail. `super.X` always returns true because the caller uses the predicate as "is this a
+  // super / this-in-static" check that ALSO forces the instance-fallback bail below (pure
+  // instance super.X is out of scope of the resolver). `this.X` needs the static-context
+  // check - non-static `this.X` is a regular instance read and shouldn't route here.
+  // direct type-string checks because estree-compat's `types` doesn't export `isSuper`
   function isInheritedStaticLookup(path) {
     const objType = path.node.object?.type;
     if (objType === 'Super') return true;
