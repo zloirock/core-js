@@ -353,7 +353,11 @@ function createResolveNodeType(babelNodeType, t) {
       case 'TSTypeReference':
       case 'GenericTypeAnnotation': {
         const name = typeRefName(node);
-        if (name && subst.has(name)) return subst.get(name);
+        // chained generic aliases can stash a compound arg under a param key - e.g.
+        // `type A<T> = B<T[]>; type B<U> = U[]` leaves subst {T: string, U: T[]}, and
+        // naive `subst.get(U)` leaks T. re-run the replacement through the same subst
+        // to finish resolving references inside the compound AST
+        if (name && subst.has(name)) return applyAliasSubstDeep(subst.get(name), subst, depth + 1);
         const args = getTypeArgs(node);
         if (!args?.params?.length) return node;
         const next = args.params.map(p => applyAliasSubstDeep(p, subst, depth + 1));
@@ -3046,8 +3050,24 @@ function createResolveNodeType(babelNodeType, t) {
     return value === null ? null : { field: memberExpr.property.name, value };
   }
 
-  // walk up collecting `<path>.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`.
-  // `targetKey` covers arbitrary LHS shapes (Identifier / `this.x` / `obj.a.b`)
+  // scan preceding-sibling statements of `current` at its block level; for each one that
+  // unconditionally exits (`if (X) return;` / `... else throw ...`), collect the narrowed
+  // discriminant form into `out`. mirrors `findPrecedingExitGuards` but for discriminant kinds
+  function collectPrecedingExitDiscriminants(current, targetKey, out) {
+    const siblings = getStatementSiblings(current);
+    if (!siblings) return;
+    for (let i = current.key - 1; i >= 0; i--) {
+      const sibling = siblings[i];
+      const exitCond = resolveExitCondition(sibling);
+      if (exitCond === null) continue;
+      const guard = parseDiscriminantCheck(sibling.node.test, targetKey, exitCond);
+      if (guard) out.push(guard);
+    }
+  }
+
+  // walk up collecting `<path>.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`,
+  // plus preceding early-exit siblings. `targetKey` covers arbitrary LHS shapes
+  // (Identifier / `this.x` / `obj.a.b`)
   function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
@@ -3061,7 +3081,10 @@ function createResolveNodeType(babelNodeType, t) {
       } else if (t.isLogicalExpression(parent.node) && parent.node.operator === '&&' && current.key === 'right') {
         conditionTrue = true;
         test = parent.node.left;
-      } else continue;
+      } else {
+        collectPrecedingExitDiscriminants(current, targetKey, guards);
+        continue;
+      }
       const guard = parseDiscriminantCheck(test, targetKey, conditionTrue);
       if (guard) guards.push(guard);
     }
@@ -3072,7 +3095,7 @@ function createResolveNodeType(babelNodeType, t) {
     // cheap early exit before `followTypeAliasChain` spins up the alias walker
     const targetKey = pathKey(objectPath.node);
     if (!targetKey) return null;
-    const { node: aliased } = followTypeAliasChain(annotation, scope);
+    const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
     if (aliased?.type !== 'TSUnionType' && aliased?.type !== 'UnionTypeAnnotation') return null;
     const guards = findDiscriminantGuards(objectPath, targetKey);
     if (!guards.length) return null;
@@ -3088,8 +3111,13 @@ function createResolveNodeType(babelNodeType, t) {
       return true;
     });
     if (!filtered.length || filtered.length === aliased.types.length) return null;
-    if (filtered.length === 1) return unwrapTypeAnnotation(filtered[0]);
-    return { type: aliased.type, types: filtered };
+    // preserve accumulated type-param substitutions through the narrowed result - without
+    // applying subst, `T[]` inside a surviving branch of `type Foo<T> = { kind: 'a'; val: T[] } | ...`
+    // would stay unresolved and downstream dispatch would see Array(null) instead of Array<string>
+    const narrowed = filtered.length === 1
+      ? unwrapTypeAnnotation(filtered[0])
+      : { type: aliased.type, types: filtered };
+    return subst ? applyAliasSubstDeep(narrowed, subst) : narrowed;
   }
 
   function resolveTypedMember(objectPath, name, callPath) {
