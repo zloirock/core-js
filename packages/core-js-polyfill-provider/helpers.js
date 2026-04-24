@@ -12,6 +12,7 @@ export {
   isForXWriteTarget,
   isASTNode,
   isFunctionParamDestructureParent,
+  isInUpdateOperand,
   isSingleNestedProxyChain,
   isTSTypeOnlyIdentifier,
   isIdentifierPropValue,
