@@ -1,6 +1,6 @@
-// regression guard: TS inline type-only import `import { type Set, foo }` is already
-// covered via `IMPORT_SPECIFIER_TYPES` check (all import-specifier positions return
-// false regardless of `importKind`). the value import `foo` passes through unchanged,
-// the type import `Set` neither triggers a polyfill nor gets renamed
+// inline TS type-only import specifier `import { type Set, foo }`. the `type` prefix
+// marks `Set` as a type-level import that's erased at runtime; the value import `foo`
+// stays as-is. no polyfill should be injected for the type-only `Set` binding and
+// nothing should be renamed; only `foo.at(0)` gets the instance polyfill
 import { type Set, foo } from 'bar';
 foo.at(0);

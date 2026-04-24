@@ -1,10 +1,8 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 var _ref, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _ref10, _ref11, _ref12;
-// regression for own UID generator: Babel's scope.generateUidIdentifier strips trailing
-// digits, so after `_ref9` it would loop back and reuse `_ref` / `_ref2`. own generator
-// emits `_ref, _ref2, _ref3, ..., _refN` (skip-1 babel convention) via the per-prefix
-// suffix cache. twelve optional-chain calls force twelve temp refs; `_ref10` / `_ref11`
-// must cross the decimal boundary without collision
+// twelve optional-chain instance calls in a row force twelve temp refs. verifies that
+// the allocated names cross the decimal boundary - `_ref10` / `_ref11` must not collide
+// with the earlier `_ref` / `_ref1`-shape digits when the suffix generator counts up
 null == (_ref = a().b) ? void 0 : _flatMaybeArray(_ref).call(_ref);
 null == (_ref2 = c().d) ? void 0 : _flatMaybeArray(_ref2).call(_ref2);
 null == (_ref3 = e().f) ? void 0 : _flatMaybeArray(_ref3).call(_ref3);
