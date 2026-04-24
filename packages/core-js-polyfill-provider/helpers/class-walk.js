@@ -83,6 +83,11 @@ export function createClassHelpers(t, adapter) {
   // resolve a statically determinable key: Identifier (non-computed), StringLiteral, TemplateLiteral
   function staticKeyName(key, computed) {
     if (!key) return null;
+    // private members (`#foo` / `accessor #foo`) have PrivateIdentifier keys - they CANNOT be
+    // shadowed by / shadow a public member with the same textual name, so the shadow-check
+    // must reject them explicitly. falling through to singleQuasiString / returning null by
+    // accident would work today but the invariant is too subtle to leave implicit
+    if (key.type === 'PrivateIdentifier' || key.type === 'PrivateName') return null;
     if (!computed && t.isIdentifier(key)) return key.name;
     if (t.isStringLiteral(key)) return key.value;
     return singleQuasiString(key);
@@ -147,6 +152,14 @@ export function createClassHelpers(t, adapter) {
     const seen = new Set();
     while (!seen.has(name)) {
       seen.add(name);
+      // injector-side hints win over scope-walked bindings: `handleDestructuredProperty`
+      // rewrites `{Promise: MyP, ...rest} = globalThis` / `{Promise: MyP = Fallback} =
+      // globalThis` in-place, so `binding.path.init` becomes an Identifier or a
+      // ConditionalExpression that the walk below cannot map back to `Promise`. the
+      // destructure emitter explicitly registers the alias via `registerGlobalAlias`,
+      // and the adapter surfaces that as `polyfillHint`. prefer it before any scope walk
+      const hint = adapter.getBinding?.(scope, name)?.polyfillHint;
+      if (hint) return hint;
       const binding = scope?.getBinding?.(name);
       if (!binding) return name;
       if (binding.constantViolations?.length) return null;
