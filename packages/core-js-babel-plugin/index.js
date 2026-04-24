@@ -25,6 +25,7 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
+  resolveKey as sharedResolveKey,
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isPolyfillableOptional,
@@ -463,7 +464,7 @@ export default function plugin(api, options) {
         isInheritedStaticLookup,
         isShadowedByClassOwnMember,
         reset: resetClassHelpers,
-      } = createClassHelpers(t, adapter);
+      } = createClassHelpers(t, adapter, sharedResolveKey);
 
       const usageGlobalCallback = createUsageGlobalCallback({
         resolveUsage,
