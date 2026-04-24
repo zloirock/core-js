@@ -39,6 +39,17 @@ const { assign, create, hasOwn } = Object;
 // a monkey-patched `.hadCycle` property (which would be lost on any defensive clone)
 const cycleSeenSets = new WeakSet();
 
+// get-or-init nested Map inside a WeakMap/Map container. used by two-level caches where
+// outer key is an AST node / scope / matchType and inner key is a string / secondary id
+function getOrInitMap(container, key) {
+  let inner = container.get(key);
+  if (!inner) {
+    inner = new Map();
+    container.set(key, inner);
+  }
+  return inner;
+}
+
 // snapshot the pre-call cycle state; returned predicate reports whether the flag flipped
 // during the caller's work. used by interface/class `extends` walks to distinguish "no
 // parent matched" (safe fallback to $Object) from "cyclic extends poisoned the result"
@@ -153,9 +164,7 @@ function createResolveNodeType(babelNodeType, t) {
       || AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has(node.type));
   }
 
-  // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
-  // enclosing statement lists instead. `matchType` picks the ambient kind we want
-  function findAmbientDeclarationPath(name, scope, matchType) {
+  function walkAmbientDeclarationPath(name, scope, matchType) {
     for (let cur = scope; cur; cur = cur.parent) {
       const bodyPaths = cur.path?.get('body');
       if (!Array.isArray(bodyPaths)) continue;
@@ -168,6 +177,20 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     return null;
+  }
+
+  // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
+  // enclosing statement lists instead. `matchType` picks the ambient kind we want.
+  // keyed by (scope, matchType, name) - matchType references are module-level constants,
+  // safe Map keys; inner Map uses string name
+  let ambientDeclCache = new WeakMap();
+  function findAmbientDeclarationPath(name, scope, matchType) {
+    if (!scope) return null;
+    const byName = getOrInitMap(getOrInitMap(ambientDeclCache, scope), matchType);
+    if (byName.has(name)) return byName.get(name);
+    const result = walkAmbientDeclarationPath(name, scope, matchType);
+    byName.set(name, result);
+    return result;
   }
 
   // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass
@@ -631,18 +654,17 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // per-scope cache for single-segment lookups (the vast majority of callsites).
-  // dotted `a.b.c` paths aren't cached - they traverse further at each step
+  // per-scope cache. serialize multi-segment / array inputs to a dotted string so qualified
+  // references (`NS.Type`) and array-form callsites share the cache slot with their string form
   let typeDeclCache = new WeakMap();
   function findTypeDeclaration(name, scope) {
-    if (!scope || typeof name !== 'string' || name.includes('.')) return walkScopesForDecl(name, scope, null);
-    let byName = typeDeclCache.get(scope);
-    if (!byName) {
-      byName = new Map();
-      typeDeclCache.set(scope, byName);
-    } else if (byName.has(name)) return byName.get(name);
+    if (!scope) return null;
+    const key = typeof name === 'string' ? name : Array.isArray(name) ? name.join('.') : null;
+    if (key === null) return walkScopesForDecl(name, scope, null);
+    const byName = getOrInitMap(typeDeclCache, scope);
+    if (byName.has(key)) return byName.get(key);
     const decl = walkScopesForDecl(name, scope, null);
-    byName.set(name, decl);
+    byName.set(key, decl);
     return decl;
   }
 
@@ -4519,9 +4541,19 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // hot path: walked repeatedly from both findEnclosingTypeGuards and hasMutationAfterGuards
+  // as they climb parent paths. same (pathNode, varName) pair is hit many times across
+  // sibling identifier walks; WeakMap keyed on the path node avoids re-scanning siblings
+  let earlyExitGuardsCache = new WeakMap();
   function findEarlyExitGuards(current, varName) {
+    const node = current?.node;
+    if (!node) return [];
+    const byVar = getOrInitMap(earlyExitGuardsCache, node);
+    if (byVar.has(varName)) return byVar.get(varName);
     const siblings = getStatementSiblings(current);
-    return siblings ? findPrecedingExitGuards(siblings, current.key, varName) : [];
+    const result = siblings ? findPrecedingExitGuards(siblings, current.key, varName) : [];
+    byVar.set(varName, result);
+    return result;
   }
 
   // collect ALL type guards along the AST path for cumulative narrowing.
@@ -4608,12 +4640,19 @@ function createResolveNodeType(babelNodeType, t) {
     const binding = path.scope?.getBinding(name);
     let result = null;
     if (binding) {
-      const isConst = !binding.constantViolations?.length;
-      const guards = findEnclosingTypeGuards(path, name, isConst);
-      if (guards && (isConst
-          || (!hasMutationAfterGuards(binding, path, name)
-            && !hasMutationInCapturedFunction(binding)))) {
-        result = { binding, guards };
+      // classify the annotation BEFORE collecting guards - a concrete (closed) annotation
+      // can't be refined by typeof/instanceof, and neither caller uses guards in that case.
+      // skipping the parent-path walk here is the main win (guard collection is O(depth))
+      const classification = classifyGuardAnnotation(binding);
+      if (classification.kind !== 'closed') {
+        const isConst = !binding.constantViolations?.length;
+        const guards = findEnclosingTypeGuards(path, name, isConst);
+        if (guards && (isConst
+            || (!hasMutationAfterGuards(binding, path, name)
+              && !hasMutationInCapturedFunction(binding)))) {
+          // stash the classification on the result - callers re-use it instead of re-deriving
+          result = { binding, guards, classification };
+        }
       }
     }
     guardsCache.set(node, result);
@@ -4657,14 +4696,13 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveTypeGuardNarrowing(path) {
     const info = findGuardsForBinding(path);
     if (!info) return null;
-    const { binding, guards } = info;
-    const classification = classifyGuardAnnotation(binding);
+    const { guards, classification } = info;
     if (classification.kind === 'union') {
       const { types, subst, scope } = classification;
       if (!types?.length) return null;
       return narrowByGuards(types.map(member => resolveTypeAnnotation(applyAliasSubstDeep(member, subst), scope)), guards);
     }
-    if (classification.kind === 'closed') return null;
+    // 'closed' is already filtered by findGuardsForBinding - only 'none', 'open', 'union' reach here
     return narrowByGuards(guards.filter(g => g.positive).map(resolveGuardType), guards);
   }
 
@@ -4677,6 +4715,8 @@ function createResolveNodeType(babelNodeType, t) {
     typeParamArgPaths = new WeakMap();
     sortedAssignmentCache = new WeakMap();
     guardsCache = new WeakMap();
+    earlyExitGuardsCache = new WeakMap();
+    ambientDeclCache = new WeakMap();
     resolveCache = new WeakMap();
     typeDeclCache = new WeakMap();
     classFieldTypeCache = new WeakMap();
@@ -4785,10 +4825,10 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveGuardHints(path) {
     const info = findGuardsForBinding(path);
     if (!info) return null;
-    const { binding, guards } = info;
-    // only unannotated or open (unknown/any/object/mixed) bindings accept hint-based narrowing
-    const { kind } = classifyGuardAnnotation(binding);
-    if (kind !== 'none' && kind !== 'open') return null;
+    const { guards, classification } = info;
+    // only unannotated or open (unknown/any/object/mixed) bindings accept hint-based narrowing.
+    // 'closed' is already filtered by findGuardsForBinding
+    if (classification.kind !== 'none' && classification.kind !== 'open') return null;
     // bail if any positive guard resolves to a concrete type (already handled by resolveTypeGuardNarrowing)
     if (guards.some(g => g.positive && resolveGuardType(g))) return null;
 
