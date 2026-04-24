@@ -15,6 +15,7 @@ import {
   mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
+  propBindingIdentifier,
   resolveSuperImportName,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers';
@@ -268,9 +269,13 @@ export default function plugin(api, options) {
       // supports N-deep nesting (`const { NS: { Sub: { x } } } = globalThis`): walks up
       // pattern/property pairs until we hit the declarator, then unwinds the cascade from
       // innermost-empty-property-removed outward. AssignmentExpression form is NOT flattened
-      // (changing statement shape would lose the expression's return value); only VariableDeclaration
+      // (changing statement shape would lose the expression's return value); only VariableDeclaration.
+      // accepts `{ x }`, `{ x: alias }`, `{ x = default }`, `{ x: alias = default }` - user's
+      // default is dropped: the polyfill binding is always defined, so `= default` would be
+      // dead code; flatten guarantees polyfill wins even on buggy-but-present native
       function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
-        if (!t.isIdentifier(prop.node.value)) return false;
+        const valueNode = propBindingIdentifier(prop.node.value);
+        if (!valueNode) return false;
         // collect the chain of (property, pattern) pairs leading up to the declarator
         const chain = [];
         let currentProp = prop;
@@ -287,7 +292,7 @@ export default function plugin(api, options) {
         const declaration = declarator.parentPath;
         const declCount = declaration.node?.declarations?.length ?? 1;
         const id = injectPureImport(entry, hintName);
-        const extractedDeclarator = t.variableDeclarator(t.cloneNode(prop.node.value), t.cloneNode(id));
+        const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id));
         // cascade: each level removes its property when the inner pattern has no siblings.
         // `willRemoveDeclarator` iff EVERY level's pattern had this as its sole property
         const willRemoveDeclarator = chain.every(({ pattern }) => pattern.node.properties.length === 1);
