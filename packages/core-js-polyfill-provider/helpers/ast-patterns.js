@@ -56,6 +56,22 @@ export function isTSTypeOnlyIdentifier(parent, parentKey) {
 export const isDeleteTarget = parent => parent?.type === 'UnaryExpression' && parent.operator === 'delete';
 export const isUpdateTarget = parent => parent?.type === 'UpdateExpression';
 
+// transparent runtime wrappers that can surround an UpdateExpression operand:
+// TS expression wrappers + parser-preserved parens (`createParenthesizedExpressions: true`).
+// distinct from `TS_EXPR_WRAPPERS` alone because ParenthesizedExpression is also transparent
+// here but not everywhere (e.g. callee resolution treats parens as chain-breakers)
+const isUpdateOperandWrapper = node => !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
+
+// true when the path's enclosing context is an UpdateExpression, after peeling transparent
+// wrappers upward. accepts the parent path (`path.parentPath` for babel / estree-toolkit).
+// callers gate on plugin method: usage-pure must skip (rewrite to frozen binding invalid),
+// usage-global must NOT skip (side-effect import needed for read side to avoid ReferenceError)
+export function isInUpdateOperand(parentPath) {
+  let check = parentPath;
+  while (check && isUpdateOperandWrapper(check.node)) check = check.parentPath;
+  return check?.node?.type === 'UpdateExpression';
+}
+
 // function-like types that carry `params` - ObjectPattern used as a parameter lives
 // either directly under one of these, or wrapped in an AssignmentPattern for the
 // `function({ x } = default) {}` form

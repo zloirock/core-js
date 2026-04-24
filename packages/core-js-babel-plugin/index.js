@@ -8,10 +8,10 @@ import {
   isForXWriteTarget,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
+  isInUpdateOperand,
   isSynthSimpleObjectPattern,
   isTSTypeOnlyIdentifier,
   isTaggedTemplateTag,
-  isUpdateTarget as isUpdateParent,
   mayHaveSideEffects,
   mergeVisitors,
   parseDisableDirectives,
@@ -539,7 +539,10 @@ export default function plugin(api, options) {
             // `path.isReferenced()` drops grandparent - pass it explicitly
             if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
             if (isForXWriteTarget(path)) return;
-            if (isUpdateParent(unwrapTSExpressionParent(path).parentPath?.node)) return;
+            // member update (`(obj.at)++`) - in usage-pure the rewrite would be a function
+            // call receiver (not writable); in usage-global the member read still needs its
+            // prototype polyfill, so skip only for pure mode
+            if (isPure && isInUpdateOperand(path.parentPath)) return;
             // shadow check for `this.X` - polyfill would bypass the user's own member
             // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
@@ -637,7 +640,7 @@ export default function plugin(api, options) {
 
       const isPure = method === 'usage-pure';
       const usageCallback = isPure ? usagePureCallback : usageGlobalCallback;
-      const commonVisitorOptions = { adapter, onUsage: usageCallback, onWarning: message => debugOutput?.warn(message) };
+      const commonVisitorOptions = { adapter, onUsage: usageCallback, onWarning: message => debugOutput?.warn(message), method };
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
         suppressProxyGlobals: isPure,
@@ -747,12 +750,6 @@ export default function plugin(api, options) {
 
       // --- Program.exit ---
 
-      function isUpdateTarget(idPath) {
-        let check = idPath.parentPath;
-        while (check && TS_EXPR_WRAPPERS.has(check.node?.type)) check = check.parentPath;
-        return isUpdateParent(check?.node);
-      }
-
       function programExit(path) {
         if (!helperVisitors) return;
         // re-traverse new body nodes (helpers from class/spread/destructuring transforms).
@@ -776,7 +773,9 @@ export default function plugin(api, options) {
             Identifier(idPath) {
               if (!idPath.isReferencedIdentifier()) return;
               if (idPath.scope.getBindingIdentifier(idPath.node.name)) return;
-              if (isUpdateTarget(idPath)) return;
+              // post-sweep is usage-pure only, so skip unconditionally (same rationale as
+              // primary-pass `skipUpdateTargets`): rewrite to frozen import binding invalid
+              if (isInUpdateOperand(idPath.parentPath)) return;
               // same predicate as the primary visitor - skip disabled / type-annotation /
               // delete-target positions so this sweep doesn't overrule their exclusions
               if (shouldSkipPath(idPath)) return;
