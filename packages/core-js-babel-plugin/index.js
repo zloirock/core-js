@@ -14,6 +14,7 @@ import {
   isTaggedTemplateTag,
   mayHaveSideEffects,
   mergeVisitors,
+  objectPatternPropNeedsReceiverRewrite,
   parseDisableDirectives,
   propBindingIdentifier,
   resolveSuperImportName,
@@ -193,6 +194,13 @@ export default function plugin(api, options) {
           callPath = callPath.parentPath;
         }
         if (!callPath?.isCallExpression() && !callPath?.isNewExpression()) return null;
+        // distinguish IIFE (`(arrow)(R)`) from "arrow is an arg of some other call" (`dec(arrow)`):
+        // only treat arrow as IIFE when the callee is the arrow itself. the transparent wrappers
+        // loop above already unwrapped `UnaryExpression` / `SequenceExpression` above the arrow,
+        // so `callPath.node.callee` points to the original arrow node (or a still-transparent
+        // parent of it - but in practice the loop ascends until the enclosing call)
+        const { callee } = callPath.node;
+        if (callee !== wrapper.node && callee?.expression !== wrapper.node) return null;
         let i = 0;
         for (const aP of callPath.get('arguments')) {
           if (aP.isSpreadElement()) {
@@ -224,8 +232,14 @@ export default function plugin(api, options) {
       // (call-arg path, expanding inline-array spreads)
       function findSynthSwapTargetPath(wrapper, objectPattern) {
         if (objectPattern.node.properties.some(p => t.isRestElement(p))) return null;
+        // `(({p} = def) => body)(R)` - arrow IIFE where the param has a default. caller's
+        // `R` wins at runtime: default `def` never fires (assuming R is defined). rewriting
+        // `def` to a synth object would bind `p` to a polyfill resolved against `def`'s
+        // shape, while runtime picks props from `R`'s shape - different polyfill target.
+        // bail to inline-default here so `{p = _polyfill}` stays aligned regardless of which
+        // side of the default runtime picks
         if (wrapper?.isAssignmentPattern() && t.isIdentifier(wrapper.node.right)) {
-          return wrapper.get('right');
+          return detectIifeArgPath(wrapper.parentPath, wrapper) ? null : wrapper.get('right');
         }
         const argPath = detectIifeArgPath(wrapper, objectPattern);
         return argPath && t.isIdentifier(argPath.node) ? argPath : null;
@@ -249,8 +263,11 @@ export default function plugin(api, options) {
         if (!targetPath) {
           emitParamInlineDefault(prop, injectPureImport(entry, hintName));
           // parity with sibling destructure handlers - replaceWith schedules re-traversal
-          // and the next visitor entry must short-circuit on the already-rewritten prop
+          // and the next visitor entry must short-circuit on the already-rewritten prop.
+          // also mark the new `{p = _polyfill}` AssignmentPattern slot so Identifier visitors
+          // walking `prop.node.value` don't re-fire on the synthetic `_polyfill` default
           skippedNodes.add(prop.node);
+          if (prop.node.value) skippedNodes.add(prop.node.value);
           return;
         }
         // defer injectPureImport until programExit emits the synth. if a sibling plugin
@@ -261,7 +278,16 @@ export default function plugin(api, options) {
         skippedNodes.add(receiver);
         let pending = synthSwapByReceiver.get(receiver);
         if (!pending) {
-          pending = { targetPath, objectPatternNode: objectPattern.node, polyfills: new Map() };
+          // keep the ObjectPattern's PATH (not just node) so programExit can verify it's still
+          // live in the AST: a sibling plugin may `replaceWith` the pattern between enqueue and
+          // emission, leaving our captured node stale. path identity + orphan check is the
+          // only safe way to detect "pattern still installed at the same slot"
+          pending = {
+            targetPath,
+            objectPatternPath: objectPattern,
+            objectPatternNode: objectPattern.node,
+            polyfills: new Map(),
+          };
           synthSwapByReceiver.set(receiver, pending);
           pendingSynthSwaps.push(pending);
         }
@@ -295,10 +321,14 @@ export default function plugin(api, options) {
         const declaration = declarator.parentPath;
         // for-init with SequenceExpression init - flatten would drop the SE prefix (can't
         // add a statement inside a loop header). leave the raw nested destructure in place;
-        // non-SE for-init shapes still flatten through the `isForInit` branch below
+        // non-SE for-init shapes still flatten through the `isForInit` branch below.
+        // parser-preserved ParenthesizedExpression wrappers (`createParenthesizedExpressions:
+        // true`) can wrap the SE - peel so the shape check still fires under those parser opts
+        let forInitRaw = declarator.node.init;
+        while (forInitRaw?.type === 'ParenthesizedExpression') forInitRaw = forInitRaw.expression;
         if (declaration.parentPath?.isForStatement()
           && declaration.parentPath.node.init === declaration.node
-          && declarator.node.init?.type === 'SequenceExpression') return false;
+          && forInitRaw?.type === 'SequenceExpression') return false;
         const declCount = declaration.node?.declarations?.length ?? 1;
         const id = injectPureImport(entry, hintName);
         const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id));
@@ -330,6 +360,10 @@ export default function plugin(api, options) {
             const seStmt = exprs.length === 1
               ? t.expressionStatement(exprs[0])
               : t.expressionStatement(t.sequenceExpression(exprs));
+            // the fresh clones live outside the `skipSubtree` seeded above, so the re-traverse
+            // after `insertBefore` would re-fire visitors for any polyfillable identifier in the
+            // lifted SE (double-injection). seed every node in the SE statement defensively
+            t.traverseFast(seStmt, node => { skippedNodes.add(node); });
             declaration.insertBefore(seStmt);
           }
           declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
@@ -446,14 +480,20 @@ export default function plugin(api, options) {
       // babel hasn't re-indexed yet, `cur.key` may still point at the array slot but the
       // slot now contains a different node (or `undefined` after the splice)
       function isOrphaned(path) {
-        for (let cur = path; cur?.parentPath; cur = cur.parentPath) {
+        let cur = path;
+        for (; cur?.parentPath; cur = cur.parentPath) {
           if (cur.removed) return true;
           const parentNode = cur.parentPath.node;
           if (!parentNode) return true;
           const slot = cur.listKey ? parentNode[cur.listKey]?.[cur.key] : parentNode[cur.key];
           if (slot !== cur.node) return true;
         }
-        return false;
+        // root: a sibling plugin may have installed a new Program (`file.ast.program = clone`)
+        // while keeping the old tree reachable through our cached paths. the slot-check above
+        // never hit Program because it has no parentPath. compare against the file's current
+        // program node - stale roots produce orphan emission into a detached AST
+        const currentProgram = path.hub?.file?.ast?.program;
+        return currentProgram ? cur?.node !== currentProgram : false;
       }
 
       function shouldSkipPath(path) {
@@ -583,18 +623,22 @@ export default function plugin(api, options) {
             // constructor, so inherited static lookup behaves exactly like `super.X`.
             // cache the predicate so the instance-fallback bail below doesn't re-walk
             inheritedStatic = isInheritedStaticLookup(path);
-            if (inheritedStatic) {
-              const inheritedMeta = resolveStaticInheritedMember(path);
-              if (!inheritedMeta) return;
-              // `extends MyPromise` (user-aliased pure import) - map binding to global hint
-              meta = resolveSuperImportName(injector, inheritedMeta);
-            }
+            const inheritedMeta = inheritedStatic ? resolveStaticInheritedMember(path) : null;
+            // `extends MyPromise` (user-aliased pure import) - map binding to global hint
+            if (inheritedStatic) meta = inheritedMeta ? resolveSuperImportName(injector, inheritedMeta) : null;
+            if (inheritedStatic && !meta) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
           }
         }
 
         const { result, fallback } = resolvePureOrGlobalFallback(meta, path);
+        // inherited-static lookup where the member doesn't exist as static on the super class:
+        // `class C extends Array { static foo() { this.at(0) } }` - `at` is instance-only on
+        // Array. `fallback` path would rewrite `this.at(0)` to `_Array.at(0)`, but `_Array.at`
+        // is undefined (no static). skip fallback + bail; runtime `this.at(...)` throws on the
+        // user's side rather than being silently miswired into a dead polyfill call
+        if (inheritedStatic && !result) return;
         if (fallback && (path.isMemberExpression() || path.isOptionalMemberExpression())
           && !t.isSuper(path.node.object)) {
           const id = injectPureImport(fallback.entry, fallback.hintName);
@@ -615,10 +659,9 @@ export default function plugin(api, options) {
         if (path.isObjectProperty()) {
           handleObjectPropertyResult(path, meta, kind, entry, hintName);
         } else {
-          // inherited-static lookup (`super.X` / `this.X` in static ctx) where X has no static
-          // on the super class - resolve() falls back to instance. for super: syntactically
-          // invalid. for `this` in static ctx: `this` is the constructor, not an instance;
-          // `_at(this)` would treat the class as an array. either way, bail
+          // inherited-static lookup where resolve() DID return an instance entry - `this` in
+          // static ctx is the constructor, not an instance; `_at(this)` would treat the class
+          // as an array. bail for the same reason as the no-result branch above
           if (kind === 'instance' && inheritedStatic) return;
           const id = injectPureImport(entry, hintName);
           if (kind === 'instance') {
@@ -825,13 +868,19 @@ export default function plugin(api, options) {
         // `R.key` ref. skip if the shape was mutated by another plugin (orphaned / non-
         // Identifier receiver / non-ObjectPattern) - losing the polyfill is preferable to
         // emitting against an unexpected shape
-        for (const { targetPath, objectPatternNode, polyfills } of pendingSynthSwaps) {
+        for (const { targetPath, objectPatternPath, objectPatternNode, polyfills } of pendingSynthSwaps) {
           const receiver = targetPath.node;
           if (!t.isIdentifier(receiver) || objectPatternNode?.type !== 'ObjectPattern') continue;
           // a sibling plugin may have detached the receiver between queue-time and now
           // (`.remove()` on an ancestor leaves `targetPath.node` stale). replaceWith on an
           // orphaned path throws; skip here so the swap is simply lost rather than crashing
           if (isOrphaned(targetPath)) continue;
+          // sibling plugin may have replaced the ObjectPattern (e.g. `pattern.replaceWith(
+          // arrayPattern)`) between enqueue and programExit. `objectPatternPath.node` now
+          // points at the new structure, but our saved `objectPatternNode` is the old pattern
+          // that's no longer in AST - emitting against this mismatch would mis-rewrite the
+          // receiver into a shape the destructure can't consume
+          if (isOrphaned(objectPatternPath) || objectPatternPath.node !== objectPatternNode) continue;
           // lazy: only inject the receiver's pure import if a sibling prop needs the raw
           // receiver read (`_Promise.custom`). all-polyfilled destructures never call through,
           // keeping the import set clean; fallback is the original identifier when no pure
@@ -871,9 +920,19 @@ export default function plugin(api, options) {
         // late style-switch is a safety-net for sibling plugins that strip all ESM markers
         // (e.g. `commonjs` rewriters) after our traversal. skip it once we've already
         // flushed imports - switching now would mix ESM (already emitted) with CJS (new)
-        if (!injector.hasFlushed && importStyleOption === undefined && importStyle === 'import'
-          && !this.file.path.node.body.some(n => ESM_MARKER_TYPES.has(n.type))) {
-          injector.importStyle = 'require';
+        const markersGone = !this.file.path.node.body.some(n => ESM_MARKER_TYPES.has(n.type));
+        if (importStyleOption === undefined && importStyle === 'import' && markersGone) {
+          if (!injector.hasFlushed) {
+            injector.importStyle = 'require';
+          } else {
+            // pending imports will emit in post as ESM while the rest of the file is now CJS -
+            // surface to the user so they can reorder plugins (move ours after the CJS rewriter)
+            // or opt into `importStyle: 'require'` explicitly
+            debugOutput?.warn(
+              '[core-js] sibling plugin stripped ESM markers after our traversal; emitted imports '
+              + 'will stay ESM while file body is CJS. set `importStyle: "require"` to avoid mixing',
+            );
+          }
         }
         injector.flush();
       }
@@ -924,6 +983,23 @@ export default function plugin(api, options) {
               // require a named receiver (`_ref`) to rewrite against
               if (!param || param.type !== 'ObjectPattern') return;
               if (!param.properties?.length) return;
+              // skip extraction when nothing in the catch body reads the destructured names
+              // and no property forces a receiver rewrite. without this the plugin spuriously
+              // rewrites `catch ({code}) {}` into `catch (_ref) { let {code} = _ref; }` - pure
+              // overhead that alters user code without benefit
+              if (!param.properties.some(objectPatternPropNeedsReceiverRewrite)) {
+                const destructuredNames = new Set();
+                for (const p of param.properties) {
+                  if (p.type !== 'ObjectProperty') continue;
+                  const name = p.value?.type === 'Identifier' ? p.value.name : null;
+                  if (name) destructuredNames.add(name);
+                }
+                let referenced = false;
+                t.traverseFast(path.node.body, node => {
+                  if (!referenced && node.type === 'Identifier' && destructuredNames.has(node.name)) referenced = true;
+                });
+                if (!referenced) return;
+              }
               // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
               // - keeps one naming scheme across the plugin and matches unplugin's output shape
               const ref = injector.generateLocalRef(path.scope);

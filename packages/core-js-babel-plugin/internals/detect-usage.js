@@ -145,7 +145,9 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppr
     // `globalThis.Map ||= X` - check BEFORE inner-identifier visit rewrites `globalThis`
     // into `_globalThis` (at which point `POSSIBLE_GLOBAL_OBJECTS.has(_globalThis)` is false)
     if (onWarning) {
-      const warning = checkLogicalAssignLhsMember(node, path.parent);
+      const obj = node.object;
+      const isBound = obj?.type === 'Identifier' && adapter.hasBinding(path.scope, obj.name);
+      const warning = checkLogicalAssignLhsMember(node, path.parent, isBound);
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
@@ -270,7 +272,10 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppr
   // a name in `T` of `let x: T` is a polyfill candidate only if no local binding shadows it
   // (`class Map {}; let x: Map = ...` must NOT pull in es.map.constructor)
   const annotationGlobal = path => name => {
-    if (path.scope?.hasBinding(name)) return;
+    // `hasBinding` returns true for free variables via `program.globals` (babel marks `Map`
+    // there as soon as any Identifier visitor reads it, even when no local binds it).
+    // use `getBindingIdentifier` instead - that returns only actual local binders
+    if (path.scope?.getBindingIdentifier(name)) return;
     onUsage({ kind: 'global', name }, path);
   };
   return {
