@@ -75,8 +75,11 @@ export function buildSuperStaticMeta(classNode, key, resolveSuperType) {
 
 // shared `super.X` / `this.X` class-walking helpers. `t` is `@babel/types` or
 // `estree-compat.types`; `adapter` enables scope-aware proxy-global resolution through
-// polyfillHint for plugin-managed imports. caches live on the closure - call once per file
-export function createClassHelpers(t, adapter) {
+// polyfillHint for plugin-managed imports. `resolveKey` is the provider's key resolver
+// (from `detect-usage.js`) - injected rather than imported to avoid circular deps
+// (detect-usage already imports class-walk via the helpers barrel). caches live on the
+// closure - call once per file
+export function createClassHelpers(t, adapter, resolveKey) {
   const isClassMember = node => t.isClassMethod(node) || t.isClassPrivateMethod(node)
     || t.isClassProperty(node) || t.isClassPrivateProperty(node) || t.isClassAccessorProperty(node);
 
@@ -232,10 +235,11 @@ export function createClassHelpers(t, adapter) {
     // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key
     const proxyKey = globalProxyMemberName(peeled, scope, adapter);
     if (proxyKey !== null) return proxyKey;
-    // namespace-member lookup requires a bare-Identifier root + static property name.
-    // `(expr).prop` / computed roots / call results bail: would need runtime evaluation
-    if (peeled.computed || peeled.object?.type !== 'Identifier') return null;
-    const propName = staticKeyName(peeled.property, false);
+    // namespace-member lookup requires a bare-Identifier root. `(expr).prop` / call-result
+    // roots bail: would need runtime evaluation. the key itself can be computed/literal/
+    // const-alias chain - delegated to `resolveKey` for uniform resolution
+    if (peeled.object?.type !== 'Identifier') return null;
+    const propName = resolveKey(peeled.property, peeled.computed, scope, adapter);
     if (!propName) return null;
     const binding = scope?.getBinding?.(peeled.object.name);
     if (!binding || binding.constantViolations?.length) return null;
@@ -253,9 +257,12 @@ export function createClassHelpers(t, adapter) {
 
   // common path for `super.X` and `this.X` in static context - both resolve to the same
   // `<SuperClass>.X` static meta since JS looks up unresolved static names on the
-  // super class's static surface
+  // super class's static surface.
+  // key goes through the provider's `resolveKey` (not the narrow `staticKeyName`) so
+  // `super[CONST]` where CONST is a const-bound string / template literal / 'a' + 'b'
+  // concat / aliased Symbol.X still lands on the matching static entry
   function resolveStaticInheritedMember(path) {
-    const key = staticKeyName(path.node.property, path.node.computed);
+    const key = resolveKey(path.node.property, path.node.computed, path.scope, adapter);
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
