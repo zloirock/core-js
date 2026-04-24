@@ -290,9 +290,21 @@ export default function plugin(api, options) {
         }
         const declarator = chain[chain.length - 1].pattern.parentPath;
         const declaration = declarator.parentPath;
+        // for-init with SequenceExpression init - flatten would drop the SE prefix (can't
+        // add a statement inside a loop header). leave the raw nested destructure in place;
+        // non-SE for-init shapes still flatten through the `isForInit` branch below
+        if (declaration.parentPath?.isForStatement()
+          && declaration.parentPath.node.init === declaration.node
+          && declarator.node.init?.type === 'SequenceExpression') return false;
         const declCount = declaration.node?.declarations?.length ?? 1;
         const id = injectPureImport(entry, hintName);
         const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id));
+        // `(se(), globalThis)` init: receiver resolution unwraps the SequenceExpression tail,
+        // but flatten drops the whole declarator - SE prefix expressions would lose their
+        // effects. lift the prefix as a statement before the extracted declaration so the
+        // non-nested path's `(se(), Array)` parity holds. for-init is more constrained:
+        // prefix-lifting there would need wrapping in a SequenceExpression init slot, so we
+        // skip and leave the for-init shape raw
         // cascade: each level removes its property when the inner pattern has no siblings.
         // `willRemoveDeclarator` iff EVERY level's pattern had this as its sole property
         const willRemoveDeclarator = chain.every(({ pattern }) => pattern.node.properties.length === 1);
@@ -304,7 +316,19 @@ export default function plugin(api, options) {
         const skipSubtree = willRemoveDeclarator ? declarator.node : prop.node;
         t.traverseFast(skipSubtree, node => { skippedNodes.add(node); });
         if (willRemoveDeclarator && declCount === 1) {
-          // single-declarator simple-chain: replaceWith preserves leading comments
+          // single-declarator simple-chain: replaceWith preserves leading comments.
+          // lift the SE prefix as a standalone statement so its effects are preserved
+          // (for-init keeps the raw shape - prefix can't live outside the loop header)
+          const inForInit = declaration.parentPath?.isForStatement()
+            && declaration.parentPath.node.init === declaration.node;
+          if (!inForInit && declarator.node.init?.type === 'SequenceExpression'
+            && declarator.node.init.expressions.length > 1) {
+            const exprs = declarator.node.init.expressions.slice(0, -1).map(e => t.cloneNode(e));
+            const seStmt = exprs.length === 1
+              ? t.expressionStatement(exprs[0])
+              : t.expressionStatement(t.sequenceExpression(exprs));
+            declaration.insertBefore(seStmt);
+          }
           declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
           return true;
         }
@@ -801,6 +825,10 @@ export default function plugin(api, options) {
         for (const { targetPath, objectPatternNode, polyfills } of pendingSynthSwaps) {
           const receiver = targetPath.node;
           if (!t.isIdentifier(receiver) || objectPatternNode?.type !== 'ObjectPattern') continue;
+          // a sibling plugin may have detached the receiver between queue-time and now
+          // (`.remove()` on an ancestor leaves `targetPath.node` stale). replaceWith on an
+          // orphaned path throws; skip here so the swap is simply lost rather than crashing
+          if (isOrphaned(targetPath)) continue;
           // lazy: only inject the receiver's pure import if a sibling prop needs the raw
           // receiver read (`_Promise.custom`). all-polyfilled destructures never call through,
           // keeping the import set clean; fallback is the original identifier when no pure
