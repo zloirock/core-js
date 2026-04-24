@@ -91,6 +91,19 @@ function createResolveNodeType(babelNodeType, t) {
   // ObjectExpression { key: value, ... } -> value's type for the literal key.
   // Spread bails (unknown key coverage); method shorthand resolves to Function
   function resolveObjectLiteralProperty(argPath, key) {
+    // `T[N]` where T is bound to a concrete tuple/array LITERAL at the call-site:
+    // `first<T extends [unknown, unknown]>(t: T): T[0]` called with `[['x'], 1]` as arg -
+    // element 0 is a known ArrayExpression, resolve it to that type. without this branch
+    // the generic substitution path falls back to T's constraint (`[unknown, unknown]`)
+    // and element 0 resolves to `unknown`
+    if (argPath?.node?.type === 'ArrayExpression') {
+      const index = typeof key === 'number' ? key : Number(key);
+      if (!Number.isInteger(index) || index < 0) return null;
+      const elements = argPath.get('elements');
+      const elementPath = elements[index];
+      if (!elementPath?.node || elementPath.node.type === 'SpreadElement') return null;
+      return resolveNodeType(elementPath);
+    }
     if (argPath?.node?.type !== 'ObjectExpression') return null;
     for (const prop of argPath.get('properties')) {
       const { node } = prop;
@@ -750,10 +763,12 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolveUserDefinedType(name, node, scope, depth, typeParamMap, seen) {
     if (depth > MAX_DEPTH) return null;
-    // type parameters shadow type declarations with the same name
+    // type parameters shadow type declarations with the same name.
+    // fall back to `default` FIRST (what TS binds without inference arguments), then
+    // `constraint` (upper bound, typically over-broad - `object` / `unknown`)
     const typeParam = findTypeParameter(name, scope);
     if (typeParam) {
-      const annotation = typeParam.constraint ?? typeParam.default;
+      const annotation = typeParam.default ?? typeParam.constraint;
       if (!annotation) return null;
       return typeParamMap
         ? substituteTypeParams(annotation, typeParamMap, typeParam.scope, depth + 1)
@@ -1000,12 +1015,32 @@ function createResolveNodeType(babelNodeType, t) {
     }
   }
 
+  // `Readonly<[T, U]>[0]` / `Partial<[T,U]>[0]` - structure-preserving wrappers around tuples
+  // keep the element types intact. `findTypeMember`'s tuple case expects raw TSTupleType,
+  // `getTypeMembers`'s wrapper case returns null for tuples (they have no property members).
+  // recurse through the wrapper so the tuple index path below can pick up the element
+  function peelStructurePreservingWrapper(objectType) {
+    if (objectType?.type !== 'TSTypeReference' && objectType?.type !== 'GenericTypeAnnotation') return null;
+    const segments = typeRefSegments(objectType);
+    if (segments?.length !== 1 || !STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) return null;
+    const arg = getTypeArgs(objectType)?.params[0];
+    return arg ? unwrapTypeAnnotation(arg) : null;
+  }
+
   function findTypeMember(objectType, key, scope, depth = 0) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
     // union member may itself be a wrapped generic (`Inner<T>` / `T[]`); deep subst
     // descends into the inner type-param
     const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
+    // `Readonly<[T, U]>[0]` - after chain-follow the alias may still land on a structure-
+    // preserving wrapper. peel it here so the tuple branch below gets the raw TSTupleType
+    // (getTypeMembers fallback returns null for tuples - they carry element types, not members)
+    const peeled = peelStructurePreservingWrapper(aliased ?? objectType);
+    if (peeled) {
+      const substituted = subst ? applyAliasSubstDeep(peeled, subst) : peeled;
+      return findTypeMember(substituted, key, scope, depth + 1);
+    }
     const withSubst = node => {
       if (!node) return node;
       const unwrapped = unwrapTypeAnnotation(node);
@@ -1157,6 +1192,11 @@ function createResolveNodeType(babelNodeType, t) {
       }
       return null;
     }
+    // `Readonly<[T, U]>` / `Partial<[T, U]>` - structure-preserving wrappers over tuples keep
+    // element types intact. without this peel, the alias chain resolves to the wrapper itself,
+    // not the inner tuple, and numeric indexing falls through to generic `_at`
+    const peeled = peelStructurePreservingWrapper(objectType);
+    if (peeled) return findTupleElement(peeled, index, scope);
     const { node: tuple, subst } = followTypeAliasChain(objectType, scope);
     if (tuple?.type !== 'TSTupleType' && tuple?.type !== 'TupleTypeAnnotation') return null;
     const elements = tupleElements(tuple);
@@ -1272,17 +1312,38 @@ function createResolveNodeType(babelNodeType, t) {
     return findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
   }
 
+  // locate the function-like TYPE that a `typeof X` / `typeof NS.fn` annotation points at.
+  // `declare const` bindings have no runtime init to resolve - the type lives on the binding's
+  // annotation instead. for qualified names we walk the root binding's annotation to the
+  // referenced member. returns {type, scope} or null
+  function findTypeQueryFunctionType(exprName, scope) {
+    if (exprName?.type === 'Identifier') {
+      const binding = constantBindingPath(exprName.name, scope);
+      const annotation = binding ? unwrapTypeAnnotation(findBindingAnnotation(binding)) : null;
+      return annotation ? { type: annotation, scope: binding.scope } : null;
+    }
+    if (exprName?.type === 'TSQualifiedName' && exprName.left?.type === 'Identifier'
+        && exprName.right?.type === 'Identifier') {
+      const binding = constantBindingPath(exprName.left.name, scope);
+      const annotation = binding ? unwrapTypeAnnotation(findBindingAnnotation(binding)) : null;
+      const member = annotation ? findTypeMember(annotation, exprName.right.name, binding.scope) : null;
+      // `findTypeMember` returns the member's RESOLVED type (after `withSubst`), already
+      // unwrapped from its TSTypeAnnotation wrapper - use it directly, NOT `member.typeAnnotation`
+      // (which on a TSFunctionType is the RETURN annotation, not the function type)
+      return member ? { type: unwrapTypeAnnotation(member), scope: binding.scope } : null;
+    }
+    return null;
+  }
+
   function resolveReturnTypeFromTypeQuery(param, scope) {
     const resolved = resolveTypeQueryBinding(param, scope);
     if (isFunctionLike(resolved?.node)) return resolveReturnType(resolved);
-    // `declare const impl: () => R` / `const impl: (x) => R = ...` - binding isn't function-like
-    // but carries a function-type annotation. `resolveTypeQueryBinding` returns null for the
-    // no-init declare case; re-fetch the binding and read its annotation's return type
-    if (param?.type !== 'TSTypeQuery' || param.exprName?.type !== 'Identifier') return null;
-    const binding = constantBindingPath(param.exprName.name, scope);
-    const annotation = binding ? findBindingAnnotation(binding) : null;
-    const ret = annotation ? functionTypeReturnAnnotation(unwrapTypeAnnotation(annotation)) : null;
-    return ret ? resolveTypeAnnotation(ret, binding.scope) : null;
+    if (param?.type !== 'TSTypeQuery') return null;
+    // `resolveTypeQueryBinding` returns null for no-init `declare const` shapes; fall back to
+    // the annotation-only path which also handles qualified names (`typeof NS.fn`)
+    const fnType = findTypeQueryFunctionType(param.exprName, scope);
+    const ret = fnType && functionTypeReturnAnnotation(fnType.type);
+    return ret ? resolveTypeAnnotation(ret, fnType.scope) : null;
   }
 
   function resolveKnownContainerType(name, base, node, innerResolver) {
@@ -2384,11 +2445,12 @@ function createResolveNodeType(babelNodeType, t) {
         if (elementType) typeParamMap.set(elementParamName, elementType);
       }
     }
-    // phase 2: constraint / default fallback for unresolved type params
+    // phase 2: default / constraint fallback for unresolved type params (TS binds to `default`
+    // when call-site omits a type arg; constraint is only the upper bound, usually over-broad)
     for (const typeParam of fnPath.node.typeParameters.params) {
       const name = typeParamName(typeParam);
       if (typeParamMap.has(name)) continue;
-      const annotation = typeParam.constraint ?? typeParam.default;
+      const annotation = typeParam.default ?? typeParam.constraint;
       if (annotation) {
         const resolved = resolveTypeAnnotation(annotation, fnPath.scope);
         if (resolved) typeParamMap.set(name, resolved);
@@ -4009,6 +4071,15 @@ function createResolveNodeType(babelNodeType, t) {
     const { path: bindingPath } = binding;
     const { name } = path.node;
     const { node } = bindingPath;
+    // rest-param: `function f(...xs) { xs.at(0) }` - `xs` is always an Array at runtime
+    // regardless of call-site. annotated form (`...xs: T[]`) flows through the annotation
+    // branch below; unannotated falls here. without this, `.at(0)` on `xs` dispatches the
+    // generic polyfill instead of the array-specific helper
+    if (node?.type === 'RestElement') {
+      const annotated = findBindingAnnotation(bindingPath);
+      if (annotated) return resolveTypeAnnotation(annotated, bindingPath.scope);
+      return new $Object('Array');
+    }
     // destructured object: for (const { a } of ...) or const { a } = ...
     const objectPattern = findBindingPattern(node, 'ObjectPattern');
     if (objectPattern) return resolveObjectBinding(objectPattern, name, bindingPath);
