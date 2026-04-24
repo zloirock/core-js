@@ -19,6 +19,7 @@ export {
   isSynthSimpleObjectPattern,
   isTaggedTemplateTag,
   isUpdateTarget,
+  objectPatternPropNeedsReceiverRewrite,
   kebabToCamel,
   kebabToPascal,
   mayHaveSideEffects,
