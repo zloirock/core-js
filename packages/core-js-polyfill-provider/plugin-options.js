@@ -14,9 +14,17 @@ const { hasOwn, keys, entries, fromEntries } = Object;
 // canonical polyfill ordering based on compat data registry
 const polyfillOrder = new Map(keys(compatData).map((k, i) => [k, i]));
 
-// sort module names by canonical compat data order
+// sort module names by canonical compat data order. unknown entries (Infinity order) fall
+// through to lexicographic secondary sort so the output order stays deterministic even when
+// the registry hasn't been updated with every future proposal - `Infinity - Infinity = NaN`
+// otherwise poisoned the comparator and left relative order undefined
 export function sortByPolyfillOrder(modules) {
-  return [...modules].sort((a, b) => (polyfillOrder.get(a) ?? Infinity) - (polyfillOrder.get(b) ?? Infinity) || 0);
+  return [...modules].sort((a, b) => {
+    const oa = polyfillOrder.get(a) ?? Infinity;
+    const ob = polyfillOrder.get(b) ?? Infinity;
+    if (oa !== ob && Number.isFinite(oa - ob)) return oa - ob;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
 }
 
 // JSON.stringify renders NaN/Infinity as `null` and Symbol/undefined/function as `undefined` -
@@ -52,7 +60,7 @@ function formatReceived(value) {
   return safeStringify(value);
 }
 
-export function optionTypeError(name, expected, received) {
+function optionTypeError(name, expected, received) {
   return new TypeError(`\`${ name }\` must be ${ expected } (received ${ formatReceived(received) })`);
 }
 
@@ -212,7 +220,7 @@ function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallba
       } catch {
         originalMessage = '<unreadable>';
       }
-      const wrapped = new Error(`core-js-polyfill-provider: shouldInjectPolyfill(${ JSON.stringify(mod) }) threw: ${ originalMessage }`);
+      const wrapped = new Error(`[core-js] shouldInjectPolyfill(${ JSON.stringify(mod) }) threw: ${ originalMessage }`);
       wrapped.cause = error;
       throw wrapped;
     }

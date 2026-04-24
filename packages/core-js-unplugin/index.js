@@ -55,7 +55,7 @@ const unplugin = createUnplugin((options, meta) => {
 
   // treat explicit `null` like `undefined` so `{ phase: cond ? 'post' : null }` falls back
   if (isEntryGlobal && phase !== undefined && phase !== null) {
-    throw new TypeError('[core-js-unplugin] `phase` option is not supported for `entry-global` - it always runs at pre');
+    throw new TypeError('[core-js] `phase` option is not supported for `entry-global` - it always runs at pre');
   }
 
   const effective = isEntryGlobal ? 'pre' : phase ?? 'pre';
@@ -63,7 +63,7 @@ const unplugin = createUnplugin((options, meta) => {
     // show the string value quoted, otherwise show its type - avoids JSON.stringify
     // blowing up on BigInt, circular objects, Symbol, etc.
     const got = typeof phase === 'string' ? `'${ phase }'` : typeof phase;
-    throw new TypeError(`[core-js-unplugin] invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`);
+    throw new TypeError(`[core-js] invalid \`phase\` option: ${ got } - expected 'pre', 'post', or 'pre+post'`);
   }
 
   const plugin = createPlugin({ ...rest, bundler: meta?.framework });
