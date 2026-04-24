@@ -20,6 +20,7 @@ import {
   mergeVisitors,
   parseDisableDirectives,
   POSSIBLE_GLOBAL_OBJECTS,
+  propBindingIdentifier,
   resolveSuperImportName,
   stripQueryHash,
   TS_EXPR_WRAPPERS,
@@ -1065,7 +1066,9 @@ export default function createPlugin(options) {
       // are no-ops. scope limited to proxy-global receiver (globalThis/self/window) - plain
       // `{ from } = Array` is handled by the state machine below
       function tryFlattenNestedProxyDestructurePure(metaPath) {
-        if (metaPath.node.value?.type !== 'Identifier') return false;
+        // accept `{ from }` / `{ from: alias }` / `{ from = default }` / `{ from: alias = default }`.
+        // user's default is dropped since the extracted polyfill is always defined (see `planInnerProp`)
+        if (!propBindingIdentifier(metaPath.node.value)) return false;
         const declPath = walkUpNestedDestructureToDeclaration(metaPath.parentPath);
         const declaration = declPath?.node;
         if (declaration?.type !== 'VariableDeclaration') return false;
@@ -1184,15 +1187,21 @@ export default function createPlugin(options) {
       // `isMemberLike(path)` for instance resolutions
       function planInnerProp(prop, receiverName) {
         if (prop.type !== 'Property' || prop.computed
-          || prop.key?.type !== 'Identifier' || prop.value?.type !== 'Identifier') {
+          || prop.key?.type !== 'Identifier') {
           return { preservedSrc: nodeSrc(prop) };
         }
+        // accept `{ from }`, `{ from: alias }`, `{ from = default }`, `{ from: alias = default }`.
+        // user's default is dropped: polyfill is always defined, the user's default would be
+        // dead code (fires only on undefined property, which polyfill rules out). fully-flattened
+        // legs also avoid walkAstNodes-skip leaving inner polyfillable expressions unrewritten
+        const valueNode = propBindingIdentifier(prop.value);
+        if (!valueNode) return { preservedSrc: nodeSrc(prop) };
         const meta = { kind: 'property', object: receiverName, key: prop.key.name, placement: 'static' };
         if (resolveBuiltIn(meta)?.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
         const pure = resolvePure(meta);
         if (!pure || pure.kind === 'instance') return { preservedSrc: nodeSrc(prop) };
         return {
-          extractions: [{ entry: pure.entry, hint: pure.hintName, localName: prop.value.name }],
+          extractions: [{ entry: pure.entry, hint: pure.hintName, localName: valueNode.name }],
           preservedSrc: null,
         };
       }
@@ -1292,8 +1301,7 @@ export default function createPlugin(options) {
         }
         const { value } = propNode;
         // rebuilder only supports bare Identifier or `Identifier = default` locals
-        if (value && value.type !== 'Identifier'
-            && !(value.type === 'AssignmentPattern' && value.left?.type === 'Identifier')) return;
+        if (value && !propBindingIdentifier(value)) return;
         // Symbol.iterator: resolve normally fails (not in instance table), use getIteratorMethod
         const isSymbolIterator = propNode.computed && meta.key === 'Symbol.iterator';
         const pureResult = isSymbolIterator ? null : resolvePure(meta, metaPath);
