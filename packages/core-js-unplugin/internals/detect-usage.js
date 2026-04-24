@@ -71,7 +71,11 @@ function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
   // `IMPORT_SPECIFIER_TYPES` skips all import positions regardless of `importKind`, so
   // `import { type X, foo }` / `import type { X }` are already covered here
   if (IMPORT_SPECIFIER_TYPES.has(parent.type)) return false;
-  if (parent.type === 'ExportSpecifier' && parentKey === 'exported') return false;
+  // export-alias position: both `export { X } from "mod"` (ExportSpecifier) and
+  // `export * as X from "mod"` (oxc's ExportAllDeclaration with `exported` slot) put the
+  // local name in a re-export alias - not a runtime reference to the polyfilled global
+  if ((parent.type === 'ExportSpecifier' || parent.type === 'ExportAllDeclaration')
+    && parentKey === 'exported') return false;
   // binding targets - write-only, not a polyfillable reference
   // { Promise } = obj -> written to; { x: Promise } in ObjectExpression IS read
   if (parent.type === 'Property' && parentKey === 'value' && parentPath?.parent?.type === 'ObjectPattern') return false;
@@ -406,10 +410,20 @@ export function createUsageVisitors({ onUsage, onWarning, method, suppressProxyG
     if (meta) onUsage(meta, path);
   }
 
+  // Property visitor is shared: top-level destructure bindings and decorator-arg patterns
+  // both need `buildDestructuringMeta` to route polyfillable receivers through synth-swap.
+  // decorator walk must include it explicitly - `walkSubtree`'s visitor lookup is keyed by
+  // node type, and without the entry the decorator subtree never reaches destructure handling
+  const propertyVisitor = path => {
+    if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
+    const meta = buildDestructuringMeta(path.node, path.parentPath);
+    if (meta) onUsage(meta, path);
+  };
   const decoratorVisitors = {
     Identifier: identifierVisitor,
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
+    Property: propertyVisitor,
   };
   const visitDecorators = path => walkDecorators(path, decoratorVisitors);
   const checkTypeAnnotation = path => checkTypeAnnotations(path.node, annotationGlobal(path));
@@ -440,11 +454,7 @@ export function createUsageVisitors({ onUsage, onWarning, method, suppressProxyG
     },
     MemberExpression: memberExpressionVisitor,
     BinaryExpression: binaryExpressionVisitor,
-    Property(path) {
-      if (path.node.method || path.parent?.type !== 'ObjectPattern') return;
-      const meta = buildDestructuringMeta(path.node, path.parentPath);
-      if (meta) onUsage(meta, path);
-    },
+    Property: propertyVisitor,
     ClassDeclaration: visitDecorators,
     ClassExpression: visitDecorators,
     MethodDefinition: visitDecorators,
