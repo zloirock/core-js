@@ -25,6 +25,7 @@ export {
   propBindingIdentifier,
   singleQuasiString,
   unwrapExportedDeclaration,
+  unwrapInitValue,
   unwrapParens,
   walkPatternIdentifiers,
 } from './helpers/ast-patterns.js';
@@ -33,6 +34,7 @@ export {
   isEntryPattern,
   isModulePattern,
   patternToRegExp,
+  safeStringify,
   toStatelessRegExp,
   validatePatternList,
 } from './helpers/pattern-matching.js';

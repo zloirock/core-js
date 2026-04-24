@@ -120,14 +120,28 @@ const SCOPE_REBINDING_TYPES = new Set([
 ]);
 const isScopeRebinding = node => SCOPE_REBINDING_TYPES.has(node.type);
 
+// plugin never emits `_ref = X` assignments into these parent positions - they surface only
+// from user sloppy-mode code. listed alongside ExpressionStatement (bare statement form) so
+// the orphan classifier rejects all user-written top-level shapes uniformly
+const USER_ASSIGN_PARENT_TYPES = new Set([
+  'ExpressionStatement',
+  'SwitchCase',
+  'ThrowStatement',
+  'ForStatement',
+  'IfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+  'ReturnStatement',
+]);
+
 // orphan-ref heuristic: plugin emits `_ref = foo()` / `_ref = obj.x` as a sub-expression inside
-// a ConditionalExpression guard or a call argument. a stand-alone `_ref = X;` statement is user
-// sloppy-mode code; likewise literal RHS at any depth - user wrote it.
+// a ConditionalExpression guard or a call argument. user-shape assignments - in statement
+// positions, switch/throw/loop/if/return heads - aren't plugin output regardless of RHS shape.
 // scope-depth gate: plugin emits orphan assignments only at module top-level (the post-pass
 // rehydrate declares `var _ref;` there). a `_ref = foo()` nested inside a user function is
 // user's sloppy-mode code - adopting it would share state with our module-level `_ref`
 function isPluginShapedOrphanAssign(node, parentType, atTopLevel) {
-  if (!node.right || parentType === 'ExpressionStatement' || !atTopLevel) return false;
+  if (!node.right || !atTopLevel || USER_ASSIGN_PARENT_TYPES.has(parentType)) return false;
   return PLUGIN_EMIT_RHS_TYPES.has(node.right.type);
 }
 
@@ -191,10 +205,14 @@ export function collectAllBindingNames(ast) {
     // descending into a function / class body: children see `atTopLevel = false` so nested
     // `_ref = foo()` reserves the name instead of counting as plugin-emitted orphan
     const childAtTopLevel = atTopLevel && !isScopeRebinding(node);
+    // parens are transparent to the orphan classifier's parent check - `case (x)` /
+    // `throw (x)` put ParenthesizedExpression between the structural parent and the
+    // assignment; forwarding the outer parentType lets the user-shape blacklist fire
+    const childParentType = node.type === 'ParenthesizedExpression' ? parentType : node.type;
     // eslint-disable-next-line no-restricted-syntax -- perf: AST hot path, plain objects
     for (const key in node) {
       const v = node[key];
-      if (Array.isArray(v) || isASTNode(v)) stack.push({ node: v, parentType: node.type, atTopLevel: childAtTopLevel });
+      if (Array.isArray(v) || isASTNode(v)) stack.push({ node: v, parentType: childParentType, atTopLevel: childAtTopLevel });
     }
   }
   return { names, orphanRefs };
