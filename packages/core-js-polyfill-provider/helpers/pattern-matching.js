@@ -36,18 +36,30 @@ export function isEntryPattern(pattern) {
   return typeof pattern === 'string' && !isModulePattern(pattern);
 }
 
+// serialize a value for a diagnostic, shielding callers from `JSON.stringify` throws:
+// circular references, BigInt, and adversarial Proxy traps (`getOwnPropertyDescriptor`,
+// `ownKeys`) would all otherwise mask the primary type error being reported. fall back
+// to `[Object]` on failure. shared across validation paths in `plugin-options` and here
+export function safeStringify(value) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[Object]';
+  }
+}
+
 // validate include/exclude option lists: must be arrays of strings or RegExps (or absent).
 // empty strings are rejected - `patternToRegExp('')` -> `/^$/` matches zero-length entry-paths
 // and downstream produces a confusing "didn't match any polyfill" message
 export function validatePatternList(name, list) {
   if (list === undefined || list === null) return;
   if (!Array.isArray(list)) {
-    throw new TypeError(`\`${ name }\` must be an array, or undefined (received ${ JSON.stringify(list) })`);
+    throw new TypeError(`\`${ name }\` must be an array, or undefined (received ${ safeStringify(list) })`);
   }
   for (const item of list) {
     if (item === '') throw new TypeError(`\`${ name }[*]\` must be a non-empty string`);
     if (typeof item !== 'string' && !(item instanceof RegExp)) {
-      throw new TypeError(`\`${ name }[*]\` must be a string or RegExp (received ${ JSON.stringify(item) })`);
+      throw new TypeError(`\`${ name }[*]\` must be a string or RegExp (received ${ safeStringify(item) })`);
     }
   }
 }

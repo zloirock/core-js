@@ -18,6 +18,7 @@ import {
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isTSTypeOnlyIdentifier,
+  unwrapInitValue,
 } from '@core-js/polyfill-provider/helpers';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
@@ -166,7 +167,10 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppr
       keys.unshift(key);
       const parent = pattern.parentPath;
       if (parent?.isVariableDeclarator()) {
-        const { init } = parent.node;
+        // `(se(), globalThis)` - peel to the semantic init value so nested chains resolve
+        // the receiver through SequenceExpression prefixes. parity with non-nested
+        // `handleDestructuring` which unwraps via `buildDestructuringInitMeta`
+        const init = unwrapInitValue(parent.node.init);
         const receiver = init ? sharedResolveObjectName(init, parent.scope, adapter) : null;
         if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
         // intermediate keys (everything except the deepest) must all be proxy-global hops,

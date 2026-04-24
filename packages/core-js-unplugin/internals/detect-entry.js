@@ -1,7 +1,7 @@
 import { getEntrySource } from '@core-js/polyfill-provider/detect-usage';
 import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers';
 import { estreeAdapter } from './detect-usage.js';
-import { skipBlockComment } from './plugin-helpers.js';
+import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
 // detect and transform core-js entry imports (entry-global mode)
 export default function detectEntries(ast, { getCoreJSEntry, injectModulesForEntry, isDisabled, ms }) {
@@ -66,8 +66,11 @@ function guardAsiAtBoundary(ms, prevEnd, removalEnd) {
 export function removeTopLevelStatement(ms, node) {
   let { end } = node;
   while (end < ms.original.length && (ms.original[end] === ' ' || ms.original[end] === '\t')) end++;
+  // ES spec LineTerminator covers LF / CR / CRLF / LS (U+2028) / PS (U+2029). without LS/PS
+  // handling, a bundler-emitted separator between the removed import and the following line
+  // would stay behind and confuse downstream tooling
   if (ms.original[end] === '\r' && ms.original[end + 1] === '\n') end += 2;
-  else if (ms.original[end] === '\n' || ms.original[end] === '\r') end++;
+  else if (isLineTerminator(ms.original[end])) end++;
   ms.remove(node.start, end);
   guardAsiAtBoundary(ms, node.start, end);
 }
