@@ -248,6 +248,9 @@ export default function plugin(api, options) {
           ? findSynthSwapTargetPath(objectPattern?.parentPath, objectPattern) : null;
         if (!targetPath) {
           emitParamInlineDefault(prop, injectPureImport(entry, hintName));
+          // parity with sibling destructure handlers - replaceWith schedules re-traversal
+          // and the next visitor entry must short-circuit on the already-rewritten prop
+          skippedNodes.add(prop.node);
           return;
         }
         // defer injectPureImport until programExit emits the synth. if a sibling plugin
@@ -842,8 +845,9 @@ export default function plugin(api, options) {
           for (const p of objectPatternNode.properties) {
             if (!t.isObjectProperty(p) || p.computed || !t.isIdentifier(p.key)) continue;
             const pending = polyfills.get(p.key.name);
+            // addPureImport already returns a fresh clone; another cloneNode here would be a no-op copy
             const value = pending
-              ? t.cloneNode(injectPureImport(pending.entry, pending.hintName))
+              ? injectPureImport(pending.entry, pending.hintName)
               : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(p.key.name));
             synthProps.push(t.objectProperty(t.identifier(p.key.name), value));
           }

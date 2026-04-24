@@ -1,8 +1,6 @@
-// regression for own UID generator: Babel's scope.generateUidIdentifier strips trailing
-// digits, so after `_ref9` it would loop back and reuse `_ref` / `_ref2`. own generator
-// emits `_ref, _ref2, _ref3, ..., _refN` (skip-1 babel convention) via the per-prefix
-// suffix cache. twelve optional-chain calls force twelve temp refs; `_ref10` / `_ref11`
-// must cross the decimal boundary without collision
+// twelve optional-chain instance calls in a row force twelve temp refs. verifies that
+// the allocated names cross the decimal boundary - `_ref10` / `_ref11` must not collide
+// with the earlier `_ref` / `_ref1`-shape digits when the suffix generator counts up
 a().b?.flat();
 c().d?.flat();
 e().f?.flat();
