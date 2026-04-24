@@ -307,7 +307,10 @@ const BODY_SLOT_TYPES = new Set([
 ]);
 
 // `UnpluginContextMeta.framework` union (upstream unplugin). validating here so typos
-// like `webpaaack` fail loudly instead of silently falling to the non-webpack default
+// like `webpaaack` fail loudly instead of silently falling to the non-webpack default.
+// `unloader` is the farm-family unloader bundler (upstream groups it alongside
+// rollup/vite/rolldown/farm in one overloaded framework union) - keep in sync with
+// `node_modules/unplugin/dist/*.d.ts` `framework:` string-literal declarations
 export const KNOWN_BUNDLERS = new Set([
   'bun',
   'esbuild',
