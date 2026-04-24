@@ -400,7 +400,9 @@ export function createUsageVisitors({ onUsage, onWarning, method, suppressProxyG
     // `globalThis.Map ||= X` - check BEFORE `isReferenced` rejects (write-context member)
     // and before child-visitor rewrites the object identifier into `_globalThis`
     if (onWarning) {
-      const warning = checkLogicalAssignLhsMember(node, parent);
+      const obj = node.object;
+      const isBound = obj?.type === 'Identifier' && estreeAdapter.hasBinding(path.scope, obj.name);
+      const warning = checkLogicalAssignLhsMember(node, parent, isBound);
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;

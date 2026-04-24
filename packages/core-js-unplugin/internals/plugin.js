@@ -18,6 +18,7 @@ import {
   isUpdateTarget,
   mayHaveSideEffects,
   mergeVisitors,
+  objectPatternPropNeedsReceiverRewrite,
   parseDisableDirectives,
   POSSIBLE_GLOBAL_OBJECTS,
   propBindingIdentifier,
@@ -1335,10 +1336,6 @@ export default function createPlugin(options) {
         const isSymbolIterator = propNode.computed && meta.key === 'Symbol.iterator';
         const pureResult = isSymbolIterator ? null : resolvePure(meta, metaPath);
         if (!pureResult && !isSymbolIterator) return;
-        const kind = isSymbolIterator ? 'instance' : pureResult.kind;
-        const binding = isSymbolIterator
-            ? injectPureImport('get-iterator-method', 'getIteratorMethod')
-            : injectPureImport(pureResult.entry, pureResult.hintName);
 
         const objectPattern = metaPath.parent;
         const isDefault = value?.type === 'AssignmentPattern';
@@ -1352,6 +1349,24 @@ export default function createPlugin(options) {
         // catch clause: Property -> ObjectPattern -> CatchClause
         const declaratorPath = metaPath.parentPath?.parentPath;
         const isCatchClause = declaratorPath?.node?.type === 'CatchClause';
+        // per-prop guard (unlike babel's all-or-nothing): skip THIS prop when it doesn't
+        // force extraction (computed / default) AND the pattern has no RestElement sibling
+        // AND the catch body never reads the destructured name. `injectPureImport` below
+        // would otherwise register an orphan polyfill module for a prop that emits no use.
+        // other props in the same pattern can still force whole-pattern extraction - this
+        // guard only suppresses THIS prop's polyfill entry, not the pattern-level rewrite
+        if (isCatchClause && !objectPatternPropNeedsReceiverRewrite(propNode)
+            && !objectPattern.properties.some(p => p.type === 'RestElement')) {
+          let referenced = false;
+          walkAstNodes(declaratorPath.node.body, n => {
+            if (!referenced && n.type === 'Identifier' && n.name === localName) referenced = true;
+          });
+          if (!referenced) return;
+        }
+        const kind = isSymbolIterator ? 'instance' : pureResult.kind;
+        const binding = isSymbolIterator
+            ? injectPureImport('get-iterator-method', 'getIteratorMethod')
+            : injectPureImport(pureResult.entry, pureResult.hintName);
         const isAssignment = !isCatchClause && declaratorPath?.node?.type === 'AssignmentExpression';
         let declPath = isCatchClause ? declaratorPath : declaratorPath?.parentPath;
         // unwrap ParenthesizedExpression for assignment: ({ from } = Array) -> ExpressionStatement
