@@ -1,8 +1,6 @@
-// two-level mapped passthrough inside a generic. MyWrap<T> -> Copy<T> -> T.
-// before fix, TSMappedType branch in substituteTypeParams called resolveTypeAnnotation
-// on the passthrough body (dropping typeParamMap), so `T` inside `{ [K in keyof T]: T[K] }`
-// fell back to unresolved -> generic `_at`. fix: delegate back to substituteTypeParams with
-// the typeParamMap so `T`-ref resolves to Array<string>. `.at()` -> Array-specific
+// Two-level TS mapped passthrough `MyWrap<T> -> Copy<T> -> { [K in keyof T]: T[K] }`.
+// For `MyWrap<string[]>`, the mapped type passes the array type through unchanged,
+// so `.at(0)` and `.flat()` resolve to the array-specific polyfills.
 type Copy<T> = { [K in keyof T]: T[K] };
 type MyWrap<T> = Copy<T>;
 declare const a: MyWrap<string[]>;

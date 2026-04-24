@@ -1,7 +1,6 @@
-// class field type is folded across all `this.<field> = X` assignments, not just the init.
-// `#box = null` + `this.#box = Array.from(xs)` unions to Array, selecting `_atMaybeArray`.
-// init-only inference would either skip polyfill (nullable short-circuit in
-// resolveCallReturnType) or pick the generic `_at` variant
+// class field type is inferred across every `this.<field> = X` assignment, not only
+// the initializer. `#box = null` plus `this.#box = Array.from(xs)` union to Array,
+// so `this.#box?.at(0)` gets the array-specific `at` polyfill (not the generic one).
 class Maybe {
   #box = null;
   set(xs) { this.#box = Array.from(xs); }

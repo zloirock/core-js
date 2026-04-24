@@ -1,6 +1,7 @@
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// default import from `/constructor` subpath — `entryToGlobalHint('promise/constructor')`
-// must take the first segment and return `Promise`, not the whole entry
+// User imports `MyPromise` from `@core-js/pure/actual/promise/constructor` (the
+// `/constructor` subpath). Plugin recognizes the import source as the `Promise`
+// constructor, so `super.try(...)` in a subclass gets the `Promise.try` polyfill.
 import MyPromise from '@core-js/pure/actual/promise/constructor';
 class C extends MyPromise {
   static m() {

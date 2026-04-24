@@ -7,9 +7,9 @@ export default interface Data {
   counts: number[];
 }
 function foo(d: Data) {
-  // resolveUserDefinedType → getTypeMembers: member access
+  // resolveUserDefinedType -> getTypeMembers: member access
   d.items.at(-1).padEnd(5);
-  // resolveUserDefinedType → getTypeMembers: destructuring
+  // resolveUserDefinedType -> getTypeMembers: destructuring
   const {
     counts
   } = d;
