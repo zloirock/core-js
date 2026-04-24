@@ -15,8 +15,8 @@ import {
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
-  TS_EXPR_WRAPPERS,
   isFunctionParamDestructureParent,
+  isInUpdateOperand,
   isTSTypeOnlyIdentifier,
 } from '@core-js/polyfill-provider/helpers';
 
@@ -71,7 +71,11 @@ export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 // already covered (e.g. `Symbol` in `Symbol.iterator in obj`)
 export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled');
 
-export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxyGlobals = false, walkAnnotations = true }) {
+export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppressProxyGlobals = false, walkAnnotations = true }) {
+  // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
+  // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
+  // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
+  const skipUpdateTargets = method === 'usage-pure';
   let handledObjects = new WeakSet();
   let isSelfRefVarBinding = createSelfRefVarGuard(b => b.kind);
 
@@ -101,14 +105,8 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, suppressProxy
     // specifiers. babel's `isReferencedIdentifier` marks them as referenced, but no runtime
     // binding exists - polyfilling is pure over-injection (and breaks TS output for exports)
     if (isTSTypeOnlyIdentifier(path.parent, path.key)) return;
-    // UpdateExpression operand (Map++, --Map, Map!++, (Map)++) - read+write context, polyfill
-    // import is read-only so the transform would emit `_Map++` which throws TypeError at runtime.
-    // peel TS wrappers plus ParenthesizedExpression (parsed when `createParenthesizedExpressions: true`)
-    let updateCheck = path.parentPath;
-    while (updateCheck && (TS_EXPR_WRAPPERS.has(updateCheck.node?.type) || updateCheck.node?.type === 'ParenthesizedExpression')) {
-      updateCheck = updateCheck.parentPath;
-    }
-    if (updateCheck?.isUpdateExpression()) return;
+    // UpdateExpression operand (Map++, --Map, Map!++, (Map)++) - gate see `skipUpdateTargets`
+    if (skipUpdateTargets && isInUpdateOperand(path.parentPath)) return;
     const { node } = path;
     if (path.scope.getBindingIdentifier(node.name)) {
       // self-reference `var X = X` - hoisted var init references its own name, which at
