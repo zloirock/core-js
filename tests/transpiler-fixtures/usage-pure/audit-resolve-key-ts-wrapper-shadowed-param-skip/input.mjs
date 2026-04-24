@@ -1,5 +1,5 @@
-// shadowed: `at` is a function parameter, not a string alias. TS-wrapper peel must not
-// trigger a spurious polyfill — resolveKey's alias-follow returns null for parameter bindings
+// `at` here is a local function parameter, not a string alias for the `.at` method,
+// so no polyfill must be injected even after peeling the `as any` wrapper
 function f(at: string, arr: number[]) {
   return arr[(at) as any];
 }

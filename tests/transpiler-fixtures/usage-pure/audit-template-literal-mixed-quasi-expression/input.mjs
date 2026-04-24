@@ -1,3 +1,3 @@
-// mixed quasi+interpolation: `${'iter'}ator` folds first quasi '' + 'iter' + quasi 'ator'
-// into 'iterator' via the resolveKey TemplateLiteral branch
+// mixed quasi + interpolation `${'iter'}ator` must fold to the string 'iterator'
+// so `Symbol[...] in obj` is recognised as `Symbol.iterator in obj`
 Symbol[`${'iter'}ator`] in obj;

@@ -1,5 +1,6 @@
-// TS `as` wrapper on computed key reaches resolveKey via the `in` path. previous A1-01
-// fixture covered member-access; this covers the BinaryExpression-in entry
+// TS `as` wrapper around a computed key inside an `in`-expression is unwrapped.
+// `((k) as any) in {}` still recognizes `k` as `Symbol.iterator`, so the
+// `is-iterable` polyfill fires.
 const k = Symbol.iterator;
 const hasIter = ((k) as any) in {};
 hasIter;

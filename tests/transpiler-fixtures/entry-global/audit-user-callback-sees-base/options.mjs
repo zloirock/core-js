@@ -1,4 +1,4 @@
-// user callback receives `(mod, base)` — `base` is the default decision from targets/include/
+// user callback receives `(mod, base)` - `base` is the default decision from targets/include/
 // exclude. callback can drop es.object.to-string even though ie 11 needs it
 export default {
   plugins: [
