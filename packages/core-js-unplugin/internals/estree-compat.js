@@ -44,7 +44,11 @@ export const types = {
   // ESTree encodes privates as regular MethodDefinition/PropertyDefinition with a
   // PrivateIdentifier key; these shim the separate `@babel/types` predicates for parity
   isClassPrivateMethod: n => n?.type === 'MethodDefinition' && n.key?.type === 'PrivateIdentifier',
-  isClassPrivateProperty: n => n?.type === 'PropertyDefinition' && n.key?.type === 'PrivateIdentifier',
+  // TC39 stage-3 auto-accessor: `accessor #foo = ...` parses as AccessorProperty with a
+  // PrivateIdentifier key; flow-scan treats it as private so external-write search is skipped
+  // (scope-closed, only method-internal writes can mutate)
+  isClassPrivateProperty: n => (n?.type === 'PropertyDefinition' || n?.type === 'AccessorProperty')
+    && n.key?.type === 'PrivateIdentifier',
   isStaticBlock: n => n?.type === 'StaticBlock',
   // oxc's raw `type` on string literals is `'Literal'`; `nodeType()` above translates that
   // to `'StringLiteral'` for babel parity. callers use either this predicate OR

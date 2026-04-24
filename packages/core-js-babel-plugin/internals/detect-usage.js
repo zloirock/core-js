@@ -27,7 +27,18 @@ const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportNamespaceSpecifier',
 ]);
 
-const isStringLiteral = node => node?.type === 'StringLiteral';
+// `createParenthesizedExpressions: true` leaves `(('x'))` as a ParenthesizedExpression wrapper.
+// peel so `require(('x'))` / `import(('x'))` entry detection matches the unwrapped form
+// (parity with unplugin's estreeAdapter which calls `unwrapParens` before the type check)
+function peelParens(node) {
+  while (node?.type === 'ParenthesizedExpression') node = node.expression;
+  return node;
+}
+const isStringLiteral = node => peelParens(node)?.type === 'StringLiteral';
+const stringLiteralValue = node => {
+  const inner = peelParens(node);
+  return inner?.type === 'StringLiteral' ? inner.value : null;
+};
 
 // factory for a Babel scope adapter bound to a specific plugin-instance injector.
 // the closure over `getInjector` avoids module-level mutable state, which would race
@@ -58,7 +69,7 @@ export function createBabelAdapter(getInjector = () => null) {
       return scope.getBinding(name)?.path.node?.type ?? null;
     },
     isStringLiteral,
-    getStringValue: node => isStringLiteral(node) ? node.value : null,
+    getStringValue: stringLiteralValue,
   };
 }
 

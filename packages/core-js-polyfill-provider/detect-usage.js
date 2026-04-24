@@ -271,7 +271,12 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
     if (single !== null) return single;
     let out = '';
     for (let i = 0; i < node.quasis.length; i++) {
-      out += node.quasis[i].value.cooked;
+      // tagged template with invalid escape (`\\xZ`, `\\u{...}`) leaves `cooked === null`
+      // post-ES2018. bailing here is right - the cooked form is what runtime concat would
+      // see, so we can't form a valid lookup key without it
+      const { cooked } = node.quasis[i].value;
+      if (cooked === null || cooked === undefined) return null;
+      out += cooked;
       if (i < node.expressions.length) {
         // fork `seen` per interpolation - same-binding reuse (`${k}${k}`) must not
         // trip the cycle guard after the first interpolation mutates a shared Set.
@@ -980,12 +985,12 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
   for (const node of ast.body ?? []) {
     if (node.type === 'ImportDeclaration' && node.specifiers?.length) {
       if (!onPureImport || !mainPkgs || !modePrefix) continue;
-      // `import type X from '@core-js/pure/...'` - declaration-level `importKind: 'type'` marks
-      // the whole ImportDeclaration as type-only. babel puts this flag on the declaration; oxc
-      // on specifiers. defaultSpecifierNames already filters per-specifier `importKind`, so
-      // here we only need to skip the declaration-level case. type-only imports are erased
-      // at runtime (TS stripping), so dedup'ing against their names would route runtime calls
-      // through an undefined binding
+      // two shapes of type-only imports: `import type X from '...'` sets declaration-level
+      // `importKind: 'type'`; `import { type X } from '...'` sets it per-specifier. both parsers
+      // follow the same rule. defaultSpecifierNames already filters per-specifier, so here we
+      // only need to skip the declaration-level case. type-only imports are erased at runtime
+      // (TS stripping), so dedup'ing against their names would route runtime calls through an
+      // undefined binding
       if (node.importKind === 'type' || node.exportKind === 'type') continue;
       const source = adapter.getStringValue(node.source);
       if (typeof source !== 'string') continue;
