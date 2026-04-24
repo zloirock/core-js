@@ -241,7 +241,12 @@ export default class TransformQueue {
     // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
     // (and any `start > end`) as a caller bug immediately rather than corrupting silently.
     // out-of-bounds ranges are also caller bugs (offset arithmetic slipped past source bounds) -
-    // catching them here pinpoints the bad callsite; MagicString would throw a less specific error
+    // catching them here pinpoints the bad callsite; MagicString would throw a less specific error.
+    // non-integer offsets (NaN / undefined / string) silently pass the inequality checks because
+    // numeric coercion + NaN comparisons are always false - reject them upfront
+    if (!Number.isInteger(start) || !Number.isInteger(end)) {
+      throw new TypeError(`[core-js] transform-queue: start/end must be integers (received ${ String(start) }, ${ String(end) })`);
+    }
     if (start >= end) throw new RangeError(`[core-js] transform-queue: invalid range [${ start },${ end })`);
     if (start < 0 || end > this.#code.length) {
       throw new RangeError(`[core-js] transform-queue: range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
@@ -433,16 +438,24 @@ export default class TransformQueue {
     return false;
   }
 
-  // partial overlap (`[10,20) ∩ [15,25)`) would trip MagicString.overwrite with a
-  // generic "already edited" error; surface ranges here for diagnostic
+  // partial overlap (`[10,20) intersect [15,25)`) would trip MagicString.overwrite with a
+  // generic "already edited" error; surface ranges here for diagnostic. track running
+  // max-end so non-consecutive shapes like `[0,10), [3,5), [7,14)` still flag the `[0,10)
+  // vs [7,14)` partial overlap that consecutive-only iteration would miss
   #assertNoPartialOverlap(sorted) {
+    if (sorted.length < 2) return;
+    let [maxEntry] = sorted;
+    let maxEnd = maxEntry.end;
     for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
       const curr = sorted[i];
-      if (curr.end > prev.end && curr.start < prev.end) {
+      if (curr.start < maxEnd && curr.end > maxEnd) {
         throw new Error('[core-js] transform-queue: partial overlap between transforms '
-          + `[${ prev.start },${ prev.end }) and [${ curr.start },${ curr.end }). this is a `
+          + `[${ maxEntry.start },${ maxEntry.end }) and [${ curr.start },${ curr.end }). this is a `
           + 'composition bug - please report with a reproducer.');
+      }
+      if (curr.end > maxEnd) {
+        maxEnd = curr.end;
+        maxEntry = curr;
       }
     }
   }
