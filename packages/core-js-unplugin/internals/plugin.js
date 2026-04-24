@@ -336,6 +336,7 @@ export default function createPlugin(options) {
       const usageVisitors = createUsageVisitors({
         onUsage: usageGlobalCallback,
         onWarning: msg => debugOutput?.warn(msg),
+        method,
       });
       const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
@@ -1801,6 +1802,7 @@ export default function createPlugin(options) {
         ...createUsageVisitors({
           onUsage: usagePureCallback,
           onWarning: msg => debugOutput?.warn(msg),
+          method,
           suppressProxyGlobals: true,
           walkAnnotations: false,
         }),
