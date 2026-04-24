@@ -1,5 +1,5 @@
-// user-named pure import + class extends + super.X - binding `MyPromise` maps back to
-// global `Promise` via injector.getPureImport so resolver finds `statics.Promise.try`
+// user already imported a pure Promise under a custom name and extends it -
+// super.try(...) inside the subclass must still route to the Promise.try polyfill
 import MyPromise from '@core-js/pure/actual/promise';
 class C extends MyPromise {
   static m() { return super.try(() => 1); }

@@ -3,8 +3,7 @@ import _includes from "@core-js/pure/actual/instance/includes";
 var _ref2;
 const _ref = getArr();
 const at = (_ref2 = _at(_ref)) === void 0 ? alt : _ref2;
-// Instance method with default + call init + one more instance method: triggers both
-// needsMemo path (_ref = getArr()) AND inline default testRef. Verifies correct
-// interaction: `const _ref = getArr(); let _ref2, at = (_ref2 = _at(_ref)) === void 0 ? alt : _ref2;
-// const includes = _includes(_ref);`
+// destructure from a call init with one default-valued instance property plus another
+// instance property: the call must be evaluated once (memoized), and the default must
+// fire only when the polyfill lookup returns undefined
 const includes = _includes(_ref);

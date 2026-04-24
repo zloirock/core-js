@@ -1,6 +1,5 @@
-// resolveKey's Symbol.X computed-member branch only fires when object resolves to the Symbol
-// global. For Object.X / Reflect.X bound-key chains, resolveKey returns null, so `k in obj`
-// takes branch 3 (string key in known global), where `obj` must be a known object. Neither
-// fires here (`g` is a local), so no polyfill - this documents the miss
+// `const k = Object.create; k in g` - only the RHS init `Object.create` should polyfill.
+// the `in` operator itself should NOT emit any polyfill because `g` is a local binding
+// and `k` does not resolve to a well-known symbol
 const k = Object.create;
 k in g;
