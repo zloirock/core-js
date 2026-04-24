@@ -1,7 +1,7 @@
-// `additionalPackages` are monorepo aliases / vendor forks the user picked deliberately -
-// `scanExistingCoreJSImports` treats them as inert for pure-import dedup / super-method
-// mapping. `MyP` is not registered with the injector, so `super.try` stays with the fork's
-// own semantics and is not rewritten to the plugin default pkg
+// `MyP` comes from `my-fork/actual/promise` (a user-picked vendor fork, not the
+// plugin's default pure package), so `super.try(...)` in the subclass must be
+// left alone - the fork's own implementation is preserved rather than rewritten
+// to the default Promise.try polyfill
 import MyP from 'my-fork/actual/promise';
 class C extends MyP {
   static m() { return super.try(() => 1); }

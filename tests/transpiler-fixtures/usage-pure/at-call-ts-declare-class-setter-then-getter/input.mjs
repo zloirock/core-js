@@ -3,8 +3,7 @@ declare class Store {
   get value(): number[];
 }
 declare const s: Store;
-// setter declared before the matching getter - `b.value` (read access) must resolve
-// through the getter's return type, not the setter's arg type. findTypeMember iterates
-// class body in source order; setter match must not short-circuit when a getter for the
-// same key appears later
+// setter declared before the matching getter - read access `s.value` must resolve
+// through the getter's return type `number[]`, not the setter's argument type,
+// so `.at(0)` routes to the array-specific polyfill
 s.value.at(0);
