@@ -1,6 +1,6 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// `resolveKey` must peel TS wrappers on entry so `(k) as any` / `(k) satisfies X` / `k!`
-// wrapping a computed-key alias still reaches the Identifier alias-follow branch
+// computed-key identifier alias wrapped in a TS cast: `arr[(k) as any]` where `k = 'at'`
+// should still dispatch `.at` to the array instance polyfill
 const arr = [1, 2, 3];
 const k = 'at';
 _atMaybeArray(arr).call(arr, 0);

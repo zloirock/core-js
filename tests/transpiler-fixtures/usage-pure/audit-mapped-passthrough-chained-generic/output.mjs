@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 import _includesMaybeArray from "@core-js/pure/actual/array/instance/includes";
 // chained generic substitution through a mapped-passthrough: `Outer<U> = Copy<U[]>`
-// resolves `Outer<string>` via:  U -> string, then Copy's passthrough extracts T, T=U[]=string[].
-// the deep-subst in followTypeAliasChain must propagate the param all the way through
+// with `Outer<string>` should resolve to `string[]`, so `.at()` and `.includes()`
+// pick the Array-specific polyfills
 type Copy<T> = { [K in keyof T]: T[K] };
 type Outer<U> = Copy<U[]>;
 declare const arr: Outer<string>;

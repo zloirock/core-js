@@ -1,8 +1,8 @@
 import _at from "@core-js/pure/actual/instance/at";
 var _ref;
-// setter-only property read: findTypeMember's setter `break` lets iteration fall through
-// without a match, so the class member lookup yields no type. `.at` lands on `desc.common`
-// -> generic variant (matching the generic fallback for unknown-receiver type anywhere else)
+// TS class with a setter-only property `buffer` - reading `s.buffer` has no statically
+// resolvable type (no getter declared). plugin cannot determine the receiver type for
+// `.at(0)` and falls back to the generic instance-method polyfill
 declare class Sink {
   set buffer(_b: number[]);
 }

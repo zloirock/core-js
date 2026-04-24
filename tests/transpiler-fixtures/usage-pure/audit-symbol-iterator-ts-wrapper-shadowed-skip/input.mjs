@@ -1,5 +1,6 @@
-// local `Symbol` shadows global - asSymbolRef's binding guard must fire even through TS wrapper;
-// no polyfill, expression untouched
+// local parameter named `Symbol` shadows the global - even though the receiver is
+// wrapped in a TS `as any` cast, plugin must respect the binding and skip polyfilling;
+// expression stays untouched
 function f(Symbol: any, obj: any) {
   return obj[(Symbol as any).iterator];
 }
