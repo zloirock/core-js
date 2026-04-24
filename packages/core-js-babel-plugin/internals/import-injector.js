@@ -208,7 +208,10 @@ export default class ImportInjector extends ImportInjectorState {
 
   registerUserPureImport(entry, name) {
     super.registerUserPureImport(entry, name);
-    this.#idByName.set(name, this.#t.identifier(name));
+    // guard against dead writes: a repeat registration for the same name would otherwise
+    // overwrite `#idByName` with a fresh Identifier, breaking range/loc stability
+    // that `addPureImport` relies on (it clones the cached node per call)
+    if (!this.#idByName.has(name)) this.#idByName.set(name, this.#t.identifier(name));
   }
 
   registerUserGlobalImport(moduleName) {
