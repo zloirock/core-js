@@ -1,6 +1,6 @@
-// regression: user-defined type predicate targeting a constructor-bearing type
-// (`x is unknown[]`) now builds an equivalent instanceof guard via the
-// resolved type's `constructor`. expect `_atMaybeArray`.
+// TS user-defined type predicate `x is unknown[]` narrows inside the `if` branch to an
+// array. `.at(0)` on the narrowed binding should dispatch the array-specific polyfill
+// even though `x` was declared `unknown`
 function isArr(x: unknown): x is unknown[] {
   return Array.isArray(x);
 }
