@@ -1572,11 +1572,18 @@ function createResolveNodeType(babelNodeType, t) {
       // TS type predicate: `x is string` -> boolean
       case 'TSTypePredicate':
         return new $Primitive('boolean');
-      // TS conditional type: T extends U ? X : Y - resolve if both branches have the same type, or one is `never`
-      case 'TSConditionalType':
+      // TS conditional type: T extends U ? X : Y - resolve if both branches have the same type, or one is `never`.
+      // `T extends (infer U)[] ? U : never` with T already substituted (via alias-chain) is the
+      // canonical element-extraction shape: trueType references the inferred name, falseType is
+      // never-like. match first so `First<string[]>` resolves to `string` instead of collapsing
+      // through the generic branches (which can't resolve the naked `U` reference)
+      case 'TSConditionalType': {
+        const inferred = resolveInferElementPattern(node, null, scope, depth, null);
+        if (inferred) return inferred;
         return resolveConditionalBranches(
           resolveTypeAnnotation(node.trueType, scope, depth + 1),
           resolveTypeAnnotation(node.falseType, scope, depth + 1));
+      }
       // TS / Flow union and intersection - resolve if all (non-nullable for unions) members have the same type
       case 'TSUnionType':
       case 'UnionTypeAnnotation': {
@@ -1815,8 +1822,14 @@ function createResolveNodeType(babelNodeType, t) {
     let node = unwrapTypeAnnotation(extendsType);
     // peel `readonly X` modifier (TSTypeOperator operator='readonly')
     if (node?.type === 'TSTypeOperator' && node.operator === 'readonly') node = node.typeAnnotation;
-    if (node?.type === 'TSArrayType' && node.elementType?.type === 'TSInferType') {
-      return node.elementType.typeParameter?.name?.name ?? node.elementType.typeParameter?.name;
+    if (node?.type === 'TSArrayType') {
+      // babel wraps `(infer U)` in TSParenthesizedType; oxc collapses to bare TSInferType.
+      // peel the wrapper so both shapes reach the inner inference name
+      let element = node.elementType;
+      while (element?.type === 'TSParenthesizedType') element = element.typeAnnotation;
+      if (element?.type === 'TSInferType') {
+        return element.typeParameter?.name?.name ?? element.typeParameter?.name;
+      }
     }
     if (node?.type === 'TSTypeReference' && isInferContainerName(typeRefName(node))) {
       const arg = getTypeArgs(node)?.params?.[0];
