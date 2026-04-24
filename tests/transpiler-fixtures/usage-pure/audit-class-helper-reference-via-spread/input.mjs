@@ -1,6 +1,7 @@
-// A class extends a polyfillable base and uses rest-pattern spread that babel transpiles
-// to `_toArray`. After helper injection, programExit re-traverses new body nodes. Map /
-// Promise references in newly-injected helper code must still polyfill (usage-pure sweep).
+// a class extends a polyfillable base and uses rest-pattern spread that downstream
+// transforms lower into a helper call. globals referenced by the injected helper code
+// (Promise / Array) must also get their pure-mode polyfills emitted, same as any
+// hand-written reference to those identifiers
 class X extends Promise {
   async m() {
     const arr = [...args];
