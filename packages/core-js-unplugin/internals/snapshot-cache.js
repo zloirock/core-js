@@ -14,7 +14,11 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 // would collide distinct scripts of the same file, so keep those queries intact.
 // long-running dev-servers accumulate snapshots between rebuilds - buildEnd per invocation
 // drains them; pre-only-visited ids in a single invocation still leak until buildEnd fires
-const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs)/;
+// Vite exposes the same file under several prefixes that must normalize to one key:
+// `file:///abs/foo.js` (pre-resolve), `/@fs/abs/foo.js` (FS passthrough), `/@id/virtual:foo`
+// (virtual module resolver). `i` flag tolerates `FILE://` / `/@FS/` from code paths that
+// upper-case URL schemes (RFC 3986 allows it; some bundler plumbings emit it that way)
+const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs|\/@id\/)/i;
 // multi-slash collapse: some bundler path joins produce `pkg//sub/foo` when a trailing
 // slash meets a leading slash; canonicalize to single-slash so pre and post match even
 // if one pass saw a doubled form
