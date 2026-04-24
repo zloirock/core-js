@@ -1,10 +1,10 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref2;
-// `_ref.x` references an undeclared global. both plugins' `isNameTaken` avoids
-// allocating `_ref` initially. post-pass rename in babel's `pruneUnusedRefs`
-// rebuilds `taken` only from declared bindings, not `program.references`, so
-// an unused slot compaction may re-collide with the sloppy global
+// `_ref` is read as an undeclared global (set on globalThis). plugin's ref allocator
+// must account for such sloppy globals so its generated ref names don't collide - the
+// user's global write must be treated as a reservation even though there's no local
+// `_ref` binding declaration
 _globalThis._ref = {
   x: 5
 };
