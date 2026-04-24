@@ -186,11 +186,69 @@ export function createClassHelpers(t, adapter) {
         name = init.name;
         continue;
       }
-      // `const A = globalThis.Promise; class C extends A` - alias init points at a proxy-global
-      // member. terminate the walk with the final member name (`Promise`) instead of bailing
-      return globalProxyMemberName(init, scope, adapter) ?? null;
+      // non-Identifier init: delegate to the unified resolver which handles proxy-global
+      // chains AND user-namespace object-literal members. `const A = globalThis.Promise`
+      // / `const A = NS.Promise` both resolve to 'Promise' through the same path
+      return resolveBindingToGlobalName(init, scope);
     }
     return null;
+  }
+
+  // a "namespace container" - class body with static properties or object literal - is any
+  // value we can statically look up a member on by name. methods / getters / private fields /
+  // static blocks intentionally skipped: their value isn't a resolvable alias chain (static
+  // block runs at class-eval time with arbitrary code; getters return runtime values)
+  function findNamespaceMemberValue(container, propName) {
+    if (container?.type === 'ClassDeclaration' || container?.type === 'ClassExpression') {
+      for (const m of container.body?.body ?? []) {
+        if (!m.static) continue;
+        if (m.type !== 'ClassProperty' && m.type !== 'PropertyDefinition') continue;
+        if (staticKeyName(m.key, m.computed) !== propName) continue;
+        return m.value ?? null;
+      }
+    } else if (container?.type === 'ObjectExpression') {
+      for (const p of container.properties ?? []) {
+        if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
+        if (staticKeyName(p.key, p.computed) !== propName) continue;
+        return p.value;
+      }
+    }
+    return null;
+  }
+
+  // unified "what global name does this expression resolve to?" primitive. covers every
+  // super-class shape the plugin recognises:
+  //  - bare Identifier (`extends Promise`) / identifier alias chain (`const X = Promise`)
+  //  - proxy-global member chain (`extends globalThis.Promise`, `extends self.window.Map`)
+  //  - user-namespace object literal (`const NS = { Promise }; extends NS.Promise`)
+  //  - static class-as-namespace (`class Box { static Promise = Promise }; extends Box.Promise`)
+  //  - compositions through any of the above (`const NS = { P: globalThis.Promise }; NS.P`)
+  // returns the canonical global name (`'Promise'`, `'Map'`, ...) or null on failure.
+  // recursive over property values so nested namespaces and alias chains compose naturally
+  function resolveBindingToGlobalName(node, scope) {
+    const peeled = unwrapRuntimeExpr(node);
+    if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope);
+    if (peeled?.type !== 'MemberExpression' && peeled?.type !== 'OptionalMemberExpression') return null;
+    // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key
+    const proxyKey = globalProxyMemberName(peeled, scope, adapter);
+    if (proxyKey !== null) return proxyKey;
+    // namespace-member lookup requires a bare-Identifier root + static property name.
+    // `(expr).prop` / computed roots / call results bail: would need runtime evaluation
+    if (peeled.computed || peeled.object?.type !== 'Identifier') return null;
+    const propName = staticKeyName(peeled.property, false);
+    if (!propName) return null;
+    const binding = scope?.getBinding?.(peeled.object.name);
+    if (!binding || binding.constantViolations?.length) return null;
+    // class binding: decl node IS the container (no init step). var binding: peel decl.init
+    // down to the container. both ClassExpression + ObjectExpression handled uniformly below
+    const declNode = binding.path?.node;
+    const container = declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression'
+      ? declNode
+      : unwrapRuntimeExpr(declNode?.init);
+    const value = findNamespaceMemberValue(container, propName);
+    // recurse: member value can be any shape the outer resolver handles (Identifier alias,
+    // nested proxy-global, another namespace member) - composition falls out for free
+    return value ? resolveBindingToGlobalName(value, scope) : null;
   }
 
   // common path for `super.X` and `this.X` in static context - both resolve to the same
@@ -201,9 +259,8 @@ export function createClassHelpers(t, adapter) {
     if (!key) return null;
     const info = findEnclosingClassMember(path);
     if (!info?.isStatic) return null;
-    return buildSuperStaticMeta(info.classNode, key, superClass => superClass.type === 'Identifier'
-      ? resolveSuperClassName(superClass.name, path.scope)
-      : globalProxyMemberName(superClass, path.scope, adapter));
+    return buildSuperStaticMeta(info.classNode, key,
+      superClass => resolveBindingToGlobalName(superClass, path.scope));
   }
 
   let ownNamesCache = new WeakMap();
