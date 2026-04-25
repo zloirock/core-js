@@ -367,17 +367,26 @@ function shouldSkipUsageDispatch(meta, path, isDisabled) {
   return meta.kind === 'property' && path?.node && isForXWriteTarget(path);
 }
 
-// `super.X(...)` in a static method of `extends KnownGlobal { ... }`: regular MemberExpression
-// resolution produces `{object: null, placement: 'prototype'}` which never matches
-// `Array.from` etc. retry with a synthetic static meta against the parent class
-function tryResolveSuperStaticMeta(meta, path, resolveStaticInheritedMember) {
-  if (!resolveStaticInheritedMember) return null;
+// `super.X(...)` / `this.X(...)` in a static method of `extends KnownGlobal { ... }`:
+// regular MemberExpression resolution produces `{object: null, placement: 'prototype'}` which
+// never matches `Array.from` etc. retry with a synthetic static meta against the parent class.
+// covers both Super and ThisExpression-in-static-context via `isInheritedStaticLookup`
+function tryResolveSuperStaticMeta(meta, path, resolveStaticInheritedMember, isInheritedStaticLookup) {
+  if (!resolveStaticInheritedMember || !isInheritedStaticLookup) return null;
   if (meta.kind !== 'property' || meta.placement !== 'prototype' || meta.object !== null) return null;
-  if (path?.node?.type !== 'MemberExpression' || path.node.object?.type !== 'Super') return null;
+  if (path?.node?.type !== 'MemberExpression' && path?.node?.type !== 'OptionalMemberExpression') return null;
+  if (!isInheritedStaticLookup(path)) return null;
   return resolveStaticInheritedMember(path);
 }
 
-export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEntry, isDisabled, resolveStaticInheritedMember }) {
+export function createUsageGlobalCallback({
+  resolveUsage,
+  injectModulesForModeEntry,
+  isDisabled,
+  resolveStaticInheritedMember,
+  isInheritedStaticLookup,
+  isShadowedByClassOwnMember,
+}) {
   function dispatch(meta, path) {
     if (shouldSkipUsageDispatch(meta, path, isDisabled)) return;
     if (meta.kind === 'in') {
@@ -398,7 +407,16 @@ export function createUsageGlobalCallback({ resolveUsage, injectModulesForModeEn
     }
   }
   return (meta, path) => {
-    const superMeta = tryResolveSuperStaticMeta(meta, path, resolveStaticInheritedMember);
+    // shadow check for `this.X` - polyfill would bypass the user's own member
+    // (`class C extends Array { at() {} foo() { this.at(0) } }`)
+    if (isShadowedByClassOwnMember && meta.kind === 'property' && meta.key
+      && path?.node?.object?.type === 'ThisExpression'
+      && isShadowedByClassOwnMember(path, meta.key)) return;
+    const superMeta = tryResolveSuperStaticMeta(meta, path, resolveStaticInheritedMember, isInheritedStaticLookup);
+    // inherited-static lookup where the member doesn't exist as static on the super class:
+    // `class C extends Array { static foo() { this.at(0) } }` - `at` is instance-only.
+    // bail rather than fall back to instance-method dispatch which over-injects
+    if (isInheritedStaticLookup && !superMeta && isInheritedStaticLookup(path)) return;
     return dispatch(superMeta ?? meta, path);
   };
 }
