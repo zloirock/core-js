@@ -12,8 +12,11 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   declaresRequireBinding,
+  destructureReceiverSlot,
+  getFallbackBranchSlots,
   getSuperTypeArgs,
   globalProxyMemberName,
+  isChainAssignment,
   kebabToCamel,
   mayHaveSideEffects,
   resolveCallArgument as sharedResolveCallArgument,
@@ -683,6 +686,11 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
       return buildDestructuringInitMeta(unwrapped.expressions.at(-1), key, scope, adapter);
     case 'ConditionalExpression':
       return resolveConditionalDestructureMeta(unwrapped, key, scope, adapter);
+    case 'AssignmentExpression':
+      // chain `const { from } = foo = cond ? Array : Iterator` evaluates AssignmentExpression
+      // to its RHS - recurse on right so meta tracks the actual destructure receiver
+      if (isChainAssignment(unwrapped)) return buildDestructuringInitMeta(unwrapped.right, key, scope, adapter);
+      break;
   }
   // `const { from } = Array` or `const { from } = globalThis.Array`
   if (unwrapped.type === 'Identifier' || unwrapped.type === 'MemberExpression'
@@ -732,6 +740,46 @@ function resolveConditionalDestructureMeta(node, key, scope, adapter) {
   const alternate = buildDestructuringInitMeta(node.alternate, key, scope, adapter);
   const resolved = consequent.object ? consequent : alternate.object ? alternate : null;
   return resolved ? { ...resolved, fromFallback: true } : consequent;
+}
+
+// per-branch synth-swap viability check: branch is a candidate for `{key: _Branch$key}`
+// rewrite when it's a bare global Identifier resolving to a static method with a viable
+// pure entry. returns the resolved pure descriptor (with `entry`/`hintName`/`kind`) or null.
+// shared between babel-plugin and unplugin so the branch-detection rules stay in lockstep
+export function isViableBranchForKey(branch, key, scope, adapter, resolvePure) {
+  if (branch?.type !== 'Identifier') return null;
+  // user-shadowed (`function f(Array) { ({from} = cond ? Array : Set) }`) - shadow makes
+  // `Array` a local binding, not a global polyfill candidate
+  if (adapter.hasBinding(scope, branch.name)) return null;
+  const meta = buildDestructuringInitMeta(branch, key, scope, adapter);
+  if (!meta?.object || meta.kind !== 'property' || meta.placement !== 'static') return null;
+  const pure = resolvePure(meta);
+  if (!pure || pure.kind === 'instance') return null;
+  return pure;
+}
+
+// enumerate fromFallback destructure-receiver branches as resolved metas. for usage-global
+// dispatch each branch's deps separately so `cond ? Array : Iterator` with `{from}` brings
+// in both `es.array.from` and `es.iterator.from` at file level. takes parser-agnostic path
+// API (uses .parentPath / .node / .scope) so both babel and estree-toolkit paths work
+export function enumerateFallbackDestructureBranches(meta, path, adapter) {
+  if (!meta?.fromFallback || !path) return null;
+  const wrapperParent = path.parentPath?.parentPath?.node;
+  const slot = destructureReceiverSlot(wrapperParent);
+  if (!slot) return null;
+  // peel `foo = bar = cond ? ...` chains down to the conditional/logical
+  let rhs = wrapperParent[slot];
+  while (isChainAssignment(rhs)) rhs = rhs.right;
+  const branchSlots = getFallbackBranchSlots(rhs);
+  if (!branchSlots) return null;
+  const out = [];
+  for (const branchSlot of branchSlots) {
+    const branch = rhs[branchSlot];
+    if (branch?.type !== 'Identifier') continue;
+    const branchMeta = buildDestructuringInitMeta(branch, meta.key, path.scope, adapter);
+    if (branchMeta?.object) out.push(branchMeta);
+  }
+  return out.length ? out : null;
 }
 
 export function canTransformDestructuring({ parentType, parentInit, grandParentType }) {
