@@ -62,18 +62,25 @@ function replaceNthOccurrence(str, needle, replacement, n) {
 
 // `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` - naive `replaceAll('?.', '.')`
 // produces `.(` that never matches the `(` emitted by the inner transform.
-// `needle[offset + 2]` returns `undefined` when `?.` sits at the very end of the needle;
-// that compares unequal to `(` / `[` and falls through to the `.` branch - no bounds check needed
 // raw text transform - not AST-aware. `?.` inside a template literal (`` `a?.b` ``) or a
 // regular string would also be rewritten. in practice the needle is always a slice of an
 // AST MemberExpression / CallExpression range where strings can't appear in the optional
-// position - the malformed-needle risk is bounded by the caller supplying correct ranges
+// position - the malformed-needle risk is bounded by the caller supplying correct ranges.
+// scan past whitespace before classifying: source can hold `obj ?. (args)` or `obj?.\n[i]`
+// (parsers tolerate whitespace between `?.` and the token); single-char lookahead would
+// miss those and emit `obj. (args)` instead of `obj (args)`
 export function deoptionalizeNeedle(needle) {
   return needle.replaceAll('?.', (_, offset) => {
-    const next = needle[offset + 2];
+    let i = offset + 2;
+    while (i < needle.length && WS_RE.test(needle[i])) i++;
+    const next = needle[i];
     return next === '(' || next === '[' ? '' : '.';
   });
 }
+// fast single-char whitespace test - covers space, tab, CR, LF; no need for the full
+// `\s` lexicon (vertical tabs, exotic Unicode whitespace) because parsers normalize
+// optional-chain tokens through standard ECMAScript whitespace
+const WS_RE = /\s/;
 
 // try needle shapes: raw slice -> deoptionalized -> guardRef-rewritten
 // (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root
@@ -141,7 +148,13 @@ export function mergeEqualRange(a, b, originalNeedle) {
   const wrapper = aFirst !== -1 ? a : b;
   const inner = aFirst !== -1 ? b : a;
   const first = aFirst !== -1 ? aFirst : wrapper.indexOf(originalNeedle);
-  if (first === -1) return inner;
+  // contract: at least one side wraps the original source. a regression that breaks this
+  // invariant would silently drop the wrapper text and emit only the inner replacement.
+  // production callers (synth-swap, arrow-body wrap) always preserve the needle in exactly
+  // one slot - the throw makes a future callsite that drops both copies fail loudly
+  if (first === -1) {
+    throw new Error(`mergeEqualRange invariant: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
+  }
   // assert single-occurrence invariant: if a new outer-transform shape emits the needle
   // twice, only the first slot would be swapped in silently; flag the regression loudly
   // instead of shipping corrupt output. slice+includes allocates once on the assert path
