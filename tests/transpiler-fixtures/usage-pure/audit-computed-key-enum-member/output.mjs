@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// computed key via enum member access: obj[Keys.A]. resolveComputedKeyName looks up
-// the TSEnumDeclaration via findTypeDeclaration and maps the member to its literal
-// initializer value - plugin then narrows `.at(0)` to the Array instance method
+// computed key via enum member: `obj[Keys.A]` resolves to a statically-known string literal
+// through the enum's member initialiser. plugin picks up the narrowed string value, which
+// then narrows `.at(0)` on the looked-up array to the Array-specific polyfill
 enum Keys {
   A = 'a',
 }
