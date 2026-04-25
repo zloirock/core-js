@@ -1,8 +1,8 @@
-// `getStatementSiblings` has two paths: `listKey === 'body'` (BlockStatement / Program) and
-// `listKey === 'consequent'` (SwitchCase). the block-body path is covered by
-// `audit-decorator-early-exit-guard-narrow`; this fixture exercises the SwitchCase branch.
-// early-exit in `case`-consequent narrows `x: number | string` -> `string`, routing `.at(0)`
-// to `_atMaybeString` via synth-path `listKey` / numeric `key` parity with babel NodePath
+// decorator argument arrow with a switch-case that has an early-return for non-string
+// branch. the guard narrows `x: number | string` to `string` within the remaining code
+// path, so `.at(0)` on it routes to the String-specific instance polyfill rather than the
+// generic fallback. switch-case consequent positioning must be treated the same way as
+// block-body positioning for the guard-walk
 function dec(fn: (x: number | string, k: 'a' | 'b') => void) { return (_: any) => _; }
 
 @dec((x, k) => {

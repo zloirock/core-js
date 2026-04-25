@@ -1,6 +1,8 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// rest after regular params: loop processes `head: U` first (binds U to 0's type),
-// then rest branch binds T from 'x'/'y' and `break`s
+// generic function: one regular param typed with `U`, followed by rest `T[]`. at the
+// call site, `U` binds to the type of the first arg (`number`) and `T` binds to the type
+// of subsequent args (`string`). return type resolves to `string`, so `.at(0)` routes to
+// String-instance polyfill
 function fn<T, U>(head: U, ...tail: T[]): T {
   return tail[0];
 }
