@@ -18,12 +18,15 @@ export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalPro
 
 // direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint
 // after `globalThis -> _globalThis` in-place mutation). scope+adapter optional; without them
-// only direct names pass
+// only direct names pass. with scope+adapter, a user binding (`function f(globalThis) {}`)
+// shadows the global - shadowed names without `polyfillHint` are NOT proxy-global
 function isProxyGlobalIdentifierNode(node, scope, adapter) {
   if (node?.type !== 'Identifier') return false;
-  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name)) return true;
-  const hint = scope && adapter ? adapter.getBinding(scope, node.name)?.polyfillHint : null;
-  return !!hint && POSSIBLE_GLOBAL_OBJECTS.has(hint);
+  if (scope && adapter) {
+    const binding = adapter.getBinding(scope, node.name);
+    if (binding) return !!binding.polyfillHint && POSSIBLE_GLOBAL_OBJECTS.has(binding.polyfillHint);
+  }
+  return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
 }
 
 // extract a member property's name as a string (identifier, string literal, single-quasi template);
