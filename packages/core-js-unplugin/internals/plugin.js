@@ -7,7 +7,9 @@ import {
   createTypeAnnotationChecker,
   detectCommonJS,
   globalProxyMemberName,
+  findIifeArgForParam,
   hasTopLevelESM,
+  isClassifiableReceiverArg,
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
@@ -959,55 +961,32 @@ export default function createPlugin(options) {
       // non-literal spread returns null (static index unknown).
       // ArrowFunctionExpression-only by design: `function() {}` IIFE has its own `this`
       // binding, so the destructure-receiver semantics differ enough that synth-swap
-      // would be unsafe. arrow-only is a deliberate narrowing
+      // would be unsafe. arrow-only is a deliberate narrowing on top of the shared
+      // `findIifeArgForParam` (which accepts both arrow and FunctionExpression for
+      // resolution-layer use)
       function detectIifeArgReceiver(wrapperPath, objectPattern) {
         if (wrapperPath?.node?.type !== 'ArrowFunctionExpression') return null;
-        const paramIndex = wrapperPath.node.params.indexOf(objectPattern);
-        if (paramIndex === -1) return null;
-        let callPath = wrapperPath.parentPath;
-        // oxc preserves `ParenthesizedExpression`; `(arrow)(args)` needs one extra hop.
-        // `UnaryExpression` / `SequenceExpression` mirror `!function(){}()` and `(0, fn)()`.
-        // `ChainExpression` + TS expression wrappers cover `((arrow) as any)(R)` etc.
-        while (callPath?.node && (callPath.node.type === 'UnaryExpression'
-            || callPath.node.type === 'SequenceExpression'
-            || callPath.node.type === 'ParenthesizedExpression'
-            || callPath.node.type === 'ChainExpression'
-            || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
-          callPath = callPath.parentPath;
-        }
-        const call = callPath?.node;
-        if (!call || (call.type !== 'CallExpression' && call.type !== 'NewExpression')) return null;
-        let i = 0;
-        for (const arg of call.arguments) {
-          if (arg?.type === 'SpreadElement') {
-            if (arg.argument?.type !== 'ArrayExpression') return null;
-            for (const el of arg.argument.elements) {
-              if (i === paramIndex) return el;
-              i++;
-            }
-            continue;
-          }
-          if (i === paramIndex) return arg;
-          i++;
-        }
-        return null;
+        return findIifeArgForParam(wrapperPath, objectPattern);
       }
 
       // receiver node to swap; null means inline-default fallback. handles
       // `function({p} = R)` (AssignmentPattern.right) and arrow IIFE `(({p}) => body)(R)`
-      // (call-arg node, expanding inline-array spreads)
-      // unplugin-only counterpart of `findSynthSwapTargetPath` from babel-plugin/index.js;
-      // text-emission needs the receiver bounds to splice the synth swap, while babel mutates
-      // the AssignmentPattern.right node in place. duplication is intentional - the underlying
-      // operation differs (text vs AST), shared shape-checking already lives in `astHelpers`
+      // (call-arg node, expanding inline-array spreads).
+      // mirrors babel-plugin's `findSynthSwapTargetPath` and the resolution-layer narrowing:
+      // caller-arg replaces wrapper-default ONLY when statically classifiable (Identifier).
+      // for non-Identifier caller-arg, wrapper-default remains the synth target so the
+      // runtime fallback path carries the polyfill
       function findSynthSwapReceiver(wrapperPath, objectPattern) {
         if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
         const wrapper = wrapperPath?.node;
         if (wrapper?.type === 'AssignmentPattern'
           && wrapper.left === objectPattern
-          && wrapper.right?.type === 'Identifier') return wrapper.right;
+          && wrapper.right?.type === 'Identifier') {
+          const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
+          return isClassifiableReceiverArg(argReceiver) ? argReceiver : wrapper.right;
+        }
         const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
-        return argReceiver?.type === 'Identifier' ? argReceiver : null;
+        return isClassifiableReceiverArg(argReceiver) ? argReceiver : null;
       }
 
       // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
