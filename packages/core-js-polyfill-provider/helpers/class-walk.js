@@ -355,7 +355,10 @@ export function createClassHelpers(t, adapter, resolveKey) {
   };
 }
 
-// convert Symbol.X key to kebab-case entry: Symbol.hasInstance -> symbol/has-instance
+// convert Symbol.X key to kebab-case entry: Symbol.hasInstance -> symbol/has-instance.
+// pure string transform - DOES NOT validate that the entry actually exists in the user's
+// namespace (es / esnext / proposals vary). callers must validate via the resolver before
+// treating the result as a real polyfill candidate
 export function symbolKeyToEntry(key) {
   if (!key?.startsWith('Symbol.')) return null;
   const prop = key.slice(7);
