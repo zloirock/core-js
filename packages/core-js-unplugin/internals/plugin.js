@@ -1828,6 +1828,16 @@ export default function createPlugin(options) {
           replaceInstance(binding, node, parent, metaPath);
         } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
           replaceGlobalOrStatic(binding, node, parent, metaPath, meta.sideEffects);
+          // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`).
+          // without seeding skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol`
+          // transform whose needle composes into the outer's `_Symbol$iterator` replacement as
+          // `__Symbol$iterator` (substring `Symbol` inside the outer's emit gets re-prefixed).
+          // peels parens + SE-tail unconditionally - SE-prefix is preserved via `meta.sideEffects`,
+          // so the receiver Identifier we want to suppress is at the deepest tail position
+          if (node.type === 'MemberExpression') {
+            const inner = unwrapInitValue(node.object);
+            if (inner?.type === 'Identifier') skippedNodes.add(inner);
+          }
         }
       };
 
