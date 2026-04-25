@@ -42,8 +42,18 @@ export function isEntryPattern(pattern) {
 // serialize a value for a diagnostic, shielding callers from `JSON.stringify` throws:
 // circular references, BigInt, and adversarial Proxy traps (`getOwnPropertyDescriptor`,
 // `ownKeys`) would all otherwise mask the primary type error being reported. fall back
-// to `[Object]` on failure. shared across validation paths in `plugin-options` and here
+// to `[Object]` on failure. shared across validation paths in `plugin-options` and here.
+// edge values that JSON.stringify renders as `null` / drops (NaN, Infinity, Symbol, BigInt,
+// function) get explicit native-toString to keep the diagnostic distinguishable
 export function safeStringify(value) {
+  if (typeof value === 'symbol') return value.toString();
+  if (typeof value === 'bigint') return `${ value }n`;
+  if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
+  if (typeof value === 'function') {
+    let name = '';
+    try { name = typeof value.name === 'string' && value.name ? ` ${ value.name }` : ''; } catch { /* swallow */ }
+    return `[Function${ name }]`;
+  }
   try {
     return JSON.stringify(value);
   } catch {

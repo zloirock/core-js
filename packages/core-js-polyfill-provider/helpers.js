@@ -14,8 +14,10 @@ export {
   isDeleteTarget,
   isForXWriteTarget,
   isASTNode,
+  isAmbientTypeDeclaration,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
+  isMemberWriteOnlyContext,
   isTypeOnlyImportEquals,
   isInUpdateOperand,
   isSingleNestedProxyChain,
@@ -35,6 +37,7 @@ export {
   unwrapExportedDeclaration,
   unwrapInitValue,
   unwrapParens,
+  unwrapRuntimeExpr,
   walkPatternIdentifiers,
 } from './helpers/ast-patterns.js';
 export {

@@ -48,7 +48,7 @@ const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);
 const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `import _Foo from 'core-js/pure/symbol/iterator'` - extract Symbol key from polyfill path.
 // `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers)
-const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\.[cm]?js)?$/;
+const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.[cm]?js)?$/;
 
 // true when `node` binds the module's default export (either as default specifier or
 // as named `default` re-export). namespace bindings and other named specifiers reject -
