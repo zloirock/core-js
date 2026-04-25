@@ -238,18 +238,58 @@ export function createClassHelpers(t, adapter, resolveKey) {
     return null;
   }
 
-  // unified "what global name does this expression resolve to?" primitive. covers every
-  // super-class shape the plugin recognises:
-  //  - bare Identifier (`extends Promise`) / identifier alias chain (`const X = Promise`)
-  //  - proxy-global member chain (`extends globalThis.Promise`, `extends self.window.Map`)
+  // bare Identifier -> static container (ClassDeclaration / ClassExpression / ObjectExpression
+  // reached through `const X = ...`). null when binding is missing, mutated, or the init
+  // doesn't peel down to something `findNamespaceMemberValue` can index. seen-Set guards
+  // the alias chain `const A = B; const B = A` from infinite recursion
+  function bindingContainerValue(name, scope, seen) {
+    if (seen.has(name)) return null;
+    seen.add(name);
+    const binding = scope?.getBinding?.(name);
+    if (!binding || binding.constantViolations?.length) return null;
+    const declNode = binding.path?.node;
+    return declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression'
+      ? declNode
+      : unwrapInitForResolution(declNode?.init);
+  }
+
+  // member access value lookup: resolve outer to a container, look up the leaf property.
+  // returns the property's value node (Identifier alias / nested namespace / etc.) or null.
+  // shared by `resolveToContainer` (which recurses on the value to keep walking down the
+  // chain) and `resolveBindingToGlobalName` (which feeds the value back through itself to
+  // map to a global name). leaf-key resolution accepts computed/literal/const-alias chains
+  function resolveMemberAccess(memberNode, scope, seen) {
+    const propName = resolveKey(memberNode.property, memberNode.computed, scope, adapter);
+    if (!propName) return null;
+    const outer = resolveToContainer(memberNode.object, scope, seen);
+    if (!outer) return null;
+    return findNamespaceMemberValue(outer, propName);
+  }
+
+  // any expression -> namespace container that `findNamespaceMemberValue` can index by name.
+  // handles bare Identifier (lookup), nested member chain (recurse + property lookup), direct
+  // container literals. null when no static container is reachable
+  function resolveToContainer(node, scope, seen) {
+    const peeled = unwrapRuntimeExpr(node);
+    if (peeled?.type === 'Identifier') return bindingContainerValue(peeled.name, scope, seen);
+    if (peeled?.type === 'MemberExpression' || peeled?.type === 'OptionalMemberExpression') {
+      const value = resolveMemberAccess(peeled, scope, seen);
+      return value ? resolveToContainer(value, scope, seen) : null;
+    }
+    // direct container - inline `({Promise}).Promise`. rare but free via the same path
+    if (peeled?.type === 'ClassExpression' || peeled?.type === 'ObjectExpression') return peeled;
+    return null;
+  }
+
+  // unified "what global name does this expression resolve to?" primitive. covers:
+  //  - bare Identifier (`extends Promise`) / alias chain (`const X = Promise`)
+  //  - proxy-global member chain (`extends globalThis.Promise`)
   //  - user-namespace object literal (`const NS = { Promise }; extends NS.Promise`)
   //  - static class-as-namespace (`class Box { static Promise = Promise }; extends Box.Promise`)
-  //  - compositions through any of the above (`const NS = { P: globalThis.Promise }; NS.P`)
-  // returns the canonical global name (`'Promise'`, `'Map'`, ...) or null on failure.
-  // recursive over property values so nested namespaces and alias chains compose naturally.
-  // `seen` is threaded through so mutually-recursive aliases (`const A = NS.P; const NS = { P: A }`)
-  // don't stack-overflow via cross-calls to `resolveSuperClassName` - both functions share
-  // a single cycle-detection Set for the whole walk
+  //  - any composition / N-level nesting through the above
+  // returns the canonical global name or null. `seen` threads through `resolveSuperClassName`
+  // and `resolveToContainer` so mutually-recursive aliases (`const A = NS.P; const NS = {P:A}`)
+  // share one cycle-detection Set across all hops
   function resolveBindingToGlobalName(node, scope, seen = new Set()) {
     const peeled = unwrapRuntimeExpr(node);
     if (peeled?.type === 'Identifier') return resolveSuperClassName(peeled.name, scope, seen);
@@ -257,23 +297,9 @@ export function createClassHelpers(t, adapter, resolveKey) {
     // proxy-global root (`globalThis.X`, `self.window.X`) - walker returns the leaf key
     const proxyKey = globalProxyMemberName(peeled, scope, adapter);
     if (proxyKey !== null) return proxyKey;
-    // namespace-member lookup requires a bare-Identifier root. `(expr).prop` / call-result
-    // roots bail: would need runtime evaluation. the key itself can be computed/literal/
-    // const-alias chain - delegated to `resolveKey` for uniform resolution
-    if (peeled.object?.type !== 'Identifier') return null;
-    const propName = resolveKey(peeled.property, peeled.computed, scope, adapter);
-    if (!propName) return null;
-    const binding = scope?.getBinding?.(peeled.object.name);
-    if (!binding || binding.constantViolations?.length) return null;
-    // class binding: decl node IS the container (no init step). var binding: peel decl.init
-    // down to the container. both ClassExpression + ObjectExpression handled uniformly below
-    const declNode = binding.path?.node;
-    const container = declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression'
-      ? declNode
-      : unwrapInitForResolution(declNode?.init);
-    const value = findNamespaceMemberValue(container, propName);
-    // recurse: member value can be any shape the outer resolver handles (Identifier alias,
-    // nested proxy-global, another namespace member) - composition falls out for free
+    // namespace-member chain - feed leaf value back through self so deeper namespaces /
+    // alias chains / proxy-globals compose naturally
+    const value = resolveMemberAccess(peeled, scope, seen);
     return value ? resolveBindingToGlobalName(value, scope, seen) : null;
   }
 
