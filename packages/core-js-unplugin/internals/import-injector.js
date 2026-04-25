@@ -160,8 +160,18 @@ export default class ImportInjector extends ImportInjectorState {
     const block = `${ lines.join('\n') }\n`;
     // MagicString can't source-map appended content, so this block is synthetic in the map
     const insertPos = this.#prologueEnd();
-    if (insertPos > 0) this.#ms.appendRight(insertPos, block);
-    else this.#ms.prepend(block);
+    if (insertPos > 0) {
+      // sibling plugin may overwrite a range that contains prologueEnd, leaving no chunk
+      // boundary at insertPos for appendRight to attach to. fall through to prepend so the
+      // imports still emit (loses the post-shebang/post-directive position but keeps the
+      // build alive). throwing here would surface as opaque "already edited" deep in
+      // MagicString without naming the cause
+      try {
+        this.#ms.appendRight(insertPos, block);
+      } catch {
+        this.#ms.prepend(block);
+      }
+    } else this.#ms.prepend(block);
   }
 
   // `import "…"` / `var X = require("…")` - dispatched by `importStyle`. side-effect-only

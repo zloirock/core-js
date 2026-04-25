@@ -310,6 +310,26 @@ function checkFlushPastChainedComments() {
 }
 checkFlushPastChainedComments();
 
+// sibling plugin may overwrite a range that contains the prologueEnd insertion point.
+// `appendRight` then throws "Cannot split a chunk that has already been edited"; the build
+// dies with a stack pointing into MagicString rather than the import emission. fallback to
+// `prepend` lets the build continue with imports at the head (loses post-shebang/post-directive
+// position but that's strictly better than a hard crash)
+function checkFlushFallsBackOnEditedRange() {
+  const src = '/* large header comment that the sibling plugin overwrites */\nfoo();';
+  const ms = new MagicString(src);
+  // simulate sibling plugin overwriting a range that contains prologueEnd (index 62 here)
+  ms.overwrite(0, 62, '/* z */');
+  const inj = new ImportInjector({ mode: 'actual', pkg: 'core-js', ms });
+  inj.globalImports.add('es.promise.try');
+  // must not throw despite the overlap
+  inj.flush();
+  const out = ms.toString();
+  check('flush/falls back when prologueEnd inside overwritten range',
+    out.includes('import "core-js/modules/es.promise.try"'), true);
+}
+checkFlushFallsBackOnEditedRange();
+
 // --- ImportInjector dedup behaviour ---
 // mixed `import Def, { default as Alt }` registers Def first (default specifier comes before
 // named in source order). last-write-wins on `existingPureImports` would pick `Alt` as dedup
