@@ -36,7 +36,29 @@ function nextSuffixFromName(name, prefix) {
 }
 
 // import-emitter state; each plugin subclasses and implements `flush()`.
-// augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass
+// augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass.
+//
+// subclass contract:
+//   abstract: flush() - emit collected imports/refs into the AST or text-rewrite queue;
+//             called at programExit. base class never invokes it - pure data sink.
+//   abstract: generateLocalRef() / generateDeclaredRef() - return an Identifier-shaped ref
+//             allocated via this.uniqueName('_ref'). babel returns t.identifier(name);
+//             unplugin returns the bare string. callers MUST treat the return value as
+//             plugin-specific (not interchangeable across subclasses).
+//   override-friendly: registerUserPureImport, registerUserGlobalImport, addPureImport,
+//             addGlobalImport - call super.X() then layer subclass bookkeeping (refs,
+//             post-rename, sibling-plugin tracking).
+//   private (DO NOT touch): #importInfoByName, #flushedRefs, #nextSuffixByPrefix - state
+//             owned by base; manipulated only via captureSuffixState / rehydrateSuffixState
+//             / captureImportInfoByName / rehydrateImportInfoByName for pre+post handoff.
+//
+// shared invariants:
+//   - usedNames is single source-of-truth for collision detection. uniqueName consults it
+//     plus subclass-supplied extraCheck (e.g. babel's program.references / scope.hasBinding,
+//     unplugin's collectAllBindingNames Set)
+//   - #refs (subclass field) tracks plugin-allocated refs for orphan adoption + rename
+//   - existingPureImports / existingGlobalImports populated via scanExistingCoreJSImports
+//     in pre-pass; readers don't write
 export default class ImportInjectorState {
   absoluteImports;
   mode;
