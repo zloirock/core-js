@@ -109,8 +109,13 @@ const STATEMENT_WRAPPERS = new Set([
   'TSModuleBlock',
 ]);
 
-function findStatementEndLine(node, targetLine, offsetToLine) {
-  if (!isASTNode(node)) return null;
+// depth cap mirrors `resolve-node-type.MAX_DEPTH=64`. directive scan walks AST nodes
+// only (filtered by isASTNode), but pathological deeply-nested input still risks stack
+// overflow without a guard. silent truncation > crash here - directive can lose end-line
+// span on deep trees but disable-next-line still works (line itself is added to `lines`)
+const FIND_STATEMENT_MAX_DEPTH = 64;
+function findStatementEndLine(node, targetLine, offsetToLine, depth = 0) {
+  if (depth > FIND_STATEMENT_MAX_DEPTH || !isASTNode(node)) return null;
   const lines = nodeLineSpan(node, offsetToLine);
   if (!lines || lines.start > targetLine || lines.end < targetLine) return null;
   if (lines.start === targetLine && !STATEMENT_WRAPPERS.has(node.type)) return lines.end;
@@ -121,11 +126,11 @@ function findStatementEndLine(node, targetLine, offsetToLine) {
     const child = node[key];
     if (Array.isArray(child)) {
       for (const c of child) if (isASTNode(c)) {
-        const found = findStatementEndLine(c, targetLine, offsetToLine);
+        const found = findStatementEndLine(c, targetLine, offsetToLine, depth + 1);
         if (found) return found;
       }
     } else if (isASTNode(child)) {
-      const found = findStatementEndLine(child, targetLine, offsetToLine);
+      const found = findStatementEndLine(child, targetLine, offsetToLine, depth + 1);
       if (found) return found;
     }
   }
