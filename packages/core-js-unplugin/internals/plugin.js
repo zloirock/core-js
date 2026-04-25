@@ -336,7 +336,12 @@ export default function createPlugin(options) {
     // usage-global mode
     if (method === 'usage-global') {
       const usageGlobalCallback = createUsageGlobalCallback({
-        resolveUsage, injectModulesForModeEntry, isDisabled, resolveStaticInheritedMember,
+        resolveUsage,
+        injectModulesForModeEntry,
+        isDisabled,
+        resolveStaticInheritedMember,
+        isInheritedStaticLookup,
+        isShadowedByClassOwnMember,
       });
 
       const usageVisitors = createUsageVisitors({
@@ -539,7 +544,9 @@ export default function createPlugin(options) {
       function varScopeAnchor(node) {
         const { type, body } = node;
         if (type === 'StaticBlock') {
-          // `static /*{*/ {` -> skip past `static` + any gap before `{`
+          // `static /*{*/ {` -> skip past `static` + any gap before `{`. skipGap handles
+          // whitespace and block/line comments (including ones containing `{` like `/*{*/`),
+          // so a naive `indexOf('{')` would pick the wrong brace
           return { statements: body, insertPos: skipGap(code, node.start + 'static'.length) + 1 };
         }
         if (type === 'BlockStatement') return { statements: node.body, insertPos: node.start + 1 };
@@ -723,9 +730,11 @@ export default function createPlugin(options) {
         // closing `)` is the last char of the call expression range
         const closeParen = callNode.end - 1;
         if (code[closeParen] !== ')') return null;
-        // skip any `?.` between the callee and `(` (OptionalCallExpression: `foo?.()`),
-        // plus whitespace and comments on either side of it
-        const openParen = skipGap(code, afterOptional(callNode.callee.end, false));
+        // skip past TS type arguments (`arr.at<number>(-1)` - oxc puts them on `typeArguments`),
+        // any `?.` between the callee and `(` (OptionalCallExpression: `foo?.()`), plus
+        // whitespace and comments on either side of it
+        const afterCallee = callNode.typeArguments?.end ?? callNode.callee.end;
+        const openParen = skipGap(code, afterOptional(afterCallee, false));
         if (code[openParen] !== '(') return null;
         return code.slice(openParen + 1, closeParen);
       }
@@ -979,11 +988,14 @@ export default function createPlugin(options) {
       function findSynthSwapReceiver(wrapperPath, objectPattern) {
         if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
         const wrapper = wrapperPath?.node;
-        if (wrapper?.type === 'AssignmentPattern'
-          && wrapper.left === objectPattern
-          && wrapper.right?.type === 'Identifier') {
-          const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
-          return isClassifiableReceiverArg(argReceiver) ? argReceiver : wrapper.right;
+        if (wrapper?.type === 'AssignmentPattern' && wrapper.left === objectPattern) {
+          // oxc preserves `ParenthesizedExpression` around the default; babel strips it.
+          // peel here so `function f({from} = (Array))` matches bare-`Array` synth-swap path
+          const peeled = unwrapParens(wrapper.right);
+          if (peeled?.type === 'Identifier') {
+            const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
+            return isClassifiableReceiverArg(argReceiver) ? argReceiver : peeled;
+          }
         }
         const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
         return isClassifiableReceiverArg(argReceiver) ? argReceiver : null;
@@ -996,6 +1008,11 @@ export default function createPlugin(options) {
       function handleParameterDestructurePure(meta, metaPath, propNode) {
         const { value } = propNode;
         if (!isIdentifierPropValue(value)) return;
+        // `function f({from} = cond ? Array : Set)` / `Array || Set` - runtime picks at call
+        // time, so a static polyfill choice would mis-bind one branch. handleDestructuringPure
+        // already filters this case before dispatch (`if (meta.fromFallback) return`); replicate
+        // here so the function-param path doesn't emit inline-default that aliases the fallback
+        if (meta.fromFallback) return;
         const isAssign = value.type === 'AssignmentPattern';
         const pureResult = resolvePure(meta, metaPath);
         if (!pureResult || pureResult.kind === 'instance') return;

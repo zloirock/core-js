@@ -94,7 +94,11 @@ export function findIifeCallSite(fnParentPath, paramNode) {
     callPath = callPath.parentPath;
   }
   const callNode = callPath?.node;
-  if (callNode?.type !== 'CallExpression' && callNode?.type !== 'NewExpression') return null;
+  // OptionalCallExpression: babel emits a distinct node for `(...)?.(args)`; unplugin (oxc)
+  // wraps a CallExpression with `optional: true` in ChainExpression which the wrapper-peel
+  // above handles. accept both shapes so IIFE detection fires symmetrically across parsers
+  if (callNode?.type !== 'CallExpression' && callNode?.type !== 'NewExpression'
+    && callNode?.type !== 'OptionalCallExpression') return null;
   let { callee } = callNode;
   while (callee && callee !== fnNode
     && (IIFE_CALLEE_WRAPPERS.has(callee.type) || TS_EXPR_WRAPPERS.has(callee.type))) {
@@ -127,6 +131,33 @@ export function isClassifiableReceiverArg(node) {
 // callers use this predicate to filter out type-only bindings from shadow checks
 export function isTypeOnlyImportEquals(node) {
   return node?.type === 'TSImportEqualsDeclaration' && node.importKind === 'type';
+}
+
+// MemberExpression in a position where the prototype-method polyfill can be skipped because
+// the receiver method is never read at runtime: pure assignment (`obj.at = v`), destructure-LHS
+// (`({a: obj.at} = src)`), destructure-LHS-with-default (`({a: obj.at = 1} = src)`).
+// compound `+=` / `||=` / `??=` and `obj.at++` still read LHS - excluded here. ESTree uses
+// 'Property' for object-pattern slots; babel uses 'ObjectProperty' - both accepted
+export function isMemberWriteOnlyContext(member, parent, grandparent) {
+  if (!member || !parent) return false;
+  if (parent.type === 'AssignmentExpression' && parent.left === member && parent.operator === '=') return true;
+  if (parent.type === 'AssignmentPattern' && parent.left === member) return true;
+  if ((parent.type === 'ObjectProperty' || parent.type === 'Property')
+    && parent.value === member && grandparent?.type === 'ObjectPattern') return true;
+  return false;
+}
+
+// ambient declarations (`declare class X`, `declare function X`, `declare const X`,
+// `declare module X`, `declare enum X`, TSDeclareFunction, TSDeclareMethod, type aliases,
+// interfaces) - elided by tsc before runtime; references resolve to the global. estree-toolkit
+// and babel scope trackers register the binding anyway; callers filter via this predicate
+export function isAmbientTypeDeclaration(node) {
+  if (!node) return false;
+  if (node.type === 'TSDeclareFunction' || node.type === 'TSDeclareMethod') return true;
+  if (node.type === 'TSInterfaceDeclaration' || node.type === 'TSTypeAliasDeclaration') return true;
+  if (isTypeOnlyImportEquals(node)) return true;
+  if (node.declare === true) return true;
+  return false;
 }
 
 // declarations that introduce a runtime binding the plugin must respect as a shadow:
