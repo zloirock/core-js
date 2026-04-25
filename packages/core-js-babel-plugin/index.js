@@ -871,7 +871,10 @@ export default function plugin(api, options) {
           path.traverse({
             Identifier(idPath) {
               if (!idPath.isReferencedIdentifier()) return;
-              if (idPath.scope.getBindingIdentifier(idPath.node.name)) return;
+              // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
+              // estree-toolkit & babel scope miss (`enum`, `namespace`, `const enum`,
+              // `import X = require()`) plus type-only TSImportEquals filtering
+              if (adapter.hasBinding(idPath.scope, idPath.node.name)) return;
               // post-sweep is usage-pure only, so skip unconditionally (same rationale as
               // primary-pass `skipUpdateTargets`): rewrite to frozen import binding invalid
               if (isInUpdateOperand(idPath.parentPath)) return;
