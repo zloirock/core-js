@@ -1,5 +1,5 @@
 import { parseSync } from 'oxc-parser';
-import { TraceMap } from '@jridgewell/trace-mapping';
+import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 
 const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
@@ -138,7 +138,9 @@ function inferTestId(babelOptions) {
 
 // sourcemap check: structural shape + VLQ decode. segments that round-trip to null
 // sources are fine (entry-global emits all-synthetic output; user-code line mappings
-// survive in usage-*). catches empty-mappings / malformed VLQ / missing sources
+// survive in usage-*). catches malformed VLQ / missing sources / wrong-typed names
+// and sourcesContent. empty `mappings` is permitted - entry-global with exclude-all
+// emits no transforms and the resulting blank map is a legitimate pass-through
 function checkSourceMapShape(directory, map) {
   if (!map) return true;
   const reject = msg => {
@@ -152,8 +154,12 @@ function checkSourceMapShape(directory, map) {
   if (map.sourcesContent !== undefined && !Array.isArray(map.sourcesContent)) {
     return reject('sourcesContent is not an array');
   }
+  if (map.names !== undefined && !Array.isArray(map.names)) return reject('names is not an array');
   try {
-    new TraceMap(map);
+    const tm = new TraceMap(map);
+    // TraceMap parses lazily - touch a known position to force VLQ decode and surface
+    // malformed tokens that the constructor accepted blindly
+    if (map.mappings) originalPositionFor(tm, { line: 1, column: 0 });
   } catch (error) {
     return reject(`VLQ decode failed: ${ error.message }`);
   }

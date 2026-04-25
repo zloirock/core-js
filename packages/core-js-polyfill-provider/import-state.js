@@ -114,13 +114,11 @@ export default class ImportInjectorState {
 
   registerUserPureImport(entry, name) {
     const source = `${ this.mode }/${ entry }`;
-    // existingPureImports + usedNames are idempotent - refresh them on re-registration so
-    // dedup / UID allocation always reflect the last-scanned user import, even when the
-    // name-keyed `#importInfoByName` is pinned to its first entry for super-mapping stability
-    this.existingPureImports.set(source, name);
     this.usedNames.add(name);
-    // first-write-wins on #importInfoByName - sibling AST transforms could re-register `name`
-    // with a different source; keeping the first keeps downstream super-mapping deterministic
+    // first-write-wins on both maps - keeps dedup target stable when one declaration mixes
+    // `import Def, { default as Alt }`. without it last-write-wins would pick the alias as
+    // dedup target, which is asymmetric with `#importInfoByName` (also first-write-wins below)
+    if (!this.existingPureImports.has(source)) this.existingPureImports.set(source, name);
     if (this.#importInfoByName.has(name)) return;
     // binding -> global hint lets `resolveSuperImportName` find `statics.Promise.try` for
     // `import MyPromise from '@core-js/pure/actual/promise'`; source feeds the adapter's
