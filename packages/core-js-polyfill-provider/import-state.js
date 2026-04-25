@@ -35,6 +35,15 @@ function nextSuffixFromName(name, prefix) {
   return null;
 }
 
+// pick the suffix `findUniqueName` should start probing from. bare-slot reclaim: when the
+// cache was seeded past 2 by snapshot inherit / orphan adoption but bare itself is still
+// free (e.g. HMR re-parse of user-edited source dropped `_ref` declaration leaving `_ref2+`),
+// prefer bare so output stays canonical (`_ref, _ref2, ...`). otherwise resume from cache
+function chooseStartSuffix(cached, prefix, isTaken) {
+  if (cached >= 2 && !isTaken(prefix)) return null;
+  return cached ?? null;
+}
+
 // import-emitter state; each plugin subclasses and implements `flush()`.
 // augment via `super.foo()` overrides - plugin-specific bookkeeping stays in the subclass.
 //
@@ -187,16 +196,18 @@ export default class ImportInjectorState {
 
   uniqueName(prefix, extraCheck) {
     const cached = this.#nextSuffixByPrefix.get(prefix);
-    const startSuffix = cached ?? null;
-    const name = findUniqueName(prefix, startSuffix,
-      n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false));
+    const isTaken = n => this.isNameTaken(n) || (extraCheck ? extraCheck(n) : false);
+    const startSuffix = chooseStartSuffix(cached, prefix, isTaken);
+    const name = findUniqueName(prefix, startSuffix, isTaken);
     this.usedNames.add(name);
     // bare reserves slot 1 so next call skips `_hint1` (babel skip-1); numbered advances.
     // non-numeric tails (e.g. a subclass overrode `findUniqueName` to return `_ref_foo`)
     // would NaN-poison the cache through `+slice` - leave the slot untouched so the next
-    // call re-probes from the prior position
+    // call re-probes from the prior position.
+    // bare-after-numbered-cached: don't shrink cached max; preserves monotonic numbering
+    // when allocator returns bare via the bare-slot reclaim above
     const next = nextSuffixFromName(name, prefix);
-    if (next !== null) this.#nextSuffixByPrefix.set(prefix, next);
+    if (next !== null && next > (cached ?? 0)) this.#nextSuffixByPrefix.set(prefix, next);
     return name;
   }
 
