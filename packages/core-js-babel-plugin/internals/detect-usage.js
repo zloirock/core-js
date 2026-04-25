@@ -21,6 +21,7 @@ import {
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isTSTypeOnlyIdentifierPath,
+  isTypeOnlyImportEquals,
   unwrapInitValue,
 } from '@core-js/polyfill-provider/helpers';
 
@@ -49,7 +50,15 @@ const stringLiteralValue = node => {
 export function createBabelAdapter(getInjector = () => null) {
   return {
     hasBinding(scope, name) {
-      return !!scope.getBindingIdentifier(name) || !!getInjector()?.getBindingInfo(name);
+      // shortcut via the cheaper getBindingIdentifier; preserves compat with stub scopes
+      // (`REQUIRE_SHADOWED_SCOPE`) that expose only this method, no full `getBinding`
+      if (!scope.getBindingIdentifier(name)) return !!getInjector()?.getBindingInfo(name);
+      // type-only `import X = require(...)` is elided by tsc - references at runtime
+      // resolve to the global, so it doesn't shadow for polyfill purposes. consult full
+      // binding only when API exposes it (real babel scopes do; stubs don't)
+      const b = scope.getBinding?.(name);
+      if (b && isTypeOnlyImportEquals(b.path.node)) return !!getInjector()?.getBindingInfo(name);
+      return true;
     },
     getBinding(scope, name) {
       // `polyfillHint` lets `resolveBindingToGlobal` walk back to the source global through:
@@ -125,14 +134,19 @@ export function createUsageVisitors({
         && path.parentPath?.key === 'name';
       if (!isOpeningTag && !isMemberRoot) return;
     }
-    // TS type-only positions: `type X = …` / `interface X {…}` ids and `export { type X }`
-    // specifiers. babel's `isReferencedIdentifier` marks them as referenced, but no runtime
-    // binding exists - polyfilling is pure over-injection (and breaks TS output for exports)
+    // TS type-only positions: `type X = …` / `interface X {…}` / `import type X = require(...)`
+    // ids and `export { type X }` / `import type { X }` specifiers. babel's
+    // `isReferencedIdentifier` marks them as referenced, but no runtime binding exists -
+    // polyfilling is pure over-injection (and breaks TS output for exports / duplicates the
+    // import LHS for TSImportEquals)
     if (isTSTypeOnlyIdentifierPath(path)) return;
     // UpdateExpression operand (Map++, --Map, Map!++, (Map)++) - gate see `skipUpdateTargets`
     if (skipUpdateTargets && isInUpdateOperand(path.parentPath)) return;
     const { node } = path;
-    if (path.scope.getBindingIdentifier(node.name)) {
+    // adapter.hasBinding folds in two filters: skips type-only TSImportEquals (elided by
+    // tsc - runtime resolves to global) and recognises plugin-managed bindings (pure-import
+    // aliases, global destructure aliases). single check, parity with unplugin's visitor
+    if (adapter.hasBinding(path.scope, node.name)) {
       // self-reference `var X = X` - hoisted var init references its own name, which at
       // runtime reads from the outer (global) scope before the local is assigned. narrow
       // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
