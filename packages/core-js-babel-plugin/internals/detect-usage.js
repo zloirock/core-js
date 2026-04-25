@@ -17,6 +17,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
+  getTSRuntimeBindings,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
@@ -50,15 +51,21 @@ const stringLiteralValue = node => {
 export function createBabelAdapter(getInjector = () => null) {
   return {
     hasBinding(scope, name) {
-      // shortcut via the cheaper getBindingIdentifier; preserves compat with stub scopes
-      // (`REQUIRE_SHADOWED_SCOPE`) that expose only this method, no full `getBinding`
-      if (!scope.getBindingIdentifier(name)) return !!getInjector()?.getBindingInfo(name);
-      // type-only `import X = require(...)` is elided by tsc - references at runtime
-      // resolve to the global, so it doesn't shadow for polyfill purposes. consult full
-      // binding only when API exposes it (real babel scopes do; stubs don't)
-      const b = scope.getBinding?.(name);
-      if (b && isTypeOnlyImportEquals(b.path.node)) return !!getInjector()?.getBindingInfo(name);
-      return true;
+      // user-declared runtime bindings (var/let/const/function/class/import/TSImportEquals).
+      // `getBindingIdentifier` is narrow - `scope.hasBinding` would also fire for free-variable
+      // globals just by being seen (`const x = Map` makes `Map` "bound" globally), too coarse.
+      // type-only TSImportEquals is elided by tsc - references resolve to the global, so it
+      // doesn't shadow for polyfill purposes; fall through to runtime / injector checks
+      if (scope.getBindingIdentifier(name)) {
+        const b = scope.getBinding?.(name);
+        if (!b || !isTypeOnlyImportEquals(b.path.node)) return true;
+      }
+      // TS-runtime declarations babel scope doesn't expose via getBindingIdentifier:
+      // regular `enum`/`namespace`, `const enum`. helper excludes `declare X` (ambient,
+      // runtime supplied externally - polyfill should fire for legacy targets)
+      if (getTSRuntimeBindings(scope.getProgramParent?.()?.path?.node)?.has(name)) return true;
+      // plugin-managed pure-import alias / user destructure aliases
+      return !!getInjector()?.getBindingInfo(name);
     },
     getBinding(scope, name) {
       // `polyfillHint` lets `resolveBindingToGlobal` walk back to the source global through:
