@@ -316,7 +316,10 @@ export default function createPlugin(options) {
       // in `post` pass `ms.original` is pre-pass output, not the real source - omit
       // sourcesContent so the bundler chains through pre-pass map's content instead
       // of attributing pre-output as the claimed content of `id`
-      const map = ms.generateMap({ source: id, includeContent: pass !== 'post', hires: 'boundary' });
+      // `file` field is optional per spec but devtools and downstream chain consumers (e.g.
+      // bundler `combineSourceMaps`) rely on it for output filename hints; emit it on both
+      // pre and post passes so the chain stays self-describing
+      const map = ms.generateMap({ source: id, file: id, includeContent: pass !== 'post', hires: 'boundary' });
       // restore BOM in sourcesContent so devtools show the file with its on-disk byte
       // count. MagicString's `prepend` updates the output but the original source it
       // captured for `sourcesContent` is the BOM-stripped slice we passed in
