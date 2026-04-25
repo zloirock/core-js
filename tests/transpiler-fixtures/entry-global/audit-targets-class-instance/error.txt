@@ -1,1 +1,0 @@
-[BABEL] unknown file: `targets` must be a string, array, or plain object (received [CustomTargets] {"ie":11}) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
