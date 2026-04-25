@@ -16,6 +16,7 @@ import {
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
+  TS_EXPR_WRAPPERS,
   isASTNode,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
@@ -182,7 +183,8 @@ function buildDestructuringMeta(propNode, parentPath) {
     case 'RestElement':
     case 'CatchClause': break;
     default: {
-      // IIFE destructuring: !function ({ entries }) {} (Object)
+      // IIFE destructuring: !function ({ entries }) {} (Object). also covers TS-wrapped
+      // callees `((arrow) as any)(Object)` and ChainExpression-wrapped optional call sites
       const funcNode = parent.node;
       if (funcNode.type === 'FunctionExpression' || funcNode.type === 'ArrowFunctionExpression') {
         const paramIndex = funcNode.params?.indexOf(objectPattern.node);
@@ -190,7 +192,9 @@ function buildDestructuringMeta(propNode, parentPath) {
           let callPath = parent.parentPath;
           while (callPath?.node && (callPath.node.type === 'UnaryExpression'
             || callPath.node.type === 'SequenceExpression'
-            || callPath.node.type === 'ParenthesizedExpression')) {
+            || callPath.node.type === 'ParenthesizedExpression'
+            || callPath.node.type === 'ChainExpression'
+            || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
             callPath = callPath.parentPath;
           }
           const callNode = callPath?.node;
