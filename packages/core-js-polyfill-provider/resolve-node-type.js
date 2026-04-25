@@ -4780,7 +4780,7 @@ function createResolveNodeType(babelNodeType, t) {
         if (guards && (isConst
             || (!hasMutationAfterGuards(binding, path, name)
               && !hasMutationInCapturedFunction(binding)))) {
-          // stash the classification on the result - callers re-use it instead of re-deriving
+          // stash the classification on the result - callers reuse it instead of re-deriving
           result = { binding, guards, classification };
         }
       }
