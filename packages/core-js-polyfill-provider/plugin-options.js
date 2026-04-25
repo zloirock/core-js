@@ -160,16 +160,17 @@ function validateOptions({
   // positive whitelist for `targetsParser`: `function` / `boolean` / `number` / etc. trigger
   // opaque "Unknown browser query" from browserslist downstream - reject them here.
   // empty string silently triggers the browserslist-config fallback (`''` is falsy), which
-  // looks like an accidental mis-configuration rather than an intentional opt-out
+  // looks like an accidental mis-configuration rather than an intentional opt-out.
+  // any object (plain, class instance, Object.create, array, ...) passes through to
+  // `targetsParser` - shape validation is its concern, not the plugin's
   if (!isEmpty(targets)) {
-    if (typeof targets !== 'string' && !Array.isArray(targets) && !isPlainObject(targets)) {
-      throw optionTypeError('targets', 'a string, array, or plain object', targets);
+    if (typeof targets !== 'string' && typeof targets !== 'object') {
+      throw optionTypeError('targets', 'a string, array, or object', targets);
     }
     // empty string and empty array both silently fall back to browserslist defaults downstream,
     // which looks like accidental mis-configuration - reject symmetrically
-    const isEmptyArray = Array.isArray(targets) && targets.length === 0;
-    if (targets === '' || isEmptyArray) {
-      throw optionTypeError('targets', 'a non-empty string, array, or plain object', targets);
+    if (targets === '' || (Array.isArray(targets) && !targets.length)) {
+      throw optionTypeError('targets', 'a non-empty string, array, or object', targets);
     }
   }
 }
