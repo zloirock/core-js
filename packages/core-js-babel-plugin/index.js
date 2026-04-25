@@ -2,7 +2,9 @@ import {
   ESM_MARKER_TYPES,
   createClassHelpers,
   detectCommonJS,
+  findIifeCallSite,
   hasTopLevelESM,
+  isClassifiableReceiverArg,
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
@@ -186,45 +188,25 @@ export default function plugin(api, options) {
 
       // find the NodePath of the call-arg a bare-ObjectPattern IIFE param resolves to.
       // arrow-only on purpose - FunctionExpression IIFE would leak the synth into
-      // `arguments[i]`; arrow has no own `arguments` binding. expands inline-array spreads
-      // (`...[R]`) the same way `resolveCallArgument` does; non-literal spread returns null
+      // `arguments[i]`; arrow has no own `arguments` binding. shares wrapper-peel +
+      // callee-identity logic with resolution-layer via `findIifeCallSite`; only the
+      // path-iteration with inline-spread expansion + `unwrapSequenceTail` stays here
+      // (synth-swap needs Path for AST mutation, not just node)
       function detectIifeArgPath(wrapper, objectPattern) {
         if (!wrapper?.isArrowFunctionExpression()) return null;
-        const paramIndex = wrapper.node.params.indexOf(objectPattern.node);
-        if (paramIndex === -1) return null;
-        let callPath = wrapper.parentPath;
-        // peel transparent wrappers: `UnaryExpression` (`!`/`+`) and `SequenceExpression`
-        // (`(0, fn)`) + TS expression wrappers (`as` / `satisfies` / `!` TSNonNullExpression)
-        // + ChainExpression (ESTree optional-chain wrap) so `((arrow) as any)()` still
-        // recognises as IIFE. without these peels, callee === wrapper.node check below fails
-        while (callPath?.isUnaryExpression() || callPath?.isSequenceExpression()
-          || TS_EXPR_WRAPPERS.has(callPath?.node?.type)
-          || callPath?.node?.type === 'ChainExpression') {
-          callPath = callPath.parentPath;
-        }
-        if (!callPath?.isCallExpression() && !callPath?.isNewExpression()) return null;
-        // distinguish IIFE (`(arrow)(R)`) from "arrow is an arg of some other call" (`dec(arrow)`):
-        // only treat arrow as IIFE when the callee (after own unwrap chain) is the arrow itself.
-        // `callee?.expression !== wrapper.node` fallback covers single-layer transparent wrappers
-        // not yet peeled by the outer loop - e.g. ParenthesizedExpression, ChainExpression
-        let { callee } = callPath.node;
-        while (callee && callee !== wrapper.node
-          && (callee.type === 'ParenthesizedExpression' || callee.type === 'ChainExpression'
-            || TS_EXPR_WRAPPERS.has(callee.type))) {
-          callee = callee.expression;
-        }
-        if (callee !== wrapper.node) return null;
+        const site = findIifeCallSite(wrapper, objectPattern.node);
+        if (!site) return null;
         let i = 0;
-        for (const aP of callPath.get('arguments')) {
+        for (const aP of site.callPath.get('arguments')) {
           if (aP.isSpreadElement()) {
             if (!aP.get('argument').isArrayExpression()) return null;
             for (const elP of aP.get('argument').get('elements')) {
-              if (i === paramIndex) return unwrapSequenceTail(elP);
+              if (i === site.paramIndex) return unwrapSequenceTail(elP);
               i++;
             }
             continue;
           }
-          if (i === paramIndex) return unwrapSequenceTail(aP);
+          if (i === site.paramIndex) return unwrapSequenceTail(aP);
           i++;
         }
         return null;
@@ -242,20 +224,21 @@ export default function plugin(api, options) {
 
       // NodePath whose `.node` becomes the synth object; null means inline-default fallback.
       // handles `function({p} = R)` (wrapper.right) and arrow IIFE `(({p}) => body)(R)`
-      // (call-arg path, expanding inline-array spreads)
+      // (call-arg path, expanding inline-array spreads).
+      // mirrors the resolution-layer narrowing in detect-usage.js: caller-arg replaces
+      // wrapper-default ONLY when caller-arg is statically classifiable (Identifier). for
+      // non-Identifier caller-arg (`(...)(globalThis.X)`, `(...)(call())`) wrapper-default
+      // remains the synth target, which makes the runtime fallback path (caller-arg evaluates
+      // to undefined -> wrapper-default fires) carry the polyfill
       function findSynthSwapTargetPath(wrapper, objectPattern) {
         if (objectPattern.node.properties.some(p => t.isRestElement(p))) return null;
-        // `(({p} = def) => body)(R)` - arrow IIFE where the param has a default. caller's
-        // `R` wins at runtime: default `def` never fires (assuming R is defined). rewriting
-        // `def` to a synth object would bind `p` to a polyfill resolved against `def`'s
-        // shape, while runtime picks props from `R`'s shape - different polyfill target.
-        // bail to inline-default here so `{p = _polyfill}` stays aligned regardless of which
-        // side of the default runtime picks
         if (wrapper?.isAssignmentPattern() && t.isIdentifier(wrapper.node.right)) {
-          return detectIifeArgPath(wrapper.parentPath, wrapper) ? null : wrapper.get('right');
+          const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
+          if (argPath && isClassifiableReceiverArg(argPath.node)) return argPath;
+          return wrapper.get('right');
         }
         const argPath = detectIifeArgPath(wrapper, objectPattern);
-        return argPath && t.isIdentifier(argPath.node) ? argPath : null;
+        return argPath && isClassifiableReceiverArg(argPath.node) ? argPath : null;
       }
 
       // parameter destructure polyfill. only static/global fit here; instance methods need a
