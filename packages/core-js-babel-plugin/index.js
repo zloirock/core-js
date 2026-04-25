@@ -746,7 +746,13 @@ export default function plugin(api, options) {
 
       const isPure = method === 'usage-pure';
       const usageCallback = isPure ? usagePureCallback : usageGlobalCallback;
-      const commonVisitorOptions = { adapter, onUsage: usageCallback, onWarning: message => debugOutput?.warn(message), method };
+      const commonVisitorOptions = {
+        adapter,
+        onUsage: usageCallback,
+        onWarning: message => debugOutput?.warn(message),
+        method,
+        isEntryAvailable: isEntryNeeded,
+      };
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
         suppressProxyGlobals: isPure,
