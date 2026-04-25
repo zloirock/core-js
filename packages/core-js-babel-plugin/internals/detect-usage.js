@@ -83,7 +83,9 @@ export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 // already covered (e.g. `Symbol` in `Symbol.iterator in obj`)
 export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled');
 
-export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppressProxyGlobals = false, walkAnnotations = true }) {
+export function createUsageVisitors({
+  onUsage, onWarning, adapter, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
+}) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
@@ -273,7 +275,7 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppr
   }
 
   function handleBinaryExpression(path) {
-    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects);
+    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects, isEntryAvailable);
     if (meta) onUsage(meta, path);
   }
 
