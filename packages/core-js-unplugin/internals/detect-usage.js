@@ -18,7 +18,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
-  getTSImportEqualsBindings,
+  getTSRuntimeBindings,
   isASTNode,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
@@ -95,20 +95,18 @@ function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
 
 // --- ESTree scope adapter ---
 
-// estree-toolkit's scope tracker doesn't recognise `TSImportEqualsDeclaration` as a
-// binding declaration. walk to the Program node (top scope) and consult the shared
-// program-level scan so identifier / member resolvers see `import Map = require(...)`
-// shadow the global. covers `value` and `type` import kinds - even type-only imports
-// must skip the LHS rename path (otherwise duplicate `_Map` declaration breaks parsing)
-function tsImportEqualsBindingsForScope(scope) {
+// estree-toolkit's scope tracker doesn't recognise TS-specific runtime declarations
+// (TSImportEqualsDeclaration, TSEnumDeclaration, TSModuleDeclaration). walk to the
+// Program node and consult the shared program-level scan so shadow detection sees them
+function tsRuntimeBindingsForScope(scope) {
   let s = scope;
   while (s?.parent) s = s.parent;
-  return getTSImportEqualsBindings(s?.path?.node);
+  return getTSRuntimeBindings(s?.path?.node);
 }
 
 export const estreeAdapter = {
   hasBinding: (scope, name) => (scope?.hasBinding(name) ?? false)
-    || (tsImportEqualsBindingsForScope(scope)?.has(name) ?? false),
+    || (tsRuntimeBindingsForScope(scope)?.has(name) ?? false),
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
