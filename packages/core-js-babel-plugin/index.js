@@ -1,8 +1,10 @@
 import {
   ESM_MARKER_TYPES,
   createClassHelpers,
+  destructureReceiverSlot,
   detectCommonJS,
   findIifeCallSite,
+  getFallbackBranchSlots,
   hasTopLevelESM,
   isClassifiableReceiverArg,
   isCoreJSFile,
@@ -27,10 +29,12 @@ import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
+  enumerateFallbackDestructureBranches,
   resolveKey as sharedResolveKey,
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isPolyfillableOptional,
+  isViableBranchForKey,
   patternBindingName,
   scanExistingCoreJSImports,
 } from '@core-js/polyfill-provider/detect-usage';
@@ -241,6 +245,43 @@ export default function plugin(api, options) {
         return argPath && isClassifiableReceiverArg(argPath.node) ? argPath : null;
       }
 
+      // ConditionalExpression / LogicalExpression in destructure-receiver position
+      // (`= cond ? Array : Set` / `= Array || Set`). when `meta.fromFallback` flags the
+      // resolved meta as ambiguous (runtime picks per-call), try per-branch synth-swap so
+      // each viable branch becomes its own `{key: _Branch$key}` literal. branches without
+      // a viable polyfill stay raw - identifier visitor still emits `_Set` etc. via the
+      // standard global rewrite, so user gets correct constructor at runtime
+      function tryRegisterPerBranchSynth(rhsPath, prop) {
+        const objectPattern = prop.parentPath;
+        if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
+        if (prop.node.computed || !t.isIdentifier(prop.node.key)) return false;
+        const slots = getFallbackBranchSlots(rhsPath?.node);
+        if (!slots) return false;
+        const key = prop.node.key.name;
+        let registered = false;
+        for (const slot of slots) {
+          const branchPath = rhsPath.get(slot);
+          const branch = branchPath.node;
+          const pure = isViableBranchForKey(branch, key, branchPath.scope, adapter, resolvePure);
+          if (!pure) continue;
+          skippedNodes.add(branch);
+          let pending = synthSwapByReceiver.get(branch);
+          if (!pending) {
+            pending = {
+              targetPath: branchPath,
+              objectPatternPath: objectPattern,
+              objectPatternNode: objectPattern.node,
+              polyfills: new Map(),
+            };
+            synthSwapByReceiver.set(branch, pending);
+            pendingSynthSwaps.push(pending);
+          }
+          pending.polyfills.set(key, { entry: pure.entry, hintName: pure.hintName });
+          registered = true;
+        }
+        return registered;
+      }
+
       // parameter destructure polyfill. only static/global fit here; instance methods need a
       // receiver. synth-swap when `findSynthSwapTargetPath` identifies a safe Identifier
       // receiver; otherwise inline-default `{p = _polyfill}` (fires only on undefined property).
@@ -399,7 +440,15 @@ export default function plugin(api, options) {
       // fires and on native availability
       function handleObjectPropertyResult(prop, meta, kind, entry, hintName) {
         if (meta?.fromFallback) {
-          debugOutput?.warn(`conditional destructure with polyfill candidate left untouched ("${ meta.key }" on fallback branch) - runtime availability depends on the selected branch`);
+          // try per-branch synth-swap on ConditionalExpression / LogicalExpression branches.
+          // each viable branch becomes its own `{key: _Branch$key}` literal (preserving runtime
+          // conditional semantics); non-viable branches stay raw. on full failure, warn
+          const wrapperParent = prop.parentPath?.parentPath;
+          const slot = destructureReceiverSlot(wrapperParent?.node);
+          const registered = slot && tryRegisterPerBranchSynth(wrapperParent.get(slot), prop);
+          if (!registered) {
+            debugOutput?.warn(`conditional destructure with polyfill candidate left untouched ("${ meta.key }" on fallback branch) - runtime availability depends on the selected branch`);
+          }
           return;
         }
         const objectPattern = prop.parentPath;
@@ -471,6 +520,7 @@ export default function plugin(api, options) {
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
         isShadowedByClassOwnMember,
+        enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, adapter),
       });
 
       // any detached ancestor puts our node outside the live AST - polyfill emission
@@ -618,6 +668,11 @@ export default function plugin(api, options) {
         if (meta.kind === 'property') {
           if (path.isObjectProperty()) {
             if (!t.isIdentifier(path.node.value) && !t.isAssignmentPattern(path.node.value)) return;
+            // ConditionalExpression / LogicalExpression init - resolver may pick a branch
+            // whose key isn't viable as static (Promise.from, WeakMap.groupBy, ...) and bail
+            // before reaching handleObjectPropertyResult. dispatch fromFallback up front so
+            // per-branch synth-swap fires regardless of which branch the resolver picked
+            if (meta.fromFallback) return handleObjectPropertyResult(path, meta, null, null, null);
           } else {
             if (!path.isMemberExpression() && !path.isOptionalMemberExpression()) return;
             // `path.isReferenced()` drops grandparent - pass it explicitly
