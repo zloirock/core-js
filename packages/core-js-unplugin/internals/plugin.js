@@ -776,8 +776,16 @@ export default function createPlugin(options) {
       // replacementIsCall overrides isCall for buildReplacement (Symbol.iterator: parent
       // range is the call, but the emitted shape is a simple call, not `.call()`)
       function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
-        let objectSrc = unwrapParensSrc(node.object);
-        let isNonIdent = !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
+        // bare polyfillable global receiver (`Map.entries()` -> `_entries(_Map).call(_Map)`):
+        // emit the polyfill binding directly in `objectSrc` instead of pasting raw `Map` and
+        // relying on text composition - babel's emit shape repeats the receiver source twice
+        // (`call(receiver, args)`), but `mergeEqualRange` only swaps the first needle match
+        const receiverPure = resolveReceiverPolyfill(node.object, metaPath);
+        let objectSrc = receiverPure
+          ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+          : unwrapParensSrc(node.object);
+        let isNonIdent = receiverPure ? false : !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
+        if (receiverPure) skippedNodes.add(node.object);
         const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
         // inner polyfill sharing the chain root with an outer: reuse outer's guardRef so
         // `fn()` is evaluated once (`_at(_ref).call(_ref, 0)`, not `_at(_ref3 = fn())...`)
@@ -866,23 +874,20 @@ export default function createPlugin(options) {
         addInstanceTransform(binding, node, parent, metaPath, isCallParent,
           isCallParent && (parent.arguments.length > 0 || parent.optional));
         if (node.property) skipWrappedNode(node.property);
-        // `obj[Symbol[Symbol.iterator]]` - outer rewrite emits `_getIteratorMethod(Symbol)`
-        // with the receiver pasted as raw text. if that receiver is itself a bare polyfillable
-        // global (Symbol, Map, …), queue a nested transform so the final composed output
-        // reads `_getIteratorMethod(_Symbol)`. mirrors babel, whose AST clone revisits the
-        // cloned receiver through identifier visitor; text-based rewrite needs this explicit
-        polyfillBareGlobalReceiver(node.object, metaPath);
+        // bare polyfillable receiver (`Symbol[Symbol.iterator]`, `Map[Symbol.iterator]`, ...)
+        // is already substituted in the replacement text by `addInstanceTransform`'s
+        // `resolveReceiverPolyfill` path; nothing extra to queue here
       }
 
-      function polyfillBareGlobalReceiver(obj, metaPath) {
-        if (obj?.type !== 'Identifier' || metaPath.scope?.hasBinding?.(obj.name)) return;
-        const pure = resolveGlobalPolyfill(obj.name);
-        if (!pure) return;
-        transforms.add(obj.start, obj.end, injectPureImport(pure.entry, pure.hintName));
-        // identifier visitor would otherwise queue a second `Symbol -> _Symbol` transform at
-        // the same range; two equal-range inners composed into the outer produce `___Symbol`
-        // (each mergeEqualRange pass wraps the `Symbol` substring in another `_`)
-        skippedNodes.add(obj);
+      // bare global receiver (`Map`, `Symbol`, ...) -> resolved polyfill info or null. used by
+      // `addInstanceTransform` to substitute the receiver directly in the replacement text -
+      // single-source-of-truth for the "bare-polyfillable-global as instance-method receiver"
+      // shape so `_method(_Polyfill).call(_Polyfill, ...)` outputs land in one transform write
+      // instead of relying on text composition (which only swaps the first needle occurrence)
+      function resolveReceiverPolyfill(obj, metaPath) {
+        if (obj?.type !== 'Identifier') return null;
+        if (metaPath?.scope?.hasBinding?.(obj.name)) return null;
+        return resolveGlobalPolyfill(obj.name);
       }
 
       // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined).
