@@ -168,8 +168,12 @@ export function createPolyfillResolver(options, {
         const arg = callPath.get('arguments')[index];
         return name === 'arg-is-string' ? isString(arg) : isObject(arg);
       }
+      // unknown filter name = data-shape drift from `built-in-definitions.mjs`. fail loudly
+      // instead of silent over-injection via default-false fall-through: caller treats
+      // "filter didn't reject" as accept, so unknown filter name would bypass its intended
+      // narrowing gate
+      default: throw new Error(`[core-js] unknown filter name: ${ name }`);
     }
-    return false;
   }
 
   const groupRejects = (group, path) => group.some(([name, ...args]) => filter(name, args, path));

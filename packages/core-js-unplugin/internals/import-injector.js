@@ -1,5 +1,5 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers';
-import ImportInjectorState from '@core-js/polyfill-provider/import-state';
+import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
@@ -111,11 +111,25 @@ export default class ImportInjector extends ImportInjectorState {
   // flushedRefs - production `!inherit` path hits it with an empty flushedRefs, but the
   // contract is part of the documented orphan-adoption API
   adoptOrphanRefs(orphanRefs) {
+    // seed `#nextSuffixByPrefix['_ref']` to `max(suffixes) + 1` so subsequent
+    // `generateRefName` skips the probe loop over already-adopted names. without this,
+    // allocating a new `_ref` with 20 orphans in `usedNames` means 20 collision-probes
+    // before landing on `_ref21`
+    let maxSuffix = 1;
     for (const ref of orphanRefs) {
       if (this.#flushedRefs.has(ref)) continue;
       this.#refs.add(ref);
       this.usedNames.add(ref);
+      // extract numeric suffix via the canonical orphan-ref pattern (captures `[2-9]` or
+      // `[1-9]\d+`; bare `_ref` falls under slot 1). user-shaped `_ref0`/`_ref01` reject
+      // here too - we only seed the cache from slots our generator could have produced
+      const match = ORPHAN_REF_PATTERN.exec(ref);
+      if (match) {
+        const n = match.groups.suffix ? parseInt(match.groups.suffix, 10) : 1;
+        if (n > maxSuffix) maxSuffix = n;
+      }
     }
+    if (maxSuffix > 1) this.rehydrateSuffixState?.(new Map([['_ref', maxSuffix + 1]]));
   }
 
   generateUnusedName() {
