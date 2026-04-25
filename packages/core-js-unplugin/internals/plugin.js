@@ -5,9 +5,11 @@ import {
   buildOffsetToLine,
   createClassHelpers,
   createTypeAnnotationChecker,
+  destructureReceiverSlot,
   detectCommonJS,
   globalProxyMemberName,
   findIifeArgForParam,
+  getFallbackBranchSlots,
   hasTopLevelESM,
   isClassifiableReceiverArg,
   isCoreJSFile,
@@ -36,11 +38,13 @@ import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyf
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import {
   canTransformDestructuring as sharedCanTransformDestructuring,
+  enumerateFallbackDestructureBranches,
   resolveKey as sharedResolveKey,
   resolveObjectName as sharedResolveObjectName,
   resolveSymbolInEntry,
   isTypeAnnotationNodeType,
   isPolyfillableOptional,
+  isViableBranchForKey,
   findProxyGlobal,
   scanExistingCoreJSImports,
 } from '@core-js/polyfill-provider/detect-usage';
@@ -342,6 +346,7 @@ export default function createPlugin(options) {
         resolveStaticInheritedMember,
         isInheritedStaticLookup,
         isShadowedByClassOwnMember,
+        enumerateFallbackBranches: (meta, path) => enumerateFallbackDestructureBranches(meta, path, estreeAdapter),
       });
 
       const usageVisitors = createUsageVisitors({
@@ -1001,6 +1006,49 @@ export default function createPlugin(options) {
         return isClassifiableReceiverArg(argReceiver) ? argReceiver : null;
       }
 
+      // top-level destructure path (`const {from} = cond ? Array : Set`, assignment-target).
+      // resolves the wrapper's RHS slot per parent shape, then delegates to the shared
+      // per-branch helper. wraps to keep `handleDestructuringPure` under the lint statement-cap
+      function tryFromFallbackPerBranchSynth(metaPath, propNode) {
+        const wrapperNode = metaPath.parentPath?.parentPath?.node;
+        const slot = destructureReceiverSlot(wrapperNode);
+        if (!slot) return;
+        tryRegisterPerBranchSynth(wrapperNode[slot], propNode, metaPath.parent, metaPath.scope);
+      }
+
+      // ConditionalExpression / LogicalExpression in destructure-receiver position
+      // (`= cond ? Array : Set` / `= Array || Set`). `meta.fromFallback` flags this case -
+      // the resolved meta tracks ONE branch but runtime picks per-call. for branches
+      // statically resolvable to a known global with a viable static polyfill for the
+      // destructured key, register a per-branch synth-swap so each branch becomes its own
+      // `{key: _Branch$key, ...}` literal. branches without viable polyfill are left raw -
+      // the constructor identifier visitor still emits `_Set` etc. for shadow-correct globals.
+      // returns true when at least one branch was registered
+      function tryRegisterPerBranchSynth(rhs, propNode, objectPattern, scope) {
+        if (!rhs || !propNode || !objectPattern) return false;
+        if (!isSynthSimpleObjectPattern(objectPattern)) return false;
+        if (propNode.computed || propNode.key?.type !== 'Identifier') return false;
+        const slots = getFallbackBranchSlots(rhs);
+        if (!slots) return false;
+        const key = propNode.key.name;
+        let registered = false;
+        for (const slot of slots) {
+          const branch = rhs[slot];
+          const pure = isViableBranchForKey(branch, key, scope, estreeAdapter, resolvePure);
+          if (!pure) continue;
+          const binding = injectPureImport(pure.entry, pure.hintName);
+          skippedNodes.add(branch);
+          let pending = state.synthSwaps.get(branch);
+          if (!pending) {
+            pending = { receiver: branch, objectPattern, polyfills: new Map() };
+            state.synthSwaps.set(branch, pending);
+          }
+          pending.polyfills.set(key, binding);
+          registered = true;
+        }
+        return registered;
+      }
+
       // parameter destructure. synth-swap when `findSynthSwapReceiver` identifies a safe
       // Identifier receiver; otherwise inline-default `{p = _polyfill}`.
       // AssignmentPattern value (`{from = []}`): accept and polyfill via synth-swap - the
@@ -1008,11 +1056,16 @@ export default function createPlugin(options) {
       function handleParameterDestructurePure(meta, metaPath, propNode) {
         const { value } = propNode;
         if (!isIdentifierPropValue(value)) return;
-        // `function f({from} = cond ? Array : Set)` / `Array || Set` - runtime picks at call
-        // time, so a static polyfill choice would mis-bind one branch. handleDestructuringPure
-        // already filters this case before dispatch (`if (meta.fromFallback) return`); replicate
-        // here so the function-param path doesn't emit inline-default that aliases the fallback
-        if (meta.fromFallback) return;
+        // `function f({from} = cond ? Array : Set)` - runtime picks per-call. attempt
+        // per-branch synth-swap so each viable branch becomes its own `{from: _A$from}` /
+        // `{from: _B$from}` literal. branches without a viable polyfill stay raw.
+        // a static inline-default would alias the fallback, mis-binding the other branch
+        if (meta.fromFallback) {
+          const wrapperNode = metaPath.parentPath?.parentPath?.node;
+          const slot = destructureReceiverSlot(wrapperNode);
+          if (slot) tryRegisterPerBranchSynth(wrapperNode[slot], propNode, metaPath.parent, metaPath.scope);
+          return;
+        }
         const isAssign = value.type === 'AssignmentPattern';
         const pureResult = resolvePure(meta, metaPath);
         if (!pureResult || pureResult.kind === 'instance') return;
@@ -1366,8 +1419,7 @@ export default function createPlugin(options) {
         if (propNode.value?.type === 'Identifier'
             && injector.hasGeneratedUnusedName(propNode.value.name)) return;
         if (!canTransformDestructuring(metaPath)) return;
-        // `X ?? Array` - runtime value from either branch, unsafe to replace destructuring
-        if (meta.fromFallback) return;
+        if (meta.fromFallback) return tryFromFallbackPerBranchSynth(metaPath, propNode);
         // export + rest: skip - `_unused` rename would pollute the module's export namespace
         const patternHasRest = metaPath.parent?.properties?.some(
           p => p.type === 'RestElement' || p.type === 'SpreadElement');
