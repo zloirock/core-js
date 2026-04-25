@@ -1,8 +1,9 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// rest-param on class `constructor` - same shape as function rest, requires descent into
-// `body.body` + `effectiveParam` unwrap to propagate element type T
+// `ConstructorParameters<typeof Foo>` on a class with a rest param. rest params in class
+// constructors have the same element-type inference as in functions - the collected tuple
+// is `string[]`, so `.at(0)?.at(-1)` narrows to String instance polyfill at the inner hop
 class Foo {
   constructor(...xs: string[]) {}
 }

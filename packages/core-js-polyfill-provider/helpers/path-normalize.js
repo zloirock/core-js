@@ -12,10 +12,17 @@ export function stripQueryHash(id) {
   return at === -1 ? id : id.slice(0, offset + at);
 }
 
-// `array/at` -> `full/array/at` modules; top-level `actual`/`index`/... -> their root entry
+// `array/at` -> `full/array/at` modules; top-level `actual`/`index`/... -> their root entry.
+// `Object.hasOwn` guards against prototype-chain hits: JSON-imported object carries regular
+// Object.prototype, so bare `entriesMap['constructor']` / `['toString']` / `['__proto__']`
+// would return function/object values from the prototype instead of null. user typo in
+// `include: ['constructor']` should silently no-op via null, not accidentally match a prop
 export function lookupEntryModules(pattern) {
   if (typeof pattern !== 'string') return null;
-  return entriesMap[`full/${ pattern }`] ?? entriesMap[pattern] ?? null;
+  const full = `full/${ pattern }`;
+  if (Object.hasOwn(entriesMap, full)) return entriesMap[full];
+  if (Object.hasOwn(entriesMap, pattern)) return entriesMap[pattern];
+  return null;
 }
 
 export function resolveImportPath(pkg, subpath, absoluteImports) {

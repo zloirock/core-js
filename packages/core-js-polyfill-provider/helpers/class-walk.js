@@ -1,6 +1,18 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { singleQuasiString, unwrapRuntimeExpr } from './ast-patterns.js';
 
+// declaration-init peel: strip parens + TS wrappers (`unwrapRuntimeExpr`) AND the tail of
+// SequenceExpression (`(se(), receiver)` -> `receiver` at runtime). combined walks the
+// mixed-wrapper cases like `((se(), X) as any)`. stops when the two peels reach a fixpoint
+function unwrapInitForResolution(node) {
+  while (node) {
+    const peeled = unwrapRuntimeExpr(node);
+    if (peeled?.type === 'SequenceExpression') node = peeled.expressions.at(-1);
+    else return peeled;
+  }
+  return node;
+}
+
 // `globalThis` / `self` / `window` etc.
 export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalProxies);
 
@@ -174,7 +186,7 @@ export function createClassHelpers(t, adapter, resolveKey) {
       if (decl?.type !== 'VariableDeclarator') return null;
       // strip parens + TS casts (`const A = Promise as typeof Promise`); without TS-strip
       // the alias chain bails and `super.X` doesn't resolve to the wrapped Promise
-      const init = unwrapRuntimeExpr(decl.init);
+      const init = unwrapInitForResolution(decl.init);
       // `const { Promise: MyP } = globalThis; class C extends MyP { super.try() }` - ObjectPattern
       // destructure from a proxy-global is equivalent to `const MyP = globalThis.Promise` (alias
       // chain via member). babel-plugin mutates AST before this runs so binding.path points at
@@ -255,7 +267,7 @@ export function createClassHelpers(t, adapter, resolveKey) {
     const declNode = binding.path?.node;
     const container = declNode?.type === 'ClassDeclaration' || declNode?.type === 'ClassExpression'
       ? declNode
-      : unwrapRuntimeExpr(declNode?.init);
+      : unwrapInitForResolution(declNode?.init);
     const value = findNamespaceMemberValue(container, propName);
     // recurse: member value can be any shape the outer resolver handles (Identifier alias,
     // nested proxy-global, another namespace member) - composition falls out for free
@@ -323,9 +335,13 @@ export function createClassHelpers(t, adapter, resolveKey) {
   // super / this-in-static" check that ALSO forces the instance-fallback bail below (pure
   // instance super.X is out of scope of the resolver). `this.X` needs the static-context
   // check - non-static `this.X` is a regular instance read and shouldn't route here.
-  // direct type-string checks because estree-compat's `types` doesn't export `isSuper`
+  // peel parens on object: oxc preserves `(this).X` / `(super).X`, babel strips - without
+  // peel the parser-specific shape falls through to instance-method path. direct type-string
+  // checks because estree-compat's `types` doesn't export `isSuper`
   function isInheritedStaticLookup(path) {
-    const objType = path.node.object?.type;
+    let obj = path.node.object;
+    while (obj?.type === 'ParenthesizedExpression') obj = obj.expression;
+    const objType = obj?.type;
     if (objType === 'Super') return true;
     return objType === 'ThisExpression' && isInStaticContext(path);
   }
