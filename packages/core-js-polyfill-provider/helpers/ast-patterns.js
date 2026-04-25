@@ -316,15 +316,31 @@ const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
   'ClassPrivateMethod',
 ]);
 
-// true when `parent`/`grandparent` describe an ObjectPattern at function-parameter
-// position: either direct (`function({ x })`) or wrapped in AssignmentPattern default
-// (`function({ x } = Y)`). accepts node refs (both adapters pass raw nodes, not paths)
-export function isFunctionParamDestructureParent(parent, grandparent, objectPatternNode) {
-  if (!parent) return false;
-  if (FUNCTION_LIKE_PARAM_OWNER_TYPES.has(parent.type)) return true;
-  return parent.type === 'AssignmentPattern'
-    && parent.left === objectPatternNode
-    && !!grandparent && FUNCTION_LIKE_PARAM_OWNER_TYPES.has(grandparent.type);
+// true when ObjectPattern at `path` sits at function-parameter position: direct param
+// (`function({x})`), wrapped in AssignmentPattern default (`function({x} = R)`), nested
+// inside ArrayPattern (`function([{x}])`, `function([{x} = R])`), or any nested combination
+// (`function([[{x}]])`). walks AssignmentPattern.left + ArrayPattern wrappers until a
+// function-like owner appears or a non-wrapper breaks the chain. `path` exposes `.node` +
+// `.parentPath` (babel NodePath and unplugin's walker path both satisfy the contract).
+// depth cap: deepest realistic shape `function([[[{x} = R]]])` is < 8 hops; 16 surfaces
+// accidental cycles loudly instead of looping
+export function isFunctionParamDestructureParent(path) {
+  if (!path) return false;
+  let prev = path.node;
+  let parent = path.parentPath;
+  for (let depth = 0; depth < 16 && parent; depth++) {
+    const { node } = parent;
+    if (!node) return false;
+    if (FUNCTION_LIKE_PARAM_OWNER_TYPES.has(node.type)) return true;
+    if (node.type === 'AssignmentPattern') {
+      // bail when ObjectPattern sits on AssignmentPattern.right (`{x: ({y}=Z)} = src`) -
+      // that's a default value, not a param destructure; only `.left` is param shape
+      if (node.left !== prev) return false;
+    } else if (node.type !== 'ArrayPattern') return false;
+    prev = node;
+    parent = parent.parentPath;
+  }
+  return false;
 }
 
 // ObjectPattern prop value is a synth-swap eligible binding: `{key}` / `{key: bound}` /

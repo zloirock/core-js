@@ -164,11 +164,22 @@ function isPluginShapedOrphanAssign(node, parentType, atTopLevel) {
 // `var _at = 1` deep in a function. `orphanRefs` is filtered against `names` by the caller
 // so user `let _ref` isn't adopted as leftover. heap stack avoids overflow.
 // parentType carries the containing AST node's type across array-slot hops so the orphan
-// classifier can distinguish `_ref = X;` (ExpressionStatement parent) from nested uses
+// classifier can distinguish `_ref = X;` (ExpressionStatement parent) from nested uses.
+// `declaredNames` is the strict subset of `names` populated only by VariableDeclarator /
+// function param / Catch / TS module / class id / Import specifier - things that bind a
+// real binding. case Identifier dumps every reference into `names` for UID safety, so the
+// adopt-filter needs a stricter signal to distinguish "user declared `var _ref;`" from
+// "Identifier traversal saw plugin-emitted `_ref = ...` and reserved the read site"
 export function collectAllBindingNames(ast) {
   const names = new Set();
+  const declaredNames = new Set();
   const orphanRefs = new Set();
-  const addPattern = pat => walkPatternIdentifiers(pat, id => names.add(id.name));
+  // declaredNames is the strict subset; pair the writes so the invariant holds at the source
+  const addDecl = name => {
+    names.add(name);
+    declaredNames.add(name);
+  };
+  const addPattern = pat => walkPatternIdentifiers(pat, id => addDecl(id.name));
   // scope-depth tracks whether we're still at module top-level (outside any function / class
   // that rebinds `this` / scope). plugin emits its `_ref = X` orphans only at top-level, so
   // nested-scope assignments are user code regardless of RHS shape
@@ -186,7 +197,7 @@ export function collectAllBindingNames(ast) {
         break;
       case 'FunctionDeclaration':
       case 'FunctionExpression':
-        if (node.id) names.add(node.id.name);
+        if (node.id) addDecl(node.id.name);
         for (const p of node.params) addPattern(p);
         break;
       case 'ArrowFunctionExpression':
@@ -198,18 +209,18 @@ export function collectAllBindingNames(ast) {
       case 'TSModuleDeclaration':
         // `declare module "foo"` - id is a Literal, not Identifier (no `.name`). guard to
         // avoid polluting the Set with `undefined`
-        if (node.id?.name) names.add(node.id.name);
+        if (node.id?.name) addDecl(node.id.name);
         break;
       case 'CatchClause': if (node.param) addPattern(node.param); break;
       case 'ImportSpecifier':
       case 'ImportDefaultSpecifier':
       case 'ImportNamespaceSpecifier':
-        names.add(node.local.name);
+        addDecl(node.local.name);
         break;
       case 'AssignmentExpression':
         // plugin-shaped nested `_ref = foo()` - candidate for orphan adoption, NOT reserved
-        // (adoption gate requires name NOT in `names`). anything else - reserve so our UID
-        // generator can't reuse a name the user writes to.
+        // (adoption gate requires name NOT in `declaredNames`). anything else - reserve so our
+        // UID generator can't reuse a name the user writes to.
         // compound ops (`+=`, `||=`, etc.) are always user-authored: the plugin never emits
         // them, and they imply a pre-existing binding the user writes through - reserve
         // unconditionally so allocation can't collide with them
@@ -217,9 +228,7 @@ export function collectAllBindingNames(ast) {
           if (node.operator === '=' && ORPHAN_REF_PATTERN.test(node.left.name)
               && isPluginShapedOrphanAssign(node, parentType, atTopLevel)) {
             orphanRefs.add(node.left.name);
-          } else {
-            names.add(node.left.name);
-          }
+          } else addDecl(node.left.name);
         }
         break;
       // every Identifier surfaces here - bindings already reserved via their structural case,
@@ -245,7 +254,7 @@ export function collectAllBindingNames(ast) {
       if (Array.isArray(v) || isASTNode(v)) stack.push({ node: v, parentType: childParentType, atTopLevel: childAtTopLevel });
     }
   }
-  return { names, orphanRefs };
+  return { names, declaredNames, orphanRefs };
 }
 
 // source string (lowercased) of `require('@pkg/...')`, or null. covers both bare
