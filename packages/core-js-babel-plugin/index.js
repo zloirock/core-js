@@ -910,12 +910,16 @@ export default function plugin(api, options) {
           // (`.remove()` on an ancestor leaves `targetPath.node` stale). replaceWith on an
           // orphaned path throws; skip here so the swap is simply lost rather than crashing
           if (isOrphaned(targetPath)) continue;
-          // sibling plugin may have replaced the ObjectPattern (e.g. `pattern.replaceWith(
-          // arrayPattern)`) between enqueue and programExit. `objectPatternPath.node` now
-          // points at the new structure, but our saved `objectPatternNode` is the old pattern
-          // that's no longer in AST - emitting against this mismatch would mis-rewrite the
-          // receiver into a shape the destructure can't consume
-          if (isOrphaned(objectPatternPath) || objectPatternPath.node !== objectPatternNode) continue;
+          // pattern-shape check: only bail when the pattern was REPLACED with a non-Identifier
+          // shape (e.g. `pattern.replaceWith(arrayPattern)` - destructure semantic incompatible).
+          // `transform-destructuring` legitimately replaces ObjectPattern with `_ref` Identifier
+          // and lifts `var from = _ref.from` into the body - synth-swap on the RECEIVER (`Array`
+          // -> `{from: _Array$from}`) still semantically correct: `_ref.from` reads from the
+          // synthesized object. only ArrayPattern / RestElement / null break the contract
+          if (isOrphaned(objectPatternPath)) continue;
+          const currentPattern = objectPatternPath.node;
+          if (currentPattern !== objectPatternNode
+            && currentPattern?.type !== 'Identifier' && currentPattern?.type !== 'ObjectPattern') continue;
           // lazy: only inject the receiver's pure import if a sibling prop needs the raw
           // receiver read (`_Promise.custom`). all-polyfilled destructures never call through,
           // keeping the import set clean; fallback is the original identifier when no pure
