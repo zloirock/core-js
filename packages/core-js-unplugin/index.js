@@ -24,8 +24,12 @@ const SFC_NON_JS_TYPE_RE = /[&?]type=(?:style|template)(?:&|$)/;
 // the module into a URL / string / instantiated Worker etc; the resolved body isn't
 // user-authored JS (even though the path has a JS extension). skip to avoid injecting
 // polyfills into the Vite asset plugin's own synthetic output. the `worker` branch also
-// accepts `?worker-module` / `?worker_file` sub-forms that Vite emits for ESM workers
-const VITE_ASSET_QUERY_RE = /[&?](?:inline|raw|url|worker(?:[-_][a-z]+)?|worklet)(?:=|$|&)/;
+// accepts `?worker-module` / `?worker_file` sub-forms that Vite emits for ESM workers.
+// also covers Vite internal proxy queries: `?html-proxy` (HTML inline scripts wrapped by
+// Vite, already processed by Vite's own pipeline), `?css` (CSS-as-JS modules with no
+// runtime polyfill surface), `?used` (Vite tree-shaking marker), `?direct` (Vite
+// post-processing escape hatch), `?import` (Vite import-wrapping bypass)
+const VITE_ASSET_QUERY_RE = /[&?](?:css|direct|html-proxy|import|inline|raw|url|used|worker(?:[-_][a-z]+)?|worklet)(?:=|$|&)/;
 
 // `\0` marks virtual modules (some bundlers embed it mid-id in the query component, not
 // just as a prefix); `?commonjs-` is Rollup commonjs-plugin proxies whose bodies aren't
