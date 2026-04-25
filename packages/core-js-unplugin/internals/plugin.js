@@ -230,13 +230,16 @@ export default function createPlugin(options) {
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
-    const { names: bindingNames, orphanRefs } = collectAllBindingNames(ast);
+    const { names: bindingNames, declaredNames, orphanRefs } = collectAllBindingNames(ast);
     injector.seedReservedNames(bindingNames);
     // gate on pre-output fingerprint - direct post calls without a prior pre shouldn't
-    // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline
+    // adopt coincidental user-source `_ref = ...` as if they were leftover from our pipeline.
+    // filter against `declaredNames` (decls + non-orphan assignments only) - `bindingNames`
+    // also includes Identifier reads, which always contains the orphan target itself and
+    // would make the filter dead code (every plugin-emitted `_ref` reads its own slot)
     if (pass === 'post' && !inherit && hasCoreJSPureImport(ast, packages)) {
       const adoptable = new Set();
-      for (const ref of orphanRefs) if (!bindingNames.has(ref)) adoptable.add(ref);
+      for (const ref of orphanRefs) if (!declaredNames.has(ref)) adoptable.add(ref);
       injector.adoptOrphanRefs(adoptable);
     }
     // post WITH inherit already has user imports dedup'd via the pre-pass snapshot;
@@ -310,12 +313,19 @@ export default function createPlugin(options) {
       // output[0,0] -> source[0,0] while the real output[0,0] is the BOM). gated on
       // hasChanged so no-op transforms still return null
       if (hasBOM) ms.prepend('\uFEFF');
+      // in `post` pass `ms.original` is pre-pass output, not the real source - omit
+      // sourcesContent so the bundler chains through pre-pass map's content instead
+      // of attributing pre-output as the claimed content of `id`
+      const map = ms.generateMap({ source: id, includeContent: pass !== 'post', hires: 'boundary' });
+      // restore BOM in sourcesContent so devtools show the file with its on-disk byte
+      // count. MagicString's `prepend` updates the output but the original source it
+      // captured for `sourcesContent` is the BOM-stripped slice we passed in
+      if (hasBOM && map?.sourcesContent?.[0] && map.sourcesContent[0].charCodeAt(0) !== 0xFEFF) {
+        map.sourcesContent[0] = `\uFEFF${ map.sourcesContent[0] }`;
+      }
       return {
         code: ms.toString(),
-        // in `post` pass `ms.original` is pre-pass output, not the real source - omit
-        // sourcesContent so the bundler chains through pre-pass map's content instead
-        // of attributing pre-output as the claimed content of `id`
-        map: ms.generateMap({ source: id, includeContent: pass !== 'post', hires: 'boundary' }),
+        map,
       };
     }
 
@@ -1399,18 +1409,17 @@ export default function createPlugin(options) {
       // emit loop. unification would require a unified meta shape across the three call sites,
       // not currently warranted - each call site has different bound/unbound receiver semantics
       function handleDestructuringPure(meta, metaPath, propNode) {
-        // IIFE / parameter destructure: ObjectPattern's parent is a function (or an
-        // AssignmentPattern default at function-param position - `function({ x } = Y)`)
-        const patternParent = metaPath.parentPath?.parentPath?.node;
-        const patternGrandparent = metaPath.parentPath?.parentPath?.parentPath?.node;
-        if (isFunctionParamDestructureParent(patternParent, patternGrandparent, metaPath.parent)) {
+        // IIFE / parameter destructure: ObjectPattern at function-param position, optionally
+        // wrapped in AssignmentPattern default (`function({x} = R)`) and/or nested in
+        // ArrayPattern (`function([{x} = R])`). metaPath -> Property; metaPath.parentPath -> ObjectPattern
+        if (isFunctionParamDestructureParent(metaPath.parentPath)) {
           return handleParameterDestructurePure(meta, metaPath, propNode);
         }
         // nested proxy-global destructure `{ Array: { from } } = globalThis` - default
         // wouldn't fire (Array.from is always non-undefined on the target engines, just
         // potentially buggy). flatten to `const from = _Array$from` when both inner + outer
         // patterns hold only this one chain; fall back to param-default for complex shapes
-        if (patternParent?.type === 'Property') {
+        if (metaPath.parentPath?.parentPath?.node?.type === 'Property') {
           if (tryFlattenNestedProxyDestructurePure(metaPath)) return;
           return handleParameterDestructurePure(meta, metaPath, propNode);
         }
