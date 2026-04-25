@@ -15,6 +15,7 @@ export {
   isInUpdateOperand,
   isSingleNestedProxyChain,
   isTSTypeOnlyIdentifier,
+  isTSTypeOnlyIdentifierPath,
   isIdentifierPropValue,
   isSynthSimpleObjectPattern,
   isTaggedTemplateTag,

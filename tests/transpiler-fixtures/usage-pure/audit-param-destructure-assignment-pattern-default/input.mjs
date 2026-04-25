@@ -1,7 +1,8 @@
-// `function({ from = [] } = Array)` - user's `[]` default on the inner destructure
-// prop is dead code when synth-swap replaces `Array` with `{from: _Array$from, ...}`
-// (polyfill id is always defined). without AssignmentPattern support on prop.value,
-// the whole destructure would bail and native `Array.from` would be used
+// function param with inner default value: `{ from = [] }` - the user's `[]` default is
+// only reachable when `Array.from` is missing on the fallback receiver. with receiver
+// substitution the polyfill-id is always defined, so the inner default is dead after the
+// rewrite. rewrite correctly peels the inner AssignmentPattern around `from` so the whole
+// pattern still polyfills instead of bailing to a native fallback
 function firstItem({ from = [] } = Array) {
   return from([1, 2, 3]);
 }

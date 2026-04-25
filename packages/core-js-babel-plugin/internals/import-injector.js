@@ -267,11 +267,15 @@ export default class ImportInjector extends ImportInjectorState {
     if (!body?.length) return;
     const isRefOnly = stmt => stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
       && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier' && this.#refs.has(d.id.name));
+    // mixed declarators like `var fs = require('fs'), x = 1` count as an import-region statement:
+    // `some(...)` rather than `every(...)` - otherwise such mixed decls would push `var _ref;`
+    // BEFORE them, violating the `imports → requires → var _ref → user code` layout. as long as
+    // at least one declarator is `require(...)`, the row belongs in the import header
     const isImport = stmt => stmt.type === 'ImportDeclaration'
       || (stmt.type === 'ExpressionStatement' && stmt.expression?.type === 'CallExpression'
         && stmt.expression.callee?.name === 'require')
       || (stmt.type === 'VariableDeclaration'
-        && stmt.declarations.every(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
+        && stmt.declarations.some(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
     const refs = [];
     const refIndices = [];
     let importEnd = 0;
