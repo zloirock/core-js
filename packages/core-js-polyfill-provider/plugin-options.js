@@ -386,6 +386,7 @@ export function createUsageGlobalCallback({
   resolveStaticInheritedMember,
   isInheritedStaticLookup,
   isShadowedByClassOwnMember,
+  enumerateFallbackBranches,
 }) {
   function dispatch(meta, path) {
     if (shouldSkipUsageDispatch(meta, path, isDisabled)) return;
@@ -417,6 +418,17 @@ export function createUsageGlobalCallback({
     // `class C extends Array { static foo() { this.at(0) } }` - `at` is instance-only.
     // bail rather than fall back to instance-method dispatch which over-injects
     if (isInheritedStaticLookup && !superMeta && isInheritedStaticLookup(path)) return;
+    // ConditionalExpression / LogicalExpression destructure - runtime picks per-call.
+    // dispatch each branch's deps independently so all viable polyfills get emitted at file
+    // level; user's `cond ? Array : Iterator` for `from` brings in both `es.array.from` and
+    // `es.iterator.from`. mirrors the per-branch synth-swap done in usage-pure mode
+    if (enumerateFallbackBranches && meta?.fromFallback) {
+      const branches = enumerateFallbackBranches(meta, path);
+      if (branches?.length) {
+        for (const branchMeta of branches) dispatch(branchMeta, path);
+        return;
+      }
+    }
     return dispatch(superMeta ?? meta, path);
   };
 }
