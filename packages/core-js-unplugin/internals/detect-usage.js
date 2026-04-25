@@ -17,7 +17,9 @@ import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
+  findIifeArgForParam,
   isASTNode,
+  isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isTSTypeOnlyIdentifierPath,
@@ -148,10 +150,15 @@ function buildDestructuringMeta(propNode, parentPath) {
     case 'AssignmentExpression': initNode = parent.node.right; break;
     case 'AssignmentPattern':
       // `function({ from } = Array)` - AssignmentPattern wraps the param. Route `parent.right`
-      // as the destructure receiver so `from` resolves to `Array.from`. without this the
-      // fall-through emits typeless meta and the polyfill isn't injected
+      // as the destructure receiver so `from` resolves to `Array.from`.
+      // for IIFE with statically-classifiable caller-arg (Identifier matching a known
+      // builtin), the wrapper-default is dead code at runtime: prefer caller-arg as
+      // receiver. non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) carry no
+      // static type, so wrapper-default still provides the best static context and the
+      // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
       if (isFunctionParamDestructureParent(parent.node, parent.parentPath?.node, objectPattern.node)) {
-        initNode = parent.node.right;
+        const argNode = findIifeArgForParam(parent.parentPath, parent.node);
+        initNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
       }
       break;
     case 'Property': {
