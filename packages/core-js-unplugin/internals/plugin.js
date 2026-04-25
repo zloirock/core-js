@@ -764,7 +764,9 @@ export default function createPlugin(options) {
         const argsSrc = isCall ? sliceBetweenParens(parent) : null;
         const start = isCall ? parent.start : node.start;
         const end = isCall ? parent.end : node.end;
-        const isNew = parent?.type === 'NewExpression' && isCall;
+        // `isCallee(node, parent)` already returns true for both CallExpression and
+        // NewExpression, so `isCall` covers `new`-case. filter down to NewExpression only
+        const isNew = parent?.type === 'NewExpression';
         // pre-allocate so rewriteHint and buildReplacement agree on the ref name
         const preAllocatedGuardRef = optionalRoot
             && !/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)
@@ -1106,13 +1108,19 @@ export default function createPlugin(options) {
         let replacement = renderFlattenedNestedProxy(perDecl, declaration.kind, isForInit);
         // preserve SE prefix when init is `(se(), receiver)`: the non-nested destructure path
         // already lifts SE expressions as statements via `buildDestructuringInitMeta`; do the
-        // same here so nested receivers retain the preceding side-effect semantics
-        if (!isForInit && declaration.declarations.length === 1) {
-          const init = initOf(0);
-          if (init?.type === 'SequenceExpression' && init.expressions.length > 1) {
-            const prefixSrc = init.expressions.slice(0, -1).map(nodeSrc).join(', ');
-            replacement = `${ prefixSrc };\n${ replacement }`;
+        // same here so nested receivers retain the preceding side-effect semantics. for-init
+        // can't host statements outside the loop header, so SE there is dropped (caller bails
+        // earlier if the for-init declarator has SE). multi-decl: lift SE per declarator that
+        // has one, in source order, before the rendered replacement
+        if (!isForInit) {
+          const sePrefixes = [];
+          for (let i = 0; i < declaration.declarations.length; i++) {
+            const init = initOf(i);
+            if (init?.type === 'SequenceExpression' && init.expressions.length > 1) {
+              sePrefixes.push(init.expressions.slice(0, -1).map(nodeSrc).join(', '));
+            }
           }
+          if (sePrefixes.length) replacement = `${ sePrefixes.map(p => `${ p };`).join('\n') }\n${ replacement }`;
         }
         transforms.add(declaration.start, declaration.end, replacement);
         return true;
@@ -1534,7 +1542,7 @@ export default function createPlugin(options) {
       // three emission engines with overlapping logic - unification deferred because each
       // owns a distinct substrate:
       //   1. `applyDestructuringTransforms` - VariableDeclaration rewrite (splits, reorders, extracts)
-      //   2. `applyParamDefaultSynthTransforms` - function param default synth-swap
+      //   2. `applySynthSwaps` - function param default synth-swap
       //   3. `emitCatchClause` - catch-pattern rewrite
       // shared bits live in `emitPolyfilled` / `buildReplacement`; the entry points stay split
       function applyDestructuringTransforms() {
