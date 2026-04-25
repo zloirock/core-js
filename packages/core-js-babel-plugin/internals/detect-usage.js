@@ -17,7 +17,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
-  isTSTypeOnlyIdentifier,
+  isTSTypeOnlyIdentifierPath,
   unwrapInitValue,
 } from '@core-js/polyfill-provider/helpers';
 
@@ -107,16 +107,23 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppr
       if (warning) onWarning(warning);
     }
     if (!path.isReferencedIdentifier()) return;
-    // ReferencedIdentifier matches JSXIdentifier in too many positions - only the direct
-    // opening-element name is a runtime reference. Attribute names, JSXNamespacedName
-    // (custom elements), and JSXMemberExpression parts are either not references or
-    // resolve differently, so treating them as globals is a false positive
-    if (path.node.type === 'JSXIdentifier'
-      && (path.parent?.type !== 'JSXOpeningElement' || path.key !== 'name')) return;
+    // ReferencedIdentifier matches JSXIdentifier in too many positions. accept:
+    //   `<Foo />` - direct opening-element name
+    //   `<Foo.Bar />` - root of JSXMemberExpression at opening-element name slot
+    //     (the root identifier IS a runtime reference; the .Bar chain accesses props on it)
+    // reject everything else: attribute names, JSXNamespacedName parts, .property positions
+    if (path.node.type === 'JSXIdentifier') {
+      const isOpeningTag = path.parent?.type === 'JSXOpeningElement' && path.key === 'name';
+      const isMemberRoot = path.parent?.type === 'JSXMemberExpression'
+        && path.parent.object === path.node
+        && path.parentPath?.parent?.type === 'JSXOpeningElement'
+        && path.parentPath?.key === 'name';
+      if (!isOpeningTag && !isMemberRoot) return;
+    }
     // TS type-only positions: `type X = …` / `interface X {…}` ids and `export { type X }`
     // specifiers. babel's `isReferencedIdentifier` marks them as referenced, but no runtime
     // binding exists - polyfilling is pure over-injection (and breaks TS output for exports)
-    if (isTSTypeOnlyIdentifier(path.parent, path.key)) return;
+    if (isTSTypeOnlyIdentifierPath(path)) return;
     // UpdateExpression operand (Map++, --Map, Map!++, (Map)++) - gate see `skipUpdateTargets`
     if (skipUpdateTargets && isInUpdateOperand(path.parentPath)) return;
     const { node } = path;
@@ -255,11 +262,12 @@ export function createUsageVisitors({ onUsage, onWarning, adapter, method, suppr
     if (!initPath?.node) return;
     const key = resolveKey(path.get('key'), path.node.computed);
     if (!key) return;
-    const meta = buildDestructuringInitMeta(initPath.node, key, initPath.scope, adapter);
-    // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization)
+    let meta = buildDestructuringInitMeta(initPath.node, key, initPath.scope, adapter);
+    // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization).
+    // spread instead of in-place mutation: contract with buildDestructuringInitMeta
+    // doesn't promise mutable meta, and a fresh object is cheap here
     if (!meta.placement && initPath.node.coreJSResolvedType) {
-      meta.object = initPath.node.coreJSResolvedType;
-      meta.placement = 'prototype';
+      meta = { ...meta, object: initPath.node.coreJSResolvedType, placement: 'prototype' };
     }
     onUsage(meta, path);
   }

@@ -468,16 +468,29 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   // also verify the property reads a well-known symbol name (not `Symbol.someUserKey`):
   // well-known symbols live under specific names exposed by `symbolKeyToEntry`; random
   // dot-access on Symbol (`Symbol.foo`) resolves to `undefined` at runtime and should
-  // not trigger symbol-routed polyfill dispatch
+  // not trigger symbol-routed polyfill dispatch.
+  // for `Symbol[key]` with statically-resolvable computed key — resolve via `resolveKey`
+  // and validate the resulting name. when the key isn't statically resolvable (dynamic
+  // expression), return true conservatively: we know the shape is Symbol-indexed, even
+  // if the specific well-known name is unknown — downstream callers rely on this to
+  // avoid over-eliminating polyfill dispatch, and `resolveKey` pairing in the caller
+  // filters on the string form anyway
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
     if (!asSymbolRef(node.object, scope, adapter, new Set(seen))) return false;
     if (!node.computed && node.property?.type === 'Identifier') {
       return symbolKeyToEntry(`Symbol.${ node.property.name }`) !== null;
     }
+    if (node.computed) {
+      const name = resolveKey(node.property, true, scope, adapter, new Set(seen), depth + 1);
+      if (name !== null) return symbolKeyToEntry(`Symbol.${ name }`) !== null;
+    }
     return true;
   }
   if (type !== 'Identifier' || seen?.has(node.name)) return false;
-  const nextSeen = seen ?? new Set();
+  // fork `seen` (не мутируем caller's Set) для consistency с resolveKey-style pattern.
+  // защищает от случайной cross-site pollution если caller повторно пройдётся по sibling
+  // branches после возврата из этой функции
+  const nextSeen = new Set(seen);
   nextSeen.add(node.name);
   const binding = adapter.getBinding(scope, node.name);
   if (!binding || binding.constantViolations?.length) return false;

@@ -19,7 +19,7 @@ import {
   isASTNode,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
-  isTSTypeOnlyIdentifier,
+  isTSTypeOnlyIdentifierPath,
   unwrapInitValue,
   unwrapParens,
   walkPatternIdentifiers,
@@ -60,7 +60,7 @@ const LABEL_TYPES = new Set([
 function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
   if (!parent) return true;
   // TS type-only positions: `type X = …` ids, `export { type X }` specifiers
-  if (isTSTypeOnlyIdentifier(parent, parentKey)) return false;
+  if (isTSTypeOnlyIdentifierPath({ parent, key: parentKey, parentPath })) return false;
   // property key positions
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;
   if (parent.type === 'MemberExpression' && parentKey === 'property' && !parent.computed) return false;
@@ -452,9 +452,15 @@ export function createUsageVisitors({ onUsage, onWarning, method, suppressProxyG
     } : {},
     Identifier: identifierVisitor,
     // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
-    // names, namespaced/member parts, and closing-tag dupes so we emit the import once
+    // names and closing-tag dupes. also accept root of `<Map.Provider/>` (JSXMemberExpression)
+    // so the outer global gets polyfilled - tag's runtime ref walks the `.Provider` chain
+    // from that root
     JSXIdentifier(path) {
-      if (path.parent?.type !== 'JSXOpeningElement' || path.key !== 'name') return;
+      const { parent } = path;
+      const isOpeningTagName = parent?.type === 'JSXOpeningElement' && path.key === 'name';
+      const isMemberRoot = parent?.type === 'JSXMemberExpression' && parent.object === path.node
+        && path.parentPath?.parent?.type === 'JSXOpeningElement' && path.parentPath?.key === 'name';
+      if (!isOpeningTagName && !isMemberRoot) return;
       if (path.scope?.hasBinding(path.node.name)) return;
       onUsage({ kind: 'global', name: path.node.name }, path);
     },
