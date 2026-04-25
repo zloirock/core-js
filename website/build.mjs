@@ -176,7 +176,7 @@ async function buildBlogMenu() {
   let menu = '<ul>';
   for (const mdPath of mdFiles) {
     if (mdPath.endsWith('index.md')) continue;
-    const content = await readFileContent(mdPath);
+    const content = await readFile(mdPath, 'utf8');
     const tokens = marked.lexer(content);
     const firstH1 = tokens.find(token => token.type === 'heading' && token.depth === 1);
 
@@ -212,11 +212,6 @@ async function getVersionFromMdFile(mdPath) {
   return match?.groups?.version ?? DEFAULT_VERSION;
 }
 
-async function readFileContent(filePath) {
-  const content = await readFile(filePath, 'utf8');
-  return content.toString();
-}
-
 async function buildPlaygrounds(template, versions) {
   for (const version of versions) {
     await buildPlayground(template, version, versions);
@@ -228,7 +223,7 @@ async function buildPlayground(template, version, versions) {
   const bundleScript = `<script nomodule src="${ bundlesPath }/${ config.bundleName }"></script>`;
   const bundleESModulesScript = `<script type="module" src="${ bundlesPath }/${ config.bundleNameESModules }"></script>`;
   const babelScript = '<script src="./babel.min.js"></script>';
-  const playgroundContent = await readFileContent(`${ config.srcDir }playground.html`);
+  const playgroundContent = await readFile(`${ config.srcDir }playground.html`, 'utf8');
   const versionsMenu = await buildVersionsMenu(versions, version.label, 'playground');
   let playground = template.replace('{content}', playgroundContent);
   playground = playground.replace('{base}', BASE);
@@ -290,7 +285,7 @@ function getTitle(content) {
 }
 
 async function build() {
-  const template = await readFileContent(config.templatePath);
+  const template = await readFile(config.templatePath, 'utf8');
   await buildBlogMenu();
   const mdFiles = await getAllMdFiles(config.docsDir);
   const versions = await getVersions();
@@ -304,7 +299,7 @@ async function build() {
   let isChangelog;
   for (let i = 0; i < mdFiles.length; i++) {
     const mdPath = mdFiles[i];
-    const content = await readFileContent(mdPath);
+    const content = await readFile(mdPath, 'utf8');
     isDocs = mdPath.includes('/docs');
     isChangelog = mdPath.includes('/changelog');
     isBlog = mdPath.includes('/blog');
