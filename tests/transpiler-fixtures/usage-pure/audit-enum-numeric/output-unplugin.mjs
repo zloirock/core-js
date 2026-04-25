@@ -1,7 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// TSEnumDeclaration with numeric members - expect $Primitive('number'); .toFixed is
-// Number.prototype, not polyfilled. Using .at() on number coerces via wrapper => bails.
-// Use a number-ok polyfill: the best candidate here is that enum as array index.
+// numeric enum - each member has an implicit integer initialiser, so `c: Color` narrows
+// to `number`. using the enum value as an array index (`arr.at(c)`) is valid: `.at` accepts
+// a number, and the array's element type (`string[]`) picks the String-index-return path
 enum Color { Red, Green, Blue }
 declare const c: Color;
 const arr: string[] = ['a', 'b', 'c'];

@@ -1,7 +1,7 @@
-// multi-declarator form `const { Array: { from } } = globalThis, x = 1`. babel flattens
-// via `declarations.splice(idx, 1)` (in-place, avoids crashing still-queued inner
-// identifiers on a removed path) so `const from = _Array$from` is hoisted above and
-// sibling declarator `x = 1` stays in the original declaration as its only remaining entry
+// multi-declarator `const { Array: { from } } = globalThis, x = 1`. nested-proxy flatten
+// extracts only the polyfill-able declarator (`from = _Array$from`), hoisting it ahead of
+// the remaining declarations so the sibling `x = 1` stays in its original slot, preserving
+// source order and declaration semantics
 const { Array: { from } } = globalThis, x = 1;
 from([1]);
 console.log(x);

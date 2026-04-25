@@ -134,6 +134,11 @@ const USER_ASSIGN_PARENT_TYPES = new Set([
   'SwitchCase',
   'ThrowStatement',
   'ForStatement',
+  // `for (const x of (_ref = arr())) {}` / `for (const x in (_ref = obj)) {}` - RHS is
+  // a user-authored assignment-then-iterate idiom. plugin never emits its memo refs as
+  // the iterable; without these entries the assignment would get misclassified as orphan
+  'ForOfStatement',
+  'ForInStatement',
   'IfStatement',
   'WhileStatement',
   'DoWhileStatement',
@@ -191,7 +196,9 @@ export function collectAllBindingNames(ast) {
       case 'ClassExpression':
       case 'TSEnumDeclaration':
       case 'TSModuleDeclaration':
-        if (node.id) names.add(node.id.name);
+        // `declare module "foo"` - id is a Literal, not Identifier (no `.name`). guard to
+        // avoid polluting the Set with `undefined`
+        if (node.id?.name) names.add(node.id.name);
         break;
       case 'CatchClause': if (node.param) addPattern(node.param); break;
       case 'ImportSpecifier':
