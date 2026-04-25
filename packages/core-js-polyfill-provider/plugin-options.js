@@ -307,6 +307,7 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     shippedProposals,
     shouldInjectPolyfill: userCallback,
     targets,
+    version: rest.version,
   });
   const parsedTargets = resolveTargets({
     targets,
