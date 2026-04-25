@@ -195,6 +195,11 @@ function captureTransform(source, pluginOptions, testId) {
 const SKIP_DIRS = new Set([
   'source-script',
   'cjs-transform-export',
+  // babel-only: regression depends on `transform-destructuring` rewriting the param's
+  // ObjectPattern to `_ref` Identifier between core-js's pre-traversal and programExit
+  // emission. unplugin extracts only `@core-js` from `babelOptions.plugins` and runs it
+  // standalone, so the AST shape that triggered the bug never appears here
+  'audit-synth-swap-survives-transform-destructuring',
 ]);
 
 function shouldSkip(dirName) {
