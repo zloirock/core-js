@@ -516,8 +516,14 @@ export function resolveSymbolIteratorEntry(node, parent) {
   return isCall && parent.arguments.length === 0 && !parent.optional ? 'get-iterator' : 'get-iterator-method';
 }
 
-// seeds `handledObjects` only for polyfillable Symbol.X - see comment inside
-export function handleBinaryIn(node, scope, adapter, handledObjects) {
+// seeds `handledObjects` only for polyfillable Symbol.X. `isEntryAvailable`, when
+// provided by the caller (plugin's `isEntryNeeded`), gates seeding on the actual entries
+// map - non-existent entries (`Symbol.foo` -> synthetic `symbol/foo`) leave the `Symbol`
+// identifier in place so it can still receive its constructor polyfill via the regular
+// MemberExpression-fallback path. without the predicate (legacy callers), seed on the
+// pure-string `symbolKeyToEntry` shape - older callers lose the fallback but stay
+// behaviour-compatible
+export function handleBinaryIn(node, scope, adapter, handledObjects, isEntryAvailable) {
   if (node.operator !== 'in') return null;
   const left = unwrapParens(node.left);
   const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
@@ -529,9 +535,11 @@ export function handleBinaryIn(node, scope, adapter, handledObjects) {
     // to undefined regardless) is runtime-broken; bail rather than carry an invalid key
     if (name && !name.includes('.')) {
       const key = `Symbol.${ name }`;
-      // seed `handledObjects` only when the rewrite actually replaces the BinaryExpression -
-      // unpolyfillable keys leave the `Symbol` identifier in place and it still needs its polyfill
-      if (resolveSymbolInEntry(key)) {
+      const inEntry = resolveSymbolInEntry(key);
+      // gate seeding on actual rewrite viability. `resolveSymbolInEntry` only checks
+      // string shape (`Symbol.foo` -> `symbol/foo`); `isEntryAvailable` consults the
+      // resolved per-namespace entries map and rejects synthetic paths
+      if (inEntry && (!isEntryAvailable || isEntryAvailable(inEntry.entry))) {
         handledObjects.add(node.left);
         handledObjects.add(left);
         handledObjects.add(ref.raw);
