@@ -114,7 +114,9 @@ export default class ImportInjector extends ImportInjectorState {
     // seed `#nextSuffixByPrefix['_ref']` to `max(suffixes) + 1` so subsequent
     // `generateRefName` skips the probe loop over already-adopted names. without this,
     // allocating a new `_ref` with 20 orphans in `usedNames` means 20 collision-probes
-    // before landing on `_ref21`
+    // before landing on `_ref21`.
+    // bare-slot reclaim is handled centrally by `uniqueName`: when bare is free but cache is
+    // seeded past 2, allocator falls back to bare. so we always seed by max numeric tail
     let maxSuffix = 1;
     for (const ref of orphanRefs) {
       if (this.#flushedRefs.has(ref)) continue;
