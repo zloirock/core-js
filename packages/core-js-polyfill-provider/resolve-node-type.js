@@ -1723,20 +1723,44 @@ function createResolveNodeType(babelNodeType, t) {
       const binding = path.scope?.getBinding(path.node.name);
       if (!binding || binding.constantViolations?.length) break;
       const { path: bindingPath } = binding;
-      if (t.isVariableDeclarator(bindingPath.node)) {
-        // don't follow destructured bindings - the init is the whole collection, not the individual element
-        const { id } = bindingPath.node;
-        if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') break;
-        const init = bindingPath.get('init');
-        if (init.node) {
-          path = init;
-          continue;
-        }
+      const initPath = followableVarInit(bindingPath);
+      if (initPath) {
+        path = initPath;
+        continue;
       }
       if (isFunctionOrClassDeclaration(bindingPath.node)) return bindingPath;
       break;
     }
     return path;
+  }
+
+  // returns the init path to follow for `const X = init` style bindings, or null when:
+  //  - not a VariableDeclarator (function / class / param / catch / import...)
+  //  - destructured binding (init is the collection, not the element value)
+  //  - explicit annotation + nullish placeholder init (`const x: T | null = null`) -
+  //    annotation declares the intended runtime type; init is a placeholder, so
+  //    `resolveBindingType` will pick the annotation up downstream
+  // broader annotations (`object`, `any`) fall through to init so `const x: object =
+  // [1, 2, 3]` narrows to Array via the init expression
+  function followableVarInit(bindingPath) {
+    if (!t.isVariableDeclarator(bindingPath.node)) return null;
+    const { id } = bindingPath.node;
+    if (id?.type === 'ObjectPattern' || id?.type === 'ArrayPattern') return null;
+    const initPath = bindingPath.get('init');
+    if (!initPath?.node) return null;
+    if (id?.typeAnnotation && isNullishInit(initPath.node)) return null;
+    return initPath;
+  }
+
+  // `null` / `undefined` literal or `void <expr>` - placeholders that don't reflect runtime
+  // type. covers babel `NullLiteral` + ESTree `Literal { value: null }` (oxc); the `regex`
+  // guard excludes `/foo/` literals which also reuse the `Literal` node in ESTree
+  function isNullishInit(node) {
+    if (!node) return false;
+    if (node.type === 'NullLiteral') return true;
+    if (node.type === 'Literal' && node.value === null && !node.regex) return true;
+    if (node.type === 'Identifier' && node.name === 'undefined') return true;
+    return node.type === 'UnaryExpression' && node.operator === 'void';
   }
 
   function resolveNumericType(path) {
