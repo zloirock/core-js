@@ -122,6 +122,35 @@ export function isClassifiableReceiverArg(node) {
   return node?.type === 'Identifier';
 }
 
+// estree-toolkit's scope tracker doesn't recognise `TSImportEqualsDeclaration` as a
+// binding declaration. callers (currently unplugin's estree adapter) consult this to
+// compensate. only value-mode imports shadow runtime - `import type X = require(...)`
+// is elided by `tsc` before runtime, so references resolve to the global and polyfill
+// must still fire. cached per Program node so repeated `hasBinding` checks share one
+// scan. babel's scope tracker handles value-mode natively but not the type/value split
+const tsImportEqualsCache = new WeakMap();
+
+export function getTSImportEqualsBindings(programNode) {
+  if (!programNode?.body) return null;
+  let cached = tsImportEqualsCache.get(programNode);
+  if (cached) return cached;
+  cached = new Set();
+  for (const stmt of programNode.body) {
+    if (stmt?.type === 'TSImportEqualsDeclaration'
+      && stmt.importKind !== 'type'
+      && stmt.id?.name) cached.add(stmt.id.name);
+  }
+  tsImportEqualsCache.set(programNode, cached);
+  return cached;
+}
+
+// `import type X = require(...)` is type-only - elided by tsc before runtime, references
+// resolve to the global. babel scope tracker registers the binding regardless of modifier;
+// callers use this predicate to filter out type-only bindings from shadow checks
+export function isTypeOnlyImportEquals(node) {
+  return node?.type === 'TSImportEqualsDeclaration' && node.importKind === 'type';
+}
+
 // TS type-only declarations - identifier `id` here is a type name, not a runtime reference.
 // naive `isReferenced` treats it as a ref by default; polyfilling the id is pure over-injection
 const TS_TYPE_DECL_TYPES = new Set([
@@ -147,8 +176,11 @@ export function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
     if (parent.importKind === 'type') return true;
     return grandparent?.type === 'ImportDeclaration' && grandparent.importKind === 'type';
   }
-  if (parentKey === 'id' && TS_TYPE_DECL_TYPES.has(parent.type)) return true;
-  return false;
+  if (parentKey !== 'id') return false;
+  if (TS_TYPE_DECL_TYPES.has(parent.type)) return true;
+  // `import type X = require(...)` - LHS of TSImportEqualsDeclaration with type modifier.
+  // value-mode (no `type`) is a real runtime binding, falls through to scope-shadow handling
+  return parent.type === 'TSImportEqualsDeclaration' && parent.importKind === 'type';
 }
 
 // path-accepting wrapper: encapsulates the (parent, parentKey, grandparent) extraction so
