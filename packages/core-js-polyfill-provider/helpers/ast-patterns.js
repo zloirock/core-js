@@ -133,6 +133,38 @@ export function isTypeOnlyImportEquals(node) {
   return node?.type === 'TSImportEqualsDeclaration' && node.importKind === 'type';
 }
 
+// branches of a runtime-conditional expression (returned as slot names so callers can
+// resolve either AST nodes via `node[slot]` or NodePath via `path.get(slot)`).
+// covers all four shapes that drive `meta.fromFallback`: ternary `?:` and the three
+// LogicalExpression variants `||` / `&&` / `??`
+export function getFallbackBranchSlots(node) {
+  if (node?.type === 'ConditionalExpression') return ['consequent', 'alternate'];
+  if (node?.type === 'LogicalExpression') return ['left', 'right'];
+  return null;
+}
+
+// chain assignment `foo = X` evaluates to `X` at runtime - peel through these to find the
+// destructure receiver. peel only when LHS is a simple Identifier:
+//  - compound `+=` / `||=` produce arithmetic / logical results, not constructor candidates
+//  - destructure-LHS `{from: b} = X` is an inner destructure assignment that gets rewritten
+//    independently; peeling through it would race with that rewrite
+export function isChainAssignment(node) {
+  return node?.type === 'AssignmentExpression'
+    && node.operator === '='
+    && node.left?.type === 'Identifier';
+}
+
+// destructure-receiver slot on a wrapper node:
+//   AssignmentPattern (`{...} = R` in function params) -> 'right'
+//   AssignmentExpression (`({...} = R)`)               -> 'right'
+//   VariableDeclarator (`const {...} = R`)             -> 'init'
+// callers walk up from the ObjectPattern to find the wrapper, then read the receiver slot
+export function destructureReceiverSlot(node) {
+  if (node?.type === 'AssignmentPattern' || node?.type === 'AssignmentExpression') return 'right';
+  if (node?.type === 'VariableDeclarator') return 'init';
+  return null;
+}
+
 // MemberExpression in a position where the prototype-method polyfill can be skipped because
 // the receiver method is never read at runtime: pure assignment (`obj.at = v`), destructure-LHS
 // (`({a: obj.at} = src)`), destructure-LHS-with-default (`({a: obj.at = 1} = src)`).
