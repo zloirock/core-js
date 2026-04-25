@@ -8,7 +8,7 @@ export {
   findIifeArgForParam,
   findIifeCallSite,
   getSuperTypeArgs,
-  getTSImportEqualsBindings,
+  getTSRuntimeBindings,
   getTypeArgs,
   hasTopLevelESM,
   isDeleteTarget,
