@@ -26,10 +26,16 @@ const REPEATED_SLASHES_RE = /\/{2,}/g;
 const SFC_QUERY_MARKER_RE = /[&?](?:astro|svelte|vue)(?:[&=?]|$)/;
 const QUERY_OR_HASH_RE = /[#?]/;
 function normalizePath(path) {
-  return path
-    .replaceAll('\\', '/')
-    .replace(VITE_SCHEME_PREFIX_RE, '')
-    .replaceAll(REPEATED_SLASHES_RE, '/');
+  let p = path.replaceAll('\\', '/');
+  // composite chains like `/@id/file:///abs/foo` carry two schemes back-to-back. one-pass
+  // replace would leave `file:///abs/foo` and miss the bare `/abs/foo` snapshot. iterate
+  // until a pass produces no change so any nested scheme combination collapses
+  let prev;
+  do {
+    prev = p;
+    p = p.replace(VITE_SCHEME_PREFIX_RE, '');
+  } while (p !== prev);
+  return p.replaceAll(REPEATED_SLASHES_RE, '/');
 }
 function normalizeKey(id) {
   if (SFC_QUERY_MARKER_RE.test(id)) {
