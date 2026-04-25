@@ -469,6 +469,8 @@ export default function plugin(api, options) {
         injectModulesForModeEntry,
         isDisabled,
         resolveStaticInheritedMember,
+        isInheritedStaticLookup,
+        isShadowedByClassOwnMember,
       });
 
       // any detached ancestor puts our node outside the live AST - polyfill emission

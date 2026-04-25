@@ -7,6 +7,7 @@ import {
   singleQuasiString,
   unwrapExportedDeclaration,
   unwrapParens,
+  unwrapRuntimeExpr,
 } from './helpers.js';
 import {
   $Object,
@@ -1060,6 +1061,23 @@ function createResolveNodeType(babelNodeType, t) {
     return arg ? unwrapTypeAnnotation(arg) : null;
   }
 
+  // mixed `{[k:number]:A; [k:string]:B}` index signatures resolve per-lookup: numeric keys ->
+  // number sig, string keys -> string sig (permissive fallback when only one sig is declared)
+  function pickIndexSignature(members, key) {
+    let numberSig = null;
+    let stringSig = null;
+    let symbolSig = null;
+    for (const member of members) {
+      if (member.type !== 'TSIndexSignature' || !member.typeAnnotation) continue;
+      const keyType = member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type;
+      if (keyType === 'TSNumberKeyword') numberSig ??= member.typeAnnotation;
+      else if (keyType === 'TSSymbolKeyword') symbolSig ??= member.typeAnnotation;
+      else stringSig ??= member.typeAnnotation;
+    }
+    const isNumericKey = typeof key === 'number' || /^-?\d+$/.test(String(key));
+    return isNumericKey ? (numberSig ?? stringSig) : (stringSig ?? numberSig ?? symbolSig);
+  }
+
   function findTypeMember(objectType, key, scope, depth = 0) {
     if (!objectType || depth > MAX_DEPTH) return null;
     // unions: recurse per branch (with subst applied), fold matches into a synthetic union.
@@ -1108,7 +1126,6 @@ function createResolveNodeType(babelNodeType, t) {
     // walk through trivial mapped passthroughs / aliases when looking up members
     const members = getTypeMembers(aliased ?? objectType, scope, depth);
     if (!members) return null;
-    let indexSignatureType = null;
     for (const member of members) {
       switch (member.type) {
         case 'TSPropertySignature':
@@ -1141,12 +1158,10 @@ function createResolveNodeType(babelNodeType, t) {
           if (member.kind === 'get') return withSubst(member.returnType ?? member.value?.returnType);
           if (member.kind === 'set') break;
           return { type: 'TSFunctionType' };
-        case 'TSIndexSignature':
-          if (!indexSignatureType && member.typeAnnotation) indexSignatureType = member.typeAnnotation;
-          break;
       }
     }
-    if (indexSignatureType) return withSubst(indexSignatureType);
+    const indexSig = pickIndexSignature(members, key);
+    if (indexSig) return withSubst(indexSig);
     // Flow: ObjectTypeIndexer stored separately in the type node, not in properties
     // resolve through type aliases since getTypeMembers follows aliases but returns only properties
     let resolvedType = objectType;
@@ -4435,9 +4450,10 @@ function createResolveNodeType(babelNodeType, t) {
     }
     if (test.type === 'BinaryExpression') {
       const { operator } = test;
-      // unwrap so `if ((x) instanceof Map)` narrows under ESTree
-      const left = unwrapParens(test.left);
-      const right = unwrapParens(test.right);
+      // unwrap parens + ChainExpression + TS wrappers so `(x as any) instanceof Array`
+      // and `x! instanceof Array` narrow the same as bare `x instanceof Array`
+      const left = unwrapRuntimeExpr(test.left);
+      const right = unwrapRuntimeExpr(test.right);
       const isNegatedOp = operator === '!==' || operator === '!=';
       if (isNegatedOp || operator === '===' || operator === '==') {
         if (isNegatedOp) negated = !negated;
