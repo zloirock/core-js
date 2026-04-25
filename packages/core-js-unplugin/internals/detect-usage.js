@@ -352,7 +352,9 @@ function walkDecorators(parentPath, decoratorVisitors) {
 
 // --- Usage visitors ---
 
-export function createUsageVisitors({ onUsage, onWarning, method, suppressProxyGlobals = false, walkAnnotations = true }) {
+export function createUsageVisitors({
+  onUsage, onWarning, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
+}) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
   // must polyfill - otherwise `Map` ReferenceError's in engines where the native is missing
@@ -412,7 +414,7 @@ export function createUsageVisitors({ onUsage, onWarning, method, suppressProxyG
   }
 
   function binaryExpressionVisitor(path) {
-    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects);
+    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, isEntryAvailable);
     if (meta) onUsage(meta, path);
   }
 
