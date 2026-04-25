@@ -4,11 +4,13 @@
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
 
 // `\`foo\`` - TemplateLiteral with no interpolations, used as a static string key. returns
-// the cooked text; null when interpolations present or node isn't a template literal
+// the cooked text; null when interpolations present, node isn't a template literal, or
+// the cooked form is unavailable (post-ES2018 invalid-escape tagged template - `cooked` is
+// null). callers check `=== null` to bail, so normalise `undefined` to `null` explicitly
 export function singleQuasiString(node) {
   if (node?.type !== 'TemplateLiteral') return null;
   if ((node.expressions?.length ?? 0) !== 0 || (node.quasis?.length ?? 0) !== 1) return null;
-  return node.quasis[0].value.cooked;
+  return node.quasis[0].value.cooked ?? null;
 }
 
 // `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
@@ -42,14 +44,30 @@ const TS_TYPE_DECL_TYPES = new Set([
 ]);
 
 // true for identifiers in type-only positions (TS declaration ids, `type`-modified
-// import/export specifiers). covers all three call sites: babel handleIdentifier + post-sweep
-// and shared `createUsageGlobalCallback`. parent / parentKey come from the visitor context
-export function isTSTypeOnlyIdentifier(parent, parentKey) {
+// import/export specifiers). low-level form takes raw nodes - prefer the path-accepting
+// variant `isTSTypeOnlyIdentifierPath` at callsites that have a path to avoid duplicating
+// the parent-grandparent walk. `grandparent` (optional) carries the declaration-level
+// `importKind`/`exportKind` for `import type { X }` / `export type { X }` forms where the
+// flag lives on the parent declaration rather than on the specifier itself
+export function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
   if (!parent) return false;
-  if (parent.type === 'ExportSpecifier' && parent.exportKind === 'type') return true;
-  if (parent.type === 'ImportSpecifier' && parent.importKind === 'type') return true;
+  if (parent.type === 'ExportSpecifier') {
+    if (parent.exportKind === 'type') return true;
+    return grandparent?.type === 'ExportNamedDeclaration' && grandparent.exportKind === 'type';
+  }
+  if (parent.type === 'ImportSpecifier') {
+    if (parent.importKind === 'type') return true;
+    return grandparent?.type === 'ImportDeclaration' && grandparent.importKind === 'type';
+  }
   if (parentKey === 'id' && TS_TYPE_DECL_TYPES.has(parent.type)) return true;
   return false;
+}
+
+// path-accepting wrapper: encapsulates the (parent, parentKey, grandparent) extraction so
+// callers don't repeat `path?.parent, path?.key, path?.parentPath?.parent` 4-5 times across
+// the codebase. accepts babel NodePath or estree-toolkit path - both expose the same triple
+export function isTSTypeOnlyIdentifierPath(path) {
+  return isTSTypeOnlyIdentifier(path?.parent, path?.key, path?.parentPath?.parent);
 }
 
 // shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
@@ -125,8 +143,15 @@ export function isFunctionParamDestructureParent(parent, grandparent, objectPatt
 // inline-default emission both read `.name` off the returned node, so keeping a single
 // extraction helper avoids the AssignmentPattern.left peel being duplicated across call sites
 export function propBindingIdentifier(value) {
+  // oxc preserves ParenthesizedExpression wrappers even in pattern-position values. peel
+  // so both parsers surface the same Identifier shape to callers
+  while (value?.type === 'ParenthesizedExpression') value = value.expression;
   if (value?.type === 'Identifier') return value;
-  if (value?.type === 'AssignmentPattern' && value.left?.type === 'Identifier') return value.left;
+  if (value?.type === 'AssignmentPattern') {
+    let { left } = value;
+    while (left?.type === 'ParenthesizedExpression') left = left.expression;
+    if (left?.type === 'Identifier') return left;
+  }
   return null;
 }
 
@@ -370,6 +395,12 @@ function computeDeclaresRequire(body) {
         for (const s of node.specifiers) {
           if (s.local?.name === 'require') return true;
         }
+        break;
+      // `import require = X.Y` - TS-specific syntax that creates a runtime binding to
+      // anything named `require`. namespace refs / proper modules both reach runtime,
+      // so shadowing is real
+      case 'TSImportEqualsDeclaration':
+        if (node.id?.name === 'require') return true;
         break;
     }
     if (found) return true;

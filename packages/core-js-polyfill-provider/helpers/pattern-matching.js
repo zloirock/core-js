@@ -1,5 +1,8 @@
-// strip g/y flags from RegExp to prevent lastIndex state between calls
+// strip g/y flags from RegExp to prevent lastIndex state between calls.
+// null / undefined / non-RegExp inputs surface as a more readable error than
+// the opaque `Cannot read properties of null (reading 'global')` crash
 export function toStatelessRegExp(re) {
+  if (!(re instanceof RegExp)) throw new TypeError('[core-js] toStatelessRegExp: expected RegExp');
   return re.global || re.sticky ? new RegExp(re.source, re.flags.replaceAll(/[gy]/g, '')) : re;
 }
 
@@ -67,12 +70,14 @@ export function validatePatternList(name, list) {
 // generate a unique identifier name following babel's UID convention: `startSuffix === null`
 // tries the bare prefix first, falling back to `_hint2, _hint3, ...` on collision (skip `_hint1`);
 // numeric `startSuffix` starts at `prefix${startSuffix}` and increments (cache-driven continuation).
-// isTaken is called for each candidate; true = name conflicts
+// isTaken is called for each candidate; true = name conflicts.
+// numeric `startSuffix < 2` would break the skip-1 convention (`_hint0` / `_hint1` emitted
+// in violation of babel's UID scheme). clamp up to 2 so chain continuations respect the rule
 export function findUniqueName(prefix, startSuffix, isTaken) {
   if (startSuffix === null) {
     if (!isTaken(prefix)) return prefix;
     startSuffix = 2;
-  }
+  } else if (startSuffix < 2) startSuffix = 2;
   let counter = startSuffix;
   let name = `${ prefix }${ counter }`;
   while (isTaken(name)) name = `${ prefix }${ ++counter }`;
