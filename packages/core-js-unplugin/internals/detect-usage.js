@@ -195,7 +195,7 @@ function buildDestructuringMeta(propNode, parentPath) {
       // receiver. non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) carry no
       // static type, so wrapper-default still provides the best static context and the
       // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
-      if (isFunctionParamDestructureParent(parent.node, parent.parentPath?.node, objectPattern.node)) {
+      if (isFunctionParamDestructureParent(objectPattern)) {
         const argNode = findIifeArgForParam(parent.parentPath, parent.node);
         initNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
       }

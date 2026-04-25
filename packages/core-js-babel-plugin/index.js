@@ -453,7 +453,7 @@ export default function plugin(api, options) {
         }
         const objectPattern = prop.parentPath;
         const patternParent = objectPattern?.parentPath;
-        if (isFunctionParamDestructureParent(patternParent?.node, patternParent?.parentPath?.node, objectPattern?.node)) {
+        if (isFunctionParamDestructureParent(objectPattern)) {
           handleParameterDestructure(prop, kind, entry, hintName);
           return;
         }
