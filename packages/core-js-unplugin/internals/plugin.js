@@ -966,10 +966,13 @@ export default function createPlugin(options) {
         if (paramIndex === -1) return null;
         let callPath = wrapperPath.parentPath;
         // oxc preserves `ParenthesizedExpression`; `(arrow)(args)` needs one extra hop.
-        // `UnaryExpression` / `SequenceExpression` mirror `!function(){}()` and `(0, fn)()`
+        // `UnaryExpression` / `SequenceExpression` mirror `!function(){}()` and `(0, fn)()`.
+        // `ChainExpression` + TS expression wrappers cover `((arrow) as any)(R)` etc.
         while (callPath?.node && (callPath.node.type === 'UnaryExpression'
             || callPath.node.type === 'SequenceExpression'
-            || callPath.node.type === 'ParenthesizedExpression')) {
+            || callPath.node.type === 'ParenthesizedExpression'
+            || callPath.node.type === 'ChainExpression'
+            || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
           callPath = callPath.parentPath;
         }
         const call = callPath?.node;
