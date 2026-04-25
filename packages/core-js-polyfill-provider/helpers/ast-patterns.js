@@ -34,6 +34,94 @@ export const TS_EXPR_WRAPPERS = new Set([
   'TypeCastExpression',
 ]);
 
+// transparent wrappers that may appear ABOVE a `(arrow)(...)` call site without changing
+// the call's invocation semantics for IIFE detection: `!fn(...)`, `(0, fn)(...)`, `(fn)(...)`,
+// optional-chain wrap (oxc), TS expression wrappers
+const IIFE_CALL_PATH_WRAPPERS = new Set([
+  'UnaryExpression',
+  'SequenceExpression',
+  'ParenthesizedExpression',
+  'ChainExpression',
+]);
+
+// transparent wrappers between a CallExpression's `.callee` and the actual invoked node.
+// narrower than IIFE_CALL_PATH_WRAPPERS - Unary/Sequence aren't valid here (they'd change
+// what's invoked)
+const IIFE_CALLEE_WRAPPERS = new Set([
+  'ParenthesizedExpression',
+  'ChainExpression',
+]);
+
+const FN_NODE_TYPES = new Set([
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+]);
+
+// resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
+// spread of an inline array literal. returns null if a non-literal spread precedes `index`,
+// since we can't statically know the expanded length
+export function resolveCallArgument(args, index) {
+  let i = 0;
+  for (const arg of args) {
+    if (arg?.type === 'SpreadElement') {
+      if (arg.argument?.type !== 'ArrayExpression') return null;
+      for (const el of arg.argument.elements) {
+        if (i === index) return el;
+        i++;
+      }
+      continue;
+    }
+    if (i === index) return arg;
+    i++;
+  }
+  return null;
+}
+
+// for `(({p} = D) => body)(R)` or plain `(({p}) => body)(R)`, locate the IIFE call site
+// invoking THIS function. adapter-agnostic: works on babel paths and estree-toolkit paths
+// since both expose `.node` and `.parentPath`. callee-identity check rejects `dec(arrow)`
+// where arrow is decorator arg (NOT an IIFE - `dec`'s args don't bind to the arrow's params).
+// returns `{ callPath, paramIndex }` so callers can decide whether to iterate args as paths
+// (synth-swap path-emission) or as nodes (resolution-layer node-inspection)
+export function findIifeCallSite(fnParentPath, paramNode) {
+  const fnNode = fnParentPath?.node;
+  if (!fnNode || !FN_NODE_TYPES.has(fnNode.type)) return null;
+  const paramIndex = fnNode.params?.indexOf(paramNode);
+  if (paramIndex === undefined || paramIndex < 0) return null;
+  let callPath = fnParentPath.parentPath;
+  while (callPath?.node && (IIFE_CALL_PATH_WRAPPERS.has(callPath.node.type)
+    || TS_EXPR_WRAPPERS.has(callPath.node.type))) {
+    callPath = callPath.parentPath;
+  }
+  const callNode = callPath?.node;
+  if (callNode?.type !== 'CallExpression' && callNode?.type !== 'NewExpression') return null;
+  let { callee } = callNode;
+  while (callee && callee !== fnNode
+    && (IIFE_CALLEE_WRAPPERS.has(callee.type) || TS_EXPR_WRAPPERS.has(callee.type))) {
+    callee = callee.expression;
+  }
+  if (callee !== fnNode) return null;
+  return { callPath, paramIndex };
+}
+
+// node-form helper for resolution-layer use: returns the IIFE caller-arg node bound to
+// `paramNode`, or null when the call isn't an IIFE invoking THIS function. handles `...[lit]`
+// inline-array spread via `resolveCallArgument`. for synth-swap (path-form) callers, use
+// `findIifeCallSite` directly and walk the args paths
+export function findIifeArgForParam(fnParentPath, paramNode) {
+  const site = findIifeCallSite(fnParentPath, paramNode);
+  return site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex) : null;
+}
+
+// is the IIFE caller-arg statically classifiable to a known builtin receiver? bare
+// Identifiers can be matched against compat data (`Set`, `Array`, ...); non-Identifier
+// shapes (`(...)(globalThis.X)`, `(...)(call())`, `(...)((x, y))`) carry no static type.
+// resolution (entry lookup) and synth-swap (target picking) MUST agree on this narrowing -
+// mismatched receivers would emit a polyfill the runtime never reaches
+export function isClassifiableReceiverArg(node) {
+  return node?.type === 'Identifier';
+}
+
 // TS type-only declarations - identifier `id` here is a type name, not a runtime reference.
 // naive `isReferenced` treats it as a ref by default; polyfilling the id is pure over-injection
 const TS_TYPE_DECL_TYPES = new Set([
