@@ -1,7 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _at from "@core-js/pure/actual/instance/at";
-// combo: IIFE with destructured param + synth-swap on Array receiver + outer optional chain
-// on the call result + instance.at polyfill on the optional target
+// combined shape: IIFE arrow with destructured param where the receiver is `Array`
+// (synth-swap rewrites the arg slot) + body uses `from([...])` from the destructure
+// + outer optional chain on the call result guards the inner `.at(0)` polyfill
 (({
   from
 }) => {

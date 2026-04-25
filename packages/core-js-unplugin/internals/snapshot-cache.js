@@ -13,7 +13,10 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
 // - SFC sub-block queries (`?vue&type=script&setup=true`) kept intact so distinct scripts of
 //   the same file don't collide on one key
 // - collapse `//` -> `/` so a doubled slash on one side still matches the other
-const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs|\/@id\/)/i;
+// `/@fs` requires trailing `/` OR end-of-input boundary: without it `/@fsfoo/bar.js`
+// would get its leading `/@fs` stripped, producing `foo/bar.js` - theoretical virtual
+// module collision. `/@id/` already has trailing slash literal in the pattern
+const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs(?=\/|$)|\/@id\/)/i;
 const REPEATED_SLASHES_RE = /\/{2,}/g;
 // only framework SFC markers count as sub-block identifiers. pairing `type=`/`lang=`/`setup`
 // with a framework key (`vue` / `astro` / `svelte`) avoids matching generic `?type=module` or

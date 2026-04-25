@@ -151,7 +151,9 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       chainStart.node[key] = refClone;
     }
     deoptionalizeNode(chainStart);
-    for (let p = chainStart.parentPath; p !== path; p = p.parentPath) {
+    // `p && p !== path` guard: on orphaned paths parentPath chain can bottom out at null
+    // before reaching `path`, which would infinite-loop the original `p !== path` test
+    for (let p = chainStart.parentPath; p && p !== path; p = p.parentPath) {
       if (p.isOptionalMemberExpression() || p.isOptionalCallExpression()) deoptionalizeNode(p);
     }
     return [check, node.object, throughTS];

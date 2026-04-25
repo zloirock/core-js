@@ -1,6 +1,7 @@
-// combo: nested proxy-global destructure from `globalThis` in for-init position + preceding
-// side-effect expression in SequenceExpression init + body uses the destructured binding.
-// for-init can't host an extracted SE prefix statement (loop header is single-expression-only),
-// so the raw shape is preserved with the polyfill moved into the AssignmentPattern default slot
+// combination: for-init with nested proxy-global destructure + SequenceExpression head
+// + body reads the destructured binding. for-init can't host a lifted SE prefix statement
+// outside the loop header, so the polyfill migrates into the default-slot of an
+// AssignmentPattern around the destructure, preserving both the SE semantics and the loop
+// header shape
 function se() { return globalThis; }
 for (const { Array: { from } } = (se(), globalThis); false;) from([]);
