@@ -6,7 +6,7 @@ import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
 import {
-  isForXWriteTarget, isTSTypeOnlyIdentifier, patternToRegExp, safeStringify, symbolKeyToEntry, validatePatternList,
+  isForXWriteTarget, isTSTypeOnlyIdentifierPath, patternToRegExp, safeStringify, symbolKeyToEntry, validatePatternList,
 } from './helpers.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
@@ -38,9 +38,13 @@ function formatReceived(value) {
   if (typeof value === 'function') {
     // adversarial function with throwing `.name` getter - same defensive rationale as the
     // `.constructor?.name` try/catch below: don't let formatReceived throw a secondary error
-    // while the primary option-type error is being built
+    // while the primary option-type error is being built. also coerce through String() inside
+    // try/catch to cover Symbol.toPrimitive on the `.name` result (adversarial Proxy)
     let fnName = null;
-    try { fnName = value.name; } catch { /* swallow */ }
+    try {
+      const raw = value.name;
+      fnName = typeof raw === 'string' ? raw : null;
+    } catch { /* swallow */ }
     return `[Function${ fnName ? ` ${ fnName }` : '' }]`;
   }
   if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
@@ -104,6 +108,7 @@ function validateOptions({
   shippedProposals,
   shouldInjectPolyfill,
   targets,
+  version,
 }) {
   expectEnum('method', VALID_METHODS, method);
   expectEnum('mode', VALID_MODES, mode, { required: false });
@@ -116,6 +121,10 @@ function validateOptions({
   expectOptional('shippedProposals', 'boolean', shippedProposals);
   expectOptional('configPath', 'string', configPath);
   expectOptional('browserslistEnv', 'string', browserslistEnv);
+  // semver-shape validated downstream in `normalizeCoreJSVersion`; here only verify the
+  // shape is string-or-undefined to surface `[core-js]`-prefixed error on non-string input
+  // (number / boolean / null) BEFORE `createPolyfillContext` sees it
+  expectOptional('version', 'string', version);
   if (!isEmpty(shouldInjectPolyfill) && typeof shouldInjectPolyfill !== 'function') {
     throw optionTypeError('shouldInjectPolyfill', 'a function, or undefined', shouldInjectPolyfill);
   }
@@ -145,6 +154,8 @@ function validateOptions({
     const badIndex = additionalPackages.findIndex($pkg => typeof $pkg !== 'string');
     if (badIndex !== -1) throw optionTypeError('additionalPackages[*]', 'a string', additionalPackages[badIndex]);
     if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
+    // note: duplicates (including case-variants) silently dedup in `createPolyfillContext`
+    // - documented design, see `audit-additional-packages-dedup`
   }
   // positive whitelist for `targetsParser`: `function` / `boolean` / `number` / etc. trigger
   // opaque "Unknown browser query" from browserslist downstream - reject them here.
@@ -164,14 +175,21 @@ function validateOptions({
 }
 
 function resolveTargets({ targets, configPath, ignoreBrowserslistConfig, browserslistEnv, getBabelTargets }) {
-  if (targets) return targetsParser(targets);
-  if (typeof getBabelTargets === 'function') {
-    const babelTargets = getBabelTargets();
-    if (babelTargets && keys(babelTargets).length) return targetsParser(babelTargets);
+  // wrap all upstream calls so errors surface with `[core-js]` prefix. without this,
+  // `targetsParser` thrown TypeError / `getBabelTargets()` throw (adversarial input
+  // via Proxy or custom getter) reaches the user without plugin identification
+  try {
+    if (targets) return targetsParser(targets);
+    if (typeof getBabelTargets === 'function') {
+      const babelTargets = getBabelTargets();
+      if (babelTargets && keys(babelTargets).length) return targetsParser(babelTargets);
+    }
+    // use project browserslist config by default (like @babel/preset-env, autoprefixer, etc.)
+    const parsed = targetsParser({ configPath, ignoreBrowserslistConfig, browserslistEnv });
+    return parsed.size ? parsed : null;
+  } catch (error) {
+    throw new Error(`[core-js] failed to resolve targets: ${ error.message }`, { cause: error });
   }
-  // use project browserslist config by default (like @babel/preset-env, autoprefixer, etc.)
-  const parsed = targetsParser({ configPath, ignoreBrowserslistConfig, browserslistEnv });
-  return parsed.size ? parsed : null;
 }
 
 function buildShouldInjectPolyfill({ include, exclude, parsedTargets, userCallback }) {
@@ -343,7 +361,7 @@ export function createModuleInjectors({ mode, getModulesForEntry, getDebugOutput
 function shouldSkipUsageDispatch(meta, path, isDisabled) {
   if (isDisabled(path.node)) return true;
   if (path?.parentPath?.node?.type === 'TSTypeQuery') return true;
-  if (isTSTypeOnlyIdentifier(path?.parent, path?.key)) return true;
+  if (isTSTypeOnlyIdentifierPath(path)) return true;
   return meta.kind === 'property' && path?.node && isForXWriteTarget(path);
 }
 

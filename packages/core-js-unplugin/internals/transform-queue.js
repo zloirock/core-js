@@ -47,9 +47,11 @@ function consumedOccurrencesBefore(originalSlice, needle, innerStartAbs, outerSt
 
 // replace the `n`-th (0-based) occurrence of `needle` in `str`; return `str` unchanged if not found.
 // negative `n` (possible if count math underflows - defensive) yields no replacement rather than
-// a corrupt slice from `str.slice(0, -1) + replacement + ...` falling through the empty loop
+// a corrupt slice from `str.slice(0, -1) + replacement + ...` falling through the empty loop.
+// empty needle: `indexOf('', 0)` returns 0 on any string, so without a guard we'd splice
+// `replacement` in at position 0 repeatedly - silent corruption. bail early instead
 function replaceNthOccurrence(str, needle, replacement, n) {
-  if (n < 0) return str;
+  if (n < 0 || !needle.length) return str;
   let idx = -1;
   for (let i = 0; i <= n; i++) {
     idx = str.indexOf(needle, idx + 1);
@@ -209,6 +211,10 @@ function removeFrom(map, key, value) {
 // didn't install a guard and didn't reuse one
 export function createRewriteHint({ rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot }) {
   if (!guardRef) return null;
+  // `guardRef` without `rootRaw` breaks compose: substituteInner relies on rootRaw for
+  // needle.startsWith checks. fail fast rather than silently produce a hint that
+  // misroutes downstream composition
+  if (!rootRaw) throw new Error('[core-js] createRewriteHint: guardRef requires rootRaw');
   return { rootRaw, guardRef, deoptPositions, objectStart, absorbsRoot: !!absorbsRoot };
 }
 
@@ -250,6 +256,11 @@ export default class TransformQueue {
     if (start >= end) throw new RangeError(`[core-js] transform-queue: invalid range [${ start },${ end })`);
     if (start < 0 || end > this.#code.length) {
       throw new RangeError(`[core-js] transform-queue: range [${ start },${ end }) out of bounds (source length ${ this.#code.length })`);
+    }
+    // content must be a string: undefined/null/object would silently corrupt via
+    // MagicString.overwrite stringification. surface mismatch at caller, not mid-render
+    if (typeof content !== 'string') {
+      throw new TypeError(`[core-js] transform-queue: content must be a string (received ${ typeof content })`);
     }
     const entry = { start, end, content, guardedRoot, rewriteHint };
     this.#transforms.add(entry);
