@@ -21,6 +21,7 @@ import {
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
+  isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   isTypeOnlyImportEquals,
   unwrapInitValue,
@@ -174,16 +175,17 @@ export function createUsageVisitors({
   }
 
   function handleMemberExpression(path) {
-    const { node } = path;
+    const { node, parent } = path;
     // `globalThis.Map ||= X` - check BEFORE inner-identifier visit rewrites `globalThis`
     // into `_globalThis` (at which point `POSSIBLE_GLOBAL_OBJECTS.has(_globalThis)` is false)
     if (onWarning) {
       const obj = node.object;
       const isBound = obj?.type === 'Identifier' && adapter.hasBinding(path.scope, obj.name);
-      const warning = checkLogicalAssignLhsMember(node, path.parent, isBound);
+      const warning = checkLogicalAssignLhsMember(node, parent, isBound);
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
+    if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) return;
     const meta = handleMemberExpressionNode(node, path.scope, adapter, handledObjects, suppressProxyGlobals);
     if (meta) onUsage(meta, path);
   }
@@ -285,7 +287,7 @@ export function createUsageVisitors({
         || callPath?.node?.type === 'ChainExpression') {
         callPath = callPath.parentPath;
       }
-      if (callPath?.isCallExpression() || callPath?.isNewExpression()) {
+      if (callPath?.isCallExpression() || callPath?.isNewExpression() || callPath?.isOptionalCallExpression()) {
         const key = resolveKey(path.get('key'), path.node.computed);
         if (!key) return;
         const argNode = resolveCallArgument(callPath.node.arguments, paramIndex);
