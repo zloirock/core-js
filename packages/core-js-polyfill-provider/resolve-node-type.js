@@ -109,7 +109,9 @@ function createResolveNodeType(babelNodeType, t) {
       const { node } = prop;
       if (node.type === 'SpreadElement') return null;
       if (node.computed || getKeyName(node.key) !== key) continue;
-      if (node.type === 'ObjectMethod') return new $Object('Function');
+      // babel-only `ObjectMethod` shorthand: `{ foo() {...} }`. oxc emits `Property { value: FunctionExpression }`
+      // and falls through to `resolveNodeType(prop.get('value'))` which returns Function via FunctionExpression
+      if (babelNodeType(node) === 'ObjectMethod') return new $Object('Function');
       return resolveNodeType(prop.get('value'));
     }
     return null;
@@ -437,8 +439,20 @@ function createResolveNodeType(babelNodeType, t) {
       }
       case 'TSFunctionType':
       case 'TSConstructorType':
-      case 'FunctionTypeAnnotation':
-        return substSlot(node, node.returnType ? 'returnType' : 'typeAnnotation', subst, depth);
+      case 'FunctionTypeAnnotation': {
+        const returnSlot = node.returnType ? 'returnType' : 'typeAnnotation';
+        const rt = node[returnSlot] ? applyAliasSubstDeep(node[returnSlot], subst, depth + 1) : node[returnSlot];
+        // subst params too: `type F<T> = (x: T) => void; F<number[]>.params[0].type` needs
+        // T -> number[]. rare (params type inference doesn't drive polyfill dispatch for most
+        // callsites), but preserves invariant that subst walks the full type shape
+        const params = node.params?.map(p => {
+          const pTA = p.typeAnnotation ? applyAliasSubstDeep(p.typeAnnotation, subst, depth + 1) : p.typeAnnotation;
+          return pTA === p.typeAnnotation ? p : { ...p, typeAnnotation: pTA };
+        });
+        const paramsChanged = params && params.some((p, i) => p !== node.params[i]);
+        if (rt === node[returnSlot] && !paramsChanged) return node;
+        return { ...node, [returnSlot]: rt, ...paramsChanged && { params } };
+      }
       case 'TSIndexedAccessType': {
         const obj = applyAliasSubstDeep(node.objectType, subst, depth + 1);
         const idx = applyAliasSubstDeep(node.indexType, subst, depth + 1);
@@ -447,6 +461,25 @@ function createResolveNodeType(babelNodeType, t) {
       }
       case 'TSTypeOperator':
         return substSlot(node, 'typeAnnotation', subst, depth);
+      // mapped type: `{ [K in T]: T[K] }` - substitute `typeParameter.constraint`, `typeAnnotation`,
+      // and `nameType` (TS `as` remapping). without this, `type Box<T> = { [K in keyof T]: T[K] }`
+      // passed `Box<{a: string[]}>` wouldn't substitute T in the mapped body
+      case 'TSMappedType': {
+        const tp = node.typeParameter;
+        const tpConstraint = tp?.constraint ? applyAliasSubstDeep(tp.constraint, subst, depth + 1) : tp?.constraint;
+        const ann = node.typeAnnotation ? applyAliasSubstDeep(node.typeAnnotation, subst, depth + 1) : node.typeAnnotation;
+        const nameType = node.nameType ? applyAliasSubstDeep(node.nameType, subst, depth + 1) : node.nameType;
+        if (tpConstraint === tp?.constraint && ann === node.typeAnnotation && nameType === node.nameType) return node;
+        return { ...node, typeParameter: tp ? { ...tp, constraint: tpConstraint } : tp, typeAnnotation: ann, nameType };
+      }
+      // rest type inside tuples: `[...T[]]` / `[first, ...Rest]` - substitute inner
+      case 'TSRestType': return substSlot(node, 'typeAnnotation', subst, depth);
+      // named tuple member: `[x: string, ...rest: number[]]` - inner elementType
+      case 'TSNamedTupleMember': return substSlot(node, 'elementType', subst, depth);
+      // `typeof X` - substitute if X maps through the alias (rare but keeps invariant)
+      case 'TSTypeQuery':
+        return node.exprName?.type === 'Identifier' && subst.has(node.exprName.name)
+          ? subst.get(node.exprName.name) : node;
       default: return node;
     }
   }
@@ -1946,14 +1979,18 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveKnownConstructor(resolveGlobalName(resolveRuntimeExpression(path)));
   }
 
-  // `const { prototype: name } = ...` shape - `name` is bound to the init's `.prototype`
+  // `const { prototype: name } = ...` shape - `name` is bound to the init's `.prototype`.
+  // peel AssignmentPattern wrapper on value: `const { prototype: P = Array.prototype } = Set`
+  // still binds P to `.prototype` when the default is unreached at runtime
   function isDestructuredAsPrototype(bindingPath, name) {
     if (!t.isVariableDeclarator(bindingPath.node)) return false;
     const { id, init } = bindingPath.node;
     if (!t.isObjectPattern(id) || !init) return false;
-    return id.properties.some(p => t.isObjectProperty(p) && !p.computed
-      && keyMatchesName(p.key, 'prototype')
-      && t.isIdentifier(p.value) && p.value.name === name);
+    return id.properties.some(p => {
+      if (!t.isObjectProperty(p) || p.computed || !keyMatchesName(p.key, 'prototype')) return false;
+      const value = t.isAssignmentPattern(p.value) ? p.value.left : p.value;
+      return t.isIdentifier(value) && value.name === name;
+    });
   }
 
   // `.prototype` of a known constructor reads as an instance of it: we infer which
@@ -2474,9 +2511,15 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve a type annotation substituting type parameters from the map.
   // `seen` is the decl-set guard threaded from `resolveUserDefinedType` so body
-  // recursion into the same alias short-circuits instead of CPU-burning up to MAX_DEPTH
+  // recursion into the same alias short-circuits instead of CPU-burning up to MAX_DEPTH.
+  // `typeParamMap` defensive null-guard: callers pass Map, but some recursive entry
+  // points (`resolveInferElementPattern` with null ctx) would crash on `.has()` otherwise
+  // `typeParamMap` null degrades to plain type-annotation resolution (some recursive
+  // entry points like `resolveInferElementPattern` with null ctx would crash on `.has()`).
+  // eslint-disable-next-line max-statements -- 51 lines after defensive null-guard addition
   function substituteTypeParams(node, typeParamMap, scope, depth, seen) {
     if (depth > MAX_DEPTH) return null;
+    if (!typeParamMap) return resolveTypeAnnotation(node, scope, depth);
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
     // direct type parameter reference or known type with substituted inner
@@ -3725,6 +3768,9 @@ function createResolveNodeType(babelNodeType, t) {
     if (depth > MAX_DEPTH) return null;
     // ESTree preserves ParenthesizedExpression - unwrap
     if (path.node.type === 'ParenthesizedExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
+    // ESTree wraps optional chains in ChainExpression (babel inlines); peel so the
+    // inner MemberExpression hits its own branch below and resolves through the object
+    if (path.node.type === 'ChainExpression') return findExpressionAnnotation(path.get('expression'), depth + 1);
     if (path.node.type === 'TSAsExpression' || path.node.type === 'TSSatisfiesExpression'
       || path.node.type === 'TSTypeAssertion' || path.node.type === 'TypeCastExpression') {
       return { annotation: path.node.typeAnnotation, scope: path.scope };

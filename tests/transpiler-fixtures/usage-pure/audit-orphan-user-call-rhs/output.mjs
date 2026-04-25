@@ -1,9 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// user-written sloppy-mode `_ref = foo()` at module top-level with user's own
-// core-js pure import. if the post-pass orphan heuristic mis-classifies this as
-// plugin leftover, it would add `var _ref;` above it (adopting the user's binding).
-// `isPluginShapedOrphanAssign` considers parentType = ExpressionStatement a user shape,
-// so the orphan is rejected regardless of RHS type
+// user-authored top-level `_ref = foo()` as an ExpressionStatement. the bare-statement
+// position is never something the plugin emits - orphan adoption heuristic rejects it
+// regardless of RHS complexity. user's own pure import of fill stays intact; plugin's
+// separate array.at polyfill allocates its own ref without touching the user's `_ref`
 import _fill from '@core-js/pure/actual/array/fill';
 var _ref2;
 _ref = helper();
