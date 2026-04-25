@@ -18,6 +18,7 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
+  getTSImportEqualsBindings,
   isASTNode,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
@@ -94,8 +95,20 @@ function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
 
 // --- ESTree scope adapter ---
 
+// estree-toolkit's scope tracker doesn't recognise `TSImportEqualsDeclaration` as a
+// binding declaration. walk to the Program node (top scope) and consult the shared
+// program-level scan so identifier / member resolvers see `import Map = require(...)`
+// shadow the global. covers `value` and `type` import kinds - even type-only imports
+// must skip the LHS rename path (otherwise duplicate `_Map` declaration breaks parsing)
+function tsImportEqualsBindingsForScope(scope) {
+  let s = scope;
+  while (s?.parent) s = s.parent;
+  return getTSImportEqualsBindings(s?.path?.node);
+}
+
 export const estreeAdapter = {
-  hasBinding: (scope, name) => scope?.hasBinding(name) ?? false,
+  hasBinding: (scope, name) => (scope?.hasBinding(name) ?? false)
+    || (tsImportEqualsBindingsForScope(scope)?.has(name) ?? false),
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
@@ -377,7 +390,7 @@ export function createUsageVisitors({
   );
 
   const annotationGlobal = path => name => {
-    if (path.scope?.hasBinding(name)) return;
+    if (estreeAdapter.hasBinding(path.scope, name)) return;
     onUsage({ kind: 'global', name }, path);
   };
 
@@ -386,14 +399,14 @@ export function createUsageVisitors({
     // `isReferenced` returns false for write-context leaves like `Map ||= X`; diagnose the
     // pattern before the early return so users see why nothing was polyfilled
     if (onWarning) {
-      const warning = checkLogicalAssignLhsGlobal(node, parent, path.scope?.hasBinding(node.name) ?? false);
+      const warning = checkLogicalAssignLhsGlobal(node, parent, estreeAdapter.hasBinding(path.scope, node.name));
       if (warning) onWarning(warning);
     }
     if (!isReferenced(node, parent, parentKey, path.parentPath, skipUpdateTargets)) return;
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
-    if (path.scope?.hasBinding(node.name)) {
+    if (estreeAdapter.hasBinding(path.scope, node.name)) {
       // self-reference `var X = X` - hoisted var init reads the outer (global) scope
       // before the local is assigned. narrow via cached binding check; exclude let/const
       // (TDZ error) and ImportSpecifiers. `node.name` equals binding's own name by lookup
@@ -474,7 +487,7 @@ export function createUsageVisitors({
       const isMemberRoot = parent?.type === 'JSXMemberExpression' && parent.object === path.node
         && path.parentPath?.parent?.type === 'JSXOpeningElement' && path.parentPath?.key === 'name';
       if (!isOpeningTagName && !isMemberRoot) return;
-      if (path.scope?.hasBinding(path.node.name)) return;
+      if (estreeAdapter.hasBinding(path.scope, path.node.name)) return;
       onUsage({ kind: 'global', name: path.node.name }, path);
     },
     MemberExpression: memberExpressionVisitor,
