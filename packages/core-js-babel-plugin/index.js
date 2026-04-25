@@ -10,7 +10,7 @@ import {
   isIdentifierPropValue,
   isInUpdateOperand,
   isSynthSimpleObjectPattern,
-  isTSTypeOnlyIdentifier,
+  isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
   mayHaveSideEffects,
   mergeVisitors,
@@ -99,6 +99,8 @@ export default function plugin(api, options) {
 
   return {
     name: 'core-js@4',
+    /* eslint-disable max-statements -- IIFE encapsulates plugin closure state + helpers;
+       full decomposition tracked as ARCH-9-4 in TASKS.md §2.4 */
     ...(() => {
       let skippedNodes = new WeakSet();
       let originalBodyNodes = new WeakSet();
@@ -191,17 +193,27 @@ export default function plugin(api, options) {
         const paramIndex = wrapper.node.params.indexOf(objectPattern.node);
         if (paramIndex === -1) return null;
         let callPath = wrapper.parentPath;
-        while (callPath?.isUnaryExpression() || callPath?.isSequenceExpression()) {
+        // peel transparent wrappers: `UnaryExpression` (`!`/`+`) and `SequenceExpression`
+        // (`(0, fn)`) + TS expression wrappers (`as` / `satisfies` / `!` TSNonNullExpression)
+        // + ChainExpression (ESTree optional-chain wrap) so `((arrow) as any)()` still
+        // recognises as IIFE. without these peels, callee === wrapper.node check below fails
+        while (callPath?.isUnaryExpression() || callPath?.isSequenceExpression()
+          || TS_EXPR_WRAPPERS.has(callPath?.node?.type)
+          || callPath?.node?.type === 'ChainExpression') {
           callPath = callPath.parentPath;
         }
         if (!callPath?.isCallExpression() && !callPath?.isNewExpression()) return null;
         // distinguish IIFE (`(arrow)(R)`) from "arrow is an arg of some other call" (`dec(arrow)`):
-        // only treat arrow as IIFE when the callee is the arrow itself. the transparent wrappers
-        // loop above already unwrapped `UnaryExpression` / `SequenceExpression` above the arrow,
-        // so `callPath.node.callee` points to the original arrow node (or a still-transparent
-        // parent of it - but in practice the loop ascends until the enclosing call)
-        const { callee } = callPath.node;
-        if (callee !== wrapper.node && callee?.expression !== wrapper.node) return null;
+        // only treat arrow as IIFE when the callee (after own unwrap chain) is the arrow itself.
+        // `callee?.expression !== wrapper.node` fallback covers single-layer transparent wrappers
+        // not yet peeled by the outer loop - e.g. ParenthesizedExpression, ChainExpression
+        let { callee } = callPath.node;
+        while (callee && callee !== wrapper.node
+          && (callee.type === 'ParenthesizedExpression' || callee.type === 'ChainExpression'
+            || TS_EXPR_WRAPPERS.has(callee.type))) {
+          callee = callee.expression;
+        }
+        if (callee !== wrapper.node) return null;
         let i = 0;
         for (const aP of callPath.get('arguments')) {
           if (aP.isSpreadElement()) {
@@ -303,6 +315,22 @@ export default function plugin(api, options) {
       // accepts `{ x }`, `{ x: alias }`, `{ x = default }`, `{ x: alias = default }` - user's
       // default is dropped: the polyfill binding is always defined, so `= default` would be
       // dead code; flatten guarantees polyfill wins even on buggy-but-present native
+      // when a declarator's init is `(se(), receiver)`, lift the SE prefix as a standalone
+      // statement BEFORE the declaration so its side-effects fire at the original evaluation
+      // point even after the declarator gets replaced/spliced. cloned nodes are seeded into
+      // `skippedNodes` to block re-traversal double-injecting polyfills inside the lifted SE.
+      // no-op when init isn't SE or has only the tail expression (no preceding effects)
+      function liftDeclaratorSEPrefix(declarator, declaration) {
+        const { init } = declarator.node;
+        if (init?.type !== 'SequenceExpression' || init.expressions.length <= 1) return;
+        const exprs = init.expressions.slice(0, -1).map(e => t.cloneNode(e));
+        const seStmt = exprs.length === 1
+          ? t.expressionStatement(exprs[0])
+          : t.expressionStatement(t.sequenceExpression(exprs));
+        t.traverseFast(seStmt, node => { skippedNodes.add(node); });
+        declaration.insertBefore(seStmt);
+      }
+
       function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
         const valueNode = propBindingIdentifier(prop.node.value);
         if (!valueNode) return false;
@@ -349,31 +377,18 @@ export default function plugin(api, options) {
         // re-scanned. skippedNodes + programExit's implicit crawl are sufficient
         const skipSubtree = willRemoveDeclarator ? declarator.node : prop.node;
         t.traverseFast(skipSubtree, node => { skippedNodes.add(node); });
+        // declarator-level insert in for-init keeps loop-header shape; declaration-level
+        // insert would wrap for-init in an arrow-IIFE and duplicate the bound name inside.
+        // for-init can't host external statements either, so SE-prefix lift below is gated
+        // on this same predicate (caller bails earlier when for-init declarator has SE)
+        const isForInit = declaration.parentPath?.isForStatement()
+          && declaration.parentPath.node.init === declaration.node;
+        if (!isForInit) liftDeclaratorSEPrefix(declarator, declaration);
         if (willRemoveDeclarator && declCount === 1) {
-          // single-declarator simple-chain: replaceWith preserves leading comments.
-          // lift the SE prefix as a standalone statement so its effects are preserved
-          // (for-init keeps the raw shape - prefix can't live outside the loop header)
-          const inForInit = declaration.parentPath?.isForStatement()
-            && declaration.parentPath.node.init === declaration.node;
-          if (!inForInit && declarator.node.init?.type === 'SequenceExpression'
-            && declarator.node.init.expressions.length > 1) {
-            const exprs = declarator.node.init.expressions.slice(0, -1).map(e => t.cloneNode(e));
-            const seStmt = exprs.length === 1
-              ? t.expressionStatement(exprs[0])
-              : t.expressionStatement(t.sequenceExpression(exprs));
-            // the fresh clones live outside the `skipSubtree` seeded above, so the re-traverse
-            // after `insertBefore` would re-fire visitors for any polyfillable identifier in the
-            // lifted SE (double-injection). seed every node in the SE statement defensively
-            t.traverseFast(seStmt, node => { skippedNodes.add(node); });
-            declaration.insertBefore(seStmt);
-          }
+          // single-declarator simple-chain: replaceWith preserves leading comments
           declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
           return true;
         }
-        // declarator-level insert in for-init keeps loop-header shape; declaration-level
-        // insert would wrap for-init in an arrow-IIFE and duplicate the bound name inside
-        const isForInit = declaration.parentPath?.isForStatement()
-          && declaration.parentPath.node.init === declaration.node;
         if (isForInit) declarator.insertBefore(extractedDeclarator);
         else declaration.insertBefore(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
         if (willRemoveDeclarator && declCount > 1) {
@@ -592,6 +607,17 @@ export default function plugin(api, options) {
         if (hint) callParent.node.coreJSResolvedType = hint;
       }
 
+      // extracted from usagePureCallback to keep its statement count under lint threshold.
+      // preserves sideEffects (SE from computed-key / SequenceExpression receiver) through
+      // the super-class-alias -> static-lookup remap - dropping them would fire the SE at
+      // wrong evaluation points
+      function remapInheritedStaticMeta(originalMeta, inheritedMeta) {
+        const originalSideEffects = originalMeta.sideEffects;
+        const remapped = inheritedMeta ? resolveSuperImportName(injector, inheritedMeta) : null;
+        return remapped && originalSideEffects?.length
+          ? { ...remapped, sideEffects: originalSideEffects } : remapped;
+      }
+
       function usagePureCallback(meta, path) {
         if (shouldSkipPath(path)) return;
         // JSX tag reaches here via ReferencedIdentifier; a JSX slot cannot host a renamed
@@ -612,10 +638,11 @@ export default function plugin(api, options) {
             // `path.isReferenced()` drops grandparent - pass it explicitly
             if (!t.isReferenced(path.node, path.parent, path.parentPath?.parent)) return;
             if (isForXWriteTarget(path)) return;
-            // member update (`(obj.at)++`) - in usage-pure the rewrite would be a function
-            // call receiver (not writable); in usage-global the member read still needs its
-            // prototype polyfill, so skip only for pure mode
-            if (isPure && isInUpdateOperand(path.parentPath)) return;
+            // member update (`(obj.at)++`) - the rewrite would be a function call receiver
+            // (not writable). this callback is only wired in usage-pure mode (see
+            // `usageCallback = isPure ? usagePureCallback : ...`), so the pure-mode guard
+            // is intrinsic to the callsite - no `isPure &&` gate needed
+            if (isInUpdateOperand(path.parentPath)) return;
             // shadow check for `this.X` - polyfill would bypass the user's own member
             // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
             if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
@@ -625,8 +652,11 @@ export default function plugin(api, options) {
             // cache the predicate so the instance-fallback bail below doesn't re-walk
             inheritedStatic = isInheritedStaticLookup(path);
             const inheritedMeta = inheritedStatic ? resolveStaticInheritedMember(path) : null;
-            // `extends MyPromise` (user-aliased pure import) - map binding to global hint
-            if (inheritedStatic) meta = inheritedMeta ? resolveSuperImportName(injector, inheritedMeta) : null;
+            // `extends MyPromise` (user-aliased pure import) - map binding to global hint.
+            // carry through `meta.sideEffects` from the original resolution: SE from
+            // computed-key `super[(fn(), 'X')]()` or SequenceExpression receiver must be
+            // preserved through the super-to-static remap, not dropped
+            if (inheritedStatic) meta = remapInheritedStaticMeta(meta, inheritedMeta);
             if (inheritedStatic && !meta) return;
             if (isTaggedTemplateTag(path.parent, path.node, meta.placement) && path.key === 'tag') return;
             if (meta.key === 'Symbol.iterator') return handleSymbolIterator(path);
@@ -831,9 +861,13 @@ export default function plugin(api, options) {
         // re-traverse new body nodes (helpers from class/spread/destructuring transforms).
         // runs BEFORE synth-swap emission below: helper-visitors queue polyfill imports for
         // identifiers that synth-swap could then consume. reversing the order would emit
-        // synth-swap against a pre-scan state that misses helper-injected globals
+        // synth-swap against a pre-scan state that misses helper-injected globals.
+        // include CatchClause extractor so sibling-injected `catch ({at}) {...}` inside
+        // helper bodies still gets extracted for polyfill dispatch. extractor is idempotent
+        // so even if helperVisitors === usageVisitors already re-visited a catch, no harm
+        const helperWithCatch = { ...helperVisitors, CatchClause: extractCatchClause };
         for (const childPath of path.get('body')) {
-          if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperVisitors);
+          if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperWithCatch);
         }
         // helper-visitor re-traversal may itself queue SEs (nested destructuring inside a
         // helper body). drain before synth-swap so the lifted SE statements participate in
@@ -856,7 +890,7 @@ export default function plugin(api, options) {
               // delete-target positions so this sweep doesn't overrule their exclusions
               if (shouldSkipPath(idPath)) return;
               // mirror `handleIdentifier` - TS type-only positions never need a polyfill
-              if (isTSTypeOnlyIdentifier(idPath.parent, idPath.key)) return;
+              if (isTSTypeOnlyIdentifierPath(idPath)) return;
               // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
               if (isHandled?.(idPath.node)) return;
               usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
@@ -971,49 +1005,61 @@ export default function plugin(api, options) {
         };
       }
 
+      // CatchClause extractor: `catch ({at}) {...}` needs a named receiver for polyfill
+      // dispatch against a destructured key. `extractCatchClause` is idempotent per node
+      // (post-extraction param is a plain Identifier, guard below bails). included in
+      // BOTH pre-traverse and helper-traverse - sibling plugins can inject catch-destructure
+      // inside synthesized helper bodies (class / spread lowering), and missing extraction
+      // there would skip polyfill dispatch for those destructured keys.
+      // function declaration (not `const`): hoisted so `programExit` closure above can
+      // reference it regardless of reachability path (non-pure early return doesn't
+      // execute this block, but programExit is still wired for the non-pure factory)
+      function extractCatchClause(path) {
+        const { param } = path.node;
+        // ArrayPattern destructuring in catch can't be polyfilled by property rewrite
+        // (bindings are positional, not named), so extracting it is pure overhead -
+        // unplugin keeps it inline and babel should mirror that. ObjectPattern still
+        // needs extraction because `{ key = default }` and polyfillable key lookups
+        // require a named receiver (`_ref`) to rewrite against
+        if (!param || param.type !== 'ObjectPattern') return;
+        if (!param.properties?.length) return;
+        // skip extraction when nothing in the catch body reads the destructured names
+        // and no property forces a receiver rewrite. without this the plugin spuriously
+        // rewrites `catch ({code}) {}` into `catch (_ref) { let {code} = _ref; }` - pure
+        // overhead that alters user code without benefit
+        if (!param.properties.some(objectPatternPropNeedsReceiverRewrite)) {
+          const destructuredNames = new Set();
+          for (const p of param.properties) {
+            if (p.type !== 'ObjectProperty') continue;
+            const name = p.value?.type === 'Identifier' ? p.value.name : null;
+            if (name) destructuredNames.add(name);
+          }
+          let referenced = false;
+          t.traverseFast(path.node.body, node => {
+            if (!referenced && node.type === 'Identifier' && destructuredNames.has(node.name)) referenced = true;
+          });
+          if (!referenced) return;
+        }
+        // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
+        // - keeps one naming scheme across the plugin and matches unplugin's output shape
+        const ref = injector.generateLocalRef(path.scope);
+        path.get('body').unshiftContainer('body', [
+          t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
+        ]);
+        path.node.param = ref;
+      }
+
       return {
         pre() {
           preTraverse(this.file.path, {
             ...usageVisitors,
-            CatchClause(path) {
-              const { param } = path.node;
-              // ArrayPattern destructuring in catch can't be polyfilled by property rewrite
-              // (bindings are positional, not named), so extracting it is pure overhead -
-              // unplugin keeps it inline and babel should mirror that. ObjectPattern still
-              // needs extraction because `{ key = default }` and polyfillable key lookups
-              // require a named receiver (`_ref`) to rewrite against
-              if (!param || param.type !== 'ObjectPattern') return;
-              if (!param.properties?.length) return;
-              // skip extraction when nothing in the catch body reads the destructured names
-              // and no property forces a receiver rewrite. without this the plugin spuriously
-              // rewrites `catch ({code}) {}` into `catch (_ref) { let {code} = _ref; }` - pure
-              // overhead that alters user code without benefit
-              if (!param.properties.some(objectPatternPropNeedsReceiverRewrite)) {
-                const destructuredNames = new Set();
-                for (const p of param.properties) {
-                  if (p.type !== 'ObjectProperty') continue;
-                  const name = p.value?.type === 'Identifier' ? p.value.name : null;
-                  if (name) destructuredNames.add(name);
-                }
-                let referenced = false;
-                t.traverseFast(path.node.body, node => {
-                  if (!referenced && node.type === 'Identifier' && destructuredNames.has(node.name)) referenced = true;
-                });
-                if (!referenced) return;
-              }
-              // use our own `_ref, _ref2, ...` generator instead of babel's `scope.generateUidIdentifier`
-              // - keeps one naming scheme across the plugin and matches unplugin's output shape
-              const ref = injector.generateLocalRef(path.scope);
-              path.get('body').unshiftContainer('body', [
-                t.variableDeclaration('let', [t.variableDeclarator(param, ref)]),
-              ]);
-              path.node.param = ref;
-            },
+            CatchClause: extractCatchClause,
           });
         },
         visitor: { Program: { exit: programExit } },
         post: postHook,
       };
     })(),
+    /* eslint-enable max-statements -- close defer-block opened above */
   };
 }
