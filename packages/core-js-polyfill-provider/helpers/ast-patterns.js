@@ -122,33 +122,44 @@ export function isClassifiableReceiverArg(node) {
   return node?.type === 'Identifier';
 }
 
-// estree-toolkit's scope tracker doesn't recognise `TSImportEqualsDeclaration` as a
-// binding declaration. callers (currently unplugin's estree adapter) consult this to
-// compensate. only value-mode imports shadow runtime - `import type X = require(...)`
-// is elided by `tsc` before runtime, so references resolve to the global and polyfill
-// must still fire. cached per Program node so repeated `hasBinding` checks share one
-// scan. babel's scope tracker handles value-mode natively but not the type/value split
-const tsImportEqualsCache = new WeakMap();
-
-export function getTSImportEqualsBindings(programNode) {
-  if (!programNode?.body) return null;
-  let cached = tsImportEqualsCache.get(programNode);
-  if (cached) return cached;
-  cached = new Set();
-  for (const stmt of programNode.body) {
-    if (stmt?.type === 'TSImportEqualsDeclaration'
-      && stmt.importKind !== 'type'
-      && stmt.id?.name) cached.add(stmt.id.name);
-  }
-  tsImportEqualsCache.set(programNode, cached);
-  return cached;
-}
-
 // `import type X = require(...)` is type-only - elided by tsc before runtime, references
 // resolve to the global. babel scope tracker registers the binding regardless of modifier;
 // callers use this predicate to filter out type-only bindings from shadow checks
 export function isTypeOnlyImportEquals(node) {
   return node?.type === 'TSImportEqualsDeclaration' && node.importKind === 'type';
+}
+
+// declarations that introduce a runtime binding the plugin must respect as a shadow:
+//  - value-mode `import X = require(...)` / `import X = NS.Y`
+//  - `enum X {}` / `const enum X {}` (no `declare`) - regular emits IIFE; const enum
+//    references inlined by tsc, plugin must NOT rewrite them to a polyfill
+//  - `namespace X {}` (no `declare`) - emits IIFE
+// excludes ambient forms (`declare enum/namespace`, `import type X = require()`) - those
+// have no runtime emission, references resolve to the global, polyfill should fire
+function isTSRuntimeBindingDeclaration(node) {
+  if (!node?.id?.name) return false;
+  if (node.type === 'TSImportEqualsDeclaration') return !isTypeOnlyImportEquals(node);
+  if (node.type === 'TSEnumDeclaration' || node.type === 'TSModuleDeclaration') return !node.declare;
+  return false;
+}
+
+// names of TS-specific runtime declarations at program top level. estree-toolkit's scope
+// tracker doesn't recognise them at all; babel's scope tracks regular `enum X {}` and
+// `namespace X {}` (free-vars) but not `const enum` or `import type X = require()`.
+// callers (both adapters' `hasBinding`) consult this set as fallback for the cases their
+// native scope misses. cached per Program node so repeated checks share one scan
+const tsRuntimeBindingsCache = new WeakMap();
+
+export function getTSRuntimeBindings(programNode) {
+  if (!programNode?.body) return null;
+  let cached = tsRuntimeBindingsCache.get(programNode);
+  if (cached) return cached;
+  cached = new Set();
+  for (const stmt of programNode.body) {
+    if (isTSRuntimeBindingDeclaration(stmt)) cached.add(stmt.id.name);
+  }
+  tsRuntimeBindingsCache.set(programNode, cached);
+  return cached;
 }
 
 // TS type-only declarations - identifier `id` here is a type name, not a runtime reference.
