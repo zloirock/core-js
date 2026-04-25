@@ -1,9 +1,11 @@
-// `const { from } = cond && Array` -  when `cond` is falsy, the runtime value is `cond`
-// (not Array), and `from` would be `undefined` (since destructuring falsy-non-nullish binds
-// to undefined). Pure-mode transform replaces the destructure with a direct polyfill import,
-// eliminating the conditional evaluation entirely - `from` now always resolves to the
-// polyfill instead of `undefined` when `cond` is falsy
+import _Array$from from "@core-js/pure/actual/array/from";
+// `const { from } = cond && Array` - per-branch synth-swap: Array branch becomes
+// `{from: _Array$from}` (Array.from has a viable static pure entry); the `cond` branch
+// stays raw (unknown identifier, not a polyfill candidate). when `cond` is falsy, runtime
+// destructure-on-falsy gives `from = undefined` per ECMAScript; when truthy, polyfilled
 const {
   from
-} = cond && Array;
+} = cond && {
+  from: _Array$from
+};
 use(from);
