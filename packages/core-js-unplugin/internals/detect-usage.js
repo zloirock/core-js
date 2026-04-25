@@ -20,9 +20,11 @@ import {
   findIifeArgForParam,
   getTSRuntimeBindings,
   isASTNode,
+  isAmbientTypeDeclaration,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
+  isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   unwrapInitValue,
   unwrapParens,
@@ -81,10 +83,14 @@ function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
   // local name in a re-export alias - not a runtime reference to the polyfilled global
   if ((parent.type === 'ExportSpecifier' || parent.type === 'ExportAllDeclaration')
     && parentKey === 'exported') return false;
-  // binding targets - write-only, not a polyfillable reference
-  // { Promise } = obj -> written to; { x: Promise } in ObjectExpression IS read
-  if (parent.type === 'Property' && parentKey === 'value' && parentPath?.parent?.type === 'ObjectPattern') return false;
-  if (parent.type === 'AssignmentExpression' && parentKey === 'left') return false;
+  // shared write-only context filter: pure `x = y` / destructure-LHS / AssignmentPattern.left.
+  // covers Identifier and MemberExpression positions; compound (`x += y`) excluded so member-LHS
+  // can still emit (read fires first)
+  if (isMemberWriteOnlyContext(node, parent, parentPath?.parent)) return false;
+  // Identifier LHS of compound assignment (`Map ||= X` / `Map += 1`) - polyfill substitutes
+  // bare global with a read-only import binding, so assigning throws regardless of operator.
+  // member LHS with compound is allowed through (read fires before write)
+  if (parent.type === 'AssignmentExpression' && parentKey === 'left' && node.type === 'Identifier') return false;
   if (parent.type === 'CatchClause' && parentKey === 'param') return false;
   if ((parent.type === 'ForInStatement' || parent.type === 'ForOfStatement') && parentKey === 'left') return false;
   if (parent.type === 'ArrayPattern' || (parent.type === 'RestElement' && parentKey === 'argument')) return false;
@@ -104,9 +110,31 @@ function tsRuntimeBindingsForScope(scope) {
   return getTSRuntimeBindings(s?.path?.node);
 }
 
+// estree-toolkit's scope tracker registers `declare class X` / `declare const X` / `interface X`
+// as bindings even though they're elided by tsc before runtime. consult the binding's node
+// (and its VariableDeclaration parent for `declare const`) before declaring a shadow so
+// ambient declarations don't suppress polyfill emission
+function isAmbientBinding(binding) {
+  const node = binding?.path?.node;
+  if (!node) return false;
+  if (isAmbientTypeDeclaration(node)) return true;
+  if (node.type === 'VariableDeclarator' && binding.path.parent?.declare === true) return true;
+  return false;
+}
+
+function hasRuntimeBinding(scope, name) {
+  if (!(scope?.hasBinding?.(name) ?? false)) {
+    return tsRuntimeBindingsForScope(scope)?.has(name) ?? false;
+  }
+  // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
+  // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
+  // their hasBinding=true is authoritative
+  const native = scope?.getBinding?.(name);
+  return !(native && isAmbientBinding(native));
+}
+
 export const estreeAdapter = {
-  hasBinding: (scope, name) => (scope?.hasBinding(name) ?? false)
-    || (tsRuntimeBindingsForScope(scope)?.has(name) ?? false),
+  hasBinding: (scope, name) => hasRuntimeBinding(scope, name),
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
