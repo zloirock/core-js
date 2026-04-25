@@ -341,6 +341,7 @@ export default function createPlugin(options) {
         onUsage: usageGlobalCallback,
         onWarning: msg => debugOutput?.warn(msg),
         method,
+        isEntryAvailable: isEntryNeeded,
       });
       const syntaxVisitors = createSyntaxVisitors({ injectModulesForModeEntry, injectModulesForEntry, isDisabled, isWebpack });
 
@@ -1869,6 +1870,7 @@ export default function createPlugin(options) {
           method,
           suppressProxyGlobals: true,
           walkAnnotations: false,
+          isEntryAvailable: isEntryNeeded,
         }),
       }, pass === 'post' && inherit ? {
         Identifier(path) { injector.trackReferencedName(path.node.name); },
