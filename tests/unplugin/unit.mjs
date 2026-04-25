@@ -246,6 +246,51 @@ function checkAdoptOrphanRespectsFlushed() {
 }
 checkAdoptOrphanRespectsFlushed();
 
+// orphan list missing bare `_ref` but containing `_ref2+` must not seed the suffix cache
+// past bare. snapshot loss after user-edited removal of `_ref` declaration means bare is
+// free again; allocator must reuse it before claiming a new numeric slot
+function checkBareSlotReclaim() {
+  const newInj = () => new ImportInjector({ mode: 'actual', pkg: 'x', ms: new MagicString('') });
+  // baseline: only numbered orphan adopted -> bare reclaimed on first allocation
+  const a = newInj();
+  a.adoptOrphanRefs(['_ref2']);
+  check('reclaim/single numbered orphan', a.generateLocalRef(), '_ref');
+  // multi numbered orphans (`_ref2`, `_ref5`) -> bare still free, reclaim it.
+  // next call must skip past the highest numbered orphan, not back to `_ref2`
+  const b = newInj();
+  b.adoptOrphanRefs(['_ref2', '_ref5']);
+  check('reclaim/multi numbered orphans', b.generateLocalRef(), '_ref');
+  check('reclaim/post-reclaim advances past highest', b.generateLocalRef(), '_ref6');
+  // bare also taken -> reclaim must NOT pick bare; allocator falls through to next free slot
+  const c = newInj();
+  c.adoptOrphanRefs(['_ref', '_ref2']);
+  check('reclaim/bare-taken skips reclaim', c.generateLocalRef(), '_ref3');
+  // empty cache (no orphans, no prior calls) -> first allocation gets bare normally
+  const d = newInj();
+  check('reclaim/empty cache returns bare', d.generateLocalRef(), '_ref');
+  // sequential allocations after bare reclaim preserve monotonic numbering across the
+  // pre-existing cache ceiling - third call must produce `_ref7`, not loop back to `_ref3`
+  const e = newInj();
+  e.adoptOrphanRefs(['_ref2', '_ref5']);
+  check('reclaim/sequence step 1', e.generateLocalRef(), '_ref');
+  check('reclaim/sequence step 2', e.generateLocalRef(), '_ref6');
+  check('reclaim/sequence step 3', e.generateLocalRef(), '_ref7');
+}
+checkBareSlotReclaim();
+
+// post-pass map must carry the `file` field so devtools and combineSourceMaps consumers
+// see the output filename hint. omitting it (spec-optional) makes the chained map
+// ambiguous when bundlers merge multiple plugin maps. MagicString basenames the hint
+// internally - presence + non-empty is what consumers rely on
+function checkSourceMapFileField() {
+  const source = 'const x = Array.from([1]);';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, '/src/sm-file.js');
+  check('sourceMap/file populated', typeof result?.map?.file === 'string' && result.map.file.length > 0, true);
+  check('sourceMap/file basename matches id', result?.map?.file, 'sm-file.js');
+}
+checkSourceMapFileField();
+
 // --- flush() skips through multi-comment directive tails ---
 // directiveEnd lands after `"use strict";`; skipLineEnd must walk past `/*a*/ //b` so the
 // injected import block appears on its own line, not shoved into the middle of the comment
@@ -276,7 +321,7 @@ function checkExistingImportFirstWriteWins() {
   inj.registerUserPureImport('promise/try', '_Def');
   inj.registerUserPureImport('promise/try', '_Alt');
   // dedup target should be the FIRST registered name, not the second
-  check('PIS-26/first-write-wins', inj.addPureImport('promise/try', 'Promise$try'), '_Def');
+  check('existingPureImports/first-write-wins', inj.addPureImport('promise/try', 'Promise$try'), '_Def');
 }
 checkExistingImportFirstWriteWins();
 
@@ -293,11 +338,11 @@ function checkBomSourcesContent() {
   const result = plugin.transform(source, id);
   if (!result?.map?.sourcesContent?.[0]) {
     counts.failed++;
-    echo`${ red('FAIL') } ${ cyan('SM-03/BOM sourcesContent') } :: missing sourcesContent`;
+    echo`${ red('FAIL') } ${ cyan('sourceMap/BOM sourcesContent') } :: missing sourcesContent`;
     return;
   }
-  check('SM-03/BOM length', result.map.sourcesContent[0].length, source.length);
-  check('SM-03/BOM prefix', result.map.sourcesContent[0].charCodeAt(0), 0xFEFF);
+  check('sourceMap/BOM length', result.map.sourcesContent[0].length, source.length);
+  check('sourceMap/BOM prefix', result.map.sourcesContent[0].charCodeAt(0), 0xFEFF);
 }
 checkBomSourcesContent();
 
