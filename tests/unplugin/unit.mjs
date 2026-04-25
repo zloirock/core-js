@@ -2,8 +2,9 @@ import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
 import { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { entryToGlobalHint, ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/import-state.js';
-import TransformQueue from '../../packages/core-js-unplugin/internals/transform-queue.js';
+import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
+import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { collectAllBindingNames } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
@@ -76,6 +77,13 @@ const shouldTransformCases = [
   // bundling stages; transformed body is Vite's synthetic output, not user JS
   ['/src/worker.js?worker-module', false, 'Vite ?worker-module'],
   ['/src/worker.js?worker_file', false, 'Vite ?worker_file'],
+  // Vite internal queries: `?html-proxy` (HTML inline scripts), `?css` (CSS-as-JS),
+  // `?used` (tree-shake marker), `?direct` (post-processing escape), `?import` (wrap bypass)
+  ['/index.html?html-proxy&index=0.js', false, 'Vite ?html-proxy'],
+  ['/src/style.css?css', false, 'Vite ?css'],
+  ['/src/foo.js?used', false, 'Vite ?used'],
+  ['/src/foo.css?direct', false, 'Vite ?direct'],
+  ['/src/foo.js?import', false, 'Vite ?import'],
   // Vue / Astro SFC style and template halves are CSS / markup, not JS - even with lang=ts
   // (TS-in-CSS-in-JS edge) the body isn't runnable JS; polyfill injection would corrupt it
   ['/src/App.vue?vue&type=style&lang=ts', false, 'Vue SFC style block with lang=ts'],
@@ -257,6 +265,42 @@ function checkFlushPastChainedComments() {
 }
 checkFlushPastChainedComments();
 
+// --- ImportInjector dedup behaviour ---
+// mixed `import Def, { default as Alt }` registers Def first (default specifier comes before
+// named in source order). last-write-wins on `existingPureImports` would pick `Alt` as dedup
+// target — asymmetric with `#importInfoByName` (first-write-wins) and counter to user intent
+// (Def is the canonical handle). first-write-wins on both maps keeps dedup stable
+function checkExistingImportFirstWriteWins() {
+  const ms = new MagicString('');
+  const inj = new ImportInjector({ mode: 'actual', pkg: '@core-js/pure', ms });
+  inj.registerUserPureImport('promise/try', '_Def');
+  inj.registerUserPureImport('promise/try', '_Alt');
+  // dedup target should be the FIRST registered name, not the second
+  check('PIS-26/first-write-wins', inj.addPureImport('promise/try', 'Promise$try'), '_Def');
+}
+checkExistingImportFirstWriteWins();
+
+// --- BOM in sourcesContent ---
+// MagicString.prepend('\uFEFF') updates the output but the slice it captured for
+// `sourcesContent` is the BOM-stripped original. without restoration, devtools show the file
+// 1 byte short of its on-disk size and the source view doesn't match the file. plugin restores
+// the BOM in `map.sourcesContent[0]` after `generateMap`
+function checkBomSourcesContent() {
+  const id = '/src/with-bom.js';
+  // BOM + a polyfillable expression so plugin actually transforms (no-transform path skips map)
+  const source = '\uFEFFconst x = Array.from([1]);';
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  const result = plugin.transform(source, id);
+  if (!result?.map?.sourcesContent?.[0]) {
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('SM-03/BOM sourcesContent') } :: missing sourcesContent`;
+    return;
+  }
+  check('SM-03/BOM length', result.map.sourcesContent[0].length, source.length);
+  check('SM-03/BOM prefix', result.map.sourcesContent[0].charCodeAt(0), 0xFEFF);
+}
+checkBomSourcesContent();
+
 // --- ORPHAN_REF_PATTERN ---
 // matches plugin-emitted refs (`_ref`, `_ref2`, `_ref3`, ...) but rejects `_ref0`/`_ref1`
 // which user-code may use; the plugin never emits these (skip-1 babel UID convention)
@@ -309,6 +353,10 @@ function checkSnapshotKeyNormalization() {
   check('SnapshotCache/uppercase FILE://', cache.take('/abs/up.js')?.tag, 'upper');
   cache.store('/@FS/abs/up2.js', { tag: 'upper-fs' });
   check('SnapshotCache/uppercase /@FS/', cache.take('/abs/up2.js')?.tag, 'upper-fs');
+  // composite scheme chain: `/@id/file:///abs/foo` carries two prefixes back-to-back. iterative
+  // strip collapses both, single-pass `replace` would leave residual `file:///abs/foo`
+  cache.store('/@id/file:///abs/composite.js', { tag: 'composite' });
+  check('SnapshotCache/composite /@id/+file://', cache.take('/abs/composite.js')?.tag, 'composite');
 }
 checkSnapshotKeyNormalization();
 
@@ -326,6 +374,22 @@ function checkOrphan(label, src, orphans, names = null) {
   check(`collectBindings/${ label }/orphans`, [...result.orphanRefs].sort().join(','), orphans.join(','));
   if (names) check(`collectBindings/${ label }/names.has`, names.every(n => result.names.has(n)), true);
 }
+// `declaredNames` separates true bindings from Identifier-traversal reservations so the
+// orphan adopt-filter can distinguish "user wrote `var _ref;`" from "Identifier traversal
+// saw the orphan target itself in `(_ref = ...)`". without this, every plugin-shaped orphan
+// hits its own Identifier slot in `names` and gets filtered out as if user-declared
+function checkDeclared(label, src, declared, undeclared = []) {
+  const result = collectBindings(src);
+  for (const name of declared) check(`collectBindings/${ label }/declared/${ name }`, result.declaredNames.has(name), true);
+  for (const name of undeclared) check(`collectBindings/${ label }/not-declared/${ name }`, result.declaredNames.has(name), false);
+}
+// orphan-only: `_ref` appears only as the LHS of plugin-shaped assignment + recursive read
+// of itself. nothing in the AST `declares` it, so adoption gate must let it through
+checkDeclared('orphan-only', 'null == (_ref = foo()) ? void 0 : _ref;', [], ['_ref']);
+// user `var _ref;` declares - orphan-adoption must skip
+checkDeclared('user var', 'var _ref; null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
+// user catch param declares
+checkDeclared('user catch', 'try {} catch (_ref) {} null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 // plugin-shaped: nested `_ref = X` inside a ConditionalExpression (guard emission)
 checkOrphan('nested call', 'null == (_ref = foo()) ? void 0 : _ref;', ['_ref']);
 checkOrphan('nested member', 'null == (_ref = foo.bar) ? void 0 : _ref;', ['_ref']);
@@ -367,6 +431,18 @@ checkOrphan('do-while test',
   'do {} while (_ref = foo());', [], ['_ref']);
 checkOrphan('return argument',
   'function g() { return (_ref = foo()); }', [], ['_ref']);
+
+// --- deoptionalizeNeedle ---
+// `?.(`/`?.[` drop both chars regardless of intervening whitespace - ECMAScript parsers
+// allow `obj ?. (args)` / `obj?.\n[i]`, so the source slice the queue sees may have
+// whitespace between the optional marker and the call/index token
+check('deopt/dot prop', deoptionalizeNeedle('obj?.foo'), 'obj.foo');
+check('deopt/call', deoptionalizeNeedle('obj?.(args)'), 'obj(args)');
+check('deopt/index', deoptionalizeNeedle('obj?.[i]'), 'obj[i]');
+check('deopt/newline before call', deoptionalizeNeedle('obj?.\n(args)'), 'obj\n(args)');
+check('deopt/space before call', deoptionalizeNeedle('obj?. (args)'), 'obj (args)');
+check('deopt/space before index', deoptionalizeNeedle('obj?. [i]'), 'obj [i]');
+check('deopt/at end', deoptionalizeNeedle('obj?.'), 'obj.');
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
