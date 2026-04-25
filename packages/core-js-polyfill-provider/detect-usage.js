@@ -16,10 +16,15 @@ import {
   globalProxyMemberName,
   kebabToCamel,
   mayHaveSideEffects,
+  resolveCallArgument as sharedResolveCallArgument,
   singleQuasiString,
   stripQueryHash,
   symbolKeyToEntry,
 } from './helpers.js';
+
+// re-export so external callers (babel-plugin / unplugin internals) keep importing from
+// here. canonical home is `helpers/ast-patterns.js`
+export const resolveCallArgument = sharedResolveCallArgument;
 
 // known-built-in-return-types enumerates every built-in identifier core-js knows about.
 // constructors (Array, Map, ...) and global functions (parseInt, fetch, ...) are functions;
@@ -657,26 +662,6 @@ function destructureReceiverHint(objectName) {
   if (!objectName) return null;
   if (KNOWN_FUNCTION_GLOBALS.has(objectName)) return 'function';
   if (KNOWN_NAMESPACE_GLOBALS.has(objectName) || POSSIBLE_GLOBAL_OBJECTS.has(objectName)) return 'object';
-  return null;
-}
-
-// resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
-// spread of an inline array literal. returns null if a non-literal spread precedes `index`,
-// since we can't statically know the expanded length
-export function resolveCallArgument(args, index) {
-  let i = 0;
-  for (const arg of args) {
-    if (arg?.type === 'SpreadElement') {
-      if (arg.argument?.type !== 'ArrayExpression') return null;
-      for (const el of arg.argument.elements) {
-        if (i === index) return el;
-        i++;
-      }
-      continue;
-    }
-    if (i === index) return arg;
-    i++;
-  }
   return null;
 }
 
