@@ -1085,9 +1085,25 @@ export default function createPlugin(options) {
         const perDecl = declaration.declarations.map(d => rewriteProxyNestedDeclarator(d, metaPath.scope));
         if (!perDecl.some(r => r.extractions.length)) return false;
         flattenedNestedDecls.add(declaration);
-        // suppress every original descendant - queued visits on init / inner / sibling-prop
-        // handlers would either trip transform-queue composition or re-emit polyfills
-        walkAstNodes(declaration, node => skippedNodes.add(node));
+        // flattened declarators' descendants are consumed by the outer text-emit; preserved
+        // siblings keep AST visible so the identifier visitor's transforms compose into the
+        // outer's replacement. exception: a sibling reusing the flattened receiver's name
+        // (`{X:{m}}=globalThis, y=globalThis`) would mismatch compose's nth-count - source has
+        // N occurrences, outer's replacement has N-1 (flatten ate one). pre-substitute those
+        // refs to drop them from compose's needle search
+        const flattenedReceivers = new Set();
+        for (let i = 0; i < perDecl.length; i++) {
+          if (!perDecl[i].extractions.length) continue;
+          walkAstNodes(declaration.declarations[i], n => skippedNodes.add(n));
+          if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
+        }
+        if (flattenedReceivers.size) {
+          for (let i = 0; i < perDecl.length; i++) {
+            if (!perDecl[i].extractions.length) {
+              perDecl[i].preservedSrc = polyfillSiblingReceiverRefs(declaration.declarations[i], flattenedReceivers);
+            }
+          }
+        }
         let replacement = renderFlattenedNestedProxy(perDecl, declaration.kind, isForInit);
         // preserve SE prefix when init is `(se(), receiver)`: the non-nested destructure path
         // already lifts SE expressions as statements via `buildDestructuringInitMeta`; do the
@@ -1237,7 +1253,7 @@ export default function createPlugin(options) {
       // `{ ... } = init` source when outer siblings remain
       function rewriteProxyNestedDeclarator(declarator, scope) {
         const plan = planProxyNestedDeclarator(declarator, scope);
-        if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator) };
+        if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator), receiver: null };
         const extractions = [];
         const preservedOuter = [];
         for (const outer of plan.outerProps) {
@@ -1247,7 +1263,7 @@ export default function createPlugin(options) {
           }
           if (outer.preservedSrc !== null) preservedOuter.push(outer.preservedSrc);
         }
-        if (!preservedOuter.length) return { extractions, preservedSrc: null };
+        if (!preservedOuter.length) return { extractions, preservedSrc: null, receiver: plan.receiver };
         // partial flatten: preserved declarator still destructures from the receiver,
         // so polyfill it - old runtimes without `globalThis` / `self` would crash otherwise
         const receiverPure = resolveGlobalPolyfill(plan.receiver);
@@ -1257,6 +1273,7 @@ export default function createPlugin(options) {
         return {
           extractions,
           preservedSrc: `{ ${ preservedOuter.join(', ') } } = ${ initSrc }`,
+          receiver: plan.receiver,
         };
       }
 
@@ -1265,6 +1282,32 @@ export default function createPlugin(options) {
       function canFullyConsumeProxyDeclarator(d, scope) {
         const plan = planProxyNestedDeclarator(d, scope);
         return !!plan && plan.outerProps.every(p => p.preservedSrc === null);
+      }
+
+      // sibling-side companion of `rewriteProxyNestedDeclarator` for multi-decl flatten.
+      // walks a preserved-only declarator for Identifiers matching any flattened receiver name,
+      // substitutes them with their polyfill binding directly in the rendered source, and seeds
+      // skippedNodes so identifier visitor doesn't queue a parallel transform that would mismatch
+      // TransformQueue's nth-count compose
+      function polyfillSiblingReceiverRefs(declarator, flattenedReceivers) {
+        const matches = [];
+        walkAstNodes(declarator, n => {
+          if (n.type === 'Identifier' && flattenedReceivers.has(n.name)) matches.push(n);
+        });
+        if (!matches.length) return nodeSrc(declarator);
+        // descending source order so prior substitutions don't shift later relative indices
+        matches.sort((a, b) => b.start - a.start);
+        const declStart = declarator.start;
+        let src = nodeSrc(declarator);
+        for (const m of matches) {
+          const pure = resolveGlobalPolyfill(m.name);
+          if (!pure) continue;
+          skippedNodes.add(m);
+          src = src.slice(0, m.start - declStart)
+            + injectPureImport(pure.entry, pure.hintName)
+            + src.slice(m.end - declStart);
+        }
+        return src;
       }
 
       // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
