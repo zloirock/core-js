@@ -15,6 +15,7 @@ import {
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
+  TS_EXPR_WRAPPERS,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isTSTypeOnlyIdentifierPath,
@@ -244,11 +245,15 @@ export function createUsageVisitors({
       if (key) onUsage({ kind: 'property', object: null, key, placement: null }, path);
       return;
     } else if (parent.isFunction()) {
-      // IIFE: (({ from }) => {})(Array), !function ({ from }) {} (Array)
+      // IIFE: (({ from }) => {})(Array), !function ({ from }) {} (Array). also covers
+      // TS-wrapped callees `((arrow) as any)(Array)` and ChainExpression-wrapped optional
+      // call sites - peel mirrors `detectIifeArgPath`'s outer loop in the synth-swap stage
       const paramIndex = parent.node.params.indexOf(objectPattern.node);
       if (paramIndex === -1) return;
       let callPath = parent.parentPath;
-      while (callPath?.isUnaryExpression() || callPath?.isSequenceExpression()) {
+      while (callPath?.isUnaryExpression() || callPath?.isSequenceExpression()
+        || TS_EXPR_WRAPPERS.has(callPath?.node?.type)
+        || callPath?.node?.type === 'ChainExpression') {
         callPath = callPath.parentPath;
       }
       if (callPath?.isCallExpression() || callPath?.isNewExpression()) {
