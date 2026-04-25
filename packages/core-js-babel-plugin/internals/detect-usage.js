@@ -16,6 +16,8 @@ import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
+  findIifeArgForParam,
+  isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isTSTypeOnlyIdentifierPath,
@@ -224,11 +226,17 @@ export function createUsageVisitors({
       && isFunctionParamDestructureParent(parent.node, parent.parentPath?.node, objectPattern.node)) {
       // `function({ from } = Array)` - AssignmentPattern wraps the param; the default
       // expression is the receiver that our destructure targets when the arg is omitted.
-      // without this branch handleDestructuring emits typeless meta and loses the `Array`
-      // linkage, so `from` never resolves to `Array.from`
+      // for IIFE with statically-classifiable caller-arg (`(({from} = Array) => ...)(Set)`),
+      // wrapper-default is dead code at runtime - resolve against caller-arg instead.
+      // narrowing to Identifier: only bare globals can be classified to a receiver type;
+      // non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`) carry no static type
+      // info, so wrapper-default still provides the best static receiver context, and the
+      // runtime fallback path (`= Array` fires on undefined caller-arg) gets the polyfill
       const key = resolveKey(path.get('key'), path.node.computed);
       if (!key) return;
-      const meta = buildDestructuringInitMeta(parent.node.right, key, parent.scope, adapter);
+      const argNode = findIifeArgForParam(parent.parentPath, parent.node);
+      const receiverNode = isClassifiableReceiverArg(argNode) ? argNode : parent.node.right;
+      const meta = buildDestructuringInitMeta(receiverNode, key, parent.scope, adapter);
       onUsage(meta, path);
       return;
     } else if (parent.isObjectProperty()) {
