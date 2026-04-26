@@ -25,6 +25,7 @@ export default class ImportInjector extends ImportInjectorState {
     absoluteImports,
     deferImports = false,
     directiveEnd = 0,
+    getDebugOutput = null,
     importStyle,
     inherit = null,
     mode,
@@ -32,11 +33,16 @@ export default class ImportInjector extends ImportInjectorState {
     pkg,
   }) {
     super({ absoluteImports, mode, pkg, importStyle });
+    this.#getDebugOutput = getDebugOutput;
     this.#deferImports = deferImports;
     this.#directiveEnd = directiveEnd;
     this.#ms = ms;
     if (inherit) this.#rehydrate(inherit);
   }
+
+  // late-bound: outer plugin constructs debugOutput AFTER the injector. lazy lookup avoids
+  // TDZ; null-safe so `phase: 'post'` direct invocations without debug still work
+  #getDebugOutput;
 
   #rehydrate(snap) {
     // defensive `?? EMPTY` for every field: SnapshotCache persists across long-running dev
@@ -165,10 +171,12 @@ export default class ImportInjector extends ImportInjectorState {
       // boundary at insertPos for appendRight to attach to. fall through to prepend so the
       // imports still emit (loses the post-shebang/post-directive position but keeps the
       // build alive). throwing here would surface as opaque "already edited" deep in
-      // MagicString without naming the cause
+      // MagicString without naming the cause - log the recovery so users can correlate
+      // a fallback prepend with sibling-plugin range conflicts
       try {
         this.#ms.appendRight(insertPos, block);
-      } catch {
+      } catch (error) {
+        this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ error.message }); prepending instead`);
         this.#ms.prepend(block);
       }
     } else this.#ms.prepend(block);
