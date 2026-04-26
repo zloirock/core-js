@@ -1,3 +1,4 @@
+import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import { isASTNode, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 
@@ -379,18 +380,6 @@ export const NEEDS_GUARD_PARENS = new Set([
   'ClassExpression',
 ]);
 
-// statement-body slots for unbraced control statements, `with`, and single-expression arrows
-const BODY_SLOT_TYPES = new Set([
-  'ArrowFunctionExpression',
-  'DoWhileStatement',
-  'ForInStatement',
-  'ForOfStatement',
-  'ForStatement',
-  'LabeledStatement',
-  'WhileStatement',
-  'WithStatement',
-]);
-
 // `UnpluginContextMeta.framework` union (upstream unplugin). validating here so typos
 // like `webpaaack` fail loudly instead of silently falling to the non-webpack default.
 // `unloader` is the farm-family unloader bundler (upstream groups it alongside
@@ -409,9 +398,8 @@ export const KNOWN_BUNDLERS = new Set([
 ]);
 
 // is `path` the unbraced body slot of an if/loop/with/label/arrow?
+// thin path-aware wrapper around the parser-agnostic `isBodylessStatementSlot` so callers
+// pass an estree-toolkit path while the underlying check stays shared with babel-plugin
 export function isBodylessStatementBody(path) {
-  const parent = path.parentPath?.node;
-  if (!parent) return false;
-  if (parent.type === 'IfStatement') return parent.consequent === path.node || parent.alternate === path.node;
-  return BODY_SLOT_TYPES.has(parent.type) && parent.body === path.node;
+  return isBodylessStatementSlot(path.parentPath?.node, path.node);
 }
