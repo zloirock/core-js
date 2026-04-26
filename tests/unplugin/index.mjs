@@ -170,7 +170,7 @@ function checkMapContent(directory, map, testId, source) {
   if (map.sources.length && map.sources[0] !== testId) {
     return reject(`sources[0]=${ JSON.stringify(map.sources[0]) }, expected ${ JSON.stringify(testId) }`);
   }
-  if (map.sourcesContent?.length && map.sourcesContent[0] != null
+  if (map.sourcesContent?.length && map.sourcesContent[0] !== undefined && map.sourcesContent[0] !== null
       && map.sourcesContent[0] !== source) {
     return reject(`sourcesContent[0] doesn't match input source (${ map.sourcesContent[0].length }b vs ${ source.length }b)`);
   }
@@ -185,7 +185,11 @@ function checkMapMappings(directory, map, method) {
   if (!map.mappings || !map.sources.length) return true;
   const reject = msg => rejectMap(directory, msg);
   let tm;
-  try { tm = new TraceMap(map); } catch (error) { return reject(`VLQ decode failed: ${ error.message }`); }
+  try {
+    tm = new TraceMap(map);
+  } catch (error) {
+    return reject(`VLQ decode failed: ${ error.message }`);
+  }
   // entry-global emits all-synthetic imports (no user-code mapping survives the rewrite
   // by design); skip the round-trip probe but VLQ decode above still ran
   if (method === 'entry-global') return true;
@@ -193,7 +197,8 @@ function checkMapMappings(directory, map, method) {
   const limit = Math.min(lines, MAPPING_PROBE_LIMIT);
   for (let line = 1; line <= limit; line++) {
     const probe = originalPositionFor(tm, { line, column: 0 });
-    if (probe.source != null && probe.line != null) return true;
+    if (probe.source !== undefined && probe.source !== null
+        && probe.line !== undefined && probe.line !== null) return true;
   }
   return reject(`no user-code mapping resolves to a valid source position (lines 1..${ limit })`);
 }
