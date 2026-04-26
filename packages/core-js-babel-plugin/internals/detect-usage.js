@@ -94,7 +94,10 @@ export function createBabelAdapter(getInjector = () => null) {
       return { node: null, constantViolations: null, importSource: info.source, polyfillHint: info.hint };
     },
     getBindingNodeType(scope, name) {
-      return scope.getBinding(name)?.path.node?.type ?? null;
+      // `?.path` defense - virtual bindings (plugin-injected pure imports before scope.crawl)
+      // may have `.path` undefined; without `?.` the inner `.node` access throws TypeError.
+      // unplug-side adapter already had this defense; aligning shape across adapters
+      return scope.getBinding(name)?.path?.node?.type ?? null;
     },
     isStringLiteral,
     getStringValue: stringLiteralValue,
