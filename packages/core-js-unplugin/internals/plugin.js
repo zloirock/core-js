@@ -320,7 +320,13 @@ export default function createPlugin(options) {
       // `file` field is optional per spec but devtools and downstream chain consumers (e.g.
       // bundler `combineSourceMaps`) rely on it for output filename hints; emit it on both
       // pre and post passes so the chain stays self-describing
-      const map = ms.generateMap({ source: id, file: id, includeContent: pass !== 'post', hires: 'boundary' });
+      // `source` (full id) and `file` (basename) must differ - MagicString's
+      // `getRelativePath` collapses `sources[0]` to the basename when both equal, dropping
+      // dirname for every file. devtools / `combineSourcemaps` then can't distinguish
+      // files with the same basename in different dirs. patch `file` to basename so
+      // `sources[0] === id` survives in the emitted map
+      const fileName = id.split(/[/\\]/).pop() || id;
+      const map = ms.generateMap({ source: id, file: fileName, includeContent: pass !== 'post', hires: 'boundary' });
       // restore BOM in sourcesContent so devtools show the file with its on-disk byte
       // count. MagicString's `prepend` updates the output but the original source it
       // captured for `sourcesContent` is the BOM-stripped slice we passed in
@@ -639,7 +645,7 @@ export default function createPlugin(options) {
       function buildReplacement(binding, objectSrc, opts) {
         const {
           isCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
-          optionalCall, args, objectStart, preAllocatedGuardRef,
+          optionalCall, args, objectStart, preAllocatedGuardRef, sideEffects,
         } = opts;
         const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
         let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
@@ -663,22 +669,25 @@ export default function createPlugin(options) {
           }
         }
 
-        let result;
+        let body;
         if (isNew) {
           // new arr.at(0) -> new (_at(arr))(0) - preserve user's `new` on the polyfill callee
-          const argsPart = args || '';
-          result = `${ guard }new (${ binding }(${ bodyObj }))(${ argsPart })`;
+          body = `new (${ binding }(${ bodyObj }))(${ args || '' })`;
         } else if (!isCall) {
-          result = `${ guard }${ binding }(${ bodyObj })`;
+          body = `${ binding }(${ bodyObj })`;
         } else {
           const ref = isNonIdent && bodyObj !== guardRef ? state.genRef() : null;
           const obj = ref || bodyObj;
           const firstArg = ref ? `${ ref } = ${ bodyObj }` : bodyObj;
           const dot = optionalCall ? '?.' : '.';
           const argsPart = args ? `, ${ args }` : '';
-          result = `${ guard }${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
+          body = `${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
         }
-        return result;
+        // SE collected from receiver/computed-key (`arr[(SE(), "at")](0)`, `(SE(), arr).at(0)`).
+        // MUST land INSIDE the optional guard branch - native `arr?.[(SE, "at")]` doesn't
+        // evaluate the property when arr is nullish, so wrapping outside the conditional
+        // would fire SE unconditionally and change runtime semantics
+        return `${ guard }${ wrapSideEffects(body, sideEffects) }`;
       }
 
       // position past optional `?.` token after pos, skipping whitespace and comments
@@ -776,7 +785,7 @@ export default function createPlugin(options) {
       // build replacement, wrap guard if needed, add to transform queue.
       // replacementIsCall overrides isCall for buildReplacement (Symbol.iterator: parent
       // range is the call, but the emitted shape is a simple call, not `.call()`)
-      function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall) {
+      function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall, sideEffects = null) {
         // bare polyfillable global receiver (`Map.entries()` -> `_entries(_Map).call(_Map)`):
         // emit the polyfill binding directly in `objectSrc` instead of pasting raw `Map` and
         // relying on text composition - babel's emit shape repeats the receiver source twice
@@ -815,7 +824,7 @@ export default function createPlugin(options) {
           isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
           optionalCall: isCall && parent.optional, args: argsSrc,
           objectStart: node.object.start,
-          preAllocatedGuardRef,
+          preAllocatedGuardRef, sideEffects,
         });
         if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
           replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, start);
@@ -960,18 +969,18 @@ export default function createPlugin(options) {
         skipProxyGlobal(node);
       }
 
-      function replaceInstance(binding, node, parent, metaPath) {
+      function replaceInstance(binding, node, parent, metaPath, sideEffects) {
         // (arr?.includes)(1) - parenthesized optional callee breaks the chain.
         // replace only the member expression (not .call()). non-optional (arr.at)(0) preserves this
         if (isCallee(node, parent) && parent.callee !== node
             && parent.callee?.type === 'ParenthesizedExpression' && node.optional) {
-          addInstanceTransform(binding, node, parent, metaPath, false, false);
+          addInstanceTransform(binding, node, parent, metaPath, false, false, sideEffects);
           return;
         }
         const chain = findInnerPolyChain(node, parent, metaPath);
         if (chain) return replaceInstanceChainCombined(binding, node, parent, metaPath, chain);
         const isCall = isCallee(node, parent);
-        addInstanceTransform(binding, node, parent, metaPath, isCall);
+        addInstanceTransform(binding, node, parent, metaPath, isCall, isCall, sideEffects);
       }
 
       // deferred destructuring: collect polyfilled properties per ObjectPattern
@@ -1355,12 +1364,24 @@ export default function createPlugin(options) {
         if (!plan) return { extractions: [], preservedSrc: nodeSrc(declarator), receiver: null };
         const extractions = [];
         const preservedOuter = [];
-        for (const outer of plan.outerProps) {
+        // RestElement in outer pattern - rest gathers all OTHER own keys, so dropping a
+        // fully-consumed key from `{Array: {from}, ...rest} = globalThis` would change
+        // runtime semantics (`rest.Array` becomes defined, original excluded it). keep
+        // a `Foo: _unused` sentinel for each consumed key when rest is present
+        const hasRest = declarator.id.properties.some(p => p.type === 'RestElement');
+        for (let i = 0; i < plan.outerProps.length; i++) {
+          const outer = plan.outerProps[i];
           for (const e of outer.extractions ?? []) {
             const binding = injectPureImport(e.entry, e.hint);
             extractions.push({ decl: `${ e.localName } = ${ binding }` });
           }
-          if (outer.preservedSrc !== null) preservedOuter.push(outer.preservedSrc);
+          if (outer.preservedSrc !== null) {
+            preservedOuter.push(outer.preservedSrc);
+          } else if (hasRest) {
+            const sourceProp = declarator.id.properties[i];
+            const keyName = sourceProp?.key?.name;
+            if (keyName) preservedOuter.push(`${ keyName }: ${ injector.generateUnusedName() }`);
+          }
         }
         if (!preservedOuter.length) return { extractions, preservedSrc: null, receiver: plan.receiver };
         // partial flatten: preserved declarator still destructures from the receiver,
@@ -1389,9 +1410,21 @@ export default function createPlugin(options) {
       // skippedNodes so identifier visitor doesn't queue a parallel transform that would mismatch
       // TransformQueue's nth-count compose
       function polyfillSiblingReceiverRefs(declarator, flattenedReceivers) {
+        // collect (identifier, parent) pairs so we can filter out Identifiers whose enclosing
+        // MemberExpression resolves to a polyfillable global (e.g. `globalThis.Map`). the
+        // outer MemberExpression transform replaces the whole `globalThis.Map` range with
+        // `_Map`, and a competing inline substitution `globalThis -> _globalThis` would land
+        // a `_globalThis.Map` substring INSIDE the outer's `_Map` content during compose,
+        // turning the inner needle search into a partial match (`__Map` corruption)
         const matches = [];
-        walkAstNodes(declarator, n => {
-          if (n.type === 'Identifier' && flattenedReceivers.has(n.name)) matches.push(n);
+        walkAstNodes(declarator, (n, parent) => {
+          if (n.type !== 'Identifier' || !flattenedReceivers.has(n.name)) return;
+          if (parent?.type === 'MemberExpression' && parent.object === n && !parent.computed
+              && parent.property?.type === 'Identifier' && resolveGlobalPolyfill(parent.property.name)) {
+            // outer MemberExpression transform consumes this; skip self-substitution
+            return;
+          }
+          matches.push(n);
         });
         if (!matches.length) return nodeSrc(declarator);
         // descending source order so prior substitutions don't shift later relative indices
@@ -1412,14 +1445,16 @@ export default function createPlugin(options) {
       // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
       // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
       // O(N) per call where N is subtree size; callers feed it small subtrees (declarator,
-      // RHS of `in`, inner-callee chain) so total amortized cost across the file is bounded
-      function walkAstNodes(root, visit) {
+      // RHS of `in`, inner-callee chain) so total amortized cost across the file is bounded.
+      // `visit(node, parent)` - parent is the directly-enclosing AST node, null at root,
+      // used by callers (`polyfillSiblingReceiverRefs`) for context-aware filtering
+      function walkAstNodes(root, visit, parent = null) {
         if (!root || typeof root !== 'object' || typeof root.type !== 'string') return;
-        visit(root);
+        visit(root, parent);
         for (const key of Object.keys(root)) {
           const value = root[key];
-          if (Array.isArray(value)) for (const v of value) walkAstNodes(v, visit);
-          else walkAstNodes(value, visit);
+          if (Array.isArray(value)) for (const v of value) walkAstNodes(v, visit, root);
+          else walkAstNodes(value, visit, root);
         }
       }
 
@@ -1965,7 +2000,7 @@ export default function createPlugin(options) {
         if (node.type === 'MemberExpression') skipProxyGlobal(node);
 
         if (kind === 'instance' && node.type === 'MemberExpression') {
-          replaceInstance(binding, node, parent, metaPath);
+          replaceInstance(binding, node, parent, metaPath, meta.sideEffects);
         } else if (kind === 'global' || (kind === 'static' && node.type === 'MemberExpression')) {
           replaceGlobalOrStatic(binding, node, parent, metaPath, meta.sideEffects);
           // outer text-emit subsumes the receiver Identifier (e.g. `Symbol` in `(tag`hi`, Symbol).iterator`).
