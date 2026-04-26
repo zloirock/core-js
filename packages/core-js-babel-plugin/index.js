@@ -712,7 +712,6 @@ export default function plugin(api, options) {
         if (hint) callParent.node.coreJSResolvedType = hint;
       }
 
-      // extracted from usagePureCallback to keep its statement count under lint threshold.
       // preserves sideEffects (SE from computed-key / SequenceExpression receiver) through
       // the super-class-alias -> static-lookup remap - dropping them would fire the SE at
       // wrong evaluation points

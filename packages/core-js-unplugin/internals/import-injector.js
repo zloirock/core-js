@@ -69,9 +69,10 @@ export default class ImportInjector extends ImportInjectorState {
   // shallow-copy collections so post sees a stable view even if pre keeps mutating
   // (dev-server HMR, --force, double pre). `suffixState` carries the per-prefix counter
   // so post's `uniqueName` resumes at the next free slot instead of re-probing pre's N names.
-  // deliberately SKIPS per-callback state (`state.scopedVars` / `arrowVars` / `destructuring`
-  // / `synthSwaps`) - those track in-flight rewrites that applied in pre and whose resulting
-  // text is already in the source post re-parses. re-instating them in post would double-apply
+  // deliberately SKIPS per-callback state (ScopeTracker `scopedVars` / `arrowVars`,
+  // destructure-emitter `pendingDestructuring` / `pendingSynthSwaps`) - those track
+  // in-flight rewrites that applied in pre and whose resulting text is already in the
+  // source post re-parses. re-instating them in post would double-apply
   snapshot() {
     return {
       globals: new Set(this.globalImports),
@@ -204,9 +205,10 @@ export default class ImportInjector extends ImportInjectorState {
   // `var _ref, _ref2, ...;` for refs this flush hasn't written yet. pre's emission makes
   // the output strict-mode safe; post's emission adds any new refs post allocated.
   // no usage-tracking filter (unlike babel-plugin's `pruneUnusedRefs`): call sites follow
-  // synchronous allocate-and-use discipline - every `state.genRef()` / `generateHoistedRef()`
-  // result is immediately embedded in a replacement string that goes to `transforms.add(...)`.
-  // `preAllocatedGuardRef` is allocated only under conditions that guarantee consumption
+  // synchronous allocate-and-use discipline - every `scopeTracker.genRef()` /
+  // `generateHoistedRef()` result is immediately embedded in a replacement string that goes
+  // to `transforms.add(...)`. `preAllocatedGuardRef` is allocated only under conditions that
+  // guarantee consumption
   #appendRefLines(lines) {
     const newRefs = [];
     for (const r of this.#refs) if (!this.#flushedRefs.has(r)) newRefs.push(r);
