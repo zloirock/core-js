@@ -16,6 +16,10 @@ import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.iterator.chunks";
+import "core-js/modules/esnext.iterator.includes";
+import "core-js/modules/esnext.iterator.join";
+import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // chain assignment `const { from } = foo = cond ? Array : Iterator` - AssignmentExpression
 // evaluates to its RHS, destructure targets the conditional value. usage-global peels

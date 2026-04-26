@@ -12,4 +12,6 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// `for (const x of set)`: the iteration protocol on `Set.prototype` must be polyfilled
+// so the for-of loop has a working iterator.
 for (const x of new Set()) {}

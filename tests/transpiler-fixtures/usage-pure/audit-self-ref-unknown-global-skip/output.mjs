@@ -1,5 +1,4 @@
-// `var Foo = Foo` - pattern matches the self-ref guard shape but `isKnownGlobalName`
-// check filters out user-owned capitalised names. avoids over-injection for arbitrary
-// user aliases that coincidentally share a shim-style form
+// `var X = X` self-ref shape applied to a user-owned name (not a known global): no
+// polyfill should be injected, since `MyThing` has no built-in to fall back to.
 var MyThing = MyThing;
 new MyThing();
