@@ -25,6 +25,7 @@ import {
   mergeVisitors,
   objectPatternPropNeedsReceiverRewrite,
   parseDisableDirectives,
+  peelFallbackWrappers,
   POSSIBLE_GLOBAL_OBJECTS,
   propBindingIdentifier,
   resolveSuperImportName,
@@ -1066,16 +1067,30 @@ export default function createPlugin(options) {
         if (!rhs || !propNode || !objectPattern) return false;
         if (!isSynthSimpleObjectPattern(objectPattern)) return false;
         if (propNode.computed || propNode.key?.type !== 'Identifier') return false;
-        const slots = getFallbackBranchSlots(rhs);
+        // peel ParenthesizedExpression + TS expression wrappers so paren-wrapped or TS-cast
+        // fallback receivers (`(cond ? A : B) as any`) reach the slot resolver. NOTE: do NOT
+        // peel chain-assignment here - `foo = cond ? Array : Set` is intentional escape hatch
+        // (rewriting branches as synth literals would change `foo`'s runtime value)
+        const inner = peelFallbackWrappers(rhs);
+        const slots = getFallbackBranchSlots(inner);
         if (!slots) return false;
         const key = propNode.key.name;
         let registered = false;
         for (const slot of slots) {
-          const branch = rhs[slot];
+          const branch = inner[slot];
           const pure = isViableBranchForKey(branch, key, scope, estreeAdapter, resolvePure);
           if (!pure) continue;
           const binding = injectPureImport(pure.entry, pure.hintName);
-          skippedNodes.add(branch);
+          // skip both the wrapper (ParenthesizedExpression / TS expression) AND the inner
+          // Identifier - otherwise the inner Identifier visitor fires on `Iterator` and emits
+          // a parallel constructor polyfill (`_Iterator`) that conflicts with the synth-swap
+          // emit (`{from: _Iterator$from}`)
+          let cur = branch;
+          while (cur) {
+            skippedNodes.add(cur);
+            if (cur.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
+            else break;
+          }
           let pending = state.synthSwaps.get(branch);
           if (!pending) {
             pending = { receiver: branch, objectPattern, polyfills: new Map() };
@@ -1164,6 +1179,48 @@ export default function createPlugin(options) {
       // binding, rebuild the declaration with siblings (or drop entirely). subsequent visits
       // are no-ops. scope limited to proxy-global receiver (globalThis/self/window) - plain
       // `{ from } = Array` is handled by the state machine below
+      // walk up the nested-destructure chain to the outer ObjectPattern, then to the host
+      // (AssignmentExpression). returns the host path or null. mirror of
+      // `walkUpNestedDestructureToDeclaration` but terminating at AssignmentExpression
+      function walkUpNestedDestructureToAssignment(startPath) {
+        let current = startPath;
+        while (current && current.node?.type !== 'AssignmentExpression') {
+          if (!NESTED_DESTRUCTURE_WALK_TYPES.has(current.node?.type)) return null;
+          current = current.parentPath;
+        }
+        return current;
+      }
+
+      // `({Array: {from}} = receiver);` (AssignmentExpression in ExpressionStatement) -
+      // value is discarded, replace whole statement with `from = _polyfill;` so polyfill
+      // always wins. SE prefix in receiver lifts as separate statement. matches babel-plugin's
+      // `flattenAssignmentExpressionDestructure`
+      function tryFlattenAssignmentExpressionDestructure(metaPath, meta) {
+        const valueNode = propBindingIdentifier(metaPath.node.value);
+        if (!valueNode) return false;
+        const assignPath = walkUpNestedDestructureToAssignment(metaPath.parentPath);
+        const assignNode = assignPath?.node;
+        if (!assignNode || assignNode.operator !== '=') return false;
+        // peel oxc's preserved `({...} = G)` parens to reach the ExpressionStatement above
+        let stmtPath = assignPath.parentPath;
+        while (stmtPath?.node?.type === 'ParenthesizedExpression') stmtPath = stmtPath.parentPath;
+        if (stmtPath?.node?.type !== 'ExpressionStatement') return false;
+        const stmtNode = stmtPath.node;
+        const pure = resolvePure(meta);
+        if (!pure || pure.kind === 'instance') return false;
+        const binding = injectPureImport(pure.entry, pure.hintName);
+        // SE prefix `(se(), G)` lifts as separate statement before the rewrite. peel paren
+        // wrap around the SE (oxc preserves; babel strips). uses shared `peelFallbackWrappers`
+        const inner = peelFallbackWrappers(assignNode.right);
+        const prefix = inner?.type === 'SequenceExpression' && inner.expressions.length > 1
+          ? `${ inner.expressions.slice(0, -1).map(nodeSrc).join(', ') };\n`
+          : '';
+        // skip nodes inside the destructure subtree to prevent re-processing
+        walkAstNodes(assignNode, n => skippedNodes.add(n));
+        transforms.add(stmtNode.start, stmtNode.end, `${ prefix }${ valueNode.name } = ${ binding };`);
+        return true;
+      }
+
       function tryFlattenNestedProxyDestructurePure(metaPath) {
         // accept `{ from }` / `{ from: alias }` / `{ from = default }` / `{ from: alias = default }`.
         // user's default is dropped since the extracted polyfill is always defined (see `planInnerProp`)
@@ -1202,7 +1259,22 @@ export default function createPlugin(options) {
         const flattenedReceivers = new Set();
         for (let i = 0; i < perDecl.length; i++) {
           if (!perDecl[i].extractions.length) continue;
-          walkAstNodes(declaration.declarations[i], n => skippedNodes.add(n));
+          // seed skippedNodes ONLY for the consumed parts: the ObjectPattern (id) and the
+          // receiver tail (last expr of SE init). SE-prefix expressions are preserved as
+          // source text via `sePrefixes` below - their inner Identifiers (e.g. `Promise`
+          // in `(Promise.resolve(...).then(noop), globalThis)`) need natural visitor pass
+          // to emit their own polyfill imports. seeding the whole declarator would block
+          // those polyfill emissions silently
+          const decl = declaration.declarations[i];
+          walkAstNodes(decl.id, n => skippedNodes.add(n));
+          // peel ParenthesizedExpression (oxc keeps it; babel strips) before SE-tail check.
+          // without peel, `(Promise.resolve(...), globalThis)` lands as ParenthesizedExpression
+          // and the whole init (including SE prefix Promise.resolve) gets seeded as skipped,
+          // suppressing polyfill emission for the SE prefix expressions
+          let initInner = decl.init;
+          while (initInner?.type === 'ParenthesizedExpression') initInner = initInner.expression;
+          const consumedTail = initInner?.type === 'SequenceExpression' ? initInner.expressions.at(-1) : initInner;
+          if (consumedTail) walkAstNodes(consumedTail, n => skippedNodes.add(n));
           if (perDecl[i].receiver) flattenedReceivers.add(perDecl[i].receiver);
         }
         if (flattenedReceivers.size) {
@@ -1475,6 +1547,11 @@ export default function createPlugin(options) {
         // patterns hold only this one chain; fall back to param-default for complex shapes
         if (metaPath.parentPath?.parentPath?.node?.type === 'Property') {
           if (tryFlattenNestedProxyDestructurePure(metaPath)) return;
+          // AssignmentExpression-in-ExpressionStatement form `({Array:{from}} = globalThis);`:
+          // value is discarded, replace whole statement with `from = _polyfill;` so polyfill
+          // always wins (inline-default fallback would pick native Array.from on modern
+          // engines, contradicting usage-pure's polyfill-always contract)
+          if (tryFlattenAssignmentExpressionDestructure(metaPath, meta)) return;
           return handleParameterDestructurePure(meta, metaPath, propNode);
         }
         // two-pass post: skip `{ key: _unusedN, ...rest }` sentinels left by pre -
@@ -1676,15 +1753,22 @@ export default function createPlugin(options) {
       // would silently produce inconsistent output, hard fail surfaces the bug to the user
       function applySynthSwaps() {
         for (const [, { receiver, objectPattern, polyfills }] of state.synthSwaps) {
-          if (receiver?.type !== 'Identifier' || objectPattern?.type !== 'ObjectPattern') continue;
-          const receiverPure = resolveGlobalPolyfill(receiver.name);
+          if (objectPattern?.type !== 'ObjectPattern') continue;
+          // peel paren / TS wrappers around the receiver - `cond ? (Array) : (Iterator)`
+          // (oxc keeps parens) registers the ParenthesizedExpression as receiver, but the
+          // identifier-name lookup (and shadow-check via `resolveGlobalPolyfill`) needs the
+          // inner Identifier. range stays on the original wrapper so the rewrite consumes
+          // the whole `(Array)` span, not just `Array`
+          const inner = peelFallbackWrappers(receiver);
+          if (inner?.type !== 'Identifier') continue;
+          const receiverPure = resolveGlobalPolyfill(inner.name);
           // lazy: `receiverSrc` is only consumed by non-polyfilled sibling props that need to
           // read off the original receiver. if every prop polyfilled independently, no read
           // happens and `injectPureImport` would leak a dead `_Promise` import into the bundle
           let receiverSrc = null;
           const getReceiverSrc = () => receiverSrc ??= receiverPure
             ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-            : receiver.name;
+            : inner.name;
           const entries = [];
           for (const p of objectPattern.properties) {
             if (p.type !== 'Property' || p.computed || p.key?.type !== 'Identifier') continue;
