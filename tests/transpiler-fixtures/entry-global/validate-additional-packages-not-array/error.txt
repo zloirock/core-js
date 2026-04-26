@@ -1,1 +1,1 @@
-[BABEL] unknown file: `additionalPackages` must be an array, or undefined (received "not-an-array") (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
+[BABEL] unknown file: [core-js] `additionalPackages` must be an array, or undefined (received "not-an-array") (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
