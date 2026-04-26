@@ -38,6 +38,8 @@
     "./detect-usage.js": "./detect-usage.js",
     "./detect-syntax": "./detect-syntax.js",
     "./detect-syntax.js": "./detect-syntax.js",
+    "./destructure-host-shape": "./destructure-host-shape.js",
+    "./destructure-host-shape.js": "./destructure-host-shape.js",
     "./helpers": "./helpers.js",
     "./helpers.js": "./helpers.js",
     "./import-state": "./import-state.js",
