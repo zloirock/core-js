@@ -25,8 +25,13 @@ const REPEATED_SLASHES_RE = /\/{2,}/g;
 // slightly different queries in an unrelated transform pipeline
 const SFC_QUERY_MARKER_RE = /[&?](?:astro|svelte|vue)(?:[&=?]|$)/;
 const QUERY_OR_HASH_RE = /[#?]/;
+// Windows verbatim long-path prefix `\\?\C:\...` (and Vite's normalized `//?/C:/...`).
+// strip to canonical `C:/...` so SnapshotCache lookups match across path-mangling stages.
+// without strip, `\\?\C:\src\App.vue` and `C:/src/App.vue` (same logical file) had
+// different keys → snapshot miss between pre and post passes
+const WINDOWS_UNC_PREFIX_RE = /^\/\/\?\//;
 function normalizePath(path) {
-  let p = path.replaceAll('\\', '/');
+  let p = path.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
   // composite chains like `/@id/file:///abs/foo` carry two schemes back-to-back. one-pass
   // replace would leave `file:///abs/foo` and miss the bare `/abs/foo` snapshot. iterate
   // until a pass produces no change so any nested scheme combination collapses
