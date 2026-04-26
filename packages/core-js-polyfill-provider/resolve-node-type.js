@@ -4,6 +4,7 @@ import {
   getSuperTypeArgs,
   getTypeArgs,
   globalProxyMemberName,
+  peelFallbackWrappers,
   singleQuasiString,
   unwrapExportedDeclaration,
   unwrapParens,
@@ -1754,13 +1755,16 @@ function createResolveNodeType(babelNodeType, t) {
 
   // `null` / `undefined` literal or `void <expr>` - placeholders that don't reflect runtime
   // type. covers babel `NullLiteral` + ESTree `Literal { value: null }` (oxc); the `regex`
-  // guard excludes `/foo/` literals which also reuse the `Literal` node in ESTree
+  // guard excludes `/foo/` literals which also reuse the `Literal` node in ESTree.
+  // shared `peelFallbackWrappers` strips ParenthesizedExpression / TS expression wrappers
+  // (`null as any`, `(null)`) so the nullish-tail is recognized through user-applied wrappers
   function isNullishInit(node) {
-    if (!node) return false;
-    if (node.type === 'NullLiteral') return true;
-    if (node.type === 'Literal' && node.value === null && !node.regex) return true;
-    if (node.type === 'Identifier' && node.name === 'undefined') return true;
-    return node.type === 'UnaryExpression' && node.operator === 'void';
+    const inner = peelFallbackWrappers(node);
+    if (!inner) return false;
+    if (inner.type === 'NullLiteral') return true;
+    if (inner.type === 'Literal' && inner.value === null && !inner.regex) return true;
+    if (inner.type === 'Identifier' && inner.name === 'undefined') return true;
+    return inner.type === 'UnaryExpression' && inner.operator === 'void';
   }
 
   function resolveNumericType(path) {
