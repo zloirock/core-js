@@ -403,7 +403,7 @@ export default function createPlugin(options) {
       // from a different code path. the WeakSet survives both passes (scoped to one runTransform
       // invocation), so the second pass sees the flag and bails before re-flattening
       const flattenedNestedDecls = new WeakSet();
-      const transforms = new TransformQueue(code, ms);
+      const transforms = new TransformQueue(code, ms, id);
 
       // cache setScope walk-up result per leaf node - each node's enclosing scope is
       // fixed by its position in the AST, so the walk is purely a function of the node.
@@ -1519,14 +1519,16 @@ export default function createPlugin(options) {
       // O(N) per call where N is subtree size; callers feed it small subtrees (declarator,
       // RHS of `in`, inner-callee chain) so total amortized cost across the file is bounded.
       // `visit(node, parent)` - parent is the directly-enclosing AST node, null at root,
-      // used by callers (`polyfillSiblingReceiverRefs`) for context-aware filtering
-      function walkAstNodes(root, visit, parent = null) {
-        if (!root || typeof root !== 'object' || typeof root.type !== 'string') return;
+      // used by callers (`polyfillSiblingReceiverRefs`) for context-aware filtering.
+      // depth cap protects against pathological deeply-nested AST (template-literal bombs,
+      // oxc bug-emitted cycles). 1024 covers realistic depth bounds with margin
+      function walkAstNodes(root, visit, parent = null, depth = 0) {
+        if (!root || typeof root !== 'object' || typeof root.type !== 'string' || depth >= 1024) return;
         visit(root, parent);
         for (const key of Object.keys(root)) {
           const value = root[key];
-          if (Array.isArray(value)) for (const v of value) walkAstNodes(v, visit, root);
-          else walkAstNodes(value, visit, root);
+          if (Array.isArray(value)) for (const v of value) walkAstNodes(v, visit, root, depth + 1);
+          else walkAstNodes(value, visit, root, depth + 1);
         }
       }
 
