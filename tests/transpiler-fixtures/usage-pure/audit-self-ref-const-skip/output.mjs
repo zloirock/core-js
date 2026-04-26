@@ -1,6 +1,6 @@
 import _Promise$try from "@core-js/pure/actual/promise/try";
-// `const X = X` - same TDZ rationale as let. `createSelfRefVarGuard` skips const so the
-// constructor polyfill is NOT emitted; `.try` is still caught through ordinary member-expr
-// handling (independent from the identifier-level self-ref path)
+// `const X = X` self-reference: would TDZ at runtime, so the bare-identifier rewrite is
+// skipped (would otherwise replace one of the references with `_X` and break TDZ).
+// `.try` still polyfills - it goes through the normal member-expression path
 const Promise = Promise;
 _Promise$try(() => 1);

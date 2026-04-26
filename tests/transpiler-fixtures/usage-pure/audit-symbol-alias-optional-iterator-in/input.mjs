@@ -1,7 +1,6 @@
-// `var Sym = Symbol;` aliases the global Symbol; `Sym?.iterator in obj` walks
-// the alias through resolveBindingToGlobal and routes through is-iterable.
-// the optional chain `?.` on a confirmed-non-null receiver is redundant but must not
-// disturb the in-detection - asSymbolRef peels ChainExpression up front.
+// `var Sym = Symbol;` aliases the global; `Sym?.iterator in obj` follows the alias back
+// to `Symbol` and rewrites the `in` check as is-iterable. the redundant optional chain
+// `?.` on a confirmed-non-null receiver is peeled before alias resolution
 var Sym = Symbol;
 const x = Sym?.iterator in obj;
 export { x };
