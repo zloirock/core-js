@@ -19,6 +19,8 @@ import {
   isChainAssignment,
   kebabToCamel,
   mayHaveSideEffects,
+  peelFallbackReceiver,
+  peelFallbackWrappers,
   resolveCallArgument as sharedResolveCallArgument,
   singleQuasiString,
   stripQueryHash,
@@ -50,7 +52,12 @@ const LOGICAL_ASSIGN_OPERATORS = new Set(['||=', '&&=', '??=']);
 // capitalised-identifier probe for polyfillHint values like `Symbol`/`Map`/`Promise`
 const CAPITALISED_IDENT = /^[A-Z]\w*$/;
 // `import _Foo from 'core-js/pure/symbol/iterator'` - extract Symbol key from polyfill path.
-// `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers)
+// `.[cm]?js` suffix is tolerated (explicit-extension import styles under TS-aware bundlers).
+// path must EITHER start with a known core-js package prefix OR with an internal core-js
+// namespace (`actual/`, `es/`, etc.). babel's injector stores importSource without the
+// package prefix (`actual/symbol/iterator`); unplug stores the full path. without this
+// constraint, `my-lib/symbol/iterator` was misclassified as Symbol.iterator (DUI-9-03)
+const CORE_JS_SOURCE_PREFIX = /^(?:core-js(?:-pure)?\/|@core-js\/pure\/|(?:actual|es|features|full|proposals|stable|stage)\/)/;
 const SYMBOL_IMPORT_SOURCE = /(?:^|\/)symbol\/(?<name>[\w-]+)(?:\/index)?(?:\.[cm]?js)?$/;
 
 // true when `node` binds the module's default export (either as default specifier or
@@ -72,10 +79,13 @@ function bindsModuleDefault(node) {
 // resolve a plugin-managed binding to its Symbol.X key if any. covers two markers:
 // `polyfillHint` (in-place AST mutation leaves this on the binding) and `importSource`
 // (real `import X from '.../symbol/iterator'` that the plugin emitted). symbol modules
-// export the well-known Symbol as their default - only default bindings count as Symbol.X refs
+// export the well-known Symbol as their default - only default bindings count as Symbol.X refs.
+// CORE_JS_SOURCE_PREFIX filter rejects unrelated user imports like `my-lib/symbol/iterator`
+// whose `*/symbol/X` suffix would otherwise match the regex and route through Symbol.X polyfill
 function bindingSymbolKey(binding) {
   if (binding.polyfillHint?.startsWith('Symbol.')) return binding.polyfillHint;
-  const match = binding.importSource && SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
+  if (!binding.importSource || !CORE_JS_SOURCE_PREFIX.test(binding.importSource)) return null;
+  const match = SYMBOL_IMPORT_SOURCE.exec(binding.importSource);
   if (!match || !bindsModuleDefault(binding.node)) return null;
   return `Symbol.${ kebabToCamel(match.groups.name) }`;
 }
@@ -747,11 +757,16 @@ function resolveConditionalDestructureMeta(node, key, scope, adapter) {
 // pure entry. returns the resolved pure descriptor (with `entry`/`hintName`/`kind`) or null.
 // shared between babel-plugin and unplugin so the branch-detection rules stay in lockstep
 export function isViableBranchForKey(branch, key, scope, adapter, resolvePure) {
-  if (branch?.type !== 'Identifier') return null;
+  // peel ParenthesizedExpression / TS expression wrappers around the branch identifier:
+  // `cond ? (Array) : (Iterator)` (oxc preserves) / `cond ? Array! : Iterator!` (TS).
+  // without the peel the strict Identifier check rejected wrapped branches and the synth
+  // swap silently bailed for that side
+  const inner = peelFallbackWrappers(branch);
+  if (inner?.type !== 'Identifier') return null;
   // user-shadowed (`function f(Array) { ({from} = cond ? Array : Set) }`) - shadow makes
   // `Array` a local binding, not a global polyfill candidate
-  if (adapter.hasBinding(scope, branch.name)) return null;
-  const meta = buildDestructuringInitMeta(branch, key, scope, adapter);
+  if (adapter.hasBinding(scope, inner.name)) return null;
+  const meta = buildDestructuringInitMeta(inner, key, scope, adapter);
   if (!meta?.object || meta.kind !== 'property' || meta.placement !== 'static') return null;
   const pure = resolvePure(meta);
   if (!pure || pure.kind === 'instance') return null;
@@ -767,9 +782,9 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   const wrapperParent = path.parentPath?.parentPath?.node;
   const slot = destructureReceiverSlot(wrapperParent);
   if (!slot) return null;
-  // peel `foo = bar = cond ? ...` chains down to the conditional/logical
-  let rhs = wrapperParent[slot];
-  while (isChainAssignment(rhs)) rhs = rhs.right;
+  // peel chain-assign + paren/TS wrappers down to the conditional/logical. oxc preserves
+  // parens; babel strips them. handles `foo = (bar = (cond ? A : B))` (interleaved layers)
+  const rhs = peelFallbackReceiver(wrapperParent[slot]);
   const branchSlots = getFallbackBranchSlots(rhs);
   if (!branchSlots) return null;
   const out = [];
