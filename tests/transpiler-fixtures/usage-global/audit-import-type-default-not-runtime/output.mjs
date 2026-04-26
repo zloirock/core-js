@@ -1,8 +1,7 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.string.at";
-// `import { type default as P }` - type-only default specifier. defaultSpecifierNames
-// now skips `importKind: 'type'` per specifier, so no runtime hint registration occurs
-// for P. the actual polyfill behaviour is unaffected: type-only imports compile-away
+// type-only default specifier `import { type default as P }` is compile-away and does not
+// register a runtime alias for `P`. The standalone `p.at(-1)` instance call still polyfills.
 import { type default as P } from 'some-package';
 declare const p: P;
 p.at(-1);

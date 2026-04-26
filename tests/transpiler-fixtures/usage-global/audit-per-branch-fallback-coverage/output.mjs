@@ -17,6 +17,10 @@ import "core-js/modules/es.iterator.some";
 import "core-js/modules/es.iterator.take";
 import "core-js/modules/es.iterator.to-array";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.iterator.chunks";
+import "core-js/modules/esnext.iterator.includes";
+import "core-js/modules/esnext.iterator.join";
+import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // usage-global per-branch fallback dispatch: ConditionalExpression / LogicalExpression
 // in destructure-receiver position. each branch's deps emit independently regardless of
