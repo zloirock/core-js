@@ -253,12 +253,21 @@ export default function plugin(api, options) {
         const objectPattern = prop.parentPath;
         if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
         if (prop.node.computed || !t.isIdentifier(prop.node.key)) return false;
-        const slots = getFallbackBranchSlots(rhsPath?.node);
+        // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
+        // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
+        // first-class wrappers. NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B`
+        // is intentional escape hatch (rewriting branches as synth literals would change
+        // `foo`'s runtime value, see `audit-per-branch-chain-assignment`)
+        let innerPath = rhsPath;
+        while (innerPath?.node && TS_EXPR_WRAPPERS.has(innerPath.node.type)) {
+          innerPath = innerPath.get('expression');
+        }
+        const slots = getFallbackBranchSlots(innerPath?.node);
         if (!slots) return false;
         const key = prop.node.key.name;
         let registered = false;
         for (const slot of slots) {
-          const branchPath = rhsPath.get(slot);
+          const branchPath = innerPath.get(slot);
           const branch = branchPath.node;
           const pure = isViableBranchForKey(branch, key, branchPath.scope, adapter, resolvePure);
           if (!pure) continue;
@@ -342,21 +351,46 @@ export default function plugin(api, options) {
       // point even after the declarator gets replaced/spliced. cloned nodes are seeded into
       // `skippedNodes` to block re-traversal double-injecting polyfills inside the lifted SE.
       // no-op when init isn't SE or has only the tail expression (no preceding effects)
-      function liftDeclaratorSEPrefix(declarator, declaration) {
-        const { init } = declarator.node;
-        if (init?.type !== 'SequenceExpression' || init.expressions.length <= 1) return;
-        const exprs = init.expressions.slice(0, -1).map(e => t.cloneNode(e));
+      // lift the leading-SE-tail of `receiver` as a standalone ExpressionStatement before
+      // `hostPath`. peels ParenthesizedExpression so `(se(), G)` and bare `(se(), G)` both
+      // surface the SE. NOT seeding skippedNodes for clones - the original SE got removed
+      // with the host, so inner polyfillable usages need natural visitor pass to emit imports
+      function liftSEPrefix(receiver, hostPath) {
+        let inner = receiver;
+        while (inner?.type === 'ParenthesizedExpression') inner = inner.expression;
+        if (inner?.type !== 'SequenceExpression' || inner.expressions.length <= 1) return;
+        const exprs = inner.expressions.slice(0, -1).map(e => t.cloneNode(e));
         const seStmt = exprs.length === 1
           ? t.expressionStatement(exprs[0])
           : t.expressionStatement(t.sequenceExpression(exprs));
-        t.traverseFast(seStmt, node => { skippedNodes.add(node); });
-        declaration.insertBefore(seStmt);
+        hostPath.insertBefore(seStmt);
+      }
+
+      const liftDeclaratorSEPrefix = (declarator, declaration) => liftSEPrefix(declarator.node.init, declaration);
+
+      // `({Array: {from}} = receiver); ...` (AssignmentExpression in ExpressionStatement) -
+      // value of AssignmentExpression is discarded by the surrounding statement, so we can
+      // replace the whole statement with `from = _Array$from`. matches VariableDeclarator's
+      // "polyfill always wins" semantics. SE prefix in receiver lifts as separate statement
+      function flattenAssignmentExpressionDestructure(assignPath, valueNode, entry, hintName) {
+        const exprStmt = assignPath.parentPath;
+        const id = injectPureImport(entry, hintName);
+        liftSEPrefix(assignPath.node.right, exprStmt);
+        // skip the destructure subtree so queued visitors short-circuit on its descendants
+        t.traverseFast(assignPath.node, node => { skippedNodes.add(node); });
+        exprStmt.replaceWith(t.expressionStatement(
+          t.assignmentExpression('=', t.cloneNode(valueNode), t.cloneNode(id)),
+        ));
+        return true;
       }
 
       function tryFlattenNestedProxyDestructure(prop, entry, hintName) {
         const valueNode = propBindingIdentifier(prop.node.value);
         if (!valueNode) return false;
-        // collect the chain of (property, pattern) pairs leading up to the declarator
+        // collect the chain of (property, pattern) pairs leading up to the host (declarator
+        // or ExpressionStatement-wrapped AssignmentExpression). hosts handled here ALWAYS
+        // win polyfill - native fallback would produce wrong runtime in usage-pure mode
+        // (`from = globalThis.Array.from` picks native on modern engines)
         const chain = [];
         let currentProp = prop;
         for (;;) {
@@ -365,6 +399,13 @@ export default function plugin(api, options) {
           chain.push({ prop: currentProp, pattern });
           const parent = pattern.parentPath;
           if (parent?.isVariableDeclarator()) break;
+          // AssignmentExpression in ExpressionStatement context - the AssignmentExpression's
+          // value is discarded, so replacing the whole statement with `from = _polyfill` is
+          // semantically equivalent to "extract `from` via destructure, override with polyfill"
+          if (parent?.isAssignmentExpression() && parent.node.left === pattern.node
+              && parent.parentPath?.isExpressionStatement()) {
+            return flattenAssignmentExpressionDestructure(parent, valueNode, entry, hintName);
+          }
           if (!t.isObjectProperty(parent?.node)) return false;
           currentProp = parent;
         }
