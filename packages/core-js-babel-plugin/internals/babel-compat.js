@@ -186,7 +186,17 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return current;
   }
 
-  function replaceInstanceLike(path, id, skipOptional) {
+  // wrap a result expression in a SequenceExpression preserving side effects collected
+  // from the receiver / computed-key. noop when sideEffects is empty - callers can pass
+  // unconditionally. mirrors babel-plugin/index.js `withSideEffects` (kept here to avoid
+  // a back-edge import; same one-line shape)
+  function withSideEffects(result, sideEffects) {
+    return sideEffects?.length
+      ? t.sequenceExpression([...sideEffects.map(e => t.cloneNode(e)), result])
+      : result;
+  }
+
+  function replaceInstanceLike(path, id, skipOptional, sideEffects) {
     // (arr?.includes)(1) - parenthesized optional callee breaks the chain.
     // replace only the member expression, keep the original call site.
     // only for optional chains - non-optional (arr.includes)(1) at runtime is
@@ -198,7 +208,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       && path.isOptionalMemberExpression()) {
       const [check, object, embed] = extractCheck(path, skipOptional);
       const lookup = t.callExpression(id, [t.cloneNode(object)]);
-      replaceAndWrap(path, lookup, check, embed);
+      replaceAndWrap(path, withSideEffects(lookup, sideEffects), check, embed);
       return;
     }
     const callerPath = unwrapTSExpressionParent(path);
@@ -209,7 +219,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     const result = isCall
       ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
       : t.callExpression(id, [t.cloneNode(object)]);
-    replaceAndWrap(isCall ? callerPath.parentPath : path, result, check, embed);
+    replaceAndWrap(isCall ? callerPath.parentPath : path, withSideEffects(result, sideEffects), check, embed);
   }
 
   function replaceCallWithSimple(path, id, skipOptional) {
@@ -488,6 +498,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     isInTypeAnnotation,
     deferredSideEffects,
     deoptionalizeNode,
+    generateUnusedId,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceInstanceChainCombined,
@@ -495,6 +506,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     resolveDestructuringObject,
     handleDestructuredProperty,
     unwrapTSExpressionParent,
+    withSideEffects,
     reset,
   };
 }
