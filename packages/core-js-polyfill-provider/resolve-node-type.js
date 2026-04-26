@@ -2925,28 +2925,35 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
-  // shared gate for `<expr>.<fieldName> = Y` writes: operator `=`, non-computed member,
-  // matching field name. `acceptReceiver` decides which receiver shapes count.
-  // dot-path `p.get('left.object')` is unsupported on unplugin's oxc-wrapped paths, so
-  // chain two `.get` calls explicitly
-  function pushFieldAssignmentType(p, fieldName, acceptReceiver, out) {
-    const { node } = p;
-    if (node.operator !== '=') return;
-    const { left } = node;
-    if (!t.isMemberExpression(left) || left.computed) return;
-    if (getKeyName(left.property) !== fieldName) return;
-    if (!acceptReceiver(p.get('left').get('object'))) return;
-    const rhsType = resolveNodeType(p.get('right'));
-    if (rhsType) out.push(rhsType);
+  // returns the receiver path of a `<receiver>.<fieldName>` write target (AssignmentExpression
+  // .left or UpdateExpression .argument), or null when the target shape doesn't match. shared
+  // by every write-flow handler so operator-specific dispatch keeps a uniform front gate.
+  // dot-path `p.get('left.object')` is unsupported on unplugin's oxc-wrapped paths, so chain
+  // two `.get` calls explicitly
+  function fieldWriteReceiverPath(p, fieldName) {
+    const targetPath = t.isAssignmentExpression(p.node) ? p.get('left') : p.get('argument');
+    const target = targetPath.node;
+    if (!t.isMemberExpression(target) || target.computed) return null;
+    if (getKeyName(target.property) !== fieldName) return null;
+    return targetPath.get('object');
   }
 
   // walk instance method bodies, folding in every `this.<field> = Y` assignment. traversal
   // skips function-like nodes that rebind `this` (regular fns, object methods, nested classes)
   // but descends into arrow functions (shared `this`). static members skip too: their `this`
-  // is the class itself, unrelated to instance storage. compound assignments (`+=` etc.) are
-  // dropped by `pushFieldAssignmentType`'s operator check
+  // is the class itself, unrelated to instance storage. compound assignments (`+=`, `-=`, ...)
+  // and update expressions (`++`/`--`) can change type beyond what RHS alone reflects
+  // (`#x = []; this.#x += 's'` -> string), so seed an `unknown` candidate that collapses the
+  // fold to a generic instance dispatch
   function collectThisFieldAssignments(classPath, fieldName, out) {
-    const receiverIsThis = objPath => t.isThisExpression(objPath.node);
+    const handle = p => {
+      const recv = fieldWriteReceiverPath(p, fieldName);
+      if (!recv || !t.isThisExpression(recv.node)) return;
+      if (t.isAssignmentExpression(p.node) && p.node.operator === '=') {
+        const rhsType = resolveNodeType(p.get('right'));
+        if (rhsType) out.push(rhsType);
+      } else out.push(new $Primitive('unknown'));
+    };
     for (const bodyMember of classPath.get('body').get('body')) {
       if (bodyMember.node.static || !isMethodMember(bodyMember.node)) continue;
       const body = methodFnPath(bodyMember).get('body');
@@ -2955,7 +2962,8 @@ function createResolveNodeType(babelNodeType, t) {
         'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
           p.skip();
         },
-        AssignmentExpression(p) { pushFieldAssignmentType(p, fieldName, receiverIsThis, out); },
+        AssignmentExpression: handle,
+        UpdateExpression: handle,
       });
     }
   }
