@@ -136,18 +136,21 @@ function inferTestId(babelOptions) {
   return 'input.ts';
 }
 
-// sourcemap check: structural shape + VLQ decode. segments that round-trip to null
-// sources are fine (entry-global emits all-synthetic output; user-code line mappings
-// survive in usage-*). catches malformed VLQ / missing sources / wrong-typed names
-// and sourcesContent. empty `mappings` is permitted - entry-global with exclude-all
-// emits no transforms and the resulting blank map is a legitimate pass-through
-function checkSourceMapShape(directory, map) {
-  if (!map) return true;
-  const reject = msg => {
-    counts.failed++;
-    echo(red(`${ cyan(label(directory)) } map invalid: ${ msg }`));
-    return false;
-  };
+// max lines to probe in mappings before giving up. 200 covers typed-array bundles (30+
+// import prefix, user code after) with margin; bigger inputs would slow the test loop
+const MAPPING_PROBE_LIMIT = 200;
+
+// reject helper factory: keeps reject closure local without re-allocating per check
+function rejectMap(directory, msg) {
+  counts.failed++;
+  echo(red(`${ cyan(label(directory)) } map invalid: ${ msg }`));
+  return false;
+}
+
+// shape: fields exist with correct types. wrong-typed fields would fail later checks
+// silently (e.g. iteration over non-array `sources`); fail loud here instead
+function checkMapShape(directory, map) {
+  const reject = msg => rejectMap(directory, msg);
   if (map.version !== 3) return reject(`version=${ map.version } (expected 3)`);
   if (!Array.isArray(map.sources)) return reject('sources is not an array');
   if (typeof map.mappings !== 'string') return reject('mappings is not a string');
@@ -155,14 +158,55 @@ function checkSourceMapShape(directory, map) {
     return reject('sourcesContent is not an array');
   }
   if (map.names !== undefined && !Array.isArray(map.names)) return reject('names is not an array');
-  try {
-    const tm = new TraceMap(map);
-    // TraceMap parses lazily - touch a known position to force VLQ decode and surface
-    // malformed tokens that the constructor accepted blindly
-    if (map.mappings) originalPositionFor(tm, { line: 1, column: 0 });
-  } catch (error) {
-    return reject(`VLQ decode failed: ${ error.message }`);
+  return true;
+}
+
+// content: `sources[0]` must equal the test id verbatim. MagicString's `getRelativePath`
+// collapses to basename when source/file are the same path - this check guards the shape
+// downstream bundlers actually consume. `sourcesContent[0]` (if present) must match input
+// verbatim - mismatch means MagicString lost source bytes during transform composition
+function checkMapContent(directory, map, testId, source) {
+  const reject = msg => rejectMap(directory, msg);
+  if (map.sources.length && map.sources[0] !== testId) {
+    return reject(`sources[0]=${ JSON.stringify(map.sources[0]) }, expected ${ JSON.stringify(testId) }`);
   }
+  if (map.sourcesContent?.length && map.sourcesContent[0] != null
+      && map.sourcesContent[0] !== source) {
+    return reject(`sourcesContent[0] doesn't match input source (${ map.sourcesContent[0].length }b vs ${ source.length }b)`);
+  }
+  return true;
+}
+
+// VLQ decode + round-trip probe combined: TraceMap construction parses lazily, so
+// `originalPositionFor(line=1, col=0)` forces VLQ decode AND yields the first probe
+// result. surfaces malformed VLQ / all-zero mappings that TraceMap silently accepts
+// but devtools can't navigate from. probes every line up to MAPPING_PROBE_LIMIT
+function checkMapMappings(directory, map, method) {
+  if (!map.mappings || !map.sources.length) return true;
+  const reject = msg => rejectMap(directory, msg);
+  let tm;
+  try { tm = new TraceMap(map); }
+  catch (error) { return reject(`VLQ decode failed: ${ error.message }`); }
+  // entry-global emits all-synthetic imports (no user-code mapping survives the rewrite
+  // by design); skip the round-trip probe but VLQ decode above still ran
+  if (method === 'entry-global') return true;
+  const lines = (map.mappings.match(/;/g) ?? []).length + 1;
+  const limit = Math.min(lines, MAPPING_PROBE_LIMIT);
+  for (let line = 1; line <= limit; line++) {
+    const probe = originalPositionFor(tm, { line, column: 0 });
+    if (probe.source != null && probe.line != null) return true;
+  }
+  return reject(`no user-code mapping resolves to a valid source position (lines 1..${ limit })`);
+}
+
+// sourcemap check: shape + content + VLQ-decode + round-trip probe. empty `mappings` is
+// permitted - entry-global with exclude-all emits no transforms and the resulting blank
+// map is a legitimate pass-through. null map (no transform) trivially passes
+function checkSourceMapContent(directory, map, testId, source, method) {
+  if (!map) return true;
+  if (!checkMapShape(directory, map)) return false;
+  if (!checkMapContent(directory, map, testId, source)) return false;
+  if (!checkMapMappings(directory, map, method)) return false;
   return true;
 }
 
@@ -316,7 +360,7 @@ async function runFixture(directory) {
     const babelOutput = normalize(await readFile(outputFile, UTF8));
 
     if (!await checkDebugOutput(directory, logs)) return;
-    if (!checkSourceMapShape(directory, map)) return;
+    if (!checkSourceMapContent(directory, map, testId, source, pluginOptions.method)) return;
     if (!checkOutputParses(directory, code, testId)) return;
 
     // global modes with `output-unplugin.mjs` opt into strict tail validation; usage-pure
