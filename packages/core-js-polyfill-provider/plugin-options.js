@@ -139,9 +139,13 @@ function validateOptions({
   }
   // `undefined` takes the default downstream; `null` (e.g. `{ package: cond ? 'x' : null }`)
   // is a real mis-configuration and should surface as a type error, not a late TypeError
+  // pure-slash strings (`/`, `///`) are stripped to `''` by `createPolyfillContext.stripTrailingSlashes`,
+  // making `getCoreJSEntry` treat any `/`-prefixed user import as a core-js entry. reject up
+  // front so the misconfiguration surfaces as a clean type error
+  const isPureSlash = $pkg => /^\/+$/.test($pkg);
   if (pkg !== undefined) {
     if (typeof pkg !== 'string') throw optionTypeError('package', 'a string', pkg);
-    if (pkg === '') throw optionTypeError('package', 'a non-empty string', pkg);
+    if (pkg === '' || isPureSlash(pkg)) throw optionTypeError('package', 'a non-empty, non-slash-only string', pkg);
   }
   if (additionalPackages !== undefined && additionalPackages !== null) {
     if (!Array.isArray(additionalPackages)) {
@@ -153,7 +157,10 @@ function validateOptions({
     // `findIndex` disambiguates: `-1` is not-found, `>= 0` is a real hit
     const badIndex = additionalPackages.findIndex($pkg => typeof $pkg !== 'string');
     if (badIndex !== -1) throw optionTypeError('additionalPackages[*]', 'a string', additionalPackages[badIndex]);
-    if (additionalPackages.includes('')) throw optionTypeError('additionalPackages[*]', 'a non-empty string', '');
+    const emptyOrSlashIndex = additionalPackages.findIndex($pkg => $pkg === '' || isPureSlash($pkg));
+    if (emptyOrSlashIndex !== -1) {
+      throw optionTypeError('additionalPackages[*]', 'a non-empty, non-slash-only string', additionalPackages[emptyOrSlashIndex]);
+    }
     // note: duplicates (including case-variants) silently dedup in `createPolyfillContext`
     // - documented design, see `audit-additional-packages-dedup`
   }
