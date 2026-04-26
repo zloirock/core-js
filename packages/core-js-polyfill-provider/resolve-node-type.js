@@ -2745,8 +2745,11 @@ function createResolveNodeType(babelNodeType, t) {
     const resolved = resolveRuntimeExpression(superClass);
     if (t.isClass(resolved.node)) return resolved;
     if (t.isIdentifier(superClass.node)) {
+      // accept both TS `declare class` (ClassDeclaration{declare:true}) and Flow
+      // `declare class X {...}` (DeclareClass node) - both describe the parent's surface
+      // for type-flow analysis, even though only the TS form is currently common
       const ambient = findAmbientDeclarationPath(superClass.node.name, superClass.scope, isAmbientClassNode);
-      if (ambient?.node.type === 'ClassDeclaration') return ambient;
+      if (ambient?.node.type === 'ClassDeclaration' || ambient?.node.type === 'DeclareClass') return ambient;
     }
     return null;
   }
@@ -2889,7 +2892,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // gather every type that could flow into `fieldName` on an instance. null signals
-  // "unknown writer set" (anonymous public class) - caller treats as no inference
+  // "unknown writer set" (anonymous OR exported public class) - caller treats as no inference
   function collectClassFieldCandidates(member, fieldName) {
     const classPath = member.parentPath.parentPath;
     const isPrivate = t.isClassPrivateProperty?.(member.node);
@@ -2897,6 +2900,10 @@ function createResolveNodeType(babelNodeType, t) {
     // before wasting work on init + class-internal scan that we can't soundly return
     const className = isPrivate ? null : classBindingName(classPath);
     if (!isPrivate && !className) return null;
+    // exported public field: any consumer can `import { C }; C.field = whatever` (static)
+    // or `(new C()).field = whatever` (instance). the writer set leaves the module - we
+    // cannot enumerate it. private fields stay safe (`#x` not reachable through identity)
+    if (!isPrivate && isClassExported(classPath)) return null;
     const candidates = [];
     const initPath = member.get('value');
     if (initPath.node) {
@@ -2989,6 +2996,43 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // is this class reachable from outside the module? exported classes lose external-write
+  // tracking - any importer can mutate public fields. covers three shapes:
+  //   - direct: `export class C {}` / `export default class C {}`
+  //   - via declarator: `export const C = class {}` / `export let C = class {}`
+  //   - separate spec: `class C {}` ... `export { C }`
+  // CommonJS (`module.exports.C = C`) currently NOT detected - usage-pure flows assume ESM
+  let classExportedCache = new WeakMap();
+  function isClassExported(classPath) {
+    if (classExportedCache.has(classPath.node)) return classExportedCache.get(classPath.node);
+    const result = computeClassExported(classPath);
+    classExportedCache.set(classPath.node, result);
+    return result;
+  }
+  function computeClassExported(classPath) {
+    // adapters disagree on `t.isExport...` availability (estree-toolkit lacks them); use
+    // string `.type` checks here to stay adapter-agnostic, same as ast-patterns helpers
+    const parent = classPath.parentPath;
+    const parentType = parent?.node?.type;
+    if (parentType === 'ExportNamedDeclaration' || parentType === 'ExportDefaultDeclaration') return true;
+    // class expression in `export const C = class {}`: parent VariableDeclarator,
+    // grandparent VariableDeclaration, great-grandparent ExportNamedDeclaration
+    if (parentType === 'VariableDeclarator' && parent.node.init === classPath.node
+      && parent.parentPath?.parentPath?.node?.type === 'ExportNamedDeclaration') return true;
+    // separate-spec export: scan program body for `export { C }` / `export { C as X }`
+    const className = classBindingName(classPath);
+    if (!className) return false;
+    const program = findProgramPath(classPath);
+    if (!program) return false;
+    for (const stmt of program.node.body) {
+      if (stmt.type !== 'ExportNamedDeclaration' || !stmt.specifiers) continue;
+      for (const spec of stmt.specifiers) {
+        if (spec.local?.name === className) return true;
+      }
+    }
+    return false;
+  }
+
   function isNewOfClass(node, className) {
     return t.isNewExpression(node) && t.isIdentifier(node.callee) && node.callee.name === className;
   }
@@ -3038,9 +3082,13 @@ function createResolveNodeType(babelNodeType, t) {
         if (t.isIdentifier(sup)) pushMultimap(subclassesBySuper, sup.name, p);
       },
       AssignmentExpression(p) {
-        const { node } = p;
-        if (node.operator !== '=') return;
-        const { left } = node;
+        // only pure `=` is type-precise here: RHS value becomes the new field type.
+        // compound (`+=` / `||=` / `??=` / `*=` ...) is operator-coerced - the resulting
+        // type depends on BOTH operands and the operator's coercion rules, which the
+        // candidate-union model can't represent (pushing RHS as a candidate is wrong:
+        // for `+= 'x'` the field becomes `string` regardless of init, not `init | string`)
+        if (p.node.operator !== '=') return;
+        const { left } = p.node;
         if (!t.isMemberExpression(left) || left.computed) return;
         const name = getKeyName(left.property);
         if (name) pushMultimap(writesByField, name, p);
@@ -4902,6 +4950,7 @@ function createResolveNodeType(babelNodeType, t) {
     resolveCache = new WeakMap();
     typeDeclCache = new WeakMap();
     classFieldTypeCache = new WeakMap();
+    classExportedCache = new WeakMap();
     moduleFieldIndexCache = new WeakMap();
   }
 
