@@ -860,6 +860,18 @@ const TS_TYPE_ONLY_NODES = new Set([
   'TSConstructSignatureDeclaration',
   'TSDeclareFunction',
   'TSDeclareMethod',
+  // oxc-emitted nodes Babel doesn't surface (some are subtypes of TSExpressionWithTypeArguments
+  // / TSTypeReference under different names). leaving them out misses type-only contexts on
+  // oxc paths, causing false-positive polyfill detection inside `class C implements Foo` etc.
+  // NOTE: `TSEnumBody` is intentionally NOT here - enum members carry RUNTIME initializer
+  // expressions (`A = [1,2,3].at(0)`) that need polyfill detection. Same for
+  // `TSExternalModuleReference` (the `require(...)` in `import x = require(...)`)
+  'TSClassImplements',
+  'TSInterfaceHeritage',
+  'TSNamespaceExportDeclaration',
+  'TSJSDocNullableType',
+  'TSJSDocNonNullableType',
+  'TSJSDocUnknownType',
 ]);
 
 // Flow type-only nodes (stable naming, no forward-compat concern)
