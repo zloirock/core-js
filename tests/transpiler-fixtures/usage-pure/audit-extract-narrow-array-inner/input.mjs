@@ -1,6 +1,6 @@
-// `Extract<Array<number>|Array<string>, Array<string>>` must narrow to Array<string>
-// by comparing inner types. without inner-aware isAssignableTo, Array<number> would also
-// match and the narrowed result would be the union (losing precision)
+// `Extract<number[] | string[], string[]>` must narrow to `string[]` by comparing inner
+// types, not just outer Array constructor. otherwise the narrowed type would stay as the
+// full union and `.at(0)` / `.includes('a')` would lose precision
 type Narrowed = Extract<number[] | string[], string[]>;
 declare const arr: Narrowed;
 const first = arr.at(0);

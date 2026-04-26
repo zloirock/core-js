@@ -1,6 +1,6 @@
-// destructure init (`Promise`) has its own queued Promise polyfill transform; the
-// destructure pass calls extractContent(initStart, initEnd) to consume it before
-// re-emitting the statement, so the Promise transform must be removed from queue
-// state (#sorted / #prefixMaxEnd / #byGuardedRoot / #transforms) atomically
+// destructure init `Promise` would normally produce its own constructor polyfill
+// rewrite. when the destructure pass consumes the same range to emit `resolve` the
+// constructor rewrite must be discarded; otherwise the same byte-range gets two
+// overlapping transforms
 const { resolve } = Promise;
 resolve(1);
