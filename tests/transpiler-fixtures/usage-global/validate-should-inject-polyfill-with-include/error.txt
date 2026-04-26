@@ -1,1 +1,1 @@
-[BABEL] unknown file: `include` and `exclude` are not supported when using `shouldInjectPolyfill` (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
+[BABEL] unknown file: [core-js] `include` and `exclude` are not supported when using `shouldInjectPolyfill` (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")

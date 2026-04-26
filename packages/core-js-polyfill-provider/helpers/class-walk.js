@@ -51,7 +51,8 @@ function memberKeyName(node) {
 // `globalThis.X` / `globalThis?.X` / `globalThis['X']` / `globalThis.self.X` -> 'X', else null.
 // babel: `OptionalMemberExpression`; ESTree/oxc: `ChainExpression { MemberExpression { optional } }`.
 // walks intermediate proxy-global links (`globalThis.self` / `globalThis.window`) so deeper
-// chains still resolve to the final key
+// chains still resolve to the final key. empty-string key (`globalThis['']`) returns null -
+// no real global has empty name; treat as miss so callers' `!== null` check stays sound
 export function globalProxyMemberName(node, scope, adapter) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
@@ -62,7 +63,7 @@ export function globalProxyMemberName(node, scope, adapter) {
     object = unwrapRuntimeExpr(object.object);
   }
   if (!isProxyGlobalIdentifierNode(object, scope, adapter)) return null;
-  return memberKeyName(node);
+  return memberKeyName(node) || null;
 }
 
 // `class C extends MyPromise { super.try(...) }` - `buildSuperStaticMeta` sets
