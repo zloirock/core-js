@@ -406,12 +406,6 @@ export function createSelfRefVarGuard(getKind) {
   };
 }
 
-function isImportBinding(name, scope, adapter) {
-  if (!adapter.hasBinding(scope, name)) return false;
-  const type = adapter.getBindingNodeType(scope, name);
-  return type === 'ImportSpecifier' || type === 'ImportDefaultSpecifier' || type === 'ImportNamespaceSpecifier';
-}
-
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
 // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
 // via `enhanceMeta`, not here
@@ -444,7 +438,14 @@ function buildMemberMeta(node, scope, adapter) {
   let meta = tryBuildPrototypeMeta(obj, key, scope, adapter);
   if (!meta) {
     const objectName = resolveObjectName(obj, scope, adapter);
-    if (!objectName && obj.type === 'Identifier' && isImportBinding(obj.name, scope, adapter)) return null;
+    // bail для plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
+    // `polyfillHint` and re-detection would chase the polyfill itself. user imports
+    // (`import { items } from './data'`) have NO polyfillHint and must fall through so the
+    // Maybe-variant `instance/X` polyfill emits for unknown receiver types
+    if (!objectName && obj.type === 'Identifier') {
+      const binding = adapter.getBinding(scope, obj.name);
+      if (binding?.polyfillHint) return null;
+    }
     const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
     meta = { kind: 'property', object: objectName, key, placement };
   }
