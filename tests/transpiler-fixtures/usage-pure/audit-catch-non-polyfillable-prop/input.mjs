@@ -1,6 +1,6 @@
-// Catch + mix of polyfillable `at` and non-polyfillable `message`: emitCatchClause
-// falls through the `!e` branch for `message`, emitting `let { message } = _ref;`
-// separately from the polyfilled `let at = _at(_ref);`.
+// catch destructure mixes polyfillable `at` with non-polyfillable `message`: `at` is
+// extracted via the polyfill helper, `message` keeps its plain destructure read - the
+// two emissions stay separate
 try {
   risky();
 } catch ({ at, message }) {

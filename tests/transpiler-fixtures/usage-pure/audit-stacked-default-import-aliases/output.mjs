@@ -1,8 +1,8 @@
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _globalThis from "@core-js/pure/actual/global-this";
 // `import Def, { default as Alt } from '@core-js/pure/actual/promise'` binds the same
-// module default under two names. both have to carry the Promise polyfillHint so
-// `class extends Alt` / `class extends Def` both resolve super-statics through it
+// module default under two names. both must be recognised as Promise so `class extends Def`
+// and `class extends Alt` route their static `super.try` through the polyfilled binding
 import Def, { default as Alt } from '@core-js/pure/actual/promise';
 class C1 extends Def {
   static any() {
