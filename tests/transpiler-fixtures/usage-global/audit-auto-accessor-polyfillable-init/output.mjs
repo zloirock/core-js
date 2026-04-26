@@ -10,9 +10,9 @@ import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
-import "core-js/modules/esnext.function.metadata";
-import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
+// stage-3 auto-accessor `accessor x = new Set()` with a decorator on the class member:
+// the initializer expression is still scanned for runtime built-ins and polyfilled.
 class A {
   @dec
   accessor x = new Set();
