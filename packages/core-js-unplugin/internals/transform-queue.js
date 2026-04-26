@@ -143,24 +143,27 @@ function upperBound(ranges, target) {
 // containing the needle multiple times would silently ignore later occurrences here -
 // no caller currently produces that shape, but watch this if a new outer transform shape
 // emits the original needle in two slots
-export function mergeEqualRange(a, b, originalNeedle) {
+export function mergeEqualRange(a, b, originalNeedle, range = null) {
   const aFirst = a.indexOf(originalNeedle);
   const wrapper = aFirst !== -1 ? a : b;
   const inner = aFirst !== -1 ? b : a;
   const first = aFirst !== -1 ? aFirst : wrapper.indexOf(originalNeedle);
+  // file/range context lets callers report "[fileId] at offsets [s,e)" instead of just the
+  // raw needle - the latter is useless for users trying to pinpoint the conflicting source
+  const rangeStr = range ? ` at [${ range.start },${ range.end })` : '';
   // contract: at least one side wraps the original source. a regression that breaks this
   // invariant would silently drop the wrapper text and emit only the inner replacement.
   // production callers (synth-swap, arrow-body wrap) always preserve the needle in exactly
   // one slot - the throw makes a future callsite that drops both copies fail loudly
   if (first === -1) {
-    throw new Error(`mergeEqualRange invariant: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
+    throw new Error(`mergeEqualRange invariant${ rangeStr }: needle missing from both transforms (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // assert single-occurrence invariant: if a new outer-transform shape emits the needle
   // twice, only the first slot would be swapped in silently; flag the regression loudly
   // instead of shipping corrupt output. slice+includes allocates once on the assert path
   // (rare miss) instead of pulling in a second `indexOf` with a start position
   if (wrapper.slice(first + originalNeedle.length).includes(originalNeedle)) {
-    throw new Error(`mergeEqualRange invariant: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
+    throw new Error(`mergeEqualRange invariant${ rangeStr }: wrapper contains needle >1 times (needle=${ JSON.stringify(originalNeedle) })`);
   }
   // hand-built slice-splice avoids `String.prototype.replace`'s `$&` / `$'` / `` $` `` /
   // `$n` interpretation if `inner` contains those tokens (user source with `$&` or polyfill
@@ -413,7 +416,7 @@ export default class TransformQueue {
         // fold all dups - `mergeEqualRange` nests wrappers and drops polyfills into the
         // innermost slot regardless of fold order
         for (const dup of dups) {
-          content = mergeEqualRange(content, composedContent.get(dup) ?? dup.content, originalSlice);
+          content = mergeEqualRange(content, composedContent.get(dup) ?? dup.content, originalSlice, { start, end });
         }
       }
       // widest first so nested inners (where inner2 ⊂ inner1) are handled by inner1's

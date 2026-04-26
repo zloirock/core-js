@@ -1,4 +1,4 @@
-[BABEL] unknown file: Error while validating the "core-js@4" provider options:
+[BABEL] unknown file: [core-js] error while validating provider options:
   - The following "include" patterns didn't match any polyfill:
     es.nonexistent.module
  (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
