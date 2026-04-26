@@ -1,7 +1,7 @@
-// design-limit: synth-swap's IIFE-arg classifier walks the call expression directly,
-// not through `.bind` / `.call` indirection. `.bind(null)(Array)` looks like a bound
-// function value being called - the static target lookup bails out and `from` stays
-// as a plain destructure read. accepted under-polyfill for the edge pattern (DSY-12, DSY-14)
+// `.bind(null)(Array)` and `.call(null, Object)` route the receiver through an
+// intermediate function value rather than passing it as a direct call argument. the
+// static rewrite only matches direct argument positions, so `from` / `keys` stay as
+// plain destructure reads (under-polyfill is accepted for this edge shape)
 (function ({ from }) {
   return from([1, 2]);
 }).bind(null)(Array);

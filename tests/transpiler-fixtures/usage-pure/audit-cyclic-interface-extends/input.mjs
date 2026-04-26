@@ -1,7 +1,6 @@
-// cyclic interface extends: A extends B, B extends A. resolveUserDefinedType threads
-// a `visited` Set and propagates a `hadCycle` signal up so cyclic chains return null
-// (unknown type) instead of falling back to $Object('Object') - that gives the plugin
-// the signal to emit generic `_at` rather than suppressing the polyfill entirely
+// cyclic interface extends `A extends B`, `B extends A`: cycle detection bails the
+// receiver type to null. with no known type the `.at(0)` call falls through to the
+// generic instance-method polyfill (still emitted, not suppressed)
 interface A extends B {}
 interface B extends A {}
 declare const x: A;
