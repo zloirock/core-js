@@ -1,3 +1,6 @@
+// computed member access through a runtime-evaluated key cannot be statically narrowed to the
+// class field; type-driven dispatch bails but the generic `array/instance/at` global side effect
+// still fires for any reachable Array.prototype path
 class Foo {
   items: number[] = [];
 }

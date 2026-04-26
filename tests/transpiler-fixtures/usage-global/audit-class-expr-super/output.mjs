@@ -7,6 +7,8 @@ import "core-js/modules/es.promise.all-settled";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// class expression extending `Promise` with a static method using `super.allSettled(...)`:
+// the static-method call is rewritten through the polyfilled super constructor.
 const C = class extends Promise {
   static m() {
     return super.allSettled([]);
