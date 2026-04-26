@@ -8,6 +8,8 @@ import "core-js/modules/es.array.from";
 import "core-js/modules/es.global-this";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.self";
+// `globalThis?.Array.from(...)` proxy access via optional chain: the static method is
+// still recognised as `Array.from` and rewritten to the polyfill.
 globalThis?.Array?.from([1]);
 globalThis?.Object.keys("abc");
 self?.Promise?.resolve(1);

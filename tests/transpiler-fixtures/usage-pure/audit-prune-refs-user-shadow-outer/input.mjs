@@ -1,3 +1,5 @@
+// user-defined outer binding shadows a polyfillable name: the inner reference still
+// resolves to the user binding, no spurious polyfill emission.
 var _ref2 = 5;
 var _ref3 = 10;
 console.log(_ref2, _ref3);
