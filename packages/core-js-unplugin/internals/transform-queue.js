@@ -486,19 +486,21 @@ export default class TransformQueue {
   // vs [7,14)` partial overlap that consecutive-only iteration would miss
   #assertNoPartialOverlap(sorted) {
     if (sorted.length < 2) return;
-    let [maxEntry] = sorted;
-    let maxEnd = maxEntry.end;
-    for (let i = 1; i < sorted.length; i++) {
-      const curr = sorted[i];
-      if (curr.start < maxEnd && curr.end > maxEnd) {
+    // walk all currently "open" intervals (those whose end > curr.start) so the diagnostic
+    // names the actually-intersecting pair, not just the running-max bearer. on detection,
+    // `find` returns the first open interval `o` such that `curr` starts strictly inside
+    // `o` and extends strictly past it - true partial overlap. open list is bounded by
+    // max-nesting depth in practice (filter rebuilds it per iteration, O(N·D) total)
+    let open = [];
+    for (const curr of sorted) {
+      open = open.filter(o => o.end > curr.start);
+      const conflict = open.find(o => curr.start > o.start && curr.end > o.end);
+      if (conflict) {
         throw this.#invariant('partial overlap between transforms '
-          + `[${ maxEntry.start },${ maxEntry.end }) and [${ curr.start },${ curr.end }). this is a `
+          + `[${ conflict.start },${ conflict.end }) and [${ curr.start },${ curr.end }). this is a `
           + 'composition bug - please report with a reproducer.');
       }
-      if (curr.end > maxEnd) {
-        maxEnd = curr.end;
-        maxEntry = curr;
-      }
+      open.push(curr);
     }
   }
 }
