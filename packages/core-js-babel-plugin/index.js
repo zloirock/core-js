@@ -21,6 +21,7 @@ import {
   mergeVisitors,
   objectPatternPropNeedsReceiverRewrite,
   parseDisableDirectives,
+  peelNestedSequenceExpressions,
   propBindingIdentifier,
   resolveSuperImportName,
   TS_EXPR_WRAPPERS,
@@ -356,13 +357,16 @@ export default function plugin(api, options) {
       // surface the SE. NOT seeding skippedNodes for clones - the original SE got removed
       // with the host, so inner polyfillable usages need natural visitor pass to emit imports
       function liftSEPrefix(receiver, hostPath) {
-        let inner = receiver;
-        while (inner?.type === 'ParenthesizedExpression') inner = inner.expression;
-        if (inner?.type !== 'SequenceExpression' || inner.expressions.length <= 1) return;
-        const exprs = inner.expressions.slice(0, -1).map(e => t.cloneNode(e));
-        const seStmt = exprs.length === 1
-          ? t.expressionStatement(exprs[0])
-          : t.expressionStatement(t.sequenceExpression(exprs));
+        // shared `peelNestedSequenceExpressions` walks `(se1(), (se2(), G))` recursively;
+        // without it only outermost se1() lifts and inner se2() silently elides under
+        // the rewrite. clone each lifted node - inserting the original would relocate the
+        // AST sub-tree, breaking sibling visitors that hold path references
+        const { prefix } = peelNestedSequenceExpressions(receiver);
+        if (!prefix.length) return;
+        const cloned = prefix.map(e => t.cloneNode(e));
+        const seStmt = cloned.length === 1
+          ? t.expressionStatement(cloned[0])
+          : t.expressionStatement(t.sequenceExpression(cloned));
         hostPath.insertBefore(seStmt);
       }
 
@@ -585,6 +589,10 @@ export default function plugin(api, options) {
         let cur = path;
         for (; cur?.parentPath; cur = cur.parentPath) {
           if (cur.removed) return true;
+          // grandparent removed leaves parent dangling - parent's `.node` survives but it's
+          // no longer reachable from the program tree. without this check we'd polyfill into
+          // dead branches that sibling plugins already amputated
+          if (cur.parentPath.removed) return true;
           const parentNode = cur.parentPath.node;
           if (!parentNode) return true;
           const slot = cur.listKey ? parentNode[cur.listKey]?.[cur.key] : parentNode[cur.key];
@@ -678,7 +686,18 @@ export default function plugin(api, options) {
         if (meta.object) {
           // 'from' in Array / 'Promise' in globalThis - replace with true if polyfillable
           const resolved = resolvePureOrGlobalFallback(meta, path);
-          if (resolved.result) path.replaceWith(t.booleanLiteral(true));
+          if (!resolved.result) return;
+          // RHS-side preserves SE: `'k' in (fn(), Array)` evaluates `fn()` even when LHS is
+          // a known constant. drop without rescue would silently elide observable side-effects.
+          // wrap via SequenceExpression so `(fn(), true)` keeps semantics intact
+          const rhs = path.node.right;
+          if (rhs?.type === 'SequenceExpression' && rhs.expressions.length > 1
+            && rhs.expressions.slice(0, -1).some(e => mayHaveSideEffects(e))) {
+            const prefix = rhs.expressions.slice(0, -1);
+            path.replaceWith(t.sequenceExpression([...prefix, t.booleanLiteral(true)]));
+          } else {
+            path.replaceWith(t.booleanLiteral(true));
+          }
         }
       }
 

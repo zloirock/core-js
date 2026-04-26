@@ -1,1 +1,1 @@
-[BABEL] unknown file: `package` must be a string (received null) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
+[BABEL] unknown file: [core-js] `package` must be a string (received null) (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")

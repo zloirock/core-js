@@ -217,6 +217,12 @@ export function collectAllBindingNames(ast) {
       case 'ImportNamespaceSpecifier':
         addDecl(node.local.name);
         break;
+      // `export { _ref as foo }` - `local` is the in-module binding our UID generator must
+      // not collide with. Identifier visitor catches the `_ref` reference too, but adding
+      // it here as a binding (not just name) keeps the declaredNames invariant honest
+      case 'ExportSpecifier':
+        if (node.local?.name) addDecl(node.local.name);
+        break;
       case 'AssignmentExpression':
         // plugin-shaped nested `_ref = foo()` - candidate for orphan adoption, NOT reserved
         // (adoption gate requires name NOT in `declaredNames`). anything else - reserve so our
