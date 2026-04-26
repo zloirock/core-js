@@ -1,3 +1,3 @@
-// two instance polyfills sharing the same optional root - inner reuses outer's guardRef
-// via `outerHint.rootRaw -> guardRef` candidate in substituteInner
+// two instance polyfills share the same optional-chain root: the inner rewrite reuses
+// the outer ref binding so the source `fn()` is evaluated only once
 fn()?.at(0)?.flat();

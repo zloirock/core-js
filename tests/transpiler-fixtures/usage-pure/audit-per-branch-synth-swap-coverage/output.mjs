@@ -4,9 +4,9 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// per-branch synth-swap coverage: ConditionalExpression / LogicalExpression in destructure
-// receiver position. each viable branch becomes its own `{key: _Branch$key}` literal;
-// non-viable branches (unknown identifiers, no static method) stay raw
+// destructure receiver is a ConditionalExpression / LogicalExpression: each viable branch
+// becomes its own `{key: _Branch$key}` literal independently; non-viable branches (unknown
+// identifiers or no matching static method) are left raw
 //
 // VariableDeclarator init: ternary, both viable
 const {
