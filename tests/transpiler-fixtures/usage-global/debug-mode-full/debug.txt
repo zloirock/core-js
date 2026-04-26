@@ -31,5 +31,5 @@ The core-js@4 polyfill added the following polyfills:
   esnext.iterator.join { "ie":"11" }
   esnext.iterator.to-async { "ie":"11" }
   esnext.iterator.windows { "ie":"11" }
-  web.dom-collections.iterator { "ie":"11" }
   esnext.iterator.zip { "ie":"11" }
+  web.dom-collections.iterator { "ie":"11" }

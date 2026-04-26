@@ -7,5 +7,5 @@ Using targets: {
 
 Using polyfills with `usage-global` method:
 The core-js@4 polyfill added the following polyfills:
-  es.array.at { "chrome":"90", "ie":"11" }
   es.object.has-own { "chrome":"90", "ie":"11" }
+  es.array.at { "chrome":"90", "ie":"11" }
