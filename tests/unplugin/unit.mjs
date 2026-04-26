@@ -553,6 +553,27 @@ function checkSnapshotHMRTimestampStrip() {
 }
 checkSnapshotHMRTimestampStrip();
 
+// --- SnapshotCache: Windows UNC path normalization ---
+// `\\?\C:\src\App.vue` is Windows verbatim long-path prefix - same logical file as
+// `C:/src/App.vue` after path-mangling stages. without UNC strip, snapshot lookups
+// across pre→post (where mid-pipeline normalization may have run) miss
+function checkSnapshotWindowsUNC() {
+  const entry = { code: 'foo', map: null, ast: null, source: 'foo' };
+  // helper: store under one id, query by another
+  const probeHit = (storeId, takeId) => {
+    const cache = new SnapshotCache();
+    cache.store(storeId, entry);
+    return cache.take(takeId) !== null;
+  };
+  // backslash UNC paired with forward-slash POSIX path (after normalize stage)
+  check('snapshot/UNC backslash matches forward-slash same path',
+    probeHit('\\\\?\\C:\\src\\App.vue', 'C:/src/App.vue'), true);
+  // forward-slash UNC (Vite-normalized form) matches POSIX
+  check('snapshot/UNC forward-slash matches POSIX',
+    probeHit('//?/C:/src/App.vue', 'C:/src/App.vue'), true);
+}
+checkSnapshotWindowsUNC();
+
 // --- SnapshotCache: per-file invalidation ---
 // `watchChange` hook on Vite/Rollup fires per-file edit. cache.invalidate(id) drops only
 // that file's entry (not the whole cache) so unrelated files keep their pre-snapshot state
