@@ -133,6 +133,32 @@ export function isTypeOnlyImportEquals(node) {
   return node?.type === 'TSImportEqualsDeclaration' && node.importKind === 'type';
 }
 
+// type-only ESM import bindings (3 forms):
+//   import type X from "x"          - default specifier under type-only ImportDeclaration
+//   import type { X } from "x"      - named specifier under type-only ImportDeclaration
+//   import { type X } from "x"      - inline-type-modified named specifier
+// all three are elided by tsc; references resolve to the global. both scope trackers
+// register the specifier identifier as a binding regardless, so polyfill shadow detection
+// must filter via this predicate. accepts the binding's `node` + `parent` (ImportDeclaration)
+export function isTypeOnlyImportBinding(node, parent) {
+  if (parent?.type === 'ImportDeclaration' && parent.importKind === 'type') return true;
+  if (node?.type === 'ImportSpecifier' && node.importKind === 'type') return true;
+  return false;
+}
+
+// shared "is this binding tsc-elided?" check used by both adapters' `hasBinding` paths.
+// covers: ambient declarations (TSDeclareFunction, TSInterfaceDeclaration, etc., declare
+// modifier, type-only TSImportEquals), type-only ESM imports (3 forms), and
+// `declare const X` / `declare var X` whose `declare` flag lives on the parent
+// VariableDeclaration rather than on the VariableDeclarator binding itself
+export function isAmbientBindingShape(node, parent) {
+  if (!node) return false;
+  if (isAmbientTypeDeclaration(node)) return true;
+  if (isTypeOnlyImportBinding(node, parent)) return true;
+  if (node.type === 'VariableDeclarator' && parent?.declare === true) return true;
+  return false;
+}
+
 // branches of a runtime-conditional expression (returned as slot names so callers can
 // resolve either AST nodes via `node[slot]` or NodePath via `path.get(slot)`).
 // covers all four shapes that drive `meta.fromFallback`: ternary `?:` and the three
@@ -213,16 +239,48 @@ function isTSRuntimeBindingDeclaration(node) {
 // native scope misses. cached per Program node so repeated checks share one scan
 const tsRuntimeBindingsCache = new WeakMap();
 
-export function getTSRuntimeBindings(programNode) {
-  if (!programNode?.body) return null;
-  let cached = tsRuntimeBindingsCache.get(programNode);
+// extract the direct statement-body array from a scope-anchor node. Program/BlockStatement/
+// TSModuleBlock/StaticBlock host statements at `.body` directly; functions and class methods
+// wrap in `.body.body` (BlockStatement). returns null when the node has no host-able body
+function getDirectStatementBody(node) {
+  if (!node) return null;
+  if (Array.isArray(node.body)) return node.body;
+  if (Array.isArray(node.body?.body)) return node.body.body;
+  return null;
+}
+
+// scan a scope-anchor node for direct TS-runtime declarations (TSEnumDeclaration,
+// TSModuleDeclaration, TSImportEqualsDeclaration). returns a Set of names cached per
+// anchor node. covers Program, BlockStatement, TSModuleBlock, StaticBlock, function/method
+// bodies - i.e. anywhere a `enum X {}` / `namespace X {}` could shadow a global
+export function getTSRuntimeBindings(scopeNode) {
+  const body = getDirectStatementBody(scopeNode);
+  if (!body) return null;
+  let cached = tsRuntimeBindingsCache.get(scopeNode);
   if (cached) return cached;
   cached = new Set();
-  for (const stmt of programNode.body) {
-    if (isTSRuntimeBindingDeclaration(stmt)) cached.add(stmt.id.name);
+  for (const stmt of body) {
+    // peel `export enum / export const enum / export namespace / export import X = require()`
+    // wrappers - the TS-runtime declaration sits in `.declaration` of ExportNamedDeclaration.
+    // without the unwrap, `export enum Map { A } new Map()` would falsely polyfill `Map` even
+    // though the local enum shadows the global. ExportDefaultDeclaration also handled
+    const decl = unwrapExportedDeclaration(stmt);
+    if (isTSRuntimeBindingDeclaration(decl)) cached.add(decl.id.name);
   }
-  tsRuntimeBindingsCache.set(programNode, cached);
+  tsRuntimeBindingsCache.set(scopeNode, cached);
   return cached;
+}
+
+// walk path's ancestor chain checking each anchor body for TS runtime declarations.
+// covers `function f() { enum Map { A } new Map() }` (Map shadows global from inside f),
+// `namespace Outer { namespace Map {} new Map() }` (TSModuleBlock anchor), and similar
+// block / static-block / Program / function-body cases. path-based so TSModuleBlock works
+// even when the scope tracker doesn't register a scope for it
+export function findTSRuntimeBindingInPath(path, name) {
+  for (let cur = path; cur; cur = cur.parentPath) {
+    if (getTSRuntimeBindings(cur.node)?.has(name)) return true;
+  }
+  return false;
 }
 
 // TS type-only declarations - identifier `id` here is a type name, not a runtime reference.
@@ -259,9 +317,17 @@ export function isTSTypeOnlyIdentifier(parent, parentKey, grandparent) {
 
 // path-accepting wrapper: encapsulates the (parent, parentKey, grandparent) extraction so
 // callers don't repeat `path?.parent, path?.key, path?.parentPath?.parent` 4-5 times across
-// the codebase. accepts babel NodePath or estree-toolkit path - both expose the same triple
+// the codebase. accepts babel NodePath or estree-toolkit path - both expose the same triple.
+// also covers `class X implements Foo<T>` (Babel) - identifier sits inside
+// TSExpressionWithTypeArguments which the parent's listKey 'implements' marks as type-only.
+// `class X extends Foo<T>` uses the same wrapper but parent slot is 'superClass' (runtime),
+// so the listKey check is what distinguishes the two
 export function isTSTypeOnlyIdentifierPath(path) {
-  return isTSTypeOnlyIdentifier(path?.parent, path?.key, path?.parentPath?.parent);
+  if (isTSTypeOnlyIdentifier(path?.parent, path?.key, path?.parentPath?.parent)) return true;
+  if (path?.parent?.type === 'TSExpressionWithTypeArguments'
+    && path.key === 'expression'
+    && path.parentPath?.listKey === 'implements') return true;
+  return false;
 }
 
 // shared `usagePureCallback` guard predicates. callers unwrap TS/parens/chains beforehand
