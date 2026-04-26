@@ -1,1 +1,1 @@
-[BABEL] unknown file: `debug` must be a boolean, or undefined (received "yes") (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
+[BABEL] unknown file: [core-js] `debug` must be a boolean, or undefined (received "yes") (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
