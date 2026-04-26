@@ -17,13 +17,13 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
-  getTSRuntimeBindings,
+  findTSRuntimeBindingInPath,
+  isAmbientBindingShape,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
-  isTypeOnlyImportEquals,
   unwrapInitValue,
 } from '@core-js/polyfill-provider/helpers';
 
@@ -51,7 +51,7 @@ const stringLiteralValue = node => {
 // under parallel transforms (Vite/Rollup/thread-loader)
 export function createBabelAdapter(getInjector = () => null) {
   return {
-    hasBinding(scope, name) {
+    hasBinding(scope, name, path = null) {
       // user-declared runtime bindings (var/let/const/function/class/import/TSImportEquals).
       // `getBindingIdentifier` is narrow - `scope.hasBinding` would also fire for free-variable
       // globals just by being seen (`const x = Map` makes `Map` "bound" globally), too coarse.
@@ -59,12 +59,19 @@ export function createBabelAdapter(getInjector = () => null) {
       // doesn't shadow for polyfill purposes; fall through to runtime / injector checks
       if (scope.getBindingIdentifier(name)) {
         const b = scope.getBinding?.(name);
-        if (!b || !isTypeOnlyImportEquals(b.path.node)) return true;
+        // shared `isAmbientBindingShape` covers all tsc-elided binding forms (declare,
+        // type-only imports in 3 ESM variants, type-only TSImportEquals). without filtering
+        // these, the binding would shadow the polyfill even though it doesn't exist at runtime
+        if (!b || !isAmbientBindingShape(b.path.node, b.path.parent)) return true;
       }
       // TS-runtime declarations babel scope doesn't expose via getBindingIdentifier:
-      // regular `enum`/`namespace`, `const enum`. helper excludes `declare X` (ambient,
-      // runtime supplied externally - polyfill should fire for legacy targets)
-      if (getTSRuntimeBindings(scope.getProgramParent?.()?.path?.node)?.has(name)) return true;
+      // regular `enum`/`namespace`, `const enum`. walk path's ancestor chain (Program,
+      // BlockStatement, TSModuleBlock, StaticBlock) so nested `function f() { enum Map }`
+      // and `namespace Outer { namespace Map }` correctly shadow. anchor preference: explicit
+      // `path` (reaches inner anchors) > scope's path (anchors at scope owner only). helper
+      // excludes `declare X` (ambient - runtime supplied externally; polyfill should fire)
+      const anchor = path ?? scope.path ?? null;
+      if (anchor && findTSRuntimeBindingInPath(anchor, name)) return true;
       // plugin-managed pure-import alias / user destructure aliases
       return !!getInjector()?.getBindingInfo(name);
     },
@@ -131,16 +138,16 @@ export function createUsageVisitors({
     if (!path.isReferencedIdentifier()) return;
     // ReferencedIdentifier matches JSXIdentifier in too many positions. accept:
     //   `<Foo />` - direct opening-element name
-    //   `<Foo.Bar />` - root of JSXMemberExpression at opening-element name slot
-    //     (the root identifier IS a runtime reference; the .Bar chain accesses props on it)
+    //   `<Foo.Bar.Baz />` - root of N-deep JSXMemberExpression chain at opening-element
+    //     name slot. the root identifier IS a runtime reference; the .Bar.Baz chain
+    //     accesses props on it. walks through the chain so deeper-than-2 still detects
     // reject everything else: attribute names, JSXNamespacedName parts, .property positions
     if (path.node.type === 'JSXIdentifier') {
-      const isOpeningTag = path.parent?.type === 'JSXOpeningElement' && path.key === 'name';
-      const isMemberRoot = path.parent?.type === 'JSXMemberExpression'
-        && path.parent.object === path.node
-        && path.parentPath?.parent?.type === 'JSXOpeningElement'
-        && path.parentPath?.key === 'name';
-      if (!isOpeningTag && !isMemberRoot) return;
+      let cur = path;
+      while (cur?.parent?.type === 'JSXMemberExpression' && cur.parent.object === cur.node) {
+        cur = cur.parentPath;
+      }
+      if (cur?.parent?.type !== 'JSXOpeningElement' || cur.key !== 'name') return;
     }
     // TS type-only positions: `type X = …` / `interface X {…}` / `import type X = require(...)`
     // ids and `export { type X }` / `import type { X }` specifiers. babel's
@@ -154,7 +161,7 @@ export function createUsageVisitors({
     // adapter.hasBinding folds in two filters: skips type-only TSImportEquals (elided by
     // tsc - runtime resolves to global) and recognises plugin-managed bindings (pure-import
     // aliases, global destructure aliases). single check, parity with unplugin's visitor
-    if (adapter.hasBinding(path.scope, node.name)) {
+    if (adapter.hasBinding(path.scope, node.name, path)) {
       // self-reference `var X = X` - hoisted var init references its own name, which at
       // runtime reads from the outer (global) scope before the local is assigned. narrow
       // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
