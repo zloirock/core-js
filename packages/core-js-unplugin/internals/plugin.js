@@ -701,6 +701,11 @@ export default function createPlugin(options) {
           }
         }
 
+        // sourcemap split: simple `<recv>.<method>(<args>)` → emit `_method(<recv>)` +
+        // `.call(<recv>, <args>)` as two adjacent transforms so MagicString assigns receiver's
+        // source column to the prefix and `.method`'s column to the suffix. gated on shape
+        // that survives compose-as-single-logical-inner: no guard / SE / new / non-ident
+        let split = null;
         let body;
         if (isNew) {
           // new arr.at(0) -> new (_at(arr))(0) - preserve user's `new` on the polyfill callee
@@ -713,13 +718,20 @@ export default function createPlugin(options) {
           const firstArg = ref ? `${ ref } = ${ bodyObj }` : bodyObj;
           const dot = optionalCall ? '?.' : '.';
           const argsPart = args ? `, ${ args }` : '';
-          body = `${ binding }(${ firstArg })${ dot }call(${ obj }${ argsPart })`;
+          const prefix = `${ binding }(${ firstArg })`;
+          const suffix = `${ dot }call(${ obj }${ argsPart })`;
+          body = `${ prefix }${ suffix }`;
+          // split-eligible only when no outer wrapper (guard / SE) modifies the body string -
+          // wrappers expect single-string body to splice into. caller adds further gates
+          // (no asiGuard, no rootNode, no receiverPure)
+          if (!guard && !sideEffects?.length) split = { prefix, suffix };
         }
         // SE collected from receiver/computed-key (`arr[(SE(), "at")](0)`, `(SE(), arr).at(0)`).
         // MUST land INSIDE the optional guard branch - native `arr?.[(SE, "at")]` doesn't
         // evaluate the property when arr is nullish, so wrapping outside the conditional
         // would fire SE unconditionally and change runtime semantics
-        return `${ guard }${ wrapSideEffects(body, sideEffects) }`;
+        const replacement = `${ guard }${ wrapSideEffects(body, sideEffects) }`;
+        return { replacement, split };
       }
 
       // position past optional `?.` token after pos, skipping whitespace and comments
@@ -852,12 +864,14 @@ export default function createPlugin(options) {
             && !/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)
             ? state.genRef() : null;
 
-        let replacement = buildReplacement(binding, objectSrc, {
+        const built = buildReplacement(binding, objectSrc, {
           isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
           optionalCall: isCall && parent.optional, args: argsSrc,
           objectStart: node.object.start,
           preAllocatedGuardRef, sideEffects,
         });
+        let { replacement } = built;
+        const { split } = built;
         if (optionalRoot && guardNeedsParens(metaPath, isCall, start, end)) {
           replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, start);
         }
@@ -874,7 +888,19 @@ export default function createPlugin(options) {
           objectStart: node.object.start,
           absorbsRoot: !!reusedOuterRef,
         });
-        transforms.add(start, end, replacement, optionalRoot ? rootNode : null, hint);
+        // split path: emit prefix `[start, node.object.end)` + suffix `[node.object.end, end)`
+        // so MagicString assigns distinct source columns. gated strictly to simplest shape
+        // (no optional / SE / non-ident / receiver subst / chain coordination); compose layer
+        // treats split pair as one logical inner via shared splitInfo metadata
+        const splitPoint = node.object.end;
+        const canSplit = split && !optionalRoot && !receiverPure && !reusedOuterRef
+          && !rootNode  // rootNode is null/undefined when this transform is the chain root
+          && splitPoint > start && splitPoint < end;
+        if (canSplit) {
+          transforms.addSplit(start, splitPoint, end, split.prefix, split.suffix, null, hint);
+        } else {
+          transforms.add(start, end, replacement, optionalRoot ? rootNode : null, hint);
+        }
         if (isCall) skippedNodes.add(parent);
         skipProxyGlobal(node);
       }

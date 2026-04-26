@@ -174,6 +174,43 @@ export function mergeEqualRange(a, b, originalNeedle, range = null) {
 // composite key for the (start, end) range index
 const rangeKey = (start, end) => `${ start }|${ end }`;
 
+// split entries store [start, mid) / [mid, end) physically but logically own [start, end).
+// these helpers paper over the prefix/suffix duality so callers can treat split + non-split
+// uniformly via logical-range queries
+const entryLogicalEnd = entry => entry.splitInfo ? entry.splitInfo.logicalEnd : entry.end;
+const entryLogicalSpan = entry => entryLogicalEnd(entry) - entry.start;
+const isSplit = entry => !!entry.splitInfo;
+
+// for a split-pair entry, return the logical inner content (full prefix+suffix range).
+// after the prefix's own outer iteration, composedContent.get(prefix) already holds the
+// combined `prefix.content + suffix.content` (with any nested-inner substitutions baked
+// in). suffix lookup proxies to peer's compose view. raw fallback only when neither half
+// has been processed yet (rare - innermost-first iteration order processes leaves first)
+function splitInnerContent(entry, composedContent) {
+  const prefix = entry.splitInfo.role === 'prefix' ? entry : entry.splitInfo.peer;
+  const suffix = entry.splitInfo.role === 'suffix' ? entry : entry.splitInfo.peer;
+  return composedContent.get(prefix) ?? prefix.content + suffix.content;
+}
+
+// inner content + logical end as a tuple - hides the splitInfo branching from callers
+function innerSubstitution(inner, composedContent) {
+  if (inner.splitInfo) {
+    return { end: inner.splitInfo.logicalEnd, content: splitInnerContent(inner, composedContent) };
+  }
+  return { end: inner.end, content: composedContent.get(inner) ?? inner.content };
+}
+
+// widest LOGICAL first so nested inners (where inner2 ⊂ inner1) are handled by inner1's
+// substitution before inner2 would be skipped. same-width ties: non-split before split
+// (split entries are leaves; non-split equal-span entries are wrappers that semantically
+// own the range, e.g. arrow-body wrap). then right-to-left for stable ordering
+function sortInnersInnermostLast(inners) {
+  const splitWeight = inner => inner.splitInfo ? 1 : 0;
+  inners.sort((a, b) => entryLogicalSpan(b) - entryLogicalSpan(a)
+    || splitWeight(a) - splitWeight(b)
+    || b.start - a.start);
+}
+
 // incremental prefix-max maintenance after splice. prefix max is monotonic non-decreasing:
 // once the walk hits a stale slot that already covers the change, trailing slots stay correct
 function updatePrefixMaxOnInsert(sorted, prefixMaxEnd, pos) {
@@ -269,7 +306,7 @@ export default class TransformQueue {
     return new Error(`[core-js] transform-queue: ${ this.#fileId ? `[${ this.#fileId }] ` : '' }${ message }`);
   }
 
-  add(start, end, content, guardedRoot, rewriteHint) {
+  add(start, end, content, guardedRoot, rewriteHint, splitInfo = null) {
     // MagicString.overwrite throws on zero-length ranges; inserts must use appendLeft/prependRight
     // instead. nothing in the plugin emits zero-length ranges today, so surface the mismatch
     // (and any `start > end`) as a caller bug immediately rather than corrupting silently.
@@ -289,7 +326,7 @@ export default class TransformQueue {
     if (typeof content !== 'string') {
       throw new TypeError(`[core-js] transform-queue: content must be a string (received ${ typeof content })`);
     }
-    const entry = { start, end, content, guardedRoot, rewriteHint };
+    const entry = { start, end, content, guardedRoot, rewriteHint, splitInfo };
     this.#transforms.add(entry);
     pushOrInit(this.#byRange, rangeKey(start, end), entry);
     if (guardedRoot) {
@@ -300,6 +337,25 @@ export default class TransformQueue {
     const pos = upperBound(this.#sorted, start);
     this.#sorted.splice(pos, 0, entry);
     updatePrefixMaxOnInsert(this.#sorted, this.#prefixMaxEnd, pos);
+    return entry;
+  }
+
+  // emit a split instance-method rewrite as two adjacent transforms: prefix `[start, mid)`
+  // covers receiver column, suffix `[mid, end)` covers method-tail column. MagicString
+  // assigns distinct source positions to each chunk, fixing the "all output chars map to
+  // receiver's source col" sourcemap collapse. compose layer treats the pair as ONE logical
+  // inner via shared splitInfo metadata so outer transforms still substitute via single
+  // [start, end] needle (not two halves)
+  addSplit(start, mid, end, prefixContent, suffixContent, guardedRoot, rewriteHint) {
+    const groupId = Symbol('split');
+    const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
+      { groupId, role: 'prefix', logicalStart: start, logicalEnd: end });
+    // suffix carries the same groupId + the prefix entry reference for compose-time
+    // logical-inner assembly. no guardedRoot/hint - composition queries land on prefix
+    const suffixEntry = this.add(mid, end, suffixContent, null, null,
+      { groupId, role: 'suffix', logicalStart: start, logicalEnd: end, peer: prefixEntry });
+    prefixEntry.splitInfo.peer = suffixEntry;
+    return prefixEntry;
   }
 
   // strict containment only - equal range isn't "guarded" (both transforms must apply)
@@ -379,8 +435,11 @@ export default class TransformQueue {
     }
 
     // slow path: compose nested transforms then apply outermost-first.
-    // innermost first: smaller ranges before larger, right-to-left for same-level
-    transforms.sort((a, b) => (a.end - a.start) - (b.end - b.start) || b.start - a.start);
+    // innermost first: smaller LOGICAL ranges before larger, right-to-left for same-level.
+    // split prefix's physical end = mid (small) but it logically owns full [start, logicalEnd]
+    // - sort by logical span so split's outer-iteration runs AFTER inners contained in its
+    // logical range, matching the wrap order non-split entries naturally produce
+    transforms.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b) || b.start - a.start);
 
     // phase 1: compose - #sorted is already maintained asc by start.
     // if an outer transform content ALREADY contains a formatted guard (e.g. from a prior
@@ -394,83 +453,131 @@ export default class TransformQueue {
     const composed = [];
 
     for (const t of transforms) {
-      const { start, end, rewriteHint } = t;
-      let content = composedContent.get(t) ?? t.content;
-
-      // binary search for inners within [start, end]
-      const lo = lowerBound(byStart, start);
-      const inners = [];
-      const dups = [];
-      for (let i = lo; i < byStart.length && byStart[i].start <= end; i++) {
-        if (byStart[i] === t) continue;
-        // 3+ wrappers at identical offsets: the old single-`dup` logic only merged the
-        // last one and left the rest in `inners`, where substituteInner threw "could not
-        // locate inner needle" after the polyfill had eliminated the original slice
-        if (byStart[i].start === start && byStart[i].end === end) dups.push(byStart[i]);
-        else if (byStart[i].end <= end) inners.push(byStart[i]);
-      }
-      const originalSlice = this.#code.slice(start, end);
-      if (dups.length) {
-        // another transform in the same equal-range cohort already owns the merge
-        if (dups.some(d => composedContent.has(d))) continue;
-        // fold all dups - `mergeEqualRange` nests wrappers and drops polyfills into the
-        // innermost slot regardless of fold order
-        for (const dup of dups) {
-          content = mergeEqualRange(content, composedContent.get(dup) ?? dup.content, originalSlice, { start, end });
-        }
-      }
-      // widest first so nested inners (where inner2 ⊂ inner1) are handled by inner1's
-      // substitution before inner2 would be skipped. same-width ties: right-to-left
-      inners.sort((a, b) => (b.end - b.start) - (a.end - a.start) || b.start - a.start);
-      // track ranges of already-processed inners; used both for containment-skip and for
-      // adjusting nth counts when multiple inners share the same needle
-      const processedRanges = [];
-      for (const inner of inners) {
-        const innerContent = composedContent.get(inner) ?? inner.content;
-        const needle = this.#code.slice(inner.start, inner.end);
-        const innerOffset = inner.start - start;
-        // outer reused an enclosing guard's ref rather than building its own (`absorbsRoot`).
-        // inner's value is already threaded via the outer guard's memoize assignment; direct
-        // substitution here would either leave stale `_ref` occurrences or re-inline the
-        // inner (double-evaluate). any inner contained within the root span (derived from
-        // `objectStart` + `rootRaw.length`) is skipped, including sub-transforms of the root
-        // call (e.g. `Array.from` static MemberExpression inside `Array.from(x)`)
-        if (rewriteHint?.absorbsRoot
-          && rewriteHint.objectStart <= inner.start
-          && inner.end <= rewriteHint.objectStart + rewriteHint.rootRaw.length) {
-          processedRanges.push({ start: inner.start, end: inner.end });
-          continue;
-        }
-        // needle position in originalSlice: count from start up to innerOffset, then subtract
-        // same-needle occurrences already replaced by strictly-preceding processedRanges.
-        // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
-        // during composition, so the rightmost inner's nth must point to the sole remaining slot.
-        const nth = countOccurrences(originalSlice, needle, 0, innerOffset)
-          - consumedOccurrencesBefore(originalSlice, needle, inner.start, start, processedRanges);
-        const result = substituteInner(content, needle, innerContent, nth, rewriteHint);
-        if (!result.found) {
-          // inner was already swallowed by an enclosing inner we processed earlier
-          if (processedRanges.some(r => r.start <= inner.start && r.end >= inner.end)) continue;
-          throw this.#invariant('could not locate inner needle in outer content. '
-            + `outer=[${ start },${ end }] inner=[${ inner.start },${ inner.end }]. `
-            + 'this is a composition bug - please report with a reproducer.');
-        }
-        content = result.content;
-        processedRanges.push({ start: inner.start, end: inner.end });
-      }
-      composedContent.set(t, content);
+      // suffix-half of a split pair: composed via prefix (`composedContent` will hold the
+      // logical inner against the prefix entry). skip outer-iteration here since suffix's
+      // [mid, end) range never independently nests other transforms (it's source bytes
+      // owned by prefix's logical [start, end])
+      if (t.splitInfo?.role === 'suffix') continue;
+      const result = this.#composeOne(t, byStart, composedContent);
+      if (result === null) continue;  // dup already merged by sibling
+      composedContent.set(t, result);
       composed.push(t);
     }
 
-    // phase 2: apply outermost transforms only
+    // phase 2: apply outermost transforms only. split prefix overwrites the FULL logical
+    // range [start, logicalEnd] with composed content (suffix peer was excluded from
+    // composed via the role==='suffix' continue at the top of the compose loop)
     composed.sort((a, b) => a.start - b.start || b.end - a.end);
     let maxEnd = -1;
     for (const t of composed) {
-      if (t.end > maxEnd) {
-        this.#ms.overwrite(t.start, t.end, composedContent.get(t) ?? t.content);
-        maxEnd = t.end;
+      const tEnd = entryLogicalEnd(t);
+      if (tEnd > maxEnd) {
+        this.#ms.overwrite(t.start, tEnd, composedContent.get(t) ?? t.content);
+        maxEnd = tEnd;
       }
     }
+  }
+
+  // compose a single transform `t` with its inners + dups. returns the composed content
+  // string, or null when a sibling dup already owns the merge (caller skips this iteration).
+  // extracted from `apply()` to keep its statement count under the lint threshold; logic
+  // and traversal order otherwise unchanged
+  #composeOne(t, byStart, composedContent) {
+    const { start, splitInfo } = t;
+    const logicalEnd = entryLogicalEnd(t);
+    // initial content for prefix-half = prefix.content + suffix.content (suffix's text
+    // gets baked into composed content; suffix entry is excluded from `composed` array
+    // via the role==='suffix' continue at the compose loop's top)
+    let content = composedContent.get(t)
+      ?? (splitInfo?.role === 'prefix' ? t.content + splitInfo.peer.content : t.content);
+    const { inners, dups } = this.#scanInners(t, byStart, logicalEnd);
+    const originalSlice = this.#code.slice(start, logicalEnd);
+    if (dups.length) {
+      if (dups.some(d => composedContent.has(d))) return null;  // sibling owns merge
+      // fold all dups - `mergeEqualRange` nests wrappers and drops polyfills into the
+      // innermost slot regardless of fold order
+      for (const dup of dups) {
+        const dupContent = isSplit(dup)
+          ? splitInnerContent(dup, composedContent)
+          : composedContent.get(dup) ?? dup.content;
+        content = mergeEqualRange(content, dupContent, originalSlice, { start, end: logicalEnd });
+      }
+    }
+    sortInnersInnermostLast(inners);
+    return this.#substituteInners({ content, inners, originalSlice, start, logicalEnd, rewriteHint: t.rewriteHint, composedContent });
+  }
+
+  // collect inner / dup transforms within `[t.start, logicalEnd]` from `byStart`. split
+  // pairs deduplicated via groupId so logical inner appears once. when iter t is itself
+  // a split, non-split cands at logical-equal range are inners (split is leaf in compose
+  // tree, no equal-range dup partnership). non-split t with non-split cand at exact same
+  // range is a real dup (multiple wrappers at the same offsets)
+  #scanInners(t, byStart, logicalEnd) {
+    const { start, splitInfo } = t;
+    const lo = lowerBound(byStart, start);
+    const inners = [];
+    const dups = [];
+    const seenSplitGroups = new Set();
+    if (splitInfo) seenSplitGroups.add(splitInfo.groupId);
+    for (let i = lo; i < byStart.length && byStart[i].start <= logicalEnd; i++) {
+      const cand = byStart[i];
+      if (cand === t) continue;
+      const candEnd = entryLogicalEnd(cand);
+      if (cand.splitInfo) {
+        if (seenSplitGroups.has(cand.splitInfo.groupId)) continue;
+        seenSplitGroups.add(cand.splitInfo.groupId);
+        if (candEnd <= logicalEnd) inners.push(cand);
+        continue;
+      }
+      if (cand.end > logicalEnd || cand.start < start) continue;
+      const exactRangeMatch = cand.start === start && cand.end === logicalEnd;
+      // split outers can never be dup partners with anyone (split is leaf - it pretends
+      // to span the logical range only for inner-substitution purposes; non-split same-
+      // range entries are wrappers above the split, not equal-range dup partners)
+      if (exactRangeMatch && !splitInfo) dups.push(cand);
+      else if (!exactRangeMatch) inners.push(cand);
+    }
+    return { inners, dups };
+  }
+
+  // apply substituteInner per inner, tracking processedRanges for nth adjustment and
+  // for skipping inners already swallowed by a wider sibling. throws on locate failure
+  #substituteInners({ content, inners, originalSlice, start, logicalEnd, rewriteHint, composedContent }) {
+    const processedRanges = [];
+    for (const inner of inners) {
+      const { end: innerEndLogical, content: innerContent } = innerSubstitution(inner, composedContent);
+      const innerRange = { start: inner.start, end: innerEndLogical };
+      // outer reused an enclosing guard's ref rather than building its own (`absorbsRoot`).
+      // inner's value is already threaded via the outer guard's memoize assignment; direct
+      // substitution here would either leave stale `_ref` occurrences or re-inline the
+      // inner (double-evaluate). any inner contained within the root span (derived from
+      // `objectStart` + `rootRaw.length`) is skipped, including sub-transforms of the root
+      // call (e.g. `Array.from` static MemberExpression inside `Array.from(x)`)
+      if (rewriteHint?.absorbsRoot
+        && rewriteHint.objectStart <= inner.start
+        && innerEndLogical <= rewriteHint.objectStart + rewriteHint.rootRaw.length) {
+        processedRanges.push(innerRange);
+        continue;
+      }
+      const needle = this.#code.slice(inner.start, innerEndLogical);
+      // needle position in originalSlice: count from start up to innerOffset, then subtract
+      // same-needle occurrences already replaced by strictly-preceding processedRanges.
+      // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
+      // during composition, so the rightmost inner's nth must point to the sole remaining slot.
+      const nth = countOccurrences(originalSlice, needle, 0, inner.start - start)
+        - consumedOccurrencesBefore(originalSlice, needle, inner.start, start, processedRanges);
+      const result = substituteInner(content, needle, innerContent, nth, rewriteHint);
+      if (!result.found) {
+        // inner was already swallowed by an enclosing inner we processed earlier
+        if (processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
+        throw this.#invariant('could not locate inner needle in outer content. '
+          + `outer=[${ start },${ logicalEnd }] inner=[${ inner.start },${ innerEndLogical }]. `
+          + 'this is a composition bug - please report with a reproducer.');
+      }
+      content = result.content;
+      processedRanges.push(innerRange);
+    }
+    return content;
   }
 
   // true on full containment or equal range (slow compose path handles both - equal-range
@@ -493,11 +600,15 @@ export default class TransformQueue {
     // names the actually-intersecting pair, not just the running-max bearer. on detection,
     // `find` returns the first open interval `o` such that `curr` starts strictly inside
     // `o` and extends strictly past it - true partial overlap. open list is bounded by
-    // max-nesting depth in practice (filter rebuilds it per iteration, O(N·D) total)
+    // max-nesting depth in practice (filter rebuilds it per iteration, O(N·D) total).
+    // split pairs (`[start, mid)` + `[mid, end)`) look like partial overlap by interval
+    // arithmetic but are touching by design (intentional adjacency); skip the check
+    // when both sides share the same split groupId
     let open = [];
     for (const curr of sorted) {
       open = open.filter(o => o.end > curr.start);
-      const conflict = open.find(o => curr.start > o.start && curr.end > o.end);
+      const conflict = open.find(o => curr.start > o.start && curr.end > o.end
+        && !(o.splitInfo && curr.splitInfo && o.splitInfo.groupId === curr.splitInfo.groupId));
       if (conflict) {
         throw this.#invariant('partial overlap between transforms '
           + `[${ conflict.start },${ conflict.end }) and [${ curr.start },${ curr.end }). this is a `
