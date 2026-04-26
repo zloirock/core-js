@@ -290,6 +290,17 @@ export function objectPatternPropNeedsReceiverRewrite(prop) {
 // here but not everywhere (e.g. callee resolution treats parens as chain-breakers)
 const isUpdateOperandWrapper = node => !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
 
+// peel TS / paren wrappers and report whether the underlying node is a SequenceExpression
+// whose preceding elements carry observable side effects. used by computed-key polyfill
+// rewrites (`obj[(SE(), Symbol.iterator)]`) where dropping the property silently elides SE -
+// caller bails to native shape so the inner key visitor can polyfill in place
+export function hasSideEffectfulSequencePrefix(node) {
+  let cur = node;
+  while (cur && (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression')) cur = cur.expression;
+  return cur?.type === 'SequenceExpression'
+    && cur.expressions.slice(0, -1).some(mayHaveSideEffects);
+}
+
 // true when the path's enclosing context is an UpdateExpression, after peeling transparent
 // wrappers upward. accepts the parent path (`path.parentPath` for babel / estree-toolkit).
 // callers gate on plugin method: usage-pure must skip (rewrite to frozen binding invalid),
