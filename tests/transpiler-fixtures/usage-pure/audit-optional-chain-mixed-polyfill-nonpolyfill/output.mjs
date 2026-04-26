@@ -1,4 +1,6 @@
 import _at from "@core-js/pure/actual/instance/at";
 var _ref, _ref2, _ref3;
+// optional chain mixing polyfillable and non-polyfillable links: only the polyfillable
+// ones get rewritten, but the chain shape and guard are preserved.
 null == (_ref = a?.b) ? void 0 : _at(_ref2 = _ref.c).call(_ref2, -1);
 x == null ? void 0 : _at(_ref3 = x.y).call(_ref3, 0);

@@ -1,3 +1,3 @@
-// two polyfills with the same optional root: outer records guardRef, inner reuses it
-// via findOuterGuardRef. tests #byGuardedRoot O(1) lookup + identity-based match
+// nested optional chains with two polyfilled instance calls share the same guard
+// expression for the outer chain; inner `fn()?.at(0)` keeps its own independent guard.
 fn()?.flat(fn()?.at(0));

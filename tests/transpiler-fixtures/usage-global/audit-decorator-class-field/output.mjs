@@ -13,6 +13,8 @@ import "core-js/modules/es.string.iterator";
 import "core-js/modules/esnext.function.metadata";
 import "core-js/modules/esnext.symbol.metadata";
 import "core-js/modules/web.dom-collections.iterator";
+// decorated class with a class-field `items = new Set([1, 2, 3])`: the initializer
+// expression is still scanned and `new Set(...)` is polyfilled.
 @decorator
 class C {
   items = new Set([1, 2, 3]);

@@ -12,4 +12,6 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// `new Set([...iter])` Set built from spread: both Set constructor and the iteration
+// protocol must be polyfilled.
 const a = [...new Set()];

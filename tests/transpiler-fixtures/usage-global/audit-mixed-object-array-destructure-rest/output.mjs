@@ -4,6 +4,8 @@ import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.includes";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// mixed object/array destructure with rest: each level of the pattern must independently
+// track receivers for instance polyfill rewrites.
 const {
   a: [b, ...c]
 } = {
