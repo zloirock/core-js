@@ -16,10 +16,13 @@ export function singleQuasiString(node) {
 // `async-iterator` -> `asyncIterator` (keeps leading char lowercase for Symbol names);
 // `weak-map` / `promise` -> `WeakMap` / `Promise` via the Pascal variant
 const DASH_WORD = /-(?<c>\w)/g;
+// `-map` / `map-` would silently normalize to the same Pascal-case as `map`, masking typos
+// in built-in-definitions data. validate-and-bail keeps malformed entries visible
+const VALID_KEBAB = /^[a-z][0-9a-z]*(?:-[0-9a-z]+)*$/;
 
 export const kebabToCamel = str => str.replaceAll(DASH_WORD, (_, c) => c.toUpperCase());
 
-export const kebabToPascal = str => typeof str === 'string' && str
+export const kebabToPascal = str => typeof str === 'string' && VALID_KEBAB.test(str)
   ? kebabToCamel(str[0].toUpperCase() + str.slice(1)) : null;
 
 // type-only expression wrappers - runtime no-ops that forward to their `.expression` child
@@ -412,6 +415,24 @@ export function hasSideEffectfulSequencePrefix(node) {
     && cur.expressions.slice(0, -1).some(mayHaveSideEffects);
 }
 
+// recursive peel of nested SequenceExpressions through paren wrappers: `(se1(), (se2(), G))`
+// yields preceding-effect list `[se1(), se2()]` and tail `G`. used by destructure-flatten
+// emitters (babel `liftSEPrefix`, unplugin `tryFlattenAssignmentExpressionDestructure`,
+// unplugin main flatten) so every SE layer's preceding expressions lift instead of only
+// the outermost. without recursion, inner se2() silently elides under the rewrite.
+// returns `{ prefix: Node[], tail: Node }` - prefix is empty when init isn't SE-shaped
+export function peelNestedSequenceExpressions(node) {
+  const prefix = [];
+  let cursor = node;
+  while (cursor) {
+    while (cursor?.type === 'ParenthesizedExpression') cursor = cursor.expression;
+    if (cursor?.type !== 'SequenceExpression' || cursor.expressions.length < 2) break;
+    for (const e of cursor.expressions.slice(0, -1)) prefix.push(e);
+    cursor = cursor.expressions.at(-1);
+  }
+  return { prefix, tail: cursor };
+}
+
 // true when the path's enclosing context is an UpdateExpression, after peeling transparent
 // wrappers upward. accepts the parent path (`path.parentPath` for babel / estree-toolkit).
 // callers gate on plugin method: usage-pure must skip (rewrite to frozen binding invalid),
@@ -445,12 +466,18 @@ const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
 // AssignmentPattern.left + ArrayPattern + RestElement wrappers until a function-like
 // owner appears or a non-wrapper breaks the chain. `path` exposes `.node` + `.parentPath`
 // (babel NodePath and unplugin's walker path both satisfy the contract). depth cap: deepest
-// realistic shape `function([[[{x} = R]]])` is < 8 hops; 16 surfaces accidental cycles loudly
+// realistic shape `function([[[{x} = R]]])` is < 8 hops; 32 surfaces accidental cycles loudly.
+// hitting the cap throws (rather than silently returning false) so user code with pathological
+// nesting fails loud at lint instead of producing under-detected polyfill output
 export function isFunctionParamDestructureParent(path) {
   if (!path) return false;
   let prev = path.node;
   let parent = path.parentPath;
-  for (let depth = 0; depth < 16 && parent; depth++) {
+  let depth = 0;
+  while (parent) {
+    if (depth++ >= 32) {
+      throw new Error('isFunctionParamDestructureParent: pattern nesting exceeds 32 levels — likely an AST cycle');
+    }
     const { node } = parent;
     if (!node) return false;
     if (FUNCTION_LIKE_PARAM_OWNER_TYPES.has(node.type)) return true;
@@ -684,13 +711,17 @@ function isStringLiteralWithValue(node, value) {
 }
 const matchesMemberName = (node, name) => (!node.computed && isNamedIdent(node.property, name))
   || (node.computed && isStringLiteralWithValue(node.property, name));
-const isStaticMember = (node, objName, propName) => node?.type === 'MemberExpression'
+const isStaticMember = (node, objName, propName) => (node?.type === 'MemberExpression'
+  || node?.type === 'OptionalMemberExpression')
   && isNamedIdent(unwrapExpr(node.object), objName) && matchesMemberName(node, propName);
 
-// walks the MemberExpression chain - any ancestor rooted at `exports` or `module.exports` matches
+// walks the MemberExpression chain - any ancestor rooted at `exports` or `module.exports` matches.
+// also handles OptionalMemberExpression: `module?.exports.X = Y` is valid syntax (defensive
+// edge for tooling that emits guarded CJS reassignment); babel and oxc both produce the
+// matching node type, so the check accepts either
 function isCommonJSAssignTarget(left) {
   let node = unwrapExpr(left);
-  while (node?.type === 'MemberExpression') {
+  while (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression') {
     if (isStaticMember(node, 'module', 'exports')) return true;
     const obj = unwrapExpr(node.object);
     if (isNamedIdent(obj, 'exports')) return true;
@@ -871,9 +902,15 @@ const TRANSPARENT_WRAPPER_TYPES = new Set([
 
 // walk every Identifier reachable from a binding pattern (`{a, b: [c]}`, `[d, ...e]`,
 // `f = 1`, `{g = 2}`, etc.), invoking `visit(identifierNode)` per leaf. caller is
-// responsible for short-circuit via captured flag since we always walk the whole tree
+// responsible for short-circuit via captured flag since we always walk the whole tree.
+// peels ParenthesizedExpression (oxc preserves; babel strips) so `({x})` patterns aren't
+// silently dropped from the binding scan
 export function walkPatternIdentifiers(node, visit) {
   if (!node) return;
+  if (node.type === 'ParenthesizedExpression') {
+    walkPatternIdentifiers(node.expression, visit);
+    return;
+  }
   switch (node.type) {
     case 'Identifier':
       visit(node);

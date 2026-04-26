@@ -1,4 +1,4 @@
-[BABEL] unknown file: Error while validating the "core-js@4" provider options:
+[BABEL] unknown file: [core-js] error while validating provider options:
   - Entry-path patterns in "include" are only allowed with method: 'usage-pure':
     string/at
  (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")
