@@ -1,7 +1,5 @@
-// Receiver `Array` shadowed by a local binding before the IIFE - the synth-swap resolver
-// honours scope shadowing and refuses to substitute the local `Array` with a polyfilled
-// global. without this safeguard the rewrite would silently route `from` through the
-// runtime polyfill instead of the user's wrapper
+// receiver `Array` shadowed by a local binding before the IIFE: rewrite must respect
+// scope shadowing and route `from` through the user's wrapper, not the polyfilled global
 {
   const Array = MyArrayWrapper;
   function caller({

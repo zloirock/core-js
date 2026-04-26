@@ -1,14 +1,11 @@
 import _Array$from from "@core-js/pure/es/array/from";
 import _globalThis from "@core-js/pure/es/global-this";
-// Same shape as `audit-iife-arg-with-existing-default` but caller-arg is
-// `globalThis.AsyncIterator` - safe feature-detection access (returns undefined when
-// AsyncIterator is missing instead of throwing ReferenceError on bare reference).
-// In `mode: es` AsyncIterator isn't part of the polyfill set, so caller-arg can't be
-// classified statically. Wrapper-default `= Array` provides the static receiver context:
-// `Array.from` IS in es polyfill set, so synth-swap targets the wrapper-default. At runtime
-// when `globalThis.AsyncIterator` is undefined, wrapper-default fires and `from` resolves
-// to the polyfilled `_Array$from`; user fallback `[]` becomes dead code (the synth object
-// is always defined). `globalThis` itself is also polyfilled in es mode
+// IIFE caller arg is `globalThis.AsyncIterator`: safe feature-detection access (yields
+// undefined when missing instead of ReferenceError). in `mode: es` AsyncIterator is not
+// in the polyfill set so the caller arg cannot be classified statically; the wrapper-default
+// `= Array` provides the receiver type and `Array.from` resolves to its polyfill there.
+// at runtime when `globalThis.AsyncIterator` is undefined the wrapper-default fires; user
+// fallback `[]` is unreachable. `globalThis` itself is polyfilled in es mode
 const r = (({
   from = []
 } = {
