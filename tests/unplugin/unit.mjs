@@ -640,6 +640,64 @@ function checkPhasePipelinePassThrough() {
 }
 checkPhasePipelinePassThrough();
 
+// --- estree-compat nodeType mapper (adapter divergence: babel vs oxc) ---
+// `nodeType()` translates oxc's narrower node taxonomy back to babel's discriminator
+// names so shared callsites (resolve-node-type / detect-usage / helpers) can pattern-match
+// against a single set of type strings. coverage gap: subtle Property kinds (init/method/
+// get/set), MethodDefinition vs PropertyDefinition (instance vs static via .static flag is
+// orthogonal), and Literal subtype dispatch (BigInt / RegExp / String / Number / Boolean / Null)
+async function checkEstreeNodeTypeMapper() {
+  const { nodeType } = await import('../../packages/core-js-unplugin/internals/estree-compat.js');
+  const parseTop = src => parseSync('test.js', src).program;
+  // ChainExpression wraps optional `a?.b` / `a?.()` in oxc; unwrap to inner Member/Call
+  const unwrapChain = node => node?.expression ?? node;
+
+  // Property kinds via parsed object literal: init / method / get / set
+  const props = parseTop('const o = { a: 1, b() {}, get c() {}, set c(v) {} };')
+    .body[0].declarations[0].init.properties;
+  const PROPERTY_CASES = [
+    ['init -> ObjectProperty', 0, 'ObjectProperty'],
+    ['method -> ObjectMethod', 1, 'ObjectMethod'],
+    ['get -> ObjectMethod', 2, 'ObjectMethod'],
+    ['set -> ObjectMethod', 3, 'ObjectMethod'],
+  ];
+  for (const [label, i, expected] of PROPERTY_CASES) check(`nodeType/Property ${ label }`, nodeType(props[i]), expected);
+
+  // MethodDefinition (instance/static) -> ClassMethod, PropertyDefinition -> ClassProperty
+  const members = parseTop('class C { m() {} static s() {} f = 1; static t = 2; }')
+    .body[0].body.body;
+  const CLASS_CASES = [
+    ['MethodDefinition -> ClassMethod', 0, 'ClassMethod'],
+    ['static MethodDefinition -> ClassMethod', 1, 'ClassMethod'],
+    ['PropertyDefinition -> ClassProperty', 2, 'ClassProperty'],
+    ['static PropertyDefinition -> ClassProperty', 3, 'ClassProperty'],
+  ];
+  for (const [label, i, expected] of CLASS_CASES) check(`nodeType/${ label }`, nodeType(members[i]), expected);
+
+  // Literal subtype dispatch: oxc emits one Literal type, mapper splits to babel-style names
+  const lits = parseTop('var s = "x"; var n = 1; var b = true; var nu = null; var bi = 42n; var re = /a/g;')
+    .body.map(d => d.declarations[0].init);
+  const LITERAL_CASES = [
+    ['string -> StringLiteral', 0, 'StringLiteral'],
+    ['number -> NumericLiteral', 1, 'NumericLiteral'],
+    ['boolean -> BooleanLiteral', 2, 'BooleanLiteral'],
+    ['null -> NullLiteral', 3, 'NullLiteral'],
+    ['bigint -> BigIntLiteral', 4, 'BigIntLiteral'],
+    ['regex -> RegExpLiteral', 5, 'RegExpLiteral'],
+  ];
+  for (const [label, i, expected] of LITERAL_CASES) check(`nodeType/Literal ${ label }`, nodeType(lits[i]), expected);
+
+  // Optional member/call: oxc wraps in ChainExpression with `optional: true` on inner;
+  // mapper emits babel's OptionalMemberExpression / OptionalCallExpression
+  const opts = parseTop('a?.b; a?.();').body.map(s => unwrapChain(s.expression));
+  check('nodeType/MemberExpression optional -> OptionalMemberExpression', nodeType(opts[0]), 'OptionalMemberExpression');
+  check('nodeType/CallExpression optional -> OptionalCallExpression', nodeType(opts[1]), 'OptionalCallExpression');
+
+  check('nodeType/null', nodeType(null), null);
+  check('nodeType/undefined', nodeType(undefined), null);
+}
+await checkEstreeNodeTypeMapper();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
