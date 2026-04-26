@@ -30,6 +30,7 @@ import {
   isViableBranchForKey,
   resolveObjectName as sharedResolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage';
+import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   canTransformDestructuring,
   findSynthSwapReceiver,
@@ -683,9 +684,15 @@ export function createDestructureEmitter({
         continue;
       }
 
-      const isExport = !isAssignment && declPath.parentPath?.node?.type === 'ExportNamedDeclaration';
-      const isForInit = !isAssignment && declPath.parentPath?.node?.type === 'ForStatement'
-          && declPath.parentPath.node.init === declPath.node;
+      // shared classifier returns booleans both plugins consume from the same source.
+      // assignment hosts skip classification (the booleans are VariableDeclaration-only
+      // concerns - export/for-init slots can't host an AssignmentExpression directly)
+      const hostShape = isAssignment ? null : classifyVariableDeclarationHost({
+        declaration: declPath.node,
+        declarationParent: declPath.parentPath?.node,
+      });
+      const isExport = hostShape?.isExport ?? false;
+      const isForInit = hostShape?.isForInit ?? false;
       const replaceNode = isExport ? declPath.parentPath.node : declPath.node;
       const prefix = isExport ? 'export ' : '';
       const keyword = isAssignment ? '' : `${ declPath.node.kind } `;
