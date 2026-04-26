@@ -1,3 +1,4 @@
-// lowercase destructure from globalThis - not a known global, no polyfill probes
+// lowercase destructure from globalThis: `foo` is not a known global, so its `.someMethod`
+// dispatch is left untouched. `globalThis` receiver itself is still polyfilled
 const { foo } = globalThis;
 foo.someMethod?.();

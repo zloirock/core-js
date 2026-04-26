@@ -1,6 +1,6 @@
-// `for (obj['at'] of ...)` rebinds `obj.at` each iteration, so the body's `obj['at']()`
-// must NOT be polyfilled. memberShapeEqual now compares StringLiteral property values, so
-// the write-target structurally matches the read through the computed form
+// `for (obj['at'] of ...)` rebinds `obj.at` each iteration: the loop body's `obj['at']()`
+// reads whatever the user assigned, so it must not be polyfilled. shape-comparison treats
+// the StringLiteral computed form as equivalent to the dot-access write target
 function run(xs) {
   const obj = {};
   for (obj['at'] of xs) {
