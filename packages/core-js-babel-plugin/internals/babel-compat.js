@@ -1,22 +1,18 @@
+// babel-specific AST primitives + optional-chain handling. covers ref memoization,
+// optional-chain deoptionalization, instance-method replacement strategies, TS-wrapper
+// peeling. destructure emission moved out to `internals/destructure-emitter.js`.
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage';
 import {
   createTypeAnnotationChecker,
-  mayHaveSideEffects,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers';
 
 export default function (t, { getInjector, typeResolvers } = {}) {
   const { resolveNodeType, toHint } = typeResolvers ?? {};
-  // side-effect expressions from destructuring inits - deferred to Program.exit
-  const deferredSideEffects = [];
-  // original body index of each declaration, before insertBefore shifts it
-  let originalDeclKeys = new WeakMap();
 
   const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
   function reset() {
-    originalDeclKeys = new WeakMap();
-    deferredSideEffects.length = 0;
     isInTypeAnnotation.reset();
   }
 
@@ -268,243 +264,16 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     callerPath.parentPath.replaceWith(conditional);
   }
 
-  function resolveDestructuringObject(path, resolvedType) {
-    const parent = path.parentPath.parentPath;
-    const initKey = parent.isVariableDeclarator() ? 'init'
-      : parent.isAssignmentExpression() ? 'right' : null;
-    if (!initKey) return null;
-    const objectNode = parent.node[initKey];
-    if (!objectNode) return null;
-    // memoize non-identifier init when other properties remain to avoid double evaluation
-    if (!t.isIdentifier(objectNode) && path.parentPath.node.properties.length > 1) {
-      // declare=false: we emit our own `const _ref = init;` below, no extra `var _ref;`
-      const ref = generateLocalRef(path.scope);
-      // for-init: splice as sibling declarator; declaration-level insertBefore would wrap
-      // the whole for-init in an arrow-IIFE and lose the loop-header shape
-      const isForInit = parent.isVariableDeclarator()
-        && parent.parentPath?.parentPath?.isForStatement()
-        && parent.parentPath.parentPath.node.init === parent.parentPath.node;
-      if (isForInit) parent.insertBefore(t.variableDeclarator(ref, objectNode));
-      else parent.parentPath.insertBefore(t.variableDeclaration('const', [
-        t.variableDeclarator(ref, objectNode),
-      ]));
-      const cloned = t.cloneNode(ref);
-      // store resolved type for subsequent destructured properties to resolve type hints
-      if (resolvedType) cloned.coreJSResolvedType = resolvedType;
-      parent.node[initKey] = cloned;
-      return ref;
-    }
-    return objectNode;
-  }
-
-  // split multi-declarator VariableDeclaration into separate statements when all patterns resolved
-  function trySplitDeclaration(declaration, isExport) {
-    if (declaration.node.declarations.some(d => t.isObjectPattern(d.id))) return;
-    const { kind } = declaration.node;
-    const stmts = declaration.node.declarations.map(d => isExport
-      ? t.exportNamedDeclaration(t.variableDeclaration(kind, [d]))
-      : t.variableDeclaration(kind, [d]));
-    declaration.replaceWithMultiple(stmts);
-  }
-
-  // bodyless control statement with side-effect: wrap in block to keep scope.
-  // `cloneDeep` is necessary - the original `initNode` is still referenced by the
-  // about-to-be-replaced declaration's path; reusing it would create node-identity aliasing
-  // that babel's path tracker mishandles. expensive (deep walk) but bounded by init AST size.
-  // deliberately keeps the trailing value of `(se(), Array)` uncut (unlike `deferSideEffect`'s
-  // `trimSideEffectTail`) - existing fixtures encode the full sequence as a signal that the
-  // block came from a destructure-init extraction
-  function wrapBodylessWithSideEffect(declaration, initNode, extractedDeclaration) {
-    declaration.replaceWith(t.blockStatement([
-      t.expressionStatement(t.cloneDeep(initNode)),
-      extractedDeclaration,
-    ]));
-  }
-
-  // for-init with SE: keep SE inline so it doesn't escape the loop.
-  // static: for (var { from } = (se(), Array);;) -> for (var _ref = (se(), Array), from = _Array$from;;)
-  // instance: for (var { at } = getObj();;) -> for (var at = _at(getObj());;) - SE consumed by call.
-  // both branches mutate the VariableDeclaration in place; babel's scope tracker doesn't observe
-  // raw property/array mutations, so fresh bindings are re-registered on the mutated path
-  function handleForInitSE(declaration, parent, localBinding, value, scope, isStatic) {
-    if (isStatic) {
-      // static polyfill import - SE needs a dummy binding to stay in for-init
-      const ref = generateLocalRef(scope);
-      const idx = declaration.node.declarations.indexOf(parent.node);
-      if (idx === -1) return;
-      declaration.node.declarations.splice(idx, 1,
-        t.variableDeclarator(ref, t.cloneDeep(parent.node.init)),
-        t.variableDeclarator(localBinding, value));
-      declaration.scope?.registerDeclaration(declaration);
-    } else {
-      parent.node.id = localBinding;
-      parent.node.init = value;
-      parent.scope?.registerDeclaration(parent);
-    }
-  }
-
-  // walk up from `path` to the nearest parent whose container is an array body (statement-level)
-  // SwitchCase uses `consequent` instead of `body`
-  function findStatementParent(path) {
-    let stmt = path;
-    while (stmt.parentPath && !Array.isArray(stmt.parentPath.node.body)
-      && !Array.isArray(stmt.parentPath.node.consequent)) stmt = stmt.parentPath;
-    return stmt;
-  }
-
-  // `replaceWith` doesn't register declarations on the target scope, so after collapsing
-  // `const { X } = ...` to `const X = ...` a later visit of bare `X` would see an empty
-  // scope and mistake `X` for an unbound global. safe only on `replaceWith` (original
-  // bindings gone); `insertBefore` keeps the old declaration and duplicate-registering
-  // the same name trips babel's block-scope collision check in rest / multi-prop paths
-  function replaceWithAndRegister(path, node) {
-    const [newPath] = path.replaceWith(node);
-    newPath.scope.registerDeclaration(newPath);
-  }
-
-  // `(inner(), Array)` - when we lift the init as a standalone statement only the
-  // side-effectful head is needed; the trailing value (`Array`, read by the destructure)
-  // becomes a no-op read once extraction leaves no destructure target. trim it so the
-  // emitted ExpressionStatement reads `inner();` instead of `inner(), Array;`
-  function trimSideEffectTail(node) {
-    if (!t.isSequenceExpression(node)) return node;
-    const trimmed = [...node.expressions];
-    while (trimmed.length > 1 && !mayHaveSideEffects(trimmed[trimmed.length - 1])) trimmed.pop();
-    if (trimmed.length === node.expressions.length) return node;
-    return trimmed.length === 1 ? trimmed[0] : t.sequenceExpression(trimmed);
-  }
-
-  function deferSideEffect(containerPath, initNode) {
-    if (!initNode || !mayHaveSideEffects(initNode)) return;
-    const stmt = findStatementParent(containerPath);
-    const parentNode = stmt.parentPath?.node;
-    const body = parentNode?.body ?? parentNode?.consequent;
-    if (Array.isArray(body)) {
-      const index = originalDeclKeys.get(containerPath.node) ?? stmt.key;
-      // processDeferredSideEffects assumes each queued `node` is an ExpressionStatement
-      // (the re-traversal visitor walks only its body and spawns nested polyfills from
-      // `.expression`). emit as ExpressionStatement unconditionally; a future caller that
-      // wants a different statement type must teach the consumer or wrap on its own
-      deferredSideEffects.push({
-        body, index,
-        seq: deferredSideEffects.length,
-        node: t.expressionStatement(t.cloneDeep(trimSideEffectTail(initNode))),
-      });
-    }
-  }
-
-  // babel-plugin's destructure emission counterpart of unplugin's `handleDestructuringPure`.
-  // kept separate because babel mutates the AST (replaceWith, insertBefore, removeSibling)
-  // while unplugin queues text transforms. shared logic lives in `@core-js/polyfill-provider`
-  // helpers (isFunctionParamDestructureParent, isSingleNestedProxyChain, buildDestructuringInitMeta);
-  // this function owns the AST-mutation side, unplugin owns the text-emission side
-  function handleDestructuredProperty(prop, value) {
-    const propValue = prop.node.value,
-          // captured before default-value processing turns Identifier into ConditionalExpression
-          isStaticValue = t.isIdentifier(value);
-    const objectPattern = prop.parentPath;
-    // default value: { from = [] } = Array -> from = _from === void 0 ? [] : _from
-    // instance calls need temp ref to avoid double evaluation
-    let localBinding;
-    if (t.isAssignmentPattern(propValue)) {
-      localBinding = t.cloneNode(propValue.left);
-      const needsTemp = t.isCallExpression(value);
-      const ref = needsTemp ? generateRef(prop.scope) : value;
-      const test = t.binaryExpression('===', needsTemp ? t.assignmentExpression('=', ref, value) : ref,
-        t.unaryExpression('void', t.numericLiteral(0)));
-      value = t.conditionalExpression(test, t.cloneNode(propValue.right), t.cloneNode(ref));
-    } else {
-      localBinding = t.cloneNode(propValue);
-    }
-    const parent = objectPattern.parentPath;
-
-    // rest element present: keep property in pattern with renamed value to preserve rest semantics
-    // const { from, ...rest } = Array -> const from = _from; const { from: _, ...rest } = Array
-    const hasRest = objectPattern.node.properties.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
-    // rest: rename property value to preserve rest semantics; otherwise remove property
-    const isEmpty = hasRest ? false : (prop.remove(), objectPattern.node.properties.length === 0);
-    if (hasRest) {
-      // shared generator keeps babel and unplugin emitting identical `_unused` sentinels;
-      // scope.generateUidIdentifier would diverge when babel's scope tracker sees
-      // pre-existing `_unused*` bindings our injector hasn't learnt about
-      prop.get('value').replaceWith(generateUnusedId());
-      prop.node.shorthand = false;
-    }
-
-    if (parent.isVariableDeclarator()) {
-      const declaration = parent.parentPath;
-      // save original index before first insertBefore shifts it
-      if (!originalDeclKeys.has(declaration.node)) {
-        originalDeclKeys.set(declaration.node, findStatementParent(declaration).key);
-      }
-      const extractedDeclaration = t.variableDeclaration(declaration.node.kind, [
-        t.variableDeclarator(localBinding, value),
-      ]);
-      const isExport = declaration.parentPath.isExportNamedDeclaration();
-      const isMultiDecl = declaration.node.declarations.length > 1;
-      const isForInit = declaration.parentPath?.isForStatement()
-        && declaration.parentPath.node.init === declaration.node;
-      // unbraced body of if/while/for-body/with/label - parent.body is a single node, not an array
-      // SwitchCase uses `consequent` (array) instead of `body`
-      const parentNode = declaration.parentPath?.node;
-      const isBodyless = !isExport && !isForInit
-        && !Array.isArray(parentNode?.body) && !Array.isArray(parentNode?.consequent);
-      if (isEmpty) {
-        if (isBodyless && isStaticValue && mayHaveSideEffects(parent.node.init)) {
-          wrapBodylessWithSideEffect(declaration, parent.node.init, extractedDeclaration);
-        } else if (isForInit) {
-          // --- for-init: SE stays inline, can't be deferred outside the loop ---
-          if (mayHaveSideEffects(parent.node.init)) handleForInitSE(declaration, parent, localBinding, value, prop.scope, isStaticValue);
-          else if (isMultiDecl) {
-            parent.node.id = localBinding;
-            parent.node.init = value;
-          } else replaceWithAndRegister(declaration, extractedDeclaration);
-        } else {
-          // --- block-level: defer SE to Program.exit, then replace ---
-          if (isStaticValue) deferSideEffect(declaration, parent.node.init);
-          if (isMultiDecl) {
-            // earlier extractions from sibling props are already spliced in-line; swap the
-            // now-empty parent declarator for the final one, then split mixed export runs
-            const idx = declaration.node.declarations.indexOf(parent.node);
-            if (idx !== -1) declaration.node.declarations.splice(idx, 1, t.variableDeclarator(localBinding, value));
-            trySplitDeclaration(declaration, isExport);
-          } else {
-            replaceWithAndRegister(declaration, extractedDeclaration);
-          }
-        }
-      } else if (isMultiDecl || isForInit) {
-        // `parent.insertBefore` (VariableDeclarator-level) keeps babel-traverse path.key of
-        // queued sibling declarators in sync. `declaration.insertBefore` would wrap a
-        // for-init in an arrow-IIFE and lose the loop-header shape
-        parent.insertBefore(t.variableDeclarator(localBinding, value));
-      } else if (isExport) {
-        declaration.parentPath.insertBefore(t.exportNamedDeclaration(extractedDeclaration));
-      } else {
-        declaration.insertBefore(extractedDeclaration);
-      }
-    } else {
-      const assignment = t.expressionStatement(t.assignmentExpression('=', localBinding, value));
-      const assignmentTarget = parent.parentPath;
-      if (isEmpty) {
-        if (isStaticValue) deferSideEffect(assignmentTarget, parent.node.right);
-        assignmentTarget.replaceWith(assignment);
-      } else {
-        assignmentTarget.insertBefore(assignment);
-      }
-    }
-  }
-
   return {
     isInTypeAnnotation,
-    deferredSideEffects,
     deoptionalizeNode,
+    generateRef,
+    generateLocalRef,
     generateUnusedId,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
-    resolveDestructuringObject,
-    handleDestructuredProperty,
     unwrapTSExpressionParent,
     withSideEffects,
     reset,

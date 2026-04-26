@@ -76,15 +76,14 @@ export default function plugin(api, options) {
 
   const {
     isInTypeAnnotation,
-    deferredSideEffects,
     deoptionalizeNode,
+    generateRef,
+    generateLocalRef,
     generateUnusedId,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceInstanceChainCombined,
     replaceCallWithSimple,
-    resolveDestructuringObject,
-    handleDestructuredProperty,
     unwrapTSExpressionParent,
     withSideEffects,
     reset: resetASTHelpers,
@@ -494,12 +493,12 @@ export default function plugin(api, options) {
           adapter, injectPureImport, isOrphaned, resolvePure, skippedNodes, t,
         });
         destructureEmit = createDestructureEmitter({
+          generateRef,
+          generateLocalRef,
           generateUnusedId,
           getDebugOutput: () => debugOutput,
-          handleDestructuredProperty,
           injector,
           injectPureImport,
-          resolveDestructuringObject,
           resolvePropertyObjectType,
           skippedNodes,
           synthSwap,
@@ -557,6 +556,7 @@ export default function plugin(api, options) {
       // loop until the queue stays empty so nothing is silently dropped; termination is
       // guaranteed by bounded AST depth - each iteration processes a deeper level
       function processDeferredSideEffects(path) {
+        const { deferredSideEffects } = destructureEmit;
         while (deferredSideEffects.length) {
           const batch = deferredSideEffects.splice(0).sort(batchOrder);
           const inserted = new Set();
