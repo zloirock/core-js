@@ -1,5 +1,6 @@
-// pure AST/path helpers used by the instance-method emission pipeline. no file-scope
-// deps - callers pass node / path arguments directly
+// pure AST/path helpers used by the polyfill emission pipeline (and the main visitor
+// for outermost-optional-chain detection). no file-scope deps - callers pass node /
+// path arguments directly
 import { TS_EXPR_WRAPPERS } from '@core-js/polyfill-provider/helpers';
 
 // peel parens, chain expressions, AND TS wrappers - for AST identity checks
