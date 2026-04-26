@@ -1,4 +1,4 @@
-[BABEL] unknown file: Error while validating the "core-js@4" provider options:
+[BABEL] unknown file: [core-js] error while validating provider options:
   - The following "include" entry paths didn't match any polyfill:
     constructor
     toString

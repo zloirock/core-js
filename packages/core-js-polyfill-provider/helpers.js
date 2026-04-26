@@ -41,6 +41,7 @@ export {
   mayHaveSideEffects,
   peelFallbackReceiver,
   peelFallbackWrappers,
+  peelNestedSequenceExpressions,
   propBindingIdentifier,
   resolveCallArgument,
   singleQuasiString,
