@@ -3,7 +3,7 @@
 // the nested proxy-global flatten path (`const {Array:{from}} = globalThis` -> `const from
 // = _Array$from`). factory captures closure deps from the outer transform context (code /
 // scopeTracker / transforms / injector / Sets / resolver hooks + helpers from the
-// InstanceReplacer factory). pending-collection Maps for in-flight destructure / synth-swap
+// PolyfillEmitter factory). pending-collection Maps for in-flight destructure / synth-swap
 // rewrites live in factory closure (drained post-traverse via the public methods).
 // public surface: `applyDestructuringTransforms`, `applySynthSwaps`, `handleDestructuringPure`,
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation)
@@ -43,7 +43,6 @@ export function createDestructureEmitter({
   injectPureImport,
   injector,
   isBodylessStatementBody,
-  ms,
   nodeSrc,
   resolveGlobalPolyfill,
   resolvePure,
@@ -450,7 +449,7 @@ export function createDestructureEmitter({
       ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern) : null;
     if (!receiver) {
       if (isAssign) transforms.add(value.right.start, value.right.end, binding);
-      else ms.appendRight(value.end, ` = ${ binding }`);
+      else transforms.insert(value.end, ` = ${ binding }`);
       return;
     }
     // synth-swap owns the receiver - identifier visitor would race on the same range
@@ -629,7 +628,7 @@ export function createDestructureEmitter({
       lines.push(`let { ${ rebuiltProps.join(', ') } } = ${ ref };`);
     }
     transforms.add(catchNode.param.start, catchNode.param.end, ref);
-    ms.appendRight(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
+    transforms.insert(catchNode.body.start + 1, `\n${ lines.join('\n') }`);
   }
 
   // post-traverse: emit `{p: _polyfill, q: R.q, ...}` over the receiver span. runs
@@ -661,11 +660,12 @@ export function createDestructureEmitter({
     }
   }
 
-  // three emission engines with overlapping logic - unification deferred because each
-  // owns a distinct substrate:
+  // three drain shapes routing through the single TransformQueue (overwrites + inserts):
   //   1. `applyDestructuringTransforms` - VariableDeclaration rewrite (splits, reorders, extracts)
-  //   2. `applySynthSwaps` - function param default synth-swap
-  //   3. `emitCatchClause` - catch-pattern rewrite
+  //   2. `applySynthSwaps` - function param default synth-swap (receiver-span overwrite)
+  //   3. `emitCatchClause` - catch-pattern rewrite (param overwrite + body-prelude insert)
+  // share `pendingDestructuring` / `pendingSynthSwaps` accumulators; differ only in the
+  // shape of the AST anchor being emitted into. final flush via the host's queue.apply()
   function applyDestructuringTransforms() {
     const byStatement = new Map();
     for (const [, info] of pendingDestructuring) {
