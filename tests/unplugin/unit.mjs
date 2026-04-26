@@ -288,6 +288,10 @@ function checkSourceMapFileField() {
   const result = plugin.transform(source, '/src/sm-file.js');
   check('sourceMap/file populated', typeof result?.map?.file === 'string' && result.map.file.length > 0, true);
   check('sourceMap/file basename matches id', result?.map?.file, 'sm-file.js');
+  // sources[0] must be the FULL id - MagicString collapses to basename when source === file,
+  // losing dirname for every emitted map. devtools / bundler chain-merge can't distinguish
+  // files with the same basename in different dirs without the dirname
+  check('sourceMap/sources[0] preserves full id', result?.map?.sources?.[0], '/src/sm-file.js');
 }
 checkSourceMapFileField();
 
