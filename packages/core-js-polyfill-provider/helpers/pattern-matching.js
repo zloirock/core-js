@@ -70,12 +70,12 @@ export function safeStringify(value) {
 export function validatePatternList(name, list) {
   if (list === undefined || list === null) return;
   if (!Array.isArray(list)) {
-    throw new TypeError(`\`${ name }\` must be an array, or undefined (received ${ safeStringify(list) })`);
+    throw new TypeError(`[core-js] \`${ name }\` must be an array, or undefined (received ${ safeStringify(list) })`);
   }
   for (const item of list) {
-    if (item === '') throw new TypeError(`\`${ name }[*]\` must be a non-empty string`);
+    if (item === '') throw new TypeError(`[core-js] \`${ name }[*]\` must be a non-empty string`);
     if (typeof item !== 'string' && !(item instanceof RegExp)) {
-      throw new TypeError(`\`${ name }[*]\` must be a string or RegExp (received ${ safeStringify(item) })`);
+      throw new TypeError(`[core-js] \`${ name }[*]\` must be a string or RegExp (received ${ safeStringify(item) })`);
     }
   }
 }
@@ -85,14 +85,24 @@ export function validatePatternList(name, list) {
 // numeric `startSuffix` starts at `prefix${startSuffix}` and increments (cache-driven continuation).
 // isTaken is called for each candidate; true = name conflicts.
 // numeric `startSuffix < 2` would break the skip-1 convention (`_hint0` / `_hint1` emitted
-// in violation of babel's UID scheme). clamp up to 2 so chain continuations respect the rule
+// in violation of babel's UID scheme). clamp up to 2 so chain continuations respect the rule.
+// undefined startSuffix would silently produce `${prefix}undefined` — reject loudly so callers
+// can't accidentally pass undefined where they meant null. iteration cap prevents infinite
+// loop if isTaken always returns true (defensive: 2^20 covers any realistic name space)
 export function findUniqueName(prefix, startSuffix, isTaken) {
+  if (startSuffix === undefined) {
+    throw new TypeError('findUniqueName: startSuffix must be null (try-bare-first) or a number; got undefined');
+  }
   if (startSuffix === null) {
     if (!isTaken(prefix)) return prefix;
     startSuffix = 2;
   } else if (startSuffix < 2) startSuffix = 2;
   let counter = startSuffix;
   let name = `${ prefix }${ counter }`;
-  while (isTaken(name)) name = `${ prefix }${ ++counter }`;
+  const limit = counter + (1 << 20);
+  while (isTaken(name)) {
+    if (++counter > limit) throw new Error(`findUniqueName: collision space exhausted at \`${ prefix }${ counter }\` (isTaken always returns true?)`);
+    name = `${ prefix }${ counter }`;
+  }
   return name;
 }

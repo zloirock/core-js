@@ -65,7 +65,7 @@ function formatReceived(value) {
 }
 
 function optionTypeError(name, expected, received) {
-  return new TypeError(`\`${ name }\` must be ${ expected } (received ${ formatReceived(received) })`);
+  return new TypeError(`[core-js] \`${ name }\` must be ${ expected } (received ${ formatReceived(received) })`);
 }
 
 // `null`/`undefined` pass through so users can use conditional spreads to clear an option
@@ -135,7 +135,7 @@ function validateOptions({
   validatePatternList('exclude', exclude);
   // empty arrays don't conflict with shouldInjectPolyfill - only non-empty include/exclude do
   if (typeof shouldInjectPolyfill === 'function' && (include?.length || exclude?.length)) {
-    throw new TypeError('`include` and `exclude` are not supported when using `shouldInjectPolyfill`');
+    throw new TypeError('[core-js] `include` and `exclude` are not supported when using `shouldInjectPolyfill`');
   }
   // `undefined` takes the default downstream; `null` (e.g. `{ package: cond ? 'x' : null }`)
   // is a real mis-configuration and should surface as a type error, not a late TypeError
@@ -298,7 +298,7 @@ export function initPluginOptions(options, { getBabelTargets } = {}) {
     ...rest
   } = options;
   const unknown = keys(rest).filter(k => !KNOWN_REST_KEYS.has(k));
-  if (unknown.length) throw new TypeError(`Unknown @core-js plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }`);
+  if (unknown.length) throw new TypeError(`[core-js] Unknown plugin option${ unknown.length > 1 ? 's' : '' }: ${ unknown.join(', ') }`);
   validateOptions({
     absoluteImports,
     additionalPackages: rest.additionalPackages,
@@ -465,7 +465,10 @@ function createDebugOutputFactory({ method, parsedTargets }) {
         entryFound = true;
       },
       format() {
-        const items = [...modules];
+        // sort to match the canonical polyfill emission order (es.* before web.*, etc.)
+        // so debug output is reproducible across files / parser orders / detection cadence.
+        // insertion order would surface visitor traversal noise that's not user-meaningful
+        const items = sortByPolyfillOrder([...modules]);
         let result;
         if (method === 'entry-global' && !entryFound) {
           result = 'The entry point for the core-js@4 polyfill has not been found.';
