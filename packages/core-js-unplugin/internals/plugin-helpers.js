@@ -1,6 +1,24 @@
 import { isASTNode, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 
+// recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
+// on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
+// O(N) per call where N is subtree size; callers feed it small subtrees (declarator,
+// RHS of `in`, inner-callee chain) so total amortized cost across the file is bounded.
+// `visit(node, parent)` - parent is the directly-enclosing AST node, null at root,
+// used by callers (`polyfillSiblingReceiverRefs`) for context-aware filtering.
+// depth cap protects against pathological deeply-nested AST (template-literal bombs,
+// oxc bug-emitted cycles). 1024 covers realistic depth bounds with margin
+export function walkAstNodes(root, visit, parent = null, depth = 0) {
+  if (!root || typeof root !== 'object' || typeof root.type !== 'string' || depth >= 1024) return;
+  visit(root, parent);
+  for (const key of Object.keys(root)) {
+    const value = root[key];
+    if (Array.isArray(value)) for (const v of value) walkAstNodes(v, visit, root, depth + 1);
+    else walkAstNodes(value, visit, root, depth + 1);
+  }
+}
+
 // unplugin parses exclusively via oxc, which represents directives as top-of-body
 // ExpressionStatement nodes with `.directive: string` (babel uses a separate
 // `Program.directives` array - out of scope here). empty-string directive (`"";`) is
@@ -41,6 +59,51 @@ export const isLineTerminator = ch => ch === '\n' || ch === '\r' || ch === '\u20
 export function skipBlockComment(src, p) {
   const end = src.indexOf('*/', p + 2);
   return end === -1 ? src.length : end + 2;
+}
+
+// scan forward from `pos` in `src`, skipping whitespace and comments, until a non-gap char.
+// `\s` covers the ES spec's WhiteSpace + LineTerminator sets (including U+2028/U+2029,
+// NBSP, mid-file BOM, ogham/Mongolian separators) - engines treat all of them as gaps
+export function skipGap(src, pos) {
+  let p = pos;
+  while (p < src.length) {
+    const ch = src[p];
+    if (/\s/.test(ch)) {
+      p++;
+      continue;
+    }
+    if (ch === '/' && src[p + 1] === '/') {
+      while (p < src.length && !isLineTerminator(src[p])) p++;
+      continue;
+    }
+    if (ch === '/' && src[p + 1] === '*') {
+      p += 2;
+      while (p + 1 < src.length && !(src[p] === '*' && src[p + 1] === '/')) p++;
+      if (p + 1 < src.length) p += 2;
+      else return src.length;
+      continue;
+    }
+    break;
+  }
+  return p;
+}
+
+// anchor for `var _ref;` as { statements, insertPos }, or null. `var` hoists to the
+// enclosing function regardless of placement, so we pick the innermost braced block
+// (any BlockStatement, including function bodies) to match Babel's codegen cosmetics
+export function varScopeAnchor(node, code) {
+  const { type, body } = node;
+  if (type === 'StaticBlock') {
+    // `static /*{*/ {` -> skip past `static` + any gap before `{`. skipGap handles
+    // whitespace and block/line comments (including ones containing `{` like `/*{*/`),
+    // so a naive `indexOf('{')` would pick the wrong brace
+    return { statements: body, insertPos: skipGap(code, node.start + 'static'.length) + 1 };
+  }
+  if (type === 'BlockStatement') return { statements: node.body, insertPos: node.start + 1 };
+  if (type === 'TSModuleDeclaration' && body?.type === 'TSModuleBlock') {
+    return { statements: body.body, insertPos: body.start + 1 };
+  }
+  return null;
 }
 
 // scan backwards past whitespace and comments; -1 if we walked off the start.
