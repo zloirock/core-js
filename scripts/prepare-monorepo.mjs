@@ -13,14 +13,14 @@ const ignore = new Set([
   'tests/unit-bun',
 ]);
 
-const folders = [''].concat(...await Promise.all([
+const folders = ['', ...(await Promise.all([
   'packages',
   'scripts',
   'tests',
 ].map(async parent => {
   const dir = await readdir(parent);
   return dir.map(name => `${ parent }/${ name }`);
-})));
+}))).flat()];
 
 await Promise.all(folders.map(async folder => {
   if (!ignore.has(folder)) try {

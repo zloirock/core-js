@@ -31,7 +31,7 @@ function modernV8ToChrome(string) {
 }
 
 function latest(array) {
-  return array[array.length - 1];
+  return array.at(-1);
 }
 
 function assert(condition, engine) {

@@ -33,12 +33,12 @@ for (let [patch, downloads] of Object.entries(core)) {
 
 function log(kind, map) {
   echo(green(`downloads for 7 days by ${ cyan(kind) } releases:`));
-  console.table(Object.entries(map).toSorted(([a], [b]) => {
+  console.table(Object.fromEntries(Object.entries(map).toSorted(([a], [b]) => {
     return cmp(coerce(a), '>', coerce(b)) ? 1 : -1;
-  }).reduce((memo, [version, downloads]) => {
-    memo[version] = { downloads, '%': `${ (downloads / total * 100).toFixed(2).padStart(5) } %` };
-    return memo;
-  }, {}));
+  }).map(([version, downloads]) => [
+    version,
+    { downloads, '%': `${ (downloads / total * 100).toFixed(2).padStart(5) } %` },
+  ])));
 }
 
 log('patch', downloadsByPatch);
