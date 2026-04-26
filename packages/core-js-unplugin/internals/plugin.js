@@ -127,8 +127,31 @@ export default function createPlugin(options) {
   } = resolver;
   const isWebpack = bundler === 'webpack' || bundler === 'rspack';
 
-  // eslint-disable-next-line max-statements -- ok
+  // augment uncaught errors with file context. composition-bug throws via
+  // `TransformQueue.#invariant` already carry `[id]` (skip those); user-callback throws
+  // already start with `[core-js]` prefix (skip those - re-augmenting would double-prefix).
+  // other errors (parser, internal invariants in helpers, sibling-plugin races) reach
+  // here bare and benefit from the file marker. preserve original stack via in-place mutate
+  function tagErrorWithFile(error, id) {
+    const msg = error?.message;
+    if (typeof id !== 'string' || !msg) return;
+    if (msg.startsWith('[core-js]') || msg.includes(`[${ id }]`)) return;
+    error.message = `[core-js] [${ id }] ${ msg }`;
+  }
+
   function runTransform(code, id, pass = 'single') {
+    try {
+      return runTransformInner(code, id, pass);
+    } catch (error) {
+      tagErrorWithFile(error, id);
+      throw error;
+    }
+  }
+
+  // pipeline orchestrator; splitting further would obscure the linear flow
+  // (parse → visit → queue → emit) more than it helps
+  // eslint-disable-next-line max-statements -- pipeline orchestrator
+  function runTransformInner(code, id, pass) {
     // defensive guard for direct callers (bundlers always pass valid strings)
     if (typeof code !== 'string' || typeof id !== 'string') return null;
     if (isCoreJSFile(id)) return null;
