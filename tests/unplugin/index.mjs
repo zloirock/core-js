@@ -185,8 +185,7 @@ function checkMapMappings(directory, map, method) {
   if (!map.mappings || !map.sources.length) return true;
   const reject = msg => rejectMap(directory, msg);
   let tm;
-  try { tm = new TraceMap(map); }
-  catch (error) { return reject(`VLQ decode failed: ${ error.message }`); }
+  try { tm = new TraceMap(map); } catch (error) { return reject(`VLQ decode failed: ${ error.message }`); }
   // entry-global emits all-synthetic imports (no user-code mapping survives the rewrite
   // by design); skip the round-trip probe but VLQ decode above still ran
   if (method === 'entry-global') return true;
