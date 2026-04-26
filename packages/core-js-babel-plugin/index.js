@@ -5,6 +5,7 @@ import {
   detectCommonJS,
   findIifeCallSite,
   getFallbackBranchSlots,
+  hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
   isClassifiableReceiverArg,
   isCoreJSFile,
@@ -153,6 +154,10 @@ export default function plugin(api, options) {
         // current class's); let the native runtime form stand for `super[Symbol.iterator]`
         if (t.isSuper(path.node.object)) return;
         if (path.node.computed) {
+          // SE-bearing SequenceExpression in computed key would be silently dropped by the
+          // `_getIteratorMethod(obj)` rewrite (only `obj` survives). bail so the inner
+          // Symbol.iterator visitor emits the static polyfill in place, SE preserved
+          if (hasSideEffectfulSequencePrefix(path.node.property)) return;
           // skip all layers: TS wrappers, parens, and the inner MemberExpression
           let cur = path.node.property;
           while (cur) {
