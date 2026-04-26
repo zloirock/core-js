@@ -20,10 +20,10 @@ import {
   isCallee,
   unwrapNode,
   unwrapNodeForMemoize,
-} from './instance-emit-utils.js';
+} from './emit-utils.js';
 import { skipGap, walkAstNodes } from './plugin-helpers.js';
 
-export function createInstanceReplacer({
+export function createPolyfillEmitter({
   canFuseWithOpenParen,
   code,
   estreeAdapter,
