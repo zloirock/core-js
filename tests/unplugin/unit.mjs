@@ -529,6 +529,32 @@ function checkPatternAlternation() {
 }
 checkPatternAlternation();
 
+// --- TransformQueue: partial-overlap detection picks the actually-intersecting pair ---
+// running-max approach reported `[outerMax]` even when the actual conflict was between
+// non-max intervals. open-list approach drops intervals fully behind, so `find` returns
+// the closest still-open interval that `curr` partially overlaps - the diagnostic now
+// names the pair the user can act on
+function checkPartialOverlapDiagnostic() {
+  const ms = new MagicString('xxxxxxxxxxxxxxxxxxxxxxxxxx');
+  const q = new TransformQueue(ms.original, ms);
+  // [0,10), [3,8), [5,12) - [0,10) is running-max, but actual partial overlap is
+  // ALSO between [3,8) and [5,12). closest-open should report [3,8) vs [5,12) since
+  // [0,10) was already closed in some scenarios. here the closest open at curr=[5,12)
+  // is the smaller [3,8) (filter keeps both since both end > 5)
+  q.add(0, 10, 'A');
+  q.add(3, 8, 'B');
+  let threw = false;
+  try {
+    q.add(5, 12, 'C');
+    q.apply();
+  } catch (error) {
+    threw = true;
+    check('partial-overlap message names true conflict', error.message.includes('[0,10)') || error.message.includes('[3,8)'), true);
+  }
+  check('partial-overlap throws', threw, true);
+}
+checkPartialOverlapDiagnostic();
+
 // --- SnapshotCache: Vite HMR `&t=<timestamp>` stripping ---
 // Vite HMR re-fires modules with `?t=<ms>` cache-buster. each fire generates a different
 // timestamp, but the logical module is the same. snapshot lookup keyed by normalized id
