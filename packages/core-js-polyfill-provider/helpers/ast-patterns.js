@@ -750,10 +750,13 @@ export function detectCommonJS(program) {
     // ESM wins: any ESM marker anywhere in the program rules out CJS classification,
     // so keep scanning even after hasCJS is set to surface a later import / export
     if (ESM_MARKER_TYPES.has(stmt.type)) return false;
-    if (!hasCJS && stmt.type === 'ExpressionStatement') {
-      const expression = unwrapExpr(stmt.expression);
-      if (expression?.type === 'AssignmentExpression' && isCommonJSAssignTarget(expression.left)) hasCJS = true;
-    }
+    if (stmt.type !== 'ExpressionStatement') continue;
+    const expression = unwrapExpr(stmt.expression);
+    // top-level `await` is ESM-only syntax (parser would reject in script context),
+    // so treat it as a strong ESM marker even without explicit import/export
+    if (expression?.type === 'AwaitExpression') return false;
+    if (!hasCJS && expression?.type === 'AssignmentExpression'
+        && isCommonJSAssignTarget(expression.left)) hasCJS = true;
   }
   return hasCJS;
 }
