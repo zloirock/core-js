@@ -249,10 +249,21 @@ export default class TransformQueue {
   #maxEndByGuardedRoot = new Map();
   // `start|end` -> entries (equal-range dups share a key) for O(1) extractContent lookup
   #byRange = new Map();
+  // file id for invariant error messages - composition-bug reporters need to know which
+  // file produced the failure (otherwise they have to bisect across thousands of fixtures)
+  #fileId;
 
-  constructor(code, ms) {
+  constructor(code, ms, fileId = null) {
     this.#code = code;
     this.#ms = ms;
+    this.#fileId = fileId;
+  }
+
+  // single-source-of-truth for invariant error messages - prepends the canonical
+  // `[core-js] transform-queue: [<fileId>] ` prefix so call sites express only the
+  // bug-specific tail, and reporters know which file produced the failure
+  #invariant(message) {
+    return new Error(`[core-js] transform-queue: ${ this.#fileId ? `[${ this.#fileId }] ` : '' }${ message }`);
   }
 
   add(start, end, content, guardedRoot, rewriteHint) {
@@ -302,13 +313,20 @@ export default class TransformQueue {
     return false;
   }
 
-  // guardRef of the outer that memoized `root` - lets nested polyfills reuse it
+  // guardRef of the outer that memoized `root` - lets nested polyfills reuse it.
+  // pick the OUTERMOST guarded transform (largest range) for stability: insertion order
+  // depends on visitor traversal which can drift between runs / parser variants. the
+  // outermost transform's guardRef is the one whose memoization should dominate
   findOuterGuardRef(root) {
     if (!root) return null;
     const list = this.#byGuardedRoot.get(root);
     if (!list) return null;
-    for (const t of list) if (t.rewriteHint?.guardRef) return t.rewriteHint.guardRef;
-    return null;
+    let best = null;
+    for (const t of list) {
+      if (!t.rewriteHint?.guardRef) continue;
+      if (!best || (t.end - t.start) > (best.end - best.start)) best = t;
+    }
+    return best?.rewriteHint?.guardRef ?? null;
   }
 
   // O(log n) check if [start, end] is strictly contained within an already-queued transform
@@ -430,7 +448,7 @@ export default class TransformQueue {
         if (!result.found) {
           // inner was already swallowed by an enclosing inner we processed earlier
           if (processedRanges.some(r => r.start <= inner.start && r.end >= inner.end)) continue;
-          throw new Error('[core-js] transform-queue: could not locate inner needle in outer content. '
+          throw this.#invariant('could not locate inner needle in outer content. '
             + `outer=[${ start },${ end }] inner=[${ inner.start },${ inner.end }]. `
             + 'this is a composition bug - please report with a reproducer.');
         }
@@ -473,7 +491,7 @@ export default class TransformQueue {
     for (let i = 1; i < sorted.length; i++) {
       const curr = sorted[i];
       if (curr.start < maxEnd && curr.end > maxEnd) {
-        throw new Error('[core-js] transform-queue: partial overlap between transforms '
+        throw this.#invariant('partial overlap between transforms '
           + `[${ maxEntry.start },${ maxEntry.end }) and [${ curr.start },${ curr.end }). this is a `
           + 'composition bug - please report with a reproducer.');
       }

@@ -14,12 +14,15 @@ export function toStatelessRegExp(re) {
 // returns null on parse failure so callers can decide how to handle malformed patterns.
 // empty string rejected up front - `validatePatternList` already forbids `''`, so accepting
 // a `/^$/` regex here would only matter on non-validated paths and would silently match
-// the empty entry (never a real core-js module name)
+// the empty entry (never a real core-js module name).
+// pattern is wrapped in `(?:...)` non-capturing group so user alternation (`a|b`) binds
+// to the anchors uniformly: `^(?:a|b)$` matches whole `a` OR whole `b`. without the group,
+// `^a|b$` parses as `(^a)|(b$)` and matches `axxx` (starts-with-a) OR `xxxb` (ends-with-b)
 export function patternToRegExp(pattern) {
   if (pattern instanceof RegExp) return toStatelessRegExp(pattern);
   if (pattern === '') return null;
   try {
-    return new RegExp(`^${ pattern }$`);
+    return new RegExp(`^(?:${ pattern })$`);
   } catch {
     return null;
   }
