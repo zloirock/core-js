@@ -16,6 +16,8 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// nested class with `super.method(...)` call: the static-method dispatch through the
+// superclass still resolves to the correct polyfill.
 class A extends Map {
   static f() {
     class B extends Set {

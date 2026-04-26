@@ -1,9 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref, _ref2, _ref3, _ref4;
-// utility types (`NonNullable<T>`, `Awaited<T>`, `NoInfer<T>`, `Extract<T,U>`) referenced
-// in a generic return type preserve the caller's type-param substitution - the resolver
-// threads typeParamMap through resolveNamedType so `T=number[]` narrows to Array receiver
-// (not generic). regressions here appear as `.at(0)` falling back to the common polyfill
+// utility types (`NonNullable<T>`, `Awaited<T>`, `NoInfer<T>`, `Extract<T,U>`) appearing in
+// a generic return position must preserve the caller's type-param substitution, so call
+// expressions with `T = number[]` narrow to the array receiver and pick the array-specific
+// `.at` polyfill rather than the generic instance variant.
 declare function nonNull<T>(x: T): NonNullable<T>;
 declare function awaited<T>(x: T): Awaited<T>;
 declare function noInfer<T>(x: T): NoInfer<T>;
