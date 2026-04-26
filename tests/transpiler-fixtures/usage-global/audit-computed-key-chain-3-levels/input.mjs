@@ -1,3 +1,5 @@
+// three-level alias chain for a computed key: `c = b = a = 'items'` must resolve
+// transitively so the literal-key polyfill dispatch fires consistently.
 const a = "items";
 const b = a;
 const c = b;

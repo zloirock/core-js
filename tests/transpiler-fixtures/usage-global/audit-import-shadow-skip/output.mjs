@@ -1,2 +1,4 @@
+// named import shadows a global (`import { Map } from ...`): runtime references to
+// `Map` resolve to the imported binding and skip polyfill emission.
 import { Array } from 'custom-lib';
 Array.from([1, 2, 3]);
