@@ -88,6 +88,7 @@ export default function plugin(api, options) {
     isInTypeAnnotation,
     deferredSideEffects,
     deoptionalizeNode,
+    generateUnusedId,
     normalizeOptionalChain,
     replaceInstanceLike,
     replaceInstanceChainCombined,
@@ -95,6 +96,7 @@ export default function plugin(api, options) {
     resolveDestructuringObject,
     handleDestructuredProperty,
     unwrapTSExpressionParent,
+    withSideEffects,
     reset: resetASTHelpers,
   } = createASTHelpers(t, { getInjector: () => injector, typeResolvers });
 
@@ -138,15 +140,6 @@ export default function plugin(api, options) {
       function injectPureImport(entry, hint) {
         debugOutput?.add(entry);
         return injector.addPureImport(entry, hint);
-      }
-
-      // wrap a polyfill id in a SequenceExpression preserving side effects collected from
-      // the receiver / computed-key. noop when `sideEffects` is empty or absent - emission
-      // sites can call unconditionally
-      function withSideEffects(id, sideEffects) {
-        return sideEffects?.length
-          ? t.sequenceExpression([...sideEffects.map(e => t.cloneNode(e)), id])
-          : id;
       }
 
       function handleSymbolIterator(path) {
@@ -427,8 +420,20 @@ export default function plugin(api, options) {
           if (idx !== -1) declaration.node.declarations.splice(idx, 1);
           return true;
         }
-        // partial cascade: remove inner props while their pattern empties out
+        // partial cascade: remove inner props while their pattern empties out. when the
+        // remaining siblings are RestElement-only, replace prop value with `_unused`
+        // sentinel instead of removing - rest gathers all OTHER own keys, so dropping
+        // `Array: {...}` from `{Array: {...}, ...rest} = globalThis` would change runtime
+        // semantics (`rest.Array` becomes defined, was excluded by the original destructure)
         for (const { prop: p, pattern } of chain) {
+          const siblings = pattern.node.properties;
+          const hasRest = siblings.some(s => s !== p.node && (s.type === 'RestElement' || s.type === 'SpreadElement'));
+          const onlyRestRemains = hasRest && siblings.every(s => s === p.node || s.type === 'RestElement' || s.type === 'SpreadElement');
+          if (onlyRestRemains) {
+            p.get('value').replaceWith(generateUnusedId());
+            p.node.shorthand = false;
+            break;
+          }
           p.remove();
           if (pattern.node.properties.length > 0) break;
         }
@@ -752,7 +757,7 @@ export default function plugin(api, options) {
               replaceInstanceChainCombined(path, id, { ...innerChain, innerId });
               return;
             }
-            replaceInstanceLike(path, id, skipPolyfillableOptional);
+            replaceInstanceLike(path, id, skipPolyfillableOptional, meta.sideEffects);
           } else if (t.isSuper(path.node.object)) {
             replaceSuperStatic(path, id);
           } else {

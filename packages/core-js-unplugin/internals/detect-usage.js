@@ -18,9 +18,9 @@ import {
   POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
-  getTSRuntimeBindings,
+  findTSRuntimeBindingInPath,
   isASTNode,
-  isAmbientTypeDeclaration,
+  isAmbientBindingShape,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
@@ -102,29 +102,27 @@ function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
 // --- ESTree scope adapter ---
 
 // estree-toolkit's scope tracker doesn't recognise TS-specific runtime declarations
-// (TSImportEqualsDeclaration, TSEnumDeclaration, TSModuleDeclaration). walk to the
-// Program node and consult the shared program-level scan so shadow detection sees them
-function tsRuntimeBindingsForScope(scope) {
-  let s = scope;
-  while (s?.parent) s = s.parent;
-  return getTSRuntimeBindings(s?.path?.node);
+// (TSImportEqualsDeclaration, TSEnumDeclaration, TSModuleDeclaration). walk path's
+// ancestor chain (Program / BlockStatement / TSModuleBlock / StaticBlock) so both
+// `function f() { enum Map {} new Map() }` and `namespace Outer { namespace Map {} new Map() }`
+// correctly identify the shadow. anchor preference: explicit `path` (the identifier path,
+// reaches inner anchors) > `scope.path` (the scope owner, may anchor at Program only)
+function hasTSRuntimeBinding(scope, name, path = null) {
+  const anchor = path ?? scope?.path ?? null;
+  return anchor ? findTSRuntimeBindingInPath(anchor, name) : false;
 }
 
 // estree-toolkit's scope tracker registers `declare class X` / `declare const X` / `interface X`
-// as bindings even though they're elided by tsc before runtime. consult the binding's node
-// (and its VariableDeclaration parent for `declare const`) before declaring a shadow so
-// ambient declarations don't suppress polyfill emission
+// / `import type X` as bindings even though they're tsc-elided. consult the binding before
+// declaring a shadow so ambient/type-only declarations don't suppress polyfill emission.
+// shared `isAmbientBindingShape` covers all tsc-elided binding forms uniformly with babel
 function isAmbientBinding(binding) {
-  const node = binding?.path?.node;
-  if (!node) return false;
-  if (isAmbientTypeDeclaration(node)) return true;
-  if (node.type === 'VariableDeclarator' && binding.path.parent?.declare === true) return true;
-  return false;
+  return isAmbientBindingShape(binding?.path?.node, binding?.path?.parent);
 }
 
-function hasRuntimeBinding(scope, name) {
+function hasRuntimeBinding(scope, name, path = null) {
   if (!(scope?.hasBinding?.(name) ?? false)) {
-    return tsRuntimeBindingsForScope(scope)?.has(name) ?? false;
+    return hasTSRuntimeBinding(scope, name, path);
   }
   // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
   // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
@@ -134,7 +132,7 @@ function hasRuntimeBinding(scope, name) {
 }
 
 export const estreeAdapter = {
-  hasBinding: (scope, name) => hasRuntimeBinding(scope, name),
+  hasBinding: (scope, name, path = null) => hasRuntimeBinding(scope, name, path),
   getBinding(scope, name) {
     const b = scope?.getBinding(name);
     if (!b) return null;
@@ -432,7 +430,7 @@ export function createUsageVisitors({
     // re-export: export { Promise } from 'foo' - local is not a reference when source is present
     if (parent?.type === 'ExportSpecifier' && parentKey === 'local'
       && path.parentPath?.parentPath?.node?.source) return;
-    if (estreeAdapter.hasBinding(path.scope, node.name)) {
+    if (estreeAdapter.hasBinding(path.scope, node.name, path)) {
       // self-reference `var X = X` - hoisted var init reads the outer (global) scope
       // before the local is assigned. narrow via cached binding check; exclude let/const
       // (TDZ error) and ImportSpecifiers. `node.name` equals binding's own name by lookup
@@ -504,14 +502,19 @@ export function createUsageVisitors({
     } : {},
     Identifier: identifierVisitor,
     // `<Map />` tag-name is a runtime reference to a global constructor. skip attribute
-    // names and closing-tag dupes. also accept root of `<Map.Provider/>` (JSXMemberExpression)
-    // so the outer global gets polyfilled - tag's runtime ref walks the `.Provider` chain
-    // from that root
+    // names and closing-tag dupes. also accept root of `<Map.Provider.X/>` (N-deep
+    // JSXMemberExpression chain) - walk the `.object` chain from path so deeper-than-2
+    // namespace tags still polyfill the outer global
     JSXIdentifier(path) {
-      const { parent } = path;
-      const isOpeningTagName = parent?.type === 'JSXOpeningElement' && path.key === 'name';
-      const isMemberRoot = parent?.type === 'JSXMemberExpression' && parent.object === path.node
-        && path.parentPath?.parent?.type === 'JSXOpeningElement' && path.parentPath?.key === 'name';
+      const isOpeningTagName = path.parent?.type === 'JSXOpeningElement' && path.key === 'name';
+      let isMemberRoot = false;
+      if (!isOpeningTagName) {
+        let cur = path;
+        while (cur?.parent?.type === 'JSXMemberExpression' && cur.parent.object === cur.node) {
+          cur = cur.parentPath;
+        }
+        isMemberRoot = cur !== path && cur?.parent?.type === 'JSXOpeningElement' && cur.key === 'name';
+      }
       if (!isOpeningTagName && !isMemberRoot) return;
       if (estreeAdapter.hasBinding(path.scope, path.node.name)) return;
       onUsage({ kind: 'global', name: path.node.name }, path);
