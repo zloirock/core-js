@@ -1,7 +1,8 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
-// computed-key destructure in a catch clause: emitCatchClause calls transforms.extractContent
-// on the key range - exercises #byRange lookup + splice + rebuildPrefixMax
+// computed-key destructure in a catch clause: the well-known symbol key is preserved
+// verbatim in the rebuilt rest pattern so the extracted iterator helper still resolves
+// to the same key at runtime
 try {
   risky();
 } catch (_ref) {

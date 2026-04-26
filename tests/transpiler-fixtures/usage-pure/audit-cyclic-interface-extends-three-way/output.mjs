@@ -1,7 +1,7 @@
 import _at from "@core-js/pure/actual/instance/at";
-// 3-way cyclic interface chain A -> B -> C -> A. The `hadCycle` piggyback on the visited
-// Set propagates through two recursion levels: resolving C hits A (already visited),
-// flag bubbles up to B and then A, each owner returns null instead of `$Object('Object')`
+// three-way cyclic interface chain `A -> B -> C -> A`: cycle detection bails through every
+// link (C sees A already in progress, flag propagates back to B and A). receiver type is
+// null at each level; `.at(0)` resolves to the generic instance-method polyfill
 interface A extends B {}
 interface B extends C {}
 interface C extends A {}
