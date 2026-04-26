@@ -1050,6 +1050,11 @@ export default function plugin(api, options) {
         injector?.pruneUnusedRefs();
         injector?.reorderRefsAfterImports();
         outputDebug();
+        // drop closure-captured per-file state so the previous file's AST + injector
+        // don't pin references between `initFile` calls (Babel runs the visitor object
+        // for every transformed file in the same plugin instance). next `initFile`
+        // re-allocates everything anyway; explicit nulling makes the GC bound deterministic
+        injector = synthSwapByReceiver = pendingSynthSwaps = skippedNodes = originalBodyNodes = debugOutput = null;
       }
 
       // --- post(): detect sibling CJS transform ---
