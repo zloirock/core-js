@@ -3,11 +3,8 @@ import {
   createClassHelpers,
   destructureReceiverSlot,
   detectCommonJS,
-  findIifeCallSite,
-  getFallbackBranchSlots,
   hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
-  isClassifiableReceiverArg,
   isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
@@ -36,7 +33,6 @@ import {
   resolveSymbolIteratorEntry,
   resolveSymbolInEntry,
   isPolyfillableOptional,
-  isViableBranchForKey,
   patternBindingName,
   scanExistingCoreJSImports,
 } from '@core-js/polyfill-provider/detect-usage';
@@ -51,6 +47,7 @@ import {
   USAGE_VISITORS_RESET,
 } from './internals/detect-usage.js';
 import createEntryVisitors from './internals/detect-entry.js';
+import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 
 export default function plugin(api, options) {
   const { types: t, caller } = api;
@@ -109,23 +106,21 @@ export default function plugin(api, options) {
 
   return {
     name: 'core-js@4',
-    /* eslint-disable max-statements -- IIFE encapsulates plugin closure state + helpers;
-       full decomposition tracked as ARCH-9-4 in TASKS.md §2.4 */
+    /* eslint-disable max-statements -- IIFE encapsulates plugin closure state + helpers
+       coordinating per-file lifecycle (initFile / programExit / postHook). synth-swap
+       pipeline lives in `internals/synth-swap-emitter.js`; remaining destructure helpers
+       are tightly coupled to closure state (skippedNodes / debugOutput / disabledLines)
+       and inline by design */
     ...(() => {
       let skippedNodes = new WeakSet();
       let originalBodyNodes = new WeakSet();
       let disabledLines = null;
       let skipFile;
-      // receiver -> `{p: _polyfill, q: R.q, ...}` synth-swap targets, deferred to programExit
-      // so every sibling prop visits against the ORIGINAL receiver first (mid-visit swap
-      // would route later siblings to the partial synth and miss their polyfill). populated
-      // from two shapes - param-default `function({p} = R)` and arrow IIFE `(({p}) => ...)(R)`.
-      // keyed on the receiver AST node identity - sibling plugins that clone nodes via
-      // `t.cloneNode` would produce fresh identities and fragment the swap. under standard
-      // babel plugin ordering this is safe; coexistence with plugins that clone a common
-      // ancestor is not supported
-      let synthSwapByReceiver = new WeakMap();
-      let pendingSynthSwaps = [];
+      // synth-swap pipeline: receivers accumulated as the visitor walks, drained at
+      // programExit. factory in `internals/synth-swap-emitter.js`. instantiated per-file
+      // in `initFile` so closure-captured `skippedNodes` ref stays in sync with the
+      // freshly-allocated WeakSet
+      let synthSwap;
 
       function isDisabled(node) {
         return skipFile || (disabledLines !== null && disabledLines.has(node.loc?.start.line));
@@ -189,109 +184,8 @@ export default function plugin(api, options) {
         prop.node.shorthand = false;
       }
 
-      // find the NodePath of the call-arg a bare-ObjectPattern IIFE param resolves to.
-      // arrow-only on purpose - FunctionExpression IIFE would leak the synth into
-      // `arguments[i]`; arrow has no own `arguments` binding. shares wrapper-peel +
-      // callee-identity logic with resolution-layer via `findIifeCallSite`; only the
-      // path-iteration with inline-spread expansion + `unwrapSequenceTail` stays here
-      // (synth-swap needs Path for AST mutation, not just node)
-      function detectIifeArgPath(wrapper, objectPattern) {
-        if (!wrapper?.isArrowFunctionExpression()) return null;
-        const site = findIifeCallSite(wrapper, objectPattern.node);
-        if (!site) return null;
-        let i = 0;
-        for (const aP of site.callPath.get('arguments')) {
-          if (aP.isSpreadElement()) {
-            if (!aP.get('argument').isArrayExpression()) return null;
-            for (const elP of aP.get('argument').get('elements')) {
-              if (i === site.paramIndex) return unwrapSequenceTail(elP);
-              i++;
-            }
-            continue;
-          }
-          if (i === site.paramIndex) return unwrapSequenceTail(aP);
-          i++;
-        }
-        return null;
-      }
-
-      // `(fn, R)` as an IIFE arg evaluates to its last expression. side-effect-free preceding
-      // expressions can be dropped from the synth target resolution (R becomes the receiver);
-      // preceding effects leave the path as-is so synth-swap bails back to inline-default
-      function unwrapSequenceTail(argPath) {
-        if (!argPath?.isSequenceExpression()) return argPath;
-        const exprs = argPath.get('expressions');
-        if (exprs.slice(0, -1).some(e => mayHaveSideEffects(e.node))) return argPath;
-        return exprs.at(-1) ?? argPath;
-      }
-
-      // NodePath whose `.node` becomes the synth object; null means inline-default fallback.
-      // handles `function({p} = R)` (wrapper.right) and arrow IIFE `(({p}) => body)(R)`
-      // (call-arg path, expanding inline-array spreads).
-      // mirrors the resolution-layer narrowing in detect-usage.js: caller-arg replaces
-      // wrapper-default ONLY when caller-arg is statically classifiable (Identifier). for
-      // non-Identifier caller-arg (`(...)(globalThis.X)`, `(...)(call())`) wrapper-default
-      // remains the synth target, which makes the runtime fallback path (caller-arg evaluates
-      // to undefined -> wrapper-default fires) carry the polyfill
-      function findSynthSwapTargetPath(wrapper, objectPattern) {
-        if (objectPattern.node.properties.some(p => t.isRestElement(p))) return null;
-        if (wrapper?.isAssignmentPattern() && t.isIdentifier(wrapper.node.right)) {
-          const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
-          if (argPath && isClassifiableReceiverArg(argPath.node)) return argPath;
-          return wrapper.get('right');
-        }
-        const argPath = detectIifeArgPath(wrapper, objectPattern);
-        return argPath && isClassifiableReceiverArg(argPath.node) ? argPath : null;
-      }
-
-      // ConditionalExpression / LogicalExpression in destructure-receiver position
-      // (`= cond ? Array : Set` / `= Array || Set`). when `meta.fromFallback` flags the
-      // resolved meta as ambiguous (runtime picks per-call), try per-branch synth-swap so
-      // each viable branch becomes its own `{key: _Branch$key}` literal. branches without
-      // a viable polyfill stay raw - identifier visitor still emits `_Set` etc. via the
-      // standard global rewrite, so user gets correct constructor at runtime
-      function tryRegisterPerBranchSynth(rhsPath, prop) {
-        const objectPattern = prop.parentPath;
-        if (!objectPattern || !isSynthSimpleObjectPattern(objectPattern.node)) return false;
-        if (prop.node.computed || !t.isIdentifier(prop.node.key)) return false;
-        // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
-        // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
-        // first-class wrappers. NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B`
-        // is intentional escape hatch (rewriting branches as synth literals would change
-        // `foo`'s runtime value, see `audit-per-branch-chain-assignment`)
-        let innerPath = rhsPath;
-        while (innerPath?.node && TS_EXPR_WRAPPERS.has(innerPath.node.type)) {
-          innerPath = innerPath.get('expression');
-        }
-        const slots = getFallbackBranchSlots(innerPath?.node);
-        if (!slots) return false;
-        const key = prop.node.key.name;
-        let registered = false;
-        for (const slot of slots) {
-          const branchPath = innerPath.get(slot);
-          const branch = branchPath.node;
-          const pure = isViableBranchForKey(branch, key, branchPath.scope, adapter, resolvePure);
-          if (!pure) continue;
-          skippedNodes.add(branch);
-          let pending = synthSwapByReceiver.get(branch);
-          if (!pending) {
-            pending = {
-              targetPath: branchPath,
-              objectPatternPath: objectPattern,
-              objectPatternNode: objectPattern.node,
-              polyfills: new Map(),
-            };
-            synthSwapByReceiver.set(branch, pending);
-            pendingSynthSwaps.push(pending);
-          }
-          pending.polyfills.set(key, { entry: pure.entry, hintName: pure.hintName });
-          registered = true;
-        }
-        return registered;
-      }
-
       // parameter destructure polyfill. only static/global fit here; instance methods need a
-      // receiver. synth-swap when `findSynthSwapTargetPath` identifies a safe Identifier
+      // receiver. synth-swap when `synthSwap.findTargetPath` identifies a safe Identifier
       // receiver; otherwise inline-default `{p = _polyfill}` (fires only on undefined property).
       // bare param without IIFE / receiver `function({ from }) {}` bails by design - `from`
       // could be ANY value the caller passes, not necessarily Array.from.
@@ -304,7 +198,7 @@ export default function plugin(api, options) {
         if (!isIdentifierPropValue(prop.node.value)) return;
         const objectPattern = prop.parentPath;
         const targetPath = isSynthSimpleObjectPattern(objectPattern.node)
-          ? findSynthSwapTargetPath(objectPattern?.parentPath, objectPattern) : null;
+          ? synthSwap.findTargetPath(objectPattern?.parentPath, objectPattern) : null;
         if (!targetPath) {
           emitParamInlineDefault(prop, injectPureImport(entry, hintName));
           // parity with sibling destructure handlers - replaceWith schedules re-traversal
@@ -316,27 +210,8 @@ export default function plugin(api, options) {
           return;
         }
         // defer injectPureImport until programExit emits the synth. if a sibling plugin
-        // mutates targetPath before then, the swap is skipped and no dead import is left.
-        // skip the receiver identifier so the standalone identifier visit doesn't inject a
-        // `_Promise` that would remain unused once synth-swap replaces the receiver
-        const receiver = targetPath.node;
-        skippedNodes.add(receiver);
-        let pending = synthSwapByReceiver.get(receiver);
-        if (!pending) {
-          // keep the ObjectPattern's PATH (not just node) so programExit can verify it's still
-          // live in the AST: a sibling plugin may `replaceWith` the pattern between enqueue and
-          // emission, leaving our captured node stale. path identity + orphan check is the
-          // only safe way to detect "pattern still installed at the same slot"
-          pending = {
-            targetPath,
-            objectPatternPath: objectPattern,
-            objectPatternNode: objectPattern.node,
-            polyfills: new Map(),
-          };
-          synthSwapByReceiver.set(receiver, pending);
-          pendingSynthSwaps.push(pending);
-        }
-        pending.polyfills.set(prop.node.key.name, { entry, hintName });
+        // mutates targetPath before then, the swap is skipped and no dead import is left
+        synthSwap.registerPolyfill(targetPath, objectPattern, prop.node.key.name, entry, hintName);
       }
 
       // `const { Array: { from } } = globalThis` -> `const from = _Array$from`.
@@ -369,8 +244,6 @@ export default function plugin(api, options) {
           : t.expressionStatement(t.sequenceExpression(cloned));
         hostPath.insertBefore(seStmt);
       }
-
-      const liftDeclaratorSEPrefix = (declarator, declaration) => liftSEPrefix(declarator.node.init, declaration);
 
       // `({Array: {from}} = receiver); ...` (AssignmentExpression in ExpressionStatement) -
       // value of AssignmentExpression is discarded by the surrounding statement, so we can
@@ -450,7 +323,7 @@ export default function plugin(api, options) {
         // on this same predicate (caller bails earlier when for-init declarator has SE)
         const isForInit = declaration.parentPath?.isForStatement()
           && declaration.parentPath.node.init === declaration.node;
-        if (!isForInit) liftDeclaratorSEPrefix(declarator, declaration);
+        if (!isForInit) liftSEPrefix(declarator.node.init, declaration);
         if (willRemoveDeclarator && declCount === 1) {
           // single-declarator simple-chain: replaceWith preserves leading comments
           declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
@@ -500,7 +373,7 @@ export default function plugin(api, options) {
           // conditional semantics); non-viable branches stay raw. on full failure, warn
           const wrapperParent = prop.parentPath?.parentPath;
           const slot = destructureReceiverSlot(wrapperParent?.node);
-          const registered = slot && tryRegisterPerBranchSynth(wrapperParent.get(slot), prop);
+          const registered = slot && synthSwap.tryRegisterPerBranchSynth(wrapperParent.get(slot), prop);
           if (!registered) {
             debugOutput?.warn(`conditional destructure with polyfill candidate left untouched ("${ meta.key }" on fallback branch) - runtime availability depends on the selected branch`);
           }
@@ -886,8 +759,11 @@ export default function plugin(api, options) {
           && (path.node.sourceType === 'script' || detectCommonJS(path.node)) ? 'require' : 'import');
         injector = new ImportInjector({ t, programPath: path, pkg, mode, importStyle, absoluteImports });
         skippedNodes = new WeakSet();
-        synthSwapByReceiver = new WeakMap();
-        pendingSynthSwaps = [];
+        // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
+        // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
+        synthSwap = createSynthSwapEmitter({
+          adapter, injectPureImport, isOrphaned, resolvePure, skippedNodes, t,
+        });
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
         typeResolvers.reset();
@@ -971,94 +847,60 @@ export default function plugin(api, options) {
 
       // --- Program.exit ---
 
-      function programExit(path) {
-        if (!helperVisitors) return;
-        // re-traverse new body nodes (helpers from class/spread/destructuring transforms).
-        // runs BEFORE synth-swap emission below: helper-visitors queue polyfill imports for
-        // identifiers that synth-swap could then consume. reversing the order would emit
-        // synth-swap against a pre-scan state that misses helper-injected globals.
-        // include CatchClause extractor so sibling-injected `catch ({at}) {...}` inside
-        // helper bodies still gets extracted for polyfill dispatch. extractor is idempotent
-        // so even if helperVisitors === usageVisitors already re-visited a catch, no harm
+      // re-traverse helper-injected body nodes (class/spread/destructuring transforms).
+      // runs BEFORE synth-swap drain: helper-visitors queue polyfill imports for identifiers
+      // that synth-swap could then consume. reversing the order would emit synth-swap
+      // against a pre-scan state that misses helper-injected globals.
+      // include CatchClause extractor so sibling-injected `catch ({at}) {...}` inside
+      // helper bodies still gets extracted for polyfill dispatch. extractor is idempotent
+      // so even if helperVisitors === usageVisitors already re-visited a catch, no harm
+      function reTraverseHelperBodies(path) {
         const helperWithCatch = { ...helperVisitors, CatchClause: extractCatchClause };
         for (const childPath of path.get('body')) {
           if (!originalBodyNodes.has(childPath.node)) childPath.traverse(helperWithCatch);
         }
+      }
+
+      // usage-pure post-sweep for raw globals: sibling plugins (regenerator) may mutate
+      // original nodes in-place, injecting raw globals (Promise). scan for unbound global
+      // Identifiers only - MemberExpression would double-process already-polyfilled chains.
+      // usage-global doesn't need this - globals stay as-is, imports from pre() suffice
+      function postSweepUnboundGlobals(path) {
+        if (method !== 'usage-pure') return;
+        const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
+        path.traverse({
+          Identifier(idPath) {
+            if (!idPath.isReferencedIdentifier()) return;
+            // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
+            // estree-toolkit & babel scope miss (`enum`, `namespace`, `const enum`,
+            // `import X = require()`) plus type-only TSImportEquals filtering
+            if (adapter.hasBinding(idPath.scope, idPath.node.name)) return;
+            // post-sweep is usage-pure only, so skip unconditionally (same rationale as
+            // primary-pass `skipUpdateTargets`): rewrite to frozen import binding invalid
+            if (isInUpdateOperand(idPath.parentPath)) return;
+            // same predicate as the primary visitor - skip disabled / type-annotation /
+            // delete-target positions so this sweep doesn't overrule their exclusions
+            if (shouldSkipPath(idPath)) return;
+            // mirror `handleIdentifier` - TS type-only positions never need a polyfill
+            if (isTSTypeOnlyIdentifierPath(idPath)) return;
+            // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
+            if (isHandled?.(idPath.node)) return;
+            usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
+          },
+        });
+      }
+
+      function programExit(path) {
+        if (!helperVisitors) return;
+        reTraverseHelperBodies(path);
         // helper-visitor re-traversal may itself queue SEs (nested destructuring inside a
         // helper body). drain before synth-swap so the lifted SE statements participate in
         // the same body-index ordering as the primary pass
         processDeferredSideEffects(path);
-        // usage-pure: sibling plugins (regenerator) may mutate original nodes in-place,
-        // injecting raw globals (Promise). scan for unbound global Identifiers only -
-        // MemberExpression would double-process already-polyfilled chains.
-        // usage-global doesn't need this - globals stay as-is, imports from pre() suffice
-        if (method === 'usage-pure') {
-          const isHandled = usageVisitors?.[USAGE_VISITORS_IS_HANDLED];
-          path.traverse({
-            Identifier(idPath) {
-              if (!idPath.isReferencedIdentifier()) return;
-              // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
-              // estree-toolkit & babel scope miss (`enum`, `namespace`, `const enum`,
-              // `import X = require()`) plus type-only TSImportEquals filtering
-              if (adapter.hasBinding(idPath.scope, idPath.node.name)) return;
-              // post-sweep is usage-pure only, so skip unconditionally (same rationale as
-              // primary-pass `skipUpdateTargets`): rewrite to frozen import binding invalid
-              if (isInUpdateOperand(idPath.parentPath)) return;
-              // same predicate as the primary visitor - skip disabled / type-annotation /
-              // delete-target positions so this sweep doesn't overrule their exclusions
-              if (shouldSkipPath(idPath)) return;
-              // mirror `handleIdentifier` - TS type-only positions never need a polyfill
-              if (isTSTypeOnlyIdentifierPath(idPath)) return;
-              // see `handleBinaryIn` - already covered by the outer BinaryExpression rewrite
-              if (isHandled?.(idPath.node)) return;
-              usageCallback({ kind: 'global', name: idPath.node.name }, idPath);
-            },
-          });
-        }
-        // swap deferred destructure receivers with synthesized polyfill-backed objects. all
-        // sibling props have now been visited against the original receiver, so the key set
-        // is final. synth covers every destructured key: polyfilled -> polyfill id; native ->
-        // `R.key` ref. skip if the shape was mutated by another plugin (orphaned / non-
-        // Identifier receiver / non-ObjectPattern) - losing the polyfill is preferable to
-        // emitting against an unexpected shape
-        for (const { targetPath, objectPatternPath, objectPatternNode, polyfills } of pendingSynthSwaps) {
-          const receiver = targetPath.node;
-          if (!t.isIdentifier(receiver) || objectPatternNode?.type !== 'ObjectPattern') continue;
-          // a sibling plugin may have detached the receiver between queue-time and now
-          // (`.remove()` on an ancestor leaves `targetPath.node` stale). replaceWith on an
-          // orphaned path throws; skip here so the swap is simply lost rather than crashing
-          if (isOrphaned(targetPath)) continue;
-          // pattern-shape check: only bail when the pattern was REPLACED with a non-Identifier
-          // shape (e.g. `pattern.replaceWith(arrayPattern)` - destructure semantic incompatible).
-          // `transform-destructuring` legitimately replaces ObjectPattern with `_ref` Identifier
-          // and lifts `var from = _ref.from` into the body - synth-swap on the RECEIVER (`Array`
-          // -> `{from: _Array$from}`) still semantically correct: `_ref.from` reads from the
-          // synthesized object. only ArrayPattern / RestElement / null break the contract
-          if (isOrphaned(objectPatternPath)) continue;
-          const currentPattern = objectPatternPath.node;
-          if (currentPattern !== objectPatternNode
-            && currentPattern?.type !== 'Identifier' && currentPattern?.type !== 'ObjectPattern') continue;
-          // lazy: only inject the receiver's pure import if a sibling prop needs the raw
-          // receiver read (`_Promise.custom`). all-polyfilled destructures never call through,
-          // keeping the import set clean; fallback is the original identifier when no pure
-          // polyfill exists for the receiver
-          const receiverPure = resolvePure({ kind: 'global', name: receiver.name });
-          const isPolyfillableGlobal = receiverPure && receiverPure.kind !== 'instance';
-          let receiverRef = null;
-          const getReceiverRef = () => receiverRef ??= isPolyfillableGlobal
-            ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
-          const synthProps = [];
-          for (const p of objectPatternNode.properties) {
-            if (!t.isObjectProperty(p) || p.computed || !t.isIdentifier(p.key)) continue;
-            const pending = polyfills.get(p.key.name);
-            // addPureImport already returns a fresh clone; another cloneNode here would be a no-op copy
-            const value = pending
-              ? injectPureImport(pending.entry, pending.hintName)
-              : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(p.key.name));
-            synthProps.push(t.objectProperty(t.identifier(p.key.name), value));
-          }
-          targetPath.replaceWith(t.objectExpression(synthProps));
-        }
+        postSweepUnboundGlobals(path);
+        // drain deferred synth-swap receivers - all sibling props have now been visited
+        // against the original receiver, so the key set is final
+        synthSwap.apply();
         injector?.flush();
         // ordering: normalize THEN prune. normalize converts arrow-expression-body to block
         // and lifts trailing-`_ref` params into `var _ref;`. prune then walks scope bindings -
@@ -1072,7 +914,7 @@ export default function plugin(api, options) {
         // don't pin references between `initFile` calls (Babel runs the visitor object
         // for every transformed file in the same plugin instance). next `initFile`
         // re-allocates everything anyway; explicit nulling makes the GC bound deterministic
-        injector = synthSwapByReceiver = pendingSynthSwaps = skippedNodes = originalBodyNodes = debugOutput = null;
+        injector = synthSwap = skippedNodes = originalBodyNodes = debugOutput = null;
       }
 
       // --- post(): detect sibling CJS transform ---
