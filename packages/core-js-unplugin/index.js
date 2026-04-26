@@ -78,13 +78,21 @@ const unplugin = createUnplugin((options, meta) => {
     transform(code, id) { return plugin.transform(code, id, pass); },
   });
 
-  // clear pre-pass snapshots at build end so long-running dev servers (Vite watch,
-  // HMR rebuilds) don't accumulate entries when a post pass is skipped for some id.
-  // attach to the last sub-plugin - unplugin invokes buildEnd once per plugin.
+  // bound snapshot retention in long-running dev servers. attach to the last sub-plugin -
+  // unplugin invokes buildEnd / watchChange once per plugin instance:
+  //   `buildEnd`     - clear all pre-pass snapshots when the build ends (Vite watch,
+  //                    HMR rebuilds, programmatic stop). prevents unbounded accumulation
+  //                    when a post pass was skipped for some id (tree-shake, sibling bail)
+  //   `watchChange`  - per-file invalidation when a file is edited/added/removed during
+  //                    dev. drops only the changed file's snapshot so other files' state
+  //                    survives. without this, HMR sessions accumulated orphan snapshots
   const subs = effective === 'pre+post'
     ? [stage('pre', 'pre'), stage('post', 'post')]
     : [stage(effective, 'single')];
-  subs.at(-1).buildEnd = () => plugin.reset();
+  Object.assign(subs.at(-1), {
+    buildEnd: () => plugin.reset(),
+    watchChange: id => plugin.invalidateSnapshot(id),
+  });
   return subs;
 });
 
