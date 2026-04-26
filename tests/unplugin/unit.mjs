@@ -2,6 +2,7 @@ import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
 import { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { entryToGlobalHint, ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/import-state.js';
+import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
@@ -512,6 +513,21 @@ check('deopt/newline before call', deoptionalizeNeedle('obj?.\n(args)'), 'obj\n(
 check('deopt/space before call', deoptionalizeNeedle('obj?. (args)'), 'obj (args)');
 check('deopt/space before index', deoptionalizeNeedle('obj?. [i]'), 'obj [i]');
 check('deopt/at end', deoptionalizeNeedle('obj?.'), 'obj.');
+
+// --- patternToRegExp: alternation grouping ---
+// `^a|b$` parses as `(^a)|(b$)` and matches `axxx` (starts-with-a) OR `xxxb` (ends-with-b).
+// wrapping pattern in `(?:...)` non-capturing group binds alternation to anchors uniformly:
+// `^(?:a|b)$` matches whole `a` OR whole `b`. without the group, user-supplied pattern
+// `'es.array.from|es.string.repeat'` matched `dummy.es.string.repeat` (ends-with) and
+// `es.array.from.dummy` (starts-with) - over-broad include/exclude
+function checkPatternAlternation() {
+  const re = patternToRegExp('es.array.from|es.string.repeat');
+  check('pattern/alternation matches first whole entry', re.test('es.array.from'), true);
+  check('pattern/alternation matches second whole entry', re.test('es.string.repeat'), true);
+  check('pattern/alternation rejects starts-with', re.test('es.array.from.dummy'), false);
+  check('pattern/alternation rejects ends-with', re.test('dummy.es.string.repeat'), false);
+}
+checkPatternAlternation();
 
 // --- SnapshotCache: Vite HMR `&t=<timestamp>` stripping ---
 // Vite HMR re-fires modules with `?t=<ms>` cache-buster. each fire generates a different
