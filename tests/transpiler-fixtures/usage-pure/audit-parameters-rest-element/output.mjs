@@ -1,8 +1,8 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _includesMaybeString from "@core-js/pure/actual/string/instance/includes";
-// `Parameters<typeof fn>[N]` where `fn` has rest param `...rest: string[]`, declared in
-// ambient `declare function` form. TSDeclareFunction must be treated as a scope owner so
-// the RestElement resolves cleanly; `x` infers to `string` and gets the string polyfills
+// `Parameters<typeof fn>[N]` indexing into a rest-param position of a `declare function`:
+// the rest element type `string[]` flows through, so `x` narrows to `string` and the
+// `at` / `includes` instance calls pick the string-specific polyfill variant.
 declare function fn(a: number, b: boolean, ...rest: string[]): void;
 declare const x: Parameters<typeof fn>[2];
 _atMaybeString(x).call(x, 0);

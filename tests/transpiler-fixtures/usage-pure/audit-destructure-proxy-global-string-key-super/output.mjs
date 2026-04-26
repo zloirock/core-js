@@ -1,5 +1,7 @@
 import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
+// destructure of a proxy global via a string key inside a class method calling super:
+// both the proxy access and the super call are polyfilled.
 const MyP = _Promise;
 class C extends MyP {
   static run() {

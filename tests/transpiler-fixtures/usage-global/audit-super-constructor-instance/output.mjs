@@ -4,6 +4,8 @@ import "core-js/modules/es.weak-map.constructor";
 import "core-js/modules/es.weak-map.get-or-insert";
 import "core-js/modules/es.weak-map.get-or-insert-computed";
 import "core-js/modules/web.dom-collections.iterator";
+// subclass constructor calling `super(...)` with polyfilled arguments: the args are
+// still scanned even though `super()` itself is preserved verbatim.
 class C extends WeakMap {
   constructor(x) {
     super();

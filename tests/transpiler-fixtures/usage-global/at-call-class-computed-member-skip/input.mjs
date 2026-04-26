@@ -1,3 +1,5 @@
+// computed class method key with Symbol prevents static narrowing of `s.items` to the getter return;
+// surrounding Symbol() call still triggers symbol constructor + description polyfills
 const items = Symbol();
 class Store {
   [items]() { return [1, 2]; }

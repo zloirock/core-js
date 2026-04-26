@@ -6,4 +6,6 @@ import "core-js/modules/es.map.get-or-insert";
 import "core-js/modules/es.map.get-or-insert-computed";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
+// optional access on a global call `globalThis?.Map(...)`: through the optional, the
+// call still resolves to the polyfilled `Map` constructor.
 Map?.();
