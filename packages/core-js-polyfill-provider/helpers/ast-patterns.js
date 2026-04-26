@@ -208,15 +208,20 @@ export function flattenableHostSlot(parent, parentPath) {
 
 // MemberExpression in a position where the prototype-method polyfill can be skipped because
 // the receiver method is never read at runtime: pure assignment (`obj.at = v`), destructure-LHS
-// (`({a: obj.at} = src)`), destructure-LHS-with-default (`({a: obj.at = 1} = src)`).
-// compound `+=` / `||=` / `??=` and `obj.at++` still read LHS - excluded here. ESTree uses
-// 'Property' for object-pattern slots; babel uses 'ObjectProperty' - both accepted
+// (`({a: obj.at} = src)`, `[obj.at] = src`, `[...obj.at] = src`), destructure-LHS-with-default
+// (`({a: obj.at = 1} = src)`). compound `+=` / `||=` / `??=` and `obj.at++` still read LHS -
+// excluded here. ESTree uses 'Property' for object-pattern slots; babel uses 'ObjectProperty'
 export function isMemberWriteOnlyContext(member, parent, grandparent) {
   if (!member || !parent) return false;
   if (parent.type === 'AssignmentExpression' && parent.left === member && parent.operator === '=') return true;
   if (parent.type === 'AssignmentPattern' && parent.left === member) return true;
   if ((parent.type === 'ObjectProperty' || parent.type === 'Property')
     && parent.value === member && grandparent?.type === 'ObjectPattern') return true;
+  // ArrayPattern element / RestElement target: `[obj.at] = src`, `[...obj.at] = src`.
+  // upstream `isReferenced` already filters these, but explicit handling here keeps the
+  // helper authoritative for callers that bypass that check (decorator subtree walks etc.)
+  if (parent.type === 'ArrayPattern' && parent.elements?.includes(member)) return true;
+  if (parent.type === 'RestElement' && parent.argument === member) return true;
   return false;
 }
 
@@ -435,12 +440,12 @@ const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
 
 // true when ObjectPattern at `path` sits at function-parameter position: direct param
 // (`function({x})`), wrapped in AssignmentPattern default (`function({x} = R)`), nested
-// inside ArrayPattern (`function([{x}])`, `function([{x} = R])`), or any nested combination
-// (`function([[{x}]])`). walks AssignmentPattern.left + ArrayPattern wrappers until a
-// function-like owner appears or a non-wrapper breaks the chain. `path` exposes `.node` +
-// `.parentPath` (babel NodePath and unplugin's walker path both satisfy the contract).
-// depth cap: deepest realistic shape `function([[[{x} = R]]])` is < 8 hops; 16 surfaces
-// accidental cycles loudly instead of looping
+// inside ArrayPattern (`function([{x}])`, `function([{x} = R])`), wrapped in RestElement
+// (`function([a, ...{x}])`), or any nested combination (`function([[{x}]])`). walks
+// AssignmentPattern.left + ArrayPattern + RestElement wrappers until a function-like
+// owner appears or a non-wrapper breaks the chain. `path` exposes `.node` + `.parentPath`
+// (babel NodePath and unplugin's walker path both satisfy the contract). depth cap: deepest
+// realistic shape `function([[[{x} = R]]])` is < 8 hops; 16 surfaces accidental cycles loudly
 export function isFunctionParamDestructureParent(path) {
   if (!path) return false;
   let prev = path.node;
@@ -453,6 +458,10 @@ export function isFunctionParamDestructureParent(path) {
       // bail when ObjectPattern sits on AssignmentPattern.right (`{x: ({y}=Z)} = src`) -
       // that's a default value, not a param destructure; only `.left` is param shape
       if (node.left !== prev) return false;
+    } else if (node.type === 'RestElement') {
+      // RestElement transparent wrapper: `[a, ...{x}]` (rest target is destructured).
+      // bail when ObjectPattern sits anywhere other than `.argument` slot
+      if (node.argument !== prev) return false;
     } else if (node.type !== 'ArrayPattern') return false;
     prev = node;
     parent = parent.parentPath;
@@ -778,46 +787,60 @@ export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
 }
 
 // conservative: true when the subtree may observe/cause side effects, false only when provably pure.
-// per-node WeakMap cache - same subtree is queried by nested destructure / SE-extract paths
+// per-node WeakMap cache - same subtree is queried by nested destructure / SE-extract paths.
+// depth cap: pathological deeply-nested AST (template-literal bombs, oxc bug-emitted cycles)
+// would stack-overflow without it. 256 covers realistic depths (deepest in test fixtures < 30);
+// hitting the cap conservatively returns true so callers don't accidentally drop SE awareness
 const SIDE_EFFECTS_CACHE = new WeakMap();
+const SIDE_EFFECTS_MAX_DEPTH = 256;
 export function mayHaveSideEffects(node) {
   if (!node) return false;
   if (SIDE_EFFECTS_CACHE.has(node)) return SIDE_EFFECTS_CACHE.get(node);
-  const result = computeSideEffects(node);
+  const result = computeSideEffects(node, 0);
   SIDE_EFFECTS_CACHE.set(node, result);
   return result;
 }
-function computeSideEffects(node) {
+function recurse(node, depth) {
+  if (!node) return false;
+  if (SIDE_EFFECTS_CACHE.has(node)) return SIDE_EFFECTS_CACHE.get(node);
+  if (depth >= SIDE_EFFECTS_MAX_DEPTH) return true;
+  const result = computeSideEffects(node, depth + 1);
+  SIDE_EFFECTS_CACHE.set(node, result);
+  return result;
+}
+function computeSideEffects(node, depth) {
   const { type } = node;
   if (ALWAYS_EFFECTFUL_TYPES.has(type)) return true;
-  if (type === 'UnaryExpression') return node.operator === 'delete' || mayHaveSideEffects(node.argument);
-  if (type === 'SequenceExpression' || type === 'TemplateLiteral') return node.expressions.some(mayHaveSideEffects);
+  if (type === 'UnaryExpression') return node.operator === 'delete' || recurse(node.argument, depth);
+  if (type === 'SequenceExpression' || type === 'TemplateLiteral') {
+    return node.expressions.some(e => recurse(e, depth));
+  }
   // `[...a]` invokes `a[Symbol.iterator]` / `{...a}` invokes `a`'s Proxy traps - neither
   // can be proven pure from source alone. treat SpreadElement as SE uniformly across
   // Array and Object literals. without this, `const { from } = [1, ...Array]` was
   // considered SE-free and ran through the no-SE-path by mistake
   if (type === 'ArrayExpression') {
-    return node.elements.some(el => el?.type === 'SpreadElement' || mayHaveSideEffects(el));
+    return node.elements.some(el => el?.type === 'SpreadElement' || recurse(el, depth));
   }
   if (type === 'ObjectExpression') {
-    return node.properties.some(p => p?.type === 'SpreadElement' || mayHaveSideEffects(p));
+    return node.properties.some(p => p?.type === 'SpreadElement' || recurse(p, depth));
   }
   if (type === 'BinaryExpression' || type === 'LogicalExpression') {
-    return mayHaveSideEffects(node.left) || mayHaveSideEffects(node.right);
+    return recurse(node.left, depth) || recurse(node.right, depth);
   }
   if (type === 'ConditionalExpression') {
-    return mayHaveSideEffects(node.test) || mayHaveSideEffects(node.consequent) || mayHaveSideEffects(node.alternate);
+    return recurse(node.test, depth) || recurse(node.consequent, depth) || recurse(node.alternate, depth);
   }
   if (TRANSPARENT_WRAPPER_TYPES.has(type) || TS_EXPR_WRAPPERS.has(type)) {
-    return mayHaveSideEffects(node.expression ?? node.argument);
+    return recurse(node.expression ?? node.argument, depth);
   }
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
-    return mayHaveSideEffects(node.object) || (node.computed && mayHaveSideEffects(node.property));
+    return recurse(node.object, depth) || (node.computed && recurse(node.property, depth));
   }
   if (type === 'Property' || type === 'ObjectProperty') {
-    return (node.computed && mayHaveSideEffects(node.key)) || mayHaveSideEffects(node.value);
+    return (node.computed && recurse(node.key, depth)) || recurse(node.value, depth);
   }
-  if (type === 'AssignmentPattern') return mayHaveSideEffects(node.right);
+  if (type === 'AssignmentPattern') return recurse(node.right, depth);
   return false;
 }
 
