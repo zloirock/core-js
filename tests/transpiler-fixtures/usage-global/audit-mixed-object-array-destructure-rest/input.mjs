@@ -1,3 +1,5 @@
+// mixed object/array destructure with rest: each level of the pattern must independently
+// track receivers for instance polyfill rewrites.
 const { a: [b, ...c] } = { a: [1, "x", "y"] };
 b.at(0);
 c.includes("x");
