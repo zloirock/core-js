@@ -1,7 +1,6 @@
-// class-as-namespace via class EXPRESSION (not declaration): `const Box = class { static
-// Promise = Promise }; class C extends Box.Promise`. resolveBindingToGlobalName must
-// follow declarator init through ClassExpression and find the static property's value,
-// symmetric to the ClassDeclaration case
+// class-as-namespace via class EXPRESSION holds `Promise` in a static property; an `extends
+// Box.Promise` clause on a derived class must still resolve through to the global `Promise`
+// so `super.try(...)` is rewritten as the polyfilled static call.
 const Box = class {
   static Promise = Promise;
 };

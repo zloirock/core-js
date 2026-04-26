@@ -1,6 +1,5 @@
-// non-declare class body with explicit getter return-type annotation: ClassMethod path
-// (not TSDeclareMethod). return-type extraction must work here too, not just on ambient
-// `declare class` signatures
+// non-ambient class body with an explicit getter return-type annotation `T[]`: the type
+// flows through to the call site so `bag.items.at(0)` lands on the array-specific polyfill.
 class Bucket<T extends number> {
   #raw: T[] = [] as T[];
   get items(): T[] { return this.#raw; }
