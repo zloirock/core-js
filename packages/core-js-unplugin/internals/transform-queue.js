@@ -289,6 +289,9 @@ export default class TransformQueue {
   #maxEndByGuardedRoot = new Map();
   // `start|end` -> entries (equal-range dups share a key) for O(1) extractContent lookup
   #byRange = new Map();
+  // pure point-inserts (zero-length, no composition). drained after overwrites in apply().
+  // entry shape: { pos, content }. preserves insertion order via Set
+  #inserts = new Set();
   // file id for invariant error messages - composition-bug reporters need to know which
   // file produced the failure (otherwise they have to bisect across thousands of fixtures)
   #fileId;
@@ -338,6 +341,26 @@ export default class TransformQueue {
     this.#sorted.splice(pos, 0, entry);
     updatePrefixMaxOnInsert(this.#sorted, this.#prefixMaxEnd, pos);
     return entry;
+  }
+
+  // record a pure point-insert at `pos` (zero-length, no composition). use this for
+  // boundary-anchored emissions like `var _ref;` at block start, parameter-default
+  // backfill (`{ p } = {}` -> `{ p } = (...).p`), or catch-clause prelude. drained
+  // after overwrites in `apply()` via `ms.appendRight`. multiple inserts at the same
+  // pos preserve registration order. inserts MUST NOT land inside an overwrite range -
+  // MagicString anchors to chunk identity, so insert content would survive into the
+  // replaced output unpredictably (caller bug; not asserted here)
+  insert(pos, content) {
+    if (!Number.isInteger(pos)) {
+      throw new TypeError(`[core-js] transform-queue: insert pos must be an integer (received ${ String(pos) })`);
+    }
+    if (pos < 0 || pos > this.#code.length) {
+      throw new RangeError(`[core-js] transform-queue: insert pos ${ pos } out of bounds (source length ${ this.#code.length })`);
+    }
+    if (typeof content !== 'string') {
+      throw new TypeError(`[core-js] transform-queue: insert content must be a string (received ${ typeof content })`);
+    }
+    this.#inserts.add({ pos, content });
   }
 
   // emit a split instance-method rewrite as two adjacent transforms: prefix `[start, mid)`
@@ -420,6 +443,13 @@ export default class TransformQueue {
 
   // compose nested transforms and apply to magic-string
   apply() {
+    // drain inserts in registration order. these are point-anchored emissions (no
+    // composition) - run them BEFORE overwrites so an `appendRight(pos)` chunk lands
+    // in the original source position. running after `overwrite(pos, ...)` would still
+    // work via MagicString chunk-anchoring, but keeps the apply-phase invariants simpler:
+    // when overwrites mutate, inserts are already deposited
+    for (const { pos, content } of this.#inserts) this.#ms.appendRight(pos, content);
+
     if (!this.#transforms.size) return;
     // single snapshot, sorted asc by start; fast path reverses in place, slow path re-sorts
     // in place. `#hasNesting` guarantees distinct starts on the fast-path branch so `reverse()`
