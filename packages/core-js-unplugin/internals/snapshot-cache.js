@@ -37,15 +37,27 @@ function normalizePath(path) {
   } while (p !== prev);
   return p.replaceAll(REPEATED_SLASHES_RE, '/');
 }
+// Vite HMR appends `&t=<timestamp>` (or `?t=` if no other query) to invalidate module
+// cache. each HMR re-fire produces a different timestamp, breaking pre→post snapshot
+// lookup for the same logical file. strip the timestamp marker so the key stays stable.
+// trailing `?`/`&` and `?&` collapse keep the resulting key in canonical query shape -
+// `app.vue?t=1` -> `app.vue` (not `app.vue?`); `?t=1&type=script` -> `?type=script`
+const HMR_TIMESTAMP_RE = /[&?]t=\d+/;
+const stripHMRTimestamp = id => id
+  .replace(HMR_TIMESTAMP_RE, '')
+  .replace(/\?&/, '?')
+  .replace(/[&?]$/, '');
+
 function normalizeKey(id) {
-  if (SFC_QUERY_MARKER_RE.test(id)) {
+  const cleanId = stripHMRTimestamp(id);
+  if (SFC_QUERY_MARKER_RE.test(cleanId)) {
     // preserve the query since it identifies the sub-block; still normalize the path prefix
-    const queryStart = id.search(QUERY_OR_HASH_RE);
-    const pathPart = queryStart === -1 ? id : id.slice(0, queryStart);
-    const tail = queryStart === -1 ? '' : id.slice(queryStart);
+    const queryStart = cleanId.search(QUERY_OR_HASH_RE);
+    const pathPart = queryStart === -1 ? cleanId : cleanId.slice(0, queryStart);
+    const tail = queryStart === -1 ? '' : cleanId.slice(queryStart);
     return normalizePath(pathPart) + tail;
   }
-  return normalizePath(stripQueryHash(id));
+  return normalizePath(stripQueryHash(cleanId));
 }
 
 export default class SnapshotCache {
@@ -74,6 +86,14 @@ export default class SnapshotCache {
     const entry = this.#snapshots.get(key);
     if (entry) this.#snapshots.delete(key);
     return entry ?? null;
+  }
+
+  // per-file invalidation hook for Vite/Rollup `watchChange`. drops a single snapshot
+  // when its source file changes - prevents unbounded growth in long-running dev servers
+  // where a pre-pass ran but the matching post was skipped (tree-shake, sibling bail).
+  // returns true if the entry existed and was removed (callsite can short-circuit further work)
+  invalidate(id) {
+    return this.#snapshots.delete(normalizeKey(id));
   }
 
   size() { return this.#snapshots.size; }
