@@ -93,7 +93,11 @@ function unwrapExport(stmt) {
 }
 
 export default function createPlugin(options) {
-  // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across plugin instances
+  // per-instance type resolvers - guardsCache/resolveCache WeakMaps don't leak across
+  // plugin instances. shared between transforms WITHIN one instance is safe because
+  // Node.js JS is single-threaded; Vite/Rollup contracts serialize transforms per plugin.
+  // genuine parallelism (worker_threads, parallel test runs) instantiates separate plugins
+  // so each gets its own typeResolvers - no cross-worker mutation race
   const typeResolvers = createResolveNodeType(nodeType, types);
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling
