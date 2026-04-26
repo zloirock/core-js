@@ -513,6 +513,70 @@ check('deopt/space before call', deoptionalizeNeedle('obj?. (args)'), 'obj (args
 check('deopt/space before index', deoptionalizeNeedle('obj?. [i]'), 'obj [i]');
 check('deopt/at end', deoptionalizeNeedle('obj?.'), 'obj.');
 
+// --- SnapshotCache: Vite HMR `&t=<timestamp>` stripping ---
+// Vite HMR re-fires modules with `?t=<ms>` cache-buster. each fire generates a different
+// timestamp, but the logical module is the same. snapshot lookup keyed by normalized id
+// (timestamp stripped) so pre→post lookup survives HMR. without the strip, post-pass
+// missed pre's snapshot and emitted duplicate `var _ref;` / re-allocated UIDs
+function checkSnapshotHMRTimestampStrip() {
+  const entry = { code: 'foo', map: null, ast: null, source: 'foo' };
+  // helper: store under one id, query by another, report whether the lookup hit
+  const probeHit = (storeId, takeId) => {
+    const cache = new SnapshotCache();
+    cache.store(storeId, entry);
+    return cache.take(takeId) !== null;
+  };
+  check('snapshot/HMR &t= different timestamp finds same entry',
+    probeHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=script&t=9999'), true);
+  check('snapshot/SFC sub-block query distinguishes',
+    probeHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=template'), false);
+  check('snapshot/non-SFC ?t= strip',
+    probeHit('/src/util.js?t=100', '/src/util.js?t=200'), true);
+  check('snapshot/bare ?t=N strips clean',
+    probeHit('/src/x.js?t=1', '/src/x.js'), true);
+}
+checkSnapshotHMRTimestampStrip();
+
+// --- SnapshotCache: per-file invalidation ---
+// `watchChange` hook on Vite/Rollup fires per-file edit. cache.invalidate(id) drops only
+// that file's entry (not the whole cache) so unrelated files keep their pre-snapshot state
+function checkSnapshotInvalidate() {
+  const cache = new SnapshotCache();
+  const entry = { code: 'foo', map: null, ast: null, source: 'foo' };
+  cache.store('/src/a.js', entry);
+  cache.store('/src/b.js', entry);
+  check('snapshot/invalidate returns true for existing entry', cache.invalidate('/src/a.js'), true);
+  check('snapshot/invalidate returns false for missing entry', cache.invalidate('/src/missing.js'), false);
+  check('snapshot/invalidate preserves siblings', cache.take('/src/b.js') !== null, true);
+  // path normalization carries through invalidate
+  cache.store('/src/c.js?vue&type=script&t=100', entry);
+  cache.invalidate('/src/c.js?vue&type=script&t=999');
+  check('snapshot/invalidate normalizes HMR timestamp',
+    cache.take('/src/c.js?vue&type=script&t=1') !== null, false);
+}
+checkSnapshotInvalidate();
+
+// --- phase: pre+post pipeline pass-through ---
+// for `pass: 'pre'` the plugin processes and stores snapshot for the next pass. for
+// `pass: 'post'` (re-entered with same code), the plugin should converge to the same
+// result as single-pass because the state machine is idempotent given a stable input
+function checkPhasePipelinePassThrough() {
+  const code = 'export var v = arr?.at?.(0);\nexport var x = "test".at(-1);\nexport var m = new Map();';
+  const opts = { method: 'usage-pure', version: '4.0', targets: { ie: 11 } };
+  const single = createPlugin(opts).transform(code, '/sm-phase.mjs');
+  // pre+post share one plugin instance. internal `runTransform` accepts pass: 'pre'/'post'/'single'
+  const twoPass = createPlugin(opts);
+  const preOut = twoPass.transform(code, '/sm-phase.mjs', 'pre');
+  // post receives pre's output as input, must produce stable result via snapshot lookup
+  const postOut = preOut?.code ? twoPass.transform(preOut.code, '/sm-phase.mjs', 'post') : preOut;
+  const final = postOut?.code ?? preOut?.code;
+  // imports must match (single source of truth for which polyfills are needed)
+  const singleImports = (single?.code ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+  const twoPassImports = (final ?? '').split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+  check('phase/pre+post imports match single', twoPassImports, singleImports);
+}
+checkPhasePipelinePassThrough();
+
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
 if (failed) throw new Error('Some tests have failed');
