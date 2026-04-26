@@ -10,6 +10,7 @@ import {
   globalProxyMemberName,
   findIifeArgForParam,
   getFallbackBranchSlots,
+  hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
   isClassifiableReceiverArg,
   isCoreJSFile,
@@ -859,6 +860,16 @@ export default function createPlugin(options) {
       }
 
       function handleSymbolIterator(meta, node, parent, metaPath) {
+        // polyfill helper loses `super`-binding (reads ancestor prototype's iterator, not
+        // current class's); let the inner Symbol.iterator visitor polyfill the key while the
+        // outer `super[X]` shape stays native. without this bail, addInstanceTransform would
+        // emit `_getIterator(super)` / `_ref = super` - both syntax errors
+        if (node.object?.type === 'Super') return;
+        // SE-bearing SequenceExpression in computed key would be silently dropped by the
+        // `_getIteratorMethod(obj)` rewrite (only `obj` survives). bail so the inner
+        // Symbol.iterator visitor emits the static polyfill in place, SE preserved.
+        // also avoids the transform-queue composition crash from inner-vs-outer overlap
+        if (node.computed && hasSideEffectfulSequencePrefix(node.property)) return;
         const isCallParent = isCallee(node, parent);
         // get-iterator returns the materialized iterator; get-iterator-method returns the method.
         // use get-iterator only for plain CallExpression with no args - never for NewExpression.
