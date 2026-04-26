@@ -18,6 +18,7 @@ import {
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
   findTSRuntimeBindingInPath,
+  flattenableHostSlot,
   isAmbientBindingShape,
   isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
@@ -208,9 +209,14 @@ export function createUsageVisitors({
       : { kind: 'property', object: null, key: innerKey, placement: null }, path);
   }
 
-  // walks up the outer property chain until a declarator. returns the last (deepest) outer
-  // key when every intermediate hop is itself a proxy-global name and the declarator's init
-  // is a proxy-global. null -> caller emits typeless meta. `self.Array.from` via nest -> 'Array'
+  // walks up the outer property chain until a destructure host. returns the last (deepest)
+  // outer key when every intermediate hop is itself a proxy-global name and the host's
+  // receiver slot is a proxy-global. null -> caller emits typeless meta.
+  // `self.Array.from` via nest -> 'Array'. hosts: VariableDeclarator (`const {Array:{from}} = G`),
+  // AssignmentExpression (`({Array:{from}} = G)` in ExpressionStatement). AssignmentPattern
+  // (function param default) is intentionally excluded - inline-default would pick native
+  // first when present, contradicting usage-pure's "polyfill always wins" contract; user
+  // must rewrite as `function f() { const from = _Array$from; ... }` instead
   function resolveNestedDestructureReceiver(outerProp) {
     const keys = [];
     let cur = outerProp;
@@ -221,11 +227,16 @@ export function createUsageVisitors({
       if (!key) return null;
       keys.unshift(key);
       const parent = pattern.parentPath;
-      if (parent?.isVariableDeclarator()) {
+      // shared `flattenableHostSlot` returns 'init' for VariableDeclarator,
+      // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise.
+      // AssignmentPattern excluded (see helper docstring)
+      const slot = flattenableHostSlot(parent?.node, parent);
+      const receiverNode = slot ? parent.node[slot] : null;
+      if (receiverNode !== null) {
         // `(se(), globalThis)` - peel to the semantic init value so nested chains resolve
         // the receiver through SequenceExpression prefixes. parity with non-nested
         // `handleDestructuring` which unwraps via `buildDestructuringInitMeta`
-        const init = unwrapInitValue(parent.node.init);
+        const init = unwrapInitValue(receiverNode);
         const receiver = init ? sharedResolveObjectName(init, parent.scope, adapter) : null;
         if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
         // intermediate keys (everything except the deepest) must all be proxy-global hops,
