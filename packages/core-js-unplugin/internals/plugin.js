@@ -2144,5 +2144,11 @@ export default function createPlugin(options) {
     reset() {
       snapshots.reset();
     },
+    // per-file snapshot invalidation. unplugin wrapper wires this to Vite/Rollup
+    // `watchChange(id)` hook so a single file edit drops only its own snapshot
+    // (not the whole cache). prevents unbounded growth in HMR sessions
+    invalidateSnapshot(id) {
+      snapshots.invalidate(id);
+    },
   };
 }
