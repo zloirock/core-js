@@ -130,7 +130,7 @@ function validateIncludeExclude(include, exclude, modules, method) {
       errors.push(formatError('The following polyfills were matched both by "include" and "exclude" patterns', duplicates));
     }
   }
-  if (errors.length) throw new Error(`Error while validating the "core-js@4" provider options:\n${ errors.join('') }`);
+  if (errors.length) throw new Error(`[core-js] error while validating provider options:\n${ errors.join('') }`);
 }
 
 // options assumed already validated by `initPluginOptions` in plugin-options.js;

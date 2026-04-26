@@ -52,11 +52,15 @@ export function mergeVisitors(base, extra) {
     } else {
       const a = toObject(current);
       const b = toObject(handler);
-      merged[key] = {};
+      const combined = {};
       for (const phase of ['enter', 'exit']) {
-        if (a[phase] && b[phase]) merged[key][phase] = chain(a[phase], b[phase]);
-        else if (a[phase] || b[phase]) merged[key][phase] = a[phase] || b[phase];
+        if (a[phase] && b[phase]) combined[phase] = chain(a[phase], b[phase]);
+        else if (a[phase] || b[phase]) combined[phase] = a[phase] || b[phase];
       }
+      // both sides have no enter/exit (`{}` objects) - drop the key instead of leaving an
+      // empty handler that would crash the visitor on dispatch
+      if (combined.enter || combined.exit) merged[key] = combined;
+      else delete merged[key];
     }
   }
   return merged;

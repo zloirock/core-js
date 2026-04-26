@@ -26,6 +26,7 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   parseDisableDirectives,
   peelFallbackWrappers,
+  peelNestedSequenceExpressions,
   POSSIBLE_GLOBAL_OBJECTS,
   propBindingIdentifier,
   resolveSuperImportName,
@@ -250,11 +251,14 @@ export default function createPlugin(options) {
     }
 
     const ms = new MagicString(code, { filename: id });
+    // late-bound: debugOutput is constructed below (after createPolyfillResolver), but the
+    // injector needs it for fallback warnings inside `flush()`. lazy getter avoids TDZ
     const injector = new ImportInjector({
       ms, pkg, mode, absoluteImports, importStyle,
       directiveEnd: directivePrologueEnd(ast),
       deferImports,
       inherit,
+      getDebugOutput: () => debugOutput,
     });
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
@@ -1236,12 +1240,11 @@ export default function createPlugin(options) {
         const pure = resolvePure(meta);
         if (!pure || pure.kind === 'instance') return false;
         const binding = injectPureImport(pure.entry, pure.hintName);
-        // SE prefix `(se(), G)` lifts as separate statement before the rewrite. peel paren
-        // wrap around the SE (oxc preserves; babel strips). uses shared `peelFallbackWrappers`
-        const inner = peelFallbackWrappers(assignNode.right);
-        const prefix = inner?.type === 'SequenceExpression' && inner.expressions.length > 1
-          ? `${ inner.expressions.slice(0, -1).map(nodeSrc).join(', ') };\n`
-          : '';
+        // shared `peelNestedSequenceExpressions` lifts every SE layer's preceding effects
+        // through paren wrappers (`(se1(), (se2(), G))` -> `[se1(), se2()]`); without
+        // recursion, only outermost se1() lifts and inner se2() silently elides
+        const { prefix: seExprs } = peelNestedSequenceExpressions(assignNode.right);
+        const prefix = seExprs.length ? `${ seExprs.map(nodeSrc).join(', ') };\n` : '';
         // skip nodes inside the destructure subtree to prevent re-processing
         walkAstNodes(assignNode, n => skippedNodes.add(n));
         transforms.add(stmtNode.start, stmtNode.end, `${ prefix }${ valueNode.name } = ${ binding };`);
@@ -1321,10 +1324,8 @@ export default function createPlugin(options) {
         if (!isForInit) {
           const sePrefixes = [];
           for (let i = 0; i < declaration.declarations.length; i++) {
-            const init = initOf(i);
-            if (init?.type === 'SequenceExpression' && init.expressions.length > 1) {
-              sePrefixes.push(init.expressions.slice(0, -1).map(nodeSrc).join(', '));
-            }
+            const { prefix: seExprs } = peelNestedSequenceExpressions(declaration.declarations[i].init);
+            if (seExprs.length) sePrefixes.push(seExprs.map(nodeSrc).join(', '));
           }
           if (sePrefixes.length) replacement = `${ sePrefixes.map(p => `${ p };`).join('\n') }\n${ replacement }`;
         }
