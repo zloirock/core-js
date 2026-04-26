@@ -19,6 +19,7 @@ import {
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
   findTSRuntimeBindingInPath,
+  flattenableHostSlot,
   isASTNode,
   isAmbientBindingShape,
   isClassifiableReceiverArg,
@@ -205,15 +206,20 @@ function buildDestructuringMeta(propNode, parentPath) {
       // peel ParenthesizedExpression + SequenceExpression tails so `(se(), globalThis)` init
       // still resolves to the proxy-global receiver (parity with non-nested destructure)
       const outerPattern = parent.parentPath;
-      const outerDecl = outerPattern?.parentPath;
-      if (outerPattern?.node?.type === 'ObjectPattern' && outerDecl?.node?.type === 'VariableDeclarator') {
-        const outerInit = unwrapInitValue(outerDecl.node.init);
+      const outerHost = outerPattern?.parentPath;
+      // shared `flattenableHostSlot` returns 'init' for VariableDeclarator, 'right' for
+      // AssignmentExpression-in-ExpressionStatement (peeling oxc's preserved parens),
+      // null otherwise. AssignmentPattern excluded - see helper docstring
+      const slot = flattenableHostSlot(outerHost?.node, outerHost);
+      const receiverNode = slot ? outerHost.node[slot] : null;
+      if (outerPattern?.node?.type === 'ObjectPattern' && receiverNode) {
+        const outerInit = unwrapInitValue(receiverNode);
         const receiver = outerInit
-          ? sharedResolveObjectName(outerInit, outerDecl.scope ?? scope, estreeAdapter)
+          ? sharedResolveObjectName(outerInit, outerHost.scope ?? scope, estreeAdapter)
           : null;
         if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
           const innerKey = extractPropertyKey(propNode, scope);
-          const outerKey = sharedResolveKey(parent.node.key, parent.node.computed, outerDecl.scope ?? scope, estreeAdapter);
+          const outerKey = sharedResolveKey(parent.node.key, parent.node.computed, outerHost.scope ?? scope, estreeAdapter);
           if (innerKey && outerKey) {
             return { kind: 'property', object: outerKey, key: innerKey, placement: 'static' };
           }

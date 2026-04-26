@@ -191,6 +191,21 @@ export function destructureReceiverSlot(node) {
   return null;
 }
 
+// destructure-host slot specifically for nested-proxy flatten (`{Array:{from}} = G` ->
+// `from = _Array$from`). narrower than `destructureReceiverSlot`: AssignmentExpression
+// is accepted ONLY when the surrounding context is an ExpressionStatement (value is
+// discarded - safe to replace whole statement with direct assignment). AssignmentPattern
+// excluded - inline-default would pick native first on modern engines, contradicting
+// usage-pure's polyfill-always contract. peels ParenthesizedExpression around the
+// AssignmentExpression (oxc preserves `({...} = G);` as ExprStmt -> Paren -> Assign)
+export function flattenableHostSlot(parent, parentPath) {
+  if (parent?.type === 'VariableDeclarator') return 'init';
+  if (parent?.type !== 'AssignmentExpression') return null;
+  let ctx = parentPath?.parentPath;
+  while (ctx?.node?.type === 'ParenthesizedExpression') ctx = ctx.parentPath;
+  return ctx?.node?.type === 'ExpressionStatement' ? 'right' : null;
+}
+
 // MemberExpression in a position where the prototype-method polyfill can be skipped because
 // the receiver method is never read at runtime: pure assignment (`obj.at = v`), destructure-LHS
 // (`({a: obj.at} = src)`), destructure-LHS-with-default (`({a: obj.at = 1} = src)`).
@@ -356,13 +371,38 @@ export function objectPatternPropNeedsReceiverRewrite(prop) {
 // here but not everywhere (e.g. callee resolution treats parens as chain-breakers)
 const isUpdateOperandWrapper = node => !!node && (TS_EXPR_WRAPPERS.has(node.type) || node.type === 'ParenthesizedExpression');
 
+// peel ParenthesizedExpression + TS expression wrappers. oxc-parser preserves both;
+// babel-parser strips parens by default. used in fallback-receiver / computed-key /
+// branch-slot resolution where the underlying shape is what matters and wrappers are
+// transparent at runtime. distinct from `unwrapParens` (in detect-usage) which also
+// peels SequenceExpression tails - that's mode-specific
+export function peelFallbackWrappers(node) {
+  while (node && (node.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(node.type))) {
+    node = node.expression;
+  }
+  return node;
+}
+
+// deep peel for fallback receivers: chain-assignment (`foo = bar = (cond ? A : B)`) +
+// ParenthesizedExpression + TS expression wrappers, alternating until stable. shape:
+// `r = (cond ? A : B)` -> ConditionalExpression. used by per-branch synth-swap and
+// fallback enumeration to reach the underlying conditional/logical regardless of
+// chain-assign / paren / TS layering order
+export function peelFallbackReceiver(node) {
+  for (let prev; node !== prev;) {
+    prev = node;
+    while (isChainAssignment(node)) node = node.right;
+    node = peelFallbackWrappers(node);
+  }
+  return node;
+}
+
 // peel TS / paren wrappers and report whether the underlying node is a SequenceExpression
 // whose preceding elements carry observable side effects. used by computed-key polyfill
 // rewrites (`obj[(SE(), Symbol.iterator)]`) where dropping the property silently elides SE -
 // caller bails to native shape so the inner key visitor can polyfill in place
 export function hasSideEffectfulSequencePrefix(node) {
-  let cur = node;
-  while (cur && (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression')) cur = cur.expression;
+  const cur = peelFallbackWrappers(node);
   return cur?.type === 'SequenceExpression'
     && cur.expressions.slice(0, -1).some(mayHaveSideEffects);
 }
