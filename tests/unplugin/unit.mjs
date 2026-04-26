@@ -648,6 +648,7 @@ checkPhasePipelinePassThrough();
 // orthogonal), and Literal subtype dispatch (BigInt / RegExp / String / Number / Boolean / Null)
 async function checkEstreeNodeTypeMapper() {
   const { nodeType } = await import('../../packages/core-js-unplugin/internals/estree-compat.js');
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
   const parseTop = src => parseSync('test.js', src).program;
   // ChainExpression wraps optional `a?.b` / `a?.()` in oxc; unwrap to inner Member/Call
   const unwrapChain = node => node?.expression ?? node;
@@ -675,7 +676,7 @@ async function checkEstreeNodeTypeMapper() {
   for (const [label, i, expected] of CLASS_CASES) check(`nodeType/${ label }`, nodeType(members[i]), expected);
 
   // Literal subtype dispatch: oxc emits one Literal type, mapper splits to babel-style names
-  const lits = parseTop('var s = "x"; var n = 1; var b = true; var nu = null; var bi = 42n; var re = /a/g;')
+  const literals = parseTop('var s = "x"; var n = 1; var b = true; var nu = null; var bi = 42n; var re = /a/g;')
     .body.map(d => d.declarations[0].init);
   const LITERAL_CASES = [
     ['string -> StringLiteral', 0, 'StringLiteral'],
@@ -685,7 +686,7 @@ async function checkEstreeNodeTypeMapper() {
     ['bigint -> BigIntLiteral', 4, 'BigIntLiteral'],
     ['regex -> RegExpLiteral', 5, 'RegExpLiteral'],
   ];
-  for (const [label, i, expected] of LITERAL_CASES) check(`nodeType/Literal ${ label }`, nodeType(lits[i]), expected);
+  for (const [label, i, expected] of LITERAL_CASES) check(`nodeType/Literal ${ label }`, nodeType(literals[i]), expected);
 
   // Optional member/call: oxc wraps in ChainExpression with `optional: true` on inner;
   // mapper emits babel's OptionalMemberExpression / OptionalCallExpression
