@@ -480,8 +480,6 @@ export default class TransformQueue {
 
   // compose a single transform `t` with its inners + dups. returns the composed content
   // string, or null when a sibling dup already owns the merge (caller skips this iteration).
-  // extracted from `apply()` to keep its statement count under the lint threshold; logic
-  // and traversal order otherwise unchanged
   #composeOne(t, byStart, composedContent) {
     const { start, splitInfo } = t;
     const logicalEnd = entryLogicalEnd(t);
