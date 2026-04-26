@@ -34,8 +34,8 @@ import TransformQueue from './transform-queue.js';
 import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
 import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
-import { isOutermostOptionalChainMember } from './instance-emit-utils.js';
-import { createInstanceReplacer } from './instance-replacer.js';
+import { isOutermostOptionalChainMember } from './emit-utils.js';
+import { createPolyfillEmitter } from './polyfill-emitter.js';
 import { createDestructureEmitter } from './destructure-emitter.js';
 import {
   canFuseWithOpenParen,
@@ -414,21 +414,23 @@ export default function createPlugin(options) {
       // callback; genRef() reads the current scope. applyTransforms() drains accumulated
       // arrow / scoped vars after the traverse pass. instance + destructure emitters both
       // read scope position + allocate refs through this single tracker
-      const scopeTracker = new ScopeTracker({ code, injector, ms });
+      const scopeTracker = new ScopeTracker({ code, injector });
 
       // resolve a bare global name (`Array`, `Promise`, `globalThis`) to its pure polyfill
-      // binding info; null when not polyfillable as a global. shared by both factories
-      // (instance-replacer + destructure-emitter + proxy-global-flattener)
+      // binding info; null when not polyfillable as a global. shared between the polyfill
+      // emitter and the destructure emitter
       function resolveGlobalPolyfill(name) {
         const pure = resolvePure({ kind: 'global', name });
         return pure && pure.kind !== 'instance' ? pure : null;
       }
 
-      // instance-method emission pipeline (member-call rewrites, optional-chain handling,
-      // Symbol.iterator special path, receiver-polyfill substitution, chain composition).
-      // factory in `internals/instance-replacer.js` captures the closure deps below; public
-      // entries become local consts so existing call sites stay unchanged
-      const replacer = createInstanceReplacer({
+      // polyfill emission pipeline. covers all kinds dispatched from the usage-pure visitor:
+      // instance-method member-calls (with optional-chain handling, Symbol.iterator special
+      // path, receiver-polyfill substitution, chain composition), global / static member
+      // rewrites, and `in` expression rewrites. factory in `internals/polyfill-emitter.js`
+      // captures the closure deps below; public entries become local consts so existing
+      // call sites stay unchanged
+      const emitter = createPolyfillEmitter({
         canFuseWithOpenParen,
         code,
         estreeAdapter,
@@ -451,7 +453,7 @@ export default function createPlugin(options) {
         replaceGlobalOrStatic,
         replaceInstance,
         skipProxyGlobal,
-      } = replacer;
+      } = emitter;
 
       // destructure-rewrite pipeline (parameter-default synth-swap, top-level VariableDecl
       // extraction, catch-clause rewrite, per-branch fallback synth-swap, nested proxy-global
@@ -464,7 +466,6 @@ export default function createPlugin(options) {
         injectPureImport,
         injector,
         isBodylessStatementBody,
-        ms,
         nodeSrc,
         resolveGlobalPolyfill,
         resolvePure,

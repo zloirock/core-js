@@ -14,7 +14,6 @@ export default class ScopeTracker {
   arrow = null;
   #code;
   #injector;
-  #ms;
   // insertionPos -> [var names]
   #scopedVars = new Map();
   // arrow body node -> [var names]
@@ -25,10 +24,9 @@ export default class ScopeTracker {
   // invalidates the cache via WeakMap GC
   #scopeCache = new WeakMap();
 
-  constructor({ code, injector, ms }) {
+  constructor({ code, injector }) {
     this.#code = code;
     this.#injector = injector;
-    this.#ms = ms;
   }
 
   // advance past `{` and any directive prologue (`"use strict"`, etc.) so that
@@ -98,11 +96,12 @@ export default class ScopeTracker {
       queue.add(body.start, body.end,
         `{ var ${ names.join(', ') }; return ${ this.#code.slice(body.start, body.end) }; }`);
     }
-    queue.apply();
-    // insert var declarations at each computed insertion point (after `{` + any
-    // directive prologue - see skipDirectives)
+    // queue scoped var declarations at each computed insertion point (after `{` + any
+    // directive prologue - see skipDirectives). use `queue.insert` so the apply phase
+    // remains the single drain (overwrites + inserts both flushed by `queue.apply()`)
     for (const [insertPos, names] of this.#scopedVars) {
-      this.#ms.appendRight(insertPos, `\nvar ${ names.join(', ') };`);
+      queue.insert(insertPos, `\nvar ${ names.join(', ') };`);
     }
+    queue.apply();
   }
 }
