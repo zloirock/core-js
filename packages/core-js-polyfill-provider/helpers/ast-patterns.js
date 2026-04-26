@@ -790,7 +790,9 @@ export function createTypeAnnotationChecker(isTypeAnnotationNodeType) {
 // per-node WeakMap cache - same subtree is queried by nested destructure / SE-extract paths.
 // depth cap: pathological deeply-nested AST (template-literal bombs, oxc bug-emitted cycles)
 // would stack-overflow without it. 256 covers realistic depths (deepest in test fixtures < 30);
-// hitting the cap conservatively returns true so callers don't accidentally drop SE awareness
+// hitting the cap conservatively returns true so callers don't accidentally drop SE awareness.
+// NOT cleared on `typeResolvers.reset()` - WeakMap entries GC naturally when AST nodes go out
+// of scope; per-file plugin instances each see fresh nodes anyway. documented for parity check
 const SIDE_EFFECTS_CACHE = new WeakMap();
 const SIDE_EFFECTS_MAX_DEPTH = 256;
 export function mayHaveSideEffects(node) {
