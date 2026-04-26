@@ -12,6 +12,7 @@ export {
   getSuperTypeArgs,
   getTSRuntimeBindings,
   getTypeArgs,
+  hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
   isDeleteTarget,
   isForXWriteTarget,
