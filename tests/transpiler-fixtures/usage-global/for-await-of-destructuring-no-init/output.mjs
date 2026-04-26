@@ -6,8 +6,10 @@ import "core-js/modules/es.promise.catch";
 import "core-js/modules/es.promise.finally";
 import "core-js/modules/es.array.iterator";
 import "core-js/modules/es.array.includes";
+import "core-js/modules/es.iterator.constructor";
 import "core-js/modules/es.string.includes";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.iterator.includes";
 import "core-js/modules/web.dom-collections.iterator";
 async function f() {
   for await (const {

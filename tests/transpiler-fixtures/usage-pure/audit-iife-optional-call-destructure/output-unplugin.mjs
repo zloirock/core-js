@@ -3,9 +3,9 @@ import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Map from "@core-js/pure/actual/map/constructor";
 import _Promise$try from "@core-js/pure/actual/promise/try";
 import _Promise from "@core-js/pure/actual/promise/constructor";
-// `(...)?.(arg)` optional IIFE: babel emits OptionalCallExpression, oxc wraps a
-// CallExpression `optional: true` inside ChainExpression. both shapes must be recognised
-// as IIFEs so the receiver-arg rewrite fires symmetrically across parsers
+// optional IIFE form `(arrow)?.(arg)`: when the IIFE arg is a known constructor (`Array`,
+// `Map`, `Promise`), the destructured method should still resolve to its static polyfill
+// (parity with the non-optional `(arrow)(arg)` form).
 const a = (({ from }) => from)?.({ from: _Array$from });
 const b = (({ groupBy } = _Map) => groupBy)?.({ groupBy: _Map$groupBy });
 const c = (({ try: t } = _Promise) => t)?.({ try: _Promise$try });
