@@ -1,7 +1,8 @@
 // `POSSIBLE_GLOBAL_OBJECTS` import here is intentional: the resolver branches on
 // "is the receiver a proxy global?" to avoid recursing on `globalThis.X` -> `globalThis.X.X`.
 // abstracting this would require an extra adapter layer for one Set lookup - kept inline
-import { POSSIBLE_GLOBAL_OBJECTS, kebabToPascal } from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
+import { kebabToPascal } from './helpers/ast-patterns.js';
 import { TYPE_HINTS } from './resolve-node-type.js';
 import { initPluginOptions } from './plugin-options.js';
 import { createPolyfillContext, resolve } from './index.js';

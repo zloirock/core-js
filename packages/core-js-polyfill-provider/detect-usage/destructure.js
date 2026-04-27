@@ -10,8 +10,8 @@ import {
   isChainAssignment,
   peelFallbackReceiver,
   peelFallbackWrappers,
-  POSSIBLE_GLOBAL_OBJECTS,
-} from '../helpers.js';
+} from '../helpers/ast-patterns.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { KNOWN_FUNCTION_GLOBALS, KNOWN_NAMESPACE_GLOBALS } from './globals.js';
 import { isStaticPlacement, resolveObjectName, unwrapParens } from './resolve.js';
 
