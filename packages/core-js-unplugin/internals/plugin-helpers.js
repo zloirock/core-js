@@ -1,5 +1,5 @@
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
-import { isASTNode, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers';
+import { isASTNode, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
 
 // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
