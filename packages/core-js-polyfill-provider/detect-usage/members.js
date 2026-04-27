@@ -1,10 +1,7 @@
 // member-expression resolution + `key in obj` BinaryExpression handler. produces meta for
 // the polyfill resolver (kind / object / key / placement) and seeds `handledObjects` so
 // downstream identifier visits don't double-process subsumed receiver chains
-import {
-  POSSIBLE_GLOBAL_OBJECTS,
-  symbolKeyToEntry,
-} from '../helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS, symbolKeyToEntry } from '../helpers/class-walk.js';
 import {
   asSymbolRef,
   bindingSymbolKey,
