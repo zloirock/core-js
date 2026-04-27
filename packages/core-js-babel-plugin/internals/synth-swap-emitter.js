@@ -34,30 +34,34 @@ export default function createSynthSwapEmitter({
   // preceding effects leave the path as-is so synth-swap bails back to inline-default
   function unwrapSequenceTail(argPath) {
     if (!argPath?.isSequenceExpression()) return argPath;
-    const exprs = argPath.get('expressions');
-    if (exprs.slice(0, -1).some(e => mayHaveSideEffects(e.node))) return argPath;
-    return exprs.at(-1) ?? argPath;
+    const expressions = argPath.get('expressions');
+    if (expressions.slice(0, -1).some(expressionPath => mayHaveSideEffects(expressionPath.node))) return argPath;
+    return expressions.at(-1) ?? argPath;
   }
 
   // path-iteration with inline-spread expansion + `unwrapSequenceTail`. arrow IIFE only -
   // FunctionExpression has its own `this` binding, so receiver semantics differ enough
-  // that synth-swap would be unsafe
+  // that synth-swap would be unsafe.
+  // nested SpreadElement inside the spread array (`f(...[a, ...rest])`) is variadic at
+  // compile-time - `rest` may expand to any number of positions. counting it as `1` shifts
+  // every subsequent positional, breaking paramIndex match. bail rather than miscount
   function detectIifeArgPath(wrapper, objectPattern) {
     if (!wrapper?.isArrowFunctionExpression()) return null;
     const site = findIifeCallSite(wrapper, objectPattern.node);
     if (!site) return null;
-    let i = 0;
-    for (const aP of site.callPath.get('arguments')) {
-      if (aP.isSpreadElement()) {
-        if (!aP.get('argument').isArrayExpression()) return null;
-        for (const elP of aP.get('argument').get('elements')) {
-          if (i === site.paramIndex) return unwrapSequenceTail(elP);
-          i++;
+    let positionIndex = 0;
+    for (const argPath of site.callPath.get('arguments')) {
+      if (argPath.isSpreadElement()) {
+        if (!argPath.get('argument').isArrayExpression()) return null;
+        for (const elementPath of argPath.get('argument').get('elements')) {
+          if (elementPath?.isSpreadElement()) return null;
+          if (positionIndex === site.paramIndex) return unwrapSequenceTail(elementPath);
+          positionIndex++;
         }
         continue;
       }
-      if (i === site.paramIndex) return unwrapSequenceTail(aP);
-      i++;
+      if (positionIndex === site.paramIndex) return unwrapSequenceTail(argPath);
+      positionIndex++;
     }
     return null;
   }
@@ -69,7 +73,7 @@ export default function createSynthSwapEmitter({
   // remains the synth target, which makes the runtime fallback path (caller-arg evaluates
   // to undefined -> wrapper-default fires) carry the polyfill
   function findTargetPath(wrapper, objectPattern) {
-    if (objectPattern.node.properties.some(p => t.isRestElement(p))) return null;
+    if (objectPattern.node.properties.some(property => t.isRestElement(property))) return null;
     if (wrapper?.isAssignmentPattern() && t.isIdentifier(wrapper.node.right)) {
       const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
       if (argPath && isClassifiableReceiverArg(argPath.node)) return argPath;
@@ -170,17 +174,17 @@ export default function createSynthSwapEmitter({
       let receiverRef = null;
       const getReceiverRef = () => receiverRef ??= isPolyfillableGlobal
         ? injectPureImport(receiverPure.entry, receiverPure.hintName) : receiver;
-      const synthProps = [];
-      for (const p of objectPatternNode.properties) {
-        if (!t.isObjectProperty(p) || p.computed || !t.isIdentifier(p.key)) continue;
-        const pending = polyfills.get(p.key.name);
+      const synthProperties = [];
+      for (const property of objectPatternNode.properties) {
+        if (!t.isObjectProperty(property) || property.computed || !t.isIdentifier(property.key)) continue;
+        const pending = polyfills.get(property.key.name);
         // injectPureImport already returns a fresh clone; another cloneNode here would be a no-op copy
         const value = pending
           ? injectPureImport(pending.entry, pending.hintName)
-          : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(p.key.name));
-        synthProps.push(t.objectProperty(t.identifier(p.key.name), value));
+          : t.memberExpression(t.cloneNode(getReceiverRef()), t.identifier(property.key.name));
+        synthProperties.push(t.objectProperty(t.identifier(property.key.name), value));
       }
-      targetPath.replaceWith(t.objectExpression(synthProps));
+      targetPath.replaceWith(t.objectExpression(synthProperties));
     }
   }
 
