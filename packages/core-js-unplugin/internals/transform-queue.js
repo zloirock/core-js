@@ -93,7 +93,28 @@ function hasRootBoundary(needle, rootLength) {
   return next === '.' || next === '?' || next === '[' || next === '(';
 }
 
-function substituteInner(content, needle, replacement, nth, outerHint) {
+function substituteInner(content, needle, replacement, nth, outerHint, innerPrefix) {
+  // mirror babel-plugin's AST-mutation flow for `new (chain.method)(args)`: the outer
+  // memoizes `chainRoot` (e.g. `arr.flat`) as `_ref`, then the inner visit replaces
+  // `arr.flat` with `_flatMaybeArray(arr)` INSIDE the assignment. result: outer guard
+  // becomes `_ref = _flatMaybeArray(arr)` and body uses `_ref()` (proper memoize, no
+  // dead code). text-rewrite equivalent: when outer has guardRef + rootRaw AND the
+  // inner is a split with a prefix (polyfill-helper invocation `_polyfill(receiver)`),
+  // AND the inner needle extends BEYOND rootRaw (i.e. rootRaw is the inner's callee /
+  // member-access prefix, not the full inner call), substitute the rootRaw inside the
+  // guard's `_ref = rootRaw` slot with `innerPrefix`. needle.length === rootRaw.length
+  // means rootRaw IS the full inner call (e.g. `this.at(0)?.includes` - rootRaw equals
+  // inner) - in that case the existing guardRef-rewrite candidate (which substitutes the
+  // full inner emit at `_ref` placeholder) is correct, so we fall through. try the prefix
+  // path BEFORE the regular candidates - if we hit the body's `_ref()` first, the prefix
+  // path is wasted (and we'd leave `_ref = rootRaw` dead code in the guard)
+  if (innerPrefix && outerHint?.rootRaw && outerHint.guardRef
+      && needle.startsWith(outerHint.rootRaw)
+      && needle.length > outerHint.rootRaw.length
+      && hasRootBoundary(needle, outerHint.rootRaw.length)) {
+    const rootRawResult = replaceNthOccurrence(content, outerHint.rootRaw, innerPrefix, 0);
+    if (rootRawResult !== content) return { content: rootRawResult, found: true };
+  }
   const candidates = [needle];
   if (needle.includes('?.')) candidates.push(deoptionalizeNeedle(needle));
   if (outerHint?.rootRaw && outerHint.guardRef
@@ -597,13 +618,20 @@ export default class TransformQueue {
         continue;
       }
       const needle = this.#code.slice(inner.start, innerEndLogical);
+      // split inners expose their prefix-half text (the polyfill-helper invocation
+      // `_polyfill(receiver)` emitted by addInstanceTransform). compose hands this to
+      // substituteInner so the rootRaw-alone substitution path can swap in just the
+      // helper call (matching babel's mutated-AST shape) instead of the full inner
+      const innerPrefix = inner.splitInfo?.role === 'prefix' ? inner.content
+        : inner.splitInfo?.role === 'suffix' ? inner.splitInfo.peer.content
+        : null;
       // needle position in originalSlice: count from start up to innerOffset, then subtract
       // same-needle occurrences already replaced by strictly-preceding processedRanges.
       // fixes `Array.from(x).reduce(Array.from)` - filter consumes the leftmost Array.from
       // during composition, so the rightmost inner's nth must point to the sole remaining slot.
       const nth = countOccurrences(originalSlice, needle, 0, inner.start - start)
         - consumedOccurrencesBefore(originalSlice, needle, inner.start, start, processedRanges);
-      const result = substituteInner(content, needle, innerContent, nth, rewriteHint);
+      const result = substituteInner(content, needle, innerContent, nth, rewriteHint, innerPrefix);
       if (!result.found) {
         // inner was already swallowed by an enclosing inner we processed earlier
         if (processedRanges.some(r => r.start <= inner.start && r.end >= innerEndLogical)) continue;
