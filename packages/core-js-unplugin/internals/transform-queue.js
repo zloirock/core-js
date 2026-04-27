@@ -441,15 +441,20 @@ export default class TransformQueue {
     return entry.content;
   }
 
-  // compose nested transforms and apply to magic-string
+  // compose nested transforms and apply to magic-string. inserts MUST drain AFTER overwrites:
+  // `appendRight(pos)` cached against a chunk that a later `overwrite(pos, end, ...)` replaces
+  // is silently dropped (MagicString folds the insert into the overwritten chunk's pre-edit
+  // intro, which `overwrite` discards). running inserts last means each `appendRight(pos)`
+  // lands on the post-overwrite chunk's intro - preserved regardless of `pos`/overwrite
+  // collision. reproducer: minified `function f(){arr.at?.(0).map(x=>x)}` - the polyfill
+  // overwrites at the byte right after `{` AND scope-tracker inserts `var _ref, _ref2, _ref3;`
+  // at that same byte; pre-fix the var decl was lost, yielding ReferenceError in strict mode
   apply() {
-    // drain inserts in registration order. these are point-anchored emissions (no
-    // composition) - run them BEFORE overwrites so an `appendRight(pos)` chunk lands
-    // in the original source position. running after `overwrite(pos, ...)` would still
-    // work via MagicString chunk-anchoring, but keeps the apply-phase invariants simpler:
-    // when overwrites mutate, inserts are already deposited
+    this.#applyOverwrites();
     for (const { pos, content } of this.#inserts) this.#ms.appendRight(pos, content);
+  }
 
+  #applyOverwrites() {
     if (!this.#transforms.size) return;
     // single snapshot, sorted asc by start; fast path reverses in place, slow path re-sorts
     // in place. `#hasNesting` guarantees distinct starts on the fast-path branch so `reverse()`
@@ -464,11 +469,15 @@ export default class TransformQueue {
       return;
     }
 
-    // slow path: compose nested transforms then apply outermost-first.
-    // innermost first: smaller LOGICAL ranges before larger, right-to-left for same-level.
-    // split prefix's physical end = mid (small) but it logically owns full [start, logicalEnd]
-    // - sort by logical span so split's outer-iteration runs AFTER inners contained in its
-    // logical range, matching the wrap order non-split entries naturally produce
+    this.#applyComposed(transforms);
+  }
+
+  // slow path: compose nested transforms then apply outermost-first.
+  // innermost first: smaller LOGICAL ranges before larger, right-to-left for same-level.
+  // split prefix's physical end = mid (small) but it logically owns full [start, logicalEnd]
+  // - sort by logical span so split's outer-iteration runs AFTER inners contained in its
+  // logical range, matching the wrap order non-split entries naturally produce
+  #applyComposed(transforms) {
     transforms.sort((a, b) => entryLogicalSpan(a) - entryLogicalSpan(b) || b.start - a.start);
 
     // phase 1: compose - #sorted is already maintained asc by start.
