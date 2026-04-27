@@ -6,7 +6,7 @@
 //   - `checkTypeAnnotations(node, onGlobal)` helper for class / function annotation slots
 //   - `isPolyfillableOptional(member, scope, adapter, resolve)` - the polyfill replacement
 //     consumes `?.`, so the receiver null-check is redundant
-import { getSuperTypeArgs } from '../helpers.js';
+import { getSuperTypeArgs } from '../helpers/ast-patterns.js';
 import { unwrapParens } from './resolve.js';
 
 // allow-list of TS type-only nodes - unknown `TS*` defaults to runtime (false positive is
