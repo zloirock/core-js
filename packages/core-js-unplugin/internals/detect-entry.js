@@ -1,5 +1,5 @@
-import { getEntrySource } from '@core-js/polyfill-provider/detect-usage';
-import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers';
+import { getEntrySource } from '@core-js/polyfill-provider/detect-usage/entries';
+import { declaresRequireBinding } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { estreeAdapter } from './detect-usage.js';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 

@@ -3,7 +3,7 @@
 // are functions; namespaces (Math, JSON, Reflect, ...) and proxy globals (globalThis, self,
 // ...) are plain objects
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
-import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 
 export const KNOWN_FUNCTION_GLOBALS = new Set([
   ...Object.keys(knownBuiltInReturnTypes.constructors),

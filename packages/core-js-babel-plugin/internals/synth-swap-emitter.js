@@ -15,8 +15,8 @@ import {
   isSynthSimpleObjectPattern,
   mayHaveSideEffects,
   TS_EXPR_WRAPPERS,
-} from '@core-js/polyfill-provider/helpers';
-import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
 
 export default function createSynthSwapEmitter({
   adapter,
