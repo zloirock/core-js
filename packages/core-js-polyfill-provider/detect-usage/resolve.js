@@ -146,10 +146,10 @@ function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen) {
     if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
     return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
   }
-  if (unwrapped?.type === 'MemberExpression' || unwrapped?.type === 'OptionalMemberExpression') {
-    return resolveObjectName(unwrapped, scope, adapter, seen);
-  }
-  return null;
+  // MemberExpression / OptionalMemberExpression / CallExpression / OptionalCallExpression all
+  // delegate to resolveObjectName - it handles each shape (proxy-global walk, call-inline).
+  // unhandled shapes (NewExpression, BinaryExpression, etc.) safely return null
+  return unwrapped ? resolveObjectName(unwrapped, scope, adapter, seen) : null;
 }
 
 // `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
@@ -193,13 +193,24 @@ function resolveProxyGlobalRoot(receiver, scope, adapter, seen) {
 }
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
-// (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow
+// (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow.
+// initialize at entry so the cycle guard accumulates across recursion regardless of whether
+// the caller passed one - matches resolveBindingToGlobal's convention
 export function resolveObjectName(objectNode, scope, adapter, seen) {
+  if (!seen) seen = new Set();
   objectNode = unwrapParens(objectNode);
   if (objectNode.type === 'Identifier') {
     if (adapter.hasBinding(scope, objectNode.name)) return resolveBindingToGlobal(objectNode.name, scope, adapter, seen);
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
+  }
+  // call expression: inline the function-like callee's body return when it bottoms out on
+  // a resolvable receiver. covers IIFE (`(() => Map)()`), function-expression IIFE, and
+  // identifier-bound arrow/fn (`const f = () => Map; 'X' in f()`). recursion through
+  // resolveObjectName handles chains like `(() => globalThis)().Map`
+  if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
+    const inlined = inlineCallReturnExpression(objectNode, scope, adapter, seen);
+    return inlined ? resolveObjectName(inlined, scope, adapter, seen) : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
   // computed: globalThis[`Array`] resolves the bracket expression; non-computed reads the
@@ -209,6 +220,47 @@ export function resolveObjectName(objectNode, scope, adapter, seen) {
     : objectNode.property.type === 'Identifier' ? objectNode.property.name : null;
   if (!propertyName) return null;
   return resolveProxyGlobalRoot(objectNode.object, scope, adapter, seen) ? propertyName : null;
+}
+
+// resolve a call-expression callee to its function-like body, then extract the body's single
+// return expression. handles direct IIFE (callee = arrow/fn-expr) AND identifier-bound
+// callees (`const f = () => X; f()` walks through the binding's init to the same inline form).
+// `seen` (always non-null per resolveObjectName's entry init) carries names of bindings already
+// in the resolution chain - cyclic `const f = () => g(); const g = () => f();` bails on the
+// second visit
+function inlineCallReturnExpression(callNode, scope, adapter, seen) {
+  let callee = unwrapParens(callNode.callee);
+  if (callee.type === 'Identifier') {
+    const calleeName = callee.name;
+    if (!adapter.hasBinding(scope, calleeName) || seen.has(calleeName)) return null;
+    const binding = adapter.getBinding(scope, calleeName);
+    // const-only: any reassignment makes the inline result indeterminate at the call site
+    if (!binding || binding.constantViolations?.length) return null;
+    if (adapter.getBindingNodeType(scope, calleeName) !== 'VariableDeclarator') return null;
+    const initNode = binding.node?.init;
+    if (!initNode) return null;
+    callee = unwrapParens(initNode);
+    seen.add(calleeName);
+  }
+  // params would shadow free identifiers in the body; bail to keep the body's free-identifier
+  // resolution faithful to the call site. block bodies must contain exactly one return at top
+  // level (no early-exit branches, no try/catch / loops) so the return value is unambiguous
+  if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression')
+    || callee.params?.length) return null;
+  return singleReturnBodyExpression(callee.body);
+}
+
+// extract the single return expression of a function-like body. arrow expression-body returns
+// directly; block bodies must contain exactly one ReturnStatement at top level
+function singleReturnBodyExpression(body) {
+  if (body.type !== 'BlockStatement') return body;
+  let ret = null;
+  for (const stmt of body.body) {
+    if (stmt.type !== 'ReturnStatement') continue;
+    if (ret) return null;
+    ret = stmt;
+  }
+  return ret?.argument ?? null;
 }
 
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
