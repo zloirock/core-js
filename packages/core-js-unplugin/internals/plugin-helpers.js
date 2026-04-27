@@ -1,6 +1,6 @@
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
 import { isASTNode, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/import-state';
+import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
 
 // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
 // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
