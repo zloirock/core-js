@@ -114,8 +114,9 @@ export function scanExistingCoreJSImports(ast, { packages, pkg, mode, adapter, o
       // follow the same rule. defaultSpecifierNames already filters per-specifier, so here we
       // only need to skip the declaration-level case. type-only imports are erased at runtime
       // (TS stripping), so dedup'ing against their names would route runtime calls through an
-      // undefined binding
-      if (node.importKind === 'type' || node.exportKind === 'type') continue;
+      // undefined binding. exportKind never lives on ImportDeclaration (it's an Export*Declaration
+      // field) - only importKind is relevant here
+      if (node.importKind === 'type') continue;
       const source = adapter.getStringValue(node.source);
       if (typeof source !== 'string') continue;
       const names = defaultSpecifierNames(node);
