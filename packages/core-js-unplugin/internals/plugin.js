@@ -2,32 +2,26 @@ import { parseSync } from 'oxc-parser';
 import { traverse } from 'estree-toolkit';
 import MagicString from 'magic-string';
 import {
-  buildOffsetToLine,
-  createClassHelpers,
   createTypeAnnotationChecker,
   detectCommonJS,
   hasTopLevelESM,
-  isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
   isTaggedTemplateTag,
   isUpdateTarget,
-  mergeVisitors,
-  parseDisableDirectives,
-  resolveSuperImportName,
-  stripQueryHash,
   TS_EXPR_WRAPPERS,
   unwrapInitValue,
-} from '@core-js/polyfill-provider/helpers';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { createClassHelpers, resolveSuperImportName } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { buildOffsetToLine, mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
-import {
-  enumerateFallbackDestructureBranches,
-  resolveKey as sharedResolveKey,
-  isTypeAnnotationNodeType,
-  scanExistingCoreJSImports,
-} from '@core-js/polyfill-provider/detect-usage';
+import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
