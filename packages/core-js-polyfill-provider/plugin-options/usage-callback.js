@@ -43,9 +43,17 @@ export function createUsageGlobalCallback({
   function dispatch(meta, path) {
     if (shouldSkipUsageDispatch(meta, path, isDisabled)) return;
     if (meta.kind === 'in') {
-      const entry = symbolKeyToEntry(meta.key);
-      if (entry) injectModulesForModeEntry(entry);
-      return;
+      // Symbol-sourced LHS (`Symbol.iterator in obj`) routes through the symbol-in entry table
+      // for the dedicated polyfill (`is-iterable` etc.); bare-string LHS (`'from' in Array`)
+      // falls through to the standard meta resolver which reaches the static polyfill at the
+      // resolved receiver (es.array.from). symmetric с usage-pure's handleInExpression which
+      // folds the same shape to `true` - in usage-global a side-effect import is enough since
+      // post-polyfill the runtime check naturally yields true
+      const symbolEntry = symbolKeyToEntry(meta.key);
+      if (symbolEntry) {
+        injectModulesForModeEntry(symbolEntry);
+        return;
+      }
     }
     const deps = resolveUsage(meta, path);
     if (deps) {
