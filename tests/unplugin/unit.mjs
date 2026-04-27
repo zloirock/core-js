@@ -1,6 +1,7 @@
 import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
 import { shouldTransform } from '../../packages/core-js-unplugin/index.js';
+import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
 import { entryToGlobalHint, ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
 import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
@@ -698,6 +699,36 @@ async function checkEstreeNodeTypeMapper() {
   check('nodeType/undefined', nodeType(undefined), null);
 }
 await checkEstreeNodeTypeMapper();
+
+// --- createPolyfillContext input validation (defensive checks for direct callers) ---
+
+function checkPolyfillContextRejects(label, opts) {
+  try {
+    createPolyfillContext(opts);
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan(label) } :: expected throw`;
+  } catch (error) {
+    if (/\[core-js\]/.test(error.message)) counts.passed++;
+    else {
+      counts.failed++;
+      echo`${ red('FAIL') } ${ cyan(label) } :: unexpected error :: ${ error.message }`;
+    }
+  }
+}
+
+// initPluginOptions enforces these but third-party callers bypassing it (custom plugin
+// providers, programmatic invocations) need their own guard - else `pkg === ''` produces
+// false-positive entry detection downstream
+checkPolyfillContextRejects('createPolyfillContext/empty package',
+  { method: 'usage-pure', package: '' });
+checkPolyfillContextRejects('createPolyfillContext/slash-only package',
+  { method: 'usage-pure', package: '/' });
+checkPolyfillContextRejects('createPolyfillContext/multi-slash package',
+  { method: 'usage-pure', package: '///' });
+checkPolyfillContextRejects('createPolyfillContext/non-string package',
+  { method: 'usage-pure', package: 0 });
+checkPolyfillContextRejects('createPolyfillContext/null package',
+  { method: 'usage-pure', package: null });
 
 const { passed, failed } = counts;
 echo`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }`;
