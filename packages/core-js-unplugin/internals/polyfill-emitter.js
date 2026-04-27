@@ -314,16 +314,23 @@ export function createPolyfillEmitter({
   function replaceInstanceChainCombined(outerBinding, node, parent, metaPath, chain) {
     const { chainStart, innerCallee, innerResult } = chain;
     const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
-    const aRef = scopeTracker.genRef();
+    const receiver = unwrapParensSrc(innerCallee.object);
+    // mirror babel-compat.js `memoize` (`isSafeToReuse`): a side-effect-free Identifier /
+    // ThisExpression receiver can appear verbatim in every slot without `_ref = X` capture.
+    // skipping the redundant memo aligns the chain-combined emit byte-for-byte with the
+    // AST runner (e.g. `arr.flat?.().map(y => y)` -> `null == arr || ...` instead of
+    // `null == (_ref = arr) || ...`), saving one allocated `_ref` and matching parity
+    const isReceiverSafe = NO_REF_NEEDED.has(unwrapNodeForMemoize(innerCallee.object).type);
+    const aRef = isReceiverSafe ? receiver : scopeTracker.genRef();
+    const aAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
     const mRef = scopeTracker.genRef();
     const outerRef = scopeTracker.genRef();
     const innerArgs = sliceBetweenParens(chainStart) ?? '';
     const outerArgs = sliceBetweenParens(parent) ?? '';
     const innerCall = `${ mRef }.call(${ aRef }${ innerArgs ? `, ${ innerArgs }` : '' })`;
-    const receiver = unwrapParensSrc(innerCallee.object);
 
     const tests = [
-      `null == (${ aRef } = ${ receiver })`,
+      `null == ${ aAssign }`,
       `null == (${ mRef } = ${ innerBinding }(${ aRef }))`,
     ];
     let outerObj;
