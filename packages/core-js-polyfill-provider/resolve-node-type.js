@@ -1,15 +1,14 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from './helpers/class-walk.js';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
   getSuperTypeArgs,
   getTypeArgs,
-  globalProxyMemberName,
   peelFallbackWrappers,
   singleQuasiString,
   unwrapExportedDeclaration,
   unwrapParens,
   unwrapRuntimeExpr,
-} from './helpers.js';
+} from './helpers/ast-patterns.js';
 import {
   $Object,
   $Primitive,
