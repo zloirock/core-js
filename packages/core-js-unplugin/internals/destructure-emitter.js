@@ -789,6 +789,33 @@ export function createDestructureEmitter({
         return p.computed ? `[${ nodeSrc(p.key) }]` : nodeSrc(p.key);
       }
 
+      // when the init expression is retained in emitPolyfilled output (instance dispatch
+      // receiver / rest objRef), polyfill any global identifiers it references so older
+      // engines don't ReferenceError. two cases handled:
+      //   1. whole chain resolves to a known polyfillable global (`globalThis.Array`) -
+      //      replace entire init with the polyfill binding (`_Array`)
+      //   2. proxy-global root with unknown leaf (`globalThis.unknownArr`) - replace just
+      //      the root identifier in-place via byte-precise slice so the rest of the chain
+      //      text (`.unknownArr`) survives for instance dispatch
+      // returns the polyfilled init source or null when no substitution applies
+      function polyfillInitGlobals(info) {
+        const initNode = unwrapParens(info.initNode);
+        const leafName = info.initIdentName || globalProxyMemberName(initNode);
+        if (leafName) {
+          const leafPolyfill = resolvePure({ kind: 'global', name: leafName }, null);
+          if (leafPolyfill) return injectPureImport(leafPolyfill.entry, leafPolyfill.hintName);
+        }
+        if (info.initStart === undefined) return null;
+        const proxyRoot = findProxyGlobal(initNode);
+        if (!proxyRoot) return null;
+        const rootPolyfill = resolveGlobalPolyfill(proxyRoot.name);
+        if (!rootPolyfill) return null;
+        const rootBinding = injectPureImport(rootPolyfill.entry, rootPolyfill.hintName);
+        const offset = proxyRoot.start - info.initStart;
+        return info.initSrc.slice(0, offset) + rootBinding
+          + info.initSrc.slice(offset + (proxyRoot.end - proxyRoot.start));
+      }
+
       function emitPolyfilled(info, parts, deferredSEs) {
         const { entries, allProps, initSrc, initIdentName, initStart, initEnd, scopeSnapshot } = info;
         let initTransformed = (initStart !== undefined && initEnd !== undefined
@@ -801,9 +828,12 @@ export function createDestructureEmitter({
         const remaining = allProps.filter(p => !polyfillKeys.has(p));
         const hasInstance = entries.some(e => e.kind === 'instance');
         const resolvedGlobalName = initIdentName || globalProxyMemberName(unwrapParens(info.initNode));
-        if ((remaining.length > 0 || hasRest || hasInstance) && initTransformed === initSrc && resolvedGlobalName) {
-          const initResolved = resolvePure({ kind: 'global', name: resolvedGlobalName }, null);
-          if (initResolved) initTransformed = injectPureImport(initResolved.entry, initResolved.hintName);
+        // gate global-identifier substitution on init-being-used to avoid emitting unused
+        // proxy-global imports for the all-bindings-discarded case (`const { from } = globalThis`)
+        const initIsUsed = remaining.length > 0 || hasRest || hasInstance;
+        if (initIsUsed && initTransformed === initSrc) {
+          const polyfilled = polyfillInitGlobals(info);
+          if (polyfilled !== null) initTransformed = polyfilled;
         }
         const needsMemo = hasInstance && !resolvedGlobalName && (entries.length > 1 || remaining.length > 0 || hasRest);
         let objRef = initTransformed;
