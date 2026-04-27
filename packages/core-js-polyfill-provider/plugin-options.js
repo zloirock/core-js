@@ -5,9 +5,9 @@
 import compatData from '@core-js/compat/data' with { type: 'json' };
 import targetsParser from '@core-js/compat/targets-parser';
 import { compare } from '@core-js/compat/helpers';
-import {
-  isForXWriteTarget, isTSTypeOnlyIdentifierPath, patternToRegExp, safeStringify, symbolKeyToEntry, validatePatternList,
-} from './helpers.js';
+import { isForXWriteTarget, isTSTypeOnlyIdentifierPath } from './helpers/ast-patterns.js';
+import { patternToRegExp, safeStringify, validatePatternList } from './helpers/pattern-matching.js';
+import { symbolKeyToEntry } from './helpers/class-walk.js';
 
 const { hasOwn, keys, entries, fromEntries } = Object;
 
