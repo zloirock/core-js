@@ -138,7 +138,13 @@ export function createPolyfillEmitter({
     let split = null;
     let body;
     if (isNew) {
-      body = `new (${ binding }(${ bodyObj }))(${ args || '' })`;
+      // NewExpression with optional inner: babel-plugin's `normalizeOptionalChain` lifts
+      // the conditional guard into the new's callee slot (`new (CONDITIONAL)(args)`),
+      // not around the whole expression. inject guard inside the `new (...)` callee bracket
+      // so the shape matches babel - and so compose's rootRaw substitution lands at the
+      // right slot. clear `guard` to prevent the outer concat from double-emitting.
+      body = `new (${ guard }${ binding }(${ bodyObj }))(${ args || '' })`;
+      guard = '';
     } else if (!isCall) {
       body = `${ binding }(${ bodyObj })`;
     } else {
@@ -289,9 +295,15 @@ export function createPolyfillEmitter({
     return resolveGlobalPolyfill(obj.name);
   }
 
-  // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined)
+  // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined).
+  // strictly call-only: babel-plugin's analogue gates on `isCallExpression || isOptionalCallExpression`,
+  // so NewExpression must fall through to `addInstanceTransform` (which emits the `isNew` branch
+  // `new (binding(obj))(args)`). without this gate the chain emit drops the `new` keyword and
+  // rewrites to `binding(...).call(_ref, args)` - silent semantic break (a regular call where
+  // the user wrote a constructor invocation)
   function findInnerPolyChain(node, parent, metaPath) {
     if (!isCallee(node, parent) || node.type !== 'MemberExpression' || node.computed) return null;
+    if (parent.type !== 'CallExpression') return null;
     let current = node.object;
     while (current && (current.type === 'ParenthesizedExpression'
         || current.type === 'ChainExpression' || TS_EXPR_WRAPPERS.has(current.type))) {
@@ -322,7 +334,7 @@ export function createPolyfillEmitter({
     // `null == (_ref = arr) || ...`), saving one allocated `_ref` and matching parity
     const isReceiverSafe = NO_REF_NEEDED.has(unwrapNodeForMemoize(innerCallee.object).type);
     const aRef = isReceiverSafe ? receiver : scopeTracker.genRef();
-    const aAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
+    const anAssign = isReceiverSafe ? receiver : `(${ aRef } = ${ receiver })`;
     const mRef = scopeTracker.genRef();
     const outerRef = scopeTracker.genRef();
     const innerArgs = sliceBetweenParens(chainStart) ?? '';
@@ -330,7 +342,7 @@ export function createPolyfillEmitter({
     const innerCall = `${ mRef }.call(${ aRef }${ innerArgs ? `, ${ innerArgs }` : '' })`;
 
     const tests = [
-      `null == ${ aAssign }`,
+      `null == ${ anAssign }`,
       `null == (${ mRef } = ${ innerBinding }(${ aRef }))`,
     ];
     let outerObj;
