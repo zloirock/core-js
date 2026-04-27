@@ -1,6 +1,6 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
 import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
-import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
+import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
 export default class ImportInjector extends ImportInjectorState {
