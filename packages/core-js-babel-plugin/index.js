@@ -1,32 +1,27 @@
 import {
   ESM_MARKER_TYPES,
-  createClassHelpers,
   detectCommonJS,
   hasSideEffectfulSequencePrefix,
   hasTopLevelESM,
-  isCoreJSFile,
   isDeleteTarget,
   isForXWriteTarget,
   isInUpdateOperand,
   isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
   mayHaveSideEffects,
-  mergeVisitors,
-  parseDisableDirectives,
-  resolveSuperImportName,
   TS_EXPR_WRAPPERS,
-} from '@core-js/polyfill-provider/helpers';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { createClassHelpers, resolveSuperImportName } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isCoreJSFile } from '@core-js/polyfill-provider/helpers/path-normalize';
+import { mergeVisitors, parseDisableDirectives } from '@core-js/polyfill-provider/helpers/source-scan';
 import { createResolveNodeType } from '@core-js/polyfill-provider/resolve-node-type';
 import { createPolyfillResolver } from '@core-js/polyfill-provider/resolver';
 import { createModuleInjectors, createUsageGlobalCallback } from '@core-js/polyfill-provider/plugin-options';
-import {
-  enumerateFallbackDestructureBranches,
-  resolveKey as sharedResolveKey,
-  resolveSymbolIteratorEntry,
-  resolveSymbolInEntry,
-  isPolyfillableOptional,
-  scanExistingCoreJSImports,
-} from '@core-js/polyfill-provider/detect-usage';
+import { enumerateFallbackDestructureBranches } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { resolveKey as sharedResolveKey } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { resolveSymbolIteratorEntry, resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
+import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { scanExistingCoreJSImports } from '@core-js/polyfill-provider/detect-usage/entries';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import createASTHelpers from './internals/babel-compat.js';
 import ImportInjector from './internals/import-injector.js';

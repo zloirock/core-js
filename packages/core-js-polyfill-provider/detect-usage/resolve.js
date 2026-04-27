@@ -4,14 +4,13 @@
 // resolvers used by callers (`resolveKey`, `resolveObjectName`, `patternBindingName`,
 // `findProxyGlobal`, `createSelfRefVarGuard`). also hosts Symbol-ref helpers
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '../helpers/class-walk.js';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
-  globalProxyMemberName,
   kebabToCamel,
   mayHaveSideEffects,
   singleQuasiString,
-} from '../helpers.js';
+} from '../helpers/ast-patterns.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
 // exported so cohort recursive walkers (`isSymbolSourcedKey` in members.js) share the bound

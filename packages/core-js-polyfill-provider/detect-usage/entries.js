@@ -2,11 +2,8 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import {
-  declaresRequireBinding,
-  mayHaveSideEffects,
-  stripQueryHash,
-} from '../helpers.js';
+import { declaresRequireBinding, mayHaveSideEffects } from '../helpers/ast-patterns.js';
+import { stripQueryHash } from '../helpers/path-normalize.js';
 import { bindsModuleDefault, unwrapParens } from './resolve.js';
 
 // pull the source argument out of a dynamic import call (`import('core-js/...')`).
