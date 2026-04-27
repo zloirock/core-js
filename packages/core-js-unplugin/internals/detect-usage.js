@@ -1,21 +1,19 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
+import { buildDestructuringInitMeta } from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
-  buildDestructuringInitMeta,
   checkLogicalAssignLhsGlobal,
   checkLogicalAssignLhsMember,
-  checkTypeAnnotations,
-  createSelfRefVarGuard,
-  handleBinaryIn,
-  handleMemberExpressionNode,
   isKnownGlobalName,
-  resolveCallArgument,
+} from '@core-js/polyfill-provider/detect-usage/globals';
+import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfill-provider/detect-usage/annotations';
+import {
+  createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
   resolveObjectName as sharedResolveObjectName,
-  walkTypeAnnotationGlobals,
-} from '@core-js/polyfill-provider/detect-usage';
+} from '@core-js/polyfill-provider/detect-usage/resolve';
+import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
-  POSSIBLE_GLOBAL_OBJECTS,
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
   findTSRuntimeBindingInPath,
@@ -27,10 +25,12 @@ import {
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
+  resolveCallArgument,
   unwrapInitValue,
   unwrapParens,
   walkPatternIdentifiers,
-} from '@core-js/polyfill-provider/helpers';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 
 // --- isReferenced ---
 
