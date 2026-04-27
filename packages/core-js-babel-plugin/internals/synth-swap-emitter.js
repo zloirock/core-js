@@ -31,12 +31,18 @@ export default function createSynthSwapEmitter({
 
   // `(fn, R)` as an IIFE arg evaluates to its last expression. side-effect-free preceding
   // expressions can be dropped from the synth target resolution (R becomes the receiver);
-  // preceding effects leave the path as-is so synth-swap bails back to inline-default
+  // preceding effects leave the path as-is so synth-swap bails back to inline-default.
+  // recurse into nested SequenceExpression tails (`(a, (b, R))`) so the inner peeling lands
+  // on the actual receiver Identifier - flat / nested forms must classify identically
   function unwrapSequenceTail(argPath) {
-    if (!argPath?.isSequenceExpression()) return argPath;
-    const expressions = argPath.get('expressions');
-    if (expressions.slice(0, -1).some(expressionPath => mayHaveSideEffects(expressionPath.node))) return argPath;
-    return expressions.at(-1) ?? argPath;
+    while (argPath?.isSequenceExpression()) {
+      const expressions = argPath.get('expressions');
+      if (expressions.slice(0, -1).some(expressionPath => mayHaveSideEffects(expressionPath.node))) return argPath;
+      const tail = expressions.at(-1);
+      if (!tail) return argPath;
+      argPath = tail;
+    }
+    return argPath;
   }
 
   // path-iteration with inline-spread expansion + `unwrapSequenceTail`. arrow IIFE only -
@@ -155,16 +161,17 @@ export default function createSynthSwapEmitter({
       // (`.remove()` on an ancestor leaves `targetPath.node` stale). replaceWith on an
       // orphaned path throws; skip here so the swap is simply lost rather than crashing
       if (isOrphaned(targetPath)) continue;
-      // pattern-shape check: only bail when the pattern was REPLACED with a non-Identifier
-      // shape (e.g. `pattern.replaceWith(arrayPattern)` - destructure semantic incompatible).
-      // `transform-destructuring` legitimately replaces ObjectPattern with `_ref` Identifier
-      // and lifts `var from = _ref.from` into the body - synth-swap on the RECEIVER (`Array`
-      // -> `{from: _Array$from}`) still semantically correct: `_ref.from` reads from the
-      // synthesized object. only ArrayPattern / RestElement / null break the contract
+      // pattern-shape check: bail when the pattern was REPLACED with anything other than
+      // an `_ref` Identifier (the only legitimate sibling-plugin rewrite is
+      // `transform-destructuring`, which replaces ObjectPattern with `_ref` Identifier and
+      // lifts `var from = _ref.from` into the body - synth-swap on the RECEIVER stays
+      // semantically correct since `_ref.from` reads from the synthesized object).
+      // a fresh ObjectPattern (different identity) might have different keys than the
+      // original we cached - emitting synth with original keys would orphan the new bindings;
+      // safer to bail
       if (isOrphaned(objectPatternPath)) continue;
       const currentPattern = objectPatternPath.node;
-      if (currentPattern !== objectPatternNode
-        && currentPattern?.type !== 'Identifier' && currentPattern?.type !== 'ObjectPattern') continue;
+      if (currentPattern !== objectPatternNode && currentPattern?.type !== 'Identifier') continue;
       // lazy: only inject the receiver's pure import if a sibling prop needs the raw
       // receiver read (`_Promise.custom`). all-polyfilled destructures never call through,
       // keeping the import set clean; fallback is the original identifier when no pure

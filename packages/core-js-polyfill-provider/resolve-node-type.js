@@ -1929,9 +1929,15 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  function resolveUnionType(leftPath, rightPath) {
+  // `op === '??'` ('??' / '??='): left contributes only when non-nullish - if left is
+  // statically null/undefined primitive, right is the only runtime value. similarly for
+  // `||`/`||=`: literal-null/undefined left always falls through to right. without this
+  // peel, `null ?? 'a'` yields commonType(null, string) = null, losing the string type
+  function resolveUnionType(leftPath, rightPath, op) {
     const left = resolveNodeType(leftPath);
     const right = resolveNodeType(rightPath);
+    if (left && right && (op === '??' || op === '??=' || op === '||' || op === '||=')
+        && isNullableOrNever(left)) return right;
     return left && right ? commonType(left, right) : null;
   }
 
@@ -2129,14 +2135,15 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function resolveNodeTypeExpression(path) {
-    path = resolvePath(path);
-
     // polyfill-side transformations (memoized optional-chain refs, chained conditional
     // wrappers, destructure-extracted helpers) stash a pre-mutation type hint on the node
     // so downstream type resolution can recover the original receiver type even after the
-    // expression has been rewritten. the per-case `CallExpression` check below was the
-    // original narrow form; hoist it here so the same hint survives on Identifier /
-    // ConditionalExpression / other wrappers that the AST-mutation path produces
+    // expression has been rewritten. check the hint BEFORE resolvePath - synthesized refs
+    // (`_ref` from babel-compat optional-chain memoization) carry the hint on the cloned
+    // Identifier; if resolvePath ever found a meaningful binding init, the hint stashed
+    // on the cloned identifier itself would be lost
+    if (path.node.coreJSResolvedType) return typeFromHint(path.node.coreJSResolvedType);
+    path = resolvePath(path);
     if (path.node.coreJSResolvedType) return typeFromHint(path.node.coreJSResolvedType);
 
     switch (babelNodeType(path.node)) {
@@ -2263,7 +2270,7 @@ function createResolveNodeType(babelNodeType, t) {
           case '||=':
           case '&&=':
           case '??=':
-            return resolveUnionType(path.get('left'), path.get('right'));
+            return resolveUnionType(path.get('left'), path.get('right'), path.node.operator);
           default:
             return resolveBinaryOperatorType(path.node.operator.slice(0, -1), path.get('left'), path.get('right'));
         }
@@ -2271,9 +2278,9 @@ function createResolveNodeType(babelNodeType, t) {
         // Babel desugars destructuring defaults as: _ref === void 0 ? DEFAULT : _ref
         // when one branch is a void-0 check and the other is the same identifier, resolve to the default branch
         return resolveDesugarDefaultTernary(path)
-          || resolveUnionType(path.get('consequent'), path.get('alternate'));
+          || resolveUnionType(path.get('consequent'), path.get('alternate'), '?:');
       case 'LogicalExpression':
-        return resolveUnionType(path.get('left'), path.get('right'));
+        return resolveUnionType(path.get('left'), path.get('right'), path.node.operator);
       case 'ParenthesizedExpression':
         return resolveNodeType(path.get('expression'));
       case 'TSAsExpression':
@@ -3694,19 +3701,35 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // resolve the type of a destructuring default: const { items = [] } = obj or const [a = []] = arr
+  // resolve the type of a destructuring default: const { items = [] } = obj or const [a = []] = arr.
+  // recurses into nested ObjectPatterns / ArrayPatterns - `const { a: { b = [] } } = obj`
+  // resolving `b` finds the depth-2 default that one-level walk missed
   function resolveDestructuringDefault(pattern, varName, bindingPath) {
     const patternPath = bindingPath.node === pattern ? bindingPath
       : bindingPath.node.id === pattern ? bindingPath.get('id')
       : bindingPath.node.left === pattern ? bindingPath.get('left') : null;
     if (!patternPath) return null;
+    return walkDestructuringForDefault(patternPath, pattern, varName);
+  }
+
+  function walkDestructuringForDefault(patternPath, pattern, varName) {
     const children = patternPath.get(pattern.properties ? 'properties' : 'elements');
     for (const child of children) {
       if (!child.node) continue;
       const valuePath = babelNodeType(child.node) === 'ObjectProperty' ? child.get('value') : child;
-      if (!t.isAssignmentPattern(valuePath.node)) continue;
-      if (valuePath.node.left?.type === 'Identifier' && valuePath.node.left.name === varName) {
-        return resolveNodeType(valuePath.get('right'));
+      if (t.isAssignmentPattern(valuePath.node)) {
+        if (valuePath.node.left?.type === 'Identifier' && valuePath.node.left.name === varName) {
+          return resolveNodeType(valuePath.get('right'));
+        }
+        // `{ a: { b = [] } = {} }` - the inner pattern is on `valuePath.left`, recurse there
+        const innerLeft = valuePath.get('left');
+        if (innerLeft.node?.type === 'ObjectPattern' || innerLeft.node?.type === 'ArrayPattern') {
+          const found = walkDestructuringForDefault(innerLeft, innerLeft.node, varName);
+          if (found) return found;
+        }
+      } else if (valuePath.node?.type === 'ObjectPattern' || valuePath.node?.type === 'ArrayPattern') {
+        const found = walkDestructuringForDefault(valuePath, valuePath.node, varName);
+        if (found) return found;
       }
     }
     return null;

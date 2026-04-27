@@ -372,11 +372,11 @@ export default class TransformQueue {
   addSplit(start, mid, end, prefixContent, suffixContent, guardedRoot, rewriteHint) {
     const groupId = Symbol('split');
     const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
-      { groupId, role: 'prefix', logicalStart: start, logicalEnd: end });
+      { groupId, role: 'prefix', logicalEnd: end });
     // suffix carries the same groupId + the prefix entry reference for compose-time
     // logical-inner assembly. no guardedRoot/hint - composition queries land on prefix
     const suffixEntry = this.add(mid, end, suffixContent, null, null,
-      { groupId, role: 'suffix', logicalStart: start, logicalEnd: end, peer: prefixEntry });
+      { groupId, role: 'suffix', logicalEnd: end, peer: prefixEntry });
     prefixEntry.splitInfo.peer = suffixEntry;
     return prefixEntry;
   }
