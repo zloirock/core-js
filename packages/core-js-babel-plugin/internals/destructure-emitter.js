@@ -17,11 +17,9 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   peelNestedSequenceExpressions,
   propBindingIdentifier,
-} from '@core-js/polyfill-provider/helpers';
-import {
-  canTransformDestructuring as sharedCanTransformDestructuring,
-  patternBindingName,
-} from '@core-js/polyfill-provider/detect-usage';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   planDestructureEmission,

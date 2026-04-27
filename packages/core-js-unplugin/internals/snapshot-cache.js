@@ -1,4 +1,4 @@
-import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
+import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 
 // pre->post snapshot handoff for `phase: 'pre+post'` (keyed by module id). pre's transformed
 // output emits `_ref = ...` free assignments; post lands the matching `var _ref;` via
