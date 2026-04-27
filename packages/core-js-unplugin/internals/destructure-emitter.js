@@ -21,6 +21,7 @@ import {
   TS_EXPR_WRAPPERS,
   unwrapInitValue,
   unwrapParens,
+  walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
@@ -91,9 +92,16 @@ export function createDestructureEmitter({
     // shared `peelNestedSequenceExpressions` lifts every SE layer's preceding effects
     // through paren wrappers (`(se1(), (se2(), G))` -> `[se1(), se2()]`); without
     // recursion, only outermost se1() lifts and inner se2() silently elides
-    const { prefix: seExprs } = peelNestedSequenceExpressions(assignNode.right);
+    const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
     const prefix = seExprs.length ? `${ seExprs.map(nodeSrc).join(', ') };\n` : '';
-    walkAstNodes(assignNode, n => skippedNodes.add(n));
+    // seed skippedNodes ONLY for consumed parts: LHS pattern (extracted into `valueNode = id`)
+    // and the receiver's consumed tail (last expression of SE chain). SE-prefix Identifiers
+    // (e.g. `Promise` in `(Promise.resolve(0).then(noop), globalThis)`) need natural visitor
+    // pass to emit their own polyfill imports. mirrors `seedSkippedForExtractedDeclarators`
+    // logic for the VariableDeclaration shape - blanket walking `assignNode` would suppress
+    // those imports
+    walkAstNodes(assignNode.left, node => skippedNodes.add(node));
+    if (receiverTail) walkAstNodes(receiverTail, node => skippedNodes.add(node));
     transforms.add(stmtNode.start, stmtNode.end, `${ prefix }${ valueNode.name } = ${ binding };`);
     return true;
   }
@@ -127,12 +135,17 @@ export function createDestructureEmitter({
     seedSkippedForExtractedDeclarators(declaration, perDecl);
     let replacement = renderFlattened(perDecl, declaration.kind, isForInit);
     if (!isForInit) {
-      const sePrefixes = [];
-      for (let i = 0; i < declaration.declarations.length; i++) {
-        const { prefix: seExprs } = peelNestedSequenceExpressions(declaration.declarations[i].init);
-        if (seExprs.length) sePrefixes.push(seExprs.map(nodeSrc).join(', '));
+      // lift SE prefix ONLY from extracted declarators (whose receiver tail was consumed
+      // by the flatten rewrite). non-extracted siblings keep their original source verbatim
+      // through `polyfillSiblingReceiverRefs` / `nodeSrc` - lifting their SE prefix would
+      // duplicate execution: once via the lifted statement, once via the preserved declarator
+      const sequencePrefixes = [];
+      for (let index = 0; index < declaration.declarations.length; index++) {
+        if (!perDecl[index].extractions.length) continue;
+        const { prefix: sequenceExpressions } = peelNestedSequenceExpressions(declaration.declarations[index].init);
+        if (sequenceExpressions.length) sequencePrefixes.push(sequenceExpressions.map(nodeSrc).join(', '));
       }
-      if (sePrefixes.length) replacement = `${ sePrefixes.map(p => `${ p };`).join('\n') }\n${ replacement }`;
+      if (sequencePrefixes.length) replacement = `${ sequencePrefixes.map(prefix => `${ prefix };`).join('\n') }\n${ replacement }`;
     }
     transforms.add(declaration.start, declaration.end, replacement);
     return true;
@@ -334,33 +347,81 @@ export function createDestructureEmitter({
   // skippedNodes so identifier visitor doesn't queue a parallel transform that would mismatch
   // TransformQueue's nth-count compose
   function polyfillSiblingReceiverRefs(declarator, flattenedReceivers) {
-    // collect (identifier, parent) pairs so we can filter out Identifiers whose enclosing
-    // MemberExpression resolves to a polyfillable global (e.g. `globalThis.Map`). the
-    // outer MemberExpression transform replaces the whole `globalThis.Map` range with
-    // `_Map`, and a competing inline substitution `globalThis -> _globalThis` would land
-    // a `_globalThis.Map` substring INSIDE the outer's `_Map` content during compose,
-    // turning the inner needle search into a partial match (`__Map` corruption)
+    // collect Identifier matches with shadowing + parent-MemberExpression filtering. two
+    // skip rules:
+    //   (1) parent MemberExpression resolves to a polyfillable global (`globalThis.Map`,
+    //       `globalThis['Map']`). the outer MemberExpression transform replaces the whole
+    //       `globalThis.Map` range with `_Map`; a competing inline `globalThis -> _globalThis`
+    //       would land a `_globalThis.Map` substring INSIDE the outer's `_Map` content during
+    //       compose, turning the inner needle search into a partial match (`__Map` corruption).
+    //       both non-computed `obj.Map` and computed-string `obj['Map']` shapes apply
+    //   (2) Identifier shadowed by a function-like ancestor inside the declarator (param /
+    //       function name). the local binding shadows the outer global at runtime, so
+    //       rewriting the inner reference to a polyfill import would change semantics
+    //       (`function (globalThis) { return globalThis }` returns the param value, not `_globalThis`)
     const matches = [];
-    walkAstNodes(declarator, (n, parent) => {
-      if (n.type !== 'Identifier' || !flattenedReceivers.has(n.name)) return;
-      if (parent?.type === 'MemberExpression' && parent.object === n && !parent.computed
-          && parent.property?.type === 'Identifier' && resolveGlobalPolyfill(parent.property.name)) {
-        return;
+    const scopeStack = [];
+
+    function pushFunctionScope(node) {
+      const locals = new Set();
+      for (const param of node.params ?? []) {
+        walkPatternIdentifiers(param, id => locals.add(id.name));
       }
-      matches.push(n);
-    });
+      // FunctionExpression / FunctionDeclaration's own name is in scope inside the body
+      if (node.id?.name) locals.add(node.id.name);
+      scopeStack.push(locals);
+    }
+
+    function isShadowed(name) {
+      for (const scope of scopeStack) if (scope.has(name)) return true;
+      return false;
+    }
+
+    function isPolyfillableMemberAccess(parent, identifierNode) {
+      if (parent?.type !== 'MemberExpression' || parent.object !== identifierNode) return false;
+      const { property } = parent;
+      if (!parent.computed) {
+        return property?.type === 'Identifier' && !!resolveGlobalPolyfill(property.name);
+      }
+      // computed-string `obj['Map']`: parser shape varies (babel StringLiteral / oxc Literal
+      // with string .value). both must apply the same skip - the outer rewrite's range
+      // covers the whole `obj['Map']` MemberExpression
+      const literalValue = property?.type === 'StringLiteral' ? property.value
+        : property?.type === 'Literal' && typeof property.value === 'string' ? property.value
+          : null;
+      return literalValue !== null && !!resolveGlobalPolyfill(literalValue);
+    }
+
+    function walk(node, parent) {
+      if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+      const opensScope = node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration'
+        || node.type === 'ArrowFunctionExpression' || node.type === 'ObjectMethod' || node.type === 'ClassMethod';
+      if (opensScope) pushFunctionScope(node);
+      if (node.type === 'Identifier' && flattenedReceivers.has(node.name)
+        && !isShadowed(node.name) && !isPolyfillableMemberAccess(parent, node)) {
+        matches.push(node);
+      }
+      for (const key of Object.keys(node)) {
+        const value = node[key];
+        if (Array.isArray(value)) for (const item of value) walk(item, node);
+        else walk(value, node);
+      }
+      if (opensScope) scopeStack.pop();
+    }
+
+    walk(declarator, null);
     if (!matches.length) return nodeSrc(declarator);
     // descending source order so prior substitutions don't shift later relative indices
-    matches.sort((a, b) => b.start - a.start);
+    matches.sort((leftMatch, rightMatch) => rightMatch.start - leftMatch.start);
     const declStart = declarator.start;
     let src = nodeSrc(declarator);
-    for (const m of matches) {
-      const pure = resolveGlobalPolyfill(m.name);
+    for (const match of matches) {
+      const pure = resolveGlobalPolyfill(match.name);
       if (!pure) continue;
-      skippedNodes.add(m);
-      src = src.slice(0, m.start - declStart)
+      skippedNodes.add(match);
+      src = src.slice(0, match.start - declStart)
         + injectPureImport(pure.entry, pure.hintName)
-        + src.slice(m.end - declStart);
+        + src.slice(match.end - declStart);
     }
     return src;
   }
@@ -590,20 +651,39 @@ export function createDestructureEmitter({
     }
   }
 
-  // catch clause: replace param with ref, insert polyfilled + remaining in source order
+  // catch clause: replace param with ref, insert polyfilled + remaining in source order.
+  // computed keys must have their pending polyfill rewrites extracted upfront - the catch
+  // param overwrite below would otherwise contain orphan inner transforms -> compose throws
+  // "could not locate inner needle". covers entry keys (Symbol.iterator absorbed by
+  // getIteratorMethod) and non-entry siblings (Symbol.asyncIterator polyfilled by standalone
+  // visitor) uniformly
   function emitCatchClause(infos, catchNode) {
     const [{ initSrc: ref, allProps }] = infos;
     const entryByProp = new Map(infos.flatMap(i => i.entries.map(e => [e.propNode, e])));
-    for (const e of entryByProp.values()) {
-      if (e.propNode.computed) e.polyfillKeyContent = transforms.extractContent(e.propNode.key.start, e.propNode.key.end);
+    const computedKeyContent = new Map();
+    for (const p of allProps) {
+      if (p.type !== 'Property' || !p.computed) continue;
+      const content = transforms.extractContent(p.key.start, p.key.end);
+      if (content !== null) computedKeyContent.set(p, content);
     }
+    for (const e of entryByProp.values()) {
+      if (e.propNode.computed) e.polyfillKeyContent = computedKeyContent.get(e.propNode) ?? null;
+    }
+    // non-entry prop source: use polyfilled key when extracted, else original slice.
+    // shared between no-rest prelude and hasRest pattern rebuild
+    const nonEntryPropSrc = p => {
+      const polyfilledKey = computedKeyContent.get(p);
+      return polyfilledKey === undefined
+        ? nodeSrc(p)
+        : `[${ polyfilledKey }]: ${ nodeSrc(p.value) }`;
+    };
     const hasRest = allProps.some(p => p.type === 'RestElement' || p.type === 'SpreadElement');
     const lines = [];
     for (const p of allProps) {
       if (p.type === 'RestElement' || p.type === 'SpreadElement') continue;
       const e = entryByProp.get(p);
       if (!e) {
-        if (!hasRest) lines.push(`let { ${ nodeSrc(p) } } = ${ ref };`);
+        if (!hasRest) lines.push(`let { ${ nonEntryPropSrc(p) } } = ${ ref };`);
         continue;
       }
       const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
@@ -618,7 +698,7 @@ export function createDestructureEmitter({
     if (hasRest) {
       const rebuiltProps = allProps.map(p => {
         const e = entryByProp.get(p);
-        if (!e) return nodeSrc(p);
+        if (!e) return nonEntryPropSrc(p);
         const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : nodeSrc(p.key);
         return `${ keySrc }: ${ injector.generateUnusedName() }`;
       });
