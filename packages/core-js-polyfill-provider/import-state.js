@@ -1,4 +1,5 @@
-import { findUniqueName, kebabToPascal } from './helpers.js';
+import { findUniqueName } from './helpers/pattern-matching.js';
+import { kebabToPascal } from './helpers/ast-patterns.js';
 
 // post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written

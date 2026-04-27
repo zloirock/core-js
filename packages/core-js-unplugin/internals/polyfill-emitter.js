@@ -8,13 +8,11 @@
 import {
   hasSideEffectfulSequencePrefix,
   TS_EXPR_WRAPPERS,
-} from '@core-js/polyfill-provider/helpers';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
-import {
-  findProxyGlobal,
-  isPolyfillableOptional,
-  resolveSymbolInEntry,
-} from '@core-js/polyfill-provider/detect-usage';
+import { findProxyGlobal } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
+import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
 import { createRewriteHint } from './transform-queue.js';
 import {
   isCallee,
