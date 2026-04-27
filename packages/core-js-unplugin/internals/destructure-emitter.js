@@ -253,13 +253,23 @@ export function createDestructureEmitter({
 
   // fold an ObjectPattern-valued outer prop: plan each child, concat extractions,
   // rebuild preserved shape. empty extractions -> bail as opaque; all consumed -> null
-  // preservedSrc (caller drops the prop); partial -> `name: { a, b }` with survivors
+  // preservedSrc (caller drops the prop); partial -> `name: { a, b }` with survivors.
+  // inner-level RestElement (`{ Array: { from, ...rest } }`) needs sentinel exclusion: rest
+  // gathers all OTHER own keys, so a fully-consumed key without placeholder would change
+  // runtime semantics (`rest.from` becomes defined, originally excluded). mirrors the
+  // outer-level treatment in `rewriteDeclarator`
   function foldNestedPattern(outerProp, planChild) {
     const extractions = [];
     const preservedInner = [];
+    const innerHasRest = outerProp.value.properties.some(p => p.type === 'RestElement');
     for (const child of outerProp.value.properties) {
       const e = planChild(child);
-      if (e.extractions?.length) extractions.push(...e.extractions);
+      if (e.extractions?.length) {
+        extractions.push(...e.extractions);
+        if (innerHasRest && e.preservedSrc === null && child.type === 'Property' && child.key?.name) {
+          preservedInner.push(`${ child.key.name }: ${ injector.generateUnusedName() }`);
+        }
+      }
       if (e.preservedSrc !== null && e.preservedSrc !== undefined) preservedInner.push(e.preservedSrc);
     }
     if (!extractions.length) return { preservedSrc: nodeSrc(outerProp) };

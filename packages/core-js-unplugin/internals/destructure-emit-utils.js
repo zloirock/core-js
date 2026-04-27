@@ -4,6 +4,7 @@ import {
   findIifeArgForParam,
   isClassifiableReceiverArg,
   unwrapParens,
+  unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 
@@ -67,10 +68,12 @@ export function canTransformDestructuring(metaPath) {
 // (`...[R]`) the same way `resolveCallArgument` does; non-literal spread returns null
 // (static index unknown). arrow-only is a deliberate narrowing on top of the shared
 // `findIifeArgForParam` (which accepts both arrow and FunctionExpression for
-// resolution-layer use)
+// resolution-layer use). SE-tail peel (`(0, (1, R))` -> `R`) so nested + flat
+// SequenceExpression args classify identically
 export function detectIifeArgReceiver(wrapperPath, objectPattern) {
   if (wrapperPath?.node?.type !== 'ArrowFunctionExpression') return null;
-  return findIifeArgForParam(wrapperPath, objectPattern);
+  const arg = findIifeArgForParam(wrapperPath, objectPattern);
+  return arg ? unwrapSafeSequenceTail(arg) : arg;
 }
 
 // receiver node to swap; null means inline-default fallback. handles
