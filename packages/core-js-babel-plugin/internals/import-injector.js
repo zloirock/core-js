@@ -1,5 +1,5 @@
 import { resolveImportPath } from '@core-js/polyfill-provider/helpers/path-normalize';
-import ImportInjectorState from '@core-js/polyfill-provider/import-state';
+import ImportInjectorState from '@core-js/polyfill-provider/injector-base';
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options';
 
 export default class ImportInjector extends ImportInjectorState {
