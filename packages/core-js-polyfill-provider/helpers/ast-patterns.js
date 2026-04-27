@@ -433,6 +433,22 @@ export function peelNestedSequenceExpressions(node) {
   return { prefix, tail: cursor };
 }
 
+// `(fn, R)` IIFE arg evaluates to its tail. peel side-effect-free SE prefixes recursively
+// through paren wrappers so flat / nested forms (`(0, R)` vs `(0, (1, R))`) classify
+// identically for synth-swap. preceding effects leave the node as-is - synth-swap then
+// bails to inline-default and the SE prefix runs through the original arg expression.
+// shared between babel-plugin and unplugin synth-swap emitters
+export function unwrapSafeSequenceTail(node) {
+  for (;;) {
+    while (node?.type === 'ParenthesizedExpression') node = node.expression;
+    if (node?.type !== 'SequenceExpression') return node;
+    if (node.expressions.slice(0, -1).some(mayHaveSideEffects)) return node;
+    const tail = node.expressions.at(-1);
+    if (!tail) return node;
+    node = tail;
+  }
+}
+
 // true when the path's enclosing context is an UpdateExpression, after peeling transparent
 // wrappers upward. accepts the parent path (`path.parentPath` for babel / estree-toolkit).
 // callers gate on plugin method: usage-pure must skip (rewrite to frozen binding invalid),
