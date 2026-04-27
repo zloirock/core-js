@@ -4,7 +4,7 @@
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import { kebabToPascal } from './helpers/ast-patterns.js';
 import { TYPE_HINTS } from './resolve-node-type.js';
-import { initPluginOptions } from './plugin-options.js';
+import { initPluginOptions } from './plugin-options/init.js';
 import { createPolyfillContext, resolve } from './index.js';
 
 const { hasOwn } = Object;
