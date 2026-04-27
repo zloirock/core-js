@@ -254,6 +254,12 @@ const SKIP_DIRS = new Set([
   // emission. unplugin extracts only `@core-js` from `babelOptions.plugins` and runs it
   // standalone, so the AST shape that triggered the bug never appears here
   'audit-synth-swap-survives-transform-destructuring',
+  // babel-only: late-CJS detection diagnostic depends on a sibling babel plugin
+  // (`@babel/plugin-transform-modules-commonjs`) running after our programExit. unplugin
+  // doesn't have a babel plugin chain - it parses with oxc and runs core-js standalone,
+  // so the markersGone trigger never fires here. SKIP_DIRS matches by basename so the
+  // single entry covers both usage-pure and usage-global copies of the fixture
+  'audit-late-cjs-rewriter-warning',
 ]);
 
 function shouldSkip(dirName) {
