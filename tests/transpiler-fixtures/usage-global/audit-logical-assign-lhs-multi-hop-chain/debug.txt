@@ -1,0 +1,25 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "ie": "11"
+}
+
+Using polyfills with `usage-global` method:
+The core-js@4 polyfill added the following polyfills:
+  es.object.to-string { "ie":"11" }
+  es.promise.constructor { "ie":"11" }
+  es.promise.catch { "ie":"11" }
+  es.promise.finally { "ie":"11" }
+  es.array.iterator { "ie":"11" }
+  es.global-this { "ie":"11" }
+  es.map.constructor { "ie":"11" }
+  es.map.species { "ie":"11" }
+  es.map.get-or-insert { "ie":"11" }
+  es.map.get-or-insert-computed { "ie":"11" }
+  es.string.iterator { "ie":"11" }
+  web.dom-collections.iterator { "ie":"11" }
+  web.self { "ie":"11" }
+
+Warnings:
+  `globalThis.self.Map ||= ...` left-hand side cannot be polyfilled (plugin rewrites reads, not writes); expected runtime engine to provide `Map`
+  `globalThis.window.Promise ??= ...` left-hand side cannot be polyfilled (plugin rewrites reads, not writes); expected runtime engine to provide `Promise`
