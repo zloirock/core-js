@@ -336,7 +336,13 @@ export function createPolyfillEmitter({
     const dot = parent.optional ? '?.' : '.';
     const suffix = outerArgs ? `, ${ outerArgs }` : '';
     let replacement = `${ tests.join(' || ') } ? void 0 : ${ outerBinding }(${ outerObj })${ dot }call(${ outerRef }${ suffix })`;
-    if (guardNeedsParens(metaPath, true, parent.start, parent.end)) replacement = `(${ replacement })`;
+    // paren-wrap when context demands grouping (BinaryExpression/UnaryExpression/etc.).
+    // also guard against ASI fusion: a `(`-leading replacement at a statement-leading slot
+    // can fuse with the preceding statement (`prev\n(_at(...)...)` -> `prev(...)`),
+    // triggering a TypeError at runtime. mirrors `addInstanceTransform`'s ASI guard
+    if (guardNeedsParens(metaPath, true, parent.start, parent.end)) {
+      replacement = asiGuardLeadingParen(`(${ replacement })`, metaPath, parent.start);
+    }
 
     transforms.add(parent.start, parent.end, replacement);
     skippedNodes.add(innerCallee);
