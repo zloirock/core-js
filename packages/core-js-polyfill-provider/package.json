@@ -42,8 +42,8 @@
     "./destructure-host-shape.js": "./destructure-host-shape.js",
     "./helpers/*": "./helpers/*.js",
     "./helpers/*.js": "./helpers/*.js",
-    "./import-state": "./import-state.js",
-    "./import-state.js": "./import-state.js",
+    "./injector-base": "./injector-base.js",
+    "./injector-base.js": "./injector-base.js",
     "./resolver": "./resolver.js",
     "./resolver.js": "./resolver.js"
   },
