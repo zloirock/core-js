@@ -453,12 +453,12 @@ export function createUsageVisitors({
 
   function memberExpressionVisitor(path) {
     const { node, parent, key: parentKey } = path;
-    // `globalThis.Map ||= X` - check BEFORE `isReferenced` rejects (write-context member)
-    // and before child-visitor rewrites the object identifier into `_globalThis`
+    // `globalThis.Map ||= X` / `globalThis.self.Map ||= X` - check BEFORE `isReferenced`
+    // rejects (write-context member) and before child-visitor rewrites `globalThis` ->
+    // `_globalThis`. `globalProxyMemberName` (used inside the helper) walks chains and
+    // gates on shadowing internally - no separate isBound check needed
     if (onWarning) {
-      const obj = node.object;
-      const isBound = obj?.type === 'Identifier' && estreeAdapter.hasBinding(path.scope, obj.name);
-      const warning = checkLogicalAssignLhsMember(node, parent, isBound);
+      const warning = checkLogicalAssignLhsMember(node, parent, path.scope, estreeAdapter);
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;
