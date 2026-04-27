@@ -388,6 +388,17 @@ function createResolveNodeType(babelNodeType, t) {
     const next = list.map(el => applyAliasSubstDeep(el, subst, depth + 1));
     return next.every((el, i) => el === list[i]) ? node : { ...node, [slot]: next };
   }
+  // rebuild a reference-shape node with substituted typeArguments. `base` is the spread base;
+  // when `base === node` (no substitute swap happened), preserves identity if all args
+  // resolve to themselves so caller sees `===` against the input
+  function withSubstitutedTypeArgs(node, base, subst, depth) {
+    const args = getTypeArgs(node);
+    if (!args?.params?.length) return base;
+    const next = args.params.map(p => applyAliasSubstDeep(p, subst, depth + 1));
+    if (base === node && next.every((p, i) => p === args.params[i])) return node;
+    const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
+    return { ...base, [argsKey]: { ...args, params: next } };
+  }
   function applyAliasSubstDeep(node, subst, depth = 0) {
     if (depth > MAX_DEPTH || !subst || !node || typeof node !== 'object') return node;
     switch (node.type) {
@@ -398,13 +409,17 @@ function createResolveNodeType(babelNodeType, t) {
         // `type A<T> = B<T[]>; type B<U> = U[]` leaves subst {T: string, U: T[]}, and
         // naive `subst.get(U)` leaks T. re-run the replacement through the same subst
         // to finish resolving references inside the compound AST
-        if (name && subst.has(name)) return applyAliasSubstDeep(subst.get(name), subst, depth + 1);
-        const args = getTypeArgs(node);
-        if (!args?.params?.length) return node;
-        const next = args.params.map(p => applyAliasSubstDeep(p, subst, depth + 1));
-        if (next.every((p, i) => p === args.params[i])) return node;
-        const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
-        return { ...node, [argsKey]: { ...args, params: next } };
+        if (name && subst.has(name)) {
+          const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1);
+          // higher-kinded `Wrap<F, U> = F<U>` with F->Box: travel ownArgs onto the replacement
+          // when it's a parameterisable shape without its own args. otherwise (primitive
+          // keyword, array, already-parameterised) ownArgs stay dropped - attaching would
+          // corrupt the shape
+          if (replaced?.type !== 'TSTypeReference' && replaced?.type !== 'GenericTypeAnnotation') return replaced;
+          if (getTypeArgs(replaced)?.params?.length) return replaced;
+          return withSubstitutedTypeArgs(node, replaced, subst, depth);
+        }
+        return withSubstitutedTypeArgs(node, node, subst, depth);
       }
       case 'TSTypeAnnotation':
       case 'TypeAnnotation':
@@ -1487,11 +1502,12 @@ function createResolveNodeType(babelNodeType, t) {
         if (!arg) return null;
         // TSTypeQuery (`ReturnType<typeof fn>`) routes through runtime-binding lookup.
         // direct function type alias (`type Fn = () => T; ReturnType<Fn>`) has no typeof -
-        // follow the alias chain to reach the function type, then extract return annotation
+        // follow the alias chain, extract return annotation, fold accumulated subst into it
+        // (mirrors Awaited / Extract / findTupleElement)
         if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope);
-        const { node: aliased } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
+        const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
         const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
-        return ret ? resolveTypeAnnotation(ret, scope) : null;
+        return ret ? resolveTypeAnnotation(subst ? applyAliasSubstDeep(ret, subst) : ret, scope) : null;
       }
       case 'InstanceType': {
         const arg = firstArg();
@@ -4785,12 +4801,21 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
+  // shadow check: a guard's test lives in the enclosing scope (parent of `current` in the
+  // walk, sibling-aware for early-exit). when that scope's `varName` resolves to a different
+  // binding than the inner usage's, the guard refers to a shadowed identifier and must not
+  // narrow our binding. shared by findEnclosingTypeGuards and hasMutationAfterGuards
+  function guardAppliesToBinding(testScope, varName, binding) {
+    return !binding || testScope?.getBinding(varName) === binding;
+  }
+
   // collect ALL type guards along the AST path for cumulative narrowing.
   // const bindings can't be reassigned - function boundaries don't invalidate guards
-  function findEnclosingTypeGuards(path, varName, isConst = false) {
+  function findEnclosingTypeGuards(path, varName, isConst = false, binding = null) {
     const guards = [];
     for (let current = path.parentPath; current; current = current.parentPath) {
       if (t.isFunction(current.node) && !isConst) break;
+      if (!guardAppliesToBinding(current.parentPath?.scope, varName, binding)) continue;
       guards.push(
         ...findConditionalGuards(current, varName),
         ...findSwitchCaseGuards(current, varName),
@@ -4826,7 +4851,8 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // check whether any reassignment of binding could execute between a guard check and usagePath
-  function hasMutationAfterGuards({ constantViolations }, usagePath, varName) {
+  function hasMutationAfterGuards(binding, usagePath, varName) {
+    const { constantViolations } = binding;
     const usageStart = usagePath.node.start;
     const isDescendant = (v, scope) => {
       for (let p = v; p; p = p.parentPath) if (p === scope) return true;
@@ -4840,6 +4866,7 @@ function createResolveNodeType(babelNodeType, t) {
       || usageStart === null || usageStart === undefined || v.node.start < usageStart;
     const violatesBefore = scope => constantViolations.some(v => isDescendant(v, scope) && isBefore(v));
     for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
+      if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
       if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
       if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent)) return true;
       if (findEarlyExitGuards(current, varName).length) {
@@ -4875,7 +4902,7 @@ function createResolveNodeType(babelNodeType, t) {
       const classification = classifyGuardAnnotation(binding);
       if (classification.kind !== 'closed') {
         const isConst = !binding.constantViolations?.length;
-        const guards = findEnclosingTypeGuards(path, name, isConst);
+        const guards = findEnclosingTypeGuards(path, name, isConst, binding);
         if (guards && (isConst
             || (!hasMutationAfterGuards(binding, path, name)
               && !hasMutationInCapturedFunction(binding)))) {
