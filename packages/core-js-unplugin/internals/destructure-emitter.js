@@ -10,7 +10,6 @@
 import {
   destructureReceiverSlot,
   getFallbackBranchSlots,
-  globalProxyMemberName,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isSynthSimpleObjectPattern,
@@ -18,18 +17,15 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   peelFallbackWrappers,
   peelNestedSequenceExpressions,
-  POSSIBLE_GLOBAL_OBJECTS,
   propBindingIdentifier,
   TS_EXPR_WRAPPERS,
   unwrapInitValue,
   unwrapParens,
-} from '@core-js/polyfill-provider/helpers';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
-import {
-  findProxyGlobal,
-  isViableBranchForKey,
-  resolveObjectName as sharedResolveObjectName,
-} from '@core-js/polyfill-provider/detect-usage';
+import { findProxyGlobal, resolveObjectName as sharedResolveObjectName } from '@core-js/polyfill-provider/detect-usage/resolve';
+import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   canTransformDestructuring,

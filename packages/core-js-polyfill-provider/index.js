@@ -3,15 +3,9 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
-import {
-  POSSIBLE_GLOBAL_OBJECTS,
-  isEntryPattern,
-  isModulePattern,
-  lookupEntryModules,
-  patternToRegExp,
-  stripQueryHash,
-  validatePatternList,
-} from './helpers.js';
+import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
+import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
+import { lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
 
 const { hasOwn } = Object;
 

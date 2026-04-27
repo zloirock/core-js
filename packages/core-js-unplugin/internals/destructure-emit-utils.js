@@ -4,8 +4,8 @@ import {
   findIifeArgForParam,
   isClassifiableReceiverArg,
   unwrapParens,
-} from '@core-js/polyfill-provider/helpers';
-import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage';
+} from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 
 // intermediate slots permitted on the walk from an inner Property up to the enclosing
 // VariableDeclaration. any other shape -> foreign wrapper, bail safely
