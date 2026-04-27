@@ -187,12 +187,12 @@ export function createUsageVisitors({
 
   function handleMemberExpression(path) {
     const { node, parent } = path;
-    // `globalThis.Map ||= X` - check BEFORE inner-identifier visit rewrites `globalThis`
-    // into `_globalThis` (at which point `POSSIBLE_GLOBAL_OBJECTS.has(_globalThis)` is false)
+    // `globalThis.Map ||= X` / `globalThis.self.Map ||= X` - check BEFORE inner-identifier
+    // visit rewrites `globalThis` -> `_globalThis` (at which point the chain breaks).
+    // `globalProxyMemberName` (used inside the helper) walks proxy-global chains and gates
+    // on shadowing internally - no separate isBound computation needed at this site
     if (onWarning) {
-      const obj = node.object;
-      const isBound = obj?.type === 'Identifier' && adapter.hasBinding(path.scope, obj.name);
-      const warning = checkLogicalAssignLhsMember(node, parent, isBound);
+      const warning = checkLogicalAssignLhsMember(node, parent, path.scope, adapter);
       if (warning) onWarning(warning);
     }
     if (handledObjects.has(node)) return;

@@ -136,8 +136,14 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   const out = [];
   for (const branchSlot of branchSlots) {
     const branch = rhs[branchSlot];
-    if (branch?.type !== 'Identifier') continue;
-    const branchMeta = buildDestructuringInitMeta(branch, meta.key, path.scope, adapter);
+    // peel paren / TS wrappers per-branch (mirrors isViableBranchForKey:110). without
+    // the peel, oxc-preserved `cond ? (Array) : (Iterator)` and TS-asserted `Array! : Set!`
+    // fall through and the fallback's polyfill is silently dropped. delegate to
+    // buildDestructuringInitMeta - it accepts Identifier / MemberExpression and recurses
+    // into nested logical / conditional shapes
+    const inner = peelFallbackWrappers(branch);
+    if (!inner) continue;
+    const branchMeta = buildDestructuringInitMeta(inner, meta.key, path.scope, adapter);
     if (branchMeta?.object) out.push(branchMeta);
   }
   return out.length ? out : null;
