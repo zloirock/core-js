@@ -650,12 +650,10 @@ export default function plugin(api, options) {
         injector?.normalizeArrowRefParams();
         injector?.pruneUnusedRefs();
         injector?.reorderRefsAfterImports();
-        outputDebug();
-        // drop closure-captured per-file state so the previous file's AST + injector
-        // don't pin references between `initFile` calls (Babel runs the visitor object
-        // for every transformed file in the same plugin instance). next `initFile`
-        // re-allocates everything anyway; explicit nulling makes the GC bound deterministic
-        injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
+        // outputDebug() + closure-captured state cleanup deferred to postHook so the
+        // late-CJS detection (`postHook`'s markersGone check + diagnostic warn) can add to
+        // debug output before format(). siblings' programExit + post may run AFTER ours;
+        // nulling here would make postHook bail early and silently drop the ESM/CJS warning
       }
 
       // --- post(): detect sibling CJS transform ---
@@ -663,23 +661,23 @@ export default function plugin(api, options) {
       function postHook() {
         if (!injector) return;
         // late style-switch is a safety-net for sibling plugins that strip all ESM markers
-        // (e.g. `commonjs` rewriters) after our traversal. skip it once we've already
-        // flushed imports - switching now would mix ESM (already emitted) with CJS (new)
+        // (e.g. `commonjs` rewriters) after our traversal. by post-phase our flush has
+        // already emitted imports; the remaining useful action is surfacing the mismatch
+        // through debug so users reorder plugins or opt into `importStyle: 'require'`
         const markersGone = !this.file.path.node.body.some(n => ESM_MARKER_TYPES.has(n.type));
-        if (importStyleOption === undefined && importStyle === 'import' && markersGone) {
-          if (!injector.hasFlushed) {
-            injector.importStyle = 'require';
-          } else {
-            // pending imports will emit in post as ESM while the rest of the file is now CJS -
-            // surface to the user so they can reorder plugins (move ours after the CJS rewriter)
-            // or opt into `importStyle: 'require'` explicitly
-            debugOutput?.warn(
-              '[core-js] sibling plugin stripped ESM markers after our traversal; emitted imports '
-              + 'will stay ESM while file body is CJS. set `importStyle: "require"` to avoid mixing',
-            );
-          }
+        if (importStyleOption === undefined && importStyle === 'import' && markersGone && injector.hasFlushed) {
+          debugOutput?.warn(
+            '[core-js] sibling plugin stripped ESM markers after our traversal; emitted imports '
+            + 'will stay ESM while file body is CJS. set `importStyle: "require"` to avoid mixing',
+          );
         }
-        injector.flush();
+        // outputDebug AFTER potential warning add so format() includes the late-CJS diagnostic.
+        // then drop closure-captured per-file state so the previous file's AST + injector don't
+        // pin references between `initFile` calls (Babel runs the visitor object for every
+        // transformed file in the same plugin instance). next `initFile` re-allocates
+        // everything; explicit nulling makes the GC bound deterministic
+        outputDebug();
+        injector = synthSwap = destructureEmit = skippedNodes = originalBodyNodes = debugOutput = null;
       }
 
       // --- mode-specific plugin objects ---
