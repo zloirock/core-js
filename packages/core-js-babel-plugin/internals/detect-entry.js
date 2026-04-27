@@ -1,4 +1,4 @@
-import { getEntrySource } from '@core-js/polyfill-provider/detect-usage';
+import { getEntrySource } from '@core-js/polyfill-provider/detect-usage/entries';
 import { babelAdapter } from './detect-usage.js';
 
 export default function createEntryVisitors(onEntry) {

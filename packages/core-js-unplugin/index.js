@@ -1,5 +1,5 @@
 import { createUnplugin } from 'unplugin';
-import { stripQueryHash } from '@core-js/polyfill-provider/helpers';
+import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
 import createPlugin from './internals/plugin.js';
 
 // match JS/TS extensions anchored at end-of-path; `.d.ts` declaration files excluded.
