@@ -46,8 +46,12 @@ export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 // `}` included conservatively: FunctionDeclaration / BlockStatement terminate without ASI
 // concern, but FunctionExpression in an incomplete statement (`let x = function(){}\n(1,2)`
 // - parser treats as `x = (function(){})(1,2)`) fuses. we can't distinguish the two from
-// a single char; over-fusing adds a spurious `;` guard but doesn't break output
-const FUSES_WITH_OPEN_PAREN = /[\w"$')\]`}]/;
+// a single char; over-fusing adds a spurious `;` guard but doesn't break output.
+// `/` covers both regex-literal closer (`let r = /foo/\n(...)` -> `(/foo/)(...)` - regex
+// invoked as fn, TypeError) and division operator (`a / b\n(c)` -> `a / (b(c))` - silent
+// arithmetic shift). postfix `++` / `--` deliberately omitted: spec disallows
+// `UpdateExpression Arguments`, so the parser ASIs the boundary unconditionally
+const FUSES_WITH_OPEN_PAREN = /[\w"$')/\]`}]/;
 
 // ES spec LineTerminator: LF / CR / LS (U+2028) / PS (U+2029). per-char check for
 // hot loops where a regex-per-test would allocate the match array
