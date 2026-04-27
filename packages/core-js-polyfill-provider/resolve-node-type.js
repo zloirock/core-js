@@ -1737,7 +1737,21 @@ function createResolveNodeType(babelNodeType, t) {
     while (depth-- && t.isIdentifier(path.node)) {
       if (!path.scope) break;
       const binding = path.scope?.getBinding(path.node.name);
-      if (!binding || binding.constantViolations?.length) break;
+      if (!binding) break;
+      // mutable binding with reassignments: follow the last preceding-block `=` assignment
+      // before `path` so `let f: Foo = init; f = { kind:'b', data:'str' }; f.data.at(0)`
+      // (and `if (...) { f = {...}; f.data.at(0); }`) narrows `f` to the RHS shape, not the
+      // declared union. uses `findPrecedingBlockAssignment` (relative to use site) rather
+      // than `findLastStraightLineAssignment` (relative to var-scope) so assignments nested
+      // in conditional blocks still apply when the use site shares the same block
+      if (binding.constantViolations?.length) {
+        const lastAssign = findPrecedingBlockAssignment(binding, path);
+        if (lastAssign?.node?.type === 'AssignmentExpression' && lastAssign.node.operator === '=') {
+          path = lastAssign.get(assignRightKey(lastAssign.node));
+          continue;
+        }
+        break;
+      }
       const { path: bindingPath } = binding;
       const initPath = followableVarInit(bindingPath);
       if (initPath) {
@@ -2561,13 +2575,18 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     // phase 2: default / constraint fallback for unresolved type params (TS binds to `default`
-    // when call-site omits a type arg; constraint is only the upper bound, usually over-broad)
+    // when call-site omits a type arg; constraint is only the upper bound, usually over-broad).
+    // route through `substituteTypeParams` (not bare `resolveTypeAnnotation`) so a default that
+    // references an earlier type param picks up the already-resolved binding, e.g.
+    // `function f<T = string, U = T>(t: T): U` called as `f<number[]>(...)` resolves U to
+    // number[] (T's user-supplied value) instead of T.default=string. order matters: phase 1
+    // populates T from the explicit arg before phase 2 fills U
     for (const typeParam of fnPath.node.typeParameters.params) {
       const name = typeParamName(typeParam);
       if (typeParamMap.has(name)) continue;
       const annotation = typeParam.default ?? typeParam.constraint;
       if (annotation) {
-        const resolved = resolveTypeAnnotation(annotation, fnPath.scope);
+        const resolved = substituteTypeParams(annotation, typeParamMap, fnPath.scope, 0);
         if (resolved) typeParamMap.set(name, resolved);
       }
     }
@@ -3313,8 +3332,16 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // `<path>.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for
-  // other shapes. `conditionTrue` flips the sign when the guard sits in an else-branch
+  // other shapes. `conditionTrue` flips the sign when the guard sits in an else-branch.
+  // peel outer parens + leading `!` UnaryExpression so `if (!(f.kind === 'b'))` narrows
+  // identically to `if (f.kind !== 'b')` - mirrors `parseTypeGuard`'s entry handling
   function parseDiscriminantCheck(test, targetKey, conditionTrue) {
+    while (test?.type === 'ParenthesizedExpression') test = test.expression;
+    if (test?.type === 'UnaryExpression' && test.operator === '!') {
+      conditionTrue = !conditionTrue;
+      test = test.argument;
+      while (test?.type === 'ParenthesizedExpression') test = test.expression;
+    }
     if (test?.type !== 'BinaryExpression') return null;
     const isEq = test.operator === '===' || test.operator === '==';
     const isNeq = test.operator === '!==' || test.operator === '!=';
@@ -3332,26 +3359,63 @@ function createResolveNodeType(babelNodeType, t) {
     return value === null ? null : { field: memberExpr.property.name, value };
   }
 
+  // narrowing-context: snapshot of varPath's binding-identity + reassignment history that
+  // each candidate guard must clear before contributing. extracted into a single record so
+  // both walk-up and preceding-exit collectors share one signature
+  function buildDiscriminantContext(varPath, targetKey) {
+    const [rootName] = targetKey.split('.', 1);
+    return {
+      rootName,
+      objectBinding: rootName === 'this' ? null : varPath.scope?.getBinding(rootName),
+      violations: rootName === 'this' ? [] : varPath.scope?.getBinding(rootName)?.constantViolations ?? [],
+      objectStart: varPath.node?.start,
+    };
+  }
+
+  // a guard is valid for narrowing iff (a) `rootName` resolves to the same binding in the
+  // guard's enclosing scope as at varPath (rejects inner-shadow leakage), and (b) no
+  // reassignment of that binding sits between `testEnd` and the use site (`ctx.objectStart`)
+  function discriminantGuardApplies(scope, testEnd, ctx) {
+    const { rootName, objectBinding, violations, objectStart } = ctx;
+    if (rootName !== 'this' && objectBinding && scope?.getBinding(rootName) !== objectBinding) return false;
+    return testEnd === undefined || objectStart === undefined
+      || !violations.some(v => v.node?.start > testEnd && v.node?.start < objectStart);
+  }
+
+  // flatten `&&` (truthy) / `||` (falsy) chains so a discriminant clause embedded alongside
+  // other tests (`if (x && f.kind === 'a')` / `if (!ready || f.kind !== 'b') return;`) still
+  // contributes its narrowing. each clause goes through `parseDiscriminantCheck` (which peels
+  // its own `!`/parens), survivors append to `out`
+  function pushDiscriminantClauses(test, conditionTrue, targetKey, out) {
+    const parts = flattenCondition(test, conditionTrue ? '&&' : '||');
+    for (const part of parts) {
+      const guard = parseDiscriminantCheck(part, targetKey, conditionTrue);
+      if (guard) out.push(guard);
+    }
+  }
+
   // scan preceding-sibling statements of `current` at its block level; for each one that
   // unconditionally exits (`if (X) return;` / `... else throw ...`), collect the narrowed
   // discriminant form into `out`. mirrors `findPrecedingExitGuards` but for discriminant kinds
-  function collectPrecedingExitDiscriminants(current, targetKey, out) {
+  function collectPrecedingExitDiscriminants(current, targetKey, out, ctx) {
     const siblings = getStatementSiblings(current);
     if (!siblings) return;
     for (let i = current.key - 1; i >= 0; i--) {
       const sibling = siblings[i];
       const exitCond = resolveExitCondition(sibling);
       if (exitCond === null) continue;
-      const guard = parseDiscriminantCheck(sibling.node.test, targetKey, exitCond);
-      if (guard) out.push(guard);
+      if (!discriminantGuardApplies(sibling.scope, sibling.node.test?.end, ctx)) continue;
+      pushDiscriminantClauses(sibling.node.test, exitCond, targetKey, out);
     }
   }
 
   // walk up collecting `<path>.kind === 'a'` / `!==` guards from enclosing if / ternary / `&&`,
   // plus preceding early-exit siblings. `targetKey` covers arbitrary LHS shapes
-  // (Identifier / `this.x` / `obj.a.b`)
+  // (Identifier / `this.x` / `obj.a.b`). binding-identity + mutation checks (via `ctx`)
+  // reject inner-shadow leakage and stale narrowing across reassignments
   function findDiscriminantGuards(varPath, targetKey) {
     const guards = [];
+    const ctx = buildDiscriminantContext(varPath, targetKey);
     for (let current = varPath; current?.parentPath; current = current.parentPath) {
       const parent = current.parentPath;
       let test;
@@ -3364,13 +3428,119 @@ function createResolveNodeType(babelNodeType, t) {
         conditionTrue = true;
         test = parent.node.left;
       } else {
-        collectPrecedingExitDiscriminants(current, targetKey, guards);
+        collectPrecedingExitDiscriminants(current, targetKey, guards, ctx);
         continue;
       }
-      const guard = parseDiscriminantCheck(test, targetKey, conditionTrue);
-      if (guard) guards.push(guard);
+      if (!discriminantGuardApplies(parent.scope, test?.end, ctx)) continue;
+      pushDiscriminantClauses(test, conditionTrue, targetKey, guards);
     }
     return guards;
+  }
+
+  // resolve the binding's identifier name across both runtime path libs (babel exposes
+  // `.identifier`, estree-toolkit exposes `.name` directly). fall back to varPath's name
+  // when the binding object is shaped without either - covers shorthand/destructured
+  function bindingTargetName(binding, varPath) {
+    return binding.identifier?.name ?? binding.name ?? varPath.node?.name ?? null;
+  }
+
+  // a parent.scope-bearing block context: BlockStatement / Program / StaticBlock children
+  // are evaluated in source order, so a preceding sibling assignment is guaranteed to run
+  // before the use site. all other parent shapes (IfStatement, function decl headers,
+  // expression positions) skip the block-local assignment scan
+  function isBlockChildPath(parent, current) {
+    return (t.isBlockStatement(parent.node) || t.isProgram(parent.node)
+        || (t.isStaticBlock && t.isStaticBlock(parent.node)))
+      && current.listKey === 'body' && typeof current.key === 'number';
+  }
+
+  // walk varPath's ancestors looking for an `=` assignment at a preceding-sibling statement
+  // that's GUARANTEED to have run before varPath. unlike `findLastStraightLineAssignment`,
+  // which insists on straight-line reachability all the way to the binding's var-scope, this
+  // accepts assignments in any enclosing block of the use site - those are guaranteed because
+  // the use site is in the same control-flow path. starts at the closest block-child ancestor
+  // and walks outward until the binding's declaration scope
+  function findPrecedingBlockAssignment(binding, varPath) {
+    if (!binding.constantViolations?.length) return null;
+    const targetName = bindingTargetName(binding, varPath);
+    if (!targetName) return null;
+    const limit = scopeNode(binding.scope);
+    for (let current = varPath; current?.parentPath; current = current.parentPath) {
+      const parent = current.parentPath;
+      if (isBlockChildPath(parent, current)) {
+        const siblings = parent.get('body');
+        for (let i = current.key - 1; i >= 0; i--) {
+          const sib = siblings[i];
+          const expr = sib?.node?.type === 'ExpressionStatement' ? sib.node.expression : null;
+          if (expr?.type === 'AssignmentExpression' && expr.operator === '='
+              && expr.left?.type === 'Identifier' && expr.left.name === targetName) {
+            return sib.get('expression');
+          }
+        }
+      }
+      if (parent.node === limit) return null;
+    }
+    return null;
+  }
+
+  // collect own non-computed Identifier/StringLiteral-keyed properties whose value is a
+  // primitive literal (string / number) - the RHS projection used to discriminate which
+  // union branch the assignment shape commits to
+  function collectObjectLiteralProps(rhs) {
+    const literals = new Map();
+    for (const p of rhs.properties) {
+      if (!p || p.computed || (p.type !== 'ObjectProperty' && p.type !== 'Property')) continue;
+      const keyName = getKeyName(p.key);
+      const literalValue = literalKeyValue(p.value);
+      if (keyName !== null && literalValue !== null) literals.set(keyName, literalValue);
+    }
+    return literals;
+  }
+
+  // post-filter union assembly: drop on no-narrow / all-pass, unwrap when single branch,
+  // otherwise rebuild the union. shared by both narrowing paths (discriminant-guard +
+  // assignment-literal) so they emit identical-shape annotations
+  function buildNarrowedUnion(filtered, aliased) {
+    if (!filtered.length || filtered.length === aliased.types.length) return null;
+    return filtered.length === 1 ? unwrapTypeAnnotation(filtered[0]) : { type: aliased.type, types: filtered };
+  }
+
+  // narrow a union annotation by inspecting the variable's last preceding `=` assignment:
+  // when the RHS is an ObjectExpression whose literal-property values uniquely match one
+  // branch's literal-typed members, narrow to that branch. mirrors TS's flow-sensitive
+  // "narrowing by assignment" so post-mutation accesses see the new shape rather than the
+  // declared union. permissive: branches with non-literal members or missing RHS keys pass
+  // through, single-branch result wins
+  function narrowUnionByAssignmentLiteral(varPath, annotation, scope) {
+    const binding = varPath.scope?.getBinding(varPath.node?.name);
+    if (!binding) return null;
+    const lastAssign = findPrecedingBlockAssignment(binding, varPath);
+    const rhs = lastAssign?.node?.right;
+    if (rhs?.type !== 'ObjectExpression') return null;
+    const { node: aliased } = followTypeAliasChain(unwrapTypeAnnotation(annotation), scope);
+    if (aliased?.type !== 'TSUnionType' && aliased?.type !== 'UnionTypeAnnotation') return null;
+    const rhsLiterals = collectObjectLiteralProps(rhs);
+    if (rhsLiterals.size === 0) return null;
+    const filtered = aliased.types.filter(branch => branchMatchesLiterals(branch, rhsLiterals, scope));
+    return buildNarrowedUnion(filtered, aliased);
+  }
+
+  // a union branch survives if every literal-typed member with a key present in `rhsLiterals`
+  // matches the projected RHS value. members with non-literal types / missing RHS keys /
+  // unresolvable types pass through (permissive; same convention as discriminant narrow)
+  function branchMatchesLiterals(branch, rhsLiterals, scope) {
+    const members = getTypeMembers(unwrapTypeAnnotation(branch), scope);
+    if (!members) return true;
+    for (const m of members) {
+      if (m.type !== 'TSPropertySignature' || m.computed) continue;
+      const memberType = m.typeAnnotation && unwrapTypeAnnotation(m.typeAnnotation);
+      if (memberType?.type !== 'TSLiteralType') continue;
+      const expected = literalKeyValue(memberType.literal);
+      const keyName = getKeyName(m.key);
+      if (expected === null || keyName === null || !rhsLiterals.has(keyName)) continue;
+      if (rhsLiterals.get(keyName) !== expected) return false;
+    }
+    return true;
   }
 
   function narrowDiscriminatedUnion(objectPath, annotation, scope) {
@@ -3382,24 +3552,27 @@ function createResolveNodeType(babelNodeType, t) {
     const guards = findDiscriminantGuards(objectPath, targetKey);
     if (!guards.length) return null;
     // permissive: branches with unresolvable discriminant members pass through
-    const filtered = aliased.types.filter(branch => {
-      for (const { field, value, positive } of guards) {
-        const memberType = findTypeMember(unwrapTypeAnnotation(branch), field, scope);
-        if (!memberType) continue;
-        const { node: resolvedNode } = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope);
-        const literal = resolvedNode?.type === 'TSLiteralType' ? literalKeyValue(resolvedNode.literal) : null;
-        if (literal !== null && (literal === value) !== positive) return false;
-      }
-      return true;
-    });
-    if (!filtered.length || filtered.length === aliased.types.length) return null;
+    const filtered = aliased.types.filter(branch => branchMatchesGuards(branch, guards, scope));
+    const narrowed = buildNarrowedUnion(filtered, aliased);
+    if (!narrowed) return null;
     // preserve accumulated type-param substitutions through the narrowed result - without
     // applying subst, `T[]` inside a surviving branch of `type Foo<T> = { kind: 'a'; val: T[] } | ...`
     // would stay unresolved and downstream dispatch would see Array(null) instead of Array<string>
-    const narrowed = filtered.length === 1
-      ? unwrapTypeAnnotation(filtered[0])
-      : { type: aliased.type, types: filtered };
     return subst ? applyAliasSubstDeep(narrowed, subst) : narrowed;
+  }
+
+  // a branch survives discriminant filtering when every guard's expected value agrees with
+  // the branch's literal-typed member at the same key - non-literal members pass through
+  // (permissive; matches the existing precedent for unresolvable members)
+  function branchMatchesGuards(branch, guards, scope) {
+    for (const { field, value, positive } of guards) {
+      const memberType = findTypeMember(unwrapTypeAnnotation(branch), field, scope);
+      if (!memberType) continue;
+      const { node: resolvedNode } = followTypeAliasChain(unwrapTypeAnnotation(memberType), scope);
+      const literal = resolvedNode?.type === 'TSLiteralType' ? literalKeyValue(resolvedNode.literal) : null;
+      if (literal !== null && (literal === value) !== positive) return false;
+    }
+    return true;
   }
 
   function resolveTypedMember(objectPath, name, callPath) {
@@ -3919,7 +4092,14 @@ function createResolveNodeType(babelNodeType, t) {
       const binding = path.scope?.getBinding(path.node.name);
       if (!binding) return null;
       const annotation = findBindingAnnotation(binding.path);
-      if (annotation) return { annotation, scope: binding.path.scope };
+      if (annotation) {
+        // narrow declared union via the last straight-line assignment's literal-property
+        // shape: TS treats `let f: Foo = init; f = { kind: 'b', ... }` as narrowing `f`
+        // to FooB after the assignment. without this `f.data` after the assignment
+        // resolves on the declared union and emits the generic polyfill
+        const narrowed = narrowUnionByAssignmentLiteral(path, annotation, binding.path.scope);
+        return { annotation: narrowed ?? annotation, scope: binding.path.scope };
+      }
       if (!binding.constantViolations?.length && t.isVariableDeclarator(binding.path.node)) {
         const init = binding.path.get('init');
         if (init.node) return findExpressionAnnotation(init, depth + 1);
@@ -3938,7 +4118,12 @@ function createResolveNodeType(babelNodeType, t) {
     if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
       const fnPath = resolveRuntimeExpression(path.get('callee'));
       if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
-        const subst = buildCallSiteSubst(fnPath.node, path.node);
+        // explicit `<...>` args first; fall through to argument inference when caller
+        // omitted them (`makeBox(arr)` -> infer T from arr's annotation), then declared
+        // defaults via `buildCallSiteSubst`. inferred path bridges the gap babel itself
+        // covers via TS's structural inference - without it, `function makeBox<T>(t: T): {value: T}`
+        // returned `{value: T}` unsubstituted, dropping array narrowing on `b.value.at(0)`
+        const subst = inferCallSiteSubst(fnPath.node, path, depth) ?? buildCallSiteSubst(fnPath.node, path.node);
         const annotation = subst
           ? applyAliasSubstDeep(unwrapTypeAnnotation(fnPath.node.returnType), subst)
           : fnPath.node.returnType;
@@ -3963,6 +4148,34 @@ function createResolveNodeType(babelNodeType, t) {
   // call-site explicit type args (`makeBox<number>()`) -> {paramName -> argNode}
   function buildCallSiteSubst(fnNode, callNode) {
     return buildSubstMap(fnNode.typeParameters?.params, getTypeArgs(callNode)?.params);
+  }
+
+  // infer {paramName -> argAnnotation} from runtime argument annotations when caller
+  // omitted explicit `<...>` (`makeBox(arr)` with `function makeBox<T>(t: T)`: lift arr's
+  // annotation onto T). limited to direct `T` param shapes (not container wrappers like
+  // `T[]` / `Array<T>` / `Promise<T>`) so this stays cheap and doesn't rebuild
+  // `buildTypeParamMap`'s full container-aware inference. depth threading prevents
+  // recursion blowup when the arg's annotation lookup recurses through chained calls
+  function inferCallSiteSubst(fnNode, callPath, depth) {
+    if (getTypeArgs(callPath.node)?.params?.length) return null;
+    const fnTypeParams = fnNode.typeParameters?.params;
+    if (!fnTypeParams?.length) return null;
+    const paramNames = new Set(fnTypeParams.map(typeParamName).filter(Boolean));
+    const args = callPath.get('arguments');
+    const { params } = fnNode;
+    const subst = new Map();
+    const limit = Math.min(params.length, args.length);
+    for (let i = 0; i < limit; i++) {
+      if (!params[i] || !args[i]) continue;
+      const { param } = effectiveParam(params[i]);
+      const paramAnnotation = unwrapTypeAnnotation(param?.typeAnnotation);
+      const name = paramAnnotation && typeRefName(paramAnnotation);
+      if (!name || !paramNames.has(name) || subst.has(name)) continue;
+      const argInfo = findExpressionAnnotation(args[i], depth + 1);
+      const argAnnot = argInfo?.annotation && unwrapTypeAnnotation(argInfo.annotation);
+      if (argAnnot) subst.set(name, argAnnot);
+    }
+    return subst.size ? subst : null;
   }
 
   // traverse from a binding to its enclosing for-in/for-of statement (if any)
