@@ -12,6 +12,7 @@ import {
   peelFallbackWrappers,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
+import { resolve as resolveBuiltIn } from '../index.js';
 import { KNOWN_FUNCTION_GLOBALS, KNOWN_NAMESPACE_GLOBALS } from './globals.js';
 import { isStaticPlacement, resolveObjectName, unwrapParens } from './resolve.js';
 
@@ -63,29 +64,41 @@ export function buildDestructuringInitMeta(initNode, key, scope, adapter) {
 }
 
 // `Array ?? X`, `X ?? Array`, `X && Array`: try both branches, prefer the one
-// that resolves to a known global (for `??`/`||` the fallback is usually on the right,
-// for `&&` it's always the right).
+// that resolves to a known global (for `??`/`||` the primary is left side; for `&&` it's
+// the right side - the branch taken when the left/right gate is truthy).
 // `fromFallback` disables the destructure replacement when the runtime value may come
 // from either branch - `&&` is always conditional (primary only when left truthy, else
 // falsy left), so always flag; `??`/`||` flag only when the fallback is the resolved side
 function resolveLogicalDestructureMeta(node, key, scope, adapter) {
-  const isAnd = node.operator === '&&';
-  const primary = isAnd ? node.right : node.left;
-  const meta = buildDestructuringInitMeta(primary, key, scope, adapter);
-  if (meta.object) {
-    if (!isAnd) return meta;
-    // `X && Y` where both sides resolve to the SAME known object - runtime value is Y (which
-    // is same as X for this property). no fromFallback needed, polyfill is safe to apply.
-    // `X && Y` with different resolved objects still bails - `from = (X && Y).from` depends on
-    // X's truthiness to pick between X.from and Y.from, different polyfills per branch
-    const leftMeta = buildDestructuringInitMeta(node.left, key, scope, adapter);
-    if (leftMeta.object === meta.object) return meta;
-    return { ...meta, fromFallback: true };
-  }
-  // for `&&` both primary and fallback are the same (right), no point retrying
-  if (isAnd) return meta;
-  const fallback = buildDestructuringInitMeta(node.right, key, scope, adapter);
-  return fallback.object ? { ...fallback, fromFallback: true } : fallback;
+  return node.operator === '&&'
+    ? resolveAndDestructureMeta(node, key, scope, adapter)
+    : resolveOrNullishDestructureMeta(node, key, scope, adapter);
+}
+
+// `&&`: primary is the RIGHT branch. when both branches resolve to the SAME known object
+// the polyfill applies cleanly; otherwise fromFallback flag triggers per-branch enumeration
+// (`Array && Map` for `entries` -> `Array && _Map`, `Array && Promise` for `from` ->
+// `{from:_Array$from} && _Promise`). `fromFallback` always set when objects differ or left
+// doesn't resolve - runtime value depends on the left's truthiness
+function resolveAndDestructureMeta(node, key, scope, adapter) {
+  const primaryMeta = buildDestructuringInitMeta(node.right, key, scope, adapter);
+  if (!primaryMeta.object) return primaryMeta;
+  const leftMeta = buildDestructuringInitMeta(node.left, key, scope, adapter);
+  if (leftMeta.object === primaryMeta.object) return primaryMeta;
+  return { ...primaryMeta, fromFallback: true };
+}
+
+// `||` / `??`: primary is the LEFT branch (taken when truthy / non-nullish). use primary
+// when its meta resolves to a real polyfill (static lookup on known receiver, OR instance
+// fallback for unknown receiver with instance-method key like `Stub ?? Object` for `keys`
+// -> `_keys(...)`). otherwise the fallback (right) carries the actual polyfill - e.g.
+// `MyArray || Iterator` for `from` registers `Iterator.from` because `_Iterator`'s
+// constructor binding doesn't carry the static method
+function resolveOrNullishDestructureMeta(node, key, scope, adapter) {
+  const primaryMeta = buildDestructuringInitMeta(node.left, key, scope, adapter);
+  if (primaryMeta.object && resolveBuiltIn(primaryMeta)) return primaryMeta;
+  const fallbackMeta = buildDestructuringInitMeta(node.right, key, scope, adapter);
+  return fallbackMeta.object ? { ...fallbackMeta, fromFallback: true } : fallbackMeta;
 }
 
 // `cond ? Array : Set`: try both branches; flag fromFallback so destructure replacement
