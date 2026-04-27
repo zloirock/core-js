@@ -149,6 +149,14 @@ export function createPolyfillContext({
   const excludeEntries = method === 'usage-pure' ? collectEntryPaths(exclude) : new Set();
 
   if (pkg === undefined) pkg = method === 'usage-pure' ? '@core-js/pure' : 'core-js';
+  // defensive: third-party callers that bypass `initPluginOptions` may pass `pkg === ''` /
+  // `'/'` / non-string. without this guard `''.toLowerCase()` succeeds, `stripTrailingSlashes`
+  // returns `''`, and downstream `getCoreJSEntry` would treat absolute paths as core-js entries
+  // (`'/foo/bar'.startsWith('/' === pkg + '/')` false-positive). validateOptions enforces this
+  // shape but only when called - direct createPolyfillContext callers need their own check
+  if (typeof pkg !== 'string' || pkg === '' || /^\/+$/.test(pkg)) {
+    throw new TypeError(`[core-js] \`package\` option must be a non-empty, non-slash-only string; received ${ JSON.stringify(pkg) }`);
+  }
 
   version = normalizeCoreJSVersion(version);
 

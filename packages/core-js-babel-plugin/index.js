@@ -536,9 +536,6 @@ export default function plugin(api, options) {
             }
           }
         }
-        // snapshot after user-core-js removal so programExit's re-traverse only hits
-        // bodies that existed at visit time - injector.flush()ed imports stay excluded
-        originalBodyNodes = new WeakSet(path.node.body);
       }
 
       // --- deferred side effects: splice into body, re-traverse for polyfills ---
@@ -581,6 +578,12 @@ export default function plugin(api, options) {
         path.traverse(visitors);
         processDeferredSideEffects(path);
         injector?.flush();
+        // snapshot AFTER flush + deferred SE so programExit's reTraverseHelperBodies skips
+        // already-traversed nodes (our flushed imports, lifted SE statements) and only
+        // visits sibling-plugin-injected helper bodies (class transforms, destructuring,
+        // etc.) that were spliced after our pre-pass. snapshotting before flush would
+        // re-traverse our own injected imports redundantly
+        originalBodyNodes = new WeakSet(path.node.body);
       }
 
       // --- Program.exit ---
