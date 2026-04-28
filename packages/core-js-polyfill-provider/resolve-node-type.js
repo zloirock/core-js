@@ -1254,7 +1254,7 @@ function createResolveNodeType(babelNodeType, t) {
   function findTupleElement(objectType, index, scope) {
     if (index < 0) return null;
     // `Parameters<typeof fn>[N]` / `ConstructorParameters<typeof Cls>[N]` - N-th param's
-    // annotation; rest param unwraps `T[]` -> T and covers every index ≥ its position
+    // annotation; rest param unwraps `T[]` -> T and covers every index >= its position
     const params = resolveParametersParams(objectType, scope);
     if (params) {
       for (let i = 0; i < params.length; i++) {
@@ -2704,7 +2704,7 @@ function createResolveNodeType(babelNodeType, t) {
       // passthrough body references the mapped-over type param by name; delegate back to
       // substituteTypeParams so `{T->string[]}` subst survives into `T`-ref inside the body.
       // using resolveTypeAnnotation here would drop the map and collapse precise Array
-      // receiver types to generic `$Object(null)` via `Copy<string[]>.at(…)` chains
+      // receiver types to generic `$Object(null)` via `Copy<string[]>.at(...)` chains
       if (passthrough) return substituteTypeParams(passthrough, typeParamMap, scope, depth + 1, seen);
       return new $Object(null);
     }
