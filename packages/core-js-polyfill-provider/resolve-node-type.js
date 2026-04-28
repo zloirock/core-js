@@ -68,10 +68,26 @@ function createResolveNodeType(babelNodeType, t) {
     return type?.primitive ? type.type : UNBOXED_PRIMITIVES[type?.constructor] ?? null;
   }
 
+  // value-typed literal predicate. `kind` matches the Babel-shaped name (`String`/`Numeric`/...).
+  // both ESTree (oxc) and Babel route through `babelNodeType` which normalises ESTree's `Literal`
+  // discriminator + value-type sniffing into the Babel name. callers stay parser-agnostic
+  function isLiteralOf(node, kind) {
+    return babelNodeType(node) === `${ kind }Literal`;
+  }
+
   function literalKeyValue(node) {
-    if (babelNodeType(node) === 'StringLiteral') return node.value;
-    if (babelNodeType(node) === 'NumericLiteral') return String(node.value);
+    if (isLiteralOf(node, 'String')) return node.value;
+    if (isLiteralOf(node, 'Numeric')) return String(node.value);
     return null;
+  }
+
+  // safe non-computed property name from a Member/OptionalMemberExpression. computed access
+  // (`obj['x']` / `obj[expr]`) returns null - callers that want literal-string-key access need
+  // to handle the computed branch explicitly because the literal's value isn't a property name
+  function getMemberProperty(node) {
+    if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
+    if (node.computed) return null;
+    return node.property?.type === 'Identifier' ? node.property.name : null;
   }
 
   function getKeyName(key) {
@@ -135,11 +151,11 @@ function createResolveNodeType(babelNodeType, t) {
     // `Enum.A` - TSEnumDeclaration lookup via findTypeDeclaration (scope-chain walk),
     // not scope.getBinding - estree-toolkit adapter doesn't register enum bindings the
     // same way babel does; type-declaration walker works uniformly for both
-    if (key?.type === 'MemberExpression' && !key.computed
-      && key.object?.type === 'Identifier' && key.property?.type === 'Identifier') {
+    const memberName = getMemberProperty(key);
+    if (memberName !== null && key.object?.type === 'Identifier') {
       const enumDecl = findTypeDeclaration(key.object.name, scope);
       if (enumDecl?.type === 'TSEnumDeclaration') {
-        const member = findEnumMember(enumDecl, key.property.name);
+        const member = findEnumMember(enumDecl, memberName);
         const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
         if (initValue !== null) return initValue;
       }
@@ -582,8 +598,7 @@ function createResolveNodeType(babelNodeType, t) {
   // ESTree preserves ParenthesizedExpression wrappers (babel strips them); unwrap so
   // `enum E { A = (1 + 2) }` resolves through BinaryExpression's operand-shape check
   function resolveEnumMemberKind(initializer) {
-    let init = initializer;
-    while (init?.type === 'ParenthesizedExpression') init = init.expression;
+    const init = unwrapParens(initializer);
     if (!init) return 'number'; // implicit numeric
     const nodeType = babelNodeType(init);
     if (nodeType === 'StringLiteral') return 'string';
@@ -1561,7 +1576,7 @@ function createResolveNodeType(babelNodeType, t) {
         return new $Primitive('bigint');
       // signed-numeric literal types: `-1` / `-1n` wrap UnaryExpression around the magnitude
       case 'UnaryExpression':
-        return new $Primitive(babelNodeType(node.literal.argument) === 'BigIntLiteral' ? 'bigint' : 'number');
+        return new $Primitive(isLiteralOf(node.literal.argument, 'BigInt') ? 'bigint' : 'number');
     }
     return null;
   }
@@ -1619,8 +1634,8 @@ function createResolveNodeType(babelNodeType, t) {
     if (node.indexType?.type !== 'TSLiteralType') return null;
     const { literal } = node.indexType;
     let member;
-    if (babelNodeType(literal) === 'StringLiteral') member = findTypeMember(node.objectType, literal.value, scope);
-    else if (babelNodeType(literal) === 'NumericLiteral') member = findTupleElement(node.objectType, literal.value, scope);
+    if (isLiteralOf(literal, 'String')) member = findTypeMember(node.objectType, literal.value, scope);
+    else if (isLiteralOf(literal, 'Numeric')) member = findTupleElement(node.objectType, literal.value, scope);
     return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
   }
 
@@ -1993,11 +2008,11 @@ function createResolveNodeType(babelNodeType, t) {
 
   function isVoidZero(node) {
     return node.type === 'UnaryExpression' && node.operator === 'void'
-      && babelNodeType(node.argument) === 'NumericLiteral' && node.argument.value === 0;
+      && isLiteralOf(node.argument, 'Numeric') && node.argument.value === 0;
   }
 
   function isUndefinedString(node) {
-    if (babelNodeType(node) === 'StringLiteral' && node.value === 'undefined') return true;
+    if (isLiteralOf(node, 'String') && node.value === 'undefined') return true;
     return node?.type === 'Literal' && node.value === 'undefined';
   }
 
@@ -3327,19 +3342,13 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // serialize `x`, `this.data`, `obj.a.b` - null for computed / shapes we don't probe
-  // `.x` / `?.x` - static dotted property access. MemberExpression and OptionalMemberExpression
-  // share the shape; optional-chain short-circuit is orthogonal to the access path
-  function isStaticDotAccess(node) {
-    return (node?.type === 'MemberExpression' || node?.type === 'OptionalMemberExpression')
-      && !node.computed && node.property?.type === 'Identifier';
-  }
-
   function pathKey(node) {
     if (node?.type === 'Identifier') return node.name;
     if (node?.type === 'ThisExpression') return 'this';
-    if (isStaticDotAccess(node)) {
+    const propName = getMemberProperty(node);
+    if (propName !== null) {
       const parent = pathKey(node.object);
-      return parent === null ? null : `${ parent }.${ node.property.name }`;
+      return parent === null ? null : `${ parent }.${ propName }`;
     }
     return null;
   }
@@ -3352,17 +3361,19 @@ function createResolveNodeType(babelNodeType, t) {
     return node;
   }
 
+  // strip outer parens + leading `!` so `if (!(x === 'a'))` narrows identically to `x !== 'a'`.
+  // returns the peeled test plus a flag the caller XOR-s into its own polarity tracker
+  function peelNegation(test) {
+    test = unwrapParens(test);
+    if (test?.type !== 'UnaryExpression' || test.operator !== '!') return { test, negated: false };
+    return { test: unwrapParens(test.argument), negated: true };
+  }
+
   // `<path>.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for
-  // other shapes. `conditionTrue` flips the sign when the guard sits in an else-branch.
-  // peel outer parens + leading `!` UnaryExpression so `if (!(f.kind === 'b'))` narrows
-  // identically to `if (f.kind !== 'b')` - mirrors `parseTypeGuard`'s entry handling
-  function parseDiscriminantCheck(test, targetKey, conditionTrue) {
-    while (test?.type === 'ParenthesizedExpression') test = test.expression;
-    if (test?.type === 'UnaryExpression' && test.operator === '!') {
-      conditionTrue = !conditionTrue;
-      test = test.argument;
-      while (test?.type === 'ParenthesizedExpression') test = test.expression;
-    }
+  // other shapes. `conditionTrue` flips the sign when the guard sits in an else-branch
+  function parseDiscriminantCheck(rawTest, targetKey, conditionTrue) {
+    const { test, negated } = peelNegation(rawTest);
+    if (negated) conditionTrue = !conditionTrue;
     if (test?.type !== 'BinaryExpression') return null;
     const isEq = test.operator === '===' || test.operator === '==';
     const isNeq = test.operator === '!==' || test.operator === '!=';
@@ -3374,10 +3385,11 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function memberLiteralPair(memberExpr, literalNode, targetKey) {
-    if (!isStaticDotAccess(memberExpr)) return null;
+    const field = getMemberProperty(memberExpr);
+    if (field === null) return null;
     if (pathKey(memberExpr.object) !== targetKey) return null;
     const value = literalKeyValue(literalNode);
-    return value === null ? null : { field: memberExpr.property.name, value };
+    return value === null ? null : { field, value };
   }
 
   // narrowing-context: snapshot of varPath's binding-identity + reassignment history that
@@ -3690,7 +3702,7 @@ function createResolveNodeType(babelNodeType, t) {
   function resolveArrayIndexAccess(path) {
     if (!path.node.computed) return null;
     const resolvedProp = resolveRuntimeExpression(path.get('property'));
-    if (babelNodeType(resolvedProp.node) !== 'NumericLiteral') return null;
+    if (!isLiteralOf(resolvedProp.node, 'Numeric')) return null;
     const index = resolvedProp.node.value;
     if (!Number.isInteger(index) || index < 0) return null;
     const objectPath = resolveRuntimeExpression(path.get('object'));
@@ -4068,11 +4080,11 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveElementType(unwrapped, scope, 0);
   }
 
-  // resolve obj.prop annotation by chaining through the object's type, applying generic subst
+  // resolve obj.prop annotation by chaining through the object's type, applying generic subst.
+  // `obj['x']` / `obj[expr]` / non-Member nodes return null - dotted-static access only
   function resolveMemberAnnotation(path, depth) {
-    // caller (`findExpressionAnnotation`) filters `computed` / non-Identifier property -
-    // defensive guard here so direct callers (tests, future patches) don't crash on `obj['x']`
-    if (path.node.computed || path.node.property?.type !== 'Identifier') return null;
+    const propName = getMemberProperty(path.node);
+    if (propName === null) return null;
     const objInfo = findExpressionAnnotation(path.get('object'), depth + 1);
     if (!objInfo) return null;
     const unwrapped = unwrapTypeAnnotation(objInfo.annotation);
@@ -4080,7 +4092,6 @@ function createResolveNodeType(babelNodeType, t) {
     const { node: aliased, subst } = followTypeAliasChain(unwrapped, objInfo.scope);
     const members = aliased ? getTypeMembers(aliased, objInfo.scope) : null;
     if (!members) return null;
-    const propName = path.node.property.name;
     for (const m of members) {
       if (!keyMatchesName(m.key, propName)) continue;
       // getters are TSMethodSignature with kind:'get' but semantically read the return
@@ -4127,12 +4138,10 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     // obj.prop / obj?.prop - resolve property type through the object's annotation chain,
-    // carrying generic substitutions so `Wrapper<string>.inner.value()` resolves T -> string
-    if ((path.node.type === 'MemberExpression' || path.node.type === 'OptionalMemberExpression')
-      && !path.node.computed && path.node.property?.type === 'Identifier') {
-      const result = resolveMemberAnnotation(path, depth);
-      if (result) return result;
-    }
+    // carrying generic substitutions so `Wrapper<string>.inner.value()` resolves T -> string.
+    // `resolveMemberAnnotation` self-guards on shape; null fall-through to the call branch below
+    const memberResult = resolveMemberAnnotation(path, depth);
+    if (memberResult) return memberResult;
     // direct `f()`: pull the callee's declared return type and substitute explicit call-site
     // type args (`makeBox<number>()`) so downstream member lookups see concrete types
     const callType = babelNodeType(path.node);
@@ -4795,15 +4804,9 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function parseTypeGuard(testNode, varName, scope) {
-    let negated = false;
-    let test = testNode;
-    // ESTree (oxc-parser) preserves ParenthesizedExpression - unwrap
-    while (test.type === 'ParenthesizedExpression') test = test.expression;
-    if (test.type === 'UnaryExpression' && test.operator === '!') {
-      negated = true;
-      test = test.argument;
-      while (test.type === 'ParenthesizedExpression') test = test.expression;
-    }
+    const peeled = peelNegation(testNode);
+    const { test } = peeled;
+    let { negated } = peeled;
     if (test.type === 'BinaryExpression') {
       const { operator } = test;
       // unwrap parens + ChainExpression + TS wrappers so `(x as any) instanceof Array`
@@ -4818,7 +4821,7 @@ function createResolveNodeType(babelNodeType, t) {
         const rightIsTypeof = !leftIsTypeof && isTypeofVar(right, varName);
         if (leftIsTypeof || rightIsTypeof) {
           const literalSide = leftIsTypeof ? right : left;
-          if (babelNodeType(literalSide) === 'StringLiteral') return typeofGuard(literalSide.value, negated);
+          if (isLiteralOf(literalSide, 'String')) return typeofGuard(literalSide.value, negated);
           // template literal with no expressions: `object` === typeof x
           if (literalSide.type === 'TemplateLiteral' && literalSide.expressions.length === 0) {
             return typeofGuard(literalSide.quasis[0].value.cooked, negated);
@@ -4835,9 +4838,9 @@ function createResolveNodeType(babelNodeType, t) {
       const arg = unwrapParens(test.arguments[0]);
       if (arg.type === 'Identifier' && arg.name === varName) {
         const { callee } = test;
-        if (callee.type === 'MemberExpression' && !callee.computed
-          && callee.object.type === 'Identifier' && callee.property.type === 'Identifier') {
-          const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, callee.property.name);
+        const propName = getMemberProperty(callee);
+        if (propName !== null && callee.object.type === 'Identifier') {
+          const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, propName);
           if (hint) return guardFromHint(hint, negated);
         }
         const userGuard = parseUserPredicateGuard(callee, scope, negated);
@@ -4957,12 +4960,12 @@ function createResolveNodeType(babelNodeType, t) {
   // resolve a string value from a case test: StringLiteral directly or constant Identifier binding
   function caseTestStringValue(test, scope) {
     if (!test) return null;
-    if (babelNodeType(test) === 'StringLiteral') return test.value;
+    if (isLiteralOf(test, 'String')) return test.value;
     if (test.type === 'Identifier') {
       const bindingPath = constantBindingPath(test.name, scope);
       if (t.isVariableDeclarator(bindingPath?.node)) {
         const { init } = bindingPath.node;
-        if (babelNodeType(init) === 'StringLiteral') return init.value;
+        if (isLiteralOf(init, 'String')) return init.value;
       }
     }
     return null;
