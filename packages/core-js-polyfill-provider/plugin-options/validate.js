@@ -7,7 +7,7 @@ import { safeStringify, validatePatternList } from '../helpers/pattern-matching.
 
 // JSON.stringify renders NaN/Infinity as `null` and Symbol/undefined/function as `undefined` -
 // useless for type-mismatch diagnostics; use their native toString for the outliers.
-// class instances serialize as plain `{…}` - prefix with constructor name so users distinguish
+// class instances serialize as plain `{...}` - prefix with constructor name so users distinguish
 // `new Targets()` from `{ ie: 11 }` object-literal in the error.
 // `safeStringify` (shared helper) wraps `JSON.stringify` in try/catch so circular structures
 // and adversarial Proxy traps don't mask the primary option error with a stringify crash
