@@ -70,6 +70,7 @@ export default {
     [129, '23.0'],
     [136, '24.0'],
     [141, '25.0'],
+    [146, '26.0'],
   ],
   // https://github.com/denoland/deno/releases
   // https://github.com/mdn/browser-compat-data/blob/main/browsers/deno.json
