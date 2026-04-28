@@ -127,7 +127,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     if (!chainStart) return [null, node.object];
     const key = chainStart.isOptionalMemberExpression() ? 'object' : 'callee';
     // skip null-check when the optional is on a polyfillable expression (replacement consumes `?.`).
-    // reassigning `chainStart.node[key]` swaps the receiver / callee with the memoized ref —
+    // reassigning `chainStart.node[key]` swaps the receiver / callee with the memoized ref -
     // computed property nodes (`.property`) and call arguments (`.arguments`) on the same chainStart
     // remain untouched, so computed-property bootstrapping isn't disturbed
     let check = null;
