@@ -220,12 +220,9 @@ export function createPolyfillEmitter({
 
   // build replacement, wrap guard if needed, add to transform queue
   function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall, sideEffects = null) {
-    const receiverPure = resolveReceiverPolyfill(node.object, metaPath);
-    let objectSrc = receiverPure
-      ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-      : unwrapParensSrc(node.object);
-    let isNonIdent = receiverPure ? false : !NO_REF_NEEDED.has(unwrapNodeForMemoize(node.object).type);
-    if (receiverPure) skippedNodes.add(node.object);
+    const recv = resolveReceiverSource(node.object, metaPath);
+    let { src: objectSrc, isNonIdent } = recv;
+    if (recv.skipNode) skippedNodes.add(recv.skipNode);
     const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
     let reusedOuterRef = null;
     if (!optionalRoot && rootNode && node.object === rootNode) {
@@ -263,7 +260,7 @@ export function createPolyfillEmitter({
       absorbsRoot: !!reusedOuterRef,
     });
     const splitPoint = node.object.end;
-    const canSplit = split && !optionalRoot && !receiverPure && !reusedOuterRef
+    const canSplit = split && !optionalRoot && !recv.substituted && !reusedOuterRef
       && !rootNode
       && splitPoint > start && splitPoint < end;
     if (canSplit) {
@@ -289,10 +286,78 @@ export function createPolyfillEmitter({
     if (node.property) skipWrappedNode(node.property);
   }
 
+  // direct-Identifier polyfillable receiver (`Array.prototype.X`, `globalThis.foo` where
+  // `globalThis` itself is the receiver). chain receivers (`globalThis?.X.Y`) go through
+  // `resolveProxyGlobalChainSrc` instead
   function resolveReceiverPolyfill(obj, metaPath) {
     if (obj?.type !== 'Identifier') return null;
     if (metaPath?.scope?.hasBinding?.(obj.name)) return null;
     return resolveGlobalPolyfill(obj.name);
+  }
+
+  // member-chain receiver rooted at a polyfillable global Identifier (`globalThis?.X.Y`,
+  // `(globalThis as any)?.X.Y`). substitute the leaf with its polyfill binding and consume
+  // any immediately following `?.`: every leaf returned by `resolveGlobalPolyfill` is
+  // always-defined post-rewrite, so the receiver null-check is redundant. without this the
+  // outer instance-call transform emits `_X(_ref = globalThis?.X.Y).call(_ref, ...)`
+  // verbatim and engines without a native `globalThis` (ie11) TypeError on the implicit
+  // `globalThis.X` lookup.
+  // peels parens / TS wrappers AROUND the leaf only - wrappers further up the chain (e.g.
+  // `(globalThis?.X).Y`) bail to avoid src-splice breakage (closing wrapper would land in
+  // the tail slice as syntactic garbage). deeper `?.` past the leaf hop is preserved as-is:
+  // we only know the leaf substitution is always-defined, not intermediate lookups
+  function resolveProxyGlobalChainSrc(receiverObj, metaPath) {
+    if (receiverObj?.type !== 'MemberExpression' && receiverObj?.type !== 'OptionalMemberExpression') return null;
+    // descend strictly through bare member hops (no wrapper peel here - wrappers in the
+    // middle of the chain make the tail slice unsafe). track the immediate parent so we
+    // can read `.computed` for the `?.` consume decision and use the wrapped-leaf's end
+    // (covers `?.` peel AND any leaf-side wrapper closing token like `)` / `as any`)
+    let leafParent = receiverObj;
+    while (leafParent.object?.type === 'MemberExpression' || leafParent.object?.type === 'OptionalMemberExpression') {
+      leafParent = leafParent.object;
+    }
+    const wrappedLeaf = leafParent.object;
+    const leaf = unwrapNode(wrappedLeaf);
+    if (leaf?.type !== 'Identifier') return null;
+    if (metaPath?.scope?.hasBinding?.(leaf.name)) return null;
+    const pure = resolveGlobalPolyfill(leaf.name);
+    if (!pure) return null;
+    const polyfillBinding = injectPureImport(pure.entry, pure.hintName);
+    const tailStart = afterOptional(wrappedLeaf.end, !leafParent.computed);
+    return { src: polyfillBinding + code.slice(tailStart, receiverObj.end), leafNode: leaf };
+  }
+
+  // unified receiver-source resolution for instance-call emission. tries (a) direct
+  // Identifier polyfill, (b) chain-rooted polyfillable leaf, (c) verbatim source. exposes
+  // one shape `{src, isNonIdent, skipNode, substituted}` so call sites stay shallow:
+  // - `src` text inserted into the polyfill call template
+  // - `isNonIdent` whether `_ref` capture is needed (false for direct-pure binding,
+  //   true for chain subst, computed via `NO_REF_NEEDED` for verbatim)
+  // - `skipNode` AST node to skip from inner Identifier visitor (avoid orphan transforms
+  //   redundant with the outer call rewrite)
+  // - `substituted` whether `src` diverges from the original AST source (gates `canSplit`:
+  //   substituted text can't be split at original positions)
+  function resolveReceiverSource(receiverObj, metaPath) {
+    const direct = resolveReceiverPolyfill(receiverObj, metaPath);
+    if (direct) return {
+      src: injectPureImport(direct.entry, direct.hintName),
+      isNonIdent: false,
+      skipNode: receiverObj,
+      substituted: true,
+    };
+    const chain = resolveProxyGlobalChainSrc(receiverObj, metaPath);
+    if (chain) return {
+      src: chain.src,
+      isNonIdent: true,
+      skipNode: chain.leafNode,
+      substituted: true,
+    };
+    return {
+      src: unwrapParensSrc(receiverObj),
+      isNonIdent: !NO_REF_NEEDED.has(unwrapNodeForMemoize(receiverObj).type),
+      skipNode: null,
+      substituted: false,
+    };
   }
 
   // text-based Babel-style OR-chain (see babel-compat.js replaceInstanceChainCombined).
@@ -326,7 +391,13 @@ export function createPolyfillEmitter({
   function replaceInstanceChainCombined(outerBinding, node, parent, metaPath, chain) {
     const { chainStart, innerCallee, innerResult } = chain;
     const innerBinding = injectPureImport(innerResult.entry, innerResult.hintName);
-    const receiver = unwrapParensSrc(innerCallee.object);
+    // chain-rooted polyfillable receiver: without substituting the leaf, OR-chain emit
+    // would carry `globalThis?.X` etc. verbatim into every `null == ...` slot of the
+    // template. direct-Identifier polyfill is intentionally NOT folded in here -
+    // existing OR-chain semantics for bare globals stay verbatim
+    const chainSubst = resolveProxyGlobalChainSrc(innerCallee.object, metaPath);
+    const receiver = chainSubst?.src ?? unwrapParensSrc(innerCallee.object);
+    if (chainSubst) skippedNodes.add(chainSubst.leafNode);
     // mirror babel-compat.js `memoize` (`isSafeToReuse`): a side-effect-free Identifier /
     // ThisExpression receiver can appear verbatim in every slot without `_ref = X` capture.
     // skipping the redundant memo aligns the chain-combined emit byte-for-byte with the
