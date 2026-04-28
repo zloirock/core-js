@@ -12,6 +12,7 @@ import {
   getFallbackBranchSlots,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
+  isNonReferencePosition,
   isSynthSimpleObjectPattern,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
@@ -408,7 +409,8 @@ export function createDestructureEmitter({
         || node.type === 'ArrowFunctionExpression' || node.type === 'ObjectMethod' || node.type === 'ClassMethod';
       if (opensScope) pushFunctionScope(node);
       if (node.type === 'Identifier' && flattenedReceivers.has(node.name)
-        && !isShadowed(node.name) && !isPolyfillableMemberAccess(parent, node)) {
+        && !isShadowed(node.name) && !isPolyfillableMemberAccess(parent, node)
+        && !isNonReferencePosition(parent, node)) {
         matches.push(node);
       }
       for (const key of Object.keys(node)) {
@@ -576,8 +578,14 @@ export function createDestructureEmitter({
     if (isCatchClause && !objectPatternPropNeedsReceiverRewrite(propNode)
         && !objectPattern.properties.some(p => p.type === 'RestElement')) {
       let referenced = false;
-      walkAstNodes(declaratorPath.node.body, n => {
-        if (!referenced && n.type === 'Identifier' && n.name === localName) referenced = true;
+      // walkAstNodes visits every Identifier node, including ones in non-reference slots
+      // (`Math.it` has `.it` as MemberExpression.property, not a binding ref). filter via
+      // `isNonReferencePosition` so the catch transform doesn't fire for unused bindings -
+      // pre-fix `try {} catch ({ [Symbol.iterator]: it }) { Math.it; }` over-emitted because
+      // `.it` was counted as a reference to `it`
+      walkAstNodes(declaratorPath.node.body, (n, parent) => {
+        if (!referenced && n.type === 'Identifier' && n.name === localName
+            && !isNonReferencePosition(parent, n)) referenced = true;
       });
       if (!referenced) return;
     }
