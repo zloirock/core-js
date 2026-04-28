@@ -154,7 +154,7 @@ export function createUsageVisitors({
       }
       if (cur?.parent?.type !== 'JSXOpeningElement' || cur.key !== 'name') return;
     }
-    // TS type-only positions: `type X = …` / `interface X {…}` / `import type X = require(...)`
+    // TS type-only positions: `type X = ...` / `interface X {...}` / `import type X = require(...)`
     // ids and `export { type X }` / `import type { X }` specifiers. babel's
     // `isReferencedIdentifier` marks them as referenced, but no runtime binding exists -
     // polyfilling is pure over-injection (and breaks TS output for exports / duplicates the
@@ -170,7 +170,7 @@ export function createUsageVisitors({
       // self-reference `var X = X` - hoisted var init references its own name, which at
       // runtime reads from the outer (global) scope before the local is assigned. narrow
       // path intentionally: ImportSpecifiers, class-decls, and const-to-identifier aliases
-      // are excluded so user-owned pure imports (e.g. `const MyPromiseTry = …`) don't get
+      // are excluded so user-owned pure imports (e.g. `const MyPromiseTry = ...`) don't get
       // re-routed through generic-global polyfill
       if (!isSelfRefVarBinding(path.scope.getBinding(node.name))) return;
       // name equals the binding's own name (we looked up `binding` by `node.name`), so
