@@ -1,8 +1,6 @@
-// arrow IIFE receiver detection must peel `ParenthesizedExpression` (parser
-// `createParenthesizedExpressions: true` keeps them as nodes) at every step of the
-// SequenceExpression walk. pre-fix `unwrapSequenceTail` only peeled SE - paren-wrapped
-// `(0, (1, Array))` and direct `(Array)` IIFE args bailed and left the synth-swap
-// without a receiver, falling back to inline-default that didn't fire the polyfill.
-// post-fix `peelTransparentPath` (TS wrappers + parens) inside the SE walk reaches
-// the inner Identifier under any wrapper combination
+// arrow IIFE receiver detection peels `ParenthesizedExpression` + TS wrappers at every
+// step of the SequenceExpression walk. Under `createParenthesizedExpressions: true` the
+// parens persist as AST nodes; the peel reaches the inner Identifier `Array` under any
+// wrapper combination so the synth-swap binds the receiver instead of falling back to
+// inline-default
 (({from}) => from([1]))((0, (1, Array)));

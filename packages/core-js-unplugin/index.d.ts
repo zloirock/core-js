@@ -4,9 +4,7 @@ type Mode = 'es' | 'stable' | 'actual' | 'full';
 
 type Targets = string | string[] | Record<string, string | number | boolean | string[]>;
 
-interface Options {
-  /** polyfilling method: 'entry-global', 'usage-global' or 'usage-pure' */
-  method: Method;
+interface BaseOptions {
   /** used `core-js` version, by default 'node_modules' (auto-detected from installed core-js). When specified explicitly, the minor component is required, e.g. '4.1' */
   version?: string;
   /** entry point layer: 'es', 'stable', 'actual', or 'full', by default 'actual' */
@@ -40,14 +38,26 @@ interface Options {
   shippedProposals?: boolean;
   /** import style for injected polyfills: 'import' (ESM) or 'require' (CJS), by default auto-detected from sourceType */
   importStyle?: 'import' | 'require';
+}
+
+interface EntryGlobalOptions extends BaseOptions {
+  method: 'entry-global';
+  /** `entry-global` runs at pre; explicit non-`'pre'` value is rejected at runtime */
+  phase?: 'pre';
+}
+
+interface UsageOptions extends BaseOptions {
+  method: 'usage-global' | 'usage-pure';
   /** Where in the bundler plugin chain to run:
    *  - `'pre'` (default): before siblings - full semantic context; misses helper polyfills.
    *  - `'post'`: after siblings - covers helpers; stripped type info may over-polyfill.
    *  - `'pre+post'`: pre handles user code, post catches helpers (inherits post's risk).
-   *  Rejected for `entry-global` (pinned to pre).
    */
   phase?: 'pre' | 'post' | 'pre+post';
 }
+
+/** discriminated union: TS catches `phase: 'post'` on `entry-global` at compile time */
+type Options = EntryGlobalOptions | UsageOptions;
 
 type BundlerPlugin<T> = (options: Options) => T;
 
