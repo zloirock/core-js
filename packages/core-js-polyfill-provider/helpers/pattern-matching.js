@@ -86,7 +86,7 @@ export function validatePatternList(name, list) {
 // isTaken is called for each candidate; true = name conflicts.
 // numeric `startSuffix < 2` would break the skip-1 convention (`_hint0` / `_hint1` emitted
 // in violation of babel's UID scheme). clamp up to 2 so chain continuations respect the rule.
-// undefined startSuffix would silently produce `${prefix}undefined` — reject loudly so callers
+// undefined startSuffix would silently produce `${prefix}undefined` - reject loudly so callers
 // can't accidentally pass undefined where they meant null. iteration cap prevents infinite
 // loop if isTaken always returns true (defensive: 2^20 covers any realistic name space)
 export function findUniqueName(prefix, startSuffix, isTaken) {
