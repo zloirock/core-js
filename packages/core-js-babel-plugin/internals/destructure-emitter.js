@@ -12,6 +12,7 @@ import {
   destructureReceiverSlot,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
+  isNonReferencePosition,
   isSynthSimpleObjectPattern,
   mayHaveSideEffects,
   objectPatternPropNeedsReceiverRewrite,
@@ -320,9 +321,20 @@ export default function createDestructureEmitter({
         const name = p.value?.type === 'Identifier' ? p.value.name : null;
         if (name) destructuredNames.add(name);
       }
+      // path-based traversal so we can look at `idPath.parent`: `isNonReferencePosition`
+      // filters Identifiers in non-reference slots (method/property keys, member-access
+      // tails, labels, import/export specifier names) - else `Math.includes` body would
+      // false-positive against a `{ includes }` catch binding and force a useless
+      // catch-receiver extraction. matches unplugin's same-named filter for shape parity
       let referenced = false;
-      t.traverseFast(path.node.body, node => {
-        if (!referenced && node.type === 'Identifier' && destructuredNames.has(node.name)) referenced = true;
+      path.get('body').traverse({
+        Identifier(idPath) {
+          if (referenced) return idPath.skip();
+          if (!destructuredNames.has(idPath.node.name)) return;
+          if (isNonReferencePosition(idPath.parent, idPath.node)) return;
+          referenced = true;
+          idPath.stop();
+        },
       });
       if (!referenced) return;
     }
