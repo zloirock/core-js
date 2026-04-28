@@ -1,8 +1,5 @@
-// regression for the OPTIONAL branch in `replaceInstanceLike` (`isWrappedInParens` +
-// `path.isOptionalMemberExpression()`): `(arr?.includes)(1)` must keep the parenthesized
-// detach by emitting `(_includes(arr))(1)` (no `.call(arr)` injection). pre-fix detection
-// relied on `path.node.extra?.parenthesized` only - createParens=true keeps a
-// `ParenthesizedExpression` node instead, so the flag was unset and the optional-paren
-// branch missed. post-fix `isWrappedInParens` checks both flag form (default parser)
-// and node form (createParens=true) and routes correctly to the preserve-detach branch
+// optional-chain paren-detach preservation: `(arr?.includes)(1)` keeps the parenthesized
+// detach (`(_includes(arr))(1)` - no `.call(arr)` injection). The paren-detection check
+// covers both the default parser's `extra.parenthesized` flag and the
+// `createParenthesizedExpressions: true` `ParenthesizedExpression` node form
 const v = (arr?.includes)(1);

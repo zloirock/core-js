@@ -1,5 +1,5 @@
-// mixed export: `foo` is a real value (pass through), `Map` is a type-only export
-// with `type` modifier (must skip polyfill). the fix must not over-trigger on `foo`
+// mixed export: `foo` is a runtime value (passes through), `Map` is a type-only export
+// with the `type` modifier - polyfill skipped because the binding never reaches runtime
 const foo = 1;
 type Map = never;
 export { foo, type Map };

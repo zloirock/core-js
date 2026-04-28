@@ -1,8 +1,6 @@
-// param-default synth-swap must peel `ParenthesizedExpression` from the AssignmentPattern's
+// param-default synth-swap peels `ParenthesizedExpression` from AssignmentPattern's
 // `right` slot when the parser keeps parens as nodes (`createParenthesizedExpressions:
-// true`). pre-fix `findTargetPath` checked `t.isIdentifier(wrapper.node.right)` against
-// the raw right slot - `(Array)` wrapped in parens failed the check and synth-swap fell
-// back to inline-default that didn't fire. post-fix `peelTransparentPath` reaches the
-// inner Identifier through both parens and TS wrappers, mirroring unplugin's
-// `unwrapParens(wrapper.right)` in `destructure-emit-utils.js`
+// true`). The peel reaches the inner Identifier `Array` so synth-swap binds the receiver;
+// without it, the wrapped `(Array)` would fail the Identifier check and fall back to
+// inline-default
 (({ from } = (Array)) => from([1]))();
