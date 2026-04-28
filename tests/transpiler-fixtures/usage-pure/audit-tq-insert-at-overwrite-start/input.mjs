@@ -1,9 +1,6 @@
-// regression: minified function body where the polyfill statement starts at the byte
-// right after `{`, so scope-tracker `queue.insert(insertPos, '...var _ref;...')` lands
-// at exactly the same offset as the polyfill `queue.add(start, end, ...)`. pre-fix
-// MagicString `appendRight(insertPos)` was ANCHORED to a chunk that the subsequent
-// `overwrite(insertPos, end)` replaced, silently dropping the `var _ref;` declaration -
-// runtime ReferenceError under strict mode. fix: drain inserts AFTER overwrites in
-// `TransformQueue.apply()` so each `appendRight(pos)` lands on the post-overwrite chunk's
-// intro slot (preserved across the overwrite)
+// minified function body where the polyfill statement starts at the byte right after
+// `{`, so the scope-tracker insert (`var _ref;` decl) lands at exactly the same offset
+// as the polyfill range overwrite. Insert-then-overwrite drain ordering keeps the insert
+// anchored to the post-overwrite chunk's intro slot - inverse ordering would silently
+// drop the declaration and the user file would `ReferenceError` under strict mode
 function f(){arr.at?.(0).map(y => y)}

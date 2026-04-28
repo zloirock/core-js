@@ -1,10 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// `mayHaveSideEffects` extension for JSX: attribute values, expression containers in
-// children, spread attributes / spread children all may carry side effects (the latter
-// invoke iteration / Proxy traps unconditionally). pre-fix the SE walker returned
-// `false` for all JSX nodes, so a leading `<X y={fn()} />` in a destructure init
-// folded away during the SE-prefix lift, dropping `fn()` evaluation silently. post-fix
-// the JSX is preserved in the lifted statement
+// `mayHaveSideEffects` covers JSX evaluation: attribute values, expression containers
+// in children, spread attributes / spread children may all carry side effects (spreads
+// invoke iteration / Proxy traps unconditionally). A leading `<X y={fn()} />` in a
+// destructure init is SE-bearing and stays in the lifted statement so `fn()` is
+// preserved at the call site
 (<X y={fn()} />, Array);
 var from = _Array$from;
 from([1]);

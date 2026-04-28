@@ -1,8 +1,9 @@
-// `postSweepUnboundGlobals` Identifier sweep with TS-runtime shadow inside a function
-// body: `enum Map {}` declares a runtime binding scope's `getBindingIdentifier` doesn't
-// expose. without passing `idPath` to `adapter.hasBinding`, the TS-runtime walk anchors
-// at Program scope and misses the inner `enum`. fix: thread `idPath` so the walker
-// reaches `BlockStatement` / `TSModuleBlock` / `StaticBlock` anchors at the reference site
+// post-sweep Identifier walk with a TS-runtime shadow inside a function body:
+// `enum Map {}` declares a runtime binding the scope's `getBindingIdentifier` does
+// not expose. Threading the reference path through binding-detection lets the TS-runtime
+// walker anchor at the nearest `BlockStatement` / `TSModuleBlock` / `StaticBlock`
+// instead of jumping to Program scope, so the inner `enum` shadow suppresses the
+// global polyfill correctly
 function f() {
   enum Map {
     Foo,
