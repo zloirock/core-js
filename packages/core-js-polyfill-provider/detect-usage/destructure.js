@@ -132,6 +132,25 @@ export function isViableBranchForKey(branch, key, scope, adapter, resolvePure) {
   return pure;
 }
 
+// recursive walk of a fallback-receiver expression collecting per-branch resolved metas.
+// `cond1 ? (cond2 ? Array : Iterator) : Set` flattens to [Array, Iterator, Set] - inner
+// conditional's both branches reach their own dispatch. each step peels chain-assign /
+// paren / TS / safe-SE wrappers; non-fallback shapes resolve via `buildDestructuringInitMeta`
+function flattenFallbackBranches(node, key, scope, adapter) {
+  const peeled = peelFallbackReceiver(node);
+  const branchSlots = getFallbackBranchSlots(peeled);
+  if (branchSlots) {
+    return branchSlots.flatMap(s => flattenFallbackBranches(peeled[s], key, scope, adapter));
+  }
+  // leaf branch: paren/TS-wrapped Identifier / MemberExpression, resolve as a single meta.
+  // buildDestructuringInitMeta handles the alias chain + proxy-global / static / global
+  // classification. drops branches that didn't resolve to a known global (`object` null)
+  const inner = peelFallbackWrappers(peeled);
+  if (!inner) return [];
+  const branchMeta = buildDestructuringInitMeta(inner, key, scope, adapter);
+  return branchMeta?.object ? [branchMeta] : [];
+}
+
 // enumerate fromFallback destructure-receiver branches as resolved metas. for usage-global
 // dispatch each branch's deps separately so `cond ? Array : Iterator` with `{from}` brings
 // in both `es.array.from` and `es.iterator.from` at file level. takes parser-agnostic path
@@ -141,24 +160,7 @@ export function enumerateFallbackDestructureBranches(meta, path, adapter) {
   const wrapperParent = path.parentPath?.parentPath?.node;
   const slot = destructureReceiverSlot(wrapperParent);
   if (!slot) return null;
-  // peel chain-assign + paren/TS wrappers down to the conditional/logical. oxc preserves
-  // parens; babel strips them. handles `foo = (bar = (cond ? A : B))` (interleaved layers)
-  const rhs = peelFallbackReceiver(wrapperParent[slot]);
-  const branchSlots = getFallbackBranchSlots(rhs);
-  if (!branchSlots) return null;
-  const out = [];
-  for (const branchSlot of branchSlots) {
-    const branch = rhs[branchSlot];
-    // peel paren / TS wrappers per-branch (mirrors isViableBranchForKey:110). without
-    // the peel, oxc-preserved `cond ? (Array) : (Iterator)` and TS-asserted `Array! : Set!`
-    // fall through and the fallback's polyfill is silently dropped. delegate to
-    // buildDestructuringInitMeta - it accepts Identifier / MemberExpression and recurses
-    // into nested logical / conditional shapes
-    const inner = peelFallbackWrappers(branch);
-    if (!inner) continue;
-    const branchMeta = buildDestructuringInitMeta(inner, meta.key, path.scope, adapter);
-    if (branchMeta?.object) out.push(branchMeta);
-  }
+  const out = flattenFallbackBranches(wrapperParent[slot], meta.key, path.scope, adapter);
   return out.length ? out : null;
 }
 
