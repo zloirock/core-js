@@ -1546,20 +1546,104 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveUserDefinedType(name, node, scope, depth, undefined, seen);
   }
 
+  // TS literal types: 'hello', 42, true, etc.
+  function resolveLiteralType(node) {
+    if (!node.literal) return null;
+    switch (babelNodeType(node.literal)) {
+      case 'StringLiteral':
+      case 'TemplateLiteral':
+        return new $Primitive('string');
+      case 'NumericLiteral':
+        return new $Primitive('number');
+      case 'BooleanLiteral':
+        return new $Primitive('boolean');
+      case 'BigIntLiteral':
+        return new $Primitive('bigint');
+      // signed-numeric literal types: `-1` / `-1n` wrap UnaryExpression around the magnitude
+      case 'UnaryExpression':
+        return new $Primitive(babelNodeType(node.literal.argument) === 'BigIntLiteral' ? 'bigint' : 'number');
+    }
+    return null;
+  }
+
+  // TS conditional type: T extends U ? X : Y - resolve if both branches have the same
+  // type, or one is `never`. `T extends (infer U)[] ? U : never` with T already substituted
+  // (via alias-chain) is the canonical element-extraction shape: trueType references the
+  // inferred name, falseType is never-like. match first so `First<string[]>` resolves to
+  // `string` instead of collapsing through the generic branches (which can't resolve the
+  // naked `U` reference)
+  function resolveConditionalType(node, scope, depth) {
+    const inferred = resolveInferElementPattern(node, null, scope, depth, null);
+    if (inferred) return inferred;
+    return resolveConditionalBranches(
+      resolveTypeAnnotation(node.trueType, scope, depth + 1),
+      resolveTypeAnnotation(node.falseType, scope, depth + 1));
+  }
+
+  // TS indexed access type: Config["items"], [string, number[]][1], Items[number], or Dict[string]
+  function resolveIndexedAccessType(node, scope, depth) {
+    // T[number] - element type of array/tuple
+    if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
+    // T[string] - string index signature type
+    if (node.indexType?.type === 'TSStringKeyword') {
+      const members = getTypeMembers(node.objectType, scope);
+      if (members) for (const member of members) {
+        if (member.type === 'TSIndexSignature' && member.typeAnnotation
+          && member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword') {
+          return resolveTypeAnnotation(member.typeAnnotation, scope, depth + 1);
+        }
+      }
+      return null;
+    }
+    // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
+    // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to the
+    // widest common type, handing us precise inference when all branches agree
+    if (node.indexType?.type === 'TSUnionType') {
+      return foldUnionTypes(node.indexType.types, branch => resolveTypeAnnotation(
+        { type: 'TSIndexedAccessType', objectType: node.objectType, indexType: branch },
+        scope,
+        depth + 1,
+      ));
+    }
+    // template-literal type index `T[\`foo\`]` without interpolations is equivalent to
+    // `T['foo']` - TS-level evaluation of the template yields a plain string literal.
+    // interpolations (`T[\`_${K}\`]`) would require compile-time type-string computation
+    // (mapped-type renamers like `as \`_${K & string}\``); conservative bail for now.
+    // TS wraps template literals in TSLiteralType { literal: TemplateLiteral }; unwrap first
+    const literalIndex = node.indexType?.type === 'TSLiteralType' ? node.indexType.literal : node.indexType;
+    const quasi = singleQuasiString(literalIndex);
+    if (quasi !== null) {
+      const member = findTypeMember(node.objectType, quasi, scope);
+      return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
+    }
+    if (node.indexType?.type !== 'TSLiteralType') return null;
+    const { literal } = node.indexType;
+    let member;
+    if (babelNodeType(literal) === 'StringLiteral') member = findTypeMember(node.objectType, literal.value, scope);
+    else if (babelNodeType(literal) === 'NumericLiteral') member = findTupleElement(node.objectType, literal.value, scope);
+    return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
+  }
+
   function resolveTypeAnnotation(node, scope, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     node = unwrapTypeAnnotation(node);
     if (!node) return null;
     switch (babelNodeType(node)) {
-      // TS primitive keywords
+      // TS / Flow primitive keywords + literal-typeof + TSTemplateLiteralType (`prefix_${string}`)
       case 'TSStringKeyword':
       case 'StringTypeAnnotation':
+      case 'StringLiteralTypeAnnotation':
+      case 'TSTemplateLiteralType':
         return new $Primitive('string');
       case 'TSNumberKeyword':
       case 'NumberTypeAnnotation':
+      case 'NumberLiteralTypeAnnotation':
         return new $Primitive('number');
+      // boolean keywords + TSTypePredicate (`x is string` -> boolean)
       case 'TSBooleanKeyword':
       case 'BooleanTypeAnnotation':
+      case 'BooleanLiteralTypeAnnotation':
+      case 'TSTypePredicate':
         return new $Primitive('boolean');
       case 'TSBigIntKeyword':
       case 'BigIntTypeAnnotation':
@@ -1580,13 +1664,20 @@ function createResolveNodeType(babelNodeType, t) {
       // TS `object` keyword = any non-primitive, too broad to narrow polyfills
       case 'TSObjectKeyword':
         return new $Object(null);
+      case 'TSFunctionType':
+      case 'TSConstructorType':
+      case 'FunctionTypeAnnotation':
+        return new $Object('Function');
       // TS `{}` without members matches ANY non-nullish runtime value - primitives (string,
       // number, bigint, boolean, symbol), functions, all constructor objects (Array, Map,
       // Promise, Date, ...), user classes. returning `$Object('Object')` would narrow to
       // Object-methods only and misroute `.at()` / `.includes()` etc; null routes through
-      // `resolveHint` common/rest fallback which is the correct conservative choice
+      // `resolveHint` common/rest fallback which is the correct conservative choice.
+      // `TSImportType` (`typeof import('x')`) explicit so future extension doesn't need to
+      // untangle a silent fall-through through `TSTypeReference`
       case 'TSTypeLiteral':
       case 'ObjectTypeAnnotation':
+      case 'TSImportType':
         return null;
       // TS mapped type: detect the trivial passthrough `{ [K in keyof T]: T[K] }` and resolve
       // through to T directly; everything else is structurally opaque
@@ -1604,15 +1695,11 @@ function createResolveNodeType(babelNodeType, t) {
           ? resolveTupleInner(elements, e => resolveTypeAnnotation(e, scope, depth + 1))
           : null);
       }
-      case 'TSFunctionType':
-      case 'TSConstructorType':
-      case 'FunctionTypeAnnotation':
-        return new $Object('Function');
-      // TS / Flow named types - only well-known built-ins and utility types
+      // TS / Flow named types - only well-known built-ins and utility types.
+      // handle dotted refs (`NS.Data`) by joining segments so resolveNamedType /
+      // findTypeDeclaration can split them back into a path-walk
       case 'TSTypeReference':
       case 'GenericTypeAnnotation': {
-        // handle dotted refs (`NS.Data`) - join segments so resolveNamedType /
-        // findTypeDeclaration can split them back into a path-walk
         const segments = typeRefSegments(node);
         if (!segments) return null;
         return resolveNamedType(segments.join('.'), node, scope, depth);
@@ -1624,40 +1711,18 @@ function createResolveNodeType(babelNodeType, t) {
         return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
       // TS type operator: `readonly T[]`, `unique symbol` - but NOT `keyof T`
       case 'TSTypeOperator':
-        if (node.operator !== 'keyof') return resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
-        return null;
+        return node.operator === 'keyof' ? null : resolveTypeAnnotation(node.typeAnnotation, scope, depth + 1);
       // TS typeof in type position: `typeof variable`
       case 'TSTypeQuery':
         return resolveTypeQuery(node, scope);
-      // `typeof import('x')` / `import('x').Foo` - referenced module isn't visible
-      // without file I/O. explicit case so future extension doesn't need to untangle
-      // a silent fall-through through `TSTypeReference`
-      case 'TSImportType':
-        return null;
       // Flow typeof in type position: `typeof variable`
       case 'TypeofTypeAnnotation': {
         const arg = node.argument;
         return arg?.type === 'GenericTypeAnnotation'
           ? resolveTypeofFromSegments(collectQualifiedSegments(arg.id), scope) : null;
       }
-      // TS template literal type: `prefix_${string}`
-      case 'TSTemplateLiteralType':
-        return new $Primitive('string');
-      // TS type predicate: `x is string` -> boolean
-      case 'TSTypePredicate':
-        return new $Primitive('boolean');
-      // TS conditional type: T extends U ? X : Y - resolve if both branches have the same type, or one is `never`.
-      // `T extends (infer U)[] ? U : never` with T already substituted (via alias-chain) is the
-      // canonical element-extraction shape: trueType references the inferred name, falseType is
-      // never-like. match first so `First<string[]>` resolves to `string` instead of collapsing
-      // through the generic branches (which can't resolve the naked `U` reference)
-      case 'TSConditionalType': {
-        const inferred = resolveInferElementPattern(node, null, scope, depth, null);
-        if (inferred) return inferred;
-        return resolveConditionalBranches(
-          resolveTypeAnnotation(node.trueType, scope, depth + 1),
-          resolveTypeAnnotation(node.falseType, scope, depth + 1));
-      }
+      case 'TSConditionalType':
+        return resolveConditionalType(node, scope, depth);
       // TS / Flow union and intersection - resolve if all (non-nullable for unions) members have the same type
       case 'TSUnionType':
       case 'UnionTypeAnnotation': {
@@ -1671,72 +1736,10 @@ function createResolveNodeType(babelNodeType, t) {
         if (!types || !types.length) return null;
         return foldIntersectionTypes(types, member => resolveTypeAnnotation(member, scope, depth + 1));
       }
-      // TS literal types: 'hello', 42, true, etc.
       case 'TSLiteralType':
-        if (node.literal) switch (babelNodeType(node.literal)) {
-          case 'StringLiteral':
-          case 'TemplateLiteral':
-            return new $Primitive('string');
-          case 'NumericLiteral':
-            return new $Primitive('number');
-          case 'BooleanLiteral':
-            return new $Primitive('boolean');
-          case 'BigIntLiteral':
-            return new $Primitive('bigint');
-          case 'UnaryExpression':
-            return new $Primitive(babelNodeType(node.literal.argument) === 'BigIntLiteral' ? 'bigint' : 'number');
-        }
-        return null;
-      // Flow literal types: 'hello', 42, true
-      case 'StringLiteralTypeAnnotation':
-        return new $Primitive('string');
-      case 'NumberLiteralTypeAnnotation':
-        return new $Primitive('number');
-      case 'BooleanLiteralTypeAnnotation':
-        return new $Primitive('boolean');
-      // TS indexed access type: Config["items"], [string, number[]][1], Items[number], or Dict[string]
-      case 'TSIndexedAccessType': {
-        // T[number] - element type of array/tuple
-        if (node.indexType?.type === 'TSNumberKeyword') return resolveElementType(node.objectType, scope, depth + 1);
-        // T[string] - string index signature type
-        if (node.indexType?.type === 'TSStringKeyword') {
-          const members = getTypeMembers(node.objectType, scope);
-          if (members) for (const member of members) {
-            if (member.type === 'TSIndexSignature' && member.typeAnnotation
-              && member.parameters?.[0]?.typeAnnotation?.typeAnnotation?.type === 'TSStringKeyword') {
-              return resolveTypeAnnotation(member.typeAnnotation, scope, depth + 1);
-            }
-          }
-          return null;
-        }
-        // `T['a' | 'b']` - union of literal indices. fold each branch back through this same
-        // resolver (each with one TSLiteralType indexType); `foldUnionTypes` aggregates to
-        // the widest common type, handing us precise inference when all branches agree
-        if (node.indexType?.type === 'TSUnionType') {
-          return foldUnionTypes(node.indexType.types, branch => resolveTypeAnnotation(
-            { type: 'TSIndexedAccessType', objectType: node.objectType, indexType: branch },
-            scope,
-            depth + 1,
-          ));
-        }
-        // template-literal type index `T[\`foo\`]` without interpolations is equivalent to
-        // `T['foo']` - TS-level evaluation of the template yields a plain string literal.
-        // interpolations (`T[\`_${K}\`]`) would require compile-time type-string computation
-        // (mapped-type renamers like `as \`_${K & string}\``); conservative bail for now.
-        // TS wraps template literals in TSLiteralType { literal: TemplateLiteral }; unwrap first
-        const literalIndex = node.indexType?.type === 'TSLiteralType' ? node.indexType.literal : node.indexType;
-        const quasi = singleQuasiString(literalIndex);
-        if (quasi !== null) {
-          const member = findTypeMember(node.objectType, quasi, scope);
-          return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
-        }
-        if (node.indexType?.type !== 'TSLiteralType') return null;
-        const { literal } = node.indexType;
-        let member;
-        if (babelNodeType(literal) === 'StringLiteral') member = findTypeMember(node.objectType, literal.value, scope);
-        else if (babelNodeType(literal) === 'NumericLiteral') member = findTupleElement(node.objectType, literal.value, scope);
-        return member ? resolveTypeAnnotation(member, scope, depth + 1) : null;
-      }
+        return resolveLiteralType(node);
+      case 'TSIndexedAccessType':
+        return resolveIndexedAccessType(node, scope, depth);
     }
     return null;
   }
@@ -2158,6 +2161,61 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  function resolveNewExpressionType(path) {
+    const callee = path.get('callee');
+    const name = resolveGlobalName(callee);
+    if (name) return resolveConstructorType(name, path) || new $Object(name);
+    const resolved = resolveRuntimeExpression(callee);
+    if (t.isClass(resolved.node)) return resolveClassInheritance(resolved) || new $Object('Object');
+    return new $Object(null);
+  }
+
+  function resolveCallExpressionType(path) {
+    // coreJSResolvedType short-circuit handled at the top of resolveNodeTypeExpression
+    const callee = path.get('callee');
+    const name = resolveGlobalName(callee);
+    if (name) {
+      // known constructor called without `new`: String(), Array(), etc.
+      const known = resolveConstructorCallType(name, path);
+      if (known) return known;
+      // known global function: parseInt(), parseFloat(), etc.
+      if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
+    }
+    if (t.isImport(callee.node)) return new $Object('Promise');
+    return resolveCallReturnType(callee);
+  }
+
+  function resolveAwaitExpressionType(path) {
+    const argument = path.get('argument');
+    const type = resolveNodeType(argument);
+    // await on non-Promise value returns the value type unchanged
+    if (type && type.constructor !== 'Promise') return type;
+    // recursively unwrap Promise<Promise<...T>> -> T
+    const resolved = unwrapPromise(type);
+    if (resolved && resolved !== type) return resolved;
+    // try to unwrap Promise<T> from type annotation on the awaited expression
+    const annotationInfo = findExpressionAnnotation(argument);
+    if (annotationInfo) {
+      const annotation = unwrapTypeAnnotation(annotationInfo.annotation);
+      if (annotation && typeRefName(annotation) === 'Promise') {
+        const inner = getTypeArgs(annotation)?.params[0];
+        if (inner) return resolveTypeAnnotation(inner, annotationInfo.scope);
+      }
+    }
+    return null;
+  }
+
+  function resolveYieldExpressionType(path) {
+    const fnPath = path.getFunctionParent();
+    if (!fnPath?.node.generator) return null;
+    // yield* delegates to an iterable; result is the delegated iterator's TReturn (params[1])
+    if (path.node.delegate) return resolveGeneratorTypeParam(path.get('argument'), 1);
+    // yield evaluates to the value passed to generator.next(value) = TNext (params[2])
+    const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
+    if (params?.[2]) return resolveTypeAnnotation(params[2], fnPath.scope);
+    return null;
+  }
+
   function resolveNodeTypeExpression(path) {
     // polyfill-side transformations (memoized optional-chain refs, chained conditional
     // wrappers, destructure-extracted helpers) stash a pre-mutation type hint on the node
@@ -2173,6 +2231,9 @@ function createResolveNodeType(babelNodeType, t) {
     switch (babelNodeType(path.node)) {
       // ESTree wraps optional chains in ChainExpression, preserves parentheses - unwrap
       case 'ChainExpression':
+      case 'ParenthesizedExpression':
+      case 'TSNonNullExpression':
+      case 'TSInstantiationExpression':
         return resolveNodeType(path.get('expression'));
       case 'Identifier':
         return resolvePrototypeAsInstance(path) || resolveKnownGlobalReference(path);
@@ -2201,21 +2262,10 @@ function createResolveNodeType(babelNodeType, t) {
         return new $Object('Function');
       case 'ThisExpression': {
         const context = resolveThisClass(path);
-        if (context) return resolveClassInheritance(context.classPath) || new $Object('Object');
-        return null;
+        return context ? resolveClassInheritance(context.classPath) || new $Object('Object') : null;
       }
-      case 'NewExpression': {
-        const callee = path.get('callee');
-        const name = resolveGlobalName(callee);
-        if (name) {
-          return resolveConstructorType(name, path) || new $Object(name);
-        }
-        {
-          const resolved = resolveRuntimeExpression(callee);
-          if (t.isClass(resolved.node)) return resolveClassInheritance(resolved) || new $Object('Object');
-        }
-        return new $Object(null);
-      }
+      case 'NewExpression':
+        return resolveNewExpressionType(path);
       case 'MemberExpression':
       case 'OptionalMemberExpression':
         return resolveFromMemberExpression(path)
@@ -2225,20 +2275,8 @@ function createResolveNodeType(babelNodeType, t) {
           || resolvePrototypeAsInstance(path)
           || resolveKnownGlobalReference(path);
       case 'CallExpression':
-      case 'OptionalCallExpression': {
-        // coreJSResolvedType short-circuit handled at the top of resolveNodeTypeExpression
-        const callee = path.get('callee');
-        const name = resolveGlobalName(callee);
-        if (name) {
-          // known constructor called without `new`: String(), Array(), etc.
-          const known = resolveConstructorCallType(name, path);
-          if (known) return known;
-          // known global function: parseInt(), parseFloat(), etc.
-          if (hasOwn(KNOWN_GLOBAL_METHOD_RETURN_TYPES, name)) return typeFromHint(KNOWN_GLOBAL_METHOD_RETURN_TYPES[name]);
-        }
-        if (t.isImport(callee.node)) return new $Object('Promise');
-        return resolveCallReturnType(callee);
-      }
+      case 'OptionalCallExpression':
+        return resolveCallExpressionType(path);
       // ESTree: import('foo') is ImportExpression (not CallExpression with Import callee)
       case 'ImportExpression':
         return new $Object('Promise');
@@ -2284,8 +2322,7 @@ function createResolveNodeType(babelNodeType, t) {
         }
       case 'SequenceExpression': {
         const expressions = path.get('expressions');
-        if (expressions.length) return resolveNodeType(expressions.at(-1));
-        return null;
+        return expressions.length ? resolveNodeType(expressions.at(-1)) : null;
       }
       case 'AssignmentExpression':
         switch (path.node.operator) {
@@ -2305,48 +2342,16 @@ function createResolveNodeType(babelNodeType, t) {
           || resolveUnionType(path.get('consequent'), path.get('alternate'), '?:');
       case 'LogicalExpression':
         return resolveUnionType(path.get('left'), path.get('right'), path.node.operator);
-      case 'ParenthesizedExpression':
-        return resolveNodeType(path.get('expression'));
       case 'TSAsExpression':
       case 'TSTypeAssertion':
       case 'TypeCastExpression':
         return resolveTypeAnnotation(path.node.typeAnnotation, path.scope) || resolveNodeType(path.get('expression'));
       case 'TSSatisfiesExpression':
         return resolveNodeType(path.get('expression')) || resolveTypeAnnotation(path.node.typeAnnotation, path.scope);
-      case 'TSNonNullExpression':
-      case 'TSInstantiationExpression':
-        return resolveNodeType(path.get('expression'));
-      case 'AwaitExpression': {
-        const argument = path.get('argument');
-        const type = resolveNodeType(argument);
-        // await on non-Promise value returns the value type unchanged
-        if (type && type.constructor !== 'Promise') return type;
-        // recursively unwrap Promise<Promise<...T>> -> T
-        const resolved = unwrapPromise(type);
-        if (resolved && resolved !== type) return resolved;
-        // try to unwrap Promise<T> from type annotation on the awaited expression
-        const annotationInfo = findExpressionAnnotation(argument);
-        if (annotationInfo) {
-          const annotation = unwrapTypeAnnotation(annotationInfo.annotation);
-          if (annotation && typeRefName(annotation) === 'Promise') {
-            const inner = getTypeArgs(annotation)?.params[0];
-            if (inner) return resolveTypeAnnotation(inner, annotationInfo.scope);
-          }
-        }
-        return null;
-      }
-      case 'YieldExpression': {
-        const fnPath = path.getFunctionParent();
-        if (!fnPath?.node.generator) return null;
-        if (path.node.delegate) {
-          // yield* delegates to an iterable; result is the delegated iterator's TReturn (params[1])
-          return resolveGeneratorTypeParam(path.get('argument'), 1);
-        }
-        // yield evaluates to the value passed to generator.next(value) = TNext (params[2])
-        const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
-        if (params?.[2]) return resolveTypeAnnotation(params[2], fnPath.scope);
-        return null;
-      }
+      case 'AwaitExpression':
+        return resolveAwaitExpressionType(path);
+      case 'YieldExpression':
+        return resolveYieldExpressionType(path);
     }
     return null;
   }
