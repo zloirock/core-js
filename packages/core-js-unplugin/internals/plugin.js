@@ -49,26 +49,44 @@ import {
 } from './plugin-helpers.js';
 import SnapshotCache from './snapshot-cache.js';
 
-// estree-toolkit's scope crawler doesn't recognise `TSDeclareFunction` as a scope owner, so
-// it walks into `RestElement` in params via the reference path which throws `This should be
-// handled by findVisiblePathsInPattern`. narrow retype: only when params contain `RestElement`
-// (the sole crash trigger) - touching every declare would flip `es.function.name` injection
-// on user-facing identifiers. params are preserved so `Parameters<typeof fn>[N]` keeps working
-function neutralizeTSDeclareFunctions(ast) {
-  if (!ast?.body) return;
-  for (const stmt of ast.body) {
-    const target = unwrapExport(stmt);
-    if (target?.type !== 'TSDeclareFunction') continue;
-    if (!target.params?.some(p => p?.type === 'RestElement')) continue;
-    target.type = 'FunctionDeclaration';
-    target.body = { type: 'BlockStatement', body: [], start: target.end, end: target.end };
-  }
-}
+// estree-toolkit's scope crawler walks `RestElement` params via the reference path on three
+// type-only shapes (`TSDeclareFunction`, `TSEmptyBodyFunctionExpression`, `TSMethodSignature`)
+// where it throws `This should be handled by findVisiblePathsInPattern`.
+// `TSDeclareFunction` retypes to a body-bearing `FunctionDeclaration` so the standard pattern
+// walker handles params; the other two have no body slot, so rest params get rewritten to a
+// bare Identifier carrying the original `typeAnnotation` (`Parameters<typeof X>` still resolves
+// the original `T[]` element type). Touching only rest-bearing params leaves `es.function.name`
+// injection on regular declares unaffected
+const REST_CRASHING_SHAPES = new Set([
+  'TSDeclareFunction',
+  'TSEmptyBodyFunctionExpression',
+  'TSMethodSignature',
+]);
 
-// `export declare function ...` / `export default declare function ...` wrap the declaration
-function unwrapExport(stmt) {
-  return stmt?.type === 'ExportNamedDeclaration' || stmt?.type === 'ExportDefaultDeclaration'
-    ? stmt.declaration : stmt;
+function neutralizeTSDeclareFunctions(node) {
+  if (!node || typeof node !== 'object') return;
+  if (REST_CRASHING_SHAPES.has(node.type) && node.params?.some(p => p?.type === 'RestElement')) {
+    if (node.type === 'TSDeclareFunction') {
+      node.type = 'FunctionDeclaration';
+      node.body = { type: 'BlockStatement', body: [], start: node.end, end: node.end };
+    } else for (let i = 0; i < node.params.length; i++) {
+      const p = node.params[i];
+      if (p?.type !== 'RestElement') continue;
+      node.params[i] = {
+        type: 'Identifier',
+        name: p.argument?.name ?? '_rest',
+        typeAnnotation: p.typeAnnotation,
+        start: p.start,
+        end: p.end,
+      };
+    }
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const child of node) neutralizeTSDeclareFunctions(child);
+    return;
+  }
+  for (const key of Object.keys(node)) neutralizeTSDeclareFunctions(node[key]);
 }
 
 export default function createPlugin(options) {
