@@ -8,7 +8,7 @@ import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unpl
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
-import { collectAllBindingNames } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import { collectAllBindingNames, directivePrologueEnd } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
 const { cyan, green, red } = chalk;
 
@@ -41,6 +41,7 @@ const shouldTransformCases = [
   ['/src/App.vue?vue&type=script&lang=mts', true, 'Vue SFC lang=mts'],
   ['/src/App.vue?vue&type=script&lang=cts', true, 'Vue SFC lang=cts'],
   ['/src/App.vue?vue&type=script&lang=jsx', true, 'Vue SFC lang=jsx'],
+  ['/src/App.vue?vue&type=script&setup=true&lang=tsx', true, 'Vue SFC lang=tsx'],
   ['/src/App.vue?lang=ts&type=script', true, 'lang= before type='],
   ['/src/App.vue?foo=bar&lang=ts&baz=qux', true, 'lang= sandwiched between query params'],
   ['/src/App.svelte?lang=jsx', true, 'Svelte SFC lang=jsx'],
@@ -296,6 +297,44 @@ function checkSourceMapFileField() {
   check('sourceMap/sources[0] preserves full id', result?.map?.sources?.[0], '/src/sm-file.js');
 }
 checkSourceMapFileField();
+
+// --- directivePrologueEnd ---
+// scans leading directive-shaped statements ('use strict', 'use asm', etc.) and returns the
+// offset right after the last directive's source range. Inject point starts there so user
+// directives stay at the head of the file. Stops at the first non-directive statement
+function checkDirectivePrologueEnd() {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const programOf = src => parseSync('/x.mjs', src, { sourceType: 'module' }).program;
+  const empty = programOf('');
+  check('directivePrologueEnd/empty', directivePrologueEnd(empty), 0);
+  const noDirective = programOf('foo();');
+  check('directivePrologueEnd/no directive', directivePrologueEnd(noDirective), 0);
+  const single = programOf('"use strict";\nfoo();');
+  check('directivePrologueEnd/single directive', directivePrologueEnd(single), 13);
+  const multi = programOf('"use strict";\n"use asm";\nfoo();');
+  check('directivePrologueEnd/multi directive walks past last', directivePrologueEnd(multi), 24);
+  const directiveAfterStmt = programOf('foo();\n"use strict";');
+  check('directivePrologueEnd/directive after stmt stops at 0', directivePrologueEnd(directiveAfterStmt), 0);
+}
+checkDirectivePrologueEnd();
+
+// --- transform parse-error path ---
+// fatal parse errors return null + emit a `this.warn(...)` describing the failure so the
+// user identifies the file. oxc-parser is forgiving and returns an `errors` array rather
+// than throwing, so the plugin filters severity:'Error' explicitly
+function checkTransformParseErrorReturnsNullAndWarns() {
+  const plugin = createPlugin({ method: 'usage-pure', version: '4.0', targets: { ie: 11 } });
+  let warned = '';
+  const result = plugin.transform.call(
+    { warn: msg => { warned = msg; } },
+    'class { method( ',
+    '/syntax-error.mjs',
+  );
+  check('transform/parse-error returns null', result, null);
+  check('transform/parse-error emits warn with `[core-js]` prefix',
+    warned.startsWith('[core-js]') && warned.includes('/syntax-error.mjs'), true);
+}
+checkTransformParseErrorReturnsNullAndWarns();
 
 // --- flush() skips through multi-comment directive tails ---
 // directiveEnd lands after `"use strict";`; skipLineEnd must walk past `/*a*/ //b` so the
