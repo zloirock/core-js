@@ -14,7 +14,7 @@ import {
   isClassifiableReceiverArg,
   isSynthSimpleObjectPattern,
   mayHaveSideEffects,
-  TS_EXPR_WRAPPERS,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
 
@@ -29,13 +29,30 @@ export default function createSynthSwapEmitter({
   const synthSwapByReceiver = new WeakMap();
   const pendingSwaps = [];
 
+  // peel runtime-transparent expression wrappers (TS `as` / `satisfies` / `!` / ... and
+  // `ParenthesizedExpression` for `createParenthesizedExpressions: true`) so synth-target
+  // detection lands on the meaningful inner node. default parser tracks parens via the
+  // `extra.parenthesized` flag instead of nodes - that flag is checked separately at the
+  // relevant call sites (`isWrappedInParens` in babel-compat.js)
+  function peelTransparentPath(path) {
+    while (path?.node && TRANSPARENT_EXPR_WRAPPER_TYPES.has(path.node.type)) {
+      path = path.get('expression');
+    }
+    return path;
+  }
+
   // `(fn, R)` as an IIFE arg evaluates to its last expression. side-effect-free preceding
   // expressions can be dropped from the synth target resolution (R becomes the receiver);
   // preceding effects leave the path as-is so synth-swap bails back to inline-default.
   // recurse into nested SequenceExpression tails (`(a, (b, R))`) so the inner peeling lands
-  // on the actual receiver Identifier - flat / nested forms must classify identically
+  // on the actual receiver Identifier - flat / nested forms must classify identically.
+  // also peel ParenthesizedExpression at every step (createParens=true preserves them);
+  // shared `unwrapSafeSequenceTail` (node-version in `helpers/ast-patterns.js`) does the
+  // same so flat / paren-wrapped forms classify identically across both runners
   function unwrapSequenceTail(argPath) {
-    while (argPath?.isSequenceExpression()) {
+    while (argPath?.node) {
+      argPath = peelTransparentPath(argPath);
+      if (!argPath?.isSequenceExpression()) return argPath;
       const expressions = argPath.get('expressions');
       if (expressions.slice(0, -1).some(expressionPath => mayHaveSideEffects(expressionPath.node))) return argPath;
       const tail = expressions.at(-1);
@@ -80,10 +97,17 @@ export default function createSynthSwapEmitter({
   // to undefined -> wrapper-default fires) carry the polyfill
   function findTargetPath(wrapper, objectPattern) {
     if (objectPattern.node.properties.some(property => t.isRestElement(property))) return null;
-    if (wrapper?.isAssignmentPattern() && t.isIdentifier(wrapper.node.right)) {
-      const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
-      if (argPath && isClassifiableReceiverArg(argPath.node)) return argPath;
-      return wrapper.get('right');
+    if (wrapper?.isAssignmentPattern()) {
+      // peel parens / TS wrappers: `({from} = (Array)) => ...` (createParens=true) and
+      // `({from} = Array as any) => ...` both must reach the inner Identifier so the
+      // synth-swap fires instead of falling back to inline-default. mirrors unplugin's
+      // `unwrapParens(wrapper.right)` in `destructure-emit-utils.js`
+      const rightPath = peelTransparentPath(wrapper.get('right'));
+      if (t.isIdentifier(rightPath.node)) {
+        const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
+        if (argPath && isClassifiableReceiverArg(argPath.node)) return argPath;
+        return rightPath;
+      }
     }
     const argPath = detectIifeArgPath(wrapper, objectPattern);
     return argPath && isClassifiableReceiverArg(argPath.node) ? argPath : null;
@@ -125,19 +149,23 @@ export default function createSynthSwapEmitter({
     if (prop.node.computed || !t.isIdentifier(prop.node.key)) return false;
     // peel TS wrappers (`(cond ? A : B) as any`) so the conditional underneath reaches
     // the slot resolver. babel parser strips parens but keeps TSAsExpression / `!` as
-    // first-class wrappers. NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B`
-    // is intentional escape hatch (rewriting branches as synth literals would change
-    // `foo`'s runtime value, see `audit-per-branch-chain-assignment`)
-    let innerPath = rhsPath;
-    while (innerPath?.node && TS_EXPR_WRAPPERS.has(innerPath.node.type)) {
-      innerPath = innerPath.get('expression');
-    }
+    // first-class wrappers; createParens=true preserves ParenthesizedExpression too.
+    // NOTE: do NOT peel chain-assignment here - `foo = cond ? A : B` is intentional
+    // escape hatch (rewriting branches as synth literals would change `foo`'s runtime
+    // value, see `audit-per-branch-chain-assignment`)
+    const innerPath = peelTransparentPath(rhsPath);
     const slots = getFallbackBranchSlots(innerPath?.node);
     if (!slots) return false;
     const key = prop.node.key.name;
     let registered = false;
     for (const slot of slots) {
-      const branchPath = innerPath.get(slot);
+      // peel TS wrappers / parens from each branch BEFORE register so apply()'s
+      // `t.isIdentifier(receiver)` invariant holds. without the peel `cond ? Array as any
+      // : Iterator as any` registers a TSAsExpression-wrapped path; apply() then bails
+      // non-deterministically (works only when a sibling constructor-polyfill happens to
+      // replace the slot with a fresh Identifier)
+      const branchPath = peelTransparentPath(innerPath.get(slot));
+      if (!branchPath?.node) continue;
       const branch = branchPath.node;
       const pure = isViableBranchForKey(branch, key, branchPath.scope, adapter, resolvePure);
       if (!pure) continue;
