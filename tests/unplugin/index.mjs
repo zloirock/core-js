@@ -222,7 +222,7 @@ function checkOutputParses(directory, code, testId) {
   // share the SFC lang-suffix lift with the plugin (Vue/Svelte/Astro virtual ids carry the
   // parser-language hint in the query); without it the validator rejects TS / JSX syntax
   // on the `.vue` / `.svelte` extension default
-  const parseId = liftSfcLangSuffix(testId, testId.split(/[?#]/, 1)[0]);
+  const parseId = liftSfcLangSuffix(testId, testId.split(/[#?]/, 1)[0]);
   // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
   const parsed = parseSync(parseId, code, { sourceType: 'module' });
   const errors = parsed.errors?.filter(err => err.severity === 'Error');
