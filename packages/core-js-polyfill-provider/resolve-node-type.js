@@ -954,7 +954,36 @@ function createResolveNodeType(babelNodeType, t) {
     return annotation ? getTypeMembers(annotation, scope, depth + 1) : null;
   }
 
-  function getTypeMembers(objectType, scope, depth = 0) {
+  // collect members of an interface declaration (including merged sibling interfaces and
+  // every `extends`'d parent's members). `interface A extends B; interface B extends A` cycle:
+  // MAX_DEPTH bottoms out via 64-frame CPU-burn. visited Set short-circuits at the second
+  // visit - mirrors `resolveTypeAnnotation`'s decl-set guard (type aliases) and
+  // `collectClassLikeMembers`'s `seen` Set (class-extends chains)
+  function collectInterfaceMembers(declaration, segments, scope, depth, visited) {
+    const seen = visited ?? new Set();
+    if (seen.has(declaration)) return null;
+    seen.add(declaration);
+    const interfaces = findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration);
+    const all = [];
+    for (const decl of interfaces) {
+      // TS: decl.body.body, Flow: decl.body.properties
+      const own = decl.body?.body ?? decl.body?.properties;
+      if (own) for (const m of own) all.push(m);
+      for (const parent of decl.extends ?? []) {
+        const expr = extendsId(parent);
+        const parentRef = expr.type === 'Identifier'
+          ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
+          : expr;
+        const parentMembers = getTypeMembers(parentRef, scope, depth + 1, seen);
+        if (!parentMembers) continue;
+        const parentSubst = buildParentSubst(parentRef, scope);
+        for (const m of parentMembers) all.push(parentSubst ? substMemberAnnotations(m, parentSubst) : m);
+      }
+    }
+    return all.length ? all : null;
+  }
+
+  function getTypeMembers(objectType, scope, depth = 0, visited = undefined) {
     if (depth > MAX_DEPTH) return null;
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
@@ -963,7 +992,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
       const all = [];
       for (const member of objectType.types) {
-        const members = getTypeMembers(unwrapTypeAnnotation(member), scope, depth + 1);
+        const members = getTypeMembers(unwrapTypeAnnotation(member), scope, depth + 1, visited);
         if (members) for (const m of members) all.push(m);
       }
       return all.length ? all : null;
@@ -974,7 +1003,7 @@ function createResolveNodeType(babelNodeType, t) {
     // structure-preserving wrappers: `Readonly<{...}>.x`, `Pick<T,K>.x` look up on T directly
     if (segments.length === 1 && STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) {
       const arg = getTypeArgs(objectType)?.params[0];
-      return arg ? getTypeMembers(unwrapTypeAnnotation(arg), scope, depth + 1) : null;
+      return arg ? getTypeMembers(unwrapTypeAnnotation(arg), scope, depth + 1, visited) : null;
     }
     // `Record<K, V>` - every member access returns V. emit a synthetic index signature so
     // findTypeMember's TSIndexSignature fallback picks it up for any key
@@ -993,31 +1022,12 @@ function createResolveNodeType(babelNodeType, t) {
       const target = segments[0] === 'InstanceType'
         ? resolved.node.id && { type: 'TSTypeReference', typeName: resolved.node.id }
         : resolved.node.returnType ?? resolved.node.typeAnnotation;
-      return target ? getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1) : null;
+      return target ? getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1, visited) : null;
     }
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
     if (!declaration) return null;
-    if (isInterfaceDeclaration(declaration)) {
-      const interfaces = findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration);
-      const all = [];
-      for (const decl of interfaces) {
-        // TS: decl.body.body, Flow: decl.body.properties
-        const own = decl.body?.body ?? decl.body?.properties;
-        if (own) for (const m of own) all.push(m);
-        for (const parent of decl.extends ?? []) {
-          const expr = extendsId(parent);
-          const parentRef = expr.type === 'Identifier'
-            ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
-            : expr;
-          const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
-          if (!parentMembers) continue;
-          const parentSubst = buildParentSubst(parentRef, scope);
-          for (const m of parentMembers) all.push(parentSubst ? substMemberAnnotations(m, parentSubst) : m);
-        }
-      }
-      return all.length ? all : null;
-    }
+    if (isInterfaceDeclaration(declaration)) return collectInterfaceMembers(declaration, segments, scope, depth, visited);
     if (isClassLikeDeclaration(declaration)) {
       return collectClassLikeMembers(declaration, segments, scope, depth);
     }
@@ -1025,7 +1035,7 @@ function createResolveNodeType(babelNodeType, t) {
       // substitute the alias's type params into member annotations so
       // `type Dict<V> = { [k: string]: V }` + `Dict<number[]>[string]` resolves V to number[]
       const subst = buildSubstMap(declaration.typeParameters?.params, getTypeArgs(objectType)?.params);
-      const members = getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1);
+      const members = getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1, visited);
       if (!members) return null;
       return subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
     }
@@ -2815,7 +2825,7 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  function findClassMember(classPath, name, isStatic, depth = 0) {
+  function findClassMember(classPath, name, isStatic, depth = 0, visited = undefined) {
     if (depth > MAX_DEPTH) return null;
     // walk in reverse: in JS, duplicate method names are legal and the runtime uses the last definition
     // `findObjectMember` does the same; both must agree.
@@ -2828,8 +2838,14 @@ function createResolveNodeType(babelNodeType, t) {
       if (member.node.kind === 'set') continue;
       return member;
     }
+    // `class A extends B; class B extends A` cycle: MAX_DEPTH bottoms out via 64-frame
+    // CPU-burn. visited Set on class nodes short-circuits at the second visit (parallels
+    // `collectClassLikeMembers`'s `seen` and the type-alias decl-set guard)
+    const seen = visited ?? new Set();
+    if (seen.has(classPath.node)) return null;
+    seen.add(classPath.node);
     const parentPath = resolveSuperClassPath(classPath);
-    return parentPath ? findClassMember(parentPath, name, isStatic, depth + 1) : null;
+    return parentPath ? findClassMember(parentPath, name, isStatic, depth + 1, seen) : null;
   }
 
   // single returned expression as a path - used to resolve getters like properties
