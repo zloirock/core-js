@@ -928,7 +928,51 @@ function computeSideEffects(node, depth) {
     return (node.computed && recurse(node.key, depth)) || recurse(node.value, depth);
   }
   if (type === 'AssignmentPattern') return recurse(node.right, depth);
+  if (JSX_NODE_TYPES.has(type)) return jsxHasSideEffects(node, type, depth);
+  if (type === 'ClassExpression' || type === 'ClassDeclaration') return classHasSideEffects(node, depth);
   return false;
+}
+
+// JSX evaluates attribute expressions and children at render time. attribute values
+// (`<X y={fn()} />`) and expression containers in children (`<X>{fn()}</X>`) carry
+// arbitrary expressions; spread attributes / spread children invoke iteration
+// (`<X {...obj} />` reads obj's enumerable keys), conservative SE
+const JSX_NODE_TYPES = new Set([
+  'JSXElement',
+  'JSXFragment',
+  'JSXAttribute',
+  'JSXExpressionContainer',
+  'JSXSpreadChild',
+]);
+function jsxHasSideEffects(node, type, depth) {
+  // `.expression`-only carriers
+  if (type === 'JSXExpressionContainer' || type === 'JSXSpreadChild') return recurse(node.expression, depth);
+  if (type === 'JSXAttribute') return recurse(node.value, depth);
+  // JSXElement | JSXFragment: walk children. JSXElement also walks attributes -
+  // spread attributes are SE unconditionally (iteration over their object operand)
+  if (node.children?.some(c => recurse(c, depth))) return true;
+  if (type === 'JSXFragment') return false;
+  return node.openingElement?.attributes?.some(
+    a => a?.type === 'JSXSpreadAttribute' || recurse(a, depth),
+  ) ?? false;
+}
+
+// class evaluation invokes computed-key expressions, decorator factories, and the
+// `extends` clause at class-eval time. method bodies / instance-field initializers
+// execute later (instance construction); static-field initializers and StaticBlock
+// bodies execute at class-eval, so they count
+const CLASS_FIELD_TYPES = new Set(['ClassProperty', 'PropertyDefinition']);
+function classMemberHasSideEffects(member, depth) {
+  if (!member) return false;
+  if (member.computed && recurse(member.key, depth)) return true;
+  if (member.decorators?.some(d => recurse(d, depth))) return true;
+  if (CLASS_FIELD_TYPES.has(member.type) && member.static && recurse(member.value, depth)) return true;
+  return member.type === 'StaticBlock';
+}
+function classHasSideEffects(node, depth) {
+  if (node.superClass && recurse(node.superClass, depth)) return true;
+  if (node.decorators?.some(d => recurse(d, depth))) return true;
+  return node.body?.body?.some(member => classMemberHasSideEffects(member, depth)) ?? false;
 }
 
 const ALWAYS_EFFECTFUL_TYPES = new Set([
@@ -968,7 +1012,12 @@ export function walkPatternIdentifiers(node, visit) {
       break;
     case 'ObjectPattern':
       for (const p of node.properties) {
-        walkPatternIdentifiers(p.type === 'RestElement' ? p.argument : p.value, visit);
+        // some parsers (estree-toolkit + custom AST shapes) emit `SpreadElement` instead
+        // of `RestElement` inside an ObjectPattern. both wrap the rest-binding identifier
+        // in `.argument`, so peel symmetrically - missing `SpreadElement` would silently
+        // drop the rest binding from the scan and miss-bind the destructure
+        if (p.type === 'RestElement' || p.type === 'SpreadElement') walkPatternIdentifiers(p.argument, visit);
+        else walkPatternIdentifiers(p.value, visit);
       }
       break;
     case 'ArrayPattern':
@@ -978,6 +1027,7 @@ export function walkPatternIdentifiers(node, visit) {
       walkPatternIdentifiers(node.left, visit);
       break;
     case 'RestElement':
+    case 'SpreadElement':
       walkPatternIdentifiers(node.argument, visit);
       break;
   }
