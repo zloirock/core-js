@@ -1364,8 +1364,9 @@ function createResolveNodeType(babelNodeType, t) {
       if (t.isObjectMethod(property.node)) return methodFnPath(property);
     }
     if (t.isClass(containerPath.node)) {
-      const member = findClassMember(containerPath, name, true);
-      if (!member) return null;
+      const found = findClassMember(containerPath, name, true);
+      if (!found) return null;
+      const { member } = found;
       if (t.isClassMethod(member.node)) return methodFnPath(member);
       if (t.isClassProperty(member.node) || t.isClassAccessorProperty(member.node)) {
         const value = member.get('value');
@@ -2733,33 +2734,37 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // resolve return type of a function, inferring generic type parameters from call-site arguments
-  function resolveReturnType(fnPath, callPath) {
+  function resolveReturnType(fnPath, callPath, classSubst) {
     // generator functions return iterators, async generators return async iterators
     // yield type is extracted from Generator<TYield>/AsyncGenerator<TYield> annotation if present
     if (fnPath.node.generator) {
       const params = generatorTypeParams(unwrapTypeAnnotation(fnPath.node.returnType), fnPath.scope);
-      let inner = params?.[0] ? resolveTypeAnnotation(params[0], fnPath.scope) : null;
+      // class type-arg subst applies upfront so method-level subst below sees substituted shape
+      const yieldType = classSubstInner(params?.[0], classSubst);
+      let inner = yieldType ? resolveTypeAnnotation(yieldType, fnPath.scope) : null;
       // substitute generic type parameters from call site into the yield type
-      if (!inner && params?.[0] && callPath && fnPath.node.typeParameters?.params?.length) {
+      if (!inner && yieldType && callPath && fnPath.node.typeParameters?.params?.length) {
         const typeParamNames = new Set();
         for (const p of fnPath.node.typeParameters.params) typeParamNames.add(typeParamName(p));
-        if (hasTypeParamReference(params[0], typeParamNames, 0)) {
+        if (hasTypeParamReference(yieldType, typeParamNames, 0)) {
           const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
-          if (typeParamMap.size > 0) inner = substituteTypeParams(params[0], typeParamMap, fnPath.scope, 0);
+          if (typeParamMap.size > 0) inner = substituteTypeParams(yieldType, typeParamMap, fnPath.scope, 0);
         }
       }
       return new $Object(fnPath.node.async ? 'AsyncIterator' : 'Iterator', inner && !isNullableOrNever(inner) ? inner : null);
     }
-    const { returnType, typeParameters } = fnPath.node;
+    // peel TSTypeAnnotation + apply class subst upfront. `returnInner` is the peeled type
+    // node (or null) used for both method-level subst and direct annotation resolution
+    const returnInner = classSubstInner(fnPath.node.returnType, classSubst);
+    const { typeParameters } = fnPath.node;
     // infer generic type parameters and substitute into return type
-    if (returnType && callPath && typeParameters?.params?.length) {
-      const returnAnnotation = unwrapTypeAnnotation(returnType);
+    if (returnInner && callPath && typeParameters?.params?.length) {
       const typeParamNames = new Set();
       for (const p of typeParameters.params) typeParamNames.add(typeParamName(p));
-      if (hasTypeParamReference(returnAnnotation, typeParamNames, 0)) {
+      if (hasTypeParamReference(returnInner, typeParamNames, 0)) {
         const typeParamMap = buildTypeParamMap(typeParamNames, fnPath, callPath);
         if (typeParamMap.size > 0) {
-          const substituted = substituteTypeParams(returnAnnotation, typeParamMap, fnPath.scope, 0);
+          const substituted = substituteTypeParams(returnInner, typeParamMap, fnPath.scope, 0);
           if (substituted) {
             if (fnPath.node.async && substituted.constructor !== 'Promise') return new $Object('Promise', substituted);
             return substituted;
@@ -2768,8 +2773,8 @@ function createResolveNodeType(babelNodeType, t) {
       }
     }
     // try return type annotation
-    if (returnType) {
-      const resolved = resolveTypeAnnotation(returnType, fnPath.scope);
+    if (returnInner) {
+      const resolved = resolveTypeAnnotation(returnInner, fnPath.scope);
       if (resolved) {
         // Flow allows async functions with non-Promise return annotations (e.g. async function(): string)
         if (fnPath.node.async && resolved.constructor !== 'Promise') return new $Object('Promise', resolved);
@@ -2845,7 +2850,21 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  function findClassMember(classPath, name, isStatic, depth = 0, visited = undefined) {
+  // chain parent-class subst: apply current class's subst to its `extends ParentClass<...>`
+  // type-arg slots, then map the resolved arg list to parent's declared type-params.
+  // mirrors `appendInterfaceExtendsMembers` which performs the same step for interface chains
+  function buildParentClassSubst(childClassPath, parentClassPath, childSubst) {
+    const superTypeArgs = getSuperTypeArgs(childClassPath.node)?.params;
+    const parentDeclParams = parentClassPath.node.typeParameters?.params;
+    if (!superTypeArgs?.length || !parentDeclParams?.length) return null;
+    const args = childSubst ? superTypeArgs.map(a => applyAliasSubstDeep(a, childSubst)) : superTypeArgs;
+    return buildSubstMap(parentDeclParams, args);
+  }
+
+  // returns `{ member, subst }` where subst is the accumulated class type-param map at the
+  // depth where the member was found. `subst` is null when no class type-args propagated
+  // through the chain. callers that don't care about subst destructure `{ member }`
+  function findClassMember(classPath, name, isStatic, classSubst, depth = 0, visited = undefined) {
     if (depth > MAX_DEPTH) return null;
     // walk in reverse: in JS, duplicate method names are legal and the runtime uses the last definition
     // `findObjectMember` does the same; both must agree.
@@ -2856,7 +2875,7 @@ function createResolveNodeType(babelNodeType, t) {
       if (!keyMatchesName(member.node.key, name)) continue;
       if (!!member.node.static !== isStatic) continue;
       if (member.node.kind === 'set') continue;
-      return member;
+      return { member, subst: classSubst ?? null };
     }
     // `class A extends B; class B extends A` cycle: MAX_DEPTH bottoms out via 64-frame
     // CPU-burn. visited Set on class nodes short-circuits at the second visit (parallels
@@ -2865,7 +2884,9 @@ function createResolveNodeType(babelNodeType, t) {
     if (seen.has(classPath.node)) return null;
     seen.add(classPath.node);
     const parentPath = resolveSuperClassPath(classPath);
-    return parentPath ? findClassMember(parentPath, name, isStatic, depth + 1, seen) : null;
+    if (!parentPath) return null;
+    const parentSubst = buildParentClassSubst(classPath, parentPath, classSubst);
+    return findClassMember(parentPath, name, isStatic, parentSubst, depth + 1, seen);
   }
 
   // single returned expression as a path - used to resolve getters like properties
@@ -2892,9 +2913,9 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
-  function resolveClassMember(classPath, name, isStatic, callPath) {
-    const member = findClassMember(classPath, name, isStatic);
-    if (member) return resolveClassMemberNode(member, callPath);
+  function resolveClassMember(classPath, name, isStatic, callPath, classSubst) {
+    const found = findClassMember(classPath, name, isStatic, classSubst);
+    if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
     // TS declaration merging: sibling `interface X { ... }` contributes instance members
     // to the class type. runs only when the class body has no match, so real class methods
     // always win on collision (matches TS semantics)
@@ -2918,32 +2939,42 @@ function createResolveNodeType(babelNodeType, t) {
     return value?.node ? value : memberPath;
   }
 
-  function resolveClassMemberNode(member, callPath) {
+  // peel TSTypeAnnotation wrapper if present, then apply class type-arg subst when set.
+  // returns the inner type (or null) - downstream consumers either feed it back to
+  // `resolveTypeAnnotation` (which itself peels, idempotent on inner) or use it directly
+  function classSubstInner(annotation, subst) {
+    const inner = unwrapTypeAnnotation(annotation);
+    return inner && subst ? applyAliasSubstDeep(inner, subst) : inner;
+  }
+
+  function resolveClassMemberNode(member, callPath, classSubst) {
     const methodFn = isMethodMember(member.node) ? methodFnPath(member) : null;
     // TSDeclareMethod (ambient `declare class` body) has no body - only the return-type
     // annotation is available for resolution
     const declaredReturn = member.node.type === 'TSDeclareMethod' ? member.node.returnType : null;
     if (callPath) {
       if (methodFn) {
-        if (member.node.kind !== 'get') return resolveReturnType(methodFn, callPath);
+        if (member.node.kind !== 'get') return resolveReturnType(methodFn, callPath, classSubst);
         // getter call: resolve like property - get the returned value, if callable -> call it
         const value = resolveBodyReturnValue(methodFn);
-        if (t.isFunction(value?.node)) return resolveReturnType(value, callPath);
+        if (t.isFunction(value?.node)) return resolveReturnType(value, callPath, classSubst);
       } else if (declaredReturn) {
-        return resolveTypeAnnotation(declaredReturn, member.scope);
+        return resolveTypeAnnotation(classSubstInner(declaredReturn, classSubst), member.scope);
       } else if (isPropertyMember(member.node)) {
         const value = resolveRuntimeExpression(member.get('value'));
-        if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath);
+        if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath, classSubst);
       }
       return null;
     }
     // property access: foo.bar or foo.#bar
     if (isPropertyMember(member.node)) {
-      if (member.node.typeAnnotation) return resolveTypeAnnotation(member.node.typeAnnotation, member.scope);
+      if (member.node.typeAnnotation) {
+        return resolveTypeAnnotation(classSubstInner(member.node.typeAnnotation, classSubst), member.scope);
+      }
       return resolveClassFieldType(member);
     }
     // method: getter returns its return type, regular method returns Function
-    if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn) : new $Object('Function');
+    if (methodFn) return member.node.kind === 'get' ? resolveReturnType(methodFn, undefined, classSubst) : new $Object('Function');
     if (declaredReturn) return new $Object('Function');
     return null;
   }
@@ -3648,11 +3679,14 @@ function createResolveNodeType(babelNodeType, t) {
     }
     // `x: Cls` where `Cls` is a real `class` declaration in scope - route method calls through
     // `resolveClassMember` (path-based, body-inference-capable) instead of annotation-only lookup,
-    // so unannotated methods like `test() { return this.getStr(); }` still resolve their return type
+    // so unannotated methods like `test() { return this.getStr(); }` still resolve their return type.
+    // class type-args from the annotation (`Cls<string>`) propagate as classSubst so method
+    // return types referring to class type-params resolve concretely
     if (callPath) {
       const classPath = findClassPathForTypeReference(annotation, scope);
       if (classPath) {
-        const result = resolveClassMember(classPath, name, false, callPath);
+        const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
+        const result = resolveClassMember(classPath, name, false, callPath, classSubst);
         if (result) return result;
       }
     }
