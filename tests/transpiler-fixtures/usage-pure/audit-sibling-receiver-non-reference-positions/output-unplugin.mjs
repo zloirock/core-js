@@ -1,12 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _globalThis from "@core-js/pure/actual/global-this";
-// `polyfillSiblingReceiverRefs` walks the preserved declarator's subtree looking for
-// references to a flattened receiver name (`globalThis` here). pre-fix it matched any
-// Identifier with the name regardless of context, silently rewriting method names,
-// property keys, labels, and `MemberExpression.property` tails to the polyfill identifier
-// (`class { _globalThis() {} }`, `({})._globalThis`, `_globalThis: while ... break _globalThis`).
-// post-fix `isNonReferencePosition` filter rejects those slots; only true binding references
-// (e.g. the trailing `ref = globalThis`) get rewritten
+// sibling-receiver rewrite walks the preserved declarator's subtree looking for true
+// binding references to a flattened receiver name (`globalThis` here). The non-reference-
+// position filter rejects method names, object property keys, labels, and
+// `MemberExpression.property` tails - only the trailing `ref = globalThis` gets the
+// polyfill identifier substitution
 var from = _Array$from;
 var cls = class { globalThis() { return 1; } }, obj = { globalThis: 1 }, member = ({}).globalThis, ref = _globalThis;
 from([1]);
