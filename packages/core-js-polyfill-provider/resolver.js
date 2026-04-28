@@ -125,21 +125,24 @@ export function createPolyfillResolver(options, {
     method, mode, version, package: pkg, additionalPackages, include, exclude, shippedProposals, shouldInjectPolyfill,
   });
 
+  // any inherited `receiverHint` from destructure-meta is stale once `enhanceMeta` derives
+  // its own placement / hint info; defensive `receiverHint: undefined` in the new-shape
+  // returns blocks future writers / `resolveHint` re-orderings from leaking that stale state
   function enhanceMeta(meta, path, desc) {
     if (!meta) return meta;
-    // defensive: enhanceMeta is only reachable for kind==='instance', whose callers always
-    // pass a path; but keep the guard cheap to avoid future regressions if a pathless
-    // instance lookup is ever added
+    // enhanceMeta is only reachable for kind==='instance', whose callers always pass a path;
+    // cheap guard for future pathless-instance lookups
     if (!path) return meta;
     if (meta.placement === 'prototype' && TYPE_HINTS.has(objectToTypeHint(meta.object))) return meta;
     const hint = toHint(resolvePropertyObjectType(path));
     if (hint) {
-      if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype' };
+      if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype', receiverHint: undefined };
       return descHasTypeHints(desc) ? null : meta;
     }
     if (isMemberLike(path) && descHasTypeHints(desc)) {
       const hints = resolveGuardHints(path.get('object'));
-      if (hints) return { ...meta, ...hints };
+      // `receiverHint: undefined` placed between meta and hints so guard-emitted hint can override
+      if (hints) return { ...meta, receiverHint: undefined, ...hints };
     }
     return meta;
   }
