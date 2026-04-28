@@ -715,6 +715,15 @@ export function unwrapRuntimeExpr(node) {
   return node;
 }
 
+// `this`-receiver check for member-shadow detection. peels parens / TS wrappers /
+// chain so `(this).X`, `(this as any).X`, `this!.X` (createParens=true or TS-source)
+// reach the same outcome as bare `this.X`. shared between usage-pure dispatch (babel /
+// unplugin) and usage-global usage-callback - keeping the predicate centralised avoids
+// drift between those three call sites
+export function isThisReceiver(node) {
+  return unwrapRuntimeExpr(node)?.type === 'ThisExpression';
+}
+
 // unwrap a declarator-init expression to its semantic value. SequenceExpression returns
 // its tail at runtime (`(se(), receiver)` evaluates to `receiver`), and oxc preserves
 // ParenthesizedExpression around the commas. combining both lets receiver resolution reach
