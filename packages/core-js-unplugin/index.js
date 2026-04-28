@@ -75,7 +75,10 @@ const unplugin = createUnplugin((options, meta) => {
     name: `${ plugin.name }:${ enforce }`,
     enforce,
     transformInclude: shouldTransform,
-    transform(code, id) { return plugin.transform(code, id, pass); },
+    // forward bundler's `this` (carrying `.warn`) into plugin.transform so internal
+    // diagnostics (parse failures, ImportInjector fallbacks) actually surface; without
+    // `.call(this, ...)` the inner `this?.warn` is undefined and warnings drop silently
+    transform(code, id) { return plugin.transform.call(this, code, id, pass); },
   });
 
   // bound snapshot retention in long-running dev servers. attach to the last sub-plugin -
