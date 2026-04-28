@@ -41,6 +41,7 @@ import {
   isBodylessStatementBody,
   isDirectiveStatement,
   KNOWN_BUNDLERS,
+  lastUserImportEnd,
   liftSfcLangSuffix,
   NEEDS_GUARD_PARENS,
   NO_REF_NEEDED,
@@ -237,6 +238,7 @@ export default function createPlugin(options) {
     const injector = new ImportInjector({
       ms, pkg, mode, absoluteImports, importStyle,
       directiveEnd: directivePrologueEnd(ast),
+      userImportEnd: lastUserImportEnd(ast),
       deferImports,
       inherit,
       getDebugOutput: () => debugOutput,
