@@ -1,0 +1,20 @@
+{
+  "plugins": [
+    [
+      "@core-js",
+      {
+        "method": "usage-pure",
+        "version": "4.0",
+        "targets": {
+          "ie": 11
+        }
+      }
+    ]
+  ],
+  "filename": "Component.vue?vue&type=script&lang=jsx",
+  "parserOpts": {
+    "plugins": [
+      "jsx"
+    ]
+  }
+}
