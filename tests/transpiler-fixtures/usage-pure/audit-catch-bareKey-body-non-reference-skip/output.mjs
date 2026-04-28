@@ -1,10 +1,7 @@
-// catch destructure body-usage check must filter Identifiers in non-reference slots
-// (method/property names, member-access tails). pre-fix `walkAstNodes` counted any
-// matching-name Identifier as a reference, so the catch transform fired even when
-// the binding was unused (`class C { includes() {} }` body had `.includes` method-name
-// matching the binding, but it's not a runtime reference). post-fix `isNonReferencePosition`
-// filter rejects those slots; bare-key catch destructure with no real binding ref stays
-// untouched. real reference (third try) still drives the polyfill emit
+// catch destructure body-usage check filters Identifiers in non-reference slots
+// (method / property names, member-access tails). `class C { includes() {} }` has the
+// method-name lexically matching the catch binding but is not a runtime reference.
+// Filtering keeps the catch destructure untouched when no real ref exists
 try {} catch ({
   includes
 }) {
