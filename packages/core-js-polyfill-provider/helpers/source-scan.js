@@ -77,7 +77,10 @@ export function parseDisableDirectives(comments, offsetToLine, firstStmtStart, a
     if (!match) continue;
     const { kind } = match.groups;
     if (kind === 'file') {
-      if (firstStmtStart === undefined || comment.end <= firstStmtStart) return true;
+      // `firstStmtStart` is conventionally undefined when the file has no statements;
+      // accept null too (`a == null` covers both) so callers that prefer null-default
+      // semantics don't silently fall through to a numeric comparison against 0
+      if (firstStmtStart === undefined || firstStmtStart === null || comment.end <= firstStmtStart) return true;
       continue;
     }
     // synthetic comments (injected by sibling plugins) may lack `loc`/`start`/`end`
