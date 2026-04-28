@@ -40,6 +40,7 @@ import {
   isBodylessStatementBody,
   isDirectiveStatement,
   KNOWN_BUNDLERS,
+  liftSfcLangSuffix,
   NEEDS_GUARD_PARENS,
   NO_REF_NEEDED,
   startsEnclosingStatement,
@@ -121,7 +122,9 @@ export default function createPlugin(options) {
 
   function runTransform(code, id, pass = 'single') {
     try {
-      return runTransformInner(code, id, pass);
+      // thread bundler's `this` (Vite/Rollup/Webpack stage context with `.warn`) through
+      // to runTransformInner so internal warnings reach the bundler's diagnostic channel
+      return runTransformInner.call(this, code, id, pass);
     } catch (error) {
       tagErrorWithFile(error, id);
       throw error;
@@ -151,8 +154,10 @@ export default function createPlugin(options) {
 
     // strip bundler query/hash suffix before passing the id to oxc-parser - oxc infers
     // the parser language from the extension and would otherwise see e.g. `tsx?import`
-    // and reject the TypeScript syntax silently
-    const cleanId = stripQueryHash(id);
+    // and reject the TypeScript syntax silently. SFC virtual ids embed the language hint
+    // INSIDE the query (`?vue&type=script&lang=ts`); `liftSfcLangSuffix` recovers it onto
+    // the post-strip id so the right parser fires
+    const cleanId = liftSfcLangSuffix(id, stripQueryHash(id));
     // CJS files (.cjs, .cts) and files that look like CommonJS get 'require' style by default
     const isCJSFile = /\.c[jt]s$/.test(cleanId);
     // strip a leading BOM before parsing AND from the MagicString source - oxc rejects
