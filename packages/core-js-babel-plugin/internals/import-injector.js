@@ -267,13 +267,20 @@ export default class ImportInjector extends ImportInjectorState {
     if (!body?.length) return;
     const isRefOnly = stmt => stmt.type === 'VariableDeclaration' && stmt.kind === 'var'
       && stmt.declarations.every(d => !d.init && d.id.type === 'Identifier' && this.#refs.has(d.id.name));
-    // mixed declarators like `var fs = require('fs'), x = 1` count as an import-region statement:
-    // `some(...)` rather than `every(...)` - otherwise such mixed decls would push `var _ref;`
-    // BEFORE them, violating the `imports -> requires -> var _ref -> user code` layout. as long as
-    // at least one declarator is `require(...)`, the row belongs in the import header
-    const isImport = stmt => stmt.type === 'ImportDeclaration'
-      || (stmt.type === 'ExpressionStatement' && stmt.expression?.type === 'CallExpression'
-        && stmt.expression.callee?.name === 'require')
+    // import-region members - the reorder loop accumulates `importEnd` over them and bails
+    // on the first non-member. coverage:
+    //   - `import ... from 'm'`
+    //   - `require('m')` ExpressionStatement (CJS bare require)
+    //   - mixed-declarator `var fs = require('fs'), x = 1` - any declarator with `require(...)`
+    //     counts the row in (`some` not `every`); otherwise such rows would push `var _ref;`
+    //     before them, violating the `imports -> requires -> var _ref -> user code` layout
+    //   - leading `'use strict'` synthesized as ExpressionStatement(StringLiteral) by sibling
+    //     plugins (instead of `program.directives`); `Literal` covers the ESTree shape
+    const isImportRegion = stmt => stmt.type === 'ImportDeclaration'
+      || (stmt.type === 'ExpressionStatement' && (
+        (stmt.expression?.type === 'CallExpression' && stmt.expression.callee?.name === 'require')
+        || stmt.expression?.type === 'StringLiteral'
+        || stmt.expression?.type === 'Literal'))
       || (stmt.type === 'VariableDeclaration'
         && stmt.declarations.some(d => d.init?.type === 'CallExpression' && d.init.callee?.name === 'require'));
     const refs = [];
@@ -285,7 +292,7 @@ export default class ImportInjector extends ImportInjectorState {
         refIndices.push(i);
         continue;
       }
-      if (isImport(body[i])) {
+      if (isImportRegion(body[i])) {
         importEnd = i + 1;
         continue;
       }
