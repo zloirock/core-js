@@ -38,6 +38,39 @@ export function directivePrologueEnd(ast) {
   return end;
 }
 
+// matches the leading import region (top-of-body contiguous run): ImportDeclaration,
+// `require(...)` ExpressionStatement, or VariableDeclaration with at least one
+// `require()` initializer. mirrors babel-plugin's `reorderRefsAfterImports.isImport`
+// so the `var _ref;` placement decision uses the same boundary on both pipelines
+function isTopLevelImportLike(stmt) {
+  if (stmt?.type === 'ImportDeclaration') return true;
+  if (stmt?.type === 'ExpressionStatement'
+    && stmt.expression?.type === 'CallExpression'
+    && stmt.expression.callee?.type === 'Identifier'
+    && stmt.expression.callee.name === 'require') return true;
+  if (stmt?.type === 'VariableDeclaration') {
+    return stmt.declarations.some(d => d.init?.type === 'CallExpression'
+      && d.init.callee?.type === 'Identifier' && d.init.callee.name === 'require');
+  }
+  return false;
+}
+
+// end position of the trailing user import / require statement in the leading import
+// region; null if no imports. used to position `var _ref;` after the user's import block
+// instead of between injected and user imports (lint `import/first` would warn). the
+// scan stops at the first non-import-or-directive statement - imports interspersed with
+// code are NOT picked up (consistent with babel-plugin's reorderRefsAfterImports)
+export function lastUserImportEnd(ast) {
+  if (!ast?.body?.length) return null;
+  let end = null;
+  for (const stmt of ast.body) {
+    if (isDirectiveStatement(stmt)) continue;
+    if (!isTopLevelImportLike(stmt)) break;
+    end = stmt.end;
+  }
+  return end;
+}
+
 // node types that are safe to double-evaluate (no side effects, no temp ref needed)
 export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 
