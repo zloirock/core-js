@@ -6,7 +6,7 @@
 //   - `super.X` / `this.X` in static context (inherited-static lookup)
 //   - `cond ? Array : Iterator` destructure (per-branch fallback)
 // also handles `class extends Array { foo() { this.at(0) } }` shadow check
-import { isForXWriteTarget, isTSTypeOnlyIdentifierPath } from '../helpers/ast-patterns.js';
+import { isForXWriteTarget, isThisReceiver, isTSTypeOnlyIdentifierPath } from '../helpers/ast-patterns.js';
 import { symbolKeyToEntry } from '../helpers/class-walk.js';
 
 // bail when the usage is syntactically present but carries no runtime read - polyfilling
@@ -69,9 +69,11 @@ export function createUsageGlobalCallback({
   }
   return (meta, path) => {
     // shadow check for `this.X` - polyfill would bypass the user's own member
-    // (`class C extends Array { at() {} foo() { this.at(0) } }`)
+    // (`class C extends Array { at() {} foo() { this.at(0) } }`). `isThisReceiver` peels
+    // parens / TS wrappers / chain so paren-preserving / TS-cast / non-null-assert variants
+    // reach the same detection as bare `this.X`
     if (isShadowedByClassOwnMember && meta.kind === 'property' && meta.key
-      && path?.node?.object?.type === 'ThisExpression'
+      && isThisReceiver(path?.node?.object)
       && isShadowedByClassOwnMember(path, meta.key)) return;
     const superMeta = tryResolveSuperStaticMeta(meta, path, resolveStaticInheritedMember, isInheritedStaticLookup);
     // inherited-static lookup where the member doesn't exist as static on the super class:

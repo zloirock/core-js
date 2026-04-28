@@ -6,6 +6,7 @@ import {
   isDeleteTarget,
   isForXWriteTarget,
   isInUpdateOperand,
+  isThisReceiver,
   isTSTypeOnlyIdentifierPath,
   isTaggedTemplateTag,
   mayHaveSideEffects,
@@ -351,7 +352,9 @@ export default function plugin(api, options) {
             if (isInUpdateOperand(path.parentPath)) return;
             // shadow check for `this.X` - polyfill would bypass the user's own member
             // (e.g. `class C extends Array { at() {} foo() { this.at(0) } }`)
-            if (t.isThisExpression(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
+            // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
+            // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
+            if (isThisReceiver(path.node.object) && isShadowedByClassOwnMember(path, meta.key)) return;
             // `super.X` and unshadowed `this.X` in static ctx resolve against the super
             // class's static surface via the same path - `this` in static ctx is the
             // constructor, so inherited static lookup behaves exactly like `super.X`.
@@ -614,8 +617,11 @@ export default function plugin(api, options) {
             if (!idPath.isReferencedIdentifier()) return;
             // adapter.hasBinding (vs raw `getBindingIdentifier`) folds in TS-runtime shadows
             // estree-toolkit & babel scope miss (`enum`, `namespace`, `const enum`,
-            // `import X = require()`) plus type-only TSImportEquals filtering
-            if (adapter.hasBinding(idPath.scope, idPath.node.name)) return;
+            // `import X = require()`) plus type-only TSImportEquals filtering. pass `idPath`
+            // explicitly so the TS-runtime walk anchors at the reference site (catches
+            // `function f() { enum Map; ... }` shadowing); without it the walk anchors at the
+            // Program scope and misses nested TS-runtime bindings
+            if (adapter.hasBinding(idPath.scope, idPath.node.name, idPath)) return;
             // post-sweep is usage-pure only, so skip unconditionally (same rationale as
             // primary-pass `skipUpdateTargets`): rewrite to frozen import binding invalid
             if (isInUpdateOperand(idPath.parentPath)) return;

@@ -2,9 +2,18 @@
 // `import 'core-js/...'` / `require('core-js/...')` / `await import('core-js/...')` and
 // scans existing core-js imports in the file body so the resolver can dedup them against
 // plugin-injected ones
-import { declaresRequireBinding, mayHaveSideEffects } from '../helpers/ast-patterns.js';
+import { declaresRequireBinding, mayHaveSideEffects, singleQuasiString } from '../helpers/ast-patterns.js';
 import { stripQueryHash } from '../helpers/path-normalize.js';
 import { bindsModuleDefault, unwrapParens } from './resolve.js';
+
+// extract a static string from a node that's either a StringLiteral or a no-interpolation
+// TemplateLiteral. without TemplateLiteral support, `require(\`core-js/actual/promise\`)`
+// (any tagless single-quasi template) silently bypasses entry detection
+function extractStaticString(node, adapter) {
+  if (!node) return null;
+  if (node.type === 'TemplateLiteral') return singleQuasiString(node);
+  return adapter.getStringValue(node);
+}
 
 // pull the source argument out of a dynamic import call (`import('core-js/...')`).
 // covers both shapes: ImportExpression (`{type: 'ImportExpression', source}`) and the CallExpression
@@ -12,9 +21,9 @@ import { bindsModuleDefault, unwrapParens } from './resolve.js';
 function importExpressionSource(node, adapter) {
   const inner = unwrapParens(node);
   if (!inner) return null;
-  if (inner.type === 'ImportExpression') return adapter.getStringValue(inner.source);
+  if (inner.type === 'ImportExpression') return extractStaticString(inner.source, adapter);
   if (inner.type === 'CallExpression' && inner.callee?.type === 'Import') {
-    return adapter.getStringValue(inner.arguments?.[0]);
+    return extractStaticString(inner.arguments?.[0], adapter);
   }
   return null;
 }
@@ -25,7 +34,7 @@ function importExpressionSource(node, adapter) {
 export function getEntrySource(node, adapter, scope) {
   // import 'core-js/...'
   if (node.type === 'ImportDeclaration' && node.specifiers?.length === 0) {
-    return adapter.getStringValue(node.source);
+    return extractStaticString(node.source, adapter);
   }
   if (node.type !== 'ExpressionStatement') return null;
   // unwrap outer parens/TS wrappers: `(await import(...))` / `(require(...))` - parsers
@@ -35,15 +44,17 @@ export function getEntrySource(node, adapter, scope) {
   // peeling the SequenceExpression tail (side-effect-free preceding elements drop out) so
   // tool-generated indirect-require wrappers still register as entries
   if (expr?.type === 'CallExpression' && expr.arguments?.length === 1) {
-    let { callee } = expr;
-    while (callee?.type === 'ParenthesizedExpression') callee = callee.expression;
+    // peel parens / TS wrappers / chain so `(require as any)('core-js/...')` and
+    // `require!('core-js/...')` reach the same Identifier check. SequenceExpression peeled
+    // separately - safe-mode unwrapParens stops on SE-with-side-effects which we want
+    let callee = unwrapParens(expr.callee);
     if (callee?.type === 'SequenceExpression') {
       const tail = callee.expressions?.at(-1);
-      if (tail && !callee.expressions.slice(0, -1).some(mayHaveSideEffects)) callee = tail;
+      if (tail && !callee.expressions.slice(0, -1).some(mayHaveSideEffects)) callee = unwrapParens(tail);
     }
     if (callee?.type === 'Identifier' && callee.name === 'require') {
       if (scope && adapter?.hasBinding?.(scope, 'require')) return null;
-      return adapter.getStringValue(expr.arguments[0]);
+      return extractStaticString(expr.arguments[0], adapter);
     }
   }
   // await import('core-js/...') as a top-level statement (ESM top-level await).
