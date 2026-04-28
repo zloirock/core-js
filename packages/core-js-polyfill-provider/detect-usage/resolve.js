@@ -375,11 +375,17 @@ export function asSymbolRef(node, scope, adapter, seen) {
 // intentionally `var`-only: `let`/`const` self-ref (`let X = X`) hits the TDZ at runtime,
 // so plugin shouldn't invent a global mapping. the duplicated shape in `resolveBindingToGlobal`
 // for any kind exists because that code path handles the already-mutated binding (post-rewrite
-// shape) and needs to resolve through it regardless of kind
+// shape) and needs to resolve through it regardless of kind.
+// constantViolations check: `var X = X; X = mock; X.method()` reassigns the binding before
+// the use site, so subsequent reads MUST not be rewritten to the polyfill - mock would be
+// silently ignored. without the check `Promise.try` after `var Promise = Promise; Promise = mock`
+// rewrote to `_Promise.try`, dropping the user's reassignment
 export function createSelfRefVarGuard(getKind) {
   const cache = new WeakMap();
   return function isSelfRefVarBinding(binding) {
-    const decl = binding?.path?.node ?? binding?.node;
+    if (!binding) return false;
+    if (binding.constantViolations?.length) return false;
+    const decl = binding.path?.node ?? binding.node;
     if (!decl || decl.type !== 'VariableDeclarator') return false;
     if (cache.has(decl)) return cache.get(decl);
     const { id, init } = decl;
