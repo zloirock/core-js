@@ -47,7 +47,7 @@ function buildMemberMeta(node, scope, adapter) {
   let meta = tryBuildPrototypeMeta(obj, key, scope, adapter);
   if (!meta) {
     const objectName = resolveObjectName(obj, scope, adapter);
-    // bail для plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
+    // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
     // (`import { items } from './data'`) have NO polyfillHint and must fall through so the
     // Maybe-variant `instance/X` polyfill emits for unknown receiver types
@@ -97,10 +97,10 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   // well-known symbols live under specific names exposed by `symbolKeyToEntry`; random
   // dot-access on Symbol (`Symbol.foo`) resolves to `undefined` at runtime and should
   // not trigger symbol-routed polyfill dispatch.
-  // for `Symbol[key]` with statically-resolvable computed key — resolve via `resolveKey`
+  // for `Symbol[key]` with statically-resolvable computed key - resolve via `resolveKey`
   // and validate the resulting name. when the key isn't statically resolvable (dynamic
   // expression), return true conservatively: we know the shape is Symbol-indexed, even
-  // if the specific well-known name is unknown — downstream callers rely on this to
+  // if the specific well-known name is unknown - downstream callers rely on this to
   // avoid over-eliminating polyfill dispatch, and `resolveKey` pairing in the caller
   // filters on the string form anyway
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
@@ -115,9 +115,9 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
     return true;
   }
   if (type !== 'Identifier' || seen?.has(node.name)) return false;
-  // fork `seen` (не мутируем caller's Set) для consistency с resolveKey-style pattern.
-  // защищает от случайной cross-site pollution если caller повторно пройдётся по sibling
-  // branches после возврата из этой функции
+  // fork `seen` (don't mutate caller's Set) for consistency with the resolveKey-style pattern.
+  // guards against accidental cross-site pollution if the caller walks sibling branches
+  // after returning from this function
   const nextSeen = new Set(seen);
   nextSeen.add(node.name);
   const binding = adapter.getBinding(scope, node.name);
