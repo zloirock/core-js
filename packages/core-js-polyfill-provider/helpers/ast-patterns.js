@@ -37,6 +37,28 @@ export const TS_EXPR_WRAPPERS = new Set([
   'TypeCastExpression',
 ]);
 
+// AST parent shapes where an Identifier child is a SOURCE-TEXT name (method/property key,
+// member tail, label, import/export specifier name), NOT a runtime reference. used by
+// any walker that catalogues references - naive shape-only matches would otherwise count
+// e.g. `Math.it` (`.it` is property name) as a reference to a binding `it`, or rewrite
+// `class { globalThis() {} }` (method name) to `class { _globalThis() {} }`. pure AST
+// analysis - parser-agnostic, so lives in the shared provider helpers
+const NON_REF_KEY_BEARING_TYPES = new Set([
+  'Property', 'ObjectProperty', 'ObjectMethod',
+  'ClassMethod', 'MethodDefinition', 'ClassProperty', 'PropertyDefinition',
+]);
+export function isNonReferencePosition(parent, identifierNode) {
+  if (!parent) return false;
+  const { type } = parent;
+  if (NON_REF_KEY_BEARING_TYPES.has(type) && parent.key === identifierNode && !parent.computed) return true;
+  if (type === 'MemberExpression' && parent.property === identifierNode && !parent.computed) return true;
+  if (type === 'LabeledStatement' && parent.label === identifierNode) return true;
+  if ((type === 'BreakStatement' || type === 'ContinueStatement') && parent.label === identifierNode) return true;
+  if (type === 'ImportSpecifier' && parent.imported === identifierNode) return true;
+  if (type === 'ExportSpecifier' && (parent.local === identifierNode || parent.exported === identifierNode)) return true;
+  return false;
+}
+
 // transparent wrappers that may appear ABOVE a `(arrow)(...)` call site without changing
 // the call's invocation semantics for IIFE detection: `!fn(...)`, `(0, fn)(...)`, `(fn)(...)`,
 // optional-chain wrap (oxc), TS expression wrappers
