@@ -11,7 +11,7 @@
     "@vitejs/plugin-legacy": "^8.0.1",
     "front-matter": "^4.0.2",
     "highlight.js": "^11.11.1",
-    "jsdom": "^29.0.2",
+    "jsdom": "^29.1.0",
     "marked": "^18.0.2",
     "marked-alert": "^2.1.2",
     "marked-gfm-heading-id": "^4.1.4",
