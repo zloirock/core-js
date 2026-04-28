@@ -62,11 +62,24 @@ export function isNonReferencePosition(parent, identifierNode) {
 // transparent wrappers that may appear ABOVE a `(arrow)(...)` call site without changing
 // the call's invocation semantics for IIFE detection: `!fn(...)`, `(0, fn)(...)`, `(fn)(...)`,
 // optional-chain wrap (oxc), TS expression wrappers
-const IIFE_CALL_PATH_WRAPPERS = new Set([
+export const IIFE_CALL_PATH_WRAPPERS = new Set([
   'UnaryExpression',
   'SequenceExpression',
   'ParenthesizedExpression',
   'ChainExpression',
+]);
+
+// runtime-transparent expression wrappers: peeling the wrapper preserves the inner
+// expression's semantics. covers TS expression wrappers (`as`, `satisfies`, `!`, ...) AND
+// `ParenthesizedExpression` (preserved by parser when `createParenthesizedExpressions: true`).
+// EXCLUDES `UnaryExpression` / `SequenceExpression` (which DO change semantics) and
+// `ChainExpression` (the optional-chain marker carries short-circuit semantics that
+// must be preserved at most call sites). used by AST walkers that need to reach the
+// SEMANTICALLY meaningful inner node - both expression-down (`peelTransparentPath`) and
+// parent-up (`unwrapTSExpressionParent`) walks
+export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
+  ...TS_EXPR_WRAPPERS,
+  'ParenthesizedExpression',
 ]);
 
 // transparent wrappers between a CallExpression's `.callee` and the actual invoked node.
