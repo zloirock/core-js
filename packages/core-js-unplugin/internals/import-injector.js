@@ -3,6 +3,8 @@ import ImportInjectorState, { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provi
 import { sortByPolyfillOrder } from '@core-js/polyfill-provider/plugin-options/inject';
 import { isLineTerminator, skipBlockComment } from './plugin-helpers.js';
 
+const blockify = lines => `${ lines.join('\n') }\n`;
+
 export default class ImportInjector extends ImportInjectorState {
   // two-pass pre: collect but don't emit imports; post flushes the combined set via snapshot
   // inherit. refs (`var _refN;`) ARE emitted in pre regardless, so pre's output is valid in
@@ -10,6 +12,11 @@ export default class ImportInjector extends ImportInjectorState {
   // assignment that throws ReferenceError at runtime
   #deferImports = false;
   #directiveEnd = 0;
+  // end position of the trailing user import / require statement (null if none). when
+  // present, `var _ref;` lands AFTER user imports so the injected line doesn't sit
+  // between injected and user imports (lint `import/first`). null falls back to the
+  // directive prologue end - same anchor as injected imports
+  #userImportEnd = null;
   #ms;
   // iteration order is insertion-preserving, so emitted `var _ref, _ref2, ...;` stays stable
   #refs = new Set();
@@ -31,11 +38,13 @@ export default class ImportInjector extends ImportInjectorState {
     mode,
     ms,
     pkg,
+    userImportEnd = null,
   }) {
     super({ absoluteImports, mode, pkg, importStyle });
     this.#getDebugOutput = getDebugOutput;
     this.#deferImports = deferImports;
     this.#directiveEnd = directiveEnd;
+    this.#userImportEnd = userImportEnd;
     this.#ms = ms;
     if (inherit) this.#rehydrate(inherit);
   }
@@ -158,35 +167,48 @@ export default class ImportInjector extends ImportInjectorState {
   // imports vs refs have different flush rules: imports are deferred in `pre` (post emits
   // the combined set via snapshot inherit); refs go out always, because `_ref = foo()`
   // without a `var _ref;` throws ReferenceError in strict-mode ESM if post skips.
-  // `#flushedRefs` dedupes so post doesn't re-emit the same `var` pre already wrote
+  // `#flushedRefs` dedupes so post doesn't re-emit the same `var` pre already wrote.
+  // imports emit at the directive prologue end (top-of-file); refs emit after the trailing
+  // user import (when present) so the `import 'core-js/...' / import {x} from 'user' / var _ref;`
+  // layout matches babel-plugin's `reorderRefsAfterImports` and lint `import/first` stays clean
   flush() {
-    const lines = [];
-    if (!this.#deferImports) this.#appendImportLines(lines);
-    this.#appendRefLines(lines);
-    if (!lines.length) return;
-    const block = `${ lines.join('\n') }\n`;
-    // MagicString can't source-map appended content, so this block is synthetic in the map
-    const insertPos = this.#prologueEnd();
+    const imports = this.#deferImports ? [] : this.#collectImportLines();
+    const refs = this.#collectRefLines();
+    if (!imports.length && !refs.length) return;
+    const importPos = this.#prologueEnd();
+    const refPos = this.#userImportEnd ?? importPos;
+    // when imports and refs share the same anchor, combine into one block so MagicString
+    // preserves the `[imports, refs]` order; multiple `appendRight` calls at the same
+    // position can re-order vs prepend semantics
+    if (importPos === refPos) return this.#emit(blockify([...imports, ...refs]), importPos);
+    if (imports.length) this.#emit(blockify(imports), importPos);
+    if (refs.length) this.#emit(blockify(refs), refPos);
+  }
+
+  // sibling plugin may overwrite a range that contains the insert position, leaving no
+  // chunk boundary for appendRight to attach to. fall through to prepend so imports still
+  // emit (loses the post-shebang/post-directive position but keeps the build alive).
+  // throwing here would surface as opaque "already edited" deep in MagicString without
+  // naming the cause - log the recovery so users can correlate a fallback prepend with
+  // sibling-plugin range conflicts. MagicString can't source-map appended content, so the
+  // block is synthetic in the map regardless of which path runs
+  #emit(block, insertPos) {
     if (insertPos > 0) {
-      // sibling plugin may overwrite a range that contains prologueEnd, leaving no chunk
-      // boundary at insertPos for appendRight to attach to. fall through to prepend so the
-      // imports still emit (loses the post-shebang/post-directive position but keeps the
-      // build alive). throwing here would surface as opaque "already edited" deep in
-      // MagicString without naming the cause - log the recovery so users can correlate
-      // a fallback prepend with sibling-plugin range conflicts
       try {
         this.#ms.appendRight(insertPos, block);
+        return;
       } catch (error) {
         this.#getDebugOutput?.()?.warn?.(`import injector fallback: appendRight at ${ insertPos } failed (${ error.message }); prepending instead`);
-        this.#ms.prepend(block);
       }
-    } else this.#ms.prepend(block);
+    }
+    this.#ms.prepend(block);
   }
 
   // `import "..."` / `var X = require("...")` - dispatched by `importStyle`. side-effect-only
   // globals first, then pure-import bindings. `referencedInSource` filters dead imports
   // when the caller tracks usage
-  #appendImportLines(lines) {
+  #collectImportLines() {
+    const lines = [];
     const newGlobals = sortByPolyfillOrder([...this.globalImports].filter(m => !this.existingGlobalImports.has(m)));
     const activePure = this.referencedInSource
       ? [...this.pureImports].filter(([, name]) => this.referencedInSource.has(name))
@@ -200,6 +222,7 @@ export default class ImportInjector extends ImportInjectorState {
       const path = this.#resolvePath(entry);
       lines.push(isRequire ? `var ${ name } = require("${ path }");` : `import ${ name } from "${ path }";`);
     }
+    return lines;
   }
 
   // `var _ref, _ref2, ...;` for refs this flush hasn't written yet. pre's emission makes
@@ -209,12 +232,12 @@ export default class ImportInjector extends ImportInjectorState {
   // `generateHoistedRef()` result is immediately embedded in a replacement string that goes
   // to `transforms.add(...)`. `preAllocatedGuardRef` is allocated only under conditions that
   // guarantee consumption
-  #appendRefLines(lines) {
+  #collectRefLines() {
     const newRefs = [];
     for (const r of this.#refs) if (!this.#flushedRefs.has(r)) newRefs.push(r);
-    if (!newRefs.length) return;
-    lines.push(`var ${ newRefs.join(', ') };`);
+    if (!newRefs.length) return [];
     for (const r of newRefs) this.#flushedRefs.add(r);
+    return [`var ${ newRefs.join(', ') };`];
   }
 
   // BOM already stripped by caller before MagicString is created
