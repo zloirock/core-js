@@ -64,7 +64,7 @@ function neutralizeTSDeclareFunctions(ast) {
   }
 }
 
-// `export declare function …` / `export default declare function …` wrap the declaration
+// `export declare function ...` / `export default declare function ...` wrap the declaration
 function unwrapExport(stmt) {
   return stmt?.type === 'ExportNamedDeclaration' || stmt?.type === 'ExportDefaultDeclaration'
     ? stmt.declaration : stmt;
@@ -133,7 +133,7 @@ export default function createPlugin(options) {
   }
 
   // pipeline orchestrator; splitting further would obscure the linear flow
-  // (parse → visit → queue → emit) more than it helps
+  // (parse -> visit -> queue -> emit) more than it helps
   // eslint-disable-next-line max-statements -- pipeline orchestrator
   function runTransformInner(code, id, pass) {
     // defensive guard for direct callers (bundlers always pass valid strings)
@@ -258,7 +258,7 @@ export default function createPlugin(options) {
     }
     // post WITH inherit already has user imports dedup'd via the pre-pass snapshot;
     // post WITHOUT inherit (single `phase: 'post'` or dropped snapshot) still needs to
-    // scan so user `import 'core-js/…'` isn't duplicated alongside plugin-injected ones.
+    // scan so user `import 'core-js/...'` isn't duplicated alongside plugin-injected ones.
     // entry-global handles re-emit via detectEntries
     if (!(pass === 'post' && inherit) && method !== 'entry-global') {
       const removed = new Set();
