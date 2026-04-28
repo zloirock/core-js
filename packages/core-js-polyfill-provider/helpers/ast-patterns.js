@@ -556,7 +556,7 @@ export function isFunctionParamDestructureParent(path) {
   let depth = 0;
   while (parent) {
     if (depth++ >= 32) {
-      throw new Error('isFunctionParamDestructureParent: pattern nesting exceeds 32 levels — likely an AST cycle');
+      throw new Error('isFunctionParamDestructureParent: pattern nesting exceeds 32 levels - likely an AST cycle');
     }
     const { node } = parent;
     if (!node) return false;
@@ -627,7 +627,7 @@ export function isSingleNestedProxyChain(innerPattern, outerPattern, declaration
 // prototype-method polyfills bind `this` to their first arg, but a tagged-template call
 // passes `(strings, ...values)` - the polyfilled fn would treat the `strings` array as
 // the receiver and break. static methods tagged as template are just odd user code
-// (`Array.of\`…\``) - the polyfill is a plain function and runs correctly regardless,
+// (`Array.of\`...\``) - the polyfill is a plain function and runs correctly regardless,
 // so we only skip the prototype case
 export const isTaggedTemplateTag = (parent, node, placement) => placement === 'prototype'
   && parent?.type === 'TaggedTemplateExpression'
