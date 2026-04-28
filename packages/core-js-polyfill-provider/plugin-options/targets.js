@@ -95,7 +95,7 @@ export function getUnsupportedTargets(moduleName, parsedTargets) {
   return unsupported;
 }
 
-// `{ "ie": "11", "chrome": "60" }` → `{ "ie":"11", "chrome":"60" }`. `JSON.stringify` defaults
+// `{ "ie": "11", "chrome": "60" }` -> `{ "ie":"11", "chrome":"60" }`. `JSON.stringify` defaults
 // to `\n`-separated multi-line for non-empty objects with `null, 2` formatting; this single-line
 // shape keeps the debug output compact when there are only one-two engines reporting
 export function formatTargets(obj) {

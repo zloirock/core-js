@@ -221,7 +221,7 @@ function innerSubstitution(inner, composedContent) {
   return { end: inner.end, content: composedContent.get(inner) ?? inner.content };
 }
 
-// widest LOGICAL first so nested inners (where inner2 ⊂ inner1) are handled by inner1's
+// widest LOGICAL first so nested inners (where inner2 is contained in inner1) are handled by inner1's
 // substitution before inner2 would be skipped. same-width ties: non-split before split
 // (split entries are leaves; non-split equal-span entries are wrappers that semantically
 // own the range, e.g. arrow-body wrap). then right-to-left for stable ordering
@@ -302,7 +302,7 @@ export default class TransformQueue {
   // sorted snapshot + prefix max maintained incrementally for O(log n) containsRange
   #sorted = [];
   #prefixMaxEnd = [];
-  // guardedRoot -> entries. linear scan per query, M typically ≤ 2-3 in practice
+  // guardedRoot -> entries. linear scan per query, M typically <= 2-3 in practice
   #byGuardedRoot = new Map();
   // per-root widest `.end` - fast-reject for `hasGuardFor` when `query.end > max`.
   // not decremented on extract: an overstated cache falls through to the linear scan
@@ -437,7 +437,7 @@ export default class TransformQueue {
     return isStrictlyContained(this.#sorted, start, end, this.#prefixMaxEnd);
   }
 
-  // O(log n) via indexed lookup + sorted binary search; was 3 × O(n) linear scans
+  // O(log n) via indexed lookup + sorted binary search; was 3 x O(n) linear scans
   extractContent(start, end) {
     const rKey = rangeKey(start, end);
     const rList = this.#byRange.get(rKey);
@@ -665,7 +665,7 @@ export default class TransformQueue {
     // names the actually-intersecting pair, not just the running-max bearer. on detection,
     // `find` returns the first open interval `o` such that `curr` starts strictly inside
     // `o` and extends strictly past it - true partial overlap. open list is bounded by
-    // max-nesting depth in practice (filter rebuilds it per iteration, O(N·D) total).
+    // max-nesting depth in practice (filter rebuilds it per iteration, O(N*D) total).
     // split pairs (`[start, mid)` + `[mid, end)`) look like partial overlap by interval
     // arithmetic but are touching by design (intentional adjacency); skip the check
     // when both sides share the same split groupId

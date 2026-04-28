@@ -66,7 +66,7 @@ const LABEL_TYPES = new Set([
 // pass `false` here or `Map++` wouldn't inject its polyfill and would ReferenceError in IE 11
 function isReferenced(node, parent, parentKey, parentPath, skipUpdateTargets) {
   if (!parent) return true;
-  // TS type-only positions: `type X = …` ids, `export { type X }` specifiers
+  // TS type-only positions: `type X = ...` ids, `export { type X }` specifiers
   if (isTSTypeOnlyIdentifierPath({ parent, key: parentKey, parentPath })) return false;
   // property key positions
   if (parent.type === 'Property' && parentKey === 'key' && !parent.computed) return false;

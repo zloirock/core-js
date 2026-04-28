@@ -28,7 +28,7 @@ const QUERY_OR_HASH_RE = /[#?]/;
 // Windows verbatim long-path prefix `\\?\C:\...` (and Vite's normalized `//?/C:/...`).
 // strip to canonical `C:/...` so SnapshotCache lookups match across path-mangling stages.
 // without strip, `\\?\C:\src\App.vue` and `C:/src/App.vue` (same logical file) had
-// different keys → snapshot miss between pre and post passes
+// different keys -> snapshot miss between pre and post passes
 const WINDOWS_UNC_PREFIX_RE = /^\/\/\?\//;
 function normalizePath(path) {
   let p = path.replaceAll('\\', '/').replace(WINDOWS_UNC_PREFIX_RE, '');
@@ -43,7 +43,7 @@ function normalizePath(path) {
   return p.replaceAll(REPEATED_SLASHES_RE, '/');
 }
 // Vite HMR appends `&t=<timestamp>` (or `?t=` if no other query) to invalidate module
-// cache. each HMR re-fire produces a different timestamp, breaking pre→post snapshot
+// cache. each HMR re-fire produces a different timestamp, breaking pre->post snapshot
 // lookup for the same logical file. strip the timestamp marker so the key stays stable.
 // trailing `?`/`&` and `?&` collapse keep the resulting key in canonical query shape -
 // `app.vue?t=1` -> `app.vue` (not `app.vue?`); `?t=1&type=script` -> `?type=script`
