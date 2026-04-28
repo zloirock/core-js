@@ -1,6 +1,7 @@
 import { parseSync } from 'oxc-parser';
 import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
 const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
 const { join } = path;
@@ -218,8 +219,12 @@ function checkSourceMapContent(directory, map, testId, source, method) {
 // that accidentally creates syntax errors, malformed emit) is caught here even when
 // loose-mode `compareLoose` only checks imports
 function checkOutputParses(directory, code, testId) {
+  // share the SFC lang-suffix lift with the plugin (Vue/Svelte/Astro virtual ids carry the
+  // parser-language hint in the query); without it the validator rejects TS / JSX syntax
+  // on the `.vue` / `.svelte` extension default
+  const parseId = liftSfcLangSuffix(testId, testId.split(/[?#]/, 1)[0]);
   // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
-  const parsed = parseSync(testId, code, { sourceType: 'module' });
+  const parsed = parseSync(parseId, code, { sourceType: 'module' });
   const errors = parsed.errors?.filter(err => err.severity === 'Error');
   if (!errors?.length) return true;
   counts.failed++;
