@@ -3,7 +3,7 @@
 import {
   findIifeArgForParam,
   isClassifiableReceiverArg,
-  unwrapParens,
+  unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -87,9 +87,12 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern) {
   if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
   const wrapper = wrapperPath?.node;
   if (wrapper?.type === 'AssignmentPattern' && wrapper.left === objectPattern) {
-    // oxc preserves `ParenthesizedExpression` around the default; babel strips it.
-    // peel here so `function f({from} = (Array))` matches bare-`Array` synth-swap path
-    const peeled = unwrapParens(wrapper.right);
+    // peel ParenthesizedExpression / TS expression wrappers (`as`, `satisfies`, `!`) /
+    // chain so `function f({from} = (Array))`, `function f({from} = Array as any)`,
+    // `function f({from} = Array!)` all match the bare-`Array` synth-swap path. mirrors
+    // babel-plugin's `peelTransparentPath` (synth-swap-emitter.js) - both pipelines now
+    // emit the same shape (`{from: _Array$from} as any`)
+    const peeled = unwrapRuntimeExpr(wrapper.right);
     if (peeled?.type === 'Identifier') {
       const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
       return isClassifiableReceiverArg(argReceiver) ? argReceiver : peeled;
