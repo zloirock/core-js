@@ -147,7 +147,7 @@ export default class ImportInjector extends ImportInjectorState {
         if (n > maxSuffix) maxSuffix = n;
       }
     }
-    if (maxSuffix > 1) this.rehydrateSuffixState?.(new Map([['_ref', maxSuffix + 1]]));
+    if (maxSuffix > 1) this.rehydrateSuffixState(new Map([['_ref', maxSuffix + 1]]));
   }
 
   generateUnusedName() {

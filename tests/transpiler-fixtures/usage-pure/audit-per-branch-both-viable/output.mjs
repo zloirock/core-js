@@ -1,10 +1,10 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 // both branches resolve to known globals with viable static polyfills for the destructured
-// key. each branch becomes its own `{key: _Branch$key}` literal, preserving runtime
+// key. Each branch becomes its own `{key: _Branch$key}` literal, preserving runtime
 // conditional semantics: `cond=truthy` -> Array.from polyfill, `cond=falsy` -> Iterator.from
-// polyfill. user gets the matching semantic per branch instead of one polyfill aliasing the
-// other (which the inline-default pre-fix did)
+// polyfill. Inline-default emission would alias one polyfill across both branches; per-
+// branch synth keeps each runtime path on its matching constructor's polyfill
 function f({
   from
 } = cond ? {
