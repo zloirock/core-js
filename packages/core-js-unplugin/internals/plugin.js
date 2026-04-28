@@ -8,6 +8,7 @@ import {
   isDeleteTarget,
   isForXWriteTarget,
   isTaggedTemplateTag,
+  isThisReceiver,
   isUpdateTarget,
   TS_EXPR_WRAPPERS,
   unwrapInitValue,
@@ -514,8 +515,9 @@ export default function createPlugin(options) {
           if (isUpdateTarget(parent)) return;
           if (isForXWriteTarget(metaPath)) return;
           if (parent?.type === 'AssignmentExpression' && parent.left === node) return;
-          // shadow check for `this.X` - polyfill would bypass the user's own member
-          if (node.object?.type === 'ThisExpression' && isShadowedByClassOwnMember(metaPath, meta.key)) return;
+          // shared `isThisReceiver` peels parens / TS wrappers / chain so `(this).at(0)`,
+          // `(this as any).at(0)`, `this!.at(0)` reach the same shadow detection
+          if (isThisReceiver(node.object) && isShadowedByClassOwnMember(metaPath, meta.key)) return;
           // `super.X` and unshadowed `this.X` in static ctx resolve against the super
           // class's static surface via the same path - `this` in static ctx is the
           // constructor, so inherited static lookup behaves exactly like `super.X`.
