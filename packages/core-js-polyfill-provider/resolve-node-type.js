@@ -1690,10 +1690,18 @@ function createResolveNodeType(babelNodeType, t) {
       // Object-methods only and misroute `.at()` / `.includes()` etc; null routes through
       // `resolveHint` common/rest fallback which is the correct conservative choice.
       // `TSImportType` (`typeof import('x')`) explicit so future extension doesn't need to
-      // untangle a silent fall-through through `TSTypeReference`
+      // untangle a silent fall-through through `TSTypeReference`.
+      // `TSAnyKeyword` / `TSUnknownKeyword` / `AnyTypeAnnotation` / `MixedTypeAnnotation`
+      // are wide-open: type-guard narrowing (`classifyGuardAnnotation:'open'`) refines them
+      // contextually; bare resolution stays null so the hint dispatcher takes the same
+      // conservative path as for `{}`
       case 'TSTypeLiteral':
       case 'ObjectTypeAnnotation':
       case 'TSImportType':
+      case 'TSAnyKeyword':
+      case 'TSUnknownKeyword':
+      case 'AnyTypeAnnotation':
+      case 'MixedTypeAnnotation':
         return null;
       // TS mapped type: detect the trivial passthrough `{ [K in keyof T]: T[K] }` and resolve
       // through to T directly; everything else is structurally opaque

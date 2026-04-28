@@ -347,19 +347,20 @@ export default function createPlugin(options) {
       // output[0,0] -> source[0,0] while the real output[0,0] is the BOM). gated on
       // hasChanged so no-op transforms still return null
       if (hasBOM) ms.prepend('\uFEFF');
-      // in `post` pass `ms.original` is pre-pass output, not the real source - omit
-      // sourcesContent so the bundler chains through pre-pass map's content instead
-      // of attributing pre-output as the claimed content of `id`
+      // pre+post `pass='post'` with `inherit`: `ms.original` is pre-output, not real source -
+      // omit sourcesContent so the bundler chains through pre-pass map's content. standalone
+      // `phase: 'post'` (no inherit) operates on the raw source, so content must be emitted
+      const chainedFromPre = pass === 'post' && !!inherit;
       // `file` field is optional per spec but devtools and downstream chain consumers (e.g.
       // bundler `combineSourceMaps`) rely on it for output filename hints; emit it on both
-      // pre and post passes so the chain stays self-describing
+      // pre and post passes so the chain stays self-describing.
       // `source` (full id) and `file` (basename) must differ - MagicString's
       // `getRelativePath` collapses `sources[0]` to the basename when both equal, dropping
       // dirname for every file. devtools / `combineSourcemaps` then can't distinguish
       // files with the same basename in different dirs. patch `file` to basename so
       // `sources[0] === id` survives in the emitted map
       const fileName = id.split(/[/\\]/).pop() || id;
-      const map = ms.generateMap({ source: id, file: fileName, includeContent: pass !== 'post', hires: 'boundary' });
+      const map = ms.generateMap({ source: id, file: fileName, includeContent: !chainedFromPre, hires: 'boundary' });
       // restore BOM in sourcesContent so devtools show the file with its on-disk byte
       // count. MagicString's `prepend` updates the output but the original source it
       // captured for `sourcesContent` is the BOM-stripped slice we passed in
