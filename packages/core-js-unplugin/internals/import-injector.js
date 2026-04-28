@@ -183,7 +183,7 @@ export default class ImportInjector extends ImportInjectorState {
     } else this.#ms.prepend(block);
   }
 
-  // `import "…"` / `var X = require("…")` - dispatched by `importStyle`. side-effect-only
+  // `import "..."` / `var X = require("...")` - dispatched by `importStyle`. side-effect-only
   // globals first, then pure-import bindings. `referencedInSource` filters dead imports
   // when the caller tracks usage
   #appendImportLines(lines) {
