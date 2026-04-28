@@ -444,16 +444,33 @@ export default function createDestructureEmitter({
     newPath.scope.registerDeclaration(newPath);
   }
 
+  // recursively flatten nested SequenceExpressions: `(x++, (y++, Array))` -> `[x++, y++, Array]`.
+  // post-flatten the trailing-tail trim can drop the final no-op (`Array`) instead of leaving
+  // a stale read parked under an inner SE wrapper
+  function flattenSequence(expressions) {
+    const out = [];
+    for (const e of expressions) {
+      if (t.isSequenceExpression(e)) out.push(...flattenSequence(e.expressions));
+      else out.push(e);
+    }
+    return out;
+  }
+
   // `(inner(), Array)` - when we lift the init as a standalone statement only the
   // side-effectful head is needed; the trailing value (`Array`, read by the destructure)
   // becomes a no-op read once extraction leaves no destructure target. trim it so the
-  // emitted ExpressionStatement reads `inner();` instead of `inner(), Array;`
+  // emitted ExpressionStatement reads `inner();` instead of `inner(), Array;`. nested SE
+  // (`(x++, (y++, Array))`) is flattened first so the inner trailing identifier strips too -
+  // pre-fix `flatten` was missing and the outer trim stopped at `(y++, Array)` (which has
+  // its own `mayHaveSideEffects` from `y++`), leaving a useless `Array` read in the output
   function trimSideEffectTail(node) {
     if (!t.isSequenceExpression(node)) return node;
-    const trimmed = [...node.expressions];
-    while (trimmed.length > 1 && !mayHaveSideEffects(trimmed[trimmed.length - 1])) trimmed.pop();
-    if (trimmed.length === node.expressions.length) return node;
-    return trimmed.length === 1 ? trimmed[0] : t.sequenceExpression(trimmed);
+    const flat = flattenSequence(node.expressions);
+    while (flat.length > 1 && !mayHaveSideEffects(flat[flat.length - 1])) flat.pop();
+    if (flat.length === 1) return flat[0];
+    const sameShape = flat.length === node.expressions.length
+      && flat.every((e, i) => e === node.expressions[i]);
+    return sameShape ? node : t.sequenceExpression(flat);
   }
 
   function deferSideEffect(containerPath, initNode) {
