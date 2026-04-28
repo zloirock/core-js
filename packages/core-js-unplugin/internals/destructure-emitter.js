@@ -24,7 +24,7 @@ import {
   unwrapParens,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '@core-js/polyfill-provider/helpers/class-walk';
+import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, symbolKeyToEntry } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { findProxyGlobal, resolveObjectName as sharedResolveObjectName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -536,6 +536,17 @@ export function createDestructureEmitter({
   // this fn (property-destructure form `{ [Symbol.iterator]: it } = obj`), and the catch
   // emit loop. unification would require a unified meta shape across the three call sites,
   // not currently warranted - each call site has different bound/unbound receiver semantics
+  // resolve the destructure entry's `kind` + import binding for a single Property:
+  // - Symbol.iterator special path -> instance kind via _getIteratorMethod
+  // - catch+rest passthrough for Symbol.X keys without resolved object -> 'symbol-key'
+  //   marker, no own import (standalone Symbol-Identifier visitor handles key-text)
+  // - resolvable polyfill -> kind from pureResult, binding via injectPureImport
+  function resolveDestructureEntry({ isSymbolIterator, isSymbolKeyPassthrough, pureResult }) {
+    if (isSymbolIterator) return { kind: 'instance', binding: injectPureImport('get-iterator-method', 'getIteratorMethod') };
+    if (isSymbolKeyPassthrough) return { kind: 'symbol-key', binding: null };
+    return { kind: pureResult.kind, binding: injectPureImport(pureResult.entry, pureResult.hintName) };
+  }
+
   function handleDestructuringPure(meta, metaPath, propNode) {
     if (isFunctionParamDestructureParent(metaPath.parentPath)) {
       return handleParameterDestructurePure(meta, metaPath, propNode);
@@ -565,7 +576,16 @@ export function createDestructureEmitter({
     if (value && !propBindingIdentifier(value)) return;
     const isSymbolIterator = propNode.computed && meta.key === 'Symbol.iterator';
     const pureResult = isSymbolIterator ? null : resolvePure(meta, metaPath);
-    if (!pureResult && !isSymbolIterator) return;
+    // catch + rest with computed `Symbol.X` polyfillable key: handleDestructuringPure normally
+    // bails on null pureResult (the meta has no object/placement to resolve), but we need
+    // emitCatchClause to fire so the destructuring pattern moves from catch param into a body
+    // `let { ... } = _ref;` line. the standalone Symbol-Identifier visitor handles the actual
+    // key-text substitution (`Symbol.X` -> `_Symbol$X`); the synthetic entry here exists only
+    // to trigger the extraction and reserve the prop's slot in the rebuilt pattern
+    const isSymbolKeyPassthrough = !pureResult && !isSymbolIterator && patternHasRest
+      && propNode.computed && typeof meta.key === 'string' && symbolKeyToEntry(meta.key)
+      && metaPath.parentPath?.parentPath?.node?.type === 'CatchClause';
+    if (!pureResult && !isSymbolIterator && !isSymbolKeyPassthrough) return;
 
     const objectPattern = metaPath.parent;
     const isDefault = value?.type === 'AssignmentPattern';
@@ -589,10 +609,7 @@ export function createDestructureEmitter({
       });
       if (!referenced) return;
     }
-    const kind = isSymbolIterator ? 'instance' : pureResult.kind;
-    const binding = isSymbolIterator
-        ? injectPureImport('get-iterator-method', 'getIteratorMethod')
-        : injectPureImport(pureResult.entry, pureResult.hintName);
+    const { kind, binding } = resolveDestructureEntry({ isSymbolIterator, isSymbolKeyPassthrough, pureResult });
     const isAssignment = !isCatchClause && declaratorPath?.node?.type === 'AssignmentExpression';
     let declPath = isCatchClause ? declaratorPath : declaratorPath?.parentPath;
     if (isAssignment) {
@@ -704,6 +721,9 @@ export function createDestructureEmitter({
         if (!hasRest) lines.push(`let { ${ nonEntryPropSrc(p) } } = ${ ref };`);
         continue;
       }
+      // `symbol-key` entries don't extract a value - the rebuilt pattern keeps the prop
+      // (with original localName) so `_ref[polyfilledKey]` is bound by destructuring directly
+      if (e.kind === 'symbol-key') continue;
       const valueSrc = e.kind === 'instance' ? `${ e.binding }(${ ref })` : e.binding;
       if (e.defaultSrc) {
         const testRef = e.kind === 'instance' ? injector.generateLocalRef() : null;
@@ -718,7 +738,11 @@ export function createDestructureEmitter({
         const e = entryByProp.get(p);
         if (!e) return nonEntryPropSrc(p);
         const keySrc = e.polyfillKeyContent ? `[${ e.polyfillKeyContent }]` : nodeSrc(p.key);
-        return `${ keySrc }: ${ injector.generateUnusedName() }`;
+        // symbol-key keeps original localName (the destructure binds it directly);
+        // other entries already extracted via standalone let-decl above, so reserve a
+        // `_unused` slot just for the rest gather to skip the polyfilled key
+        const valueName = e.kind === 'symbol-key' ? e.localName : injector.generateUnusedName();
+        return `${ keySrc }: ${ valueName }`;
       });
       lines.push(`let { ${ rebuiltProps.join(', ') } } = ${ ref };`);
     }
