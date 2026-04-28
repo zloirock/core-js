@@ -4,6 +4,7 @@
 import { isTypeAnnotationNodeType } from '@core-js/polyfill-provider/detect-usage/annotations';
 import {
   createTypeAnnotationChecker,
+  TRANSPARENT_EXPR_WRAPPER_TYPES,
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
@@ -171,15 +172,35 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     }
   }
 
-  // walk past TS expression wrappers between a member expression and its enclosing call -
-  // needed when @babel/plugin-transform-typescript runs after us so `arr.includes!(1)` is
-  // not misclassified as non-call (which would emit `_includes(arr)` with broken `this`)
+  // walk past transparent runtime wrappers between a member expression and its enclosing
+  // call. covers TS expression wrappers (`as`, `satisfies`, `!`, ...) needed when
+  // @babel/plugin-transform-typescript runs after us, AND `ParenthesizedExpression`
+  // preserved by parser when `createParenthesizedExpressions: true` - without parens-peeling
+  // `(arr.includes)(1)` resolves callerPath.parent to ParenthesizedExpression instead of
+  // the outer CallExpression, isCall flips to false, and the polyfill emit drops `.call(arr)`
+  // (broken `this`). default-parser path keeps the same shape via `extra.parenthesized`
+  // flag, so peeling parens here aligns createParens=true with default-parser behavior.
+  // shared `TRANSPARENT_EXPR_WRAPPER_TYPES` keeps this in lockstep with `peelTransparentPath`
+  // in synth-swap-emitter.js (parent-up vs expression-down walks of the same wrapper set)
   function unwrapTSExpressionParent(path) {
     let current = path;
-    while (current.parentPath && TS_EXPR_WRAPPERS.has(current.parentPath.node?.type)) {
+    while (current.parentPath && TRANSPARENT_EXPR_WRAPPER_TYPES.has(current.parentPath.node?.type)) {
       current = current.parentPath;
     }
     return current;
+  }
+
+  // detect `(path)` shape across both parser configs:
+  //   default parser: `extra.parenthesized` flag on the path itself or any TS-wrapped form
+  //   createParens=true: `ParenthesizedExpression` node above the path / TS-wrapped form
+  function isWrappedInParens(path) {
+    if (path.node?.extra?.parenthesized) return true;
+    let current = path;
+    while (current.parentPath && TS_EXPR_WRAPPERS.has(current.parentPath.node?.type)) {
+      current = current.parentPath;
+      if (current.node.extra?.parenthesized) return true;
+    }
+    return current.parentPath?.node?.type === 'ParenthesizedExpression';
   }
 
   // wrap a result expression in a SequenceExpression preserving side effects collected
@@ -200,8 +221,7 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // "fix" to `_includes.call(arr, 1)` with `this=arr`. changing a broken-runtime case
     // to a working one silently is design-dilemma: conservative path preserves the non-
     // optional shape verbatim, users who rely on the parenthesized detach get a lint
-    if ((path.node.extra?.parenthesized || unwrapTSExpressionParent(path).node.extra?.parenthesized)
-      && path.isOptionalMemberExpression()) {
+    if (isWrappedInParens(path) && path.isOptionalMemberExpression()) {
       const [check, object, embed] = extractCheck(path, skipOptional);
       const lookup = t.callExpression(id, [t.cloneNode(object)]);
       replaceAndWrap(path, withSideEffects(lookup, sideEffects), check, embed);
