@@ -83,12 +83,28 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
 ]);
 
 // transparent wrappers between a CallExpression's `.callee` and the actual invoked node.
-// narrower than IIFE_CALL_PATH_WRAPPERS - Unary/Sequence aren't valid here (they'd change
-// what's invoked)
+// narrower than IIFE_CALL_PATH_WRAPPERS - Unary changes what's invoked. SequenceExpression
+// is handled separately (only peelable when preceding slots are side-effect-free): minifiers
+// emit `(0, fn)(arg)` to drop `this`-binding, the tail still IS the invoked function
 const IIFE_CALLEE_WRAPPERS = new Set([
   'ParenthesizedExpression',
   'ChainExpression',
 ]);
+
+// peel the callee chain through paren / TS / chain wrappers and through side-effect-free
+// SequenceExpression tails until the leaf identifier / function appears. SequenceExpression
+// with effect-bearing prefix bails (the prefix would silently elide on rewrite)
+function peelIifeCallee(callee, fnNode) {
+  while (callee && callee !== fnNode) {
+    if (IIFE_CALLEE_WRAPPERS.has(callee.type) || TS_EXPR_WRAPPERS.has(callee.type)) {
+      callee = callee.expression;
+    } else if (callee.type === 'SequenceExpression'
+      && !callee.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+      callee = callee.expressions.at(-1);
+    } else break;
+  }
+  return callee;
+}
 
 const FN_NODE_TYPES = new Set([
   'FunctionExpression',
@@ -137,12 +153,7 @@ export function findIifeCallSite(fnParentPath, paramNode) {
   // above handles. accept both shapes so IIFE detection fires symmetrically across parsers
   if (callNode?.type !== 'CallExpression' && callNode?.type !== 'NewExpression'
     && callNode?.type !== 'OptionalCallExpression') return null;
-  let { callee } = callNode;
-  while (callee && callee !== fnNode
-    && (IIFE_CALLEE_WRAPPERS.has(callee.type) || TS_EXPR_WRAPPERS.has(callee.type))) {
-    callee = callee.expression;
-  }
-  if (callee !== fnNode) return null;
+  if (peelIifeCallee(callNode.callee, fnNode) !== fnNode) return null;
   return { callPath, paramIndex };
 }
 
@@ -427,15 +438,33 @@ export function peelFallbackWrappers(node) {
 }
 
 // deep peel for fallback receivers: chain-assignment (`foo = bar = (cond ? A : B)`) +
-// ParenthesizedExpression + TS expression wrappers, alternating until stable. shape:
-// `r = (cond ? A : B)` -> ConditionalExpression. used by per-branch synth-swap and
-// fallback enumeration to reach the underlying conditional/logical regardless of
-// chain-assign / paren / TS layering order
+// ParenthesizedExpression + TS expression wrappers + side-effect-free SequenceExpression
+// tails (`(0, cond ? A : B)`), alternating until stable. shape: `r = (cond ? A : B)` ->
+// ConditionalExpression. used by per-branch synth-swap and fallback enumeration to reach
+// the underlying conditional/logical regardless of chain-assign / paren / TS / safe-SE
+// layering order. SE prefix that carries observable side effects bails the peel - dropping
+// it would silently elide effects the rewrite can't preserve.
+// visited Set guards against synthetic cyclic ASTs (`a = (a = ...)`-shaped self-loops):
+// every step adds the current node, re-visiting any prior bails the walk
 export function peelFallbackReceiver(node) {
+  const visited = new Set();
   for (let prev; node !== prev;) {
+    if (visited.has(node)) return node;
+    visited.add(node);
     prev = node;
-    while (isChainAssignment(node)) node = node.right;
+    while (isChainAssignment(node)) {
+      if (visited.has(node.right)) return node;
+      visited.add(node.right);
+      node = node.right;
+    }
     node = peelFallbackWrappers(node);
+    while (node?.type === 'SequenceExpression'
+      && !node.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+      const tail = node.expressions.at(-1);
+      if (visited.has(tail)) return node;
+      visited.add(tail);
+      node = tail;
+    }
   }
   return node;
 }
