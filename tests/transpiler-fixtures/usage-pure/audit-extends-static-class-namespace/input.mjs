@@ -1,6 +1,6 @@
-// class used as namespace: `class Box { static Promise = Promise }; extends Box.Promise`.
-// resolver walks the ClassDeclaration body, finds static property `Promise`, recurses on
-// its value (Identifier 'Promise' -> global). `super.try(...)` routes through the polyfill
+// a class used as a namespace (`class Box { static Promise = Promise }`)
+// followed by `extends Box.Promise` must resolve through the static property
+// to the global `Promise`, so `super.try(...)` routes through its polyfill.
 class Box {
   static Promise = Promise;
 }
