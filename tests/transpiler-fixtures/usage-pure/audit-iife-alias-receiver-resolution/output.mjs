@@ -11,9 +11,11 @@ const proxyArr = Array;
 });
 const proxyObj = Object;
 (function ({
-  keys = _Object$keys
+  keys
 }) {
   return keys({
     a: 1
   });
-})(proxyObj);
+})({
+  keys: _Object$keys
+});

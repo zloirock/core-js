@@ -62,16 +62,17 @@ export function canTransformDestructuring(metaPath) {
   return true;
 }
 
-// find the call-arg node a bare-ObjectPattern IIFE param resolves to. arrow-only on
-// purpose - FunctionExpression IIFE has its own `this` binding, so destructure-receiver
-// semantics differ enough that synth-swap would be unsafe. expands inline-array spreads
-// (`...[R]`) the same way `resolveCallArgument` does; non-literal spread returns null
-// (static index unknown). arrow-only is a deliberate narrowing on top of the shared
-// `findIifeArgForParam` (which accepts both arrow and FunctionExpression for
-// resolution-layer use). SE-tail peel (`(0, (1, R))` -> `R`) so nested + flat
-// SequenceExpression args classify identically
+// find the call-arg node a bare-ObjectPattern IIFE param resolves to. accepts both
+// ArrowFunctionExpression and FunctionExpression: arrow lacks `arguments`, function has
+// its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
+// via `arguments[0]` only when body reads it (niche pattern). polyfill-always-wins contract
+// for usage-pure mode wins the trade-off vs preserving original arg in `arguments`. expands
+// inline-array spreads (`...[R]`) the same way `resolveCallArgument` does; non-literal
+// spread returns null (static index unknown). SE-tail peel (`(0, (1, R))` -> `R`) so
+// nested + flat SequenceExpression args classify identically
 export function detectIifeArgReceiver(wrapperPath, objectPattern) {
-  if (wrapperPath?.node?.type !== 'ArrowFunctionExpression') return null;
+  const t = wrapperPath?.node?.type;
+  if (t !== 'ArrowFunctionExpression' && t !== 'FunctionExpression') return null;
   const arg = findIifeArgForParam(wrapperPath, objectPattern);
   return arg ? unwrapSafeSequenceTail(arg) : arg;
 }
@@ -93,10 +94,16 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern) {
     // babel-plugin's `peelTransparentPath` (synth-swap-emitter.js) - both pipelines now
     // emit the same shape (`{from: _Array$from} as any`)
     const peeled = unwrapRuntimeExpr(wrapper.right);
-    if (peeled?.type === 'Identifier') {
+    if (peeled?.type !== 'Identifier' && peeled?.type !== 'MemberExpression') return null;
+    // IIFE caller-arg overrides only when default is an Identifier (resolution layer needs
+    // a classifiable name); MemberExpression default has no caller-arg path, falls through
+    // to peeled. trade-off accepted: side effect of receiver chain evaluation (`window`)
+    // is skipped on caller-omitted invocation, polyfill always wins
+    if (peeled.type === 'Identifier') {
       const argReceiver = detectIifeArgReceiver(wrapperPath.parentPath, wrapperPath.node);
-      return isClassifiableReceiverArg(argReceiver) ? argReceiver : peeled;
+      if (isClassifiableReceiverArg(argReceiver)) return argReceiver;
     }
+    return peeled;
   }
   const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
   return isClassifiableReceiverArg(argReceiver) ? argReceiver : null;
