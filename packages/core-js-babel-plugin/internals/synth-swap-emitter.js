@@ -62,14 +62,16 @@ export default function createSynthSwapEmitter({
     return argPath;
   }
 
-  // path-iteration with inline-spread expansion + `unwrapSequenceTail`. arrow IIFE only -
-  // FunctionExpression has its own `this` binding, so receiver semantics differ enough
-  // that synth-swap would be unsafe.
+  // path-iteration with inline-spread expansion + `unwrapSequenceTail`. accepts both
+  // ArrowFunctionExpression and FunctionExpression IIFE: arrow lacks `arguments`, function
+  // has its own - swapping caller-arg with the synth `{key: _polyfill}` literal is observable
+  // via `arguments[0]` only when body reads it (rare pattern). polyfill-always-wins contract
+  // for usage-pure mode wins the trade-off vs preserving original arg in `arguments`.
   // nested SpreadElement inside the spread array (`f(...[a, ...rest])`) is variadic at
   // compile-time - `rest` may expand to any number of positions. counting it as `1` shifts
   // every subsequent positional, breaking paramIndex match. bail rather than miscount
   function detectIifeArgPath(wrapper, objectPattern) {
-    if (!wrapper?.isArrowFunctionExpression()) return null;
+    if (!wrapper?.isArrowFunctionExpression() && !wrapper?.isFunctionExpression()) return null;
     const site = findIifeCallSite(wrapper, objectPattern.node);
     if (!site) return null;
     let positionIndex = 0;
@@ -99,15 +101,19 @@ export default function createSynthSwapEmitter({
     if (objectPattern.node.properties.some(property => t.isRestElement(property))) return null;
     if (wrapper?.isAssignmentPattern()) {
       // peel parens / TS wrappers: `({from} = (Array)) => ...` (createParens=true) and
-      // `({from} = Array as any) => ...` both must reach the inner Identifier so the
-      // synth-swap fires instead of falling back to inline-default. mirrors unplugin's
-      // `unwrapParens(wrapper.right)` in `destructure-emit-utils.js`
+      // `({from} = Array as any) => ...` both must reach the inner shape so synth-swap
+      // fires instead of falling back to inline-default. mirrors unplugin's
+      // `unwrapRuntimeExpr(wrapper.right)` in `destructure-emit-utils.js`
       const rightPath = peelTransparentPath(wrapper.get('right'));
+      if (!t.isIdentifier(rightPath.node) && !t.isMemberExpression(rightPath.node)) return null;
+      // IIFE caller-arg overrides only when the default is an Identifier (resolution layer
+      // requires a classifiable name); MemberExpression default has no caller-arg path,
+      // falls straight through to rightPath
       if (t.isIdentifier(rightPath.node)) {
         const argPath = detectIifeArgPath(wrapper.parentPath, wrapper);
         if (argPath && isClassifiableReceiverArg(argPath.node)) return argPath;
-        return rightPath;
       }
+      return rightPath;
     }
     const argPath = detectIifeArgPath(wrapper, objectPattern);
     return argPath && isClassifiableReceiverArg(argPath.node) ? argPath : null;
@@ -184,7 +190,13 @@ export default function createSynthSwapEmitter({
   function apply() {
     for (const { targetPath, objectPatternPath, objectPatternNode, polyfills } of pendingSwaps) {
       const receiver = targetPath.node;
-      if (!t.isIdentifier(receiver) || objectPatternNode?.type !== 'ObjectPattern') continue;
+      // accept Identifier (`Array`) and MemberExpression (`window.Array`) receivers. for
+      // MemberExpression, unpolyfilled keys still re-read through the chain (`window.Array
+      // .other`) - each clone re-evaluates the receiver expression. trade-off: lifting the
+      // chain to a temp would change AST shape (require IIFE wrap or explicit binding) and
+      // for usage-pure mode the typical pattern is all-polyfilled keys, single re-evaluation
+      if (!t.isIdentifier(receiver) && !t.isMemberExpression(receiver)) continue;
+      if (objectPatternNode?.type !== 'ObjectPattern') continue;
       // a sibling plugin may have detached the receiver between queue-time and now
       // (`.remove()` on an ancestor leaves `targetPath.node` stale). replaceWith on an
       // orphaned path throws; skip here so the swap is simply lost rather than crashing

@@ -9,7 +9,9 @@
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation)
 import {
   destructureReceiverSlot,
+  findEnclosingFunctionLikePath,
   getFallbackBranchSlots,
+  hasRestSiblingExcept,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isNonReferencePosition,
@@ -36,6 +38,20 @@ import {
   walkUpNestedDestructureToDeclaration,
 } from './destructure-emit-utils.js';
 import { walkAstNodes } from './plugin-helpers.js';
+
+// pure helper: text-range covering `propNode` in `props` PLUS its adjacent comma so the
+// resulting source stays a valid ObjectPattern after splicing the range out. shapes:
+//   - first prop with siblings: [propStart, nextSiblingStart)  -> drops trailing `, `
+//   - last/middle prop: [prevSiblingEnd, propEnd)              -> drops leading `, `
+//   - lone prop: [propStart, propEnd)                          -> empties the pattern
+// returns null when prop isn't in the list (orphaned mid-traversal) or the range is empty
+function getPropRemovalRange(props, propNode) {
+  const idx = props.indexOf(propNode);
+  if (idx === -1) return null;
+  const start = idx === 0 ? propNode.start : props[idx - 1].end;
+  const end = idx === 0 && props.length > 1 ? props[idx + 1].start : propNode.end;
+  return start < end ? { start, end } : null;
+}
 
 export function createDestructureEmitter({
   estreeAdapter,
@@ -71,11 +87,25 @@ export function createDestructureEmitter({
   // tracks declarations already rewritten by `tryFlattenNestedProxy` so the visitor's
   // re-entry on every property of a flattened decl is a no-op idempotent
   const flattenedNestedDecls = new WeakSet();
+  // parallel set for AssignmentExpression rewrites so per-prop visitor calls on the same
+  // statement don't re-emit (first call handles ALL polyfilled props of the statement
+  // through `rewriteDeclarator`'s upfront walk; subsequent calls short-circuit)
+  const flattenedAssignments = new WeakSet();
+  // cascade-rewrite cache for AssignmentExpression hosts: stores `{result, unusedIds}`
+  // computed once via `rewriteDeclarator` over a synthetic mock-declarator. unusedIds
+  // are captured by tracking `injector.generateUnusedName()` calls during the first plan
+  // walk - AssignmentExpression LHS slots must be pre-declared via `var _unused;`, unlike
+  // VariableDeclarator where the destructure binding declares them directly
+  const trackedUnusedNamesByAssign = new WeakMap();
 
   // `({Array: {from}} = receiver);` (AssignmentExpression in ExpressionStatement) -
-  // value is discarded, replace whole statement with `from = _polyfill;` so polyfill
-  // always wins. SE prefix in receiver lifts as separate statement. matches babel-plugin's
-  // `flattenAssignmentExpressionDestructure`
+  // value is discarded, so the destructure can be rewritten so polyfill always wins.
+  // two emission shapes:
+  //   - no rest siblings anywhere in the chain: replace the whole statement with
+  //     `from = _polyfill;` (simple flatten, mirrors `flattenAssignmentExpressionDestructure`)
+  //   - any rest sibling: cascade rewrite via `rewriteDeclarator` over a mock declarator,
+  //     emit `var _unused; ({...mutated} = receiver); from = _polyfill;` so rest gathers
+  //     the right keys AND polyfill overrides the (potentially buggy) native value
   function tryFlattenAssignmentExpression(metaPath, meta) {
     const valueNode = propBindingIdentifier(metaPath.node.value);
     if (!valueNode) return false;
@@ -87,6 +117,19 @@ export function createDestructureEmitter({
     while (stmtPath?.node?.type === 'ParenthesizedExpression') stmtPath = stmtPath.parentPath;
     if (stmtPath?.node?.type !== 'ExpressionStatement') return false;
     const stmtNode = stmtPath.node;
+    // already-flattened statement: per-prop visitor re-entry for sibling polyfills is a
+    // no-op (the upfront `rewriteDeclarator` walk on first call already covered all of them)
+    if (flattenedAssignments.has(assignNode)) return true;
+    const hasRestInChain = (() => {
+      for (let cursor = metaPath; cursor && cursor !== assignPath; cursor = cursor.parentPath) {
+        if (cursor.parent?.type === 'ObjectPattern'
+            && hasRestSiblingExcept(cursor.parent.properties, cursor.node)) return true;
+      }
+      return false;
+    })();
+    if (hasRestInChain) {
+      return cascadeAssignmentExpression(assignNode, stmtNode, metaPath.scope);
+    }
     const pure = resolvePure(meta);
     if (!pure || pure.kind === 'instance') return false;
     const binding = injectPureImport(pure.entry, pure.hintName);
@@ -107,6 +150,86 @@ export function createDestructureEmitter({
     return true;
   }
 
+  // run `fn` with `injector.generateUnusedName` wrapped so every name it emits is also
+  // pushed onto `target`. used by the AssignmentExpression cascade path - the names
+  // generated during `rewriteDeclarator`'s plan walk land inside the rendered preservedSrc
+  // text, but we need them separately to emit `var _unused;` hoist declarations
+  function withTrackedUnusedNames(target, fn) {
+    const orig = injector.generateUnusedName.bind(injector);
+    injector.generateUnusedName = () => {
+      const name = orig();
+      target.push(name);
+      return name;
+    };
+    try { return fn(); } finally {
+      injector.generateUnusedName = orig;
+    }
+  }
+
+  // cascade rewrite for AssignmentExpression with sibling RestElement. one upfront walk
+  // through `rewriteDeclarator` finds ALL polyfillable nested-proxy props and renders the
+  // mutated destructure pattern (with `_unused` sentinels preserving rest exclusion).
+  // emits SE-prefix lifts + `var _unused;` declarations + rewritten assignment + per-
+  // extraction polyfill assigns; marks the statement as handled so sibling per-prop
+  // visitor calls short-circuit. preserves "polyfill always wins" - the destructure
+  // discards each polyfilled key into `_unused`, then `binding = _polyfill;` overrides
+  // the captured (maybe buggy native) value with the imported polyfill
+  function cascadeAssignmentExpression(assignNode, stmtNode, scope) {
+    let cached = trackedUnusedNamesByAssign.get(assignNode);
+    if (!cached) {
+      const fake = { id: assignNode.left, init: assignNode.right };
+      // capture the `_unused` names emitted into preservedSrc; they need explicit
+      // `var _unused;` declarations in the AssignmentExpression context (VariableDeclaration
+      // host declares them via the destructure binding itself)
+      const unusedIds = [];
+      const result = withTrackedUnusedNames(unusedIds, () => rewriteDeclarator(fake, scope));
+      cached = { result, unusedIds };
+      trackedUnusedNamesByAssign.set(assignNode, cached);
+    }
+    const { result, unusedIds } = cached;
+    if (!result.extractions.length) return false;
+    flattenedAssignments.add(assignNode);
+    // skip both halves of the assignment from the normal visitor pass: LHS pattern's
+    // identifiers are now superseded by the rebuilt destructure text, RHS receiver tail
+    // is already substituted to the polyfilled binding inside `result.preservedSrc`.
+    // SE prefix expressions stay visitable so their inner Identifiers (`Promise.resolve`)
+    // emit their own polyfill imports during traversal
+    walkAstNodes(assignNode.left, node => skippedNodes.add(node));
+    const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
+    if (receiverTail) walkAstNodes(receiverTail, node => skippedNodes.add(node));
+    const segments = [];
+    for (const expr of seExprs) segments.push(`${ nodeSrc(expr) };`);
+    if (unusedIds.length) segments.push(`var ${ unusedIds.join(', ') };`);
+    if (result.preservedSrc !== null) segments.push(`(${ result.preservedSrc });`);
+    for (const e of result.extractions) segments.push(`${ e.decl };`);
+    transforms.add(stmtNode.start, stmtNode.end, segments.join('\n'));
+    return true;
+  }
+
+  // for-init+SE+fully-consumed post-rewrite step: rewriteDeclarator returns preservedSrc
+  // = null when every outer prop was consumed, but the SE in init must still evaluate
+  // (loop header forbids external statement-lift). install a `_unused = (se(), _globalThis)`
+  // sink declarator on each affected entry; the proxy-global tail is substituted manually
+  // since `seedSkippedForExtractedDeclarators` already added the tail Identifier to
+  // skippedNodes (it expected the init to be discarded). non-SE inits and partial-consume
+  // entries are left as-is - they reach `renderFlattened` through the regular path
+  function injectForInitSESinks(declaration, perDecl) {
+    for (let i = 0; i < declaration.declarations.length; i++) {
+      const { init } = declaration.declarations[i];
+      const peeled = init?.type === 'ParenthesizedExpression' ? init.expression : init;
+      if (peeled?.type !== 'SequenceExpression' || perDecl[i].preservedSrc !== null) continue;
+      const receiverPure = perDecl[i].receiver ? resolveGlobalPolyfill(perDecl[i].receiver) : null;
+      const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(init);
+      const tailSrc = receiverPure
+        ? injectPureImport(receiverPure.entry, receiverPure.hintName)
+        : nodeSrc(receiverTail);
+      const seSrc = seExprs.length
+        ? `(${ [...seExprs.map(nodeSrc), tailSrc].join(', ') })`
+        : tailSrc;
+      perDecl[i].preservedSrc = `${ injector.generateUnusedName() } = ${ seSrc }`;
+    }
+  }
+
   function tryFlattenNestedProxy(metaPath) {
     // accept `{ from }` / `{ from: alias }` / `{ from = default }` / `{ from: alias = default }`.
     // user's default is dropped since the extracted polyfill is always defined (see `planInnerProp`)
@@ -117,23 +240,11 @@ export function createDestructureEmitter({
     if (flattenedNestedDecls.has(declaration)) return true;
     const parentNode = declPath.parentPath?.node;
     const isForInit = parentNode?.type === 'ForStatement' && parentNode.init === declaration;
-    const initOf = i => {
-      let n = declaration.declarations[i].init;
-      if (n?.type === 'ParenthesizedExpression') n = n.expression;
-      return n;
-    };
-    // for-init with SE init can't host a prefix statement outside the loop header.
-    // bail before `rewriteDeclarator` runs - it would inject pure imports
-    // that then go unused when we can't emit the flatten replacement
-    if (isForInit) {
-      for (let i = 0; i < declaration.declarations.length; i++) {
-        if (initOf(i)?.type === 'SequenceExpression') return false;
-      }
-    }
     const perDecl = declaration.declarations.map(d => rewriteDeclarator(d, metaPath.scope));
     if (!perDecl.some(r => r.extractions.length)) return false;
     flattenedNestedDecls.add(declaration);
     seedSkippedForExtractedDeclarators(declaration, perDecl);
+    if (isForInit) injectForInitSESinks(declaration, perDecl);
     let replacement = renderFlattened(perDecl, declaration.kind, isForInit);
     if (!isForInit) {
       // lift SE prefix ONLY from extracted declarators (whose receiver tail was consumed
@@ -518,6 +629,11 @@ export function createDestructureEmitter({
     const receiver = isSynthSimpleObjectPattern(objectPattern)
       ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern) : null;
     if (!receiver) {
+      // synth-swap bailed (computed-key sibling / non-Identifier shape) - try body-extract
+      // first: insert `const from = _polyfill;` at function body top + remove the prop from
+      // destructure. preserves "polyfill always wins" even at the cost of caller-passed
+      // `{from: customFrom}` being ignored. expr-body arrows skipped (no statement slot)
+      if (!isAssign && tryBodyExtractFromParamDestructurePure(metaPath, propNode, binding, objectPattern)) return;
       if (isAssign) transforms.add(value.right.start, value.right.end, binding);
       else transforms.insert(value.end, ` = ${ binding }`);
       return;
@@ -530,6 +646,40 @@ export function createDestructureEmitter({
       pendingSynthSwaps.set(receiver, pending);
     }
     pending.polyfills.set(propNode.key.name, binding);
+  }
+
+  // body-extract fallback when synth-swap can't fire (computed-key sibling / non-Identifier
+  // shape / rest sibling). uniform shape across all input variants:
+  //   - `{from}`           shorthand
+  //   - `{from: alias}`    aliased
+  //   - `{from = []}`      shorthand + default
+  //   - `{from: alias = []}` aliased + default
+  // walk up to function-like, ensure block body, prepend `let <local> = _polyfill;`
+  // (let, not const - parameter was reassignable, downstream `from = newValue` must keep
+  // working). for rest siblings rewrite the WHOLE prop to `key: _unused` (uniform across
+  // shorthand / aliased / default) so the destructure still consumes the key and rest
+  // exclusion survives; otherwise remove the prop via a narrow text transform that also
+  // consumes the adjacent comma. user-written default is dropped (dead code under polyfill-
+  // always-wins). preserves "polyfill always wins" at the cost of caller-passed
+  // `{from: customFrom}` being ignored
+  function tryBodyExtractFromParamDestructurePure(propPath, propNode, binding, objectPattern) {
+    const localId = propBindingIdentifier(propNode.value);
+    if (!localId) return false;
+    const fnPath = findEnclosingFunctionLikePath(propPath);
+    if (!fnPath || fnPath.node.body?.type !== 'BlockStatement') return false;
+    const bodyOpenAfter = fnPath.node.body.start + 1;
+    const props = objectPattern.properties;
+    if (hasRestSiblingExcept(props, propNode)) {
+      transforms.add(propNode.start, propNode.end, `${ propNode.key.name }: ${ injector.generateUnusedName() }`);
+    } else {
+      const range = getPropRemovalRange(props, propNode);
+      if (!range) return false;
+      transforms.add(range.start, range.end, '');
+    }
+    transforms.insert(bodyOpenAfter, `\n  let ${ localId.name } = ${ binding };`);
+    skippedNodes.add(propNode);
+    if (propNode.value) skippedNodes.add(propNode.value);
+    return true;
   }
 
   // Symbol.iterator handling is split across `handleSymbolIterator` (member-call form),
@@ -761,12 +911,17 @@ export function createDestructureEmitter({
     for (const [, { receiver, objectPattern, polyfills }] of pendingSynthSwaps) {
       if (objectPattern?.type !== 'ObjectPattern') continue;
       const inner = peelFallbackWrappers(receiver);
-      if (inner?.type !== 'Identifier') continue;
-      const receiverPure = resolveGlobalPolyfill(inner.name);
+      // accept Identifier (`Array`) and MemberExpression (`window.Array`) receivers. for
+      // MemberExpression, unpolyfilled keys still re-read through the chain (`window.Array
+      // .other`) - each `${ src }.${ key }` reference re-evaluates the receiver expression.
+      // typical pattern is all-polyfilled keys (no re-read needed); accept the side-effect
+      // re-evaluation trade-off for partial-polyfill cases
+      if (inner?.type !== 'Identifier' && inner?.type !== 'MemberExpression') continue;
+      const receiverPure = inner.type === 'Identifier' ? resolveGlobalPolyfill(inner.name) : null;
       let receiverSrc = null;
       const getReceiverSrc = () => receiverSrc ??= receiverPure
         ? injectPureImport(receiverPure.entry, receiverPure.hintName)
-        : inner.name;
+        : nodeSrc(inner);
       const entries = [];
       for (const p of objectPattern.properties) {
         if (p.type !== 'Property' || p.computed || p.key?.type !== 'Identifier') continue;
