@@ -4917,7 +4917,12 @@ function createResolveNodeType(babelNodeType, t) {
         if (constructorName) return instanceofGuard(constructorName, negated);
       }
     }
-    if (test.type === 'CallExpression' && test.arguments?.length === 1) {
+    // multi-arg user predicates (`function isFoo(x, opts): x is Foo`) narrow on the first
+    // arg only. KNOWN_STATIC_TYPE_GUARDS (`Array.isArray` / `Number.isFinite` / ...) all
+    // narrow first-arg too; extra trailing args are ignored at runtime, so accepting them
+    // here matches user intent. predicates that narrow a non-first param are rare and
+    // would require pulling `parameterName` from the TSTypePredicate to disambiguate
+    if (test.type === 'CallExpression' && test.arguments?.length >= 1) {
       const arg = unwrapParens(test.arguments[0]);
       if (arg.type === 'Identifier' && arg.name === varName) {
         const { callee } = test;
