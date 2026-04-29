@@ -1,5 +1,5 @@
-// inject a synthetic comment without `loc` (mimics what some sibling plugins do) - must
-// not crash `parseDisableDirectives`
+// sibling plugins occasionally inject comments without `loc`. The plugin must tolerate
+// that when scanning for disable directives.
 const injectSyntheticComment = () => ({
   visitor: {
     Program(path) {

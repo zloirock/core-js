@@ -1,6 +1,5 @@
-// deep tuple with rest: `[string, ...number[][]]` - findTupleElement walks
-// elements, unwraps rest -> extractElementAnnotation. Check substitution still works
-// when tuple is inside a generic alias.
+// deep tuple `[string, ...number[][]]` inside a generic alias still yields the element type
+// for `.at(...)` lookup.
 type Pair<T> = [string, ...T[]];
 declare const t: Pair<number[]>;
 t[0].at(0);
