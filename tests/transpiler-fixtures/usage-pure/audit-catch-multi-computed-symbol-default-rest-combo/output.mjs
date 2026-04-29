@@ -1,10 +1,10 @@
 import _getIteratorMethod from "@core-js/pure/actual/get-iterator-method";
 import _Symbol$iterator from "@core-js/pure/actual/symbol/iterator";
 import _Symbol$asyncIterator from "@core-js/pure/actual/symbol/async-iterator";
-// catch param destructure mixing two computed Symbol keys (only one synth-swappable)
-// + AssignmentPattern default on the synth-swap key + rest gather. plugin orchestrates
-// hoisted `_ref2`, an `it` extractor with default fallback, and a residual destructure
-// for `Symbol.asyncIterator` + `...rest` - all in one CatchClause
+// catch param destructure mixing two computed Symbol keys (only one rewritable) + a
+// default-value on the rewritable key + rest gather. The plugin orchestrates a hoisted
+// `_ref2`, an `it` extractor with default fallback, and a residual destructure for
+// `Symbol.asyncIterator` + `...rest` - all in one catch clause
 try {} catch (_ref) {
   var _ref2;
   let it = (_ref2 = _getIteratorMethod(_ref)) === void 0 ? altIter : _ref2;

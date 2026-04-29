@@ -12,6 +12,8 @@
     ]
   ],
   "parserOpts": {
-    "plugins": ["typescript"]
+    "plugins": [
+      "typescript"
+    ]
   }
 }
