@@ -1,8 +1,8 @@
-// `(this).at(0)` in an instance method where the class declares its own `at`. shadow
-// check must peel parens / TS wrappers so the wrapper preserved by `createParenthesizedExpressions: true`
-// (or `(this as any).at(0)`) doesn't bypass the detection. without peel, polyfill emit
-// reroutes the call through `_atMaybeArray(this).call(this, 0)`, silently overriding the
-// user's own `at` method
+// `(this).at(0)` in an instance method where the class declares its own `at`. The
+// shadow check peels parens and TS wrappers so a paren preserved as an AST node (or
+// `(this as any).at(0)`) still reaches the `this` detection. Peeling keeps the call
+// routed through the user's own `at` method rather than rewriting it to
+// `_atMaybeArray(this).call(this, 0)`
 class C extends Array {
   at() {
     return 'shadowed';

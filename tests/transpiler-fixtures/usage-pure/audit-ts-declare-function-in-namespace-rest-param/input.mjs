@@ -1,8 +1,8 @@
-// `declare namespace { function f(...args) }` parses as TSModuleDeclaration nested with
-// TSDeclareFunction. estree-toolkit's scope crawler walks `RestElement` through reference
-// paths on type-only function shapes and throws without intervention. The plugin walks
-// the full AST and neutralises rest params on those shapes. Unrelated array binding below
-// confirms the transform reaches usage detection without the crawler crashing
+// `declare namespace { function f(...args) }` - an ambient function declaration nested
+// inside a namespace declaration. The scope-crawling pass used internally walks rest
+// properties through reference paths on type-only function shapes and would throw if
+// untouched, so rest params on those shapes are neutralised before scope analysis.
+// Unrelated array binding below confirms the transform reaches usage detection
 declare namespace N {
   function f(...args: number[]): void;
 }

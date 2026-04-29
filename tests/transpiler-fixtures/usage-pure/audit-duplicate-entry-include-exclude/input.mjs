@@ -1,4 +1,4 @@
 // entry-path `array/from` appears in both `include` and `exclude`. duplicate detection
-// must cover entry-path patterns too (not just module patterns), surfacing a clear
-// "matched by both" validation error instead of silently dropping the polyfill
+// covers entry-path patterns (not just module patterns) and surfaces a clear
+// "matched by both" validation error
 Array.from(x);

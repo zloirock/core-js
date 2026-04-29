@@ -1,6 +1,5 @@
-// trailing comma in super.static argslist - sliceBetweenParens keeps every byte between
-// parens, so the trailing comma survives; old `code.slice(args[0].start, args.at(-1).end)`
-// would have dropped it
+// trailing comma in super.static argslist - argument-source extraction keeps every byte
+// between the parens, so the trailing comma survives unchanged in the rewritten call
 class X extends Array {
   static make() { return super.from([1, 2],); }
 }
