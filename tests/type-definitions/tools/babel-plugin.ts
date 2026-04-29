@@ -1,9 +1,15 @@
 import plugin from '@core-js/babel-plugin';
+import type { Options, Method, Mode } from '@core-js/babel-plugin';
 
 // return type
 const result: { name: string, visitor: object } = plugin({}, { method: 'usage-global' }, '/path');
 result.name;
 result.visitor;
+
+// type exports
+const method: Method = 'usage-global';
+const mode: Mode = 'actual';
+const opts: Options = { method: 'usage-global' };
 
 // valid calls
 plugin({}, { method: 'usage-global' }, '/path');
@@ -47,6 +53,7 @@ plugin({}, { method: 'usage-global', shippedProposals: true }, '/path');
 plugin({}, { method: 'usage-global', shippedProposals: false }, '/path');
 plugin({}, { method: 'usage-global', importStyle: 'import' }, '/path');
 plugin({}, { method: 'usage-global', importStyle: 'require' }, '/path');
+plugin({}, { method: 'usage-global', browserslistEnv: 'production' }, '/path');
 
 // all options combined
 plugin({}, {
@@ -134,3 +141,5 @@ plugin({}, { method: 'usage-global', configPath: 123 }, '/path');
 plugin({}, { method: 'usage-global', shippedProposals: 'yes' }, '/path');
 // @ts-expect-error — importStyle must be 'import' or 'require'
 plugin({}, { method: 'usage-global', importStyle: 'esm' }, '/path');
+// @ts-expect-error — browserslistEnv must be a string
+plugin({}, { method: 'usage-global', browserslistEnv: 1 }, '/path');
