@@ -10,6 +10,7 @@ import {
   TS_EXPR_WRAPPERS,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
+import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 import { findProxyGlobal } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isPolyfillableOptional } from '@core-js/polyfill-provider/detect-usage/annotations';
 import { resolveSymbolInEntry } from '@core-js/polyfill-provider/detect-usage/members';
@@ -36,6 +37,12 @@ export function createPolyfillEmitter({
   startsEnclosingStatement,
   transforms,
 }) {
+  // bare-Identifier shape (`globalThis`, `_Promise`, `$X`); excludes member chains, parens,
+  // operators. used to gate guard emission - bare-Identifier roots use `X == null`, anything
+  // else captures into a `_ref` first to avoid double-evaluating side effects
+  const BARE_IDENTIFIER_REGEX = /^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u;
+  const isBareIdentifier = src => typeof src === 'string' && BARE_IDENTIFIER_REGEX.test(src);
+
   function nodeSrc(n) {
     return code.slice(n.start, n.end);
   }
@@ -119,6 +126,7 @@ export function createPolyfillEmitter({
     const {
       isCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
       optionalCall, args, objectStart, preAllocatedGuardRef, sideEffects,
+      substituted, rootIsReceiver,
     } = opts;
     const strip = src => stripOptionalDots(src, objectStart ?? 0, deoptPositions);
     let bodyObj = deoptPositions?.length ? strip(objectSrc) : objectSrc;
@@ -126,12 +134,20 @@ export function createPolyfillEmitter({
     let guardRef = null;
 
     if (optionalRoot) {
-      if (/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)) {
+      if (isBareIdentifier(optionalRoot)) {
         guard = `${ optionalRoot } == null ? void 0 : `;
       } else {
         guardRef = preAllocatedGuardRef ?? scopeTracker.genRef();
         guard = `null == (${ guardRef } = ${ optionalRoot }) ? void 0 : `;
-        bodyObj = guardRef + bodyObj.slice(strip(rootRaw).length);
+        // when receiver is chain-substituted (`globalThis?.foo` -> `_globalThis.foo`) and
+        // rootNode equals receiverObj, the entire bodyObj IS the substituted root; slicing
+        // by `strip(rootRaw).length` would leave a substring tail (`_globalThis.foo`.slice
+        // (`globalThis.foo`.length) = `o`), corrupting bodyObj into `_refo`. compose layer
+        // later re-substitutes the original `optionalRoot` in guard text via inner-needle
+        // matching, so leaving bodyObj as bare `guardRef` here keeps both layers consistent
+        bodyObj = substituted && rootIsReceiver
+          ? guardRef
+          : guardRef + bodyObj.slice(strip(rootRaw).length);
       }
     }
 
@@ -222,10 +238,26 @@ export function createPolyfillEmitter({
   function addInstanceTransform(binding, node, parent, metaPath, isCall, replacementIsCall = isCall, sideEffects = null) {
     const recv = resolveReceiverSource(node.object, metaPath);
     let { src: objectSrc, isNonIdent } = recv;
-    if (recv.skipNode) skippedNodes.add(recv.skipNode);
     const { optionalRoot, rootRaw, deoptPositions, rootNode } = resolveOptionalRoot(node, parent, isCall, metaPath?.scope);
+    const rootIsReceiver = rootNode === node.object;
+    const optionalRootCapturesIntoRef = optionalRoot && !isBareIdentifier(optionalRoot);
+    const isProxyGlobalLeaf = recv.skipNode?.type === 'Identifier'
+      && POSSIBLE_GLOBAL_OBJECTS.has(recv.skipNode.name);
+    // proxy-global leaf in chain-receiver path with non-bare-Identifier optionalRoot: leave
+    // the Identifier visitor live so its `globalThis?` -> `_globalThis` substitution composes
+    // into the outer guard's rootRaw slot. resolver's POSSIBLE_GLOBAL_OBJECTS gate skips the
+    // per-member fallback path for proxy globals (Promise/Map go through that path instead),
+    // so without this leg the guard emits raw `globalThis?.foo` and IE11 ReferenceErrors on
+    // the implicit lookup. all OTHER paths (non-proxy leaf, non-optional outer, bare-Identifier
+    // optionalRoot) keep the skip - outer's body / guard already carries the substituted form
+    // via chain.src and compose substring-matching would poison it (e.g. needle `globalThis`
+    // substring-matches inside `_globalThis` -> `__globalThis` corruption)
+    const composeSafeForInnerLeaf = optionalRootCapturesIntoRef && rootIsReceiver;
+    if (recv.skipNode && !(isProxyGlobalLeaf && composeSafeForInnerLeaf)) {
+      skippedNodes.add(recv.skipNode);
+    }
     let reusedOuterRef = null;
-    if (!optionalRoot && rootNode && node.object === rootNode) {
+    if (!optionalRoot && rootNode && rootIsReceiver) {
       const outerRef = transforms.findOuterGuardRef(rootNode);
       if (outerRef) {
         objectSrc = outerRef;
@@ -237,15 +269,18 @@ export function createPolyfillEmitter({
     const start = isCall ? parent.start : node.start;
     const end = isCall ? parent.end : node.end;
     const isNew = parent?.type === 'NewExpression';
-    const preAllocatedGuardRef = optionalRoot
-        && !/^[\p{ID_Start}$_][\p{ID_Continue}$]*$/u.test(optionalRoot)
-        ? scopeTracker.genRef() : null;
+    const preAllocatedGuardRef = optionalRootCapturesIntoRef ? scopeTracker.genRef() : null;
 
     const built = buildReplacement(binding, objectSrc, {
       isCall: replacementIsCall, isNew, isNonIdent, optionalRoot, rootRaw, deoptPositions,
       optionalCall: isCall && parent.optional, args: argsSrc,
       objectStart: node.object.start,
       preAllocatedGuardRef, sideEffects,
+      substituted: recv.substituted,
+      // rootRaw spans the entire receiver iff `node` is itself optional (then findChainRoot
+      // returns rootNode === node.object); guard text must come from the substituted bodyObj
+      // in that case (see buildReplacement comment)
+      rootIsReceiver,
     });
     let { replacement } = built;
     const { split } = built;
@@ -269,7 +304,11 @@ export function createPolyfillEmitter({
       transforms.add(start, end, replacement, optionalRoot ? rootNode : null, hint);
     }
     if (isCall) skippedNodes.add(parent);
-    skipProxyGlobal(node);
+    // proxy-global leaves in chain-receiver path stay live - their identifier visitor
+    // emits the substitution that compose folds into outer's rootRaw/guard slot. for
+    // non-chain paths the chain.src embed already carries the substituted form so the
+    // identifier visit would only queue a needle compose drops, but harmless to allow
+    if (!recv.substituted) skipProxyGlobal(node);
   }
 
   function handleSymbolIterator(meta, node, parent, metaPath) {
