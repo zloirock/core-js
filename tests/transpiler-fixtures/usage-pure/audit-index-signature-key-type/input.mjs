@@ -1,7 +1,6 @@
-// mixed `[k:number]:A; [k:string]:B` index signatures - lookup must dispatch by key type:
-// numeric key -> number signature, string key -> string signature. previously first-match
-// won regardless of key, and silently dropped both candidates when neither matched the
-// receiver type
+// mixed `[k:number]:A; [k:string]:B` index signatures - lookup dispatches by key type:
+// numeric key -> number signature, string key -> string signature. each access resolves
+// to the matching signature so the polyfill choice tracks the actual element type
 interface M {
   [k: number]: number;
   [k: string]: number[];
