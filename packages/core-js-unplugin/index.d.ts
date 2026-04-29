@@ -1,8 +1,15 @@
+import type compat from "@core-js/compat/compat";
+
+type CompatOptions = Exclude<Parameters<typeof compat>[0], undefined>;
+
 type Method = 'entry-global' | 'usage-global' | 'usage-pure';
 
 type Mode = 'es' | 'stable' | 'actual' | 'full';
 
-type Targets = string | string[] | Record<string, string | number | boolean | string[]>;
+// rich Targets re-exported from `@core-js/compat/compat` - same shape as babel-plugin's
+// `Pick<CompatOptions, "targets">`. preserves per-engine literal keys (chrome / firefox /
+// node / ...), `esmodules: true | 'intersect'`, and `browsers: BrowserslistQuery` form
+type Targets = CompatOptions["targets"];
 
 interface BaseOptions {
   /** used `core-js` version, by default 'node_modules' (auto-detected from installed core-js). When specified explicitly, the minor component is required, e.g. '4.1' */
