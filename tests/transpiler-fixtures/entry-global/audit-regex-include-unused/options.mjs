@@ -1,5 +1,5 @@
-// RegExp include that doesn't match any polyfill - `isModulePattern(RegExp)` is true so
-// this is treated as module pattern; when no polyfill matches, an error is surfaced
+// RegExp `include` is treated as a module-name pattern. If it matches nothing, the
+// plugin surfaces an error.
 export default {
   plugins: [
     ['@core-js', {

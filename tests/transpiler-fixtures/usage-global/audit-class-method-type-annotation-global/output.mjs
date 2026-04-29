@@ -15,10 +15,8 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// TS type annotations inside class method signatures (`m(x: Map): Set {}`) on babel are
-// represented as class method nodes - distinct from a function expression. visitor entry was
-// missing, so annotation globals (Map, Set) were not reported. parity with unplugin's ESTree
-// class method wrapping a function expression (which the function visitor already covers)
+// TS type annotations on class-method signatures (`m(x: Map): Set`) must be scanned for
+// global references, on a par with annotations on plain function expressions.
 class Foo {
   m(x: Map<string, number>): Set<string> {
     return new Set();
