@@ -44,6 +44,20 @@ export default function createDestructureEmitter({
 }) {
   // original body index of each declaration, before insertBefore shifts it
   const originalDeclKeys = new WeakMap();
+  // per-host bookkeeping for AssignmentExpression cascade emission: chains `insertAfter`
+  // on previous polyfill-assignment (preserves declaration order; bare host.insertAfter on
+  // every visit would stack subsequent insertions in REVERSE at parent.body[idx+1]) and
+  // appends `_unused*` declarators to a shared `var _unused, _unused2;` (single combined
+  // statement, not split per visitor). matches unplugin's single-pass emission shape
+  const assignHostBookkeeping = new WeakMap();
+  function getAssignHostBookkeeping(assignNode) {
+    let bk = assignHostBookkeeping.get(assignNode);
+    if (!bk) {
+      bk = { lastSibling: null, unusedVarDecl: null };
+      assignHostBookkeeping.set(assignNode, bk);
+    }
+    return bk;
+  }
   // side-effect expressions from destructuring inits - drained at programExit
   // (re-traverse for nested polyfill detection then splice into the body in source order)
   const deferredSideEffects = [];
@@ -159,18 +173,39 @@ export default function createDestructureEmitter({
     if (prefix.length) hostPath.insertBefore(buildSEPrefixStatement(prefix));
   }
 
-  // `({Array: {from}} = receiver); ...` (AssignmentExpression in ExpressionStatement) -
-  // value of AssignmentExpression is discarded by the surrounding statement, so we can
-  // replace the whole statement with `from = _Array$from`. matches VariableDeclarator's
-  // "polyfill always wins" semantics. SE prefix in receiver lifts as separate statement
-  function flattenAssignmentExpressionDestructure(assignPath, valueNode, entry, hintName) {
-    const exprStmt = assignPath.parentPath;
-    const id = injectPureImport(entry, hintName);
-    liftSEPrefix(assignPath.node.right, exprStmt);
-    // skip the destructure subtree so queued visitors short-circuit on its descendants
-    t.traverseFast(assignPath.node, node => { skippedNodes.add(node); });
-    exprStmt.replaceWith(buildPolyfillAssignmentStatement(valueNode, id));
-    return true;
+  // AssignmentExpression-specific SE lift: peels SE prefix into a standalone statement AND
+  // collapses the assignment's right-hand side to the bare tail (`(se(), G)` -> `se(); ... = G`).
+  // VariableDeclarator path uses plain `liftSEPrefix` because its declarator is replaced
+  // entirely; AssignmentExpression keeps the host so we mutate `.right` in place
+  function liftSEPrefixSwapRight(assignNode, exprStmt) {
+    const { prefix, tail } = peelNestedSequenceExpressions(assignNode.right);
+    if (!prefix.length) return;
+    exprStmt.insertBefore(buildSEPrefixStatement(prefix));
+    assignNode.right = tail;
+  }
+
+  // hoist `_unused` sentinel names into a shared `var _unused, _unused2;` declaration ahead
+  // of the destructure host. first call creates the declaration via `insertBefore`, subsequent
+  // calls APPEND to the same VariableDeclaration node (single combined statement, not split).
+  // matches unplugin's single `var ...;` segment in `cascadeAssignmentExpression`
+  function appendUnusedVarDeclarators(bk, exprStmt, names) {
+    if (!names.length) return;
+    if (!bk.unusedVarDecl) {
+      const [path] = exprStmt.insertBefore(t.variableDeclaration('var', []));
+      bk.unusedVarDecl = path.node;
+    }
+    for (const name of names) {
+      bk.unusedVarDecl.declarations.push(t.variableDeclarator(t.identifier(name)));
+    }
+  }
+
+  // chain `insertAfter` on the previous polyfill-assignment (or on the host on first call)
+  // so per-visitor emissions land in declaration order. plain `host.insertAfter` on every
+  // visit lands at parent.body[idx+1] and stacks subsequent insertions in REVERSE
+  function appendPolyfillAssignment(bk, exprStmt, stmt) {
+    const anchor = bk.lastSibling ?? exprStmt;
+    const [path] = anchor.insertAfter(stmt);
+    bk.lastSibling = path;
   }
 
   // walk chain inner-to-outer applying the rest-aware cascade:
@@ -197,14 +232,18 @@ export default function createDestructureEmitter({
     return unusedIds;
   }
 
-  // `({Array: {from}, ...rest} = receiver); ...` with sibling RestElement - whole-statement
-  // replacement would drop `rest`. cascade-rewrite parallel to the VariableDeclarator path:
-  // mutate the destructure pattern in-place so polyfilled key is consumed by `_unused`,
-  // emit polyfill assignment as a separate statement after; hoist `var _unused` declarations
-  // because AssignmentExpression LHS slots must be pre-declared (strict-mode otherwise throws).
-  // preserves "polyfill always wins" - the destructure discards the receiver's `Array.from`
-  // value into `_unused`, then `from = _polyfill` overrides whatever native (potentially
-  // buggy) value would have leaked through inline-default fallback
+  // `({Array: {from}, ...} = receiver);` (AssignmentExpression in ExpressionStatement) -
+  // unified cascade-rewrite for ALL chain shapes (rest sibling / multi-prop / single-prop):
+  // mutate the destructure pattern in-place so each polyfilled key is consumed (replaced with
+  // `_unused` sentinel when rest sibling preserves exclusion, otherwise prop removed entirely
+  // and cascade continues outer when pattern empties); hoist a shared `var _unused, _unused2;`
+  // before the host (LHS slots must be pre-declared; strict-mode otherwise throws); chain
+  // each visitor's `name = _polyfill;` after the previous sibling polyfill in declaration
+  // order. when the outermost pattern fully empties (all props polyfilled, no rest), the
+  // surviving `({} = receiver)` is dead code - last visitor removes the host. preserves
+  // "polyfill always wins" - destructure discards the receiver's `Array.from` value into
+  // `_unused`, then `from = _polyfill` overrides whatever native (potentially buggy) value
+  // would have leaked through inline-default fallback
   function cascadeAssignmentExpressionDestructure(assignPath, valueNode, prop, chain, entry, hintName) {
     const exprStmt = assignPath.parentPath;
     const id = injectPureImport(entry, hintName);
@@ -212,23 +251,17 @@ export default function createDestructureEmitter({
     // a removed-from-parent node. receiver tail stays visible so its proxy-global Identifier
     // (`globalThis`) can substitute via the normal visitor pass
     t.traverseFast(prop.node, node => { skippedNodes.add(node); });
-    // lift SE prefix from the receiver: `(se(), G)` -> separate `se();` statement before
-    // the destructure + receiver collapses to bare `G`. matches unplugin's
-    // `cascadeAssignmentExpression` (which routes through `rewriteDeclarator`'s SE peel)
-    // and avoids a second eval pass when downstream emit reads the receiver tail
-    const { prefix: seExprs, tail } = peelNestedSequenceExpressions(assignPath.node.right);
-    if (seExprs.length) {
-      exprStmt.insertBefore(buildSEPrefixStatement(seExprs));
-      assignPath.node.right = tail;
-    }
-    const unusedIds = applyRestAwareCascade(chain);
-    if (unusedIds.length) {
-      exprStmt.insertBefore(t.variableDeclaration(
-        'var',
-        unusedIds.map(name => t.variableDeclarator(t.identifier(name))),
-      ));
-    }
-    exprStmt.insertAfter(buildPolyfillAssignmentStatement(valueNode, id));
+    liftSEPrefixSwapRight(assignPath.node, exprStmt);
+    const bk = getAssignHostBookkeeping(assignPath.node);
+    appendUnusedVarDeclarators(bk, exprStmt, applyRestAwareCascade(chain));
+    appendPolyfillAssignment(bk, exprStmt, buildPolyfillAssignmentStatement(valueNode, id));
+    // outer pattern fully emptied (every prop in the host destructure was polyfillable, no
+    // rest siblings): the surviving `({} = receiver)` is dead code. SE prefix already lifted
+    // above, bare receiver has no observable effect. remove the host. only the visitor that
+    // empties the outermost pattern reaches this point - earlier siblings break out of the
+    // cascade with non-empty outer
+    const outerPattern = chain[chain.length - 1].pattern;
+    if (outerPattern.node?.properties?.length === 0) exprStmt.remove();
     return true;
   }
 
@@ -255,20 +288,19 @@ export default function createDestructureEmitter({
       chain.push({ prop: currentProp, pattern });
       const parent = pattern.parentPath;
       if (parent?.isVariableDeclarator()) break;
-      // AssignmentExpression in ExpressionStatement context - the AssignmentExpression's
-      // value is discarded, so replacing the whole statement with `from = _polyfill` is
-      // semantically equivalent to "extract `from` via destructure, override with polyfill".
-      // when chain has a sibling RestElement, fall back to the cascade variant which
-      // mutates the destructure pattern in place (rest preserved + polyfill always wins)
+      // AssignmentExpression in ExpressionStatement context: cascade-rewrite for ALL chain
+      // shapes. previously a simple-flatten short-cut full-replaced the statement when no
+      // rest sibling was present, but per-prop visitor invocations on multi-prop hosts
+      // (`({Array: {from}, Object: {fromEntries}} = globalThis)`) sealed the WHOLE LHS in
+      // skippedNodes after the first prop's emit, silently dropping `fromEntries` polyfill.
+      // unified cascade walks each prop's chain inner-to-outer independently, dispatching
+      // to `_unused` sentinel emission when any rest sibling is present (rest exclusion
+      // preserved) or plain remove otherwise; emits `name = _polyfill;` after the host;
+      // when the cascade fully empties the outermost pattern, the empty `({} = receiver)`
+      // host is removed (last visitor in declaration order does this)
       if (parent?.isAssignmentExpression() && parent.node.left === pattern.node
           && parent.parentPath?.isExpressionStatement()) {
-        const hasRestSibling = chain.some(
-          ({ prop: p, pattern: pat }) => hasRestSiblingExcept(pat.node.properties, p.node),
-        );
-        if (hasRestSibling) {
-          return cascadeAssignmentExpressionDestructure(parent, valueNode, prop, chain, entry, hintName);
-        }
-        return flattenAssignmentExpressionDestructure(parent, valueNode, entry, hintName);
+        return cascadeAssignmentExpressionDestructure(parent, valueNode, prop, chain, entry, hintName);
       }
       if (!t.isObjectProperty(parent?.node)) return false;
       currentProp = parent;
