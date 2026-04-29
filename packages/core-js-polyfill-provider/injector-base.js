@@ -1,5 +1,5 @@
+import { entryToGlobalHint } from './index.js';
 import { findUniqueName } from './helpers/pattern-matching.js';
-import { kebabToPascal } from './helpers/ast-patterns.js';
 
 // post-pass orphan-adoption gate. matches `_ref`, `_ref2..9`, `_ref10+` - the names
 // `generateRefName` actually emits (skip-1 per babel convention). user-written
@@ -10,21 +10,10 @@ import { kebabToPascal } from './helpers/ast-patterns.js';
 // the pattern. `.test()` users ignore the group; both share one regex
 export const ORPHAN_REF_PATTERN = /^_ref(?<suffix>[2-9]|[1-9]\d+)?$/;
 
-// bare-class and `/constructor` entries PascalCase the first segment to the global name.
-// method / instance / helper entries (`promise/try`, `array/from`, `array/instance/at`, ...)
-// return null: the user's binding is the function, not the class, so mapping to a global
-// would make `super.X` on `class extends MyMethod` get polyfilled as if MyMethod were the
-// class - silently "fixing" broken user code the plugin has no business touching.
-// numeric-leading segments (`42`) can't be real global identifiers; bail early so downstream
-// consumers don't carry a junk hint that only gets filtered at lookup time
-export const entryToGlobalHint = entry => {
-  if (!entry) return null;
-  const [head, ...rest] = entry.split('/');
-  if (rest.length && rest.at(-1) !== 'constructor') return null;
-  const hint = kebabToPascal(head);
-  if (!hint || hint[0] < 'A' || hint[0] > 'Z') return null;
-  return hint;
-};
+// `entryToGlobalHint` lives in `./index.js` next to `entryHintIndex` (the data driving
+// it); re-exported here so existing consumers (`tests/unplugin/unit.mjs`) keep their
+// `injector-base` import path. binding-name -> global hint is the only consumer
+export { entryToGlobalHint };
 
 // returns the next suffix to seed `#nextSuffixByPrefix` after `findUniqueName` produced
 // `name`. bare prefix -> reserve slot 2 (babel skip-1); numeric tail -> advance by 1.
