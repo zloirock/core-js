@@ -468,7 +468,6 @@ export default function createPlugin(options) {
         transforms,
       });
       const {
-        afterOptional,
         handleInExpression,
         handleSymbolIterator,
         nodeSrc,
@@ -558,9 +557,13 @@ export default function createPlugin(options) {
         if (fallback && node.type === 'MemberExpression' && node.object?.type !== 'Super') {
           skipProxyGlobal(node);
           const binding = injectPureImport(fallback.entry, fallback.hintName);
-          // deoptionalize: globalThis?.foo -> _globalThis.foo (polyfill import is always defined)
-          const end = node.optional ? afterOptional(node.object.end, !node.computed) : node.object.end;
-          transforms.add(node.object.start, end, binding);
+          // fallback fires for non-proxy-global polyfilled idents (`Promise?.foo`, `Map?.x`);
+          // proxy-global resolver gate excludes them from this branch. preserve user's `?.`
+          // even though `_Promise` is always defined post-import - parity with babel-plugin's
+          // emit (`_Promise?.foo` rather than `_Promise.foo`) keeps the user-written deopt
+          // shape intact. proxy-global path (replaceGlobalOrStatic) does strip `?.` since the
+          // polyfill renames the proxy itself, the user-visible chain has no surface there
+          transforms.add(node.object.start, node.object.end, binding);
           return;
         }
         // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
@@ -586,9 +589,14 @@ export default function createPlugin(options) {
         if (kind === 'instance' && node.type === 'MemberExpression' && inheritedStatic) return;
         const binding = injectPureImport(importEntry, hintName);
 
-        // mark proxy global (globalThis, self, etc.) as skipped to prevent
-        // the Identifier visitor from adding an unused import
-        if (node.type === 'MemberExpression') skipProxyGlobal(node);
+        // proxy-global suppression is dispatch-conditional. instance dispatch leaves the
+        // receiver Identifier live so its substitution composes into the outer guard's
+        // rootRaw slot (`_globalThis.foo` instead of `globalThis?.foo` in the memo'd guard).
+        // static dispatch already swallows the receiver in its own emit, so suppress the
+        // parallel identifier transform (its needle wouldn't compose anyway and the
+        // injected import would be filtered as dead by reference tracking, but skipping
+        // saves a wasted transform allocation)
+        if (node.type === 'MemberExpression' && kind !== 'instance') skipProxyGlobal(node);
 
         if (kind === 'instance' && node.type === 'MemberExpression') {
           replaceInstance(binding, node, parent, metaPath, meta.sideEffects);
