@@ -1,9 +1,9 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// cyclic interface extends: `A extends B; B extends A`. without a visited Set in
-// `getTypeMembers`'s interface branch, MAX_DEPTH bottoms out via 64-frame CPU-burn for
-// every member access. visited Set short-circuits at the second visit; the lookup
-// returns null so `.at` falls back to generic resolution (no array-typed polyfill)
+// cyclic interface extends: `A extends B; B extends A`. The interface-member lookup
+// must short-circuit on revisit, otherwise the cycle exhausts the recursion-depth limit
+// for every member access (64 frames of CPU work per call). With cycle detection the
+// lookup terminates and returns null, so `.at` falls back to generic resolution
 interface A extends B {
   foo: number[];
 }

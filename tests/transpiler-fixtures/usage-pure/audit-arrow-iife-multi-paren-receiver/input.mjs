@@ -1,4 +1,4 @@
-// arrow IIFE wrapped in multiple parens: every ParenthesizedExpression layer must be
-// peeled to reach the CallExpression, otherwise the rewrite falls back to inline-default
-// emission and the receiver `Array` stays unpolyfilled at runtime
+// arrow IIFE wrapped in multiple parens: every paren wrapper layer must be peeled to
+// reach the call expression, otherwise the rewrite falls back to a destructure-default
+// shape and the receiver `Array` stays unpolyfilled at runtime
 (((({ from }) => from(1))))(Array);

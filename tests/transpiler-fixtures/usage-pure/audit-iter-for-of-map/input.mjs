@@ -1,3 +1,4 @@
-// `for (const e of map)`: the iteration protocol on `Map.prototype` must be polyfilled
-// so the for-of loop has a working iterator.
+// non-emission lock: `for (const e of map)` stays raw in pure mode; iterator-instance
+// dispatch on `Map.prototype` requires an `Iterator.from` anchor and is intentionally
+// not auto-emitted.
 for (const x of new Map()) {}

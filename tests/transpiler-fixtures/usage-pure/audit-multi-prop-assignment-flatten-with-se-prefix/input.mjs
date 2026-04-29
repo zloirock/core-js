@@ -1,5 +1,5 @@
-// destructure assignment с side-effect-bearing receiver и двумя полифилл-eligible outer
-// props без rest spread. side-effect лифтится как отдельный statement до полифилл-assigns;
-// пустая destructure удаляется (без consumers)
+// destructure assignment with a side-effect-bearing receiver and two polyfill-eligible
+// outer props without rest spread. the side effect lifts as a standalone statement before
+// the polyfill assigns; the empty destructure is removed (no consumers left)
 let from, fromEntries;
 ({ Array: { from }, Object: { fromEntries } } = (sideEffect(), globalThis));

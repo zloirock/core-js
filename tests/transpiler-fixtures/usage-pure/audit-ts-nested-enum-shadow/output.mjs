@@ -1,7 +1,7 @@
 // nested `enum X {}` and `namespace X {}` declarations shadow globals from inside the
-// enclosing function / namespace body, but neither babel scope nor estree-toolkit register
-// them as bindings. the path-based body scan walks function/block/TSModuleBlock anchors
-// upward to detect the shadow before polyfill emission
+// enclosing function / namespace body, but TS-only declarations are not registered as
+// bindings by the standard scope analyses. A separate body scan walks function/block/
+// namespace anchors upward to detect the shadow before polyfill emission
 export function viaFunction() {
   enum Map {
     A = 1,

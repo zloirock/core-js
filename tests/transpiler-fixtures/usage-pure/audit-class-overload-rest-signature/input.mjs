@@ -1,8 +1,8 @@
 // regular class with overload signatures - the type-only signatures are also
-// TSEmptyBodyFunctionExpression on MethodDefinition.value, separate from the
-// implementation. The rest-param sigs would crash the scope crawler without
-// neutralization. The implementation body is left untouched. Unrelated polyfill
-// below confirms the transform completes
+// overload signatures on a class method value slot, separate from the implementation. The
+// rest-param sigs are neutralised so the scope crawler walks type-only function shapes
+// safely. The implementation body is left untouched. Unrelated polyfill below confirms
+// the transform completes
 class C {
   m(...args: string[]): string;
   m(...args: number[]): number;
