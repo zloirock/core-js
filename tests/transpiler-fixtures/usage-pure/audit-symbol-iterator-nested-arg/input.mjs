@@ -1,3 +1,3 @@
-// computed [Symbol.iterator]() emits a CallExpression polyfill whose range nests inside
-// Array.from's arglist - compose loop substitutes the inner get-iterator into outer's content
+// nested `[Symbol.iterator]()` call inside `Array.from(...)`: the iterator
+// access and the outer `Array.from` must be polyfilled independently.
 Array.from(obj[Symbol.iterator]());
