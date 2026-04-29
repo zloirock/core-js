@@ -1,6 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 (function ({
-  from = _Array$from
+  from
 }) {
   return from;
-})(...[Array]);
+})(...[{
+  from: _Array$from
+}]);
