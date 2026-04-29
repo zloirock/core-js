@@ -1,0 +1,35 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "ie": "11"
+}
+
+Using polyfills with `usage-global` method:
+The core-js@4 polyfill added the following polyfills:
+  es.object.to-string { "ie":"11" }
+  es.promise.constructor { "ie":"11" }
+  es.promise.catch { "ie":"11" }
+  es.promise.finally { "ie":"11" }
+  es.promise.reject { "ie":"11" }
+  es.promise.resolve { "ie":"11" }
+  es.array.iterator { "ie":"11" }
+  es.iterator.constructor { "ie":"11" }
+  es.iterator.dispose { "ie":"11" }
+  es.iterator.drop { "ie":"11" }
+  es.iterator.every { "ie":"11" }
+  es.iterator.filter { "ie":"11" }
+  es.iterator.find { "ie":"11" }
+  es.iterator.flat-map { "ie":"11" }
+  es.iterator.for-each { "ie":"11" }
+  es.iterator.map { "ie":"11" }
+  es.iterator.reduce { "ie":"11" }
+  es.iterator.some { "ie":"11" }
+  es.iterator.take { "ie":"11" }
+  es.iterator.to-array { "ie":"11" }
+  esnext.iterator.chunks { "ie":"11" }
+  esnext.iterator.includes { "ie":"11" }
+  esnext.iterator.join { "ie":"11" }
+  esnext.iterator.to-async { "ie":"11" }
+  esnext.iterator.windows { "ie":"11" }
+  esnext.iterator.zip { "ie":"11" }
+  web.dom-collections.iterator { "ie":"11" }

@@ -1,0 +1,56 @@
+{
+  "name": "@core-js/polyfill-provider",
+  "version": "4.0.0-alpha.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "description": "core-js polyfill provider - shared logic for polyfill injection plugins",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zloirock/core-js.git",
+    "directory": "packages/core-js-polyfill-provider"
+  },
+  "homepage": "https://core-js.io",
+  "bugs": {
+    "url": "https://github.com/zloirock/core-js/issues"
+  },
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/core-js"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "author": {
+    "name": "Denis Pushkarev",
+    "email": "zloirock@zloirock.ru",
+    "url": "http://zloirock.ru"
+  },
+  "sideEffects": false,
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./index.js": "./index.js",
+    "./resolve-node-type": "./resolve-node-type.js",
+    "./resolve-node-type.js": "./resolve-node-type.js",
+    "./plugin-options/*": "./plugin-options/*.js",
+    "./plugin-options/*.js": "./plugin-options/*.js",
+    "./detect-usage/*": "./detect-usage/*.js",
+    "./detect-usage/*.js": "./detect-usage/*.js",
+    "./detect-syntax": "./detect-syntax.js",
+    "./detect-syntax.js": "./detect-syntax.js",
+    "./destructure-host-shape": "./destructure-host-shape.js",
+    "./destructure-host-shape.js": "./destructure-host-shape.js",
+    "./helpers/*": "./helpers/*.js",
+    "./helpers/*.js": "./helpers/*.js",
+    "./injector-base": "./injector-base.js",
+    "./injector-base.js": "./injector-base.js",
+    "./resolver": "./resolver.js",
+    "./resolver.js": "./resolver.js"
+  },
+  "dependencies": {
+    "@core-js/compat": "4.0.0-alpha.1"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

@@ -72,6 +72,7 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
         if (res.done) return res.value;
       }
 
+      // @dependency: es.regexp.species
       var C = speciesConstructor(rx, RegExp);
       var flags = toString(getRegExpFlags(rx));
       var unicodeMatching = !!~stringIndexOf(flags, 'u') || !!~stringIndexOf(flags, 'v');
@@ -108,6 +109,6 @@ fixRegExpWellKnownSymbolLogic('split', function (SPLIT, nativeSplit, maybeCallNa
       }
       push(A, stringSlice(S, p));
       return A;
-    }
+    },
   ];
 }, BUGGY || !SPLIT_WORKS_WITH_OVERWRITTEN_EXEC, UNSUPPORTED_Y);

@@ -1,7 +1,9 @@
-'use strict';
-const browserslist = require('browserslist');
-const { compare, has } = require('./helpers');
-const external = require('./external');
+import browserslist from 'browserslist';
+import { compare } from './helpers.js';
+import external from './external.json' with { type: 'json' };
+
+const { entries, hasOwn } = Object;
+const { isArray } = Array;
 
 const aliases = new Map([
   ['and_chr', 'chrome-android'],
@@ -10,7 +12,6 @@ const aliases = new Map([
   ['ios_saf', 'ios'],
   ['oculus', 'quest'],
   ['op_mob', 'opera-android'],
-  // TODO: Remove from `core-js@4`
   ['opera_mobile', 'opera-android'],
   ['react', 'react-native'],
   ['reactnative', 'react-native'],
@@ -32,7 +33,6 @@ const validTargets = new Set([
   'node',
   'opera',
   'opera-android',
-  'phantom',
   'quest',
   'react-native',
   'rhino',
@@ -41,49 +41,68 @@ const validTargets = new Set([
 ]);
 
 const toLowerKeys = function (object) {
-  return Object.entries(object).reduce((accumulator, [key, value]) => {
+  return entries(object).reduce((accumulator, [key, value]) => {
     accumulator[key.toLowerCase()] = value;
     return accumulator;
   }, {});
 };
 
-module.exports = function (targets) {
-  const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || Array.isArray(targets))
-    ? { browsers: targets } : toLowerKeys(targets);
+// sentinel for "latest version" - higher than any real engine version, so no polyfills are injected
+const LATEST_SENTINEL = '999999';
+// non-numeric per-engine values that mean "latest" (e.g., Safari Technology Preview, generic latest)
+const LATEST_KEYWORDS = new Set(['tp', 'latest']);
 
-  const list = Object.entries(rest);
+function normalizeVersion(engine, version) {
+  const str = String(version);
+  if (LATEST_KEYWORDS.has(str.toLowerCase())) return LATEST_SENTINEL;
+  if (!/^\d/.test(str)) {
+    throw new RangeError(
+      `Invalid version "${ str }" for "${ engine }": expected a numeric version. `
+      + 'Use a browserslist query string (e.g., "last 2 safari versions") for non-numeric values.',
+    );
+  }
+  return str;
+}
+
+export default function (targets) {
+  if (typeof targets != 'object' || isArray(targets)) targets = { browsers: targets };
+  const { configPath, ignoreBrowserslistConfig, browserslistEnv, ...targetsWithoutConfig } = targets;
+  const { browsers, esmodules, node, ...rest } = toLowerKeys(targetsWithoutConfig);
+
+  const list = entries(rest);
 
   const normalizedESModules = esmodules === 'intersect' ? 'intersect' : !!esmodules;
 
   if (browsers && normalizedESModules !== true) {
-    if (typeof browsers == 'string' || Array.isArray(browsers)) {
-      list.push(...browserslist(browsers).map(it => it.split(' ')));
+    if (typeof browsers == 'string' || isArray(browsers)) {
+      list.push(...browserslist(browsers, { env: browserslistEnv }).map(it => it.split(' ')));
     } else {
-      list.push(...Object.entries(browsers));
+      list.push(...entries(browsers));
+    }
+  } else if (!list.length && !node && !normalizedESModules && !ignoreBrowserslistConfig) {
+    // No explicit targets - use project browserslist config if present (not defaults)
+    const path = configPath || '.';
+    if (browserslist.findConfig(path)) {
+      list.push(...browserslist(undefined, { path, env: browserslistEnv }).map(it => it.split(' ')));
     }
   }
 
   if (normalizedESModules === true) {
-    list.push(...Object.entries(external.modules));
+    list.push(...entries(external.modules));
   }
 
   if (node) {
     list.push(['node', node === 'current' ? process.versions.node : node]);
   }
 
+  // resolve aliases -> drop untracked engines -> normalize versions
   const normalized = list.map(([engine, version]) => {
-    if (has(browserslist.aliases, engine)) {
-      engine = browserslist.aliases[engine];
-    }
-    if (aliases.has(engine)) {
-      engine = aliases.get(engine);
-    }
-    return [engine, String(version)];
-  }).filter(([engine]) => {
-    return validTargets.has(engine);
-  }).sort(([a], [b]) => {
-    return a < b ? -1 : a > b ? 1 : 0;
-  });
+    if (hasOwn(browserslist.aliases, engine)) engine = browserslist.aliases[engine];
+    if (aliases.has(engine)) engine = aliases.get(engine);
+    return [engine, version];
+  }).filter(([engine]) => validTargets.has(engine))
+    .map(([engine, version]) => [engine, normalizeVersion(engine, version)])
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
 
   const reduced = new Map();
 
@@ -96,7 +115,7 @@ module.exports = function (targets) {
   if (normalizedESModules === 'intersect') {
     const modulesData = external.modules;
     for (const [engine, version] of reduced) {
-      if (has(modulesData, engine)) {
+      if (hasOwn(modulesData, engine)) {
         if (compare(modulesData[engine], '>', version)) {
           reduced.set(engine, modulesData[engine]);
         }
@@ -107,4 +126,4 @@ module.exports = function (targets) {
   }
 
   return reduced;
-};
+}

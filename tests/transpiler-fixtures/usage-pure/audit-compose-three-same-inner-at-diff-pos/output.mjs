@@ -1,0 +1,5 @@
+import _includes from "@core-js/pure/actual/instance/includes";
+import _at from "@core-js/pure/actual/instance/at";
+// three identical inner-rewrite sites at different positions: each occurrence must be
+// replaced independently with the right alias.
+_includes(obj).call(obj, _at(a).call(a, 0), _at(b).call(b, 0), _at(c).call(c, 0));

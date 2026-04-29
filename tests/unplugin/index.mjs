@@ -1,0 +1,404 @@
+import { parseSync } from 'oxc-parser';
+import { TraceMap, originalPositionFor } from '@jridgewell/trace-mapping';
+import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+
+const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
+const { join } = path;
+const { cyan, green, red, yellow } = chalk;
+
+const { OVERWRITE } = process.env;
+const UTF8 = { encoding: 'utf8' };
+const ROOT = path.resolve('../..').replaceAll('\\', '/');
+const fixturesDir = path.resolve('../transpiler-fixtures');
+
+// eslint-disable-next-line promise/prefer-await-to-then -- ok
+const exists = file => fs.access(file).then(() => true, () => false);
+
+const counts = { passed: 0, failed: 0, skipped: 0 };
+
+function normalize(code) {
+  return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>').trim();
+}
+
+// collapse cosmetic whitespace outside string literals for formatting-insensitive comparison.
+// spaces between identifier-like tokens (keywords, names) are preserved to catch
+// broken codegen like `constfrom` instead of `const from`. line/block comments are
+// consumed whole (dropped from output) so apostrophes inside comments don't get mistaken
+// for string delimiters and swallow the rest of the file
+function collapseWhitespace(code) {
+  let result = '';
+  for (let i = 0; i < code.length; i++) {
+    const ch = code[i];
+    if (ch === '/' && code[i + 1] === '/') {
+      // ECMA-262 LineTerminator: LF / CR / U+2028 / U+2029
+      while (i < code.length && code[i] !== '\n' && code[i] !== '\r'
+        && code[i] !== '\u2028' && code[i] !== '\u2029') i++;
+      continue;
+    }
+    if (ch === '/' && code[i + 1] === '*') {
+      i += 2;
+      while (i + 1 < code.length && !(code[i] === '*' && code[i + 1] === '/')) i++;
+      i++; // land on final `/` — outer i++ advances past
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const quote = ch;
+      result += ch;
+      for (i++; i < code.length; i++) {
+        result += code[i];
+        if (code[i] === '\\') {
+          result += code[++i] ?? '';
+          continue;
+        }
+        if (code[i] === quote) break;
+      }
+    } else if (/\s/.test(ch)) {
+      // keep a single space only when both neighbors are word characters
+      const before = result[result.length - 1];
+      // scan ahead to the next non-whitespace
+      let j = i + 1;
+      while (j < code.length && /\s/.test(code[j])) j++;
+      const after = code[j];
+      if (before && after && /[\w$]/.test(before) && /[\w$]/.test(after)) result += ' ';
+      i = j - 1;
+    } else {
+      result += ch;
+    }
+  }
+  return result.trim();
+}
+
+// strip Babel-specific boilerplate + collapse whitespace for cross-plugin comparison
+function stripBoilerplate(code) {
+  return collapseWhitespace(code.split('\n')
+    .filter(l => !/^\s*["']use strict["']/.test(l))
+    .join('\n'));
+}
+
+function extractImports(code) {
+  return code.split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+}
+
+function label(directory) {
+  return path.relative(fixturesDir, directory);
+}
+
+function pass(directory) {
+  counts.passed++;
+  echo`${ cyan(label(directory)) } ${ green('passed') }`;
+}
+
+function fail(directory, ...lines) {
+  counts.failed++;
+  echo(red(`${ cyan(label(directory)) } failed${ lines.length ? ':' : '' }`));
+  for (const line of lines) echo`  ${ line }`;
+}
+
+function firstDiff(actual, expected) {
+  const al = actual.split('\n');
+  const el = expected.split('\n');
+  for (let i = 0; i < Math.max(al.length, el.length); i++) {
+    if (al[i] !== el[i]) {
+      return `${ yellow(`line ${ i + 1 }:`) }\n    expected: ${ el[i] ?? '(missing)' }\n    actual:   ${ al[i] ?? '(missing)' }`;
+    }
+  }
+  return '';
+}
+
+function extractPluginOptions(babelOptions) {
+  for (const plugin of babelOptions.plugins || []) {
+    if (Array.isArray(plugin) && plugin[0] === '@core-js') {
+      const opts = { ...plugin[1] };
+      if (!opts.targets && babelOptions.targets) opts.targets = babelOptions.targets;
+      if (babelOptions.caller?.name === 'babel-loader') opts.bundler = 'webpack';
+      return opts;
+    }
+  }
+  return null;
+}
+
+async function loadBabelOptions(directory) {
+  for (const file of ['options.json', 'options.mjs']) {
+    const full = join(directory, file);
+    if (!await exists(full)) continue;
+    if (file.endsWith('.json')) return readJson(full, UTF8);
+    const { pathToFileURL } = await import('node:url');
+    return (await import(pathToFileURL(path.resolve(full)).href)).default;
+  }
+  return null;
+}
+
+// oxc-parser auto-enables JSX based on file extension
+function inferTestId(babelOptions) {
+  if (babelOptions.filename) return babelOptions.filename;
+  const parserPlugins = babelOptions.parserOpts?.plugins || [];
+  if (parserPlugins.includes('jsx')) return 'input.tsx';
+  return 'input.ts';
+}
+
+// max lines to probe in mappings before giving up. 200 covers typed-array bundles (30+
+// import prefix, user code after) with margin; bigger inputs would slow the test loop
+const MAPPING_PROBE_LIMIT = 200;
+
+// reject helper factory: keeps reject closure local without re-allocating per check
+function rejectMap(directory, msg) {
+  counts.failed++;
+  echo(red(`${ cyan(label(directory)) } map invalid: ${ msg }`));
+  return false;
+}
+
+// shape: fields exist with correct types. wrong-typed fields would fail later checks
+// silently (e.g. iteration over non-array `sources`); fail loud here instead
+function checkMapShape(directory, map) {
+  const reject = msg => rejectMap(directory, msg);
+  if (map.version !== 3) return reject(`version=${ map.version } (expected 3)`);
+  if (!Array.isArray(map.sources)) return reject('sources is not an array');
+  if (typeof map.mappings !== 'string') return reject('mappings is not a string');
+  if (map.sourcesContent !== undefined && !Array.isArray(map.sourcesContent)) {
+    return reject('sourcesContent is not an array');
+  }
+  if (map.names !== undefined && !Array.isArray(map.names)) return reject('names is not an array');
+  return true;
+}
+
+// content: `sources[0]` must equal the test id verbatim. MagicString's `getRelativePath`
+// collapses to basename when source/file are the same path - this check guards the shape
+// downstream bundlers actually consume. `sourcesContent[0]` (if present) must match input
+// verbatim - mismatch means MagicString lost source bytes during transform composition
+function checkMapContent(directory, map, testId, source) {
+  const reject = msg => rejectMap(directory, msg);
+  if (map.sources.length && map.sources[0] !== testId) {
+    return reject(`sources[0]=${ JSON.stringify(map.sources[0]) }, expected ${ JSON.stringify(testId) }`);
+  }
+  if (map.sourcesContent?.length && map.sourcesContent[0] !== undefined && map.sourcesContent[0] !== null
+      && map.sourcesContent[0] !== source) {
+    return reject(`sourcesContent[0] doesn't match input source (${ map.sourcesContent[0].length }b vs ${ source.length }b)`);
+  }
+  return true;
+}
+
+// VLQ decode + round-trip probe combined: TraceMap construction parses lazily, so
+// `originalPositionFor(line=1, col=0)` forces VLQ decode AND yields the first probe
+// result. surfaces malformed VLQ / all-zero mappings that TraceMap silently accepts
+// but devtools can't navigate from. probes every line up to MAPPING_PROBE_LIMIT
+function checkMapMappings(directory, map, method) {
+  if (!map.mappings || !map.sources.length) return true;
+  const reject = msg => rejectMap(directory, msg);
+  let tm;
+  try {
+    tm = new TraceMap(map);
+  } catch (error) {
+    return reject(`VLQ decode failed: ${ error.message }`);
+  }
+  // entry-global emits all-synthetic imports (no user-code mapping survives the rewrite
+  // by design); skip the round-trip probe but VLQ decode above still ran
+  if (method === 'entry-global') return true;
+  const lines = (map.mappings.match(/;/g) ?? []).length + 1;
+  const limit = Math.min(lines, MAPPING_PROBE_LIMIT);
+  for (let line = 1; line <= limit; line++) {
+    const probe = originalPositionFor(tm, { line, column: 0 });
+    if (probe.source !== undefined && probe.source !== null
+        && probe.line !== undefined && probe.line !== null) return true;
+  }
+  return reject(`no user-code mapping resolves to a valid source position (lines 1..${ limit })`);
+}
+
+// sourcemap check: shape + content + VLQ-decode + round-trip probe. empty `mappings` is
+// permitted - entry-global with exclude-all emits no transforms and the resulting blank
+// map is a legitimate pass-through. null map (no transform) trivially passes
+function checkSourceMapContent(directory, map, testId, source, method) {
+  if (!map) return true;
+  if (!checkMapShape(directory, map)) return false;
+  if (!checkMapContent(directory, map, testId, source)) return false;
+  if (!checkMapMappings(directory, map, method)) return false;
+  return true;
+}
+
+// parse-validate the transformed output - unparsable codegen (missing semi, broken ASI
+// that accidentally creates syntax errors, malformed emit) is caught here even when
+// loose-mode `compareLoose` only checks imports
+function checkOutputParses(directory, code, testId) {
+  // share the SFC lang-suffix lift with the plugin (Vue/Svelte/Astro virtual ids carry the
+  // parser-language hint in the query); without it the validator rejects TS / JSX syntax
+  // on the `.vue` / `.svelte` extension default
+  const parseId = liftSfcLangSuffix(testId, testId.split(/[#?]/, 1)[0]);
+  // eslint-disable-next-line node/no-sync -- oxc-parser only provides sync API
+  const parsed = parseSync(parseId, code, { sourceType: 'module' });
+  const errors = parsed.errors?.filter(err => err.severity === 'Error');
+  if (!errors?.length) return true;
+  counts.failed++;
+  echo(red(`${ cyan(label(directory)) } output has parse errors:`));
+  for (const err of errors.slice(0, 3)) echo(`  ${ err.message?.split('\n')[0] ?? err }`);
+  return false;
+}
+
+function captureTransform(source, pluginOptions, testId) {
+  const plugin = createPlugin(pluginOptions);
+  const logs = [];
+  const origLog = console.log;
+  console.log = (...a) => logs.push(a.map(String).join(' '));
+  try {
+    let result = plugin.transform(source, testId);
+    // TS type assertions like <Type>expr cause JSX parse errors — retry without JSX
+    // only when source actually contains `<` that could be misinterpreted
+    if (result === null && testId.endsWith('.tsx') && source.includes('<') && !source.includes('/>')) {
+      result = plugin.transform(source, testId.replace('.tsx', '.ts'));
+    }
+    return { code: result?.code ?? source, map: result?.map ?? null, logs };
+  } finally {
+    console.log = origLog;
+  }
+}
+
+const SKIP_DIRS = new Set([
+  'source-script',
+  'cjs-transform-export',
+  // babel-only: regression depends on `transform-destructuring` rewriting the param's
+  // ObjectPattern to `_ref` Identifier between core-js's pre-traversal and programExit
+  // emission. unplugin extracts only `@core-js` from `babelOptions.plugins` and runs it
+  // standalone, so the AST shape that triggered the bug never appears here
+  'audit-synth-swap-survives-transform-destructuring',
+  // babel-only: late-CJS detection diagnostic depends on a sibling babel plugin
+  // (`@babel/plugin-transform-modules-commonjs`) running after our programExit. unplugin
+  // doesn't have a babel plugin chain - it parses with oxc and runs core-js standalone,
+  // so the markersGone trigger never fires here. SKIP_DIRS matches by basename so the
+  // single entry covers both usage-pure and usage-global copies of the fixture
+  'audit-late-cjs-rewriter-warning',
+]);
+
+function shouldSkip(dirName) {
+  return SKIP_DIRS.has(dirName) || dirName.includes('-flow-') || dirName.startsWith('flow-');
+}
+
+async function runErrorFixture(directory, pluginOptions, errorFile) {
+  const expected = (await readFile(errorFile, UTF8)).trim()
+    // babel wraps `error.message` with a `<filename>: ` prefix (or `unknown file: ` when
+    // options omit the filename); earlier `[BABEL] ` is the CLI-level prefix. strip both
+    // layers so comparison matches unplugin's raw error
+    .replace(/^\[BABEL\] /, '')
+    .replace(/^[^\n:]+: /, '')
+    .replace(/\n? ?\(While processing:.*\)$/s, '')
+    .trim();
+  // use the fixture's real input so runtime-triggered errors (e.g. `shouldInjectPolyfill`
+  // throwing during usage resolution) can reach `transform` - a dummy `'x;'` misses them
+  const inputPath = join(directory, 'input.mjs');
+  const source = await exists(inputPath) ? await readFile(inputPath, UTF8) : 'x;';
+  try {
+    createPlugin(pluginOptions).transform(source, 'input.ts');
+    fail(directory, 'expected error but none thrown');
+  } catch (error) {
+    if (error.message.trim() === expected) pass(directory);
+    else fail(directory, `expected: ${ expected }`, `actual:   ${ error.message.trim() }`);
+  }
+}
+
+async function checkDebugOutput(directory, logs) {
+  const debugFile = join(directory, 'debug.txt');
+  if (!await exists(debugFile)) return true;
+  const expected = normalize(await readFile(debugFile, UTF8));
+  const actual = logs.length ? normalize(logs.join('\n')) : '';
+  if (actual === expected) return true;
+  fail(directory, `debug mismatch: ${ actual.split('\n').at(-1) || '(empty)' }`);
+  return false;
+}
+
+// full-text comparator (used when `output-unplugin.mjs` is present in any mode, or as
+// the default for usage-pure). babel and unplugin differ in codegen minutiae - both
+// sides go through `normalize` + `collapseWhitespace` so whitespace-only divergence
+// doesn't fail
+async function compareStrict(directory, actual, directFile) {
+  const expected = normalize(await readFile(directFile, UTF8));
+  if (actual === expected) pass(directory);
+  else fail(directory, firstDiff(actual, expected));
+}
+
+// imports-only comparator: default for entry-global / usage-global. body divergence
+// between babel AST codegen and unplugin text-transform is tolerated by default; opt into
+// strict tail comparison by dropping an `output-unplugin.mjs` next to `output.mjs`
+function compareLoose(directory, actual, babelOutput) {
+  const actualImports = extractImports(actual);
+  const expectedImports = extractImports(babelOutput);
+  if (actualImports === expectedImports) pass(directory);
+  else fail(directory, firstDiff(actualImports, expectedImports));
+}
+
+async function comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile) {
+  if (OVERWRITE) {
+    if (stripBoilerplate(actual) === stripBoilerplate(babelOutput)) await rm(unpluginOutputFile, { force: true });
+    else await writeFile(unpluginOutputFile, actual, UTF8);
+    return echo`${ cyan(label(directory)) } ${ yellow('written') }`;
+  }
+  if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
+  const expected = stripBoilerplate(babelOutput);
+  const comparable = stripBoilerplate(actual);
+  if (comparable === expected) pass(directory);
+  else fail(directory, firstDiff(comparable, expected));
+}
+
+async function runFixture(directory) {
+  const unpluginOutputFile = join(directory, 'output-unplugin.mjs');
+  const hasUnpluginOutput = await exists(unpluginOutputFile);
+
+  if (shouldSkip(path.basename(directory))) {
+    if (hasUnpluginOutput) return fail(directory, `stale ${ cyan('output-unplugin.mjs') } in skipped fixture`);
+    counts.skipped++;
+    return;
+  }
+
+  const babelOptions = await loadBabelOptions(directory);
+  if (!babelOptions) {
+    counts.skipped++;
+    return;
+  }
+
+  const pluginOptions = extractPluginOptions(babelOptions);
+  if (!pluginOptions) {
+    counts.skipped++;
+    return;
+  }
+
+  const errorFile = join(directory, 'error.txt');
+  if (await exists(errorFile)) return runErrorFixture(directory, pluginOptions, errorFile);
+
+  const outputFile = join(directory, 'output.mjs');
+  if (!await exists(outputFile)) {
+    counts.skipped++;
+    return;
+  }
+
+  try {
+    const testId = inferTestId(babelOptions);
+    const source = await readFile(join(directory, 'input.mjs'), UTF8);
+    const { code, map, logs } = captureTransform(source, pluginOptions, testId);
+    const actual = normalize(code);
+    const babelOutput = normalize(await readFile(outputFile, UTF8));
+
+    if (!await checkDebugOutput(directory, logs)) return;
+    if (!checkSourceMapContent(directory, map, testId, source, pluginOptions.method)) return;
+    if (!checkOutputParses(directory, code, testId)) return;
+
+    // global modes with `output-unplugin.mjs` opt into strict tail validation; usage-pure
+    // always goes through full-text compare (with its own OVERWRITE/auto-drop logic)
+    if (pluginOptions.method === 'usage-pure') {
+      await comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile);
+    } else if (hasUnpluginOutput) {
+      await compareStrict(directory, actual, unpluginOutputFile);
+    } else {
+      compareLoose(directory, actual, babelOutput);
+    }
+  } catch (error) {
+    fail(directory, error.message);
+  }
+}
+
+for (const mode of ['entry-global', 'usage-global', 'usage-pure']) {
+  for (const name of (await readdir(join(fixturesDir, mode))).sort()) {
+    const dir = join(fixturesDir, mode, name);
+    if ((await stat(dir)).isDirectory()) await runFixture(dir);
+  }
+}
+
+const { passed, failed, skipped } = counts;
+echo(`\nPassed: ${ green(passed) }, Failed: ${ failed ? red(failed) : green(failed) }, Skipped: ${ yellow(skipped) }`);
+if (failed) throw new Error('Some tests have failed');

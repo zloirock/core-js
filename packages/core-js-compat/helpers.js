@@ -1,25 +1,31 @@
-'use strict';
-// eslint-disable-next-line es/no-object-hasown -- safe
-const has = Object.hasOwn || Function.call.bind({}.hasOwnProperty);
+import { createRequire } from 'node:module';
 
-const VERSION_PATTERN = /(\d+)(?:\.(\d+))?(?:\.(\d+))?/;
+const require = createRequire(import.meta.url);
+
+const SEMVER = /(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?/;
+// eslint-disable-next-line sonarjs/slow-regex -- ok
+const SEMVER_WITH_REQUIRED_MINOR_COMPONENT = /(?<major>\d+)\.(?<minor>\d+)(?:\.(?<patch>\d+))?/;
 
 class SemVer {
-  constructor(input) {
-    const match = VERSION_PATTERN.exec(input);
-    if (!match) throw new TypeError(`Invalid version: ${ input }`);
-    const [, $major, $minor, $patch] = match;
-    this.major = +$major;
-    this.minor = $minor ? +$minor : 0;
-    this.patch = $patch ? +$patch : 0;
+  constructor(input, requiredMinorComponent) {
+    const match = (requiredMinorComponent ? SEMVER_WITH_REQUIRED_MINOR_COMPONENT : SEMVER).exec(input);
+    if (!match) {
+      let message = `Invalid version: ${ input }`;
+      if (requiredMinorComponent && SEMVER.test(input)) message += ', minor component required';
+      throw new TypeError(message);
+    }
+    const { major, minor, patch } = match.groups;
+    this.major = +major;
+    this.minor = +minor || 0;
+    this.patch = +patch || 0;
   }
   toString() {
     return `${ this.major }.${ this.minor }.${ this.patch }`;
   }
 }
 
-function semver(input) {
-  return input instanceof SemVer ? input : new SemVer(input);
+function semver(input, requiredMinorComponent) {
+  return input instanceof SemVer ? input : new SemVer(input, requiredMinorComponent);
 }
 
 function compare($a, operator, $b) {
@@ -29,6 +35,49 @@ function compare($a, operator, $b) {
     if (a[component] < b[component]) return operator === '<' || operator === '<=' || operator === '!=';
     if (a[component] > b[component]) return operator === '>' || operator === '>=' || operator === '!=';
   } return operator === '==' || operator === '<=' || operator === '>=';
+}
+
+function normalizeCoreJSVersion(raw) {
+  if (raw instanceof SemVer) return raw;
+
+  if (typeof raw != 'string') {
+    throw new TypeError('`core-js` version should be specified as a SemVer string with minor component');
+  }
+
+  let requiredMinorComponent = true;
+
+  if (raw === 'package.json') {
+    let pkg;
+    try {
+      // eslint-disable-next-line import/no-dynamic-require -- ok
+      pkg = require(`${ process.cwd() }/package.json`);
+    } catch {
+      throw new TypeError('`package.json` not found in the current working directory');
+    }
+    const { dependencies, devDependencies, peerDependencies } = pkg;
+    raw = dependencies?.['core-js'] ?? devDependencies?.['core-js'] ?? peerDependencies?.['core-js'];
+    if (raw === undefined) {
+      throw new TypeError('`core-js` is not specified in your `package.json`');
+    }
+    // semver range like `^4.1.0` - the regex extracts the base version;
+    // wildcard-only range like `*` or `x` - fall back to installed version
+    if (SEMVER.test(raw)) requiredMinorComponent = false;
+    else raw = 'node_modules';
+  }
+
+  if (raw === 'node_modules') try {
+    raw = require('core-js/package.json').version;
+  } catch {
+    throw new TypeError('`core-js` is not installed - install it or specify the version explicitly');
+  }
+
+  const version = semver(raw, requiredMinorComponent);
+
+  if (version.major !== 4) {
+    throw new RangeError('This version of `@core-js/compat` works only with `core-js@4`');
+  }
+
+  return version;
 }
 
 function filterOutStabilizedProposals(modules) {
@@ -55,11 +104,11 @@ function sortObjectByKey(object, fn) {
   }, {});
 }
 
-module.exports = {
+export {
   compare,
   filterOutStabilizedProposals,
-  has,
   intersection,
+  normalizeCoreJSVersion,
   semver,
   sortObjectByKey,
 };

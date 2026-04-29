@@ -1,0 +1,1 @@
+[BABEL] unknown file: [core-js] `ignoreBrowserslistConfig` must be a boolean, or undefined (received "no") (While processing: "<CWD>/packages/core-js-babel-plugin/index.js")

@@ -8,9 +8,12 @@ const skip = [
 
 const ignoreWords = [
   'aNumber',
+  'importEnd',
   'larg',
   'outLow',
+  'prevEnd',
   'statics',
+  'throughTS',
 ];
 
 await $`codespell \

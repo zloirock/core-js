@@ -1,0 +1,8 @@
+core-js@4: `DEBUG` option
+
+Using targets: {
+  "ie": "11"
+}
+
+Using polyfills with `entry-global` method:
+The entry point for the core-js@4 polyfill has not been found.
