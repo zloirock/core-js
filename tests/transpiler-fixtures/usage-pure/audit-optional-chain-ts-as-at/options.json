@@ -11,5 +11,7 @@
       }
     ]
   ],
-  "parserOpts": { "plugins": ["typescript"] }
+  "parserOpts": { "plugins": [
+    "typescript"
+  ] }
 }

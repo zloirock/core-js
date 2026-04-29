@@ -1,7 +1,7 @@
-// chain assignment `const { from } = foo = cond ? Array : Iterator` - AssignmentExpression
+// chain assignment `const { from } = foo = cond ? Array : Iterator` - the assignment
 // evaluates to its RHS, destructure targets the conditional value. usage-global peels
-// through `=` chains in `enumerateFallbackBranches` and emits per-branch deps for ALL viable
-// constructors regardless of how deep the chain goes. body stays unchanged
+// through `=` chains and emits per-branch deps for ALL viable constructors regardless of how
+// deep the chain goes. body stays unchanged
 let foo, bar, x, y;
 const { from: a } = foo = cond ? Array : Iterator;
 ({ from: b } = bar = cond ? Array : Iterator);

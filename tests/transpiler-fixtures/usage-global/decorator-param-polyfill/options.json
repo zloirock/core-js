@@ -13,6 +13,8 @@
     ["@babel/plugin-syntax-decorators", { "legacy": true }]
   ],
   "parserOpts": {
-    "plugins": ["typescript"]
+    "plugins": [
+      "typescript"
+    ]
   }
 }

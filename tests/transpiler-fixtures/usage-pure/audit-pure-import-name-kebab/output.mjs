@@ -1,6 +1,7 @@
 import _toReversedMaybeArray from "@core-js/pure/actual/array/instance/to-reversed";
 var _ref;
-// `pureImportName` for instance kind: suffix = `Maybe${kebabToPascal(type)}` where `type` is
-// the first segment of the import entry. For `array/instance/to-reversed` the type segment is
-// `array` -> binding hints `toReversedMaybeArray` (kept consistent with type-guard resolution)
+// pure-import binding name for instance methods: kebab-case method names from the entry
+// path are converted to camelCase with a `Maybe<Type>` suffix derived from the entry's
+// type segment. `array/instance/to-reversed` produces `toReversedMaybeArray`, matching
+// the naming used by type-guard-aware resolution
 _toReversedMaybeArray(_ref = []).call(_ref);
