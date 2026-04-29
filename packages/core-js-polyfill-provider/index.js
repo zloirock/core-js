@@ -161,7 +161,7 @@ export function createPolyfillContext({
   version = normalizeCoreJSVersion(version);
 
   // dedup: users sometimes list the main `pkg` inside `additionalPackages` or repeat an alias.
-  // Set preserves first-match order - hot-loop `stripPkgPrefix` hits main pkg first.
+  // Set preserves first-match order - hot-loop in `getCoreJSEntry` hits main pkg first.
   // strip trailing slashes: `getCoreJSEntry` joins via `${pkg}/` so `'my-core-js/'` would yield
   // `'my-core-js//foo'` (double slash) and silently miss every entry detection
   const stripTrailingSlashes = p => {
