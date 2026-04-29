@@ -3,6 +3,7 @@ import builtInDefinitions from '@core-js/compat/built-in-definitions' with { typ
 import { normalizeCoreJSVersion } from '@core-js/compat/helpers';
 import getEntriesListForTargetVersion from '@core-js/compat/get-entries-list-for-target-version';
 import getModulesListForTargetVersion from '@core-js/compat/get-modules-list-for-target-version';
+import { kebabToPascal } from './helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from './helpers/class-walk.js';
 import { isEntryPattern, isModulePattern, patternToRegExp, validatePatternList } from './helpers/pattern-matching.js';
 import { lookupEntryModules, stripQueryHash } from './helpers/path-normalize.js';
@@ -245,3 +246,61 @@ export function createPolyfillContext({
 }
 
 export const resolve = createMetaResolver(builtInDefinitions);
+
+// reverse map `<entry path>` -> `<global name>` derived from `globals.<X>.pure.dependencies`.
+// keys an injector-side hint lookup so acronym globals (`URL` / `URLSearchParams` /
+// `DOMException`) survive `super.X` back-mapping that would otherwise fall through
+// `kebabToPascal` (`url` -> `Url`, missing the acronym). only constructor-tail deps
+// register here - method / instance entries don't represent the binding's identity.
+// data-driven: any future global added to `built-in-definitions` with a `pure` branch
+// gets indexed automatically with no plugin code change. duplicate entries (multiple
+// globals sharing one constructor dep) fall through to last-write-wins; current data
+// has no such collisions among `pure`-bearing globals.
+// each constructor dep registers BOTH `<head>/constructor` and the bare `<head>` form -
+// `matchEntrySubpath` collapses default `<pkg>/<mode>/<name>` and `<pkg>/<mode>/<name>/index`
+// imports to the bare entry, while explicit `/constructor` imports keep the suffix
+const CONSTRUCTOR_TAIL = '/constructor';
+function buildEntryHintIndex({ globals }) {
+  const index = new Map();
+  for (const [name, desc] of Object.entries(globals)) {
+    const deps = desc?.pure?.dependencies;
+    if (!Array.isArray(deps)) continue;
+    for (const dep of deps) {
+      if (typeof dep !== 'string' || !dep.endsWith(CONSTRUCTOR_TAIL)) continue;
+      const bare = dep.slice(0, -CONSTRUCTOR_TAIL.length);
+      for (const key of [dep, bare]) index.set(key, name);
+    }
+  }
+  return index;
+}
+
+const entryHintIndex = buildEntryHintIndex(builtInDefinitions);
+
+// kebab-style derivation for entries the index intentionally skips: globals that host
+// pure static methods but have no pure constructor in `built-in-definitions` (Array,
+// JSON, Math, Number, Object, Reflect, RegExp, String, all Error subclasses). their
+// names are kebab-friendly with no acronyms, so `kebabToPascal(head)` produces the
+// correct global. method / instance / helper entries (`promise/try`, `array/from`,
+// `array/instance/at`, ...) return null: the user's binding is the function, not the
+// class, so mapping to a global would make `super.X` on `class extends MyMethod` get
+// polyfilled as if MyMethod were the class - silently "fixing" broken user code the
+// plugin has no business touching. numeric-leading segments (`42`) can't be real global
+// identifiers; the uppercase-first guard rejects them
+function deriveHintFromKebab(entry) {
+  const [head, ...rest] = entry.split('/');
+  if (rest.length && rest.at(-1) !== 'constructor') return null;
+  const hint = kebabToPascal(head);
+  return hint && hint[0] >= 'A' && hint[0] <= 'Z' ? hint : null;
+}
+
+// data-driven primary lookup via `entryHintIndex` covers acronym globals (`URL`,
+// `URLSearchParams`, `DOMException`) that kebab derivation would mangle. fallback to
+// `deriveHintFromKebab` resolves bare-class user imports for globals without pure ctor
+// (whose pure surface is statics-only - Array.from, Math.cbrt, Object.assign, ...).
+// `resolvePure`'s `hasOwn(desc, 'pure')` gate downstream is the last line of defence
+// against fallback over-injection: hints for globals without any pure surface (Date,
+// Function, Uint8Array, ...) resolve to a name whose `statics[name][key]` either misses
+// or carries no pure variant, so no polyfill is emitted
+export function entryToGlobalHint(entry) {
+  return entry ? entryHintIndex.get(entry) ?? deriveHintFromKebab(entry) : null;
+}
