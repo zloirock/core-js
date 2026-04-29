@@ -98,17 +98,18 @@ export function createDestructureEmitter({
   // VariableDeclarator where the destructure binding declares them directly
   const trackedUnusedNamesByAssign = new WeakMap();
 
-  // `({Array: {from}} = receiver);` (AssignmentExpression in ExpressionStatement) -
-  // value is discarded, so the destructure can be rewritten so polyfill always wins.
-  // two emission shapes:
-  //   - no rest siblings anywhere in the chain: replace the whole statement with
-  //     `from = _polyfill;` (simple flatten, mirrors `flattenAssignmentExpressionDestructure`)
-  //   - any rest sibling: cascade rewrite via `rewriteDeclarator` over a mock declarator,
-  //     emit `var _unused; ({...mutated} = receiver); from = _polyfill;` so rest gathers
-  //     the right keys AND polyfill overrides the (potentially buggy) native value
-  function tryFlattenAssignmentExpression(metaPath, meta) {
-    const valueNode = propBindingIdentifier(metaPath.node.value);
-    if (!valueNode) return false;
+  // `({Array: {from}} = receiver);` (AssignmentExpression in ExpressionStatement) - value is
+  // discarded, so the destructure can be rewritten so polyfill always wins. unified cascade
+  // path: `cascadeAssignmentExpression` plans the entire LHS via `rewriteDeclarator` (one
+  // upfront walk picks up every polyfillable prop), emits SE-prefix lifts + optional
+  // `var _unused;` declarations (rest case) + rewritten destructure or per-extraction
+  // assigns. `flattenedAssignments` short-circuits sibling per-prop visitor re-entries.
+  // previous simple-flatten branch (used when no rest sibling) emitted only the FIRST prop's
+  // polyfill and silently dropped sibling extractions on multi-prop hosts - eliminated here
+  function tryFlattenAssignmentExpression(metaPath) {
+    // shape gate: only proceed for shorthand / aliased / default-prop bindings - the same
+    // shapes `cascadeAssignmentExpression` -> `rewriteDeclarator` plan walks
+    if (!propBindingIdentifier(metaPath.node.value)) return false;
     const assignPath = walkUpNestedDestructureToAssignment(metaPath.parentPath);
     const assignNode = assignPath?.node;
     if (!assignNode || assignNode.operator !== '=') return false;
@@ -116,38 +117,10 @@ export function createDestructureEmitter({
     let stmtPath = assignPath.parentPath;
     while (stmtPath?.node?.type === 'ParenthesizedExpression') stmtPath = stmtPath.parentPath;
     if (stmtPath?.node?.type !== 'ExpressionStatement') return false;
-    const stmtNode = stmtPath.node;
     // already-flattened statement: per-prop visitor re-entry for sibling polyfills is a
     // no-op (the upfront `rewriteDeclarator` walk on first call already covered all of them)
     if (flattenedAssignments.has(assignNode)) return true;
-    const hasRestInChain = (() => {
-      for (let cursor = metaPath; cursor && cursor !== assignPath; cursor = cursor.parentPath) {
-        if (cursor.parent?.type === 'ObjectPattern'
-            && hasRestSiblingExcept(cursor.parent.properties, cursor.node)) return true;
-      }
-      return false;
-    })();
-    if (hasRestInChain) {
-      return cascadeAssignmentExpression(assignNode, stmtNode, metaPath.scope);
-    }
-    const pure = resolvePure(meta);
-    if (!pure || pure.kind === 'instance') return false;
-    const binding = injectPureImport(pure.entry, pure.hintName);
-    // shared `peelNestedSequenceExpressions` lifts every SE layer's preceding effects
-    // through paren wrappers (`(se1(), (se2(), G))` -> `[se1(), se2()]`); without
-    // recursion, only outermost se1() lifts and inner se2() silently elides
-    const { prefix: seExprs, tail: receiverTail } = peelNestedSequenceExpressions(assignNode.right);
-    const prefix = seExprs.length ? `${ seExprs.map(nodeSrc).join(', ') };\n` : '';
-    // seed skippedNodes ONLY for consumed parts: LHS pattern (extracted into `valueNode = id`)
-    // and the receiver's consumed tail (last expression of SE chain). SE-prefix Identifiers
-    // (e.g. `Promise` in `(Promise.resolve(0).then(noop), globalThis)`) need natural visitor
-    // pass to emit their own polyfill imports. mirrors `seedSkippedForExtractedDeclarators`
-    // logic for the VariableDeclaration shape - blanket walking `assignNode` would suppress
-    // those imports
-    walkAstNodes(assignNode.left, node => skippedNodes.add(node));
-    if (receiverTail) walkAstNodes(receiverTail, node => skippedNodes.add(node));
-    transforms.add(stmtNode.start, stmtNode.end, `${ prefix }${ valueNode.name } = ${ binding };`);
-    return true;
+    return cascadeAssignmentExpression(assignNode, stmtPath.node, metaPath.scope);
   }
 
   // run `fn` with `injector.generateUnusedName` wrapped so every name it emits is also
@@ -703,7 +676,7 @@ export function createDestructureEmitter({
     }
     if (metaPath.parentPath?.parentPath?.node?.type === 'Property') {
       if (tryFlattenNestedProxy(metaPath)) return;
-      if (tryFlattenAssignmentExpression(metaPath, meta)) return;
+      if (tryFlattenAssignmentExpression(metaPath)) return;
       return handleParameterDestructurePure(meta, metaPath, propNode);
     }
     if (propNode.value?.type === 'Identifier'
