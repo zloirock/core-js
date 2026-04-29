@@ -1,5 +1,5 @@
-import { vite, webpack, rollup, esbuild, rspack, rolldown } from '@core-js/unplugin';
-import type { Options, Method, Mode } from '@core-js/unplugin';
+import { vite, webpack, rollup, esbuild, rspack, rolldown, farm, bun } from '@core-js/unplugin';
+import type { Options, Method, Mode, Targets } from '@core-js/unplugin';
 // Sub-entry imports (e.g., import plugin from '@core-js/unplugin/vite')
 import vitePlugin from '@core-js/unplugin/vite';
 import webpackPlugin from '@core-js/unplugin/webpack';
@@ -7,6 +7,8 @@ import rollupPlugin from '@core-js/unplugin/rollup';
 import esbuildPlugin from '@core-js/unplugin/esbuild';
 import rspackPlugin from '@core-js/unplugin/rspack';
 import rolldownPlugin from '@core-js/unplugin/rolldown';
+import farmPlugin from '@core-js/unplugin/farm';
+import bunPlugin from '@core-js/unplugin/bun';
 
 // exported bundler plugins exist
 vite;
@@ -15,10 +17,13 @@ rollup;
 esbuild;
 rspack;
 rolldown;
+farm;
+bun;
 
 // type exports
 const method: Method = 'usage-global';
 const mode: Mode = 'actual';
+const targets: Targets = { chrome: '80' };
 const opts: Options = { method: 'usage-global' };
 
 // valid options
@@ -55,6 +60,13 @@ vite({ method: 'usage-global', ignoreBrowserslistConfig: true });
 vite({ method: 'usage-global', shippedProposals: true });
 vite({ method: 'usage-global', importStyle: 'import' });
 vite({ method: 'usage-global', importStyle: 'require' });
+vite({ method: 'usage-global', browserslistEnv: 'production' });
+
+// phase opt: usage-* allow pre/post/pre+post; entry-global allows only pre
+vite({ method: 'usage-global', phase: 'pre' });
+vite({ method: 'usage-pure', phase: 'post' });
+vite({ method: 'usage-global', phase: 'pre+post' });
+vite({ method: 'entry-global', phase: 'pre' });
 
 // all options combined
 vite({
@@ -81,6 +93,8 @@ rollup({ method: 'usage-global' });
 esbuild({ method: 'usage-global' });
 rspack({ method: 'usage-global' });
 rolldown({ method: 'usage-global' });
+farm({ method: 'usage-global' });
+bun({ method: 'usage-global' });
 
 // sub-entry default imports accept same options
 vitePlugin({ method: 'usage-global' });
@@ -89,6 +103,8 @@ rollupPlugin({ method: 'entry-global' });
 esbuildPlugin({ method: 'usage-global' });
 rspackPlugin({ method: 'usage-global' });
 rolldownPlugin({ method: 'usage-global' });
+farmPlugin({ method: 'usage-global' });
+bunPlugin({ method: 'usage-global' });
 
 // @ts-expect-error — method is required
 vite({});
@@ -116,3 +132,11 @@ vite({ method: 'usage-global', absoluteImports: 'path' });
 vite({ method: 'usage-global', configPath: true });
 // @ts-expect-error — shippedProposals must be a boolean
 vite({ method: 'usage-global', shippedProposals: 'yes' });
+// @ts-expect-error — browserslistEnv must be a string
+vite({ method: 'usage-global', browserslistEnv: 1 });
+// @ts-expect-error — entry-global rejects phase 'post' (discriminated union)
+vite({ method: 'entry-global', phase: 'post' });
+// @ts-expect-error — entry-global rejects phase 'pre+post'
+vite({ method: 'entry-global', phase: 'pre+post' });
+// @ts-expect-error — invalid phase value
+vite({ method: 'usage-global', phase: 'late' });
