@@ -77,4 +77,22 @@ export declare const rolldown: BundlerPlugin<any>;
 export declare const farm: BundlerPlugin<any>;
 export declare const bun: BundlerPlugin<any>;
 
+/** the unplugin factory backing every named adapter above. shape mirrors upstream's
+ *  `UnpluginInstance<Options>` but avoids the import to keep the typed surface from
+ *  pulling in transitive bundler deps (rollup, esbuild, bun, rspack, farm, ...) that
+ *  consumers of this `.d.ts` may not have installed */
+interface UnpluginInstance {
+  vite: BundlerPlugin<any>;
+  webpack: BundlerPlugin<any>;
+  rollup: BundlerPlugin<any>;
+  esbuild: BundlerPlugin<any>;
+  rspack: BundlerPlugin<any>;
+  rolldown: BundlerPlugin<any>;
+  farm: BundlerPlugin<any>;
+  bun: BundlerPlugin<any>;
+  raw: (options: Options, meta: any) => any;
+}
+declare const unplugin: UnpluginInstance;
+export default unplugin;
+
 export type { Options, Method, Mode, Targets };
