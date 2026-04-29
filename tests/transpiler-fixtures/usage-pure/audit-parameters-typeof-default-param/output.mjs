@@ -1,8 +1,9 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// `Parameters<typeof fn>` must unwrap AssignmentPattern (`x = 'a'`) to read the underlying
-// `typeAnnotation` on `.left`, so chained `.at(-1)` on the tuple element resolves to string
+// `Parameters<typeof fn>` must unwrap the default-value-param wrapper (`x = 'a'`) to read
+// the underlying type annotation on the LHS, so chained `.at(-1)` on the tuple element
+// resolves to string
 function fn(x: string = 'a') {
   return x;
 }

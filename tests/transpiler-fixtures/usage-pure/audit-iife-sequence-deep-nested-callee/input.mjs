@@ -1,5 +1,5 @@
-// deeply-nested SE + paren wrappers around the IIFE callee: `(((0, ((0, arrow))))(arg)`.
-// `peelIifeCallee` alternates between paren / SE peels in its while loop, so multiple
-// layers don't break detection. companion to `audit-iife-sequence-callee/` covering the
-// fixed-point convergence
+// deeply-nested comma-expression + paren wrappers around the IIFE callee:
+// `(((0, ((0, arrow))))(arg)`. The IIFE-callee peel alternates between paren and
+// comma-tail peels in its while loop, so multiple layers don't break detection. exercises
+// fixed-point convergence on stacked wrappers
 ((0, ((0, ({ from } = Array) => from([1, 2])))))();

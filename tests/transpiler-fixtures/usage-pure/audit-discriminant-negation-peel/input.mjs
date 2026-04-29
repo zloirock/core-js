@@ -1,8 +1,6 @@
-// `parseDiscriminantCheck` must peel a leading `!` UnaryExpression so
-// `if (!(f.kind === 'b'))` narrows identically to `if (f.kind !== 'b')`. without the peel
-// the test reaches the BinaryExpression early-return as UnaryExpression and the guard is
-// dropped, leaving Foo unfolded - the wrong polyfill (`_at` generic instead of
-// `_atMaybeArray`) is emitted on the surviving FooA branch
+// discriminant-check parsing peels a leading `!` so `if (!(f.kind === 'b'))` narrows
+// identically to `if (f.kind !== 'b')`. The peel exposes the inner equality so the guard
+// folds Foo to FooA on the inner block and `_atMaybeArray` emits on the surviving branch
 type FooA = { kind: 'a'; data: number[] };
 type FooB = { kind: 'b'; data: string };
 type Foo = FooA | FooB;

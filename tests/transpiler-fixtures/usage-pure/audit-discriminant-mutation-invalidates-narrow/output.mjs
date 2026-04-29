@@ -1,11 +1,11 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 // `let f` reassigned between the discriminant guard and the use site: outer narrowing
-// from `if (f.kind === 'a')` is dropped (mutation check in `findDiscriminantGuards` -
-// stale branch no longer reflects the binding's value), AND the new RHS shape narrows
-// the union forward via `narrowUnionByAssignmentLiteral` matching the literal-typed
-// `kind: 'b'` against FooB. result: `f.data` resolves to string (from FooB's `data`),
-// emitting `_atMaybeString` instead of either the wrong array polyfill (no fix) or the
-// generic `_at` (fix without forward-narrow)
+// from `if (f.kind === 'a')` is dropped (the discriminant-guard collection sees the
+// mutation and treats the stale branch as no longer reflecting the binding's value),
+// AND the new RHS shape narrows the union forward by matching the literal-typed
+// `kind: 'b'` against FooB. Result: `f.data` resolves to string (from FooB's `data`),
+// emitting `_atMaybeString` instead of either the wrong array polyfill (without the
+// mutation check) or the generic `_at` (with the mutation check but no forward-narrow)
 type FooA = {
   kind: 'a';
   data: number[];

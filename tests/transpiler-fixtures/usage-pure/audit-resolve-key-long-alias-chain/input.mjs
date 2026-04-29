@@ -1,5 +1,6 @@
-// 12-step const alias chain for a computed key; MAX_KEY_DEPTH must accommodate realistic
-// codebases where intermediate renaming happens across modules/aliases
+// 12-step const alias chain for a computed key; the resolver must follow alias chains
+// long enough to handle realistic codebases where intermediate renaming happens across
+// modules/aliases
 const k1 = 'iterator';
 const k2 = k1;
 const k3 = k2;

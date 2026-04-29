@@ -1,9 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// arrow IIFE receiver detection peels `ParenthesizedExpression` + TS wrappers at every
-// step of the SequenceExpression walk. Under `createParenthesizedExpressions: true` the
-// parens persist as AST nodes; the peel reaches the inner Identifier `Array` under any
-// wrapper combination so the synth-swap binds the receiver instead of falling back to
-// inline-default
+// arrow IIFE receiver detection peels paren and TS wrappers at every step of the
+// comma-expression walk. When the parser preserves parens as AST nodes, the peel
+// reaches the inner identifier `Array` under any wrapper combination, so the rewrite
+// binds the receiver instead of falling back to a per-key destructure-default
 (({
   from
 }) => from([1]))((0, (1, {

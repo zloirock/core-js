@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Set from "@core-js/pure/actual/set/constructor";
 // `(cond ? 'a' : 'b') in obj` - LHS is a conditional expression resolving to a string.
-// resolveKey cannot fold a ConditionalExpression to a single static key, so the in-check
-// is left raw. unrelated `Array.from` and `Set.intersection` polyfill via second/third
+// the key resolver cannot fold a ternary to a single static key, so the in-check is left
+// raw. unrelated `Array.from` and `Set.intersection` polyfill via second/third
 // statements anchor the imports.
 const r1 = (cond ? 'from' : 'flat') in obj;
 const r2 = _Array$from(src);

@@ -1,3 +1,4 @@
-// iterable destructure with rest `[a, ...rest] = iter`: the iteration protocol must
-// be polyfilled because the rest pattern consumes the iterator.
+// non-emission lock: `[a, ...rest] = iter` rest-pattern destructure stays raw in pure
+// mode; iterator-instance dispatch requires an `Iterator.from` anchor and is
+// intentionally not auto-emitted.
 const [a, ...rest] = arr;
