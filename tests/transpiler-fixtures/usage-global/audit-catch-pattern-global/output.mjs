@@ -1,8 +1,7 @@
 import "core-js/modules/es.array.at";
 import "core-js/modules/es.string.at";
-// usage-global: CatchClause destructuring is NOT pattern-extracted (only usage-pure
-// does that). Still, destructured `at` triggers instance-at polyfill detection, even
-// though no rewrite happens - the raw globalThis Array.prototype.at is assumed usable.
+// under usage-global a destructured `catch ({ at })` is not rewritten, but the `at`
+// reference still triggers the instance-method polyfill.
 try {} catch ({
   at
 }) {
