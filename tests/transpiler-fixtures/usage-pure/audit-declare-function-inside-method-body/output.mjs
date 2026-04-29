@@ -1,8 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// `declare function` inside method body: ambient declaration в class-method scope.
-// walk через method body's BlockStatement до statement array - тот же drill что для
-// regular function body (RNT1-14-4 family). g().at(0) должен dispatch'иться через
-// _atMaybeArray по declared return type number[]
+// `declare function` inside a method body: ambient declaration in a class-method scope.
+// the walk drills through the method body's block to the statement array - same
+// approach as for regular function bodies. `g().at(0)` dispatches the array-narrowed
+// polyfill via the declared `number[]` return type
 class K {
   m() {
     var _ref;

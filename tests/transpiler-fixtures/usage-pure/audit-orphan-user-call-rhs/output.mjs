@@ -1,5 +1,5 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// user-authored top-level `_ref = foo()` as an ExpressionStatement. the bare-statement
+// user-authored top-level `_ref = foo()` as a bare expression statement. the bare-statement
 // position is never something the plugin emits - orphan adoption heuristic rejects it
 // regardless of RHS complexity. user's own pure import of fill stays intact; plugin's
 // separate array.at polyfill allocates its own ref without touching the user's `_ref`

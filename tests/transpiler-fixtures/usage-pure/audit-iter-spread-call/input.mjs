@@ -1,3 +1,4 @@
-// `fn(...iter)` call spread: the iteration protocol must be polyfilled because spread
-// consumes the iterator at runtime.
+// non-emission lock: `fn(...iter)` call spread stays raw in pure mode; iterator-
+// instance dispatch driven by spread requires an `Iterator.from` anchor and is
+// intentionally not auto-emitted.
 fn(...args);

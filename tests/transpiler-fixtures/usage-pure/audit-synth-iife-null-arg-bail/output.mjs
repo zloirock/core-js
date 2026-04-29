@@ -1,7 +1,8 @@
-// synth-swap bails when IIFE caller-arg is `null`: `(({from}) => from)(null)`. null isn't
-// a classifiable receiver Identifier - findSynthSwapReceiver returns null, plugin doesn't
-// know what static methods to bind. inline-default doesn't fire either (no `= R` slot).
-// runtime: destructure of null throws TypeError - user code is bug, plugin emits as-is
+// receiver-rewrite bails when the IIFE caller-arg is `null`: `(({from}) => from)(null)`.
+// Null isn't a classifiable receiver identifier, so the plugin doesn't know which static
+// methods to bind. Per-key destructure-default doesn't fire either (no `= R` slot).
+// At runtime, destructuring null throws TypeError - the user code is a bug, so the
+// plugin emits it as-is
 (({
   from
 }) => from)(null);

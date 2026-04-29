@@ -2,8 +2,9 @@ import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
 import _Set from "@core-js/pure/actual/set/constructor";
 // `((cond ? Array : Iterator) as any)` - TS expression wrapper around a fallback.
-// babel parser strips parens but keeps TSAsExpression; oxc keeps both. per-branch
-// synth-swap must peel both wrapper layers to reach the conditional underneath
+// Per-branch destructure rewriting must peel both parenthesized and TS as-cast
+// wrappers to reach the conditional underneath; the second statement covers the TS
+// non-null assertion (!) variant
 export const {
   from
 } = (cond ? {
