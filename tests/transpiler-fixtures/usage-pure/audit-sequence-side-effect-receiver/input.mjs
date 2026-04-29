@@ -1,4 +1,4 @@
-// mirror of `audit-sequence-side-effect-key` on the receiver side: `(fn(), Array).from(src)`.
-// a sequence with a side-effectful head on the receiver must still resolve `Array.from`;
-// the emitted call wraps the polyfill id in a source-level sequence so `fn()` is preserved
+// `(fn(), Array).from(src)` - comma-expression on the receiver side carrying a
+// side-effectful head. resolution must still see `Array.from`; the emitted call wraps the
+// polyfill id in a source-level sequence so `fn()` is preserved at the original point
 (fn(), Array).from(src);
