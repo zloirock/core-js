@@ -228,7 +228,11 @@ export function createDestructureEmitter({
       for (let index = 0; index < declaration.declarations.length; index++) {
         if (!perDecl[index].extractions.length) continue;
         const { prefix: sequenceExpressions } = peelNestedSequenceExpressions(declaration.declarations[index].init);
-        if (sequenceExpressions.length) sequencePrefixes.push(sequenceExpressions.map(nodeSrc).join(', '));
+        // emit each SE expr as a standalone statement (parity with babel's
+        // `buildSEPrefixStatements` per-expr emission). pre-fix swallowed all per-decl SEs
+        // into a single SequenceExpression statement (`se1(), se2();`); per-statement form
+        // (`se1();\nse2();`) reads cleaner and matches the cross-pipeline emission shape
+        for (const seExpr of sequenceExpressions) sequencePrefixes.push(nodeSrc(seExpr));
       }
       if (sequencePrefixes.length) replacement = `${ sequencePrefixes.map(prefix => `${ prefix };`).join('\n') }\n${ replacement }`;
     }
