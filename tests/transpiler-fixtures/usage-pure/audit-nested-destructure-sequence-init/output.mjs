@@ -1,9 +1,9 @@
 import _globalThis from "@core-js/pure/actual/global-this";
 import _Array$from from "@core-js/pure/actual/array/from";
-// nested proxy-global destructure with a SequenceExpression init: `(se(), globalThis)`.
-// non-nested `{from} = (se(), Array)` already lifts the SE prefix and flattens; nested
-// chain must match that parity - peel through parens + sequence, extract SE as standalone
-// statement, emit `const from = _Array$from` from the flattened receiver
+// nested proxy-global destructure with a comma-expression init: `(se(), globalThis)`.
+// non-nested `{from} = (se(), Array)` already lifts the prefix and flattens; nested
+// chain must match that parity - peel through parens + comma, extract side effects as a
+// standalone statement, emit `const from = _Array$from` from the flattened receiver
 function se() {
   return _globalThis;
 }

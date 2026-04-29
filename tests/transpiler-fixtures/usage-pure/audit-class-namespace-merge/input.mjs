@@ -1,6 +1,7 @@
-// TS declaration merging: `class X {}` + `namespace X {}` - `walkStatementsForDecl`
-// collects only type-bearing declarations. The class provides instance method `.list()`,
-// the namespace provides a static. Plugin should resolve `x.list()` to array return.
+// TS declaration merging: `class X {}` + `namespace X {}` - type-binding lookup walks
+// through enclosing namespace declarations and only picks up type-bearing decls. The
+// class provides instance method `.list()`, the namespace provides a static. `x.list()`
+// must resolve to the class instance method's array return type.
 class Widget {
   list(): string[] { return []; }
 }

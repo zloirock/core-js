@@ -12,8 +12,8 @@ import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
 import "core-js/modules/web.self";
 // `globalThis.self.Map ||= X` - multi-hop proxy-global chain on the LHS of a logical-assign.
-// previously the warning fired only for direct `globalThis.Map` (Identifier object); chained
-// `globalThis.self.Map` / `globalThis.window.Map` was MemberExpression-rooted and silently
-// skipped. globalProxyMemberName walks the proxy-global chain and surfaces the warning
+// proxy-global walking surfaces the warning along the whole chain so member-rooted writes
+// like `globalThis.self.Map` / `globalThis.window.Map` reach the same diagnostic as
+// the direct `globalThis.Map` (identifier object) form
 globalThis.self.Map ||= 1;
 globalThis.window.Promise ??= 2;
