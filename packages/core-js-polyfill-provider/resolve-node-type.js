@@ -108,6 +108,11 @@ function createResolveNodeType(babelNodeType, t) {
   // ObjectExpression { key: value, ... } -> value's type for the literal key.
   // Spread bails (unknown key coverage); method shorthand resolves to Function
   function resolveObjectLiteralProperty(argPath, key) {
+    // peel ParenthesizedExpression / TS expression wrappers (`as const`, `satisfies T`,
+    // `<T>x` casts). oxc preserves parens around call-args (`fn(({k: [1]} as const))`)
+    // while babel strips them - without this peel, oxc-parsed sources fall to constraint
+    // fallback and lose precision (parser-divergence asymmetry between plugins)
+    if (argPath?.node) argPath = resolveRuntimeExpression(argPath);
     // `T[N]` where T is bound to a concrete tuple/array LITERAL at the call-site:
     // `first<T extends [unknown, unknown]>(t: T): T[0]` called with `[['x'], 1]` as arg -
     // element 0 is a known ArrayExpression, resolve it to that type. without this branch
@@ -198,7 +203,14 @@ function createResolveNodeType(babelNodeType, t) {
 
   function walkAmbientDeclarationPath(name, scope, matchType) {
     for (let cur = scope; cur; cur = cur.parent) {
-      const bodyPaths = cur.path?.get('body');
+      // Program / BlockStatement / TSModuleBlock - `path.get('body')` already returns the
+      // statement array. Function / method scopes wrap statements in a BlockStatement, so
+      // `path.get('body')` returns the BlockStatement path; drill once more to reach the
+      // array. Without this, ambient declarations inside function bodies
+      // (`function f() { declare function g(): T }`) aren't discovered, falling through to
+      // generic resolution. Mirrors `walkScopesForDecl`'s `block.body.body` for non-Program
+      let bodyPaths = cur.path?.get('body');
+      if (bodyPaths && !Array.isArray(bodyPaths)) bodyPaths = bodyPaths.get('body');
       if (!Array.isArray(bodyPaths)) continue;
       for (const stmtPath of bodyPaths) {
         const { type } = stmtPath.node ?? {};
@@ -545,9 +557,11 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // `typeof obj.prop[.prop...]` - resolve a qualified member chain from a binding. 1-level
-  // short-circuits to the binding's runtime value (ObjectExpression / class) when available;
-  // deeper chains always walk through the type annotation
+  // `typeof obj.prop[.prop...]` - resolve a qualified member chain from a binding. walks
+  // the chain through nested ObjectExpression / ArrayExpression init via the shared
+  // `resolveObjectMemberPath` helper (also used for destructure-key walks); class
+  // declarations dispatch to `resolveClassMember` for the (single-step) static member case;
+  // other shapes fall through to the binding's type annotation
   function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
     // `typeof Enum.Member` - TSEnumDeclaration has no typeAnnotation and its bindingPath
     // fallthrough returns null. look it up via findTypeDeclaration and map the member to
@@ -561,20 +575,22 @@ function createResolveNodeType(babelNodeType, t) {
     }
     const bindingPath = constantBindingPath(objectName, scope);
     if (!bindingPath || !memberPath.length) return null;
-    if (memberPath.length === 1) {
-      const [memberName] = memberPath;
-      if (t.isVariableDeclarator(bindingPath.node)) {
-        const init = bindingPath.get('init');
-        if (init.node) {
-          const resolved = resolveRuntimeExpression(init);
-          if (t.isObjectExpression(resolved.node)) {
-            const result = resolveObjectMember(resolved, memberName);
-            if (result) return result;
-          }
-          if (t.isClass(resolved.node)) return resolveClassMember(resolved, memberName, true);
-        }
+    const initPath = t.isVariableDeclarator(bindingPath.node) ? bindingPath.get('init')
+      : t.isClassDeclaration(bindingPath.node) ? bindingPath : null;
+    if (initPath?.node) {
+      const resolved = t.isVariableDeclarator(bindingPath.node)
+        ? resolveRuntimeExpression(initPath) : initPath;
+      // class static: `class K {static x...}; typeof K.x` or aliased `const C = K; typeof C.x` -
+      // class members aren't ObjectProperties, dispatch through the class-aware resolver.
+      // single-level only (`typeof K.x.y` would need recursive class-member-init descent)
+      if (t.isClass(resolved.node) && memberPath.length === 1) {
+        const result = resolveClassMember(resolved, memberPath[0], true);
+        if (result) return result;
       }
-      if (t.isClassDeclaration(bindingPath.node)) return resolveClassMember(bindingPath, memberName, true);
+      // ObjectExpression / ArrayExpression chain - shared `resolveObjectMemberPath`
+      // walks N-deep through nested literals (also used for destructure-key resolution)
+      const result = resolveObjectMemberPath(resolved, memberPath);
+      if (result) return result;
     }
     const annotation = findBindingAnnotation(bindingPath);
     return annotation ? resolveAnnotatedMemberPath(annotation, memberPath, scope) : null;
@@ -834,8 +850,12 @@ function createResolveNodeType(babelNodeType, t) {
     if (typeParam) {
       const annotation = typeParam.default ?? typeParam.constraint;
       if (!annotation) return null;
+      // pass `seen` through to substitution to inherit caller's decl-cycle guard. without
+      // it, a cyclic default `type R<T = R<T>>` walks the substitution recursion fresh and
+      // only MAX_DEPTH=64 catches the loop (O(64) overhead per resolution); with `seen`,
+      // the second visit short-circuits via the side-channel WeakSet flag
       return typeParamMap
-        ? substituteTypeParams(annotation, typeParamMap, typeParam.scope, depth + 1)
+        ? substituteTypeParams(annotation, typeParamMap, typeParam.scope, depth + 1, seen)
         : resolveTypeAnnotation(annotation, typeParam.scope, depth + 1);
     }
     const declaration = findTypeDeclaration(name, scope);
