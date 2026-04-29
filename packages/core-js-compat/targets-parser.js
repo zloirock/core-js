@@ -40,12 +40,12 @@ const validTargets = new Set([
   'samsung',
 ]);
 
-const toLowerKeys = function (object) {
+function toLowerKeys(object) {
   return Object.entries(object).reduce((accumulator, [key, value]) => {
     accumulator[key.toLowerCase()] = value;
     return accumulator;
   }, {});
-};
+}
 
 module.exports = function (targets) {
   const { browsers, esmodules, node, ...rest } = (typeof targets != 'object' || Array.isArray(targets))

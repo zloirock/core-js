@@ -107,9 +107,7 @@ async function copyDocsToBuilder(version) {
 async function copyBuilderDocs() {
   console.log('Copying builder docs...');
   console.time('Copied builder docs');
-  const fromDir = `${ BUILD_DOCS_DIR }`;
-  const toDir = `${ BUILD_SRC_DIR }docs/web/`;
-  await copyDocs(fromDir, toDir);
+  await copyDocs(BUILD_DOCS_DIR, `${ BUILD_SRC_DIR }docs/web/`);
   console.timeEnd('Copied builder docs');
 }
 
@@ -157,7 +155,7 @@ async function getExcludedBuilds() {
     excluded.add(id);
   }
 
-  return Array.from(excluded);
+  return [...excluded];
 }
 
 async function clearOldBuilds() {
