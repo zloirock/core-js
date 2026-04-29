@@ -1,3 +1,3 @@
-// four nested Array.from - stresses compose loop's nth accounting when the same needle
-// is swallowed level by level (each outer substitution absorbs one copy of `Array.from`)
+// four nested `Array.from(...)` calls; each must get its own polyfill
+// substitution without overlap, even though they share the same callee.
 Array.from(Array.from(Array.from(Array.from(s))));
