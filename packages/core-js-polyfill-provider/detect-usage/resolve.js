@@ -244,9 +244,13 @@ function inlineCallReturnExpression(callNode, scope, adapter, seen) {
   }
   // params would shadow free identifiers in the body; bail to keep the body's free-identifier
   // resolution faithful to the call site. block bodies must contain exactly one return at top
-  // level (no early-exit branches, no try/catch / loops) so the return value is unambiguous
+  // level (no early-exit branches, no try/catch / loops) so the return value is unambiguous.
+  // async/generator wrap the return value (Promise / Generator) - inlining the bare return
+  // misrepresents the call result type. `resolveObjectName` consumers downstream don't model
+  // wrapper types, so they would mis-dispatch (`(async()=>Map)().has(1)` would tag receiver
+  // as Map, emitting es.map.* polyfills for a Promise call site)
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression')
-    || callee.params?.length) return null;
+    || callee.params?.length || callee.async || callee.generator) return null;
   return singleReturnBodyExpression(callee.body);
 }
 
