@@ -65,6 +65,18 @@ export function createDestructureEmitter({
   skippedNodes,
   transforms,
 }) {
+  // ---------- shared emission helpers ----------
+
+  // wrap multi-statement output in `{...}` when the host sits in an unbraced control body
+  // (`if (...) <here>`, `while (...) <here>`, etc.). bodyless slots accept exactly one
+  // statement; bare-emitting `s1; s2;` leaks all but the first out of the gate. consumers
+  // pass the rendered source text plus an explicit `isMulti` flag - cheaper and clearer
+  // than scanning the rendered string for a newline (which mis-fires on rendered tails
+  // that legitimately contain a `\n` for cosmetic separation)
+  function wrapBodylessIfMulti(src, isMulti, hostPath) {
+    return isMulti && isBodylessStatementBody(hostPath) ? `{ ${ src } }` : src;
+  }
+
   // ---------- pending collections (drained post-traverse) ----------
 
   // ObjectPattern node -> { entries, allProps, declPath, declaratorPath, ... }. populated
@@ -120,7 +132,7 @@ export function createDestructureEmitter({
     // already-flattened statement: per-prop visitor re-entry for sibling polyfills is a
     // no-op (the upfront `rewriteDeclarator` walk on first call already covered all of them)
     if (flattenedAssignments.has(assignNode)) return true;
-    return cascadeAssignmentExpression(assignNode, stmtPath.node, metaPath.scope);
+    return cascadeAssignmentExpression(assignNode, stmtPath, metaPath.scope);
   }
 
   // run `fn` with `injector.generateUnusedName` wrapped so every name it emits is also
@@ -146,8 +158,12 @@ export function createDestructureEmitter({
   // extraction polyfill assigns; marks the statement as handled so sibling per-prop
   // visitor calls short-circuit. preserves "polyfill always wins" - the destructure
   // discards each polyfilled key into `_unused`, then `binding = _polyfill;` overrides
-  // the captured (maybe buggy native) value with the imported polyfill
-  function cascadeAssignmentExpression(assignNode, stmtNode, scope) {
+  // the captured (maybe buggy native) value with the imported polyfill.
+  // bodyless control parent (`if (cond) ({...} = G);`) requires `{...}` wrap when more
+  // than one statement is emitted - otherwise siblings to the gated first statement
+  // run unconditionally, breaking the guard's runtime semantics
+  function cascadeAssignmentExpression(assignNode, stmtPath, scope) {
+    const stmtNode = stmtPath.node;
     let cached = trackedUnusedNamesByAssign.get(assignNode);
     if (!cached) {
       const fake = { id: assignNode.left, init: assignNode.right };
@@ -175,7 +191,8 @@ export function createDestructureEmitter({
     if (unusedIds.length) segments.push(`var ${ unusedIds.join(', ') };`);
     if (result.preservedSrc !== null) segments.push(`(${ result.preservedSrc });`);
     for (const e of result.extractions) segments.push(`${ e.decl };`);
-    transforms.add(stmtNode.start, stmtNode.end, segments.join('\n'));
+    transforms.add(stmtNode.start, stmtNode.end,
+      wrapBodylessIfMulti(segments.join('\n'), segments.length > 1, stmtPath));
     return true;
   }
 
@@ -235,6 +252,12 @@ export function createDestructureEmitter({
         for (const seExpr of sequenceExpressions) sequencePrefixes.push(nodeSrc(seExpr));
       }
       if (sequencePrefixes.length) replacement = `${ sequencePrefixes.map(prefix => `${ prefix };`).join('\n') }\n${ replacement }`;
+      // multi-statement output in a bodyless control parent (`if (cond) var {...} = G;`)
+      // would leak all but the first statement out of the gate without `{...}` wrap.
+      // `renderFlattened` only inserts `\n` between standalone statements (none of its
+      // emitted tokens contain bare newlines), so newline-presence is a faithful proxy
+      // for "more than one statement"
+      replacement = wrapBodylessIfMulti(replacement, replacement.includes('\n'), declPath);
     }
     transforms.add(declaration.start, declaration.end, replacement);
     return true;
@@ -1059,10 +1082,8 @@ export function createDestructureEmitter({
       if (isForInit) {
         transforms.add(replaceNode.start, replaceNode.end, `${ keyword }${ parts.join(', ') }`);
       } else {
-        const needsBlock = parts.length > 1 && isBodylessStatementBody(declPath);
-        const joined = `${ parts.join(';\n') };`;
         transforms.add(replaceNode.start, replaceNode.end,
-            needsBlock ? `{ ${ joined } }` : joined);
+          wrapBodylessIfMulti(`${ parts.join(';\n') };`, parts.length > 1, declPath));
       }
     }
   }
