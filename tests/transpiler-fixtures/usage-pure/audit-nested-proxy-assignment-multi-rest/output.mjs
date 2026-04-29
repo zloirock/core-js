@@ -6,12 +6,11 @@ import _globalThis from "@core-js/pure/actual/global-this";
 // (rest still excludes them) and per-extraction polyfill assigns ensure polyfill always wins.
 // distinct method names ensure each line maps to a unique import for traceability
 let from, fromEntries, rest;
-var _unused;
-var _unused2;
+var _unused, _unused2;
 ({
   Array: _unused,
   Object: _unused2,
   ...rest
 } = _globalThis);
-fromEntries = _Object$fromEntries;
 from = _Array$from;
+fromEntries = _Object$fromEntries;
