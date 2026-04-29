@@ -17,7 +17,7 @@ export const ORPHAN_REF_PATTERN = /^_ref(?<suffix>[2-9]|[1-9]\d+)?$/;
 // class - silently "fixing" broken user code the plugin has no business touching.
 // numeric-leading segments (`42`) can't be real global identifiers; bail early so downstream
 // consumers don't carry a junk hint that only gets filtered at lookup time
-export const entryToGlobalHint = entry => {
+const entryToGlobalHint = entry => {
   if (!entry) return null;
   const [head, ...rest] = entry.split('/');
   if (rest.length && rest.at(-1) !== 'constructor') return null;
