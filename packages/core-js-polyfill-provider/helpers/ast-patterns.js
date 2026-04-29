@@ -111,6 +111,27 @@ const FN_NODE_TYPES = new Set([
   'ArrowFunctionExpression',
 ]);
 
+// every shape that owns a function-like body (param-binding scope + own block body).
+// distinct from FN_NODE_TYPES (IIFE callee gate, narrower) - body-extract & param-default
+// resolution need ALL of these as enclosing-scope anchors, not just IIFE-callable shapes
+export const FUNCTION_LIKE_NODE_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+  'ObjectMethod',
+  'ClassMethod',
+]);
+
+// walk parentPath chain (inclusive) to the nearest enclosing function-like. used by
+// param-destructure body-extract (insert `const x = _polyfill;` at body top) and any
+// other transform that needs the binding's owning scope. parser-agnostic - reads
+// `node.type` directly so works for both babel-types virtual paths and estree-toolkit
+export function findEnclosingFunctionLikePath(path) {
+  let cur = path;
+  while (cur && !FUNCTION_LIKE_NODE_TYPES.has(cur.node?.type)) cur = cur.parentPath;
+  return cur ?? null;
+}
+
 // resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
 // spread of an inline array literal. returns null if a non-literal spread precedes `index`,
 // since we can't statically know the expanded length
@@ -417,6 +438,22 @@ export function objectPatternPropNeedsReceiverRewrite(prop) {
   if (prop.computed) return true;
   return (prop.type === 'ObjectProperty' || prop.type === 'Property')
     && prop.value?.type === 'AssignmentPattern';
+}
+
+// `RestElement` and `SpreadElement` are equivalent for `{a, ...rest}` patterns - estree
+// uses the latter, babel uses the former. helper centralises the check so destructure-
+// emitter rest-detection paths stay parser-agnostic
+export function isRestProperty(prop) {
+  return prop?.type === 'RestElement' || prop?.type === 'SpreadElement';
+}
+
+// any sibling of `currentProp` in the same ObjectPattern that is a rest binding. used by
+// AssignmentExpression flatten paths in both plugins to bail when whole-statement replacement
+// would silently drop a rest binding (cascade `_unused` sentinel from VariableDeclaration
+// path is not portable to AssignmentExpression - the statement value would change shape)
+export function hasRestSiblingExcept(properties, currentProp) {
+  if (!properties?.length) return false;
+  return properties.some(s => s !== currentProp && isRestProperty(s));
 }
 
 // transparent runtime wrappers that can surround an UpdateExpression operand:
