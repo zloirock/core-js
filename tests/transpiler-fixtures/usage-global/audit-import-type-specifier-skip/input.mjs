@@ -1,5 +1,4 @@
-// `import { type X }` - type-only import. identifier at ImportSpecifier position must
-// not trigger side-effect polyfill injection for X constructor
+// `import { type X }` is type-only and must not trigger a polyfill for `X`.
 import { type Set as MySet } from './shim';
 type T = InstanceType<MySet>;
 const t: T = null as any;
