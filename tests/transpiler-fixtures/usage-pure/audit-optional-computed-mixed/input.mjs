@@ -1,3 +1,3 @@
-// mix of `?.(`, `?.[`, `?.prop` in a single chain - exercises deoptionalizeNeedle's
-// per-`?.` lookahead for `(` / `[` / prop-name (drops both vs keeps `.`)
+// a single chain mixes `?.(`, `?.[`, and `?.prop`; verifies each optional shape is rewritten
+// in place without losing the `.` between hops.
 obj?.(key)?.[idx]?.at(0);

@@ -18,11 +18,10 @@ import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
 import "core-js/modules/web.dom-collections.iterator";
-// prefix `--(X)` / nested `((X))++` through paren wrappers preserved as AST nodes - all
-// three positions (read, prefix-update, nested-postfix) inject the polyfill because the
-// read side is always reached. Update statements live behind `if (false)` because
-// assigning to a global is itself user-bug; plugin output is the subject of the test,
-// not runtime
+// parser-preserved parens around `Map`/`Promise`/`Set` must be peeled so the read side of
+// `--(X)` and `((X))++` still triggers each polyfill. Wrapped in `if (false)` because
+// updating a global itself is a user bug; only plugin output is asserted, not runtime
+// behavior.
 let x = Map;
 x++;
 if (false) {
