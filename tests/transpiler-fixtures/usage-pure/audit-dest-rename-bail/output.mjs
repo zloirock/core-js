@@ -1,5 +1,6 @@
-// rename destructure: `bar` binds to `Array.foo` (undefined), not to `Array` - plugin must
-// not alias it to the receiver or broken code would silently gain a working polyfill
+// rename destructure: `bar` binds to `Array.foo` (undefined), not to `Array` - plugin
+// preserves the original semantics so `bar.from(...)` stays a runtime error rather than
+// being aliased to the receiver and accidentally working through a polyfill
 const {
   foo: bar
 } = Array;
