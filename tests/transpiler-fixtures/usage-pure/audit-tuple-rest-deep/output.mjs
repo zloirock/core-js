@@ -1,9 +1,8 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref, _ref2;
-// deep tuple with rest: `[string, ...number[][]]` - findTupleElement walks
-// elements, unwraps rest -> extractElementAnnotation. Check substitution still works
-// when tuple is inside a generic alias.
+// deep tuple `[string, ...number[][]]` inside a generic alias still yields the element type
+// for `.at(...)` lookup.
 type Pair<T> = [string, ...T[]];
 declare const t: Pair<number[]>;
 _atMaybeString(_ref = t[0]).call(_ref, 0);

@@ -1,10 +1,7 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// `findExpressionAnnotation` for CallExpression must infer type-param substitutions
-// from runtime argument annotations when the caller omitted explicit `<...>` args.
-// without inference `function makeBox<T>(t: T): { value: T }` + `makeBox(arr)` returns
-// `{ value: T }` unsubstituted, dropping array narrowing on `b.value.at(0)` - emits
-// generic `_at` instead of `_atMaybeArray`
+// `makeBox<T>(arr)` without explicit type args still narrows `b.value` to an array,
+// so `.at(0)` picks the array-specific polyfill.
 function makeBox<T>(t: T): { value: T } {
   return { value: t };
 }

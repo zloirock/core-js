@@ -1,3 +1,3 @@
-// a user-supplied regex with global/sticky flags must still match consistently against
-// every polyfill name (no lastIndex carry-over between checks).
+// stateful regex (`/g`, `/y`) in `include` is normalized so `lastIndex` does not leak
+// between matches.
 import 'core-js/actual/array/at';

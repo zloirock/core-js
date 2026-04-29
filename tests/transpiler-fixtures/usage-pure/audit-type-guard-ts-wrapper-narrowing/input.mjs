@@ -1,6 +1,6 @@
-// `instanceof` narrowing must peel through TS wrappers (`as`, `!`) on the LHS so the
-// guard recognizes `x` as the variable being narrowed. without unwrapRuntimeExpr the guard
-// fell back to general `_at` instead of array-specific `_atMaybeArray`
+// `instanceof` narrowing must look through `as` and `!` TS wrappers on the
+// LHS so that the array-specific polyfill is selected for the narrowed
+// variable rather than the generic instance-method fallback.
 declare const x: unknown;
 declare const y: unknown;
 function f() {
