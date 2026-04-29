@@ -154,14 +154,12 @@ export default function createDestructureEmitter({
     );
   }
 
-  // build `<exprStmt>` from peeled SE prefix expressions. callers wire it into the host's
-  // statement chain via `insertBefore`. cloning the prefix nodes keeps sibling visitors'
-  // path references intact and prevents AST sub-tree relocation surprises
-  function buildSEPrefixStatement(prefix) {
-    const cloned = prefix.map(e => t.cloneNode(e));
-    return cloned.length === 1
-      ? t.expressionStatement(cloned[0])
-      : t.expressionStatement(t.sequenceExpression(cloned));
+  // build per-SE-expr ExpressionStatements (one per peeled prefix expr) for `insertBefore`.
+  // matches unplugin's `cascadeAssignmentExpression` which emits each SE as a standalone
+  // `se();` segment - multi-SE chains land as `se1(); se2(); ...` in both pipelines.
+  // cloning preserves sibling visitors' path references through AST sub-tree relocation
+  function buildSEPrefixStatements(prefix) {
+    return prefix.map(e => t.expressionStatement(t.cloneNode(e)));
   }
 
   // lift the leading-SE-tail of `receiver` as a standalone ExpressionStatement before
@@ -170,7 +168,7 @@ export default function createDestructureEmitter({
   // with the host, so inner polyfillable usages need natural visitor pass to emit imports
   function liftSEPrefix(receiver, hostPath) {
     const { prefix } = peelNestedSequenceExpressions(receiver);
-    if (prefix.length) hostPath.insertBefore(buildSEPrefixStatement(prefix));
+    if (prefix.length) hostPath.insertBefore(buildSEPrefixStatements(prefix));
   }
 
   // AssignmentExpression-specific SE lift: peels SE prefix into a standalone statement AND
@@ -180,7 +178,7 @@ export default function createDestructureEmitter({
   function liftSEPrefixSwapRight(assignNode, exprStmt) {
     const { prefix, tail } = peelNestedSequenceExpressions(assignNode.right);
     if (!prefix.length) return;
-    exprStmt.insertBefore(buildSEPrefixStatement(prefix));
+    exprStmt.insertBefore(buildSEPrefixStatements(prefix));
     assignNode.right = tail;
   }
 

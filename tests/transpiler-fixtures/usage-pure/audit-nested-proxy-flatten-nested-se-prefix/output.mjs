@@ -5,7 +5,8 @@ import _Array$of from "@core-js/pure/actual/array/of";
 // outermost se1() lifts and inner se2() silently elides during the rewrite
 const se1 = () => console.log('se1');
 const se2 = () => console.log('se2');
-se1(), se2();
+se1();
+se2();
 const f1 = _Array$from;
 se1();
 const f2 = _Array$of;

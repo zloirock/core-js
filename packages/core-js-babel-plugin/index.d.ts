@@ -45,3 +45,4 @@ type Options = Pick<CompatOptions, "targets"> & {
 declare function plugin(api: object, options: Options, dirname: string): { name: string, visitor: object };
 
 export default plugin;
+export type { Options, Method, Mode };
