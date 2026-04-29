@@ -25,6 +25,10 @@ import "core-js/modules/es.set.is-superset-of";
 import "core-js/modules/es.set.symmetric-difference";
 import "core-js/modules/es.set.union";
 import "core-js/modules/es.string.iterator";
+import "core-js/modules/esnext.iterator.chunks";
+import "core-js/modules/esnext.iterator.includes";
+import "core-js/modules/esnext.iterator.join";
+import "core-js/modules/esnext.iterator.windows";
 import "core-js/modules/web.dom-collections.iterator";
 // chain-assign + nested-fallback combo: `foo = cond1 ? (cond2 ? Array : Iterator) : Set`.
 // `peelFallbackReceiver` alternates chain-assign / paren / TS / safe-SE peels until stable;
