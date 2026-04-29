@@ -1042,9 +1042,22 @@ function createResolveNodeType(babelNodeType, t) {
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
     if (!declaration) return null;
-    if (isInterfaceDeclaration(declaration)) return collectInterfaceMembers(declaration, segments, scope, depth, visited);
+    // class / interface declarations: substitute receiver's type-args into member annotations
+    // so `class C<T> { f(): T[] } interface C<T> { g: T }; declare const x: C<string>; x.f()[0]`
+    // and `x.g` see concrete `string` instead of raw type-param. parent-extends chain (class
+    // superClass / interface extends) carries its own subst per-hop in collectors; this top-
+    // level subst handles the receiver's own type-arg slot
+    const ownSubst = isInterfaceDeclaration(declaration) || isClassLikeDeclaration(declaration)
+      ? buildSubstMap(declaration.typeParameters?.params, getTypeArgs(objectType)?.params)
+      : null;
+    const applyOwnSubst = members => members && ownSubst
+      ? members.map(m => substMemberAnnotations(m, ownSubst))
+      : members;
+    if (isInterfaceDeclaration(declaration)) {
+      return applyOwnSubst(collectInterfaceMembers(declaration, segments, scope, depth, visited));
+    }
     if (isClassLikeDeclaration(declaration)) {
-      return collectClassLikeMembers(declaration, segments, scope, depth);
+      return applyOwnSubst(collectClassLikeMembers(declaration, segments, scope, depth));
     }
     if (isTypeAlias(declaration)) {
       // substitute the alias's type params into member annotations so
@@ -2926,9 +2939,11 @@ function createResolveNodeType(babelNodeType, t) {
     if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
     // TS declaration merging: sibling `interface X { ... }` contributes instance members
     // to the class type. runs only when the class body has no match, so real class methods
-    // always win on collision (matches TS semantics)
+    // always win on collision (matches TS semantics). thread classSubst so type-arg
+    // propagation (`declare const x: C<string>; x.merged()`) reaches the interface body's
+    // member annotations - merged params share names with the class declaration per TS rules
     if (!isStatic && classPath.node.id?.name) {
-      return resolveMergedInterfaceMember(classPath.node.id.name, classPath.scope, name, callPath);
+      return resolveMergedInterfaceMember(classPath.node.id.name, classPath.scope, name, callPath, classSubst);
     }
     return null;
   }
@@ -3215,15 +3230,40 @@ function createResolveNodeType(babelNodeType, t) {
     return index;
   }
 
+  // clone a TSTypeReference with each typeParameters arg substituted via `subst`. used to
+  // compose an outer subst into a `Base<T>` ref before passing to `buildParentSubst` -
+  // otherwise the parent's decl-param map binds raw `T` instead of the substituted concrete
+  function applySubstToTypeRefArgs(typeRef, subst) {
+    if (!subst || !typeRef?.typeParameters?.params?.length) return typeRef;
+    return {
+      ...typeRef,
+      typeParameters: {
+        ...typeRef.typeParameters,
+        params: typeRef.typeParameters.params.map(a => applyAliasSubstDeep(a, subst)),
+      },
+    };
+  }
+
+  // resolve `name` against a member array, substituting `subst` into each member's annotations
+  // first. shared shortcut for both own-body and extends-parent paths
+  function resolveSubstitutedMember(members, subst, name, scope, callPath) {
+    if (!members?.length) return null;
+    const substituted = subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
+    return resolveMemberFromMembers(substituted, name, scope, callPath);
+  }
+
   // merged class+interface member lookup. interface body's own members first, then parents
   // via `extends` - `interface C extends A` lets `A.x` show up on `C` via declaration merging.
-  // resolveMemberFromMembers does the per-member annotation -> type step
-  function resolveMergedInterfaceMember(className, scope, name, callPath) {
+  // resolveMemberFromMembers does the per-member annotation -> type step.
+  // classSubst (when present) carries the receiver's type-args bound to the class's type-param
+  // names; TS merging requires identical names on the interface side, so the same map applies
+  // to interface-body member annotations
+  function resolveMergedInterfaceMember(className, scope, name, callPath, classSubst) {
     const interfaces = findAllTypeDeclarations(className, scope).filter(isInterfaceDeclaration);
     for (const iface of interfaces) {
       // TS: iface.body.body; Flow: iface.body.properties
       const ownBody = iface.body?.body ?? iface.body?.properties;
-      const ownHit = resolveMemberFromMembers(ownBody, name, scope, callPath);
+      const ownHit = resolveSubstitutedMember(ownBody, classSubst, name, scope, callPath);
       if (ownHit) return ownHit;
       for (const parent of iface.extends ?? []) {
         const expr = extendsId(parent);
@@ -3233,10 +3273,11 @@ function createResolveNodeType(babelNodeType, t) {
           : expr;
         const parentMembers = getTypeMembers(parentRef, scope);
         if (!parentMembers) continue;
-        const subst = buildParentSubst(parentRef, scope);
-        const hit = resolveMemberFromMembers(
-          subst ? parentMembers.map(m => substMemberAnnotations(m, subst)) : parentMembers,
-          name, scope, callPath);
+        // compose classSubst -> parentSubst: interface's `extends Base<T>` carries class's T
+        // through the receiver-type-arg slot; without composition, Base<T>'s decl-param map
+        // gets a raw `T` reference instead of the substituted concrete type
+        const ownSubst = buildParentSubst(applySubstToTypeRefArgs(parentRef, classSubst), scope);
+        const hit = resolveSubstitutedMember(parentMembers, ownSubst, name, scope, callPath);
         if (hit) return hit;
       }
     }
