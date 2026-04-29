@@ -1,9 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Iterator$from from "@core-js/pure/actual/iterator/from";
-// `(cond ? Array : Iterator)` - paren-wrapped fallback receiver. oxc preserves
-// ParenthesizedExpression; without peeling, only one branch's identifier got polyfilled
-// by the inner Identifier visitor (the other side stayed raw). per-branch synth-swap
-// must reach the conditional underneath the paren wrapper
+// `(cond ? Array : Iterator)` - paren-wrapped fallback receiver. Per-branch destructure
+// rewriting peels the outer paren wrapper to reach the conditional, so each branch's
+// identifier reaches the receiver classifier and both sides emit their polyfill
 export const {
   from
 } = cond ? {

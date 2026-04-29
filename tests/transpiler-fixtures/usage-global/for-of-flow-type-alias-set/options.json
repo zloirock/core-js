@@ -9,6 +9,8 @@
     ]
   ],
   "parserOpts": {
-    "plugins": ["flow"]
+    "plugins": [
+      "flow"
+    ]
   }
 }
