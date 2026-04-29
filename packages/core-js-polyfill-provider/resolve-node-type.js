@@ -2208,7 +2208,7 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function resolveCallExpressionType(path) {
-    // coreJSResolvedType short-circuit handled at the top of resolveNodeTypeExpression
+    // resolvedTypeCache short-circuit handled at the top of resolveNodeTypeExpression
     const callee = path.get('callee');
     const name = resolveGlobalName(callee);
     if (name) {
@@ -2255,15 +2255,22 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolveNodeTypeExpression(path) {
     // polyfill-side transformations (memoized optional-chain refs, chained conditional
-    // wrappers, destructure-extracted helpers) stash a pre-mutation type hint on the node
-    // so downstream type resolution can recover the original receiver type even after the
-    // expression has been rewritten. check the hint BEFORE resolvePath - synthesized refs
-    // (`_ref` from babel-compat optional-chain memoization) carry the hint on the cloned
-    // Identifier; if resolvePath ever found a meaningful binding init, the hint stashed
-    // on the cloned identifier itself would be lost
-    if (path.node.coreJSResolvedType) return typeFromHint(path.node.coreJSResolvedType);
+    // wrappers, destructure-extracted helpers) stash a pre-mutation Type object in the
+    // `resolvedTypeCache` WeakMap so downstream type resolution can recover the original
+    // receiver type even after the expression has been rewritten. check the cached type
+    // BEFORE resolvePath - synthesized refs (`_ref` from babel-compat optional-chain
+    // memoization) carry it via the cloned Identifier; if resolvePath ever found a
+    // meaningful binding init, the type stashed on the cloned identifier itself would be
+    // lost. storing the Type object directly (not a hint string) avoids round-trip info
+    // loss: `toHint($Object('Array'))` -> 'array' -> `typeFromHint('array')` ->
+    // `$Object('array')` (lowercase) breaks downstream KNOWN_*_RETURN_TYPES lookups which
+    // key on capitalized constructor names. WeakMap (vs node-attached property) keeps the
+    // side-channel opaque to sibling plugins / AST-cloning libraries
+    const cached = resolvedTypeCache.get(path.node);
+    if (cached) return cached;
     path = resolvePath(path);
-    if (path.node.coreJSResolvedType) return typeFromHint(path.node.coreJSResolvedType);
+    const cachedAfter = resolvedTypeCache.get(path.node);
+    if (cachedAfter) return cachedAfter;
 
     switch (babelNodeType(path.node)) {
       // ESTree wraps optional chains in ChainExpression, preserves parentheses - unwrap
@@ -5312,6 +5319,14 @@ function createResolveNodeType(babelNodeType, t) {
 
   // --- Entry / public API ---
   let resolveCache = new WeakMap();
+  // pre-mutation Type cache for plugin-side rewrites: babel mutates the AST in-place, so
+  // when a sibling rewrite later re-resolves a node whose CallExpression callee was swapped
+  // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), the new shape isn't recognized
+  // by `resolveNodeTypeExpression`. emitters stash the resolved Type here BEFORE mutation;
+  // resolveNodeTypeExpression hits this WeakMap first. WeakMap (vs node-attached property)
+  // avoids polluting AST nodes - sibling plugins iterate `node` own-properties / clone via
+  // `Object.assign`-style merges; an opaque side-channel won't leak into their pipelines
+  let resolvedTypeCache = new WeakMap();
 
   // rebuild per-file to bound memory and drop retained entries from previous parses
   // (WeakMap is GC-safe, but rebuilding makes the memory footprint deterministic)
@@ -5322,6 +5337,7 @@ function createResolveNodeType(babelNodeType, t) {
     earlyExitGuardsCache = new WeakMap();
     ambientDeclCache = new WeakMap();
     resolveCache = new WeakMap();
+    resolvedTypeCache = new WeakMap();
     typeDeclCache = new WeakMap();
     classFieldTypeCache = new WeakMap();
     classExportedCache = new WeakMap();
@@ -5511,7 +5527,22 @@ function createResolveNodeType(babelNodeType, t) {
     return resolveNodeType(path)?.primitive === false;
   }
 
-  return { resolvePropertyObjectType, resolveGuardHints, resolveNodeType, toHint, isString, isObject, reset };
+  // {get,set} bundle around `resolvedTypeCache` - closure indirection so per-file `reset()`
+  // re-binding propagates to consumers (direct WeakMap export would leave stale refs)
+  const resolvedType = {
+    get: node => resolvedTypeCache.get(node),
+    set: (node, type) => resolvedTypeCache.set(node, type),
+  };
+  return {
+    isObject,
+    isString,
+    reset,
+    resolveGuardHints,
+    resolveNodeType,
+    resolvePropertyObjectType,
+    resolvedType,
+    toHint,
+  };
 }
 
 export { createResolveNodeType, TYPE_HINTS };
