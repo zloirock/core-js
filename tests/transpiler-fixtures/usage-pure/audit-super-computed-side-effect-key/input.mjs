@@ -1,6 +1,6 @@
-// `super[(fn(), 'try')]()` in static context: computed key carries a SequenceExpression
+// `super[(fn(), 'try')]()` in static context: computed key carries a comma expression
 // with a side-effect head. when the key resolves to a known static name and routes through
-// the inherited-static remap, the SE prefix must NOT be dropped - it has to fire at the
+// the inherited-static remap, the prefix must NOT be dropped - it has to fire at the
 // original evaluation point, before the polyfill call
 let counter = 0;
 function fn() { counter++; return null; }

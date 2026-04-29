@@ -3,9 +3,9 @@ import _globalThis from "@core-js/pure/actual/global-this";
 var from = _Array$from;
 // sibling-receiver rewrite walks the preserved declarator's subtree looking for true
 // binding references to a flattened receiver name (`globalThis` here). The non-reference-
-// position filter rejects method names, object property keys, labels, and
-// `MemberExpression.property` tails - only the trailing `ref = globalThis` gets the
-// polyfill identifier substitution
+// position filter rejects method names, object property keys, labels, and member-access
+// property tails - only the trailing `ref = globalThis` gets the polyfill identifier
+// substitution
 var cls = class {
     globalThis() {
       return 1;

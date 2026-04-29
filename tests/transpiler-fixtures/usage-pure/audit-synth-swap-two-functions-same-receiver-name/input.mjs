@@ -1,8 +1,8 @@
 // two distinct functions with the SAME receiver-name + SAME destructure shape - each
-// AssignmentPattern node is a separate AST node with its own identity, so per-node
-// state (synth-swap WeakMap) must isolate them. f's `Array` and g's `Array` are different
-// AssignmentPattern.right Identifier nodes; both must independently resolve and emit
-// synth-literal swap, no cross-leak via shared WeakMap key
+// default-value-param node is a separate AST node with its own identity, so per-node
+// receiver-rewrite state must isolate them. f's `Array` and g's `Array` are different
+// default-value-param right-side identifier nodes; both must independently resolve and
+// emit the synthetic literal, with no cross-leak through any shared per-node state
 function f({ from } = Array) {
   return from([1]);
 }

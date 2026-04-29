@@ -3,7 +3,8 @@ import _at from "@core-js/pure/actual/instance/at";
 // for arbitrary X. the writer set leaves the module - we cannot enumerate it.
 // `collectClassFieldCandidates` returns null (unknown) for public fields of exported
 // classes, so polyfill dispatch picks the common `instance/at` (handles array AND string)
-// instead of the Array-narrow `array/instance/at` that would crash on a string write
+// rather than the Array-narrow `array/instance/at`, keeping the call valid for any
+// importer-supplied write
 export class C {
   static count = [];
   pick() {

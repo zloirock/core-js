@@ -1,7 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref;
-// InstanceType<typeof Cls> - resolveTypeQueryBinding + getTypeMembers InstanceType branch.
-// Here `C` has a .list property (array). Instance type should route to class members.
+// InstanceType<typeof Cls> - the type-query binding resolves to class C, then the
+// InstanceType utility-type member lookup routes to the class instance members.
+// Here `C` has a .list property (array), so `.at(-1)` resolves array-typed.
 class C {
   list: string[] = [];
 }
