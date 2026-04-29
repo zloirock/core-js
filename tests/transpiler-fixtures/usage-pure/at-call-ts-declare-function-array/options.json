@@ -1,6 +1,8 @@
 {
   "filename": "input.ts",
-  "parserOpts": { "plugins": ["typescript"] },
+  "parserOpts": { "plugins": [
+    "typescript"
+  ] },
   "plugins": [
     [
       "@core-js",

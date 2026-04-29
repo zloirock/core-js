@@ -12,6 +12,8 @@
     ]
   ],
   "parserOpts": {
-    "plugins": ["decorators"]
+    "plugins": [
+      "decorators"
+    ]
   }
 }

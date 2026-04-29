@@ -13,6 +13,8 @@
     ["@babel/plugin-syntax-decorators", { "version": "2023-11" }]
   ],
   "parserOpts": {
-    "plugins": ["typescript"]
+    "plugins": [
+      "typescript"
+    ]
   }
 }

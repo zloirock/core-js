@@ -1,6 +1,6 @@
 // `Symbol.iterator in X` appears at module scope, inside an arrow body, and inside
-// a class method. handleBinaryIn must produce a single deduplicated `_isIterable` import
-// while still rewriting each occurrence at its own location.
+// a class method. Each occurrence rewrites independently while a single deduplicated
+// `_isIterable` import covers all of them.
 const top = Symbol.iterator in src1;
 const arrow = () => Symbol.iterator in src2;
 class Box {

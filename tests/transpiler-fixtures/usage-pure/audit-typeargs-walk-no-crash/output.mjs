@@ -1,6 +1,6 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// oxc emits `typeArguments` on generic CallExpressions; forEachChildNode must descend
-// via isASTNode without tripping on that extra metadata field
+// some parsers emit a `typeArguments` field on generic CallExpressions; the AST walker
+// must descend through child node properties without tripping on that extra metadata
 @foo
 class C {
   m() {
