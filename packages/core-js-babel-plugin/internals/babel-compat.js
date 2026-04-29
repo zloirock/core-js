@@ -9,7 +9,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 
 export default function (t, { getInjector, typeResolvers } = {}) {
-  const { resolveNodeType, toHint } = typeResolvers ?? {};
+  const { resolveNodeType, resolvedType } = typeResolvers ?? {};
 
   const isInTypeAnnotation = createTypeAnnotationChecker(isTypeAnnotationNodeType);
 
@@ -32,11 +32,13 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     return [t.assignmentExpression('=', t.cloneNode(ref), node), ref];
   }
 
-  // resolve the expression's type hint - no-op when the factory was constructed without
+  // resolve the expression's Type object - no-op when the factory was constructed without
   // typeResolvers (tooling that uses this module for raw AST rewrite only). `null` on
-  // unresolvable types, cheaper on repeat calls thanks to resolveCache
-  function pathTypeHint(p) {
-    return resolveNodeType && toHint ? toHint(resolveNodeType(p)) : null;
+  // unresolvable types, cheaper on repeat calls thanks to resolveCache. Type cached in
+  // the typeResolvers' WeakMap (via `cacheResolvedType`) - canonical constructor form is
+  // preserved for downstream `KNOWN_*_RETURN_TYPES` lookups, no AST-property pollution
+  function pathType(p) {
+    return resolveNodeType ? resolveNodeType(p) : null;
   }
 
   // tokens that are safe as a statement-leading token (no ASI hazard with the previous statement)
@@ -132,19 +134,18 @@ export default function (t, { getInjector, typeResolvers } = {}) {
     // remain untouched, so computed-property bootstrapping isn't disturbed
     let check = null;
     if (!skipOptional?.(chainStart.node, path.scope)) {
-      const memoHint = pathTypeHint(chainStart.get(key));
+      const memoType = pathType(chainStart.get(key));
       let ref;
       [check, ref] = memoize(chainStart.node[key], path.scope);
-      // stash the memoized value's type hint on the AST-embedded clone so the synthesized
-      // `_ref` identifier (replacing chainStart's receiver/callee) resolves back to the
-      // memoized value's type via the universal `coreJSResolvedType` short-circuit in
-      // resolveNodeType. without this, `?.at` (optional chain trigger) loses its receiver's
-      // hint once extractCheck rewrites M2.object to the ref: `resolveBindingType` can't
-      // recover it because the generated `_ref` identifier has no source-start position,
-      // so `findLastStraightLineAssignment` bails on the ordering check and enhanceMeta
-      // falls through to the generic `common` variant instead of the `array` variant
+      // cache memoized value's Type keyed on the cloned `_ref` identifier so the synthesized
+      // ref (replacing chainStart's receiver/callee) resolves back to the memoized value's
+      // type via `resolveNodeType`'s WeakMap short-circuit. without this, `?.at` (optional
+      // chain trigger) loses its receiver's type once extractCheck rewrites M2.object to
+      // the ref: `resolveBindingType` can't recover it because the generated `_ref`
+      // identifier has no source-start position, so `findLastStraightLineAssignment` bails
+      // on the ordering check and enhanceMeta falls through to the generic `common` variant
       const refClone = t.cloneNode(ref);
-      if (memoHint) refClone.coreJSResolvedType = memoHint;
+      if (memoType) resolvedType.set(refClone, memoType);
       chainStart.node[key] = refClone;
     }
     deoptionalizeNode(chainStart);
@@ -280,7 +281,8 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       t.unaryExpression('void', t.numericLiteral(0)), replacement);
     // chained outer calls read the hint off the result node; relocate the pre-combine
     // `annotateCallReturnType` stamp onto the wrapping conditional so they still resolve
-    if (outerCall.coreJSResolvedType) conditional.coreJSResolvedType = outerCall.coreJSResolvedType;
+    const outerCallType = resolvedType?.get(outerCall);
+    if (outerCallType) resolvedType.set(conditional, outerCallType);
     callerPath.parentPath.replaceWith(conditional);
   }
 
