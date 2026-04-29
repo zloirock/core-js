@@ -37,9 +37,9 @@ export default function createDestructureEmitter({
   injector,
   injectPureImport,
   resolvePropertyObjectType,
+  resolvedType,
   skippedNodes,
   synthSwap,
-  toHint,
   getDebugOutput,
 }) {
   // original body index of each declaration, before insertBefore shifts it
@@ -432,7 +432,7 @@ export default function createDestructureEmitter({
       && objectPattern.parentPath.parentPath?.parentPath?.isExportNamedDeclaration()) return;
     let value;
     if (kind === 'instance') {
-      const objectNode = resolveDestructuringObject(prop, toHint(resolvePropertyObjectType(prop)));
+      const objectNode = resolveDestructuringObject(prop, resolvePropertyObjectType(prop));
       if (!objectNode) return;
       value = t.callExpression(injectPureImport(entry, hintName), [t.cloneNode(objectNode)]);
     } else {
@@ -499,7 +499,7 @@ export default function createDestructureEmitter({
 
   // resolve the destructure init (VariableDeclarator.init / AssignmentExpression.right) -
   // memoize non-identifier init when other properties remain to avoid double evaluation
-  function resolveDestructuringObject(path, resolvedType) {
+  function resolveDestructuringObject(path, typeOfReceiver) {
     const parent = path.parentPath.parentPath;
     const initKey = parent.isVariableDeclarator() ? 'init'
       : parent.isAssignmentExpression() ? 'right' : null;
@@ -520,7 +520,7 @@ export default function createDestructureEmitter({
       ]));
       const cloned = t.cloneNode(ref);
       // store resolved type for subsequent destructured properties to resolve type hints
-      if (resolvedType) cloned.coreJSResolvedType = resolvedType;
+      if (typeOfReceiver) resolvedType.set(cloned, typeOfReceiver);
       parent.node[initKey] = cloned;
       return ref;
     }
