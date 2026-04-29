@@ -42,7 +42,7 @@ export default function plugin(api, options) {
   const { types: t, caller } = api;
 
   const typeResolvers = createResolveNodeType(node => node?.type, t);
-  const { resolvePropertyObjectType, resolveNodeType, toHint } = typeResolvers;
+  const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
 
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
     typeResolvers,
@@ -306,8 +306,8 @@ export default function plugin(api, options) {
         const callParent = callerPath.parentPath;
         if (!(callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
           || callerPath.parent.callee !== callerPath.node) return;
-        const hint = toHint(resolveNodeType(callParent));
-        if (hint) callParent.node.coreJSResolvedType = hint;
+        const type = resolveNodeType(callParent);
+        if (type) resolvedType.set(callParent.node, type);
       }
 
       // preserves sideEffects (SE from computed-key / SequenceExpression receiver) through
@@ -416,7 +416,21 @@ export default function plugin(api, options) {
               replaceInstanceChainCombined(path, id, { ...innerChain, innerId });
               return;
             }
+            // capture pre-mutation Type object for the parent CallExpression and re-attach
+            // post-replacement. parallel to static branch's `annotateCallReturnType` but
+            // post-replace - instance rewrite REPLACES the parent CallExpression entirely
+            // (`arr.concat(x)` -> `_concatMaybeArray(arr).call(arr, x)`), losing any pre-set
+            // annotation; static rewrite only swaps the callee identifier so the parent
+            // node persists. without this type-cache downstream `arr2.at(-1)` (where `arr2 =
+            // arr.concat(x)`) falls back to generic `_at` because the rewritten init shape
+            // (`_concatMaybeArray(arr).call(arr, x)`) isn't recognized by `resolveNodeType`
+            const callerPath = unwrapTSExpressionParent(path);
+            const callParent = callerPath.parentPath;
+            const isCallParent = (callParent?.isCallExpression() || callParent?.isOptionalCallExpression())
+              && callParent.node.callee === callerPath.node;
+            const callType = isCallParent ? resolveNodeType(callParent) : null;
             replaceInstanceLike(path, id, skipPolyfillableOptional, meta.sideEffects);
+            if (callType && callParent.node) resolvedType.set(callParent.node, callType);
           } else if (t.isSuper(path.node.object)) {
             replaceSuperStatic(path, id);
           } else {
@@ -461,6 +475,8 @@ export default function plugin(api, options) {
         onWarning: message => debugOutput?.warn(message),
         method,
         isEntryAvailable: isEntryNeeded,
+        toHint,
+        resolvedType,
       };
       const usageVisitors = method !== 'entry-global' ? createUsageVisitors({
         ...commonVisitorOptions,
@@ -502,7 +518,7 @@ export default function plugin(api, options) {
           skippedNodes,
           synthSwap,
           t,
-          toHint,
+          resolvedType,
         });
         // drop per-file AST-keyed caches so memory is deterministic under long-running
         // dev-server / HMR (WeakMap would eventually GC, but this makes the bound explicit)
