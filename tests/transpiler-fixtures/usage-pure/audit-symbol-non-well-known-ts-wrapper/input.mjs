@@ -1,3 +1,3 @@
-// `Symbol.foo` isn't a well-known key: resolveSymbolInEntry returns null, so the property
-// access is NOT rewritten but the bare `Symbol` identifier still needs its constructor polyfill
+// `Symbol.foo` is a user property, not a well-known symbol; the access is left intact,
+// but bare `Symbol` still gets the constructor polyfill.
 const x = obj[(Symbol as any).foo];
