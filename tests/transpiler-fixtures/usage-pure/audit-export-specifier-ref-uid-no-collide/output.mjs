@@ -1,10 +1,10 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref2;
-// `export { _ref as foo }` - user already binds `_ref`. plugin's UID generator must NOT
-// re-allocate `_ref` for memoized-receiver slots, otherwise the export silently shadows
-// the polyfill's local. allocator falls through to `_ref2` because `collectAllBindingNames`
-// now picks up `ExportSpecifier.local`
+// `export { _ref as foo }` - user already binds `_ref`. The fresh-name allocator for
+// memoized receivers must avoid colliding with the existing user binding, otherwise
+// the export silently shadows the polyfill's local. Allocator falls through to `_ref2`
+// because export specifier locals are included in the collected binding names
 const _ref = [1, 2, 3];
 export { _ref as foo };
 const x = [4, 5];

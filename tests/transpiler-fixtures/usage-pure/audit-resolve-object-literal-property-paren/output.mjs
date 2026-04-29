@@ -1,7 +1,8 @@
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
-// `T['k']` indexed access на generic параметр с object-literal arg обёрнутым TS-cast.
-// Резолвер должен peel'ить wrapper до ObjectExpression. Без peel oxc-парсер сохраняет
-// TSAsExpression и резолв падает к constraint fallback (precision loss vs babel)
+// `T['k']` indexed access on a generic param with an object literal arg wrapped in a
+// TS-cast. the resolver peels the wrapper down to the object literal. without the peel,
+// the TS as-cast envelope persists and resolution falls back to the constraint with a
+// loss of type precision
 function pick<T extends {
   k: unknown;
 }>(o: T): T['k'] {

@@ -1,5 +1,5 @@
 // optional-chain paren-detach preservation: `(arr?.includes)(1)` keeps the parenthesized
-// detach (`(_includes(arr))(1)` - no `.call(arr)` injection). The paren-detection check
-// covers both the default parser's `extra.parenthesized` flag and the
-// `createParenthesizedExpressions: true` `ParenthesizedExpression` node form
+// detach (`(_includes(arr))(1)` - no `.call(arr)` injection). The paren-detection covers
+// both shapes a parser may produce: a flag on the inner node or an explicit paren wrapper
+// as a separate AST node
 const v = (arr?.includes)(1);

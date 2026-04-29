@@ -1,4 +1,5 @@
-// `include: [Infinity]` reports the value as `Infinity` (not JSON-rendered `null`) so users
-// can distinguish from a real `[null]` element. `safeStringify` handles non-finite numbers /
-// Symbol / BigInt / function via native toString before falling back to JSON.stringify
+// `include: [Infinity]` is reported in the validation error as `Infinity` (not JSON-rendered
+// `null`) so the user can distinguish it from a real `[null]` element. Non-finite numbers,
+// Symbol, BigInt, and function values are stringified via their native toString before
+// falling back to JSON.stringify
 foo;

@@ -1,6 +1,7 @@
-// `declare function` inside function body: ambient binding в nested scope. ambient walk
-// должен drill через function-body BlockStatement до statement array. Без этого `g().at(0)`
-// fall'ит к generic вместо array-narrowed (return type number[] аннотация теряется)
+// `declare function` inside a function body: ambient binding in a nested scope. the
+// ambient walk drills through the function-body block down to the statement array.
+// without this, `g().at(0)` falls back to the generic helper instead of the array-
+// narrowed one (the declared `number[]` return type would be lost)
 function f() {
   declare function g(): number[];
   return g().at(0);

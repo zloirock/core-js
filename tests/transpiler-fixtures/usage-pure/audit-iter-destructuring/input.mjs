@@ -1,3 +1,4 @@
-// iterable array-pattern destructure: the iteration protocol must be polyfilled
-// because destructuring an iterable invokes the iterator protocol at runtime.
+// non-emission lock: array-pattern destructure of an iterable stays raw in pure mode;
+// iterator-instance dispatch requires an `Iterator.from` anchor and is intentionally
+// not auto-emitted.
 const [a, b] = arr;
