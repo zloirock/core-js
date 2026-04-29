@@ -1,6 +1,5 @@
-// `(globalThis as any).Symbol.iterator in x` - outer `in` rewrite subsumes the chain. the
-// `globalThis` leaf inside a TS as-cast wrapper must be marked as handled too; otherwise
-// the identifier visitor re-fires on `globalThis` and emits a duplicate polyfill request
+// when the outer `in` rewrite already covers a `globalThis as any` chain, the inner
+// `globalThis` must be marked handled so it does not double-emit.
 function check(x: unknown): boolean {
   return (globalThis as any).Symbol.iterator in x;
 }

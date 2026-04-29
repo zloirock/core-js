@@ -1,5 +1,5 @@
-// `toStatelessRegExp` strips `g`/`y` flags to avoid lastIndex persistence between calls.
-// a user-supplied `/^es\.array\.at$/g` must still match `es.array.at` consistently
+// stateful regex (`/g`, `/y`) in `include` is normalized so `lastIndex` does not leak
+// between matches.
 export default {
   plugins: [
     ['@core-js', {

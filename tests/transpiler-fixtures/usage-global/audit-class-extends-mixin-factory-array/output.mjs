@@ -1,10 +1,8 @@
 import "core-js/modules/es.array.flat";
 import "core-js/modules/es.array.species";
 import "core-js/modules/es.array.unscopables.flat";
-// mixin pattern `class X extends Mix(Array)`. The factory returns a class that extends
-// Array; the polyfill detector must recognize Array as a possibly-polyfilled global usage
-// even when wrapped in a CallExpression on the heritage clause. Polyfill for
-// Array.prototype.flat fires on the inner usage downstream
+// even when `Array` is the argument of a mixin call in the `extends` clause, it must be
+// recognised as a polyfillable global.
 function Mix(Base) {
   return class extends Base {
     extra() {
