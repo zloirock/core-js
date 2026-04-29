@@ -1322,7 +1322,15 @@ function createResolveNodeType(babelNodeType, t) {
     if (tuple?.type !== 'TSTupleType' && tuple?.type !== 'TupleTypeAnnotation') return null;
     const elements = tupleElements(tuple);
     if (!elements?.length) return null;
-    // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number
+    // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number.
+    // rest element NOT at the last position (`[...string[], number][1]` leading;
+    // `[string, ...number[], boolean][2]` middle) makes positional indexing semantically
+    // ambiguous - the rest's runtime length is unknown, so any index at or past the rest
+    // position could be either the rest's element type or a later fixed element. bail to
+    // the generic path so dispatch widens. trailing rest stays positional: indices before
+    // the rest hit fixed slots, indices at-or-past extend the rest's element type
+    const restIndex = elements.findIndex(isTupleRestElement);
+    if (restIndex !== -1 && restIndex !== elements.length - 1 && index >= restIndex) return null;
     const element = index < elements.length ? elements[index]
       // beyond tuple length: fall back to rest element if present - [string, ...number[]][5] -> number
       : isTupleRestElement(elements.at(-1)) ? elements.at(-1) : null;
@@ -5134,6 +5142,19 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // does this single sibling apply a narrowing guard to `varName`? checks both early-exit
+  // forms uniformly: condition-bearing (`if (typeof x === 'string') return;`) and the
+  // assertion-statement form (`assertString(x);`). presence-only check shared by
+  // `findPrecedingExitGuards` (which collects guards) and `hasMutationAfterGuards` (which
+  // only needs to know IF this sibling sits at a guard boundary)
+  function siblingGuardsBinding(sibling, varName) {
+    const conditionTrue = resolveExitCondition(sibling);
+    if (conditionTrue !== null) {
+      return parseGuardsFromCondition(sibling.node.test, conditionTrue, varName, sibling.scope).length > 0;
+    }
+    return parseAssertionStatementGuard(sibling, varName) !== null;
+  }
+
   // if (typeof x === 'string') return; -> x is narrowed after the if
   // `assertArray(x)` -> x is narrowed after the call (asserts-predicate shape)
   // collects ALL preceding guards, including && / || flattening
@@ -5246,12 +5267,13 @@ function createResolveNodeType(babelNodeType, t) {
       if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent)) return true;
       if (findEarlyExitGuards(current, varName).length) {
         const siblings = getStatementSiblings(current);
+        // mutation window for any guard at sibling[i]: any reassign in (i, current.key],
+        // including the prefix of the current sibling before the usage. covers both forms
+        // uniformly via `siblingGuardsBinding`. ALL guards are checked (not just nearest)
+        // so a weaker guard closer to usage doesn't shadow mutations that already
+        // invalidated a stronger guard further back
         for (let i = current.key - 1; i >= 0; i--) {
-          const conditionTrue = resolveExitCondition(siblings[i]);
-          if (conditionTrue === null) continue;
-          if (!parseGuardsFromCondition(siblings[i].node.test, conditionTrue, varName, siblings[i].scope).length) continue;
-          // check ALL exit guards, not just the nearest - a weaker guard closer to usage
-          // does not invalidate mutations that occurred after a stronger guard further away
+          if (!siblingGuardsBinding(siblings[i], varName)) continue;
           for (let j = i + 1; j < current.key; j++) if (violates(siblings[j])) return true;
           if (violatesBefore(siblings[current.key])) return true;
         }
