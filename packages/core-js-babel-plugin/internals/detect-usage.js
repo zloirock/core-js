@@ -116,7 +116,15 @@ export const USAGE_VISITORS_RESET = Symbol('core-js.usageVisitors.reset');
 export const USAGE_VISITORS_IS_HANDLED = Symbol('core-js.usageVisitors.isHandled');
 
 export function createUsageVisitors({
-  onUsage, onWarning, adapter, method, suppressProxyGlobals = false, walkAnnotations = true, isEntryAvailable,
+  adapter,
+  isEntryAvailable,
+  method,
+  onUsage,
+  onWarning,
+  resolvedType,
+  suppressProxyGlobals = false,
+  toHint,
+  walkAnnotations = true,
 }) {
   // only usage-pure rewrites global identifiers to named import bindings (which are frozen).
   // usage-global injects side-effect imports and leaves the identifier alone, so `Map++`
@@ -328,8 +336,12 @@ export function createUsageVisitors({
     // follow memoized reference type (e.g., const _ref = [1,2,3] after memoization).
     // spread instead of in-place mutation: contract with buildDestructuringInitMeta
     // doesn't promise mutable meta, and a fresh object is cheap here
-    if (!meta.placement && initPath.node.coreJSResolvedType) {
-      meta = { ...meta, object: initPath.node.coreJSResolvedType, placement: 'prototype' };
+    const cachedInitType = resolvedType?.get(initPath.node);
+    if (!meta.placement && cachedInitType) {
+      // cache stores the canonical Type object; convert to lowercase hint string for
+      // `meta.object` dispatch (TYPE_HINTS keys are lowercase)
+      const objectHint = toHint?.(cachedInitType);
+      if (objectHint) meta = { ...meta, object: objectHint, placement: 'prototype' };
     }
     onUsage(meta, path);
   }
