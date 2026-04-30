@@ -19,7 +19,6 @@ import {
   findTSRuntimeBindingInPath,
   flattenableHostSlot,
   isAmbientBindingShape,
-  isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
@@ -27,7 +26,7 @@ import {
   resolveCallArgument,
   unwrapInitValue,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
