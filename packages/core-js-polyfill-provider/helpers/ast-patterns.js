@@ -205,15 +205,6 @@ export function findIifeArgForParam(fnParentPath, paramNode) {
   return site ? resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex) : null;
 }
 
-// is the IIFE caller-arg statically classifiable to a known builtin receiver? bare
-// Identifiers can be matched against compat data (`Set`, `Array`, ...); non-Identifier
-// shapes (`(...)(globalThis.X)`, `(...)(call())`, `(...)((x, y))`) carry no static type.
-// resolution (entry lookup) and synth-swap (target picking) MUST agree on this narrowing -
-// mismatched receivers would emit a polyfill the runtime never reaches
-export function isClassifiableReceiverArg(node) {
-  return node?.type === 'Identifier';
-}
-
 // `import type X = require(...)` is type-only - elided by tsc before runtime, references
 // resolve to the global. babel scope tracker registers the binding regardless of modifier;
 // callers use this predicate to filter out type-only bindings from shadow checks

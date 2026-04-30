@@ -70,6 +70,44 @@ export function globalProxyMemberName(node, scope, adapter, path) {
   return memberKeyName(node) || null;
 }
 
+// strict: IIFE caller-arg only overrides wrapper-default when it's a bare Identifier.
+// non-Identifier shapes (`(...)(globalThis.X)`, `(...)(call())`, `(...)((x, y))`) leave
+// the wrapper-default as the synth target so resolution can fall through to the default
+// (`function f({p} = Array)(globalThis.X)` -> default `Array.p` resolves even if
+// `globalThis.X.p` doesn't). use this gate when the wrapper has an AssignmentPattern default
+export function isClassifiableReceiverArg(node) {
+  return node?.type === 'Identifier';
+}
+
+// permissive: no wrapper-default exists (`function f({p})` invoked as IIFE) - any
+// statically-classifiable receiver is acceptable. accepts bare Identifier AND proxy-global
+// MemberExpressions (`globalThis.X`, `self.X`, `window.X`, `globalThis.self.X`) since
+// resolution can match `globalThis.X.key` to `X.key` via `globalProxyMemberName`. failing
+// to widen here would force inline-default fallback, asymmetric with the bare-Identifier
+// IIFE path. scope+adapter optional - structural-only classification when omitted
+export function isExpandedClassifiableReceiver(node, scope, adapter, path) {
+  if (node?.type === 'Identifier') return true;
+  return globalProxyMemberName(node, scope, adapter, path) !== null;
+}
+
+// mark a synth-swap receiver and all its inner sub-nodes as "owned" by skippedNodes so
+// no other visitor races on the same source range. for bare Identifier receivers this is
+// just the node; for proxy-global MemberExpression chains (`globalThis.Map`,
+// `globalThis.self.Map`) we walk down `.object` and skip every intermediate Identifier
+// too - otherwise the inner `globalThis` Identifier visitor still fires and emits a
+// `_globalThis` polyfill, leaving an orphan import (babel) or a transform-queue overlap
+// composition error (unplugin) when synth-swap removes the outer chain
+export function markSynthReceiverSkipped(receiver, skippedNodes) {
+  if (!receiver) return;
+  let cur = receiver;
+  while (cur) {
+    skippedNodes.add(cur);
+    if (cur.type === 'MemberExpression' || cur.type === 'OptionalMemberExpression') {
+      cur = unwrapRuntimeExpr(cur.object);
+    } else break;
+  }
+}
+
 // `class C extends MyPromise { super.try(...) }` - `buildSuperStaticMeta` sets
 // `superMeta.object` to the binding name (`MyPromise`), but resolver tables key by global
 // (`statics.Promise.try`). returns superMeta with `.object` rewired to the registered
