@@ -1,8 +1,6 @@
-// TS-runtime `enum Map { ... }` declared inside a class static block must shadow the
-// global Map. anchor preference in `findTSRuntimeBindingInPath` walks the path's
-// parentPath chain and StaticBlock is one of the explicit anchor types in
-// `getTSRuntimeBindings`. without StaticBlock anchoring, polyfill emission would fire
-// inside the static block's `new Map()` despite the enum binding
+// `enum Map { ... }` declared inside a class StaticBlock. the local enum binding shadows
+// the global Map for the body of the static block, so `new Map.Foo()` should not emit
+// the Map polyfill
 let captured: unknown;
 class C {
   static {
