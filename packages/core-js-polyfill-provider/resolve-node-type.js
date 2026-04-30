@@ -82,13 +82,19 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // safe non-computed property name from a Member/OptionalMemberExpression. computed access
-  // (`obj['x']` / `obj[expr]`) returns null - callers that want literal-string-key access need
-  // to handle the computed branch explicitly because the literal's value isn't a property name
+  // statically-known property name from a Member/OptionalMemberExpression. accepts:
+  //   - non-computed Identifier (`obj.x`)
+  //   - computed string/numeric literal (`obj['x']` / `obj[0]`) - cross-parser via
+  //     `literalKeyValue` (babel: StringLiteral/NumericLiteral, ESTree/oxc: Literal+typeof)
+  //   - computed single-quasi TemplateLiteral (`obj[`x`]`) via `singleQuasiString`
+  // returns null for dynamic shapes (Identifier alias, BinaryExpression concat, MemberExpression
+  // chain, computed expressions). callers wanting alias-chain / enum / Symbol resolution should
+  // route through `resolveComputedKeyName` (scope-aware) or `indexedAccessKey` (TS-position)
   function getMemberProperty(node) {
     if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
-    if (node.computed) return null;
-    return node.property?.type === 'Identifier' ? node.property.name : null;
+    const { property, computed } = node;
+    if (!computed) return property?.type === 'Identifier' ? property.name : null;
+    return literalKeyValue(property) ?? singleQuasiString(property);
   }
 
   function getKeyName(key) {
@@ -3667,8 +3673,11 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // `<path>.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for
-  // other shapes. `conditionTrue` flips the sign when the guard sits in an else-branch
-  function parseDiscriminantCheck(rawTest, targetKey, conditionTrue) {
+  // other shapes. `conditionTrue` flips the sign when the guard sits in an else-branch.
+  // `scope` (optional) enables value-side resolution beyond bare literals: `Kind.A` /
+  // `Kind['A']` enum-member access, identifier alias to a literal, single-quasi template
+  // literal - all routed through `resolveComputedKeyName` which already handles them
+  function parseDiscriminantCheck(rawTest, targetKey, conditionTrue, scope) {
     const { test, negated } = peelNegation(rawTest);
     if (negated) conditionTrue = !conditionTrue;
     if (test?.type !== 'BinaryExpression') return null;
@@ -3677,15 +3686,20 @@ function createResolveNodeType(babelNodeType, t) {
     if (!isEq && !isNeq) return null;
     const left = peelParensAndChain(test.left);
     const right = peelParensAndChain(test.right);
-    const pair = memberLiteralPair(left, right, targetKey) ?? memberLiteralPair(right, left, targetKey);
+    const pair = memberLiteralPair(left, right, targetKey, scope) ?? memberLiteralPair(right, left, targetKey, scope);
     return pair && { ...pair, positive: isEq === conditionTrue };
   }
 
-  function memberLiteralPair(memberExpr, literalNode, targetKey) {
+  function memberLiteralPair(memberExpr, literalNode, targetKey, scope) {
     const field = getMemberProperty(memberExpr);
     if (field === null) return null;
     if (pathKey(memberExpr.object) !== targetKey) return null;
-    const value = literalKeyValue(literalNode);
+    // value side: bare literal first (cheap, no scope walk), then enum-member / alias-chain /
+    // template-literal via `resolveComputedKeyName`. without the second branch,
+    // `box.kind === Kind.A` (and `Kind['A']` / `Kind[`A`]`) stays unmatched and the
+    // discriminant narrowing falls back to the unrefined union receiver
+    const value = literalKeyValue(literalNode)
+      ?? (scope ? resolveComputedKeyName(literalNode, scope) : null);
     return value === null ? null : { field, value };
   }
 
@@ -3715,11 +3729,12 @@ function createResolveNodeType(babelNodeType, t) {
   // flatten `&&` (truthy) / `||` (falsy) chains so a discriminant clause embedded alongside
   // other tests (`if (x && f.kind === 'a')` / `if (!ready || f.kind !== 'b') return;`) still
   // contributes its narrowing. each clause goes through `parseDiscriminantCheck` (which peels
-  // its own `!`/parens), survivors append to `out`
-  function pushDiscriminantClauses(test, conditionTrue, targetKey, out) {
+  // its own `!`/parens), survivors append to `out`. `scope` threads through to enable
+  // enum-member / alias-chain resolution on the literal side of the comparison
+  function pushDiscriminantClauses(test, conditionTrue, targetKey, out, scope) {
     const parts = flattenCondition(test, conditionTrue ? '&&' : '||');
     for (const part of parts) {
-      const guard = parseDiscriminantCheck(part, targetKey, conditionTrue);
+      const guard = parseDiscriminantCheck(part, targetKey, conditionTrue, scope);
       if (guard) out.push(guard);
     }
   }
@@ -3735,7 +3750,7 @@ function createResolveNodeType(babelNodeType, t) {
       const exitCond = resolveExitCondition(sibling);
       if (exitCond === null) continue;
       if (!discriminantGuardApplies(sibling.scope, sibling.node.test?.end, ctx)) continue;
-      pushDiscriminantClauses(sibling.node.test, exitCond, targetKey, out);
+      pushDiscriminantClauses(sibling.node.test, exitCond, targetKey, out, sibling.scope);
     }
   }
 
@@ -3762,7 +3777,7 @@ function createResolveNodeType(babelNodeType, t) {
         continue;
       }
       if (!discriminantGuardApplies(parent.scope, test?.end, ctx)) continue;
-      pushDiscriminantClauses(test, conditionTrue, targetKey, guards);
+      pushDiscriminantClauses(test, conditionTrue, targetKey, guards, parent.scope);
     }
     return guards;
   }
