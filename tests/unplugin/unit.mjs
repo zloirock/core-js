@@ -1,6 +1,6 @@
 import { parseSync } from 'oxc-parser';
 import MagicString from 'magic-string';
-import { shouldTransform } from '../../packages/core-js-unplugin/index.js';
+import unplugin, { shouldTransform } from '../../packages/core-js-unplugin/index.js';
 import { createPolyfillContext } from '../../packages/core-js-polyfill-provider/index.js';
 import { entryToGlobalHint, ORPHAN_REF_PATTERN } from '../../packages/core-js-polyfill-provider/injector-base.js';
 import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helpers/pattern-matching.js';
@@ -679,6 +679,49 @@ function checkPhasePipelinePassThrough() {
   check('phase/pre+post imports match single', twoPassImports, singleImports);
 }
 checkPhasePipelinePassThrough();
+
+// --- entry-global phase gate ---
+// `entry-global` always runs at pre, but the d.ts contract advertises `phase?: 'pre'`
+// as a legal explicit value. runtime must accept `'pre'` (no-op redundant with default)
+// and reject any other phase value. parallel checks: undefined / null are also accepted
+function checkEntryGlobalPhaseGate() {
+  const noop = ctx => unplugin.raw({ method: 'entry-global', ...ctx, targets: 'chrome 50' }, { framework: 'vite' });
+  const tryFactory = ctx => {
+    try {
+      noop(ctx);
+      return null;
+    } catch (error) {
+      return error;
+    }
+  };
+  check('entry-global phase: pre accepted (regression lock)', tryFactory({ phase: 'pre' }), null);
+  check('entry-global phase: post rejects', tryFactory({ phase: 'post' })?.message?.includes('`phase`'), true);
+  check('entry-global phase: pre+post rejects', tryFactory({ phase: 'pre+post' })?.message?.includes('`phase`'), true);
+  check('entry-global phase: invalid rejects', tryFactory({ phase: 'lol' })?.message?.includes('`phase`'), true);
+  check('entry-global phase: undefined accepted (default)', tryFactory({ phase: undefined }), null);
+  check('entry-global phase: null accepted (conditional fallback)', tryFactory({ phase: null }), null);
+}
+checkEntryGlobalPhaseGate();
+
+// --- bundler diagnostic captured by warn hijack ---
+// `unknown bundler` value triggers `console.warn` at plugin instantiation. unit test
+// asserts that the warn is observable via console.warn (test-runner's captureTransform
+// hijack relies on this). regression lock for XCT-16-1: the warn previously leaked to
+// stderr because runner only hijacked console.log
+function checkUnknownBundlerWarn() {
+  const captured = [];
+  const orig = console.warn;
+  console.warn = (...a) => captured.push(a.map(String).join(' '));
+  try {
+    createPlugin({ method: 'usage-global', bundler: 'turbopack', targets: { ie: '11' } });
+  } finally {
+    console.warn = orig;
+  }
+  check('unknown bundler emits one warn', captured.length, 1);
+  check('warn names the bundler', captured[0]?.includes('turbopack'), true);
+  check('warn lists known bundlers', captured[0]?.includes('vite'), true);
+}
+checkUnknownBundlerWarn();
 
 // --- estree-compat nodeType mapper (adapter divergence: babel vs oxc) ---
 // `nodeType()` translates oxc's narrower node taxonomy back to babel's discriminator
