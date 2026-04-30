@@ -8,7 +8,6 @@
 // public surface: `applyDestructuringTransforms`, `applySynthSwaps`, `handleDestructuringPure`,
 // `canFullyConsumeProxyDeclarator` (pre-pass speculation)
 import {
-  destructureReceiverSlot,
   findEnclosingFunctionLikePath,
   FUNCTION_LIKE_NODE_TYPES,
   getFallbackBranchSlots,
@@ -23,6 +22,7 @@ import {
   peelFallbackWrappers,
   peelNestedSequenceExpressions,
   propBindingIdentifier,
+  resolveFallbackReceiver,
   TS_EXPR_WRAPPERS,
   unwrapInitValue,
   unwrapParens,
@@ -669,13 +669,12 @@ export function createDestructureEmitter({
   // ---------- destructure rewrite pipeline ----------
 
   // top-level destructure path (`const {from} = cond ? Array : Set`, assignment-target).
-  // resolves the wrapper's RHS slot per parent shape, then delegates to the shared
-  // per-branch helper. wraps to keep `handleDestructuringPure` under the lint statement-cap
+  // resolves the wrapper's RHS via the unified slot/IIFE helper, then delegates to the
+  // shared per-branch helper. wraps to keep `handleDestructuringPure` under lint statement-cap
   function tryFromFallbackPerBranchSynth(metaPath, propNode) {
-    const wrapperNode = metaPath.parentPath?.parentPath?.node;
-    const slot = destructureReceiverSlot(wrapperNode);
-    if (!slot) return;
-    tryRegisterPerBranchSynth(wrapperNode[slot], propNode, metaPath.parent, metaPath.scope);
+    const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
+    if (!desc) return;
+    tryRegisterPerBranchSynth(desc.rhsNode, propNode, metaPath.parent, metaPath.scope);
   }
 
   // ConditionalExpression / LogicalExpression in destructure-receiver position
@@ -733,9 +732,13 @@ export function createDestructureEmitter({
     const { value } = propNode;
     if (!isIdentifierPropValue(value)) return;
     if (meta.fromFallback) {
-      const wrapperNode = metaPath.parentPath?.parentPath?.node;
-      const slot = destructureReceiverSlot(wrapperNode);
-      if (slot) tryRegisterPerBranchSynth(wrapperNode[slot], propNode, metaPath.parent, metaPath.scope);
+      // receiver lives either on a destructure wrapper slot (`{p} = R`) or as the IIFE
+      // call-arg (`(({p}) => body)(R)`) - both shapes unified by `resolveFallbackReceiver`.
+      // per-branch synth-swap rewrites each conditional / logical branch to its own
+      // polyfill object literal, so a non-Identifier receiver (`cond ? Array : Set`) still
+      // gets array narrowing on each branch independently
+      const desc = resolveFallbackReceiver(metaPath.parentPath?.parentPath, metaPath.parent);
+      if (desc) tryRegisterPerBranchSynth(desc.rhsNode, propNode, metaPath.parent, metaPath.scope);
       return;
     }
     const isAssign = value.type === 'AssignmentPattern';
