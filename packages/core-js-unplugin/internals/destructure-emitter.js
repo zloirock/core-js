@@ -12,6 +12,7 @@ import {
   findEnclosingFunctionLikePath,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
+  isBindingPosition,
   isFunctionParamDestructureParent,
   isIdentifierPropValue,
   isNonReferencePosition,
@@ -469,18 +470,23 @@ export function createDestructureEmitter({
   // skippedNodes so identifier visitor doesn't queue a parallel transform that would mismatch
   // TransformQueue's nth-count compose
   function polyfillSiblingReceiverRefs(declarator, flattenedReceivers) {
-    // collect Identifier matches with shadowing + parent-MemberExpression filtering. two
-    // skip rules:
+    // collect Identifier matches with shadowing + parent-MemberExpression filtering. skip rules:
     //   (1) parent MemberExpression resolves to a polyfillable global (`globalThis.Map`,
     //       `globalThis['Map']`). the outer MemberExpression transform replaces the whole
     //       `globalThis.Map` range with `_Map`; a competing inline `globalThis -> _globalThis`
     //       would land a `_globalThis.Map` substring INSIDE the outer's `_Map` content during
     //       compose, turning the inner needle search into a partial match (`__Map` corruption).
     //       both non-computed `obj.Map` and computed-string `obj['Map']` shapes apply
-    //   (2) Identifier shadowed by a function-like ancestor inside the declarator (param /
-    //       function name). the local binding shadows the outer global at runtime, so
-    //       rewriting the inner reference to a polyfill import would change semantics
-    //       (`function (globalThis) { return globalThis }` returns the param value, not `_globalThis`)
+    //   (2) Identifier shadowed by an ancestor inside the declarator. function-like ancestors
+    //       (param / function name), block-level `let`/`const`/`class`/`function` declarations,
+    //       catch-param, and for-statement let/const headers all bind names that locally
+    //       shadow the outer global. rewriting the inner reference would change semantics
+    //       (`function (globalThis) { return globalThis }` returns the param, not `_globalThis`;
+    //       `{ let from = userFn; from(); }` calls user fn, not `_Array$from`)
+    //   (3) Identifier IS the binding position (declarator.id, function/class.id, catch.param) -
+    //       it's the name being introduced, not a reference. parser-side shorthand props /
+    //       computed keys would bypass `isNonReferencePosition`'s NON_REF_KEY_BEARING_TYPES
+    //       check, but binding positions are a distinct shape parser-wide
     const matches = [];
     const scopeStack = [];
 
@@ -491,6 +497,59 @@ export function createDestructureEmitter({
       }
       // FunctionExpression / FunctionDeclaration's own name is in scope inside the body
       if (node.id?.name) locals.add(node.id.name);
+      // `var` hoists to function scope - walk body collecting all `var` declarations,
+      // stopping at nested function-likes (their vars hoist to their own scope). without
+      // this, `function () { var globalThis; return globalThis; }` would replace the
+      // inner reference even though the local `var` shadows the outer global
+      if (node.body) collectFunctionVars(node.body, locals);
+      scopeStack.push(locals);
+    }
+
+    function collectFunctionVars(node, locals) {
+      if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+      if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+        for (const d of node.declarations) walkPatternIdentifiers(d.id, id => locals.add(id.name));
+        return;
+      }
+      // nested function-likes have their own var-scope - don't pull their vars into ours
+      if (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration'
+        || node.type === 'ArrowFunctionExpression' || node.type === 'ObjectMethod'
+        || node.type === 'ClassMethod' || node.type === 'StaticBlock') return;
+      for (const key of Object.keys(node)) {
+        const value = node[key];
+        if (Array.isArray(value)) for (const v of value) collectFunctionVars(v, locals);
+        else collectFunctionVars(value, locals);
+      }
+    }
+
+    // collect block-level lexical bindings: `let`/`const` declarations, FunctionDeclaration
+    // / ClassDeclaration ids. covers BlockStatement, ForStatement init, ForOfStatement /
+    // ForInStatement left, CatchClause param. `var` deliberately omitted - it hoists to
+    // function scope, where pushFunctionScope's params Set already shadows correctly
+    function pushBlockScope(node) {
+      const locals = new Set();
+      const collectFromDecl = decl => {
+        if (decl?.type === 'VariableDeclaration' && (decl.kind === 'let' || decl.kind === 'const')) {
+          for (const d of decl.declarations) walkPatternIdentifiers(d.id, id => locals.add(id.name));
+        } else if (decl?.type === 'ClassDeclaration' && decl.id?.name) locals.add(decl.id.name);
+        else if (decl?.type === 'FunctionDeclaration' && decl.id?.name) locals.add(decl.id.name);
+      };
+      switch (node.type) {
+        case 'BlockStatement':
+        case 'StaticBlock':
+          for (const stmt of node.body ?? []) collectFromDecl(stmt);
+          break;
+        case 'CatchClause':
+          if (node.param) walkPatternIdentifiers(node.param, id => locals.add(id.name));
+          break;
+        case 'ForStatement':
+          collectFromDecl(node.init);
+          break;
+        case 'ForOfStatement':
+        case 'ForInStatement':
+          collectFromDecl(node.left);
+          break;
+      }
       scopeStack.push(locals);
     }
 
@@ -516,12 +575,16 @@ export function createDestructureEmitter({
 
     function walk(node, parent) {
       if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
-      const opensScope = node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration'
+      const opensFnScope = node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration'
         || node.type === 'ArrowFunctionExpression' || node.type === 'ObjectMethod' || node.type === 'ClassMethod';
-      if (opensScope) pushFunctionScope(node);
+      const opensBlockScope = !opensFnScope && (node.type === 'BlockStatement' || node.type === 'StaticBlock'
+        || node.type === 'CatchClause' || node.type === 'ForStatement'
+        || node.type === 'ForOfStatement' || node.type === 'ForInStatement');
+      if (opensFnScope) pushFunctionScope(node);
+      else if (opensBlockScope) pushBlockScope(node);
       if (node.type === 'Identifier' && flattenedReceivers.has(node.name)
         && !isShadowed(node.name) && !isPolyfillableMemberAccess(parent, node)
-        && !isNonReferencePosition(parent, node)) {
+        && !isNonReferencePosition(parent, node) && !isBindingPosition(parent, node)) {
         matches.push(node);
       }
       for (const key of Object.keys(node)) {
@@ -529,7 +592,7 @@ export function createDestructureEmitter({
         if (Array.isArray(value)) for (const item of value) walk(item, node);
         else walk(value, node);
       }
-      if (opensScope) scopeStack.pop();
+      if (opensFnScope || opensBlockScope) scopeStack.pop();
     }
 
     walk(declarator, null);
