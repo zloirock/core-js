@@ -1,0 +1,5 @@
+// empty-string property key on global proxy: globalThis['']. memberKeyName returns '' for
+// this shape; globalProxyMemberName then returns null (per `|| null` coalesce treating
+// falsy '' as miss). no real global has empty name; the rewrite must not be triggered
+const x = globalThis[''];
+x;
