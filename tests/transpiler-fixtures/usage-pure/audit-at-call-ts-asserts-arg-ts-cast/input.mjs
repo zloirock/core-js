@@ -1,9 +1,6 @@
-// assertion-statement guard with TS-cast wrapped argument: `assertString(x as any)` /
-// `assertString(x!)` / `assertString(x satisfies unknown)`. the assertion still narrows
-// the underlying binding `x` regardless of cast wrappers — parser sees TSAsExpression /
-// TSNonNullExpression / TSSatisfiesExpression around the bare Identifier, but the
-// runtime call passes `x` itself. without `unwrapRuntimeExpr` peeling, the guard fails
-// to match the binding name and falls back to generic `_at`
+// `asserts x is string` invoked with a TS-cast argument: `assertString(x as any)`.
+// TSAsExpression wraps the bare Identifier but at runtime the underlying binding `x`
+// is still passed, so the assertion narrows it the same as without the cast
 function assertString(x: unknown): asserts x is string {}
 function probe(x: unknown) {
   assertString(x as any);

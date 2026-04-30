@@ -1,8 +1,8 @@
 import _Array$from from "@core-js/pure/actual/array/from";
-// multi-decl flatten with sibling that locally shadows the receiver name via `var` inside
-// a function body. `var` hoists to the enclosing function scope - `pushFunctionScope`
-// must collect `var` bindings from the body, not just function params, so the inner
-// reference resolves to the local var and skips polyfill rewrite
+// multi-declarator: flattened `globalThis` proxy destructure plus a sibling IIFE whose
+// function body declares `var globalThis = 'shadow'`. the `var` hoists to the IIFE
+// scope, so the inner reference must resolve to the local var rather than the polyfill
+// binding
 const from = _Array$from;
 const y = (function () {
   var globalThis = 'shadow';
