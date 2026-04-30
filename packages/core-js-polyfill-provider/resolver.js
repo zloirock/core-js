@@ -134,7 +134,8 @@ export function createPolyfillResolver(options, {
     // cheap guard for future pathless-instance lookups
     if (!path) return meta;
     if (meta.placement === 'prototype' && TYPE_HINTS.has(objectToTypeHint(meta.object))) return meta;
-    const hint = toHint(resolvePropertyObjectType(path));
+    const objType = resolvePropertyObjectType(path);
+    const hint = toHint(objType);
     if (hint) {
       if (TYPE_HINTS.has(hint)) return { ...meta, object: hint, placement: 'prototype', receiverHint: undefined };
       return descHasTypeHints(desc) ? null : meta;
