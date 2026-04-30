@@ -75,38 +75,45 @@ export default class ImportInjector extends ImportInjectorState {
 
   generateLocalRef(scope) { return this.#generateRefId(scope); }
 
-  // `scope.push` on an arrow with expression body appends the ref as a trailing parameter
-  // instead of block-converting (Babel fallback when there's no block to host `var _ref;`).
+  // `scope.push` appends the ref as a trailing function parameter instead of block-converting
+  // in two cases (both Babel internal behavior):
+  //   - ArrowFunctionExpression with expression body: no block to host `var _ref;`
+  //   - FunctionExpression in IIFE position: Babel pushes to params for callable scopes
+  // both shapes need post-pass normalization to `var _ref;` in body so output stays
+  // symmetric across the babel ↔ unplugin pipelines (unplugin's text-rewrite path always
+  // emits `var _ref;` via scope-tracker `#scopedVars`).
   // must run post-pass: in-visit block-convert races with sibling `replaceWith` calls whose
   // container pointers still point at the pre-convert arrow.body slot - they clobber the
   // new block when they fire.
-  // safety: `refNames.has(p.name)` requires the arrow's trailing param to be in `#refs`,
-  // which only contains names this injector allocated. user-written `_ref` arrow params
-  // never enter `#refs` because `generateRefName` consults `scope.hasBinding` to skip them
+  // safety: `refNames.has(p.name)` requires the trailing param to be in `#refs`, which
+  // only contains names this injector allocated. user-written `_ref` params never enter
+  // `#refs` because `generateRefName` consults `scope.hasBinding` to skip them
   normalizeArrowRefParams() {
     if (!this.#refs.size) return;
     const t = this.#t;
     const refNames = this.#refs;
+    const normalize = path => {
+      const { params } = path.node;
+      let n = params.length;
+      while (n > 0) {
+        const p = params[n - 1];
+        if (p?.type !== 'Identifier' || !refNames.has(p.name)) break;
+        n--;
+      }
+      if (n === params.length) return;
+      const refParams = params.slice(n);
+      path.node.params = params.slice(0, n);
+      let bodyPath = path.get('body');
+      if (!bodyPath.isBlockStatement()) {
+        bodyPath.replaceWith(t.blockStatement([t.returnStatement(path.node.body)]));
+        bodyPath = path.get('body');
+      }
+      bodyPath.unshiftContainer('body', t.variableDeclaration('var',
+        refParams.map(p => t.variableDeclarator(t.cloneNode(p)))));
+    };
     this.#programPath.traverse({
-      ArrowFunctionExpression(path) {
-        const { params } = path.node;
-        let n = params.length;
-        while (n > 0) {
-          const p = params[n - 1];
-          if (p?.type !== 'Identifier' || !refNames.has(p.name)) break;
-          n--;
-        }
-        if (n === params.length) return;
-        const refParams = params.slice(n);
-        path.node.params = params.slice(0, n);
-        let bodyPath = path.get('body');
-        if (!bodyPath.isBlockStatement()) {
-          bodyPath.replaceWith(t.blockStatement([t.returnStatement(path.node.body)]));
-          bodyPath = path.get('body');
-        }
-        bodyPath.unshiftContainer('body', t.variableDeclaration('var',
-          refParams.map(p => t.variableDeclarator(t.cloneNode(p)))));
-      },
+      ArrowFunctionExpression: normalize,
+      FunctionExpression: normalize,
     });
   }
 
