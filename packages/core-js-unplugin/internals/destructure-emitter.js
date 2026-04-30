@@ -104,6 +104,13 @@ export function createDestructureEmitter({
   // statement don't re-emit (first call handles ALL polyfilled props of the statement
   // through `rewriteDeclarator`'s upfront walk; subsequent calls short-circuit)
   const flattenedAssignments = new WeakSet();
+  // deferred flatten payloads: tryFlattenNestedProxy fires DURING traverse (skip-marking
+  // + pure-import injection MUST happen before sibling-subtree visit, otherwise visitor
+  // emits parallel polyfill transforms). but the FINAL replacement text depends on
+  // scope-tracker `var _ref;` bindings populated DURING the sibling visit. defer the
+  // transforms.add registration until applyDestructuringTransforms - by then scope-tracker
+  // has full state for `consumeRefBindingsInRange`
+  const pendingFlatten = [];
   // cascade-rewrite cache for AssignmentExpression hosts: stores `{result, unusedIds}`
   // computed once via `rewriteDeclarator` over a synthetic mock-declarator. unusedIds
   // are captured by tracking `injector.generateUnusedName()` calls during the first plan
@@ -236,32 +243,59 @@ export function createDestructureEmitter({
     flattenedNestedDecls.add(declaration);
     seedSkippedForExtractedDeclarators(declaration, perDecl);
     if (isForInit) injectForInitSESinks(declaration, perDecl);
-    let replacement = renderFlattened(perDecl, declaration.kind, isForInit);
-    if (!isForInit) {
-      // lift SE prefix ONLY from extracted declarators (whose receiver tail was consumed
-      // by the flatten rewrite). non-extracted siblings keep their original source verbatim
-      // through `polyfillSiblingReceiverRefs` / `nodeSrc` - lifting their SE prefix would
-      // duplicate execution: once via the lifted statement, once via the preserved declarator
-      const sequencePrefixes = [];
-      for (let index = 0; index < declaration.declarations.length; index++) {
-        if (!perDecl[index].extractions.length) continue;
-        const { prefix: sequenceExpressions } = peelNestedSequenceExpressions(declaration.declarations[index].init);
-        // emit each SE expr as a standalone statement (parity with babel's
-        // `buildSEPrefixStatements` per-expr emission). pre-fix swallowed all per-decl SEs
-        // into a single SequenceExpression statement (`se1(), se2();`); per-statement form
-        // (`se1();\nse2();`) reads cleaner and matches the cross-pipeline emission shape
-        for (const seExpr of sequenceExpressions) sequencePrefixes.push(nodeSrc(seExpr));
-      }
-      if (sequencePrefixes.length) replacement = `${ sequencePrefixes.map(prefix => `${ prefix };`).join('\n') }\n${ replacement }`;
-      // multi-statement output in a bodyless control parent (`if (cond) var {...} = G;`)
-      // would leak all but the first statement out of the gate without `{...}` wrap.
-      // `renderFlattened` only inserts `\n` between standalone statements (none of its
-      // emitted tokens contain bare newlines), so newline-presence is a faithful proxy
-      // for "more than one statement"
-      replacement = wrapBodylessIfMulti(replacement, replacement.includes('\n'), declPath);
-    }
-    transforms.add(declaration.start, declaration.end, replacement);
+    // defer rendering + transforms.add to applyDestructuringTransforms - sibling subtree
+    // visits AFTER this point may register `var _ref;` scope-tracker bindings for inner
+    // instance-method polyfills. baking those into preservedSrc requires post-traverse state
+    pendingFlatten.push({ declaration, declPath, perDecl, isForInit });
     return true;
+  }
+
+  // apply position-anchored splices (in original-source coordinates) to `src`, which is a
+  // verbatim slice starting at `baseOffset`. splices applied in descending source order so
+  // earlier substitutions don't shift later relative offsets. zero-length splices (insert
+  // shape: start === end) and span-replacing splices share the same loop body
+  function spliceInRange(src, baseOffset, splices) {
+    const sorted = splices.slice().sort((a, b) => b.start - a.start);
+    for (const { start, end, content } of sorted) {
+      src = src.slice(0, start - baseOffset) + content + src.slice(end - baseOffset);
+    }
+    return src;
+  }
+
+  // lift extracted-declarator SE prefixes (`(logCall(), globalThis)` -> standalone
+  // `logCall();` statements before the flattened decl). non-extracted siblings keep their
+  // SE prefixes verbatim through `nodeSrc` (lifting both would double-execute)
+  function liftExtractedSEPrefixes(declaration, perDecl) {
+    const sequencePrefixes = [];
+    for (let i = 0; i < declaration.declarations.length; i++) {
+      if (!perDecl[i].extractions.length) continue;
+      const { prefix } = peelNestedSequenceExpressions(declaration.declarations[i].init);
+      for (const seExpr of prefix) sequencePrefixes.push(nodeSrc(seExpr));
+    }
+    return sequencePrefixes;
+  }
+
+  // post-traverse render: consume any scope-tracker ref bindings that landed inside each
+  // preserved declarator's range, splice them into preservedSrc, then build replacement
+  // and queue the overwrite. without consume-and-bake, scope-tracker would queue insert
+  // at a position INSIDE this overwrite range and MagicString would split-an-edited-chunk
+  function flushPendingFlatten() {
+    for (const { declaration, declPath, perDecl, isForInit } of pendingFlatten) {
+      for (let i = 0; i < perDecl.length; i++) {
+        if (perDecl[i].preservedSrc === null) continue;
+        const decl = declaration.declarations[i];
+        const splices = scopeTracker.consumeRefBindingsInRange(decl.start, decl.end);
+        if (splices.length) perDecl[i].preservedSrc = spliceInRange(perDecl[i].preservedSrc, decl.start, splices);
+      }
+      let replacement = renderFlattened(perDecl, declaration.kind, isForInit);
+      if (!isForInit) {
+        const prefixes = liftExtractedSEPrefixes(declaration, perDecl);
+        if (prefixes.length) replacement = `${ prefixes.map(p => `${ p };`).join('\n') }\n${ replacement }`;
+        replacement = wrapBodylessIfMulti(replacement, replacement.includes('\n'), declPath);
+      }
+      transforms.add(declaration.start, declaration.end, replacement);
+    }
+    pendingFlatten.length = 0;
   }
 
   // seed skippedNodes ONLY for the consumed parts: the ObjectPattern (id) and the
@@ -597,7 +631,9 @@ export function createDestructureEmitter({
 
     walk(declarator, null);
     if (!matches.length) return nodeSrc(declarator);
-    // descending source order so prior substitutions don't shift later relative indices
+    // descending source order so prior substitutions don't shift later relative indices.
+    // scope-tracker ref-binding bake happens later in `flushPendingFlatten` post-traverse
+    // (scope-tracker only fully populated AFTER sibling subtree visited)
     matches.sort((leftMatch, rightMatch) => rightMatch.start - leftMatch.start);
     const declStart = declarator.start;
     let src = nodeSrc(declarator);
@@ -1004,6 +1040,10 @@ export function createDestructureEmitter({
   // share `pendingDestructuring` / `pendingSynthSwaps` accumulators; differ only in the
   // shape of the AST anchor being emitted into. final flush via the host's queue.apply()
   function applyDestructuringTransforms() {
+    // drain deferred flatten payloads first - they consume scope-tracker bindings within
+    // each preserved declarator's range, so subsequent scopeTracker.applyTransforms won't
+    // queue inserts that fall inside the flatten overwrite (MagicString chunk-split throw)
+    flushPendingFlatten();
     const byStatement = new Map();
     for (const [, info] of pendingDestructuring) {
       if (!info.declPath?.node || !info.declaratorPath?.node) continue;
