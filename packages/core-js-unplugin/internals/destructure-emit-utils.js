@@ -2,9 +2,12 @@
 // helpers from polyfill-provider, no file-scope state - callers pass paths / nodes directly
 import {
   findIifeArgForParam,
-  isClassifiableReceiverArg,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  isClassifiableReceiverArg,
+  isExpandedClassifiableReceiver,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 
 // intermediate slots permitted on the walk from an inner Property up to the enclosing
@@ -109,6 +112,10 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern) {
     }
     return peeled;
   }
+  // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
+  // receiver (bare Identifier OR proxy-global MemberExpression like `globalThis.Map`).
+  // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
+  // succeeds, otherwise destructure-emitter falls through to inline-default
   const argReceiver = detectIifeArgReceiver(wrapperPath, objectPattern);
-  return isClassifiableReceiverArg(argReceiver) ? argReceiver : null;
+  return isExpandedClassifiableReceiver(argReceiver) ? argReceiver : null;
 }
