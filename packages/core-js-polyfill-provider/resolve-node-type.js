@@ -2153,6 +2153,70 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // pre-fold structural evaluation of `T extends U ? trueType : falseType`. returns:
+  //   true  - the conditional fires unambiguously to its true-branch
+  //   false - fires unambiguously to its false-branch (concrete-disjoint check sides)
+  //   null  - cannot decide statically (sub-type relations across different outer
+  //           constructors, concrete-shape extends like empty tuple `[]`, or check
+  //           side unconstrained against a concrete extend). caller falls back to
+  //           widened branch folding so we never silently mis-pick a branch.
+  // `extendNode` is the raw AST extends-side: lets us distinguish `Array` (TSTypeReference
+  // without typeArguments == Array<any>, matches any concrete inner) from concrete-shape
+  // forms that ALSO post-subst as `$Object('Array', null)` (`[]` empty tuple - non-empty
+  // tuples do NOT extend `[]`)
+  function pickConditionalBranch(check, extend, extendNode) {
+    if (!check || !extend) return null;
+    if (typesEqual(check, extend)) {
+      if (innersEqual(check.inner, extend.inner)) return true;
+      // extends has no inner constraint: matches anything ONLY when the raw shape is
+      // an unparameterised type reference (`Array` -> `Array<any>`). concrete-shape
+      // extends (`[]` empty tuple, etc) post-subst as inner-less but do NOT match
+      // arbitrary inners
+      if (!extend.inner) return isUnconstrainedTypeReference(extendNode) ? true : null;
+      // check side unconstrained against a concrete extend - can't statically decide
+      if (!check.inner) return null;
+      // both concrete, differing inners (Array<number> vs Array<string>): disjoint
+      return false;
+    }
+    // different primitive types (number vs string): truly disjoint
+    if (check.primitive && extend.primitive) return false;
+    // anything else (Array vs Iterable etc) - subtype relations exist, can't decide
+    return null;
+  }
+
+  // raw AST shape predicate: `Array` / `Promise` / `Set` ... without `<...>` typeArguments
+  // is TS shorthand for `Array<any>` / `Promise<any>` / etc, which structurally match any
+  // concrete inner. concrete-shape sites (`[]` empty tuple, `{}` object literal type, etc)
+  // resolve to the same inner-less Type object but should NOT match arbitrary inners
+  function isUnconstrainedTypeReference(node) {
+    if (!node) return false;
+    let target = node;
+    while (target?.type === 'TSParenthesizedType') target = target.typeAnnotation;
+    if (target?.type !== 'TSTypeReference' && target?.type !== 'GenericTypeAnnotation') return false;
+    return !getTypeArgs(target)?.params?.length;
+  }
+
+  // resolve `T extends U ? trueType : falseType` post-subst:
+  //   1) narrow `(infer U)[]` / `Array<infer U>` short-circuit (resolveInferElementPattern)
+  //   2) structural eval via pickConditionalBranch - lazy: substitute only the chosen branch
+  //   3) fall through to resolveConditionalBranches's commonType / never-strip fold
+  // shared between substituteTypeParams's TSConditionalType case and any future caller
+  // that needs the same evaluation contract for a TSConditionalType node
+  function evaluateConditionalType(node, typeParamMap, scope, depth, seen) {
+    const inferred = resolveInferElementPattern(node, typeParamMap, scope, depth, seen);
+    if (inferred) return inferred;
+    const checkResolved = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
+    const extendsResolved = substituteTypeParams(node.extendsType, typeParamMap, scope, depth + 1, seen);
+    const branch = pickConditionalBranch(checkResolved, extendsResolved, node.extendsType);
+    if (branch !== null) {
+      return substituteTypeParams(branch ? node.trueType : node.falseType,
+        typeParamMap, scope, depth + 1, seen);
+    }
+    return resolveConditionalBranches(
+      substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1, seen),
+      substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1, seen));
+  }
+
   // narrow infer pattern: `T extends (infer U)[] ? U : X` / `T extends Array<infer U> ? U : X`.
   // when the pattern matches AND checkType's substituted type is an array-like, returns the
   // element type. any other shape (nested infers, non-array containers, trueType != U) -> null,
@@ -2859,8 +2923,7 @@ function createResolveNodeType(babelNodeType, t) {
   // `typeParamMap` defensive null-guard: callers pass Map, but some recursive entry
   // points (`resolveInferElementPattern` with null ctx) would crash on `.has()` otherwise
   // `typeParamMap` null degrades to plain type-annotation resolution (some recursive
-  // entry points like `resolveInferElementPattern` with null ctx would crash on `.has()`).
-  // eslint-disable-next-line max-statements -- 51 lines after defensive null-guard addition
+  // entry points like `resolveInferElementPattern` with null ctx would crash on `.has()`)
   function substituteTypeParams(node, typeParamMap, scope, depth, seen) {
     if (depth > MAX_DEPTH) return null;
     if (!typeParamMap) return resolveTypeAnnotation(node, scope, depth);
@@ -2897,28 +2960,14 @@ function createResolveNodeType(babelNodeType, t) {
       || (node.type === 'TSTypeOperator' && node.operator !== 'keyof')) {
       return substituteTypeParams(node.typeAnnotation, typeParamMap, scope, depth + 1, seen);
     }
-    // conditional type: T extends U ? X : Y - substitute in branches. narrow infer-pattern
-    // support handles the common `T extends (infer U)[] ? U : never` / `T extends Array<infer U> ? U : never`
-    // shapes by short-circuiting to the checkType's element type. anything more complex
-    // (nested infers, Promise unwrap chains) falls back to branch-folding without binding
+    // conditional type `T extends U ? X : Y` - delegated to evaluateConditionalType which
+    // dispatches across the `infer` short-circuit, structural pick (true/false branch),
+    // and the widened branch fold. structural pick mirrors TS's non-`infer` evaluation:
+    //   `string[] extends string[]` -> true-branch (`T extends U[] ? U : T`)
+    //   `number[] extends string[]` -> false-branch (same outer, disjoint inners)
+    //   `number extends string`     -> false-branch (different primitives)
     if (node.type === 'TSConditionalType') {
-      const inferred = resolveInferElementPattern(node, typeParamMap, scope, depth, seen);
-      if (inferred) return inferred;
-      // when both checkType and extendsType resolve to the same concrete type post-subst,
-      // the conditional fires its true-branch unambiguously - mirrors TS's structural
-      // evaluation for non-`infer` conditionals like `T extends U[] ? U : T`. without
-      // this pick, `commonType` folds the two concrete branches to a widened union that
-      // doesn't match either branch precisely, dropping array narrowing on the call result
-      const checkResolved = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
-      const extendsResolved = substituteTypeParams(node.extendsType, typeParamMap, scope, depth + 1, seen);
-      if (checkResolved && extendsResolved
-          && typesEqual(checkResolved, extendsResolved)
-          && innersEqual(checkResolved.inner, extendsResolved.inner)) {
-        return substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1, seen);
-      }
-      return resolveConditionalBranches(
-        substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1, seen),
-        substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1, seen));
+      return evaluateConditionalType(node, typeParamMap, scope, depth, seen);
     }
     // T[] -> Array with substituted element type
     if (node.type === 'TSArrayType' || node.type === 'ArrayTypeAnnotation') {
