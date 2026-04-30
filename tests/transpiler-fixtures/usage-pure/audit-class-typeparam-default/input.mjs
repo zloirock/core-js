@@ -1,4 +1,6 @@
-// class default type-param: `class C<T = string[]>` instantiated as bare `C` (no args) — does the default propagate to `findClassMember` so `inst.x.at(0)` resolves to Array?
+// class with default type parameter `class C<T = string[]>` referenced as bare `C`.
+// the default `string[]` must propagate so `c.x.at(0)` resolves through the array
+// branch of the polyfill dispatch
 class C<T = string[]> {
   x: T = null!;
 }
