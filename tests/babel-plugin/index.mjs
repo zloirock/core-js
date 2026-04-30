@@ -41,10 +41,18 @@ async function runFixture(directory) {
   const errorFile = join(directory, 'error.txt');
   const outputFile = join(directory, 'output.mjs');
   const debugFile = join(directory, 'debug.txt');
+  const warningsFile = join(directory, 'warnings.txt');
 
   const logs = [];
+  const warns = [];
   const consoleLog = console.log;
+  const consoleWarn = console.warn;
+  const consoleError = console.error;
+  // hijack all three sinks so untracked diagnostics don't leak past the runner. error
+  // shares the warnings channel since neither emitter currently distinguishes severity
   console.log = (...a) => logs.push(a.map(String).join(' '));
+  console.warn = (...a) => warns.push(a.map(String).join(' '));
+  console.error = (...a) => warns.push(a.map(String).join(' '));
 
   let result, error;
   try {
@@ -53,16 +61,20 @@ async function runFixture(directory) {
     error = transformError;
   } finally {
     console.log = consoleLog;
+    console.warn = consoleWarn;
+    console.error = consoleError;
   }
 
   const actualFile = error ? errorFile : outputFile;
   const staleFile = error ? outputFile : errorFile;
   const actual = error ? normalizeOutput(error.message) : result;
   const debugOutput = logs.length ? normalizeOutput(logs.join('\n')) : null;
+  const warningsOutput = warns.length ? normalizeOutput(warns.join('\n')) : null;
 
   const expected = [
     [actualFile, actual],
     [debugFile, debugOutput],
+    [warningsFile, warningsOutput],
   ];
 
   if (OVERWRITE) {
