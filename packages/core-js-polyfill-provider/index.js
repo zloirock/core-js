@@ -164,12 +164,16 @@ export function createPolyfillContext({
   // dedup: users sometimes list the main `pkg` inside `additionalPackages` or repeat an alias.
   // Set preserves first-match order - hot-loop in `getCoreJSEntry` hits main pkg first.
   // strip trailing slashes: `getCoreJSEntry` joins via `${pkg}/` so `'my-core-js/'` would yield
-  // `'my-core-js//foo'` (double slash) and silently miss every entry detection
+  // `'my-core-js//foo'` (double slash) and silently miss every entry detection. apply to `pkg`
+  // too (not just packages-array members) so emitted import paths stay clean: injector-base
+  // joins via `resolveImportPath(this.pkg, subpath)` which would otherwise produce
+  // `'@core-js/pure///actual/array/from'` from `package: '@core-js/pure///'`
   const stripTrailingSlashes = p => {
-    let s = p;
-    while (s.endsWith('/')) s = s.slice(0, -1);
-    return s;
+    let end = p.length;
+    while (end > 0 && p[end - 1] === '/') end--;
+    return end === p.length ? p : p.slice(0, end);
   };
+  pkg = stripTrailingSlashes(pkg);
   const packages = [...new Set([pkg, ...additionalPackages ?? []]
     .map(p => stripTrailingSlashes(p.toLowerCase())))];
   const entriesSetForTargetVersion = new Set(getEntriesListForTargetVersion(version));
