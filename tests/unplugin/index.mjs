@@ -4,7 +4,7 @@ import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import { liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
 const { readdir, readFile, readJson, rm, stat, writeFile } = fs;
-const { join } = path;
+const { basename, join } = path;
 const { cyan, green, red, yellow } = chalk;
 
 const { OVERWRITE } = process.env;
@@ -234,20 +234,32 @@ function checkOutputParses(directory, code, testId) {
 }
 
 function captureTransform(source, pluginOptions, testId) {
-  const plugin = createPlugin(pluginOptions);
   const logs = [];
+  const warns = [];
   const origLog = console.log;
+  const origWarn = console.warn;
+  const origError = console.error;
+  // hijack all three sinks so warnings (`unknown bundler`, `pre-pass called twice`)
+  // don't leak to stderr unasserted. error shares the warnings channel since neither
+  // emitter currently distinguishes severity. plugin instantiation is INSIDE the hijack
+  // window because constructor-time warns (e.g. unknown bundler) fire there - moving
+  // `createPlugin` outside leaks those warns past the runner
   console.log = (...a) => logs.push(a.map(String).join(' '));
+  console.warn = (...a) => warns.push(a.map(String).join(' '));
+  console.error = (...a) => warns.push(a.map(String).join(' '));
   try {
+    const plugin = createPlugin(pluginOptions);
     let result = plugin.transform(source, testId);
     // TS type assertions like <Type>expr cause JSX parse errors — retry without JSX
     // only when source actually contains `<` that could be misinterpreted
     if (result === null && testId.endsWith('.tsx') && source.includes('<') && !source.includes('/>')) {
       result = plugin.transform(source, testId.replace('.tsx', '.ts'));
     }
-    return { code: result?.code ?? source, map: result?.map ?? null, logs };
+    return { code: result?.code ?? source, map: result?.map ?? null, logs, warns };
   } finally {
     console.log = origLog;
+    console.warn = origWarn;
+    console.error = origError;
   }
 }
 
@@ -293,14 +305,44 @@ async function runErrorFixture(directory, pluginOptions, errorFile) {
   }
 }
 
-async function checkDebugOutput(directory, logs) {
-  const debugFile = join(directory, 'debug.txt');
-  if (!await exists(debugFile)) return true;
-  const expected = normalize(await readFile(debugFile, UTF8));
-  const actual = logs.length ? normalize(logs.join('\n')) : '';
-  if (actual === expected) return true;
-  fail(directory, `debug mismatch: ${ actual.split('\n').at(-1) || '(empty)' }`);
-  return false;
+// table-driven validation for side-channel files (`debug.txt`, `warnings.txt`). symmetric
+// with babel-plugin runner's unified `expected[]` loop. each tuple `[file, content]`:
+//   content === null → file must NOT exist (any presence is `unexpected ${ file }`)
+//   content !== null → file must exist AND match exactly
+// OVERWRITE auto-creates files when content is non-null and removes them otherwise. `null`
+// is the runner's signal for "no observable output on this channel" — strict in both
+// directions catches drift from either side
+async function checkSideChannels(directory, channels) {
+  for (const [file, content] of channels) {
+    if (OVERWRITE) {
+      if (content !== null) await writeFile(file, content, UTF8);
+      else await rm(file, { force: true });
+      continue;
+    }
+    const fileExists = await exists(file);
+    if (content === null) {
+      if (!fileExists) continue;
+      fail(directory, `unexpected ${ basename(file) } (commit empty or remove)`);
+      return false;
+    }
+    if (!fileExists) {
+      fail(directory, `${ basename(file) } missing: ${ content.split('\n').at(-1) }`);
+      return false;
+    }
+    const expected = normalize(await readFile(file, UTF8));
+    if (content === expected) continue;
+    fail(directory, `${ basename(file) } mismatch: ${ content.split('\n').at(-1) || '(empty)' }`);
+    return false;
+  }
+  return true;
+}
+
+// shared pass/fail+firstDiff pattern. all three compare-helpers below normalize their
+// inputs differently (raw / extractImports / stripBoilerplate) and then delegate the
+// equality decision here
+function compareNormalized(directory, actual, expected) {
+  if (actual === expected) pass(directory);
+  else fail(directory, firstDiff(actual, expected));
 }
 
 // full-text comparator (used when `output-unplugin.mjs` is present in any mode, or as
@@ -308,19 +350,14 @@ async function checkDebugOutput(directory, logs) {
 // sides go through `normalize` + `collapseWhitespace` so whitespace-only divergence
 // doesn't fail
 async function compareStrict(directory, actual, directFile) {
-  const expected = normalize(await readFile(directFile, UTF8));
-  if (actual === expected) pass(directory);
-  else fail(directory, firstDiff(actual, expected));
+  compareNormalized(directory, actual, normalize(await readFile(directFile, UTF8)));
 }
 
 // imports-only comparator: default for entry-global / usage-global. body divergence
 // between babel AST codegen and unplugin text-transform is tolerated by default; opt into
 // strict tail comparison by dropping an `output-unplugin.mjs` next to `output.mjs`
 function compareLoose(directory, actual, babelOutput) {
-  const actualImports = extractImports(actual);
-  const expectedImports = extractImports(babelOutput);
-  if (actualImports === expectedImports) pass(directory);
-  else fail(directory, firstDiff(actualImports, expectedImports));
+  compareNormalized(directory, extractImports(actual), extractImports(babelOutput));
 }
 
 async function comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile) {
@@ -330,10 +367,17 @@ async function comparePureMode(directory, actual, babelOutput, hasUnpluginOutput
     return echo`${ cyan(label(directory)) } ${ yellow('written') }`;
   }
   if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
-  const expected = stripBoilerplate(babelOutput);
-  const comparable = stripBoilerplate(actual);
-  if (comparable === expected) pass(directory);
-  else fail(directory, firstDiff(comparable, expected));
+  compareNormalized(directory, stripBoilerplate(actual), stripBoilerplate(babelOutput));
+}
+
+// pick the comparator that matches the fixture's plugin method + opt-in `output-unplugin.mjs`.
+// usage-pure goes through full-text compare with stripBoilerplate (and OVERWRITE auto-drop);
+// global modes default to imports-only (`compareLoose`) but opt into strict tail check by
+// dropping an `output-unplugin.mjs` next to the babel-generated `output.mjs`
+function compareMainOutput({ directory, actual, babelOutput, method, hasUnpluginOutput, unpluginOutputFile }) {
+  if (method === 'usage-pure') return comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile);
+  if (hasUnpluginOutput) return compareStrict(directory, actual, unpluginOutputFile);
+  compareLoose(directory, actual, babelOutput);
 }
 
 async function runFixture(directory) {
@@ -370,23 +414,21 @@ async function runFixture(directory) {
   try {
     const testId = inferTestId(babelOptions);
     const source = await readFile(join(directory, 'input.mjs'), UTF8);
-    const { code, map, logs } = captureTransform(source, pluginOptions, testId);
+    const { code, map, logs, warns } = captureTransform(source, pluginOptions, testId);
     const actual = normalize(code);
     const babelOutput = normalize(await readFile(outputFile, UTF8));
 
-    if (!await checkDebugOutput(directory, logs)) return;
+    const debugContent = logs.length ? normalize(logs.join('\n')) : null;
+    const warningsContent = warns.length ? normalize(warns.join('\n')) : null;
+    if (!await checkSideChannels(directory, [
+      [join(directory, 'debug.txt'), debugContent],
+      [join(directory, 'warnings.txt'), warningsContent],
+    ])) return;
     if (!checkSourceMapContent(directory, map, testId, source, pluginOptions.method)) return;
     if (!checkOutputParses(directory, code, testId)) return;
-
-    // global modes with `output-unplugin.mjs` opt into strict tail validation; usage-pure
-    // always goes through full-text compare (with its own OVERWRITE/auto-drop logic)
-    if (pluginOptions.method === 'usage-pure') {
-      await comparePureMode(directory, actual, babelOutput, hasUnpluginOutput, unpluginOutputFile);
-    } else if (hasUnpluginOutput) {
-      await compareStrict(directory, actual, unpluginOutputFile);
-    } else {
-      compareLoose(directory, actual, babelOutput);
-    }
+    await compareMainOutput({
+      directory, actual, babelOutput, method: pluginOptions.method, hasUnpluginOutput, unpluginOutputFile,
+    });
   } catch (error) {
     fail(directory, error.message);
   }
