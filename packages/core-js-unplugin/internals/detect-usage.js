@@ -463,12 +463,12 @@ export function createUsageVisitors({
     }
     if (handledObjects.has(node)) return;
     if (!isReferenced(node, parent, parentKey, path.parentPath, skipUpdateTargets)) return;
-    const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals);
+    const meta = handleMemberExpressionNode(node, path.scope, estreeAdapter, handledObjects, suppressProxyGlobals, path);
     if (meta) onUsage(meta, path);
   }
 
   function binaryExpressionVisitor(path) {
-    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, isEntryAvailable);
+    const meta = handleBinaryIn(path.node, path.scope, estreeAdapter, handledObjects, isEntryAvailable, path);
     if (meta) onUsage(meta, path);
   }
 

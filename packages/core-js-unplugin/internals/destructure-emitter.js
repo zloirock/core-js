@@ -10,6 +10,7 @@
 import {
   destructureReceiverSlot,
   findEnclosingFunctionLikePath,
+  FUNCTION_LIKE_NODE_TYPES,
   getFallbackBranchSlots,
   hasRestSiblingExcept,
   isBindingPosition,
@@ -524,31 +525,37 @@ export function createDestructureEmitter({
     const matches = [];
     const scopeStack = [];
 
-    function pushFunctionScope(node) {
-      const locals = new Set();
-      for (const param of node.params ?? []) {
-        walkPatternIdentifiers(param, id => locals.add(id.name));
-      }
-      // FunctionExpression / FunctionDeclaration's own name is in scope inside the body
-      if (node.id?.name) locals.add(node.id.name);
-      // `var` hoists to function scope - walk body collecting all `var` declarations,
-      // stopping at nested function-likes (their vars hoist to their own scope). without
-      // this, `function () { var globalThis; return globalThis; }` would replace the
-      // inner reference even though the local `var` shadows the outer global
-      if (node.body) collectFunctionVars(node.body, locals);
-      scopeStack.push(locals);
+    // own lexical-scope owners. let/const/class/function-decl bindings stay inside.
+    // StaticBlock is BOTH a var-scope (per ES2022) AND a lexical-scope owner; treated
+    // jointly via `isVarScopeBoundary` (collectFunctionVars bails) + explicit `pushScope`
+    // branch (collects both bands of bindings)
+    const BLOCK_SCOPE_TYPES = new Set([
+      'BlockStatement',
+      'CatchClause',
+      'ForStatement',
+      'ForOfStatement',
+      'ForInStatement',
+    ]);
+
+    function isVarScopeBoundary(type) {
+      return FUNCTION_LIKE_NODE_TYPES.has(type) || type === 'StaticBlock';
     }
 
+    function isScopeOwner(type) {
+      return isVarScopeBoundary(type) || BLOCK_SCOPE_TYPES.has(type);
+    }
+
+    // walk body for `var` declarations, stopping at nested own-var-scope owners (their
+    // vars belong to their own scope, not ours). without this gate,
+    // `function () { var globalThis; return globalThis; }` would replace the inner ref
+    // even though the local `var` shadows the outer global
     function collectFunctionVars(node, locals) {
       if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
       if (node.type === 'VariableDeclaration' && node.kind === 'var') {
         for (const d of node.declarations) walkPatternIdentifiers(d.id, id => locals.add(id.name));
         return;
       }
-      // nested function-likes have their own var-scope - don't pull their vars into ours
-      if (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration'
-        || node.type === 'ArrowFunctionExpression' || node.type === 'ObjectMethod'
-        || node.type === 'ClassMethod' || node.type === 'StaticBlock') return;
+      if (isVarScopeBoundary(node.type)) return;
       for (const key of Object.keys(node)) {
         const value = node[key];
         if (Array.isArray(value)) for (const v of value) collectFunctionVars(v, locals);
@@ -556,32 +563,48 @@ export function createDestructureEmitter({
       }
     }
 
-    // collect block-level lexical bindings: `let`/`const` declarations, FunctionDeclaration
-    // / ClassDeclaration ids. covers BlockStatement, ForStatement init, ForOfStatement /
-    // ForInStatement left, CatchClause param. `var` deliberately omitted - it hoists to
-    // function scope, where pushFunctionScope's params Set already shadows correctly
-    function pushBlockScope(node) {
+    // record `let`/`const` declarators + Class/Function-Declaration ids on `decl`
+    // into `locals`. `var` intentionally excluded - it's collected by `collectFunctionVars`
+    // at the enclosing function-scope owner (or here in pushScope's StaticBlock branch)
+    function collectLexicalBinding(decl, locals) {
+      if (!decl) return;
+      if (decl.type === 'VariableDeclaration' && (decl.kind === 'let' || decl.kind === 'const')) {
+        for (const d of decl.declarations) walkPatternIdentifiers(d.id, id => locals.add(id.name));
+      } else if (decl.type === 'ClassDeclaration' && decl.id?.name) locals.add(decl.id.name);
+      else if (decl.type === 'FunctionDeclaration' && decl.id?.name) locals.add(decl.id.name);
+    }
+
+    // unified scope push: dispatches on node.type to collect bindings native to that
+    // scope kind. function-likes get params + own name + body vars; StaticBlock gets
+    // both lexical bindings AND vars (own var-scope per ES2022); blocks/loops/catch
+    // get only lexical bindings. result pushed to scopeStack regardless of kind
+    function pushScope(node) {
       const locals = new Set();
-      const collectFromDecl = decl => {
-        if (decl?.type === 'VariableDeclaration' && (decl.kind === 'let' || decl.kind === 'const')) {
-          for (const d of decl.declarations) walkPatternIdentifiers(d.id, id => locals.add(id.name));
-        } else if (decl?.type === 'ClassDeclaration' && decl.id?.name) locals.add(decl.id.name);
-        else if (decl?.type === 'FunctionDeclaration' && decl.id?.name) locals.add(decl.id.name);
-      };
-      switch (node.type) {
-        case 'BlockStatement':
+      if (FUNCTION_LIKE_NODE_TYPES.has(node.type)) {
+        for (const param of node.params ?? []) {
+          walkPatternIdentifiers(param, id => locals.add(id.name));
+        }
+        if (node.id?.name) locals.add(node.id.name);
+        if (node.body) collectFunctionVars(node.body, locals);
+      } else switch (node.type) {
         case 'StaticBlock':
-          for (const stmt of node.body ?? []) collectFromDecl(stmt);
+          for (const stmt of node.body ?? []) {
+            collectLexicalBinding(stmt, locals);
+            collectFunctionVars(stmt, locals);
+          }
+          break;
+        case 'BlockStatement':
+          for (const stmt of node.body ?? []) collectLexicalBinding(stmt, locals);
           break;
         case 'CatchClause':
           if (node.param) walkPatternIdentifiers(node.param, id => locals.add(id.name));
           break;
         case 'ForStatement':
-          collectFromDecl(node.init);
+          collectLexicalBinding(node.init, locals);
           break;
         case 'ForOfStatement':
         case 'ForInStatement':
-          collectFromDecl(node.left);
+          collectLexicalBinding(node.left, locals);
           break;
       }
       scopeStack.push(locals);
@@ -609,13 +632,8 @@ export function createDestructureEmitter({
 
     function walk(node, parent) {
       if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
-      const opensFnScope = node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration'
-        || node.type === 'ArrowFunctionExpression' || node.type === 'ObjectMethod' || node.type === 'ClassMethod';
-      const opensBlockScope = !opensFnScope && (node.type === 'BlockStatement' || node.type === 'StaticBlock'
-        || node.type === 'CatchClause' || node.type === 'ForStatement'
-        || node.type === 'ForOfStatement' || node.type === 'ForInStatement');
-      if (opensFnScope) pushFunctionScope(node);
-      else if (opensBlockScope) pushBlockScope(node);
+      const opens = isScopeOwner(node.type);
+      if (opens) pushScope(node);
       if (node.type === 'Identifier' && flattenedReceivers.has(node.name)
         && !isShadowed(node.name) && !isPolyfillableMemberAccess(parent, node)
         && !isNonReferencePosition(parent, node) && !isBindingPosition(parent, node)) {
@@ -626,7 +644,7 @@ export function createDestructureEmitter({
         if (Array.isArray(value)) for (const item of value) walk(item, node);
         else walk(value, node);
       }
-      if (opensFnScope || opensBlockScope) scopeStack.pop();
+      if (opens) scopeStack.pop();
     }
 
     walk(declarator, null);
