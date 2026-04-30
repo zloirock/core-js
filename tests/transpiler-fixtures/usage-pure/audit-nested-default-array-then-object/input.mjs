@@ -1,6 +1,6 @@
-// ObjectProperty.value -> ArrayPattern -> AssignmentPattern -> ObjectPattern chain.
-// `isFunctionParamDestructureParent` must walk through ObjectProperty.value (added in
-// p17a09-01 fix), then through ArrayPattern (existing) to reach the function param
+// nested function-param destructure: ObjectPattern -> ObjectProperty.value -> ArrayPattern
+// -> AssignmentPattern (default = Array) -> ObjectPattern. synth-swap must walk this
+// whole chain to recognise the destructure as a function-param shape
 function f({ a: [{ from } = Array] } = { a: [undefined] }) {
   return from([1]);
 }

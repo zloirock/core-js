@@ -1,6 +1,6 @@
-// `const enum` is a TS runtime binding (tsc inlines references but the declaration
-// itself is a runtime shadow until that pass runs - `isTSRuntimeBindingDeclaration`
-// accepts both `enum` and `const enum` provided neither is `declare`-modified)
+// `const enum Set { ... }` inside a class StaticBlock. const enums are still TS runtime
+// shadow bindings until tsc inlines them, so the local `Set` must shadow the global Set
+// the same as a regular `enum` declaration
 let captured: unknown;
 class C {
   static {

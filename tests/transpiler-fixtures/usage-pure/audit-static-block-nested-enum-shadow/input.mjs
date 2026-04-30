@@ -1,8 +1,6 @@
-// nested class with its own static block, each declaring an `enum Map` shadow.
-// `findTSRuntimeBindingInPath` walks parentPath up from the inner `Map.Foo` member
-// expression and must stop at the INNER StaticBlock body (the closest enclosing
-// anchor) so the inner shadow is detected correctly without being subsumed by the
-// outer's enum (which would still shadow but tests a different path)
+// nested classes each with their own StaticBlock, both declaring `enum Map`. the inner
+// access must bind to the innermost enum (closest enclosing shadow), not the outer's,
+// so the polyfill stays suppressed at both depths
 let outer: unknown, inner: unknown;
 class Outer {
   static {
