@@ -90,6 +90,55 @@ export default class ScopeTracker {
     return name;
   }
 
+  // detect leading whitespace of the next non-empty line after `pos` so a baked `var X;`
+  // splice matches surrounding block indent. without this, the inserted `var X;` would
+  // start at column 0 (immediately after the block-opening `{`'s newline), visually
+  // misaligned with sibling statements. cap scan to LF / EOF so pathological inputs
+  // (no-newline file) don't burn through the source
+  #detectIndentAt(pos) {
+    const code = this.#code;
+    let i = pos;
+    while (i < code.length && code[i] !== '\n') i++;
+    if (i >= code.length) return '';
+    i++;
+    let indent = '';
+    while (i < code.length && (code[i] === ' ' || code[i] === '\t')) {
+      indent += code[i];
+      i++;
+    }
+    return indent;
+  }
+
+  // claim ref-binding emissions whose anchor lies within [start, end] - both `#scopedVars`
+  // (block-body `var _ref;` zero-length inserts) and `#arrowVars` (arrow expr-body block
+  // conversions) get unified into a single `{start, end, content}` splice list (insert
+  // shape uses start === end). used by destructure-emitter's flatten path: it queues an
+  // overwrite covering the same range and bakes these splices into the replacement text
+  // directly. without consume-and-bake, `applyTransforms` queues an insert at a position
+  // INSIDE the parent overwrite, MagicString `_split`s an already-edited chunk and throws
+  // "Cannot split a chunk that has already been edited"
+  consumeRefBindingsInRange(start, end) {
+    const splices = [];
+    for (const [insertPos, names] of this.#scopedVars) {
+      if (insertPos >= start && insertPos <= end) {
+        const indent = this.#detectIndentAt(insertPos);
+        splices.push({ start: insertPos, end: insertPos, content: `\n${ indent }var ${ names.join(', ') };` });
+        this.#scopedVars.delete(insertPos);
+      }
+    }
+    for (const [body, names] of this.#arrowVars) {
+      if (body.start >= start && body.end <= end) {
+        splices.push({
+          start: body.start,
+          end: body.end,
+          content: `{ var ${ names.join(', ') }; return ${ this.#code.slice(body.start, body.end) }; }`,
+        });
+        this.#arrowVars.delete(body);
+      }
+    }
+    return splices;
+  }
+
   applyTransforms(queue) {
     // wrap arrow expression bodies: () => expr -> () => { var _ref; return expr; }
     for (const [body, names] of this.#arrowVars) {
