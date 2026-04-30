@@ -162,24 +162,16 @@ export default function createDestructureEmitter({
     return prefix.map(e => t.expressionStatement(t.cloneNode(e)));
   }
 
-  // lift the leading-SE-tail of `receiver` as a standalone ExpressionStatement before
-  // `hostPath`. peels ParenthesizedExpression so `(se(), G)` and bare `(se(), G)` both
-  // surface the SE. NOT seeding skippedNodes for clones - the original SE got removed
-  // with the host, so inner polyfillable usages need natural visitor pass to emit imports
-  function liftSEPrefix(receiver, hostPath) {
-    const { prefix } = peelNestedSequenceExpressions(receiver);
-    if (prefix.length) hostPath.insertBefore(buildSEPrefixStatements(prefix));
-  }
-
-  // AssignmentExpression-specific SE lift: peels SE prefix into a standalone statement AND
-  // collapses the assignment's right-hand side to the bare tail (`(se(), G)` -> `se(); ... = G`).
-  // VariableDeclarator path uses plain `liftSEPrefix` because its declarator is replaced
-  // entirely; AssignmentExpression keeps the host so we mutate `.right` in place
-  function liftSEPrefixSwapRight(assignNode, exprStmt) {
-    const { prefix, tail } = peelNestedSequenceExpressions(assignNode.right);
+  // generic SE-prefix lift: peels prefix from `node[key]`, emits ExpressionStatements before
+  // `hostPath`, and collapses the slot to the bare tail. used for both VariableDeclarator
+  // (`init`) and AssignmentExpression (`right`) hosts. mutating the slot is essential -
+  // multiple polyfilled props sharing one SE-bearing receiver each visit independently;
+  // without the swap, every visit re-peels the same prefix and duplicates `se();`
+  function liftSEPrefixSwap(node, key, hostPath) {
+    const { prefix, tail } = peelNestedSequenceExpressions(node[key]);
     if (!prefix.length) return;
-    exprStmt.insertBefore(buildSEPrefixStatements(prefix));
-    assignNode.right = tail;
+    hostPath.insertBefore(buildSEPrefixStatements(prefix));
+    node[key] = tail;
   }
 
   // hoist `_unused` sentinel names into a shared `var _unused, _unused2;` declaration ahead
@@ -249,7 +241,7 @@ export default function createDestructureEmitter({
     // a removed-from-parent node. receiver tail stays visible so its proxy-global Identifier
     // (`globalThis`) can substitute via the normal visitor pass
     t.traverseFast(prop.node, node => { skippedNodes.add(node); });
-    liftSEPrefixSwapRight(assignPath.node, exprStmt);
+    liftSEPrefixSwap(assignPath.node, 'right', exprStmt);
     const bk = getAssignHostBookkeeping(assignPath.node);
     appendUnusedVarDeclarators(bk, exprStmt, applyRestAwareCascade(chain));
     appendPolyfillAssignment(bk, exprStmt, buildPolyfillAssignmentStatement(valueNode, id));
@@ -348,7 +340,7 @@ export default function createDestructureEmitter({
     // insert would wrap for-init in an arrow-IIFE and duplicate the bound name inside.
     // for-init can't host external statements either, so SE-prefix lift below is gated
     // on this same predicate
-    if (!isForInit) liftSEPrefix(declarator.node.init, declaration);
+    if (!isForInit) liftSEPrefixSwap(declarator.node, 'init', declaration);
     if (willRemoveDeclarator && declCount === 1) {
       // single-declarator simple-chain: replaceWith preserves leading comments
       declaration.replaceWith(t.variableDeclaration(declaration.node.kind, [extractedDeclarator]));
@@ -460,8 +452,16 @@ export default function createDestructureEmitter({
     const { param } = path.node;
     if (!param || param.type !== 'ObjectPattern') return;
     if (!param.properties?.length) return;
+    // shallow check: only outer-level props are inspected. nested patterns
+    // (`{ a: { b: { Array: { from } } } }`) without rest/default/computed at the outer
+    // level don't need extraction — the destructure works as-is in catch params, and
+    // leaf bindings (`from`) are local catch bindings, not polyfill candidates. recursive
+    // descent here would trigger extraction noise without observable runtime gain
     if (!param.properties.some(objectPatternPropNeedsReceiverRewrite)) {
       const destructuredNames = new Set();
+      // shallow Identifier-value collection: only outer-level binding identifiers count
+      // as polyfill candidates that body-scan can match against. nested-pattern bindings
+      // are user's leaf locals, polyfill dispatch doesn't reach them through catch
       for (const p of param.properties) {
         if (p.type !== 'ObjectProperty') continue;
         const name = p.value?.type === 'Identifier' ? p.value.name : null;

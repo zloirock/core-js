@@ -201,7 +201,13 @@ function createResolveNodeType(babelNodeType, t) {
       || AMBIENT_FN_OR_CLASS_DECLARATION_TYPES.has(node.type));
   }
 
-  function walkAmbientDeclarationPath(name, scope, matchType) {
+  // walk enclosing statement lists collecting ambient declaration paths matching `name`.
+  // `firstMatch=true` short-circuits at the first hit (legacy single-result path);
+  // `firstMatch=false` collects ALL matches across the scope chain (used for multi-overload
+  // disambiguation - e.g. `isStr(x: number): boolean; isStr(x): asserts x is string;` where
+  // only one sibling carries the predicate of interest)
+  function walkAmbientDeclarationPath(name, scope, matchType, firstMatch = true) {
+    const out = firstMatch ? null : [];
     for (let cur = scope; cur; cur = cur.parent) {
       // Program / BlockStatement / TSModuleBlock - `path.get('body')` already returns the
       // statement array. Function / method scopes wrap statements in a BlockStatement, so
@@ -217,10 +223,12 @@ function createResolveNodeType(babelNodeType, t) {
         const declPath = type === 'ExportNamedDeclaration' || type === 'ExportDefaultDeclaration'
           ? stmtPath.get('declaration') : stmtPath;
         const { node } = declPath;
-        if (node?.id?.name === name && matchType(node)) return declPath;
+        if (node?.id?.name !== name || !matchType(node)) continue;
+        if (firstMatch) return declPath;
+        out.push(declPath);
       }
     }
-    return null;
+    return firstMatch ? null : out;
   }
 
   // Babel doesn't register ambient `declare function/class` in `scope.bindings`; scan
@@ -235,6 +243,14 @@ function createResolveNodeType(babelNodeType, t) {
     const result = walkAmbientDeclarationPath(name, scope, matchType);
     byName.set(name, result);
     return result;
+  }
+
+  // collect all ambient function decls by name. used for multi-overload predicate
+  // resolution where the FIRST ambient match may carry a non-predicate signature, but a
+  // later sibling carries the asserts/predicate of interest. shape mirrors
+  // `findAmbientDeclarationPath` but returns an array (uncached - rare path)
+  function findAmbientFunctionPaths(name, scope) {
+    return walkAmbientDeclarationPath(name, scope, isAmbientFunctionNode, false) ?? [];
   }
 
   // TS `declare class X` is parsed as ClassDeclaration { declare: true }, not DeclareClass
@@ -4881,7 +4897,11 @@ function createResolveNodeType(babelNodeType, t) {
   // the last form is common when `impl` has no inline annotation (e.g. `const f: T = other`).
   // babel quirk: TSFunctionType stores the return type under `.typeAnnotation`, not `.returnType`
   function resolveBindingReturnType(declNode) {
-    if (t.isFunction(declNode)) return unwrapTypeAnnotation(declNode.returnType);
+    // ambient `declare function isStr(): asserts x is T` — TSDeclareFunction stores
+    // returnType under the same field as FunctionDeclaration but isn't matched by
+    // `t.isFunction`. without this case the binding-based predicate path silently misses
+    // ambient declarations
+    if (t.isFunction(declNode) || isAmbientFunctionNode(declNode)) return unwrapTypeAnnotation(declNode.returnType);
     if (!t.isVariableDeclarator(declNode)) return null;
     if (declNode.init && t.isFunction(declNode.init)) {
       const inline = unwrapTypeAnnotation(declNode.init.returnType);
@@ -4894,12 +4914,26 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolvePredicateGuard(callee, scope, negated, asserts) {
     if (!scope || callee.type !== 'Identifier') return null;
+    // try the runtime binding first (covers regular function decl, var with init / annot)
     const binding = scope.getBinding(callee.name);
-    if (!binding) return null;
-    const returnType = resolveBindingReturnType(binding.path.node);
-    if (returnType?.type !== 'TSTypePredicate' || !!returnType.asserts !== asserts) return null;
-    const resolved = resolveTypeAnnotation(returnType.typeAnnotation, binding.path.scope);
-    return guardFromResolvedType(resolved, negated);
+    const candidates = [];
+    if (binding) candidates.push(binding.path);
+    // fallback: ambient `declare function` (not in scope.bindings) and overload siblings
+    // (TSDeclareFunction header next to a FunctionDeclaration impl missing returnType).
+    // collect ALL ambient siblings - 3+ overloads where the predicate of interest is on a
+    // non-first header would miss with single-result lookup. binding is filtered out so
+    // FunctionDeclaration self isn't re-tested
+    for (const ambient of findAmbientFunctionPaths(callee.name, scope)) {
+      if (ambient !== binding?.path) candidates.push(ambient);
+    }
+    for (const path of candidates) {
+      const returnType = resolveBindingReturnType(path.node);
+      if (returnType?.type !== 'TSTypePredicate' || !!returnType.asserts !== asserts) continue;
+      const resolved = resolveTypeAnnotation(returnType.typeAnnotation, path.scope);
+      const guard = guardFromResolvedType(resolved, negated);
+      if (guard) return guard;
+    }
+    return null;
   }
 
   // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
