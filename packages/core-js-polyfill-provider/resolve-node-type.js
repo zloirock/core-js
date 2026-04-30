@@ -3722,15 +3722,23 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // strip outer parens + leading `!` so `if (!(x === 'a'))` narrows identically to `x !== 'a'`.
-  // returns the peeled test plus a flag the caller XOR-s into its own polarity tracker
+  // returns the peeled test plus a flag the caller XOR-s into its own polarity tracker.
+  // peels ALL consecutive `!` operators (parity-tracked) so `!!X` -> X with negated=false,
+  // `!!!X` -> X with negated=true. without this, double-bang coercion `!!(typeof x === 'a')`
+  // (idiom for explicit boolean cast) leaves a leftover UnaryExpression that the binary /
+  // call branches below don't pattern-match against
   function peelNegation(test) {
     // unwrapRuntimeExpr strips parens + ChainExpression + TS wrappers (`as` / `satisfies` / `!`)
     // so `((x as any) instanceof Array)` and `Array.isArray?.(x)` (ESTree wraps optional calls
     // in ChainExpression) reach the same `BinaryExpression` / `CallExpression` shape that the
     // typeof / instanceof / known-static branches below pattern-match against
+    let negated = false;
     test = unwrapRuntimeExpr(test);
-    if (test?.type !== 'UnaryExpression' || test.operator !== '!') return { test, negated: false };
-    return { test: unwrapRuntimeExpr(test.argument), negated: true };
+    while (test?.type === 'UnaryExpression' && test.operator === '!') {
+      negated = !negated;
+      test = unwrapRuntimeExpr(test.argument);
+    }
+    return { test, negated };
   }
 
   // `<path>.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for
