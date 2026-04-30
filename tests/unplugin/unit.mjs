@@ -8,7 +8,7 @@ import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unpl
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
-import { collectAllBindingNames, directivePrologueEnd } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import { collectAllBindingNames, directivePrologueEnd, liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
 const { cyan, green, red } = chalk;
 
@@ -109,6 +109,42 @@ const shouldTransformCases = [
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
 
+// --- liftSfcLangSuffix ---
+// regex MUST stay in sync with shouldTransform's SFC_LANG_RE: every shape that
+// shouldTransform admits via the lang= path must produce a matching extension here,
+// otherwise oxc-parser falls back to the bare `.vue` / `.svelte` / `.astro` extension
+// and silently rejects TS / JSX syntax in the script body
+const liftSfcLangCases = [
+  // basic JS/TS extensions
+  ['/src/App.vue?vue&type=script&lang=ts', '/src/App.vue', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=tsx', '/src/App.vue', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=js', '/src/App.vue', '/src/App.vue.js'],
+  ['/src/App.vue?vue&type=script&lang=jsx', '/src/App.vue', '/src/App.vue.jsx'],
+  // module / commonjs extension prefixes (Vue 3 + Astro support these natively)
+  ['/src/App.vue?vue&type=script&lang=mts', '/src/App.vue', '/src/App.vue.mts'],
+  ['/src/App.vue?vue&type=script&lang=cts', '/src/App.vue', '/src/App.vue.cts'],
+  ['/src/App.vue?vue&type=script&lang=mjs', '/src/App.vue', '/src/App.vue.mjs'],
+  ['/src/App.vue?vue&type=script&lang=cjs', '/src/App.vue', '/src/App.vue.cjs'],
+  // hash terminator (sourcemap pipelines append `#L<line>` to the id)
+  ['/src/App.vue?vue&type=script&lang=ts#L10', '/src/App.vue', '/src/App.vue.ts'],
+  ['/src/App.vue?vue&type=script&lang=tsx#hash', '/src/App.vue', '/src/App.vue.tsx'],
+  ['/src/App.vue?vue&type=script&lang=mts#L1', '/src/App.vue', '/src/App.vue.mts'],
+  // lang= position variations
+  ['/src/App.vue?lang=ts', '/src/App.vue', '/src/App.vue.ts'],
+  ['/src/App.vue?lang=ts&type=script', '/src/App.vue', '/src/App.vue.ts'],
+  ['/src/App.vue?foo=bar&lang=ts&baz=qux', '/src/App.vue', '/src/App.vue.ts'],
+  // non-JS lang= or no lang= - return baseId unchanged
+  ['/src/App.vue?vue&type=script&lang=scss', '/src/App.vue', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script&lang=d.ts', '/src/App.vue', '/src/App.vue'],
+  ['/src/App.vue?vue&type=script', '/src/App.vue', '/src/App.vue'],
+  ['/src/App.vue', '/src/App.vue', '/src/App.vue'],
+  // substring guard: `xlang=` must not match
+  ['/src/App.vue?xlang=ts', '/src/App.vue', '/src/App.vue'],
+];
+for (const [id, baseId, want] of liftSfcLangCases) {
+  check(`liftSfcLangSuffix/${ id }`, liftSfcLangSuffix(id, baseId), want);
+}
+
 // class entries (bare or `/constructor` tail) PascalCase the first segment; method
 // entries return null so user imports of them don't masquerade as class aliases
 check('entryToGlobalHint/single segment', entryToGlobalHint('promise'), 'Promise');
@@ -172,6 +208,30 @@ function checkOutOfBoundsThrows() {
   }
 }
 checkOutOfBoundsThrows();
+
+// zero-length vs inverted range: distinct diagnostics so the caller sees which misuse fired.
+// `start === end` -> caller meant insert(); `start > end` -> inverted offset arithmetic
+function checkRangeDiagnosticSplit() {
+  const code = '0123456789';
+  const q = new TransformQueue(code, new MagicString(code));
+  try {
+    q.add(5, 5, 'X');
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('range-diag/zero-length') } :: expected throw`;
+  } catch (error) {
+    check('range-diag/zero-length names the misuse',
+      /zero-length range \[5,5\) - use insert\(\)/.test(error.message), true);
+  }
+  try {
+    q.add(7, 3, 'X');
+    counts.failed++;
+    echo`${ red('FAIL') } ${ cyan('range-diag/inverted') } :: expected throw`;
+  } catch (error) {
+    check('range-diag/inverted names the misuse',
+      /inverted range \[7,3\) - start must be < end/.test(error.message), true);
+  }
+}
+checkRangeDiagnosticSplit();
 
 // non-integer start/end (NaN / undefined / string) silently pass the `>=` / `<` checks
 // because NaN comparisons are always false - integer check surfaces the caller bug upfront
