@@ -206,7 +206,7 @@ export function createUsageVisitors({
     }
     if (handledObjects.has(node)) return;
     if (isMemberWriteOnlyContext(node, parent, path.parentPath?.parent)) return;
-    const meta = handleMemberExpressionNode(node, path.scope, adapter, handledObjects, suppressProxyGlobals);
+    const meta = handleMemberExpressionNode(node, path.scope, adapter, handledObjects, suppressProxyGlobals, path);
     if (meta) onUsage(meta, path);
   }
 
@@ -347,7 +347,7 @@ export function createUsageVisitors({
   }
 
   function handleBinaryExpression(path) {
-    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects, isEntryAvailable);
+    const meta = handleBinaryIn(path.node, path.scope, adapter, handledObjects, isEntryAvailable, path);
     if (meta) onUsage(meta, path);
   }
 

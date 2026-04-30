@@ -19,12 +19,16 @@ export const POSSIBLE_GLOBAL_OBJECTS = new Set(knownBuiltInReturnTypes.globalPro
 // direct proxy-global (`globalThis`) or plugin-managed alias (`_globalThis` via polyfillHint
 // after `globalThis -> _globalThis` in-place mutation). scope+adapter optional; without them
 // only direct names pass. with scope+adapter, a user binding (`function f(globalThis) {}`)
-// shadows the global - shadowed names without `polyfillHint` are NOT proxy-global
-function isProxyGlobalIdentifierNode(node, scope, adapter) {
+// shadows the global - shadowed names without `polyfillHint` are NOT proxy-global. `path`
+// (optional) anchors TS-runtime shadow detection (`enum globalThis {}` / `namespace self {}`
+// inside a static block) for adapters whose scope tracker can't see those declarations
+function isProxyGlobalIdentifierNode(node, scope, adapter, path) {
   if (node?.type !== 'Identifier') return false;
   if (scope && adapter) {
     const binding = adapter.getBinding(scope, node.name);
     if (binding) return !!binding.polyfillHint && POSSIBLE_GLOBAL_OBJECTS.has(binding.polyfillHint);
+    // TS-runtime shadow via path-anchored lookup. shadowed name with no polyfillHint is NOT proxy-global
+    if (adapter.hasBinding?.(scope, node.name, path)) return false;
   }
   return POSSIBLE_GLOBAL_OBJECTS.has(node.name);
 }
@@ -53,7 +57,7 @@ function memberKeyName(node) {
 // walks intermediate proxy-global links (`globalThis.self` / `globalThis.window`) so deeper
 // chains still resolve to the final key. empty-string key (`globalThis['']`) returns null -
 // no real global has empty name; treat as miss so callers' `!== null` check stays sound
-export function globalProxyMemberName(node, scope, adapter) {
+export function globalProxyMemberName(node, scope, adapter, path) {
   node = unwrapRuntimeExpr(node);
   if (node?.type !== 'MemberExpression' && node?.type !== 'OptionalMemberExpression') return null;
   let object = unwrapRuntimeExpr(node.object);
@@ -62,7 +66,7 @@ export function globalProxyMemberName(node, scope, adapter) {
     if (!linkName || !POSSIBLE_GLOBAL_OBJECTS.has(linkName)) return null;
     object = unwrapRuntimeExpr(object.object);
   }
-  if (!isProxyGlobalIdentifierNode(object, scope, adapter)) return null;
+  if (!isProxyGlobalIdentifierNode(object, scope, adapter, path)) return null;
   return memberKeyName(node) || null;
 }
 
