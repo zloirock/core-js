@@ -101,7 +101,14 @@ export function bindingSymbolKey(binding) {
   return `Symbol.${ kebabToCamel(match.groups.name) }`;
 }
 
-function resolveBindingToGlobal(name, scope, adapter, seen) {
+// `path` (optional) - an AST path inside the lookup site so the adapter can anchor TS-runtime
+// shadow detection at a deeper scope than `scope.path`. estree-toolkit's scope tracker doesn't
+// register StaticBlock as its own scope owner, so a member visit `Map.Foo` inside
+// `static { enum Map {} ... }` lands at the enclosing ClassDeclaration scope; without path,
+// `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the StaticBlock
+// to find the enum. babel's scope tracker does anchor at StaticBlock so the legacy `scope.path`
+// fallback works for it; estree-toolkit needs the explicit path
+function resolveBindingToGlobal(name, scope, adapter, seen, path) {
   if (!seen) seen = new Set();
   if (seen.has(name)) return null;
   seen.add(name);
@@ -116,11 +123,11 @@ function resolveBindingToGlobal(name, scope, adapter, seen) {
   // imports without a polyfillHint don't map to a known global (their binding could point at
   // any user-imported value); param / catch / class name fall through to the final null
   if (IMPORT_BINDING_TYPES.has(bindingType)) return null;
-  if (bindingType === 'VariableDeclarator') return resolveVariableBindingToGlobal(name, binding, scope, adapter, seen);
+  if (bindingType === 'VariableDeclarator') return resolveVariableBindingToGlobal(name, binding, scope, adapter, seen, path);
   return null;
 }
 
-function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen) {
+function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen, path) {
   // check constantViolations before dereferencing `.node.init/.id` - malformed
   // binding shapes can leave those undefined
   if (binding.constantViolations?.length) return null;
@@ -132,7 +139,7 @@ function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen) {
   // destructures bind `name` to a property of init, not init itself. proxy-global shorthand
   // (`{ Symbol } = globalThis`) is the only exception - aliases to the property key
   if (pattern?.type === 'ObjectPattern' && init) {
-    const alias = resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen);
+    const alias = resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen, path);
     if (alias) return alias;
   }
   if (pattern && pattern.type !== 'Identifier') return null;
@@ -143,13 +150,13 @@ function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen) {
   if (unwrapped?.type === 'Identifier') {
     // self-reference (`var Map = Map`) -> global; unbound -> global; bound -> follow chain
     // (recursion hits the top-level polyfillHint translation for plugin-managed imports)
-    if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name)) return unwrapped.name;
-    return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen);
+    if (unwrapped.name === name || !adapter.hasBinding(scope, unwrapped.name, path)) return unwrapped.name;
+    return resolveBindingToGlobal(unwrapped.name, scope, adapter, seen, path);
   }
   // MemberExpression / OptionalMemberExpression / CallExpression / OptionalCallExpression all
   // delegate to resolveObjectName - it handles each shape (proxy-global walk, call-inline).
   // unhandled shapes (NewExpression, BinaryExpression, etc.) safely return null
-  return unwrapped ? resolveObjectName(unwrapped, scope, adapter, seen) : null;
+  return unwrapped ? resolveObjectName(unwrapped, scope, adapter, seen, path) : null;
 }
 
 // `const { X } = globalThis` (or `self` / `window` / ...) -> X resolves to globalThis.X.
@@ -157,15 +164,15 @@ function resolveVariableBindingToGlobal(name, binding, scope, adapter, seen) {
 // nested patterns (`const { A: { B } }`) are not followed - conservative single-level alias only.
 // only known-global-shaped keys (capitalised / `POSSIBLE_GLOBAL_OBJECTS`) returned -
 // `const { foo } = globalThis` should not push `'foo'` into downstream global lookups
-function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen) {
-  const receiver = resolveObjectName(init, scope, adapter, seen);
+function resolveProxyGlobalDestructureAlias(pattern, init, name, scope, adapter, seen, path) {
+  const receiver = resolveObjectName(init, scope, adapter, seen, path);
   if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
   for (const p of pattern.properties) {
     if (p.type !== 'Property' && p.type !== 'ObjectProperty') continue;
     if (patternBindingName(p.value) !== name) continue;
     // propagate `seen` so computed keys backed by chained aliases (`const k = A; const A = k;`
     // -> { [k]: x }) reuse the outer cycle guard instead of starting a fresh walk
-    const key = resolveKey(p.key, p.computed, scope, adapter, seen);
+    const key = resolveKey(p.key, p.computed, scope, adapter, seen, path);
     return key && isStaticPlacement(key) ? key : null;
   }
   return null;
@@ -180,27 +187,27 @@ export function patternBindingName(node) {
 
 // walks a chain of proxy-global links (`globalThis.self.window.X`) to its root identifier;
 // returns true when the root is a proxy global and every intermediate link is also one
-function resolveProxyGlobalRoot(receiver, scope, adapter, seen) {
+function resolveProxyGlobalRoot(receiver, scope, adapter, seen, path) {
   let obj = unwrapParens(receiver);
   while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
     // carry `seen` into computed-key resolution so a shared alias chain across the
     // proxy-global walk and its intermediate member keys can't exceed the cycle guard
-    const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter, seen) : obj.property?.name;
+    const memberKey = obj.computed ? resolveKey(obj.property, true, scope, adapter, seen, path) : obj.property?.name;
     if (!memberKey || !POSSIBLE_GLOBAL_OBJECTS.has(memberKey)) return false;
     obj = unwrapParens(obj.object);
   }
-  return obj.type === 'Identifier' && isProxyGlobalIdentifier(obj, scope, adapter, seen);
+  return obj.type === 'Identifier' && isProxyGlobalIdentifier(obj, scope, adapter, seen, path);
 }
 
 // `seen` threaded from resolveBindingToGlobal so cyclic const chains
 // (`const a = b.x; const b = a.x;`) don't restart the cycle guard and stack-overflow.
 // initialize at entry so the cycle guard accumulates across recursion regardless of whether
 // the caller passed one - matches resolveBindingToGlobal's convention
-export function resolveObjectName(objectNode, scope, adapter, seen) {
+export function resolveObjectName(objectNode, scope, adapter, seen, path) {
   if (!seen) seen = new Set();
   objectNode = unwrapParens(objectNode);
   if (objectNode.type === 'Identifier') {
-    if (adapter.hasBinding(scope, objectNode.name)) return resolveBindingToGlobal(objectNode.name, scope, adapter, seen);
+    if (adapter.hasBinding(scope, objectNode.name, path)) return resolveBindingToGlobal(objectNode.name, scope, adapter, seen, path);
     // no binding - global only if starts with uppercase or is a known global proxy
     return isStaticPlacement(objectNode.name) ? objectNode.name : null;
   }
@@ -209,17 +216,17 @@ export function resolveObjectName(objectNode, scope, adapter, seen) {
   // identifier-bound arrow/fn (`const f = () => Map; 'X' in f()`). recursion through
   // resolveObjectName handles chains like `(() => globalThis)().Map`
   if (objectNode.type === 'CallExpression' || objectNode.type === 'OptionalCallExpression') {
-    const inlined = inlineCallReturnExpression(objectNode, scope, adapter, seen);
-    return inlined ? resolveObjectName(inlined, scope, adapter, seen) : null;
+    const inlined = inlineCallReturnExpression(objectNode, scope, adapter, seen, path);
+    return inlined ? resolveObjectName(inlined, scope, adapter, seen, path) : null;
   }
   if (objectNode.type !== 'MemberExpression' && objectNode.type !== 'OptionalMemberExpression') return null;
   // computed: globalThis[`Array`] resolves the bracket expression; non-computed reads the
   // identifier name directly. either way the receiver chain must bottom out on a proxy global
   const propertyName = objectNode.computed
-    ? resolveKey(objectNode.property, true, scope, adapter)
+    ? resolveKey(objectNode.property, true, scope, adapter, undefined, path)
     : objectNode.property.type === 'Identifier' ? objectNode.property.name : null;
   if (!propertyName) return null;
-  return resolveProxyGlobalRoot(objectNode.object, scope, adapter, seen) ? propertyName : null;
+  return resolveProxyGlobalRoot(objectNode.object, scope, adapter, seen, path) ? propertyName : null;
 }
 
 // resolve a call-expression callee to its function-like body, then extract the body's single
@@ -228,11 +235,11 @@ export function resolveObjectName(objectNode, scope, adapter, seen) {
 // `seen` (always non-null per resolveObjectName's entry init) carries names of bindings already
 // in the resolution chain - cyclic `const f = () => g(); const g = () => f();` bails on the
 // second visit
-function inlineCallReturnExpression(callNode, scope, adapter, seen) {
+function inlineCallReturnExpression(callNode, scope, adapter, seen, path) {
   let callee = unwrapParens(callNode.callee);
   if (callee.type === 'Identifier') {
     const calleeName = callee.name;
-    if (!adapter.hasBinding(scope, calleeName) || seen.has(calleeName)) return null;
+    if (!adapter.hasBinding(scope, calleeName, path) || seen.has(calleeName)) return null;
     const binding = adapter.getBinding(scope, calleeName);
     // const-only: any reassignment makes the inline result indeterminate at the call site
     if (!binding || binding.constantViolations?.length) return null;
@@ -284,14 +291,14 @@ function singleReturnBodyExpression(body) {
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
 // or through a const alias (`const g = globalThis`).
 // `seen` threaded so cyclic `const a = b.x; const b = a.x;` doesn't restart the guard
-function isProxyGlobalIdentifier(node, scope, adapter, seen) {
-  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name)) return true;
+function isProxyGlobalIdentifier(node, scope, adapter, seen, path) {
+  if (POSSIBLE_GLOBAL_OBJECTS.has(node.name) && !adapter.hasBinding(scope, node.name, path)) return true;
   // follow const alias: `const g = globalThis` / `const g = self`
-  const resolved = resolveBindingToGlobal(node.name, scope, adapter, seen);
+  const resolved = resolveBindingToGlobal(node.name, scope, adapter, seen, path);
   return resolved !== null && POSSIBLE_GLOBAL_OBJECTS.has(resolved);
 }
 
-export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
+export function resolveKey(node, computed, scope, adapter, seen, path, depth = 0) {
   if (depth > MAX_KEY_DEPTH) return null;
   // oxc-parser preserves ParenthesizedExpression / TS wrappers on computed keys and
   // binding inits; Babel strips them. unwrap up front so the identifier-alias and
@@ -315,7 +322,7 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
         // fork `seen` per interpolation - same-binding reuse (`${k}${k}`) must not
         // trip the cycle guard after the first interpolation mutates a shared Set.
         // mirrors the fork pattern in the BinaryExpression `+` branch below
-        const part = resolveKey(node.expressions[i], true, scope, adapter, new Set(seen), depth + 1);
+        const part = resolveKey(node.expressions[i], true, scope, adapter, new Set(seen), path, depth + 1);
         if (part === null) return null;
         out += part;
       }
@@ -335,7 +342,7 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
     if (binding && !binding.constantViolations?.length) {
       if (binding.node?.type === 'VariableDeclarator') {
         const { init } = binding.node;
-        if (init) return resolveKey(init, true, scope, adapter, nextSeen, depth + 1);
+        if (init) return resolveKey(init, true, scope, adapter, nextSeen, path, depth + 1);
       }
       // plugin-managed binding - either via `polyfillHint` (in-place AST mutation)
       // or real import from `core-js/.../symbol/X`
@@ -347,8 +354,8 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   if (node.type === 'BinaryExpression' && node.operator === '+') {
     // fork `seen` per branch so `a + a` (same binding both sides) doesn't mis-trigger the
     // cycle guard on the right branch after the left added `a` to the shared Set
-    const left = resolveKey(node.left, true, scope, adapter, new Set(seen), depth + 1);
-    const right = resolveKey(node.right, true, scope, adapter, new Set(seen), depth + 1);
+    const left = resolveKey(node.left, true, scope, adapter, new Set(seen), path, depth + 1);
+    const right = resolveKey(node.right, true, scope, adapter, new Set(seen), path, depth + 1);
     if (left !== null && right !== null) return left + right;
   }
   // Symbol.X computed access - Symbol.iterator, Symbol['iterator'], Symbol[key] where key = 'iterator'
@@ -356,8 +363,8 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
   // trip the cycle guard on the second side after the first side populated the Set. mirrors
   // the TemplateLiteral / `+` branches above
   if (computed && (node.type === 'MemberExpression' || node.type === 'OptionalMemberExpression')
-    && asSymbolRef(node.object, scope, adapter, new Set(seen))) {
-    const name = resolveKey(node.property, node.computed, scope, adapter, new Set(seen), depth + 1);
+    && asSymbolRef(node.object, scope, adapter, new Set(seen), path)) {
+    const name = resolveKey(node.property, node.computed, scope, adapter, new Set(seen), path, depth + 1);
     if (name) return `Symbol.${ name }`;
   }
   return null;
@@ -368,20 +375,20 @@ export function resolveKey(node, computed, scope, adapter, seen, depth = 0) {
 // the const-chain walk - `Symbol` aliases are capitalised by convention.
 // `seen` threaded through so callers caught in a cyclic const-alias chain
 // (`const a = b.Symbol; const b = a;`) don't restart the cycle guard
-function resolvesToGlobalSymbol(node, scope, adapter, seen) {
+function resolvesToGlobalSymbol(node, scope, adapter, seen, path) {
   if (node.type === 'Identifier') {
-    if (node.name === 'Symbol') return !adapter.hasBinding(scope, 'Symbol');
+    if (node.name === 'Symbol') return !adapter.hasBinding(scope, 'Symbol', path);
     if (!CAPITALISED_IDENT.test(node.name)) return false;
-    return resolveBindingToGlobal(node.name, scope, adapter, seen) === 'Symbol';
+    return resolveBindingToGlobal(node.name, scope, adapter, seen, path) === 'Symbol';
   }
-  return globalProxyMemberName(node, scope, adapter) === 'Symbol';
+  return globalProxyMemberName(node, scope, adapter, path) === 'Symbol';
 }
 
 // preserve pre-unwrap node so callers can seed both forms into handledObjects;
 // Set dedup absorbs the duplicate when raw === unwrapped
-export function asSymbolRef(node, scope, adapter, seen) {
+export function asSymbolRef(node, scope, adapter, seen, path) {
   const unwrapped = unwrapParens(node);
-  return unwrapped && resolvesToGlobalSymbol(unwrapped, scope, adapter, seen) ? { raw: node, unwrapped } : null;
+  return unwrapped && resolvesToGlobalSymbol(unwrapped, scope, adapter, seen, path) ? { raw: node, unwrapped } : null;
 }
 
 // `var X = X` - hoisted var init references its own name, which at runtime reads the
