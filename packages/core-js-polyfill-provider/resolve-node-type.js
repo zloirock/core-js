@@ -3657,9 +3657,13 @@ function createResolveNodeType(babelNodeType, t) {
   // strip outer parens + leading `!` so `if (!(x === 'a'))` narrows identically to `x !== 'a'`.
   // returns the peeled test plus a flag the caller XOR-s into its own polarity tracker
   function peelNegation(test) {
-    test = unwrapParens(test);
+    // unwrapRuntimeExpr strips parens + ChainExpression + TS wrappers (`as` / `satisfies` / `!`)
+    // so `((x as any) instanceof Array)` and `Array.isArray?.(x)` (ESTree wraps optional calls
+    // in ChainExpression) reach the same `BinaryExpression` / `CallExpression` shape that the
+    // typeof / instanceof / known-static branches below pattern-match against
+    test = unwrapRuntimeExpr(test);
     if (test?.type !== 'UnaryExpression' || test.operator !== '!') return { test, negated: false };
-    return { test: unwrapParens(test.argument), negated: true };
+    return { test: unwrapRuntimeExpr(test.argument), negated: true };
   }
 
   // `<path>.field OP 'value'` where OP is `===` / `==` / `!==` / `!=`; returns null for
@@ -5218,8 +5222,11 @@ function createResolveNodeType(babelNodeType, t) {
     // arg only. KNOWN_STATIC_TYPE_GUARDS (`Array.isArray` / `Number.isFinite` / ...) all
     // narrow first-arg too; extra trailing args are ignored at runtime, so accepting them
     // here matches user intent. predicates that narrow a non-first param are rare and
-    // would require pulling `parameterName` from the TSTypePredicate to disambiguate
-    if (test.type === 'CallExpression' && test.arguments?.length >= 1) {
+    // would require pulling `parameterName` from the TSTypePredicate to disambiguate.
+    // OptionalCallExpression (`Array.isArray?.(x)`) is babel's optional-call shape; ESTree
+    // wraps it in ChainExpression which `peelNegation`'s `unwrapRuntimeExpr` already strips
+    if ((test.type === 'CallExpression' || test.type === 'OptionalCallExpression')
+        && test.arguments?.length >= 1) {
       const arg = unwrapParens(test.arguments[0]);
       if (arg.type === 'Identifier' && arg.name === varName) {
         const { callee } = test;
