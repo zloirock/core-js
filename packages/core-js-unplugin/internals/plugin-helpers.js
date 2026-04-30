@@ -82,12 +82,16 @@ export const NO_REF_NEEDED = new Set(['Identifier', 'ThisExpression']);
 // synthesize a matching extension so oxc enables the right parser. lives in unplugin
 // (not provider) because the bundler-virtual-id convention is bundler-specific - babel-plugin
 // only sees real file paths. shared between transform pipeline and test runner's output
-// validator so they agree on the parser-language hint
-const SFC_LANG_RE = /[&?]lang=(?<lang>j|t)(?<jsx>s|sx)(?:&|$)/;
+// validator so they agree on the parser-language hint.
+// pattern MUST stay in sync with `index.js`'s `SFC_LANG_RE` (shouldTransform gate): the
+// `[cm]?` prefix accepts `mts` / `cts` / `mjs` / `cjs` (Vue 3 + Astro support these natively),
+// and `(?:[#&]|$)` accepts `#hash` terminators (sourcemap pipelines append `#L<line>`).
+// without the sync, shouldTransform admits `App.vue?lang=mts` but liftSfcLangSuffix returns
+// the bare baseId — oxc-parser then rejects the TS body on `.vue` extension
+const SFC_LANG_RE = /[&?]lang=(?<ext>[cm]?[jt]sx?)(?:[#&]|$)/;
 export function liftSfcLangSuffix(id, baseId) {
   const m = SFC_LANG_RE.exec(id);
-  if (!m?.groups) return baseId;
-  return `${ baseId }.${ m.groups.lang }${ m.groups.jsx }`;
+  return m?.groups ? `${ baseId }.${ m.groups.ext }` : baseId;
 }
 
 // chars that, as the previous statement's last token, fuse with a leading `(` on the
