@@ -1,10 +1,9 @@
 import _Array$from from "@core-js/pure/actual/array/from";
 const from = _Array$from;
-// multi-decl flatten with sibling that locally shadows the receiver name via `let` inside
-// a block scope. without block-scope tracking in `polyfillSiblingReceiverRefs.walk`, the
-// inner `globalThis` reference would be rewritten to `_globalThis` even though the local
-// `let globalThis` shadows it - changing runtime semantics from "user-bound shadow" to
-// "polyfilled global"
+// multi-declarator: flattened `globalThis` proxy destructure plus a sibling IIFE whose
+// block body declares `let globalThis = 'shadow'`. the block-scoped `let` shadows the
+// global, so the inner reference must keep pointing at the local binding rather than
+// being rewritten to the polyfill
 const y = (() => {
   let globalThis = 'shadow';
   return globalThis;
