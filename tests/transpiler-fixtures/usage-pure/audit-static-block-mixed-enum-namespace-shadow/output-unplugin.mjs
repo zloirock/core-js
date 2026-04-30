@@ -1,7 +1,5 @@
-// enum + namespace declared in the same static block. both must shadow concurrently;
-// `getTSRuntimeBindings` caches the StaticBlock's name set per-anchor, so a single
-// scan picks up TSEnumDeclaration + TSModuleDeclaration in one pass without
-// repeated walks
+// class StaticBlock declares both `enum Map` and `namespace Set` in the same body.
+// each TS runtime binding must shadow its own global concurrently within the block
 let m: unknown, s: unknown;
 class Container {
   static {
