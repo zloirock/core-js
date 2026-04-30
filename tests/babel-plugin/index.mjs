@@ -18,6 +18,19 @@ function normalizeOutput(code) {
   return code.replaceAll('\\\\', '/').replaceAll(ROOT, '<CWD>');
 }
 
+// hijack console.log + warn + error so untracked diagnostics don't leak past the runner.
+// returns the captured-buffer arrays plus a `restore` callback for the finally block.
+// error shares the warnings channel since neither plugin emitter distinguishes severity
+function captureConsole() {
+  const logs = [];
+  const warns = [];
+  const orig = { log: console.log, warn: console.warn, error: console.error };
+  console.log = (...a) => logs.push(a.map(String).join(' '));
+  console.warn = (...a) => warns.push(a.map(String).join(' '));
+  console.error = (...a) => warns.push(a.map(String).join(' '));
+  return { logs, warns, restore: () => Object.assign(console, orig) };
+}
+
 const fixturesDir = '../transpiler-fixtures';
 
 let passed = 0;
@@ -43,16 +56,7 @@ async function runFixture(directory) {
   const debugFile = join(directory, 'debug.txt');
   const warningsFile = join(directory, 'warnings.txt');
 
-  const logs = [];
-  const warns = [];
-  const consoleLog = console.log;
-  const consoleWarn = console.warn;
-  const consoleError = console.error;
-  // hijack all three sinks so untracked diagnostics don't leak past the runner. error
-  // shares the warnings channel since neither emitter currently distinguishes severity
-  console.log = (...a) => logs.push(a.map(String).join(' '));
-  console.warn = (...a) => warns.push(a.map(String).join(' '));
-  console.error = (...a) => warns.push(a.map(String).join(' '));
+  const { logs, warns, restore } = captureConsole();
 
   let result, error;
   try {
@@ -60,9 +64,7 @@ async function runFixture(directory) {
   } catch (transformError) {
     error = transformError;
   } finally {
-    console.log = consoleLog;
-    console.warn = consoleWarn;
-    console.error = consoleError;
+    restore();
   }
 
   const actualFile = error ? errorFile : outputFile;

@@ -1,7 +1,10 @@
 // is [start, end] strictly contained within any range in the start-sorted array?
 // (equal ranges are not considered contained - both transforms must be applied).
 // binary search + prefix maxEnd resolves in O(log n); falls through to a linear scan only
-// when the max end exactly equals query.end (strictness then reduces to r.start < query.start)
+// when the max end exactly equals query.end (strictness then reduces to r.start < query.start).
+// split entries are owned through `splitInfo.logicalEnd` (prefix-only `.end` = mid stops
+// short of the suffix tail) - prefixMaxEnd is built on logical ends, linear-scan check
+// also queries via the helper
 function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
   let lo = 0;
   let hi = ranges.length - 1;
@@ -16,7 +19,7 @@ function isStrictlyContained(ranges, start, end, prefixMaxEnd) {
   if (maxEnd < end) return false;
   for (let i = lo - 1; i >= 0; i--) {
     const r = ranges[i];
-    if (r.end >= end && r.start < start) return true;
+    if (entryLogicalEnd(r) >= end && r.start < start) return true;
   }
   return false;
 }
@@ -233,10 +236,11 @@ function sortInnersInnermostLast(inners) {
 }
 
 // incremental prefix-max maintenance after splice. prefix max is monotonic non-decreasing:
-// once the walk hits a stale slot that already covers the change, trailing slots stay correct
+// once the walk hits a stale slot that already covers the change, trailing slots stay correct.
+// uses logical-end so split prefixes contribute their full [start, splitInfo.logicalEnd) span
 function updatePrefixMaxOnInsert(sorted, prefixMaxEnd, pos) {
   const prev = pos > 0 ? prefixMaxEnd[pos - 1] : -1;
-  const newEnd = sorted[pos].end;
+  const newEnd = entryLogicalEnd(sorted[pos]);
   prefixMaxEnd.splice(pos, 0, Math.max(newEnd, prev));
   if (newEnd > prev) for (let i = pos + 1; i < prefixMaxEnd.length; i++) {
     if (prefixMaxEnd[i] >= newEnd) return;
@@ -251,7 +255,8 @@ function updatePrefixMaxOnRemove(sorted, prefixMaxEnd, si, removedEnd) {
   if (removedEnd <= prev) return;
   let running = prev;
   for (let i = si; i < sorted.length; i++) {
-    if (sorted[i].end > running) running = sorted[i].end;
+    const eEnd = entryLogicalEnd(sorted[i]);
+    if (eEnd > running) running = eEnd;
     if (prefixMaxEnd[i] === running) return;
     prefixMaxEnd[i] = running;
   }
@@ -356,7 +361,8 @@ export default class TransformQueue {
     if (guardedRoot) {
       pushOrInit(this.#byGuardedRoot, guardedRoot, entry);
       const prevMax = this.#maxEndByGuardedRoot.get(guardedRoot);
-      if (prevMax === undefined || end > prevMax) this.#maxEndByGuardedRoot.set(guardedRoot, end);
+      const logicalEnd = entryLogicalEnd(entry);
+      if (prevMax === undefined || logicalEnd > prevMax) this.#maxEndByGuardedRoot.set(guardedRoot, logicalEnd);
     }
     const pos = upperBound(this.#sorted, start);
     this.#sorted.splice(pos, 0, entry);
@@ -391,6 +397,12 @@ export default class TransformQueue {
   // inner via shared splitInfo metadata so outer transforms still substitute via single
   // [start, end] needle (not two halves)
   addSplit(start, mid, end, prefixContent, suffixContent, guardedRoot, rewriteHint) {
+    // up-front invariant: zero-length halves throw with cryptic [X,X) error inside
+    // the second `add` call without indicating which side is bad. callers already gate
+    // on this (e.g. polyfill-emitter:300), the diagnostic exists for future call sites
+    if (!(start < mid && mid < end)) {
+      throw new RangeError(`[core-js] transform-queue: addSplit invariant violated, expected start < mid < end (received [${ start },${ mid },${ end }))`);
+    }
     const groupId = Symbol('split');
     const prefixEntry = this.add(start, mid, prefixContent, guardedRoot, rewriteHint,
       { groupId, role: 'prefix', logicalEnd: end });
@@ -411,7 +423,8 @@ export default class TransformQueue {
     const list = this.#byGuardedRoot.get(root);
     if (!list) return false;
     for (const t of list) {
-      if (t.start <= start && t.end >= end && (t.start < start || t.end > end)) return true;
+      const tEnd = entryLogicalEnd(t);
+      if (t.start <= start && tEnd >= end && (t.start < start || tEnd > end)) return true;
     }
     return false;
   }
@@ -457,7 +470,7 @@ export default class TransformQueue {
     while (si < sorted.length && sorted[si].start === start && sorted[si] !== entry) si++;
     if (si < sorted.length && sorted[si] === entry) {
       sorted.splice(si, 1);
-      updatePrefixMaxOnRemove(sorted, this.#prefixMaxEnd, si, entry.end);
+      updatePrefixMaxOnRemove(sorted, this.#prefixMaxEnd, si, entryLogicalEnd(entry));
     }
     return entry.content;
   }
