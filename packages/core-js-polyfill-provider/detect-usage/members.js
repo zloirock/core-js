@@ -18,14 +18,14 @@ import {
 // direct `X.prototype.Y` -> instance-method meta on X. indirect alias (`const P = X.prototype`
 // / `const { prototype: P } = X`) is picked up by type engine's `resolvePrototypeAsInstance`
 // via `enhanceMeta`, not here
-function tryBuildPrototypeMeta(obj, key, scope, adapter) {
+function tryBuildPrototypeMeta(obj, key, scope, adapter, path) {
   if (obj.type !== 'MemberExpression' && obj.type !== 'OptionalMemberExpression') return null;
-  if (resolveKey(obj.property, obj.computed, scope, adapter) !== 'prototype') return null;
-  const protoName = resolveObjectName(obj.object, scope, adapter);
+  if (resolveKey(obj.property, obj.computed, scope, adapter, undefined, path) !== 'prototype') return null;
+  const protoName = resolveObjectName(obj.object, scope, adapter, undefined, path);
   return protoName ? { kind: 'property', object: protoName, key, placement: 'prototype' } : null;
 }
 
-function buildMemberMeta(node, scope, adapter) {
+function buildMemberMeta(node, scope, adapter, path) {
   // collect side effects from both the receiver and the computed-key so a polyfill
   // replacement on this MemberExpression (which discards the whole subtree) can re-emit
   // them via a SequenceExpression wrap in the plugin's emission path
@@ -41,12 +41,12 @@ function buildMemberMeta(node, scope, adapter) {
   // computed keys may arrive wrapped in TS constructs (`obj[(k) as any]`, `obj[k!]`) -
   // resolveKey can't walk identifier-alias chain through a TS expression wrapper root
   const key = node.computed
-    ? resolveKey(unwrapParensCollectingEffects(node.property, sideEffects), true, scope, adapter)
+    ? resolveKey(unwrapParensCollectingEffects(node.property, sideEffects), true, scope, adapter, undefined, path)
     : node.property.name || node.property.value;
   if (!key || key === 'prototype') return null;
-  let meta = tryBuildPrototypeMeta(obj, key, scope, adapter);
+  let meta = tryBuildPrototypeMeta(obj, key, scope, adapter, path);
   if (!meta) {
-    const objectName = resolveObjectName(obj, scope, adapter);
+    const objectName = resolveObjectName(obj, scope, adapter, undefined, path);
     // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
     // (`import { items } from './data'`) have NO polyfillHint and must fall through so the
@@ -62,8 +62,16 @@ function buildMemberMeta(node, scope, adapter) {
   return meta;
 }
 
-export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals) {
-  const symbolKey = resolveComputedSymbolKey(node, scope, adapter);
+// `path` (optional) - the visitor path of `node`. threaded through to adapter.hasBinding so
+// TS-runtime shadow detection (`enum X {}` / `namespace X {}` / `import X = require()`)
+// inside a StaticBlock anchors at the actual visitor site instead of the enclosing
+// scope owner. estree-toolkit reports `scope.path = ClassDeclaration` for code inside a
+// StaticBlock since it doesn't register StaticBlock as a separate scope; without `path`,
+// `findTSRuntimeBindingInPath` walks UP from ClassDeclaration and never enters the
+// StaticBlock body, missing local enum/namespace shadows. babel's scope tracker does
+// anchor at StaticBlock so it works without path - the threaded form is a no-op for it
+export function handleMemberExpressionNode(node, scope, adapter, handledObjects, suppressProxyGlobals, path) {
+  const symbolKey = resolveComputedSymbolKey(node, scope, adapter, path);
   if (symbolKey) {
     // mark both positions so neither the member-visitor (outer MemberExpression.object) nor
     // the identifier-visitor (unwrapped Identifier) re-enters this node. `asSymbolRef`
@@ -72,7 +80,7 @@ export function handleMemberExpressionNode(node, scope, adapter, handledObjects,
     handledObjects.add(symbolKey.ref.unwrapped);
     return { kind: 'property', object: null, key: symbolKey.key, placement: 'prototype' };
   }
-  const meta = buildMemberMeta(node, scope, adapter);
+  const meta = buildMemberMeta(node, scope, adapter, path);
   // only mark when we actually resolved a receiver: meta.object === null means
   // `resolveObjectName` couldn't classify the receiver (unknown local, complex expression)
   // and the receiver identifier-visitor may still need to polyfill it as a standalone global
@@ -85,7 +93,7 @@ export function handleMemberExpressionNode(node, scope, adapter, handledObjects,
 // string-sourced keys so `'Symbol.iterator' in Array` isn't miscategorised as an
 // is-iterable check. parallel to resolveKey's Identifier / MemberExpression branches
 // minus the string-folding cases
-function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
+function isSymbolSourcedKey(node, scope, adapter, seen, path, depth = 0) {
   if (depth > MAX_KEY_DEPTH) return false;
   node = unwrapParens(node);
   const { type } = node;
@@ -104,12 +112,12 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   // avoid over-eliminating polyfill dispatch, and `resolveKey` pairing in the caller
   // filters on the string form anyway
   if (type === 'MemberExpression' || type === 'OptionalMemberExpression') {
-    if (!asSymbolRef(node.object, scope, adapter, new Set(seen))) return false;
+    if (!asSymbolRef(node.object, scope, adapter, new Set(seen), path)) return false;
     if (!node.computed && node.property?.type === 'Identifier') {
       return symbolKeyToEntry(`Symbol.${ node.property.name }`) !== null;
     }
     if (node.computed) {
-      const name = resolveKey(node.property, true, scope, adapter, new Set(seen), depth + 1);
+      const name = resolveKey(node.property, true, scope, adapter, new Set(seen), path, depth + 1);
       if (name !== null) return symbolKeyToEntry(`Symbol.${ name }`) !== null;
     }
     return true;
@@ -124,7 +132,7 @@ function isSymbolSourcedKey(node, scope, adapter, seen, depth = 0) {
   if (!binding || binding.constantViolations?.length) return false;
   // binding indirection - `const k = Symbol.iterator; k in X` resolves through init
   if (binding.node?.type === 'VariableDeclarator' && binding.node.init) {
-    return isSymbolSourcedKey(binding.node.init, scope, adapter, nextSeen, depth + 1);
+    return isSymbolSourcedKey(binding.node.init, scope, adapter, nextSeen, path, depth + 1);
   }
   // plugin-managed: `polyfillHint` (in-place mutation) or real `core-js/.../symbol/X` import
   return bindingSymbolKey(binding) !== null;
@@ -151,13 +159,13 @@ export function resolveSymbolIteratorEntry(node, parent) {
 // MemberExpression-fallback path. without the predicate (legacy callers), seed on the
 // pure-string `symbolKeyToEntry` shape - older callers lose the fallback but stay
 // behaviour-compatible
-export function handleBinaryIn(node, scope, adapter, handledObjects, isEntryAvailable) {
+export function handleBinaryIn(node, scope, adapter, handledObjects, isEntryAvailable, path) {
   if (node.operator !== 'in') return null;
   const left = unwrapParens(node.left);
   const ref = (left.type === 'MemberExpression' || left.type === 'OptionalMemberExpression')
-    ? asSymbolRef(left.object, scope, adapter) : null;
+    ? asSymbolRef(left.object, scope, adapter, undefined, path) : null;
   if (ref) {
-    const name = resolveKey(left.property, left.computed, scope, adapter);
+    const name = resolveKey(left.property, left.computed, scope, adapter, undefined, path);
     // nested `Symbol[Symbol.X]` - `resolveKey` already returns `Symbol.X`; double-prefixing
     // would build invalid `Symbol.Symbol.X`. user code (`Symbol[Symbol.iterator]` evaluates
     // to undefined regardless) is runtime-broken; bail rather than carry an invalid key
@@ -186,15 +194,15 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, isEntryAvai
   // `` `Symbol.iterator` ``, `'Symbol.' + 'iterator'`) are NOT symbol refs - `isSymbolSourcedKey`
   // filters them out; they fall through to the string-key branch below.
   // single-`.` shape filters out double-prefixed `Symbol.Symbol.X` from nested `Symbol[Symbol.X]`
-  const resolvedLeft = resolveKey(node.left, true, scope, adapter);
+  const resolvedLeft = resolveKey(node.left, true, scope, adapter, undefined, path);
   if (resolvedLeft?.startsWith('Symbol.') && !resolvedLeft.includes('.', 7)
-    && isSymbolSourcedKey(node.left, scope, adapter)) {
+    && isSymbolSourcedKey(node.left, scope, adapter, undefined, path)) {
     return { kind: 'in', key: resolvedLeft, object: null, placement: null, symbolSourced: true };
   }
   // 'key' in Object - string key in static/global object. fresh `seen` Set because this
   // is a top-level entry point; downstream recursion through `resolveObjectName` reuses it
   if (resolvedLeft) {
-    const objectName = resolveObjectName(node.right, scope, adapter, new Set());
+    const objectName = resolveObjectName(node.right, scope, adapter, new Set(), path);
     if (objectName) {
       const placement = isStaticPlacement(objectName);
       if (placement) return { kind: 'in', key: resolvedLeft, object: objectName, placement };
@@ -205,13 +213,13 @@ export function handleBinaryIn(node, scope, adapter, handledObjects, isEntryAvai
 
 // returns { key: 'Symbol.xxx', ref: { raw, unwrapped } } so the caller can mark handledObjects
 // without re-walking the unwrap chain
-function resolveComputedSymbolKey(node, scope, adapter) {
+function resolveComputedSymbolKey(node, scope, adapter, path) {
   if (!node.computed) return null;
   const prop = unwrapParens(node.property);
   if (prop?.type !== 'MemberExpression' && prop?.type !== 'OptionalMemberExpression') return null;
-  const ref = asSymbolRef(prop.object, scope, adapter);
+  const ref = asSymbolRef(prop.object, scope, adapter, undefined, path);
   if (!ref) return null;
-  const name = resolveKey(prop.property, prop.computed, scope, adapter);
+  const name = resolveKey(prop.property, prop.computed, scope, adapter, undefined, path);
   return name ? { key: `Symbol.${ name }`, ref } : null;
 }
 
