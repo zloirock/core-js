@@ -100,22 +100,24 @@ export const TRANSPARENT_EXPR_WRAPPER_TYPES = new Set([
 
 // transparent wrappers between a CallExpression's `.callee` and the actual invoked node.
 // narrower than IIFE_CALL_PATH_WRAPPERS - Unary changes what's invoked. SequenceExpression
-// is handled separately (only peelable when preceding slots are side-effect-free): minifiers
-// emit `(0, fn)(arg)` to drop `this`-binding, the tail still IS the invoked function
+// is peeled unconditionally below: the tail is the invoked function regardless of preceding
+// slots' side-effect status (`(0, fn)(arg)` minifier idiom drops `this`-binding;
+// `(logCall(), fn)(arg)` runs `logCall()` then invokes `fn` - both shapes invoke the tail)
 const IIFE_CALLEE_WRAPPERS = new Set([
   'ParenthesizedExpression',
   'ChainExpression',
 ]);
 
-// peel the callee chain through paren / TS / chain wrappers and through side-effect-free
-// SequenceExpression tails until the leaf identifier / function appears. SequenceExpression
-// with effect-bearing prefix bails (the prefix would silently elide on rewrite)
+// peel the callee chain through paren / TS / chain wrappers and through SequenceExpression
+// tails until the leaf identifier / function appears. all current callers consume the result
+// for arg-side resolution (synth-swap target / IIFE-arg destructure receiver) - they don't
+// restructure the callee, so any side effects inside the callee SequenceExpression run at
+// their original positions regardless of whether the IIFE is recognised
 function peelIifeCallee(callee, fnNode) {
   while (callee && callee !== fnNode) {
     if (IIFE_CALLEE_WRAPPERS.has(callee.type) || TS_EXPR_WRAPPERS.has(callee.type)) {
       callee = callee.expression;
-    } else if (callee.type === 'SequenceExpression'
-      && !callee.expressions.slice(0, -1).some(mayHaveSideEffects)) {
+    } else if (callee.type === 'SequenceExpression') {
       callee = callee.expressions.at(-1);
     } else break;
   }
