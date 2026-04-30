@@ -247,29 +247,33 @@ export function createPolyfillContext({
 
 export const resolve = createMetaResolver(builtInDefinitions);
 
-// reverse map `<entry path>` -> `<global name>` derived from `globals.<X>.pure.dependencies`.
-// keys an injector-side hint lookup so acronym globals (`URL` / `URLSearchParams` /
-// `DOMException`) survive `super.X` back-mapping that would otherwise fall through
-// `kebabToPascal` (`url` -> `Url`, missing the acronym). only constructor-tail deps
-// register here - method / instance entries don't represent the binding's identity.
-// data-driven: any future global added to `built-in-definitions` with a `pure` branch
-// gets indexed automatically with no plugin code change. duplicate entries (multiple
-// globals sharing one constructor dep) fall through to last-write-wins; current data
-// has no such collisions among `pure`-bearing globals.
-// each constructor dep registers BOTH `<head>/constructor` and the bare `<head>` form -
-// `matchEntrySubpath` collapses default `<pkg>/<mode>/<name>` and `<pkg>/<mode>/<name>/index`
-// imports to the bare entry, while explicit `/constructor` imports keep the suffix
+// reverse map `<head>` -> `<global name>` for entry-path canonical heads. keys an
+// injector-side hint lookup so acronym / mixed-case globals (`URL`, `JSON`, `RegExp`,
+// `URIError`, `DOMException`, ...) and bare function-globals (`atob`, `parseInt`,
+// `globalThis`, `structuredClone`, ...) survive `super.X` back-mapping that would
+// otherwise fall through `kebabToPascal` (`url` -> `Url`, `json` -> `Json`, `regexp` ->
+// `Regexp`, `parse-int` -> `ParseInt`).
+// data-driven: one scan over `globals` + `statics`. for `statics`-only owners (Array,
+// JSON, Math, Number, Object, Reflect, RegExp, String, Error) the `head === lower(name)`
+// guard rejects shared heads — Error subclasses all have `error/is-error` deps, but only
+// `Error` itself owns head `error`. Non-matching subclasses fall back to
+// `deriveHintFromKebab` (`eval-error` -> `EvalError`). globals don't need the guard
+// because each pure-bearing global has its own kebab namespace
 const CONSTRUCTOR_TAIL = '/constructor';
-function buildEntryHintIndex({ globals }) {
+function buildEntryHintIndex({ globals, statics }) {
   const index = new Map();
-  for (const [name, desc] of Object.entries(globals)) {
-    const deps = desc?.pure?.dependencies;
-    if (!Array.isArray(deps)) continue;
+  const register = (name, deps, requireMatch) => {
+    if (!Array.isArray(deps)) return;
+    const lower = requireMatch ? name.toLowerCase() : null;
     for (const dep of deps) {
-      if (typeof dep !== 'string' || !dep.endsWith(CONSTRUCTOR_TAIL)) continue;
-      const bare = dep.slice(0, -CONSTRUCTOR_TAIL.length);
-      for (const key of [dep, bare]) index.set(key, name);
+      if (typeof dep !== 'string') continue;
+      const [head] = dep.split('/');
+      if (head && !index.has(head) && (!requireMatch || head === lower)) index.set(head, name);
     }
+  };
+  for (const [name, desc] of Object.entries(globals)) register(name, desc?.pure?.dependencies, false);
+  for (const [name, methods] of Object.entries(statics)) {
+    for (const desc of Object.values(methods)) register(name, desc?.pure?.dependencies, true);
   }
   return index;
 }
@@ -300,7 +304,12 @@ function deriveHintFromKebab(entry) {
 // `resolvePure`'s `hasOwn(desc, 'pure')` gate downstream is the last line of defence
 // against fallback over-injection: hints for globals without any pure surface (Date,
 // Function, Uint8Array, ...) resolve to a name whose `statics[name][key]` either misses
-// or carries no pure variant, so no polyfill is emitted
+// or carries no pure variant, so no polyfill is emitted.
+// explicit `<head>/constructor` imports collapse to bare `<head>` for the index lookup -
+// `matchEntrySubpath` already strips `/index` and trailing slashes; `/constructor` is the
+// one suffix the canonicaliser preserves, but for hint resolution it carries no extra info
 export function entryToGlobalHint(entry) {
-  return entry ? entryHintIndex.get(entry) ?? deriveHintFromKebab(entry) : null;
+  if (!entry) return null;
+  const canonical = entry.endsWith(CONSTRUCTOR_TAIL) ? entry.slice(0, -CONSTRUCTOR_TAIL.length) : entry;
+  return entryHintIndex.get(canonical) ?? deriveHintFromKebab(canonical);
 }
