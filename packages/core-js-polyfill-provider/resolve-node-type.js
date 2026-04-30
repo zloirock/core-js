@@ -1923,6 +1923,42 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // dispatcher over the two pattern-key walkers (ArrayPattern numeric index / ObjectPattern
+  // string key). returns null for anything else (Identifier handled by caller, RestElement
+  // / nested patterns covered inside the underlying walkers). shared by `assignmentBindsTarget`
+  // (predicate) and resolvePath's destructure branch (key-path consumer)
+  function findPatternKeyPath(pattern, name, scope) {
+    if (pattern?.type === 'ArrayPattern') return findArrayPatternKeyPath(pattern, name, scope);
+    if (pattern?.type === 'ObjectPattern') return findDestructuredKeyPath(pattern, name, scope);
+    return null;
+  }
+
+  // walk an RHS path (`right` of an AssignmentExpression with destructure LHS) along the
+  // key-path produced by `findPatternKeyPath`, returning the path bound to that slot - or
+  // null when the RHS shape doesn't match (annotation fallback handled by callers). path-
+  // returning companion to `resolveObjectMemberPath` which produces a Type; used in
+  // resolvePath where downstream needs the live Path
+  function followKeyPathInRhs(rhsPath, keyPath) {
+    if (!keyPath?.length) return null;
+    let cur = resolveRuntimeExpression(rhsPath);
+    for (const step of keyPath) {
+      if (typeof step === 'number') {
+        // -1 marks rest-element ("whole tail" slice) - no single Path to surface
+        if (step < 0) return null;
+        if (!t.isArrayExpression(cur.node) || cur.node.elements.length <= step) return null;
+        const next = cur.get('elements')[step];
+        if (!next?.node) return null;
+        cur = resolveRuntimeExpression(next);
+      } else {
+        if (!t.isObjectExpression(cur.node)) return null;
+        const prop = findObjectMember(cur, step);
+        if (!prop?.node || !t.isObjectProperty(prop.node)) return null;
+        cur = resolveRuntimeExpression(prop.get('value'));
+      }
+    }
+    return cur;
+  }
+
   // --- Type utilities & runtime expression resolver ---
   function resolvePath(path) {
     let depth = MAX_DEPTH;
@@ -1939,8 +1975,25 @@ function createResolveNodeType(babelNodeType, t) {
       if (binding.constantViolations?.length) {
         const lastAssign = findPrecedingBlockAssignment(binding, path);
         if (lastAssign?.node?.type === 'AssignmentExpression' && lastAssign.node.operator === '=') {
-          path = lastAssign.get(assignRightKey(lastAssign.node));
-          continue;
+          const { left } = lastAssign.node;
+          // simple `f = X` reassignment - follow RHS directly
+          if (left?.type === 'Identifier' && left.name === path.node.name) {
+            path = lastAssign.get(assignRightKey(lastAssign.node));
+            continue;
+          }
+          // destructure-assignment `[f] = [X]` / `({f} = {f: X})` - resolveBindingType handles
+          // these via key-path walks, but resolvePath is invoked from `resolveRuntimeExpression`
+          // (member-chain resolution) which never reaches that fallback. extract the matching
+          // RHS slot here so `f.data.at(0)` after `[f] = [{data: ['x']}]` narrows correctly
+          const keyPath = findPatternKeyPath(left, path.node.name, lastAssign.scope);
+          if (keyPath) {
+            const elem = followKeyPathInRhs(lastAssign.get('right'), keyPath);
+            if (elem?.node) {
+              path = elem;
+              continue;
+            }
+          }
+          break;
         }
         break;
       }
@@ -3733,6 +3786,16 @@ function createResolveNodeType(babelNodeType, t) {
   // accepts assignments in any enclosing block of the use site - those are guaranteed because
   // the use site is in the same control-flow path. starts at the closest block-child ancestor
   // and walks outward until the binding's declaration scope
+  // assignment shape that re-binds `targetName`: simple Identifier LHS OR destructure pattern
+  // (ArrayPattern / ObjectPattern) whose key-path walker turns up `targetName`. resolvePath's
+  // destructure branch then extracts the matching RHS slot
+  function assignmentBindsTarget(expr, targetName, scope) {
+    if (expr?.type !== 'AssignmentExpression' || expr.operator !== '=') return false;
+    const { left } = expr;
+    if (left?.type === 'Identifier') return left.name === targetName;
+    return !!findPatternKeyPath(left, targetName, scope);
+  }
+
   function findPrecedingBlockAssignment(binding, varPath) {
     if (!binding.constantViolations?.length) return null;
     const targetName = bindingTargetName(binding, varPath);
@@ -3744,11 +3807,18 @@ function createResolveNodeType(babelNodeType, t) {
         const siblings = parent.get('body');
         for (let i = current.key - 1; i >= 0; i--) {
           const sib = siblings[i];
-          const expr = sib?.node?.type === 'ExpressionStatement' ? sib.node.expression : null;
-          if (expr?.type === 'AssignmentExpression' && expr.operator === '='
-              && expr.left?.type === 'Identifier' && expr.left.name === targetName) {
-            return sib.get('expression');
+          if (sib?.node?.type !== 'ExpressionStatement') continue;
+          // ObjectPattern destructure-assignment is only parseable as `({...} = R)` - the
+          // parens become an AST node in oxc-parser (ESTree preserves ParenthesizedExpression),
+          // unwrap so the AssignmentExpression is reachable. babel strips parens at parse,
+          // so the unwrap is a no-op there
+          let expr = sib.node.expression;
+          let exprPath = sib.get('expression');
+          while (expr?.type === 'ParenthesizedExpression') {
+            expr = expr.expression;
+            exprPath = exprPath.get('expression');
           }
+          if (assignmentBindsTarget(expr, targetName, sib.scope)) return exprPath;
         }
       }
       if (parent.node === limit) return null;
