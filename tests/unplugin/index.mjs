@@ -134,7 +134,7 @@ async function loadBabelOptions(directory) {
 
 // oxc-parser auto-enables JSX/TS based on file extension. `.ts` covers the typescript
 // plugin (default fallback), `.jsx` for JSX-only without TS, `.tsx` when both. matrix
-// of the 4 fileds: (jsx, ts) → '.tsx'; (jsx, !ts) → '.jsx'; (!jsx, ts) → '.ts';
+// of the 4 filds: (jsx, ts) → '.tsx'; (jsx, !ts) → '.jsx'; (!jsx, ts) → '.ts';
 // (!jsx, !ts) → '.ts' (default — typescript-friendly is the safe default)
 function inferTestId(babelOptions) {
   if (babelOptions.filename) return babelOptions.filename;
