@@ -59,6 +59,22 @@ export function isNonReferencePosition(parent, identifierNode) {
   return false;
 }
 
+// AST parent shapes where an Identifier child IS the binding being introduced (declarator
+// id, function/class id, catch param), NOT a reference to a binding. complementary to
+// `isNonReferencePosition` (which covers source-text name positions like property keys);
+// callers walking subtrees for global-reference rewrites must skip both shapes to avoid
+// renaming the binding itself. pattern positions (destructure ids) handled separately
+// by `walkPatternIdentifiers` since patterns can nest arbitrarily
+export function isBindingPosition(parent, identifierNode) {
+  if (!parent) return false;
+  const { type } = parent;
+  if (type === 'VariableDeclarator' && parent.id === identifierNode) return true;
+  if ((type === 'FunctionDeclaration' || type === 'FunctionExpression'
+    || type === 'ClassDeclaration' || type === 'ClassExpression') && parent.id === identifierNode) return true;
+  if (type === 'CatchClause' && parent.param === identifierNode) return true;
+  return false;
+}
+
 // transparent wrappers that may appear ABOVE a `(arrow)(...)` call site without changing
 // the call's invocation semantics for IIFE detection: `!fn(...)`, `(0, fn)(...)`, `(fn)(...)`,
 // optional-chain wrap (oxc), TS expression wrappers
@@ -534,16 +550,23 @@ export function peelNestedSequenceExpressions(node) {
   return { prefix, tail: cursor };
 }
 
-// `(fn, R)` IIFE arg evaluates to its tail. peel side-effect-free SE prefixes recursively
-// through paren wrappers so flat / nested forms (`(0, R)` vs `(0, (1, R))`) classify
-// identically for synth-swap. preceding effects leave the node as-is - synth-swap then
-// bails to inline-default and the SE prefix runs through the original arg expression.
-// shared between babel-plugin and unplugin synth-swap emitters
+// `(fn, R)` IIFE arg or default-RHS evaluates to its tail. peel SE prefixes recursively
+// through transparent wrappers (parens / chain / TS casts) so flat / nested / wrapped
+// forms classify identically for synth-swap:
+//   `(0, R)`               - flat SE
+//   `(0, (1, R))`          - nested SE
+//   `(0, (R as any))`      - SE with TS-wrapped tail
+//   `((0, R) as any)`      - TS-wrapped SE
+// peel is unconditional including for side-effecting prefixes: synth-swap mutates ONLY
+// the tail node via `replaceWith`, so prefix expressions stay in the SE structure and
+// run at runtime. without unconditional peel, default-RHS `({from} = (logCall(), Array))`
+// would fall back to inline-default / body-extract, dropping caller-passed `from`
+// (caller's arg should win, default fires only when caller passes `undefined` - that's
+// where the polyfill belongs). shared between babel-plugin and unplugin synth-swap
 export function unwrapSafeSequenceTail(node) {
   for (;;) {
-    while (node?.type === 'ParenthesizedExpression') node = node.expression;
+    node = unwrapRuntimeExpr(node);
     if (node?.type !== 'SequenceExpression') return node;
-    if (node.expressions.slice(0, -1).some(mayHaveSideEffects)) return node;
     const tail = node.expressions.at(-1);
     if (!tail) return node;
     node = tail;
@@ -801,6 +824,21 @@ export function unwrapInitValue(node) {
     else if (node?.type === 'SequenceExpression') node = node.expressions.at(-1);
     else return node;
   }
+}
+
+// alternates `unwrapRuntimeExpr` (parens / chain / TS) and `unwrapInitValue` (parens /
+// SE tail) until the node is stable. used for callee-identity lookups that don't care
+// about preceding side effects: `(0, isStr)(x)`, `((isStr) as any)(x)`, `(0, (isStr as
+// any))(x)`, `isStr?.()` — every wrapper combination reaches the same effective callee.
+// SE prefix side-effects are dropped from the peeled view (consumer is doing predicate
+// resolution, not codegen, so prefix elision is semantics-preserving)
+export function unwrapExpressionChain(node) {
+  while (node) {
+    const before = node;
+    node = unwrapInitValue(unwrapRuntimeExpr(node));
+    if (node === before) return node;
+  }
+  return node;
 }
 
 // generic type arguments at a use-site (`Array<string>`) - babel: `typeParameters`,
