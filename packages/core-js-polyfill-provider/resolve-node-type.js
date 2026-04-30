@@ -6,6 +6,7 @@ import {
   peelFallbackWrappers,
   singleQuasiString,
   unwrapExportedDeclaration,
+  unwrapExpressionChain,
   unwrapParens,
   unwrapRuntimeExpr,
 } from './helpers/ast-patterns.js';
@@ -1001,8 +1002,18 @@ function createResolveNodeType(babelNodeType, t) {
     const key = indexedAccessKey(node.indexType);
     if (key === null) return null;
     const member = findTypeMember(node.objectType, key, scope);
-    const annotation = member && unwrapTypeAnnotation(member.typeAnnotation ?? member);
-    return annotation ? getTypeMembers(annotation, scope, depth + 1) : null;
+    if (member) {
+      const annotation = unwrapTypeAnnotation(member.typeAnnotation ?? member);
+      return annotation ? getTypeMembers(annotation, scope, depth + 1) : null;
+    }
+    // numeric-key tuple fallback: `Parameters<typeof fn>[0].x` - findTypeMember can't see
+    // the tuple shape (Parameters is not in STRUCTURE_PRESERVING_WRAPPERS and getTypeMembers
+    // returns null for the special built-in), but findTupleElement resolves it via
+    // resolveParametersParams. parity with `resolveIndexedAccessType`'s numeric branch
+    const numIndex = typeof key === 'number' ? key : Number(key);
+    if (!Number.isInteger(numIndex) || numIndex < 0) return null;
+    const element = findTupleElement(node.objectType, numIndex, scope);
+    return element ? getTypeMembers(unwrapTypeAnnotation(element), scope, depth + 1) : null;
   }
 
   // collect members of an interface declaration (including merged sibling interfaces and
@@ -1068,7 +1079,19 @@ function createResolveNodeType(babelNodeType, t) {
     // `InstanceType<typeof Cls>.x` / `ReturnType<typeof fn>.x` -> members of the pointed-to decl
     if (segments.length === 1 && (segments[0] === 'InstanceType' || segments[0] === 'ReturnType')) {
       const arg = getTypeArgs(objectType)?.params[0];
-      const resolved = arg?.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
+      if (!arg) return null;
+      // `ReturnType<Fn>.x` where `Fn = () => T` (alias to function type, no typeof) -
+      // follow the alias chain, extract return annotation, fold accumulated subst.
+      // mirrors `resolveNamedType`'s ReturnType branch. `InstanceType<>` always needs
+      // a class binding so the typeof-only path stays
+      if (segments[0] === 'ReturnType' && arg.type !== 'TSTypeQuery') {
+        const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
+        const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
+        if (!ret) return null;
+        const target = subst ? applyAliasSubstDeep(ret, subst) : ret;
+        return getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1, visited);
+      }
+      const resolved = arg.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
       if (!resolved?.node) return null;
       const target = segments[0] === 'InstanceType'
         ? resolved.node.id && { type: 'TSTypeReference', typeName: resolved.node.id }
@@ -1317,26 +1340,44 @@ function createResolveNodeType(babelNodeType, t) {
 
   function findTupleElement(objectType, index, scope) {
     if (index < 0) return null;
+    // peel BEFORE alias chain catches direct `Readonly<[T, U]>` indexing. mirrors
+    // `findTypeMember`'s peel-then-follow-then-peel pattern
+    const peeledBefore = peelStructurePreservingWrapper(objectType);
+    if (peeledBefore) return findTupleElement(peeledBefore, index, scope);
+    // follow alias chain BEFORE the Parameters check so `type P = Parameters<typeof fn>;
+    // P[0]` reaches the Parameters branch - `resolveParametersParams` matches by typeRefName
+    // and would see "P" instead of "Parameters" without the alias walk
+    const { node: aliased, subst } = followTypeAliasChain(objectType, scope);
+    const target = aliased ?? objectType;
     // `Parameters<typeof fn>[N]` / `ConstructorParameters<typeof Cls>[N]` - N-th param's
-    // annotation; rest param unwraps `T[]` -> T and covers every index >= its position
-    const params = resolveParametersParams(objectType, scope);
+    // annotation; rest param unwraps `T[]` -> T and covers every index >= its position.
+    // alias subst applies if the resolved annotation references type-params of the alias.
+    // `applyAliasSubstDeep` is a no-op when `subst` is null, so direct call covers both
+    // alias-walked and direct-Parameters cases without a guard
+    const params = resolveParametersParams(target, scope);
     if (params) {
       for (let i = 0; i < params.length; i++) {
         const { param, isRest } = effectiveParam(params[i]);
         const annotation = param?.typeAnnotation?.typeAnnotation;
-        if (!isRest && i === index) return annotation ?? null;
-        if (isRest) return i <= index ? extractElementAnnotation(annotation, scope, 0) ?? null : null;
+        if (!isRest && i === index) return applyAliasSubstDeep(annotation, subst) ?? null;
+        if (isRest) {
+          return i <= index
+            ? applyAliasSubstDeep(extractElementAnnotation(annotation, scope, 0), subst) ?? null
+            : null;
+        }
       }
       return null;
     }
-    // `Readonly<[T, U]>` / `Partial<[T, U]>` - structure-preserving wrappers over tuples keep
-    // element types intact. without this peel, the alias chain resolves to the wrapper itself,
-    // not the inner tuple, and numeric indexing falls through to generic `_at`
-    const peeled = peelStructurePreservingWrapper(objectType);
-    if (peeled) return findTupleElement(peeled, index, scope);
-    const { node: tuple, subst } = followTypeAliasChain(objectType, scope);
-    if (tuple?.type !== 'TSTupleType' && tuple?.type !== 'TupleTypeAnnotation') return null;
-    const elements = tupleElements(tuple);
+    // peel AFTER follow handles `type X = Readonly<[T, U]>; X[0]` (wrapper hidden one
+    // level deeper through the alias). without the second peel numeric indexing falls
+    // through to generic `_at`
+    const peeledAfter = peelStructurePreservingWrapper(target);
+    if (peeledAfter) {
+      const substituted = subst ? applyAliasSubstDeep(peeledAfter, subst) : peeledAfter;
+      return findTupleElement(substituted, index, scope);
+    }
+    if (target.type !== 'TSTupleType' && target.type !== 'TupleTypeAnnotation') return null;
+    const elements = tupleElements(target);
     if (!elements?.length) return null;
     // direct hit: [string, ...number[]][0] -> string, [string, ...number[]][1] -> number.
     // rest element NOT at the last position (`[...string[], number][1]` leading;
@@ -4913,7 +4954,32 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   function resolvePredicateGuard(callee, scope, negated, asserts) {
-    if (!scope || callee.type !== 'Identifier') return null;
+    if (!scope) return null;
+    // method-form predicate: `obj.isStr(x)` - resolve obj's annotation, find the method
+    // member, check its return type for a TSTypePredicate. covers class instances and
+    // interface / type-literal members. without this branch, user-defined member predicates
+    // miss narrowing because the existing path only handles bare-identifier callees
+    if (callee.type === 'MemberExpression' && !callee.computed
+      && callee.property?.type === 'Identifier'
+      && callee.object?.type === 'Identifier') {
+      const objBinding = scope.getBinding(callee.object.name);
+      if (objBinding) {
+        const objAnnotation = unwrapTypeAnnotation(findBindingAnnotation(objBinding.path));
+        // walk type members directly - `findTypeMember` returns a synthetic `{type:'TSFunctionType'}`
+        // stub for methods that loses the predicate return-type info we need here
+        const members = objAnnotation ? getTypeMembers(objAnnotation, objBinding.path.scope) : null;
+        const methodName = callee.property.name;
+        const member = members?.find(m => keyMatchesName(m.key, methodName));
+        const returnType = member && unwrapTypeAnnotation(memberCallReturnAnnotation(member));
+        if (returnType?.type === 'TSTypePredicate' && !!returnType.asserts === asserts) {
+          const resolved = resolveTypeAnnotation(returnType.typeAnnotation, objBinding.path.scope);
+          const guard = guardFromResolvedType(resolved, negated);
+          if (guard) return guard;
+        }
+      }
+      return null;
+    }
+    if (callee.type !== 'Identifier') return null;
     // try the runtime binding first (covers regular function decl, var with init / annot)
     const binding = scope.getBinding(callee.name);
     const candidates = [];
@@ -4953,7 +5019,10 @@ function createResolveNodeType(babelNodeType, t) {
     if (call?.type !== 'CallExpression' || !call.arguments?.length) return null;
     const arg = unwrapRuntimeExpr(call.arguments[0]);
     if (arg?.type !== 'Identifier' || arg.name !== varName) return null;
-    const guard = resolvePredicateGuard(call.callee, sibling.scope, false, true);
+    // peel callee wrappers so non-Identifier shapes still match the binding-name check
+    // inside `resolvePredicateGuard`. covers `(0, isStr)`, `((isStr))`, `isStr as any`,
+    // `isStr!`, `isStr?.()`, and any nested combination (`((0, isStr) as any)`)
+    const guard = resolvePredicateGuard(unwrapExpressionChain(call.callee), sibling.scope, false, true);
     if (guard) guard.positive = true;
     return guard;
   }
@@ -5179,17 +5248,23 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
-  // does this single sibling apply a narrowing guard to `varName`? checks both early-exit
-  // forms uniformly: condition-bearing (`if (typeof x === 'string') return;`) and the
-  // assertion-statement form (`assertString(x);`). presence-only check shared by
-  // `findPrecedingExitGuards` (which collects guards) and `hasMutationAfterGuards` (which
-  // only needs to know IF this sibling sits at a guard boundary)
-  function siblingGuardsBinding(sibling, varName) {
+  // shared sibling-to-guards parser. unifies both early-exit forms:
+  //   - condition-bearing `if (typeof x === 'string') return;` -> guards from condition
+  //   - assertion-statement `assertString(x);` -> single asserts guard
+  // callers either count length (`siblingGuardsBinding` presence check) or accumulate
+  // (`findPrecedingExitGuards` collection)
+  function parseSiblingGuards(sibling, varName) {
     const conditionTrue = resolveExitCondition(sibling);
     if (conditionTrue !== null) {
-      return parseGuardsFromCondition(sibling.node.test, conditionTrue, varName, sibling.scope).length > 0;
+      return parseGuardsFromCondition(sibling.node.test, conditionTrue, varName, sibling.scope);
     }
-    return parseAssertionStatementGuard(sibling, varName) !== null;
+    const assertionGuard = parseAssertionStatementGuard(sibling, varName);
+    return assertionGuard ? [assertionGuard] : [];
+  }
+
+  // does this single sibling apply a narrowing guard to `varName`?
+  function siblingGuardsBinding(sibling, varName) {
+    return parseSiblingGuards(sibling, varName).length > 0;
   }
 
   // if (typeof x === 'string') return; -> x is narrowed after the if
@@ -5197,16 +5272,7 @@ function createResolveNodeType(babelNodeType, t) {
   // collects ALL preceding guards, including && / || flattening
   function findPrecedingExitGuards(siblings, index, varName) {
     const guards = [];
-    for (let i = index - 1; i >= 0; i--) {
-      const sibling = siblings[i];
-      const conditionTrue = resolveExitCondition(sibling);
-      if (conditionTrue !== null) {
-        guards.push(...parseGuardsFromCondition(sibling.node.test, conditionTrue, varName, sibling.scope));
-        continue;
-      }
-      const assertionGuard = parseAssertionStatementGuard(sibling, varName);
-      if (assertionGuard) guards.push(assertionGuard);
-    }
+    for (let i = index - 1; i >= 0; i--) guards.push(...parseSiblingGuards(siblings[i], varName));
     return guards;
   }
 
@@ -5298,10 +5364,18 @@ function createResolveNodeType(babelNodeType, t) {
     const isBefore = v => v.node.start === null || v.node.start === undefined
       || usageStart === null || usageStart === undefined || v.node.start < usageStart;
     const violatesBefore = scope => constantViolations.some(v => isDescendant(v, scope) && isBefore(v));
+    // a fresh inner conditional whose guard has no mutations between it and the usage
+    // re-narrows at runtime regardless of outer-scope mutations - the inner guard's
+    // condition re-evaluates after any outer-scope reassignment. once seen, outer-level
+    // mutations don't invalidate narrowing
+    let innerFreshConditional = false;
     for (let current = usagePath, parent; (parent = current.parentPath) && !t.isFunction(parent.node); current = parent) {
       if (!guardAppliesToBinding(parent.scope, varName, binding)) continue;
-      if (findConditionalGuards(current, varName).length && violatesBefore(current)) return true;
-      if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent)) return true;
+      if (findConditionalGuards(current, varName).length) {
+        if (!violatesBefore(current)) innerFreshConditional = true;
+        else if (!innerFreshConditional) return true;
+      }
+      if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent) && !innerFreshConditional) return true;
       if (findEarlyExitGuards(current, varName).length) {
         const siblings = getStatementSiblings(current);
         // mutation window for any guard at sibling[i]: any reassign in (i, current.key],
@@ -5311,8 +5385,8 @@ function createResolveNodeType(babelNodeType, t) {
         // invalidated a stronger guard further back
         for (let i = current.key - 1; i >= 0; i--) {
           if (!siblingGuardsBinding(siblings[i], varName)) continue;
-          for (let j = i + 1; j < current.key; j++) if (violates(siblings[j])) return true;
-          if (violatesBefore(siblings[current.key])) return true;
+          for (let j = i + 1; j < current.key; j++) if (violates(siblings[j]) && !innerFreshConditional) return true;
+          if (violatesBefore(siblings[current.key]) && !innerFreshConditional) return true;
         }
       }
     }
