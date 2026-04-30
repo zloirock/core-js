@@ -13,7 +13,6 @@ import {
   getFallbackBranchSlots,
   isClassifiableReceiverArg,
   isSynthSimpleObjectPattern,
-  mayHaveSideEffects,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -41,21 +40,16 @@ export default function createSynthSwapEmitter({
     return path;
   }
 
-  // `(fn, R)` as an IIFE arg evaluates to its last expression. side-effect-free preceding
-  // expressions can be dropped from the synth target resolution (R becomes the receiver);
-  // preceding effects leave the path as-is so synth-swap bails back to inline-default.
-  // recurse into nested SequenceExpression tails (`(a, (b, R))`) so the inner peeling lands
-  // on the actual receiver Identifier - flat / nested forms must classify identically.
-  // also peel ParenthesizedExpression at every step (createParens=true preserves them);
-  // shared `unwrapSafeSequenceTail` (node-version in `helpers/ast-patterns.js`) does the
-  // same so flat / paren-wrapped forms classify identically across both runners
+  // `(fn, R)` SE evaluates to its tail. peel SE prefixes recursively through paren wrappers
+  // so flat / nested forms (`(0, R)` vs `(0, (1, R))`) classify identically. peel is
+  // unconditional including for side-effecting prefixes: synth-swap's `replaceWith` mutates
+  // ONLY the tail node, so prefix expressions stay in the SE structure and run at runtime.
+  // path-version companion of node-version `unwrapSafeSequenceTail` (`helpers/ast-patterns.js`)
   function unwrapSequenceTail(argPath) {
     while (argPath?.node) {
       argPath = peelTransparentPath(argPath);
       if (!argPath?.isSequenceExpression()) return argPath;
-      const expressions = argPath.get('expressions');
-      if (expressions.slice(0, -1).some(expressionPath => mayHaveSideEffects(expressionPath.node))) return argPath;
-      const tail = expressions.at(-1);
+      const tail = argPath.get('expressions').at(-1);
       if (!tail) return argPath;
       argPath = tail;
     }
@@ -100,11 +94,17 @@ export default function createSynthSwapEmitter({
   function findTargetPath(wrapper, objectPattern) {
     if (objectPattern.node.properties.some(property => t.isRestElement(property))) return null;
     if (wrapper?.isAssignmentPattern()) {
-      // peel parens / TS wrappers: `({from} = (Array)) => ...` (createParens=true) and
-      // `({from} = Array as any) => ...` both must reach the inner shape so synth-swap
-      // fires instead of falling back to inline-default. mirrors unplugin's
-      // `unwrapRuntimeExpr(wrapper.right)` in `destructure-emit-utils.js`
-      const rightPath = peelTransparentPath(wrapper.get('right'));
+      // peel parens / TS wrappers / SE-tail through `unwrapSequenceTail` so all these
+      // shapes reach the inner receiver and synth-swap fires:
+      //   `({from} = (Array)) => ...`            - createParens=true
+      //   `({from} = Array as any) => ...`        - TS cast wrapper
+      //   `({from} = (0, Array)) => ...`          - SE tail (minified / TS-emit form)
+      //   `({from} = (logCall(), Array)) => ...`  - SE tail with side-effecting prefix
+      // synth-swap's `replaceWith` mutates ONLY the tail Identifier - the SE prefix
+      // expressions stay in the AST and run at runtime exactly as written. caller's
+      // `({from: customFn})` still beats the synth-emitted default (default fires only
+      // when caller-arg is undefined), preserving caller-passed values
+      const rightPath = unwrapSequenceTail(wrapper.get('right'));
       if (!t.isIdentifier(rightPath.node) && !t.isMemberExpression(rightPath.node)) return null;
       // IIFE caller-arg overrides only when the default is an Identifier (resolution layer
       // requires a classifiable name); MemberExpression default has no caller-arg path,

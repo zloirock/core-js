@@ -3,7 +3,6 @@
 import {
   findIifeArgForParam,
   isClassifiableReceiverArg,
-  unwrapRuntimeExpr,
   unwrapSafeSequenceTail,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -88,12 +87,17 @@ export function findSynthSwapReceiver(wrapperPath, objectPattern) {
   if (objectPattern?.properties?.some(p => p.type === 'RestElement' || p.type === 'SpreadElement')) return null;
   const wrapper = wrapperPath?.node;
   if (wrapper?.type === 'AssignmentPattern' && wrapper.left === objectPattern) {
-    // peel ParenthesizedExpression / TS expression wrappers (`as`, `satisfies`, `!`) /
-    // chain so `function f({from} = (Array))`, `function f({from} = Array as any)`,
-    // `function f({from} = Array!)` all match the bare-`Array` synth-swap path. mirrors
-    // babel-plugin's `peelTransparentPath` (synth-swap-emitter.js) - both pipelines now
-    // emit the same shape (`{from: _Array$from} as any`)
-    const peeled = unwrapRuntimeExpr(wrapper.right);
+    // peel parens / TS wrappers / SE-tail through `unwrapSafeSequenceTail` (alternates
+    // wrapper peel and SE-tail extraction internally) so all shapes reach the inner
+    // receiver:
+    //   `function f({from} = (Array))`            - parens
+    //   `function f({from} = Array as any)`       - TS cast
+    //   `function f({from} = (0, Array))`         - SE tail (minified)
+    //   `function f({from} = (logCall(), Array))` - SE tail with side-effecting prefix
+    // SE peel is unconditional - synth replaces only the tail node, prefix runs at
+    // runtime as written. caller's `({from: customFn})` beats the synth (default fires
+    // only when caller-arg is undefined), preserving caller-passed values
+    const peeled = unwrapSafeSequenceTail(wrapper.right);
     if (peeled?.type !== 'Identifier' && peeled?.type !== 'MemberExpression') return null;
     // IIFE caller-arg overrides only when default is an Identifier (resolution layer needs
     // a classifiable name); MemberExpression default has no caller-arg path, falls through
