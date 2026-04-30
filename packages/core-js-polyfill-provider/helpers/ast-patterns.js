@@ -279,6 +279,36 @@ export function destructureReceiverSlot(node) {
   return null;
 }
 
+// destructure-receiver value bound to an ObjectPattern. unifies the two wrapper shapes
+// that drive `meta.fromFallback` per-branch synth-swap:
+//   1. slot-bearing wrapper (VariableDeclarator / AssignmentExpression / AssignmentPattern):
+//      `const {p} = R`, `({p} = R)`, `function f({p} = D)` -> RHS read from slot
+//   2. function-like IIFE wrapper (Arrow / FunctionExpression invoked at the call site):
+//      `(({p}) => body)(R)` -> RHS is the call-arg at this param's index
+// returns `{ rhsNode, slot, callPath, paramIndex }` (slot XOR callPath set) so node-form
+// callers consume `rhsNode`, path-form callers derive a NodePath via the path companion.
+// null when the wrapper is neither shape - synth-swap then warns and leaves code intact
+export function resolveFallbackReceiver(wrapperPath, paramNode) {
+  const wrapperNode = wrapperPath?.node;
+  if (!wrapperNode) return null;
+  const slot = destructureReceiverSlot(wrapperNode);
+  if (slot) return { rhsNode: wrapperNode[slot], slot, callPath: null, paramIndex: -1 };
+  const site = findIifeCallSite(wrapperPath, paramNode);
+  if (!site) return null;
+  const rhsNode = resolveCallArgument(site.callPath.node.arguments ?? [], site.paramIndex);
+  return rhsNode ? { rhsNode, slot: null, callPath: site.callPath, paramIndex: site.paramIndex } : null;
+}
+
+// path-form companion of `resolveFallbackReceiver` for AST-mutation callers (babel's
+// synth-swap registers via NodePath). adapter-agnostic - both babel NodePath and
+// estree-toolkit Path expose `.get(key)` / `.get('arguments')[index]`
+export function resolveFallbackReceiverPath(wrapperPath, paramNode) {
+  const desc = resolveFallbackReceiver(wrapperPath, paramNode);
+  if (!desc) return null;
+  if (desc.slot) return wrapperPath.get(desc.slot);
+  return desc.callPath.get('arguments')[desc.paramIndex];
+}
+
 // destructure-host slot specifically for nested-proxy flatten (`{Array:{from}} = G` ->
 // `from = _Array$from`). narrower than `destructureReceiverSlot`: AssignmentExpression
 // is accepted ONLY when the surrounding context is an ExpressionStatement (value is

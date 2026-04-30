@@ -9,7 +9,6 @@
 // instantiated per-file in `initFile` so closure-captured per-file state (`skippedNodes` /
 // `synthSwap` / `injector` / `debugOutput`) stays in sync with the freshly-allocated values
 import {
-  destructureReceiverSlot,
   findEnclosingFunctionLikePath,
   hasRestSiblingExcept,
   isFunctionParamDestructureParent,
@@ -20,6 +19,7 @@ import {
   objectPatternPropNeedsReceiverRewrite,
   peelNestedSequenceExpressions,
   propBindingIdentifier,
+  resolveFallbackReceiverPath,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { canTransformDestructuring as sharedCanTransformDestructuring } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { patternBindingName } from '@core-js/polyfill-provider/detect-usage/resolve';
@@ -387,12 +387,14 @@ export default function createDestructureEmitter({
   // fires and on native availability
   function handleObjectPropertyResult(prop, meta, kind, entry, hintName) {
     if (meta?.fromFallback) {
-      // try per-branch synth-swap on ConditionalExpression / LogicalExpression branches.
-      // each viable branch becomes its own `{key: _Branch$key}` literal (preserving runtime
-      // conditional semantics); non-viable branches stay raw. on full failure, warn
-      const wrapperParent = prop.parentPath?.parentPath;
-      const slot = destructureReceiverSlot(wrapperParent?.node);
-      const registered = slot && synthSwap.tryRegisterPerBranchSynth(wrapperParent.get(slot), prop);
+      // per-branch synth-swap on ConditionalExpression / LogicalExpression branches: each
+      // viable branch becomes its own `{key: _Branch$key}` literal, preserving runtime
+      // conditional semantics. receiver lives either on a destructure wrapper slot
+      // (`{p} = R`) or as the IIFE call-arg (`(({p}) => body)(R)`) - both shapes are
+      // unified by `resolveFallbackReceiverPath`. non-viable branches stay raw and the
+      // identifier visitor still rewrites bare globals via the standard path
+      const rhsPath = resolveFallbackReceiverPath(prop.parentPath?.parentPath, prop.parentPath?.node);
+      const registered = rhsPath && synthSwap.tryRegisterPerBranchSynth(rhsPath, prop);
       if (!registered) {
         getDebugOutput()?.warn(`conditional destructure with polyfill candidate left untouched ("${ meta.key }" on fallback branch) - runtime availability depends on the selected branch`);
       }
