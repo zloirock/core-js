@@ -1,0 +1,11 @@
+import _valuesMaybeArray from "@core-js/pure/actual/array/instance/values";
+import _Array$from from "@core-js/pure/actual/array/from";
+const from = _Array$from;
+// flatten declarator NOT first in multi-decl - sibling IIFE block-body precedes the
+// flattenable destructure. asserts the bug fires regardless of declarator order in
+// the multi-decl
+const kls = (() => {
+  var _ref;
+  return _valuesMaybeArray(_ref = []).call(_ref);
+})();
+export { from, kls };
