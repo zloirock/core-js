@@ -56,6 +56,12 @@ const shouldTransformCases = [
   ['/virtual:foo?output=main.ts#bar', false, '.ts inside query only'],
   // SFC with a `.js`-like token in the query: `stripQueryHash` leaves `.vue`, SFC path wins
   ['/src/foo.vue?lang=ts&suffix=.js', true, 'SFC with .js token in query'],
+  // SFC + `#hash` suffix (sourcemap line markers, plugin-wrapper artifacts) — `lang=` token
+  // closes on `#` as well as `&`/EOL; without the `#` alternative the SFC dispatch silently
+  // falls through to extension-only detection
+  ['/src/App.vue?vue&type=script&lang=ts#L10', true, 'SFC lang=ts followed by #hash'],
+  ['/src/App.vue?vue&type=template&lang=ts#x', false, 'SFC template lang=ts with #hash (template still excluded)'],
+  ['/src/App.vue?vue&type=script#L10', true, 'SFC default-JS script with #hash'],
   ['/src/foo.png?x.js', false, '.png base with .js token in query'],
   // plain extensions
   ['/src/foo.js', true, 'plain .js'],
@@ -703,6 +709,24 @@ function checkEntryGlobalPhaseGate() {
 }
 checkEntryGlobalPhaseGate();
 
+// --- entry-global end-to-end transform with explicit phase: 'pre' ---
+// regression lock for UPL-16-1 reverify gap B: factory acceptance is locked by
+// checkEntryGlobalPhaseGate above, but end-to-end transform path through plugin's
+// `transform` hook wasn't covered. simulating the bundler-driven invocation via
+// `unplugin.raw` -> sub-plugin.transform asserts the phase doesn't break injection
+function checkEntryGlobalTransformWithPhasePre() {
+  const subs = unplugin.raw({ method: 'entry-global', phase: 'pre', targets: { ie: '11' } }, { framework: 'vite' });
+  // entry-global with phase:'pre' should produce a single sub-plugin (collapses to single stage)
+  check('entry-global phase: pre yields single sub-plugin', Array.isArray(subs) && subs.length === 1, true);
+  // bind a stub bundler context (`this` carries `warn` / `error` for diagnostic routing)
+  // and call the transform hook; entry-global expands `import 'core-js/es/array/at';` to
+  // granular module imports filtered by IE 11 targets - the rewrite must produce a non-null
+  // result with a `.code` payload, no throw
+  const result = subs[0]?.transform?.call({ warn: msg => msg }, 'import "core-js/es/array/at";', '/probe.mjs');
+  check('entry-global phase: pre transform fires', !!result?.code, true);
+}
+checkEntryGlobalTransformWithPhasePre();
+
 // --- bundler diagnostic captured by warn hijack ---
 // `unknown bundler` value triggers `console.warn` at plugin instantiation. unit test
 // asserts that the warn is observable via console.warn (test-runner's captureTransform
@@ -722,6 +746,89 @@ function checkUnknownBundlerWarn() {
   check('warn lists known bundlers', captured[0]?.includes('vite'), true);
 }
 checkUnknownBundlerWarn();
+
+// --- snapshot-cache pre-pass-twice warn (gated `debug: true`) ---
+// regression lock for the second warn emitter (`snapshot-cache.js:84`). store() called
+// twice with the same id under `debug: true` must emit exactly one diagnostic. without
+// debug the warn is suppressed (legit dev-server pattern, no noise)
+function checkSnapshotPrePassTwiceWarn() {
+  const captured = [];
+  const orig = console.warn;
+  console.warn = (...a) => captured.push(a.map(String).join(' '));
+  try {
+    const cache = new SnapshotCache({ debug: true });
+    cache.store('/probe.mjs', { code: 'a' });
+    cache.store('/probe.mjs', { code: 'b' });
+    // unrelated id: no warn
+    cache.store('/other.mjs', { code: 'c' });
+    check('snapshot pre-pass twice: one warn', captured.length, 1);
+    check('warn names the id', captured[0]?.includes('/probe.mjs'), true);
+    // debug:false suppresses
+    captured.length = 0;
+    const silent = new SnapshotCache({ debug: false });
+    silent.store('/silent.mjs', { code: 'a' });
+    silent.store('/silent.mjs', { code: 'b' });
+    check('snapshot pre-pass twice without debug: no warn', captured.length, 0);
+  } finally {
+    console.warn = orig;
+  }
+}
+checkSnapshotPrePassTwiceWarn();
+
+// --- TransformQueue.addSplit invariant diagnostic ---
+// regression lock for TQ-16-05: caller-side gate at polyfill-emitter:300 prevents
+// zero-length halves today, but the runtime invariant must surface a clear message
+// when a future caller forgets the gate. previously fell through to add()'s [X,X)
+// RangeError without indicating which side was bad
+function checkAddSplitInvariant() {
+  const tq = new TransformQueue('abcdefghij');
+  const tryCall = args => {
+    try {
+      tq.addSplit(...args);
+      return null;
+    } catch (error) {
+      return error?.message;
+    }
+  };
+  check('addSplit valid call: no throw', tryCall([0, 5, 10, 'p', 's', null, null]), null);
+  const zeroLeft = tryCall([5, 5, 8, 'p', 's', null, null]);
+  check('addSplit zero-left half: throws with positions', !!zeroLeft?.includes('[5,5,8)'), true);
+  const zeroRight = tryCall([0, 8, 8, 'p', 's', null, null]);
+  check('addSplit zero-right half: throws with positions', !!zeroRight?.includes('[0,8,8)'), true);
+  const inverted = tryCall([5, 3, 8, 'p', 's', null, null]);
+  check('addSplit inverted: throws (mid < start)', !!inverted?.includes('addSplit invariant'), true);
+}
+checkAddSplitInvariant();
+
+// --- TransformQueue.containsRange logical-end semantics for split entries ---
+// regression lock for TQ-16-02: containsRange / hasGuardFor previously used physical
+// `entry.end` (= mid for split prefix) instead of `splitInfo.logicalEnd`. queries inside
+// (mid, logicalEnd) on a split-bearing range were wrongly reported as not-contained
+function checkContainsRangeOnSplitEntries() {
+  const tq = new TransformQueue('abcdefghij');
+  // split [0, 5, 10): physical prefix end = 5, logical end = 10
+  tq.addSplit(0, 5, 10, 'p', 's', null, null);
+  check('split-prefix sub-range contained', tq.containsRange(1, 4), true);
+  check('split sub-range crossing mid is contained', tq.containsRange(2, 8), true);
+  check('split-suffix sub-range contained logically', tq.containsRange(6, 9), true);
+  // strict containment: equal range is NOT contained (both transforms must apply)
+  check('split exact logical match is not contained', tq.containsRange(0, 10), false);
+  check('split sub-range past logical end is not contained', tq.containsRange(5, 11), false);
+}
+checkContainsRangeOnSplitEntries();
+
+// --- bundler adapter named exports ---
+// supported bundlers per package.json description + exports map: 8 adapters with both
+// named export AND `./<name>` sub-entry. unloader is upstream-exposed but core-js does
+// not target it (no sub-entry, no docs, no test wiring) — intentionally not exported
+async function checkBundlerAdapterExports() {
+  const exported = await import('../../packages/core-js-unplugin/index.js');
+  for (const name of ['vite', 'webpack', 'rollup', 'esbuild', 'rspack', 'rolldown', 'farm', 'bun']) {
+    check(`adapter export '${ name }' is callable`, typeof exported[name], 'function');
+  }
+  check('unloader: not exported (upstream-only, core-js does not target)', exported.unloader, undefined);
+}
+await checkBundlerAdapterExports();
 
 // --- estree-compat nodeType mapper (adapter divergence: babel vs oxc) ---
 // `nodeType()` translates oxc's narrower node taxonomy back to babel's discriminator
