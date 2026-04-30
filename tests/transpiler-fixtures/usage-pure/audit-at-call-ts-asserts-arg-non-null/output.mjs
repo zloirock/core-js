@@ -1,8 +1,7 @@
 import _atMaybeString from "@core-js/pure/actual/string/instance/at";
-// non-null assertion `x!` is a TSNonNullExpression wrapper around the bare Identifier;
-// runtime passes `x` itself, so the assertion narrows the underlying binding. parser
-// emits `TSNonNullExpression > Identifier`, `unwrapRuntimeExpr` peels it before the
-// binding-name check
+// `asserts x is string` invoked with a non-null assertion argument `assertString(x!)`.
+// the TS wrapper has no runtime effect - the underlying binding `x` is passed, so
+// narrowing must apply the same as for a bare Identifier argument
 function assertString(x: unknown): asserts x is string {}
 function probe(x: unknown) {
   assertString(x!);
