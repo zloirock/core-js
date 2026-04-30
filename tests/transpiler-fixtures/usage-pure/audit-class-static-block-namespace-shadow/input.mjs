@@ -1,6 +1,6 @@
-// TS-runtime `namespace Set { ... }` inside a static block. `getTSRuntimeBindings`
-// scans for TSModuleDeclaration anchors; static block exposes a body array via
-// `getDirectStatementBody` so the namespace name lands in the cached Set
+// `namespace Set { ... }` declared inside a class StaticBlock. the namespace is a TS
+// runtime binding that shadows the global Set within the static block, so `Set.value`
+// must resolve to the local namespace member rather than emitting the Set polyfill
 let captured: unknown;
 class Container {
   static {
