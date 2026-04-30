@@ -11,10 +11,14 @@
 import {
   findIifeCallSite,
   getFallbackBranchSlots,
-  isClassifiableReceiverArg,
   isSynthSimpleObjectPattern,
   TRANSPARENT_EXPR_WRAPPER_TYPES,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import {
+  isClassifiableReceiverArg,
+  isExpandedClassifiableReceiver,
+  markSynthReceiverSkipped,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
 
 export default function createSynthSwapEmitter({
@@ -115,8 +119,12 @@ export default function createSynthSwapEmitter({
       }
       return rightPath;
     }
+    // no wrapper-default: no fallback target to preserve, so accept any statically-classifiable
+    // receiver (bare Identifier OR proxy-global MemberExpression like `globalThis.Map`).
+    // mismatched non-resolvable receiver is harmless - synth-swap drains only when resolution
+    // succeeds, otherwise destructure-emitter falls through to inline-default
     const argPath = detectIifeArgPath(wrapper, objectPattern);
-    return argPath && isClassifiableReceiverArg(argPath.node) ? argPath : null;
+    return argPath && isExpandedClassifiableReceiver(argPath.node) ? argPath : null;
   }
 
   // register a polyfill for a single key on a synth target. ensures the pending entry
@@ -124,7 +132,10 @@ export default function createSynthSwapEmitter({
   // same node and emit a parallel `_Receiver` import that gets dropped post-swap)
   function registerPolyfill(targetPath, objectPatternPath, key, entry, hintName) {
     const receiver = targetPath.node;
-    skippedNodes.add(receiver);
+    // synth-swap owns the receiver chain - for proxy-global MemberExpression receivers
+    // (`globalThis.Map`) walk down `.object` so inner Identifier visitors don't emit
+    // `_globalThis` etc. into the range that synth-swap will replace
+    markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = synthSwapByReceiver.get(receiver);
     if (!pending) {
       // keep the ObjectPattern's PATH (not just node) so apply() can verify it's still
