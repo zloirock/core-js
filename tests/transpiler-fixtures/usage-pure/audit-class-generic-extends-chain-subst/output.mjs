@@ -1,11 +1,10 @@
 import _flatMaybeArray from "@core-js/pure/actual/array/instance/flat";
 import _atMaybeArray from "@core-js/pure/actual/array/instance/at";
 var _ref, _ref2;
-// chained class generics: `A<T> extends B<T>; B<U> extends C<U[]>; C<V>.firstC(): V[]`.
-// `const x: A<string>` propagates: A's T -> string, super B<T> -> B<string>, B's U ->
-// string, super C<U[]> -> C<string[]>, C's V -> string[]. firstC's return V[] resolves
-// to (string[])[] = string[][]. The resolver chains `buildParentClassSubst` at each
-// `extends` step so .at(0).flat() picks the array-specific polyfill twice
+// chain of generic classes with extends-substitution: `A<T> extends B<T>`,
+// `B<U> extends C<U[]>`, `C<V>.firstC(): V[]`. for `const x: A<string>`, type parameters
+// must propagate through the whole chain so `firstC()` resolves to `string[][]` and both
+// `.at(0)` and `.flat()` pick the array-specific polyfills
 class C<V> {
   firstC(): V[] {
     return [];
