@@ -28,7 +28,12 @@ import {
   unwrapParens,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName, symbolKeyToEntry } from '@core-js/polyfill-provider/helpers/class-walk';
+import {
+  POSSIBLE_GLOBAL_OBJECTS,
+  globalProxyMemberName,
+  markSynthReceiverSkipped,
+  symbolKeyToEntry,
+} from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { findProxyGlobal, resolveObjectName as sharedResolveObjectName } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
@@ -758,8 +763,10 @@ export function createDestructureEmitter({
       else transforms.insert(value.end, ` = ${ binding }`);
       return;
     }
-    // synth-swap owns the receiver - identifier visitor would race on the same range
-    skippedNodes.add(receiver);
+    // synth-swap owns the receiver chain - identifier visitor would race on the same range.
+    // for proxy-global MemberExpression receivers (`globalThis.Map`) walk down `.object` so
+    // inner Identifier visitors don't emit `_globalThis` etc. into the now-replaced range
+    markSynthReceiverSkipped(receiver, skippedNodes);
     let pending = pendingSynthSwaps.get(receiver);
     if (!pending) {
       pending = { receiver, objectPattern, polyfills: new Map() };
