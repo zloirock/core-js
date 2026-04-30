@@ -2904,6 +2904,18 @@ function createResolveNodeType(babelNodeType, t) {
     if (node.type === 'TSConditionalType') {
       const inferred = resolveInferElementPattern(node, typeParamMap, scope, depth, seen);
       if (inferred) return inferred;
+      // when both checkType and extendsType resolve to the same concrete type post-subst,
+      // the conditional fires its true-branch unambiguously - mirrors TS's structural
+      // evaluation for non-`infer` conditionals like `T extends U[] ? U : T`. without
+      // this pick, `commonType` folds the two concrete branches to a widened union that
+      // doesn't match either branch precisely, dropping array narrowing on the call result
+      const checkResolved = substituteTypeParams(node.checkType, typeParamMap, scope, depth + 1, seen);
+      const extendsResolved = substituteTypeParams(node.extendsType, typeParamMap, scope, depth + 1, seen);
+      if (checkResolved && extendsResolved
+          && typesEqual(checkResolved, extendsResolved)
+          && innersEqual(checkResolved.inner, extendsResolved.inner)) {
+        return substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1, seen);
+      }
       return resolveConditionalBranches(
         substituteTypeParams(node.trueType, typeParamMap, scope, depth + 1, seen),
         substituteTypeParams(node.falseType, typeParamMap, scope, depth + 1, seen));
