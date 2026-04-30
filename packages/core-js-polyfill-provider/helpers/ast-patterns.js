@@ -602,13 +602,15 @@ const FUNCTION_LIKE_PARAM_OWNER_TYPES = new Set([
 // true when ObjectPattern at `path` sits at function-parameter position: direct param
 // (`function({x})`), wrapped in AssignmentPattern default (`function({x} = R)`), nested
 // inside ArrayPattern (`function([{x}])`, `function([{x} = R])`), wrapped in RestElement
-// (`function([a, ...{x}])`), or any nested combination (`function([[{x}]])`). walks
-// AssignmentPattern.left + ArrayPattern + RestElement wrappers until a function-like
-// owner appears or a non-wrapper breaks the chain. `path` exposes `.node` + `.parentPath`
-// (babel NodePath and unplugin's walker path both satisfy the contract). depth cap: deepest
-// realistic shape `function([[[{x} = R]]])` is < 8 hops; 32 surfaces accidental cycles loudly.
-// hitting the cap throws (rather than silently returning false) so user code with pathological
-// nesting fails loud at lint instead of producing under-detected polyfill output
+// (`function([a, ...{x}])`), nested inside ObjectProperty.value (`function({a: {x} = R})`),
+// or any nested combination (`function([[{x}]])`, `function({a: [{x} = R]})`). walks
+// AssignmentPattern.left + ArrayPattern + RestElement + ObjectProperty/Property.value
+// wrappers until a function-like owner appears or a non-wrapper breaks the chain. `path`
+// exposes `.node` + `.parentPath` (babel NodePath and unplugin's walker path both satisfy
+// the contract). depth cap: deepest realistic shape `function([[[{x} = R]]])` is < 8 hops;
+// 32 surfaces accidental cycles loudly. hitting the cap throws (rather than silently
+// returning false) so user code with pathological nesting fails loud at lint instead of
+// producing under-detected polyfill output
 export function isFunctionParamDestructureParent(path) {
   if (!path) return false;
   let prev = path.node;
@@ -621,15 +623,35 @@ export function isFunctionParamDestructureParent(path) {
     const { node } = parent;
     if (!node) return false;
     if (FUNCTION_LIKE_PARAM_OWNER_TYPES.has(node.type)) return true;
-    if (node.type === 'AssignmentPattern') {
-      // bail when ObjectPattern sits on AssignmentPattern.right (`{x: ({y}=Z)} = src`) -
-      // that's a default value, not a param destructure; only `.left` is param shape
-      if (node.left !== prev) return false;
-    } else if (node.type === 'RestElement') {
-      // RestElement transparent wrapper: `[a, ...{x}]` (rest target is destructured).
-      // bail when ObjectPattern sits anywhere other than `.argument` slot
-      if (node.argument !== prev) return false;
-    } else if (node.type !== 'ArrayPattern') return false;
+    switch (node.type) {
+      case 'AssignmentPattern':
+        // bail when ObjectPattern sits on AssignmentPattern.right (`{x: ({y}=Z)} = src`) -
+        // that's a default value, not a param destructure; only `.left` is param shape
+        if (node.left !== prev) return false;
+        break;
+      case 'RestElement':
+        // RestElement transparent wrapper: `[a, ...{x}]` (rest target is destructured).
+        // bail when ObjectPattern sits anywhere other than `.argument` slot
+        if (node.argument !== prev) return false;
+        break;
+      case 'ObjectProperty':
+      case 'Property':
+        // ObjectProperty.value is a destructure target slot: `function({a: {x} = R})` carries
+        // the inner `{x}` (or `{x} = R` AssignmentPattern wrap) on `.value`. bail on `.key`
+        // (`{[k]: x}` computed-key with destructure pattern as the key node would mean the
+        // key itself is a parameter shape, which isn't valid TS / ESLint shape)
+        if (node.value !== prev) return false;
+        break;
+      case 'ObjectPattern':
+        // ObjectPattern wraps Property children: `function({a: {x}})` chain bottom-up reaches
+        // outer ObjectPattern after walking through inner Property. continue only when prev
+        // sits in `.properties` (transparent wrapper); ObjectPattern in any other slot would
+        // mean we're nested inside a non-destructure context (e.g. wrapper around a key)
+        if (!node.properties?.includes(prev)) return false;
+        break;
+      case 'ArrayPattern': break;
+      default: return false;
+    }
     prev = node;
     parent = parent.parentPath;
   }

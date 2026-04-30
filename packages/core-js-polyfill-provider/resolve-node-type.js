@@ -215,9 +215,14 @@ function createResolveNodeType(babelNodeType, t) {
       // `path.get('body')` returns the BlockStatement path; drill once more to reach the
       // array. Without this, ambient declarations inside function bodies
       // (`function f() { declare function g(): T }`) aren't discovered, falling through to
-      // generic resolution. Mirrors `walkScopesForDecl`'s `block.body.body` for non-Program
+      // generic resolution. Mirrors `walkScopesForDecl`'s `block.body.body` for non-Program.
+      // estree-toolkit may emit a bodyless scope owner (e.g. SwitchCase `consequent` array,
+      // for-statement init slots) whose drill-once `.get('body')` lands on a null NodePath -
+      // skip such scopes rather than crash on `.get` over null
       let bodyPaths = cur.path?.get('body');
-      if (bodyPaths && !Array.isArray(bodyPaths)) bodyPaths = bodyPaths.get('body');
+      if (bodyPaths && !Array.isArray(bodyPaths)) {
+        bodyPaths = bodyPaths.node ? bodyPaths.get('body') : null;
+      }
       if (!Array.isArray(bodyPaths)) continue;
       for (const stmtPath of bodyPaths) {
         const { type } = stmtPath.node ?? {};
@@ -260,6 +265,13 @@ function createResolveNodeType(babelNodeType, t) {
     || (node?.type === 'ClassDeclaration' && node.declare === true);
   const isAmbientFunctionOrClassNode = node => isAmbientFunctionNode(node) || isAmbientClassNode(node);
   const findAmbientFunctionPath = (name, scope) => findAmbientDeclarationPath(name, scope, isAmbientFunctionNode);
+  // `declare class X { ... }` - babel doesn't bind the name as a value (unlike runtime
+  // `class X`), so `resolveRuntimeExpression(X)` returns the bare Identifier. without an
+  // ambient lookup, `X.staticMethod()` skips the class-member resolution path entirely
+  // and falls through to `findTypeMember`'s synthetic TSFunctionType stub (return-type-less).
+  // estree-toolkit registers the binding regardless of `declare`, hence the cross-pipeline
+  // asymmetry seen in `audit-declare-static-generic-call` / `audit-extends-renamed-typeparam-static`
+  const findAmbientClassPath = (name, scope) => findAmbientDeclarationPath(name, scope, isAmbientClassNode);
 
   // resolve variable references and unwrap transparent TS expression wrappers to reach the actual runtime value
   // iterates: after unwrapping a TS wrapper, the underlying expression may be another variable reference
@@ -1142,17 +1154,27 @@ function createResolveNodeType(babelNodeType, t) {
   // (`class C<T>` + `interface C<U>`) substitute correctly. members are returned already
   // substituted so callers must NOT apply an outer subst on top
   function collectClassLikeMembers(declaration, segments, scope, depth, receiverArgs) {
-    // collect raw class-chain bodies first, then batch-subst (root-class type-params apply
-    // through the inheritance chain - parent classes with their own params remain a known
-    // precision-edge, accepted as out of scope per §6 type-resolver precision limits)
-    const classBody = [];
+    // walk superClass chain with per-class subst derivation: each parent's typeParameters
+    // get bound from the current class's `extends Parent<...>` type-args (with the current
+    // subst already applied). mirrors `appendInterfaceExtendsMembers` for class chains, so
+    // `class Child<Y> extends Parent<Y[]>` correctly maps Parent's `<X> -> Y[]` then Y -> string
+    const merged = [];
     const seen = new Set();
-    for (let cur = declaration; cur && !seen.has(cur); cur = findParentClassDecl(cur, scope)) {
+    let cur = declaration;
+    let curSubst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
+    while (cur && !seen.has(cur)) {
       seen.add(cur);
-      for (const m of cur.body?.body ?? []) if (!m?.static) classBody.push(m);
+      const ownBody = (cur.body?.body ?? []).filter(m => !m?.static);
+      merged.push(...substMembers(ownBody, curSubst));
+      const parent = findParentClassDecl(cur, scope);
+      if (!parent) break;
+      // derive parent subst via the same primitive path-based `buildParentClassSubst` uses;
+      // when either side is missing (no `<U>` extends, or parent has no `<X>`), the helper
+      // returns null and parent's own type-params (if any) remain unbound - same precision-
+      // edge as before. seen-set prevents inheritance cycles
+      curSubst = buildParentClassSubstFromNodes(cur, parent, curSubst);
+      cur = parent;
     }
-    const classSubst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
-    const merged = [...substMembers(classBody, classSubst)];
     // each iface gets its own subst built against ITS type-param names so renamed params
     // on the interface side of class+interface merging substitute correctly
     for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
@@ -1195,6 +1217,15 @@ function createResolveNodeType(babelNodeType, t) {
     return arg ? unwrapTypeAnnotation(arg) : null;
   }
 
+  // unified passthrough detection: structure-preserving wrapper (`Readonly<T>`, `Partial<T>`,
+  // ...) OR trivial mapped-type passthrough (`{ [K in keyof T]: T[K] }`). both are
+  // structurally identical to their inner type for property-lookup purposes; callers recurse
+  // findTypeMember on the unwrapped inner with accumulated subst applied
+  function unwrapPassthroughWrapper(node) {
+    return peelStructurePreservingWrapper(node)
+      ?? (node?.type === 'TSMappedType' ? unwrapMappedTypePassthrough(node) : null);
+  }
+
   // mixed `{[k:number]:A; [k:string]:B}` index signatures resolve per-lookup: numeric keys ->
   // number sig, string keys -> string sig (permissive fallback when only one sig is declared)
   function pickIndexSignature(members, key) {
@@ -1221,9 +1252,13 @@ function createResolveNodeType(babelNodeType, t) {
     // `Readonly<[T, U]>[0]` - after chain-follow the alias may still land on a structure-
     // preserving wrapper. peel it here so the tuple branch below gets the raw TSTupleType
     // (getTypeMembers fallback returns null for tuples - they carry element types, not members)
-    const peeled = peelStructurePreservingWrapper(aliased ?? objectType);
-    if (peeled) {
-      const substituted = subst ? applyAliasSubstDeep(peeled, subst) : peeled;
+    // structure-preserving wrapper (`Readonly<T>`) OR trivial mapped-type passthrough
+    // (`{ [K in keyof T]: T[K] }`) - both unwrap to T for property-lookup purposes. subst
+    // from `followTypeAliasChain` already maps the alias's type-params to the receiver's
+    // concrete args; apply to the unwrapped inner before recursing
+    const passthrough = unwrapPassthroughWrapper(aliased ?? objectType);
+    if (passthrough) {
+      const substituted = subst ? applyAliasSubstDeep(passthrough, subst) : passthrough;
       return findTypeMember(substituted, key, scope, depth + 1);
     }
     const withSubst = node => {
@@ -2987,13 +3022,18 @@ function createResolveNodeType(babelNodeType, t) {
 
   // chain parent-class subst: apply current class's subst to its `extends ParentClass<...>`
   // type-arg slots, then map the resolved arg list to parent's declared type-params.
-  // mirrors `appendInterfaceExtendsMembers` which performs the same step for interface chains
-  function buildParentClassSubst(childClassPath, parentClassPath, childSubst) {
-    const superTypeArgs = getSuperTypeArgs(childClassPath.node)?.params;
-    const parentDeclParams = parentClassPath.node.typeParameters?.params;
+  // mirrors `appendInterfaceExtendsMembers` which performs the same step for interface chains.
+  // node-based primitive shared by `findClassMember` (path-based) and `collectClassLikeMembers`
+  // (raw-node walk-up); the path-based wrapper just unwraps `.node` slots
+  function buildParentClassSubstFromNodes(childNode, parentNode, childSubst) {
+    const superTypeArgs = getSuperTypeArgs(childNode)?.params;
+    const parentDeclParams = parentNode.typeParameters?.params;
     if (!superTypeArgs?.length || !parentDeclParams?.length) return null;
     const args = childSubst ? superTypeArgs.map(a => applyAliasSubstDeep(a, childSubst)) : superTypeArgs;
     return buildSubstMap(parentDeclParams, args);
+  }
+  function buildParentClassSubst(childClassPath, parentClassPath, childSubst) {
+    return buildParentClassSubstFromNodes(childClassPath.node, parentClassPath.node, childSubst);
   }
 
   // returns `{ member, subst }` where subst is the accumulated class type-param map at the
@@ -3097,7 +3137,13 @@ function createResolveNodeType(babelNodeType, t) {
         const value = resolveBodyReturnValue(methodFn);
         if (t.isFunction(value?.node)) return resolveReturnType(value, callPath, classSubst);
       } else if (declaredReturn) {
-        return resolveTypeAnnotation(classSubstInner(declaredReturn, classSubst), member.scope);
+        // TSDeclareMethod (ambient method, no body) exposes `params` / `returnType` /
+        // `typeParameters` directly on its node, the same shape `resolveReturnType` reads
+        // from. routing through it picks up method-level type-args from `<T>(...)` plus
+        // call-site `<string>` so `static make<T>(): T[]` with `Box.make<string>()`
+        // resolves to `string[]` instead of leaking the bare type-param T (which loses
+        // precision and degrades `_atMaybeArray` to generic `_at`)
+        return resolveReturnType(member, callPath, classSubst);
       } else if (isPropertyMember(member.node)) {
         const value = resolveRuntimeExpression(member.get('value'));
         if (value.node && t.isFunction(value.node)) return resolveReturnType(value, callPath, classSubst);
@@ -3889,6 +3935,17 @@ function createResolveNodeType(babelNodeType, t) {
       const result = resolveClassMember(ctx.classPath, name, ctx.isStatic, callPath);
       if (result) return result;
     }
+    // ambient `declare class X { static make() }` - X reference has no scope binding in babel
+    // so `resolveClassContext(objectPath)` misses. fall back to ambient-decl lookup keyed by
+    // identifier name; reuses the same class-member resolution path so method-level type-arg
+    // substitution (`X.make<string>()`) works the same as for runtime `class X`
+    if (objectPath.node?.type === 'Identifier') {
+      const ambientClass = findAmbientClassPath(objectPath.node.name, objectPath.scope);
+      if (ambientClass) {
+        const result = resolveClassMember(ambientClass, name, true, callPath);
+        if (result) return result;
+      }
+    }
     // try typed member on resolved path first, then on original path (in case resolvePath lost annotation)
     return resolveTypedMember(objectPath, name, callPath)
       || (objectPath !== originalObjectPath ? resolveTypedMember(originalObjectPath, name, callPath) : null);
@@ -4342,7 +4399,15 @@ function createResolveNodeType(babelNodeType, t) {
     // type args (`makeBox<number>()`) so downstream member lookups see concrete types
     const callType = babelNodeType(path.node);
     if (callType === 'CallExpression' || callType === 'OptionalCallExpression') {
-      const fnPath = resolveRuntimeExpression(path.get('callee'));
+      let fnPath = resolveRuntimeExpression(path.get('callee'));
+      // ambient `declare function f<T>(...): R` - babel doesn't bind the name, so
+      // resolveRuntimeExpression returns the bare Identifier. fall back to ambient lookup
+      // (mirrors `resolveCallReturnType`'s ambient branch) so call-return annotations on
+      // ambient generic fns get the same call-site subst as runtime fns
+      if (t.isIdentifier(fnPath.node) && !isFunctionLike(fnPath.node)) {
+        const ambient = findAmbientFunctionPath(fnPath.node.name, fnPath.scope);
+        if (ambient) fnPath = ambient;
+      }
       if (isFunctionLike(fnPath.node) && fnPath.node.returnType) {
         // explicit `<...>` args first; fall through to argument inference when caller
         // omitted them (`makeBox(arr)` -> infer T from arr's annotation), then declared
