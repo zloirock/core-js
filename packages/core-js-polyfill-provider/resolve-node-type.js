@@ -972,6 +972,13 @@ function createResolveNodeType(babelNodeType, t) {
     return cloned ?? member;
   }
 
+  // batch-apply subst to every member; passes through unchanged when subst is empty / null
+  // or members list is null. shared between every collector / resolver that needs per-source
+  // substitution (class chain, interface merging, parent extends, type alias body)
+  function substMembers(members, subst) {
+    return members && subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
+  }
+
   // TS utility types whose member set is the same as their first type parameter's
   const STRUCTURE_PRESERVING_WRAPPERS = new Set([
     'Omit',
@@ -1038,8 +1045,7 @@ function createResolveNodeType(babelNodeType, t) {
           : expr;
         const parentMembers = getTypeMembers(parentRef, scope, depth + 1, seen);
         if (!parentMembers) continue;
-        const parentSubst = buildParentSubst(parentRef, scope);
-        for (const m of parentMembers) all.push(parentSubst ? substMemberAnnotations(m, parentSubst) : m);
+        all.push(...substMembers(parentMembers, buildParentSubst(parentRef, scope)));
       }
     }
     return all.length ? all : null;
@@ -1104,60 +1110,76 @@ function createResolveNodeType(babelNodeType, t) {
     // class / interface declarations: substitute receiver's type-args into member annotations
     // so `class C<T> { f(): T[] } interface C<T> { g: T }; declare const x: C<string>; x.f()[0]`
     // and `x.g` see concrete `string` instead of raw type-param. parent-extends chain (class
-    // superClass / interface extends) carries its own subst per-hop in collectors; this top-
-    // level subst handles the receiver's own type-arg slot
-    const ownSubst = isInterfaceDeclaration(declaration) || isClassLikeDeclaration(declaration)
-      ? buildSubstMap(declaration.typeParameters?.params, getTypeArgs(objectType)?.params)
-      : null;
-    const applyOwnSubst = members => members && ownSubst
-      ? members.map(m => substMemberAnnotations(m, ownSubst))
-      : members;
+    // superClass / interface extends) carries its own subst per-hop in collectors. for the
+    // class-like branch `collectClassLikeMembers` does per-source subst internally (each iface
+    // gets its own remapped subst for renamed type-params); for the interface-only branch the
+    // outer subst is correct because all merged-iface decls share the same param names per TS
+    const receiverArgs = getTypeArgs(objectType)?.params;
     if (isInterfaceDeclaration(declaration)) {
-      return applyOwnSubst(collectInterfaceMembers(declaration, segments, scope, depth, visited));
+      const subst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
+      return substMembers(collectInterfaceMembers(declaration, segments, scope, depth, visited), subst);
     }
     if (isClassLikeDeclaration(declaration)) {
-      return applyOwnSubst(collectClassLikeMembers(declaration, segments, scope, depth));
+      return collectClassLikeMembers(declaration, segments, scope, depth, receiverArgs);
     }
     if (isTypeAlias(declaration)) {
       // substitute the alias's type params into member annotations so
       // `type Dict<V> = { [k: string]: V }` + `Dict<number[]>[string]` resolves V to number[]
-      const subst = buildSubstMap(declaration.typeParameters?.params, getTypeArgs(objectType)?.params);
-      const members = getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1, visited);
-      if (!members) return null;
-      return subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
+      const subst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
+      return substMembers(
+        getTypeMembers(unwrapTypeAnnotation(typeAliasBody(declaration)), scope, depth + 1, visited),
+        subst,
+      );
     }
     return null;
   }
 
   // class-as-type with TS declaration merging: non-static body entries up the superClass chain
-  // (real and ambient parents) plus every sibling `interface <name>` body + its extends chain
-  function collectClassLikeMembers(declaration, segments, scope, depth) {
-    const merged = [];
+  // (real and ambient parents) plus every sibling `interface <name>` body + its extends chain.
+  // `receiverArgs` are the receiver's type-args (e.g. `[string[]]` for `C<string[]>`); each
+  // source declaration (class chain / each iface) gets its own subst built from its own
+  // type-param names against the same args - lets renamed params on the interface side
+  // (`class C<T>` + `interface C<U>`) substitute correctly. members are returned already
+  // substituted so callers must NOT apply an outer subst on top
+  function collectClassLikeMembers(declaration, segments, scope, depth, receiverArgs) {
+    // collect raw class-chain bodies first, then batch-subst (root-class type-params apply
+    // through the inheritance chain - parent classes with their own params remain a known
+    // precision-edge, accepted as out of scope per §6 type-resolver precision limits)
+    const classBody = [];
     const seen = new Set();
     for (let cur = declaration; cur && !seen.has(cur); cur = findParentClassDecl(cur, scope)) {
       seen.add(cur);
-      for (const m of cur.body?.body ?? []) if (!m?.static) merged.push(m);
+      for (const m of cur.body?.body ?? []) if (!m?.static) classBody.push(m);
     }
+    const classSubst = buildSubstMap(declaration.typeParameters?.params, receiverArgs);
+    const merged = [...substMembers(classBody, classSubst)];
+    // each iface gets its own subst built against ITS type-param names so renamed params
+    // on the interface side of class+interface merging substitute correctly
     for (const iface of findAllTypeDeclarations(segments, scope).filter(isInterfaceDeclaration)) {
-      for (const m of iface.body?.body ?? iface.body?.properties ?? []) merged.push(m);
-      appendInterfaceExtendsMembers(iface, scope, depth, merged);
+      const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
+      const ifaceBody = iface.body?.body ?? iface.body?.properties ?? [];
+      merged.push(...substMembers(ifaceBody, ifaceSubst));
+      appendInterfaceExtendsMembers(iface, scope, depth, merged, ifaceSubst);
     }
     return merged.length ? merged : null;
   }
 
   // walk `interface X extends A, B` parents. each parent's members carry through the
-  // `buildParentSubst` mapping so `A<T>.m: T` becomes `m: <instantiated>`
-  function appendInterfaceExtendsMembers(iface, scope, depth, out) {
+  // `buildParentSubst` mapping so `A<T>.m: T` becomes `m: <instantiated>`. `ifaceSubst`
+  // (when present) is applied to parentRef's args first, so `extends Base<U>` with
+  // iface `U -> string` becomes `Base<string>` before descending - parent subst then
+  // sees the substituted slot
+  function appendInterfaceExtendsMembers(iface, scope, depth, out, ifaceSubst) {
     for (const parent of iface.extends ?? []) {
       const expr = extendsId(parent);
       if (!expr) continue;
       const parentRef = expr.type === 'Identifier'
         ? { type: 'TSTypeReference', typeName: expr, typeParameters: getTypeArgs(parent) }
         : expr;
-      const parentMembers = getTypeMembers(parentRef, scope, depth + 1);
+      const expanded = ifaceSubst ? applySubstToTypeRefArgs(parentRef, ifaceSubst) : parentRef;
+      const parentMembers = getTypeMembers(expanded, scope, depth + 1);
       if (!parentMembers) continue;
-      const subst = buildParentSubst(parentRef, scope);
-      for (const m of parentMembers) out.push(subst ? substMemberAnnotations(m, subst) : m);
+      out.push(...substMembers(parentMembers, buildParentSubst(expanded, scope)));
     }
   }
 
@@ -3026,16 +3048,17 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
-  function resolveClassMember(classPath, name, isStatic, callPath, classSubst) {
+  function resolveClassMember(classPath, name, isStatic, callPath, receiverArgs) {
+    const classSubst = buildSubstMap(classPath.node.typeParameters?.params, receiverArgs);
     const found = findClassMember(classPath, name, isStatic, classSubst);
     if (found) return resolveClassMemberNode(found.member, callPath, found.subst);
     // TS declaration merging: sibling `interface X { ... }` contributes instance members
     // to the class type. runs only when the class body has no match, so real class methods
-    // always win on collision (matches TS semantics). thread classSubst so type-arg
-    // propagation (`declare const x: C<string>; x.merged()`) reaches the interface body's
-    // member annotations - merged params share names with the class declaration per TS rules
+    // always win on collision (matches TS semantics). pass `receiverArgs` so each iface
+    // builds its own subst against ITS type-param names - covers renamed params on the
+    // interface side of class+interface merging
     if (!isStatic && classPath.node.id?.name) {
-      return resolveMergedInterfaceMember(classPath.node.id.name, classPath.scope, name, callPath, classSubst);
+      return resolveMergedInterfaceMember(classPath.node.id.name, classPath.scope, name, callPath, receiverArgs);
     }
     return null;
   }
@@ -3339,23 +3362,22 @@ function createResolveNodeType(babelNodeType, t) {
   // resolve `name` against a member array, substituting `subst` into each member's annotations
   // first. shared shortcut for both own-body and extends-parent paths
   function resolveSubstitutedMember(members, subst, name, scope, callPath) {
-    if (!members?.length) return null;
-    const substituted = subst ? members.map(m => substMemberAnnotations(m, subst)) : members;
-    return resolveMemberFromMembers(substituted, name, scope, callPath);
+    return members?.length ? resolveMemberFromMembers(substMembers(members, subst), name, scope, callPath) : null;
   }
 
   // merged class+interface member lookup. interface body's own members first, then parents
   // via `extends` - `interface C extends A` lets `A.x` show up on `C` via declaration merging.
-  // resolveMemberFromMembers does the per-member annotation -> type step.
-  // classSubst (when present) carries the receiver's type-args bound to the class's type-param
-  // names; TS merging requires identical names on the interface side, so the same map applies
-  // to interface-body member annotations
-  function resolveMergedInterfaceMember(className, scope, name, callPath, classSubst) {
+  // each iface builds its own subst against ITS type-param names from `receiverArgs`, so
+  // class+interface merging with renamed type-params (`class C<T>` + `interface C<U>`) picks
+  // up the correct slot positionally. resolveMemberFromMembers does the per-member
+  // annotation -> type step
+  function resolveMergedInterfaceMember(className, scope, name, callPath, receiverArgs) {
     const interfaces = findAllTypeDeclarations(className, scope).filter(isInterfaceDeclaration);
     for (const iface of interfaces) {
+      const ifaceSubst = buildSubstMap(iface.typeParameters?.params, receiverArgs);
       // TS: iface.body.body; Flow: iface.body.properties
       const ownBody = iface.body?.body ?? iface.body?.properties;
-      const ownHit = resolveSubstitutedMember(ownBody, classSubst, name, scope, callPath);
+      const ownHit = resolveSubstitutedMember(ownBody, ifaceSubst, name, scope, callPath);
       if (ownHit) return ownHit;
       for (const parent of iface.extends ?? []) {
         const expr = extendsId(parent);
@@ -3365,10 +3387,10 @@ function createResolveNodeType(babelNodeType, t) {
           : expr;
         const parentMembers = getTypeMembers(parentRef, scope);
         if (!parentMembers) continue;
-        // compose classSubst -> parentSubst: interface's `extends Base<T>` carries class's T
-        // through the receiver-type-arg slot; without composition, Base<T>'s decl-param map
-        // gets a raw `T` reference instead of the substituted concrete type
-        const ownSubst = buildParentSubst(applySubstToTypeRefArgs(parentRef, classSubst), scope);
+        // compose ifaceSubst -> parentSubst: interface's `extends Base<U>` carries the
+        // iface-param through the receiver-type-arg slot; without composition, Base<U>'s
+        // decl-param map gets a raw `U` reference instead of the substituted type
+        const ownSubst = buildParentSubst(applySubstToTypeRefArgs(parentRef, ifaceSubst), scope);
         const hit = resolveSubstitutedMember(parentMembers, ownSubst, name, scope, callPath);
         if (hit) return hit;
       }
@@ -3826,8 +3848,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (callPath) {
       const classPath = findClassPathForTypeReference(annotation, scope);
       if (classPath) {
-        const classSubst = buildSubstMap(classPath.node.typeParameters?.params, getTypeArgs(annotation)?.params);
-        const result = resolveClassMember(classPath, name, false, callPath, classSubst);
+        const result = resolveClassMember(classPath, name, false, callPath, getTypeArgs(annotation)?.params);
         if (result) return result;
       }
     }
