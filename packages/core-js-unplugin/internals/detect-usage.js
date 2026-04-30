@@ -20,7 +20,6 @@ import {
   flattenableHostSlot,
   isASTNode,
   isAmbientBindingShape,
-  isClassifiableReceiverArg,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
@@ -30,7 +29,7 @@ import {
   unwrapParens,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
 
 // --- isReferenced ---
 
