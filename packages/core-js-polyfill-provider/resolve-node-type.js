@@ -4943,12 +4943,15 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // `assertArray(x)` as a statement - `asserts x is T` narrows x from that point forward.
-  // only the first argument participates (TS doesn't support asserts on non-first params)
+  // only the first argument participates (TS doesn't support asserts on non-first params).
+  // `unwrapRuntimeExpr` peels TS wrappers (`x as any`, `x!`, `x satisfies T`) so the
+  // assertion narrows the underlying binding regardless of cast shape, matching
+  // `parseTypeGuard`'s approach for binary/typeof guards
   function parseAssertionStatementGuard(sibling, varName) {
     if (sibling.node?.type !== 'ExpressionStatement') return null;
     const call = sibling.node.expression;
     if (call?.type !== 'CallExpression' || !call.arguments?.length) return null;
-    const arg = unwrapParens(call.arguments[0]);
+    const arg = unwrapRuntimeExpr(call.arguments[0]);
     if (arg?.type !== 'Identifier' || arg.name !== varName) return null;
     const guard = resolvePredicateGuard(call.callee, sibling.scope, false, true);
     if (guard) guard.positive = true;

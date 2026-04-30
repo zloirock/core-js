@@ -76,8 +76,11 @@ function stripBoilerplate(code) {
     .join('\n'));
 }
 
+// `trimStart` guards against future codegen drift that could indent imports — current
+// unplugin / babel emission is flush-left, but neither runner should silently skip an
+// indented `  import "..."` line during loose imports-only validation
 function extractImports(code) {
-  return code.split('\n').filter(l => l.startsWith('import ')).sort().join('\n');
+  return code.split('\n').filter(l => l.trimStart().startsWith('import ')).sort().join('\n');
 }
 
 function label(directory) {
@@ -129,11 +132,16 @@ async function loadBabelOptions(directory) {
   return null;
 }
 
-// oxc-parser auto-enables JSX based on file extension
+// oxc-parser auto-enables JSX/TS based on file extension. `.ts` covers the typescript
+// plugin (default fallback), `.jsx` for JSX-only without TS, `.tsx` when both. matrix
+// of the 4 fileds: (jsx, ts) → '.tsx'; (jsx, !ts) → '.jsx'; (!jsx, ts) → '.ts';
+// (!jsx, !ts) → '.ts' (default — typescript-friendly is the safe default)
 function inferTestId(babelOptions) {
   if (babelOptions.filename) return babelOptions.filename;
   const parserPlugins = babelOptions.parserOpts?.plugins || [];
-  if (parserPlugins.includes('jsx')) return 'input.tsx';
+  const hasJsx = parserPlugins.includes('jsx');
+  const hasTs = parserPlugins.includes('typescript');
+  if (hasJsx) return hasTs ? 'input.tsx' : 'input.jsx';
   return 'input.ts';
 }
 
@@ -233,20 +241,24 @@ function checkOutputParses(directory, code, testId) {
   return false;
 }
 
-function captureTransform(source, pluginOptions, testId) {
+// hijack console.log + warn + error so untracked diagnostics don't leak past the runner.
+// returns the captured-buffer arrays plus a `restore` callback for the finally block.
+// error shares the warnings channel since neither plugin emitter distinguishes severity
+function captureConsole() {
   const logs = [];
   const warns = [];
-  const origLog = console.log;
-  const origWarn = console.warn;
-  const origError = console.error;
-  // hijack all three sinks so warnings (`unknown bundler`, `pre-pass called twice`)
-  // don't leak to stderr unasserted. error shares the warnings channel since neither
-  // emitter currently distinguishes severity. plugin instantiation is INSIDE the hijack
-  // window because constructor-time warns (e.g. unknown bundler) fire there - moving
-  // `createPlugin` outside leaks those warns past the runner
+  const orig = { log: console.log, warn: console.warn, error: console.error };
   console.log = (...a) => logs.push(a.map(String).join(' '));
   console.warn = (...a) => warns.push(a.map(String).join(' '));
   console.error = (...a) => warns.push(a.map(String).join(' '));
+  return { logs, warns, restore: () => Object.assign(console, orig) };
+}
+
+function captureTransform(source, pluginOptions, testId) {
+  // plugin instantiation is INSIDE the hijack window because constructor-time warns
+  // (e.g. `unknown bundler` from plugin.js:106) fire there — moving `createPlugin` out
+  // would leak that diagnostic past the runner before `restore()` runs
+  const { logs, warns, restore } = captureConsole();
   try {
     const plugin = createPlugin(pluginOptions);
     let result = plugin.transform(source, testId);
@@ -257,9 +269,7 @@ function captureTransform(source, pluginOptions, testId) {
     }
     return { code: result?.code ?? source, map: result?.map ?? null, logs, warns };
   } finally {
-    console.log = origLog;
-    console.warn = origWarn;
-    console.error = origError;
+    restore();
   }
 }
 
