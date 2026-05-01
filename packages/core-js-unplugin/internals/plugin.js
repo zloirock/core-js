@@ -554,7 +554,13 @@ export default function createPlugin(options) {
         }
 
         let { result: pureResult, fallback } = resolvePureOrGlobalFallback(meta, metaPath);
-        if (fallback && node.type === 'MemberExpression' && node.object?.type !== 'Super') {
+        // inherited-static lookup (`this.X()` in static block of `class C extends Y`) has
+        // already been retargeted to `Y`-static-meta above. when `Y` has no static `X`,
+        // resolvePure misses and the global fallback fires - rewriting `this` to `_Y` would
+        // silently change runtime semantics (`this` is the dynamic constructor, `_Y` is the
+        // import binding). babel bails the same way; gate the fallback to keep parity
+        if (fallback && node.type === 'MemberExpression'
+          && node.object?.type !== 'Super' && !inheritedStatic) {
           skipProxyGlobal(node);
           const binding = injectPureImport(fallback.entry, fallback.hintName);
           // fallback fires for non-proxy-global polyfilled idents (`Promise?.foo`, `Map?.x`);
