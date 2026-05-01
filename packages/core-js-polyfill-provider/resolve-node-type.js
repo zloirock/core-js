@@ -1116,12 +1116,20 @@ function createResolveNodeType(babelNodeType, t) {
         const target = subst ? applyAliasSubstDeep(ret, subst) : ret;
         return getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1, visited);
       }
-      const resolved = arg.type === 'TSTypeQuery' ? resolveTypeQueryBinding(arg, scope) : null;
+      if (arg.type !== 'TSTypeQuery') return null;
+      const resolved = resolveTypeQueryBinding(arg, scope);
       if (!resolved?.node) return null;
-      const target = segments[0] === 'InstanceType'
+      const target = unwrapTypeAnnotation(segments[0] === 'InstanceType'
         ? resolved.node.id && { type: 'TSTypeReference', typeName: resolved.node.id }
-        : resolved.node.returnType ?? resolved.node.typeAnnotation;
-      return target ? getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1, visited) : null;
+        : resolved.node.returnType ?? resolved.node.typeAnnotation);
+      if (!target) return null;
+      // `typeof fn<Args>` instantiation expression: type-args ride on the inner TSTypeQuery.
+      // fold them into the resolved target so a generic `returnType: InstanceType<T>` sees
+      // the concrete `typeof Cls` (otherwise raw T fails the typeof-only gate on the
+      // recursive InstanceType branch). InstanceType's synthesized class reference has no
+      // type-param to substitute - subst is a no-op there
+      const subst = buildCallSiteSubst(resolved.node, arg);
+      return getTypeMembers(subst ? applyAliasSubstDeep(target, subst) : target, scope, depth + 1, visited);
     }
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
