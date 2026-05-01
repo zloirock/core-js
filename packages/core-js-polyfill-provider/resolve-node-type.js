@@ -5922,6 +5922,21 @@ function createResolveNodeType(babelNodeType, t) {
             return typeofGuard(literalSide.quasis[0].value.cooked, negated);
           }
         }
+        // `<typeguard> ==/=== false` / `<typeguard> !=/!== true` etc: strip the boolean
+        // comparison and recurse on the non-literal side. derived flip: outer.truthy
+        // <=> inner.truthy XOR (bool XOR negated). so flip the inner-guard polarity iff
+        // `bool === negated` (negated already combines outer `!` prefix and `!=/!==` op)
+        const litLeft = isLiteralOf(left, 'Boolean');
+        const litRight = !litLeft && isLiteralOf(right, 'Boolean');
+        if (litLeft || litRight) {
+          const litSide = litLeft ? left : right;
+          const innerExpr = litLeft ? right : left;
+          const innerGuard = parseTypeGuard(innerExpr, varName, scope);
+          if (innerGuard) {
+            if (litSide.value === negated) innerGuard.negated = !innerGuard.negated;
+            return innerGuard;
+          }
+        }
       }
       if (operator === 'instanceof'
         && left.type === 'Identifier' && left.name === varName) {
