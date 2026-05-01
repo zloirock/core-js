@@ -3394,29 +3394,25 @@ function createResolveNodeType(babelNodeType, t) {
   // `collectClassInstanceClosure` reads `.names` again - one walk amortized
   let classDescendantPathsCache = new WeakMap();
   function collectClassDescendantPaths(classPath, programPath) {
-    if (classDescendantPathsCache.has(classPath.node)) return classDescendantPathsCache.get(classPath.node);
-    const className = classBindingName(classPath);
-    if (!className) {
-      classDescendantPathsCache.set(classPath.node, null);
-      return null;
-    }
-    const index = getModuleFieldIndex(programPath);
-    const names = new Set([className]);
-    const paths = [classPath];
-    const queue = [className];
-    while (queue.length) {
-      const name = queue.shift();
-      for (const sub of index.subclassesBySuper.get(name) ?? []) {
-        const subName = classBindingName(sub);
-        if (!subName || names.has(subName)) continue;
-        names.add(subName);
-        paths.push(sub);
-        queue.push(subName);
+    return memoize(classDescendantPathsCache, classPath.node, () => {
+      const className = classBindingName(classPath);
+      if (!className) return null;
+      const index = getModuleFieldIndex(programPath);
+      const names = new Set([className]);
+      const paths = [classPath];
+      const queue = [className];
+      while (queue.length) {
+        const name = queue.shift();
+        for (const sub of index.subclassesBySuper.get(name) ?? []) {
+          const subName = classBindingName(sub);
+          if (!subName || names.has(subName)) continue;
+          names.add(subName);
+          paths.push(sub);
+          queue.push(subName);
+        }
       }
-    }
-    const result = { names, paths };
-    classDescendantPathsCache.set(classPath.node, result);
-    return result;
+      return { names, paths };
+    });
   }
 
   // dispatch to static-vs-instance pipeline. static fields are mutated via the class
@@ -3442,7 +3438,7 @@ function createResolveNodeType(babelNodeType, t) {
     return collectFieldCandidates({
       earlyBail: () => !isPrivate && isClassExported(classPath),
       initPath: member.get('value'),
-      internalThisScan: candidates => scanThisFieldWrites(staticOwnerMethodFns(classPath), fieldName, candidates),
+      internalThisScan: candidates => appendThisWritesFor(getStaticMethodThisWrites(classPath), fieldName, candidates),
       isPrivate,
       anchor: classPath,
       programGate: program => {
@@ -3469,7 +3465,7 @@ function createResolveNodeType(babelNodeType, t) {
     return collectFieldCandidates({
       earlyBail: () => !isPrivate && isClassExported(classPath),
       initPath: member.get('value'),
-      internalThisScan: candidates => scanThisFieldWrites(ownerMethodFns(classPath), fieldName, candidates),
+      internalThisScan: candidates => appendThisWritesFor(getInstanceMethodThisWrites(classPath), fieldName, candidates),
       isPrivate,
       anchor: classPath,
       programGate: program => {
@@ -3486,7 +3482,7 @@ function createResolveNodeType(babelNodeType, t) {
         // skip the base classPath since `internalThisScan` already covered it
         for (const sub of descendant.paths) {
           if (sub === classPath) continue;
-          scanThisFieldWrites(ownerMethodFns(sub), fieldName, candidates);
+          appendThisWritesFor(getInstanceMethodThisWrites(sub), fieldName, candidates);
         }
         const predicate = p => isReceiverInClosure(p, closure) || isReceiverNewOfClass(p, descendant.names);
         foldExternalWrites(fieldName, predicate, bound, program, candidates);
@@ -3525,7 +3521,7 @@ function createResolveNodeType(babelNodeType, t) {
     if (!closure) return null;
     return collectFieldCandidates({
       initPath: t.isObjectProperty?.(prop.node) ? prop.get('value') : null,
-      internalThisScan: candidates => scanThisFieldWrites(ownerMethodFns(objectPath), fieldName, candidates),
+      internalThisScan: candidates => appendThisWritesFor(getInstanceMethodThisWrites(objectPath), fieldName, candidates),
       isPrivate: false,
       anchor: objectPath,
       programWritesPush: (program, candidates) => {
@@ -3547,38 +3543,29 @@ function createResolveNodeType(babelNodeType, t) {
     return result;
   }
 
-  // returns the receiver path of a `<receiver>.<fieldName>` write target (AssignmentExpression
-  // .left or UpdateExpression .argument), or null when the target shape doesn't match. shared
-  // by every write-flow handler so operator-specific dispatch keeps a uniform front gate.
-  // dot-path `p.get('left.object')` is unsupported on unplugin's oxc-wrapped paths, so chain
-  // two `.get` calls explicitly
-  function fieldWriteReceiverPath(p, fieldName) {
-    const targetPath = t.isAssignmentExpression(p.node) ? p.get('left') : p.get('argument');
-    const target = targetPath.node;
-    if (!t.isMemberExpression(target) || target.computed) return null;
-    if (getKeyName(target.property) !== fieldName) return null;
-    return targetPath.get('object');
-  }
-
-  // walk a sequence of method-function-body paths, folding in every `this.<fieldName> = Y`
-  // write into `out`. shared between class methods, object-literal methods, and class static
-  // blocks. caller passes the BODY container path (not the method path itself) so the
-  // traversal root is the body and the FunctionExpression / ClassMethod skip rule doesn't
-  // fire on the root in adapters that visit roots. for StaticBlock, body is an array on the
-  // node directly - caller passes the StaticBlock path itself and we traverse its body
-  // statements one by one to avoid relying on visitor-key support for array fields.
-  // traversal skips nested function-like nodes that rebind `this` (regular fns, object
-  // methods, nested classes) but descends into arrow functions (shared `this`). compound
-  // assignments and update expressions can change type beyond what RHS alone reflects
-  // (`#x = []; this.#x += 's'` -> string), so seed an `unknown` candidate
-  function scanThisFieldWrites(paths, fieldName, out) {
+  // walk method bodies once and build a Map<fieldName, types[]> of every `this.<X> = Y`
+  // / `++this.<X>` write contained within. lets per-field candidate scans become O(1)
+  // lookups instead of O(N field) full method walks. caller passes the BODY container
+  // path (not the method path) so the traversal root is the body and adapters that visit
+  // roots don't fire the FunctionExpression / ClassMethod skip rule on the entry point.
+  // StaticBlock has `body: Statement[]` directly on the node and is traversed in-place.
+  // compound assignments and update expressions can change type beyond what RHS alone
+  // reflects, so they push an `unknown` sentinel that collapses the fold to generic
+  function buildThisWritesIndex(methodPaths) {
+    const index = new Map();
     const handle = p => {
-      const recv = fieldWriteReceiverPath(p, fieldName);
-      if (!recv || !t.isThisExpression(recv.node)) return;
+      const targetPath = t.isAssignmentExpression(p.node) ? p.get('left') : p.get('argument');
+      const target = targetPath.node;
+      if (!t.isMemberExpression(target) || target.computed) return;
+      if (!t.isThisExpression(target.object)) return;
+      const fieldName = getKeyName(target.property);
+      if (!fieldName) return;
+      let types = index.get(fieldName);
+      if (!types) index.set(fieldName, types = []);
       if (t.isAssignmentExpression(p.node) && p.node.operator === '=') {
         const rhsType = resolveNodeType(p.get('right'));
-        if (rhsType) out.push(rhsType);
-      } else out.push(new $Primitive('unknown'));
+        if (rhsType) types.push(rhsType);
+      } else types.push(new $Primitive('unknown'));
     };
     const visitors = {
       'FunctionDeclaration|FunctionExpression|ObjectMethod|ClassDeclaration|ClassExpression'(p) {
@@ -3587,16 +3574,38 @@ function createResolveNodeType(babelNodeType, t) {
       AssignmentExpression: handle,
       UpdateExpression: handle,
     };
-    for (const path of paths) {
+    for (const path of methodPaths) {
       if (!path?.node) continue;
-      // StaticBlock has body=Statement[] (no nested wrapper); traverse the block path
-      // directly so the array's statements get visited. for other shapes (ClassMethod,
-      // FunctionExpression, ObjectMethod) traverse the body BlockStatement so the function
-      // root itself doesn't trigger the function-skip rule on adapters that visit roots
       const target = path.node.type === 'StaticBlock' ? path : path.get('body');
       if (!target?.node) continue;
       target.traverse(visitors);
     }
+    return index;
+  }
+
+  // cached this-writes index for the owner's instance methods (non-static class methods +
+  // object-literal methods). a class with N fields would otherwise re-walk all methods N
+  // times via per-field scans; one-time index build + per-field Map.get is O(M*B) instead
+  // of O(N*M*B). cache by owner node identity (class or object literal AST node)
+  let instanceMethodThisWritesCache = new WeakMap();
+  function getInstanceMethodThisWrites(ownerPath) {
+    return memoize(instanceMethodThisWritesCache, ownerPath.node, () => buildThisWritesIndex(ownerMethodFns(ownerPath)));
+  }
+
+  // cached this-writes index for the class's static surface (static methods + StaticBlocks).
+  // mirrors `getInstanceMethodThisWrites` shape; separate cache because static methods scan
+  // a different method set than instance methods on the same class
+  let staticMethodThisWritesCache = new WeakMap();
+  function getStaticMethodThisWrites(classPath) {
+    return memoize(staticMethodThisWritesCache, classPath.node, () => buildThisWritesIndex(staticOwnerMethodFns(classPath)));
+  }
+
+  // append cached this-writes types for `fieldName` from `index` to `out`. nullish entry
+  // means "no this-write to this field name in the indexed method set" - no-op
+  function appendThisWritesFor(index, fieldName, out) {
+    const types = index.get(fieldName);
+    if (!types) return;
+    for (const type of types) out.push(type);
   }
 
   // class-static counterpart to `ownerMethodFns`: returns paths whose `this` binds to the
@@ -3658,6 +3667,16 @@ function createResolveNodeType(babelNodeType, t) {
     return current;
   }
 
+  // generic memoize over a `WeakMap` cache. uses `has` to distinguish "not yet computed"
+  // from "computed as null/undefined" - some caches store null sentinels (closures bailed
+  // on leak, descendants bailed on anonymous, etc.). centralizes the get/has/set boilerplate
+  function memoize(cache, key, compute) {
+    if (cache.has(key)) return cache.get(key);
+    const value = compute();
+    cache.set(key, value);
+    return value;
+  }
+
   // class binding name for identity matching in the external-write scan. `class C {}` exposes
   // `id`; `const C = class {}` reuses the declarator name. anonymous shapes -> null (caller bails)
   // declarator-init binding name extractor: `const X = <init>` / `let X = <init>` / etc.
@@ -3680,28 +3699,27 @@ function createResolveNodeType(babelNodeType, t) {
   let exportedNamesCache = new WeakMap();
   function getExportedNames(programPath) {
     if (!programPath) return null;
-    const cached = exportedNamesCache.get(programPath.node);
-    if (cached) return cached;
-    const names = new Set();
-    for (const stmt of programPath.node.body) {
-      if (stmt.type === 'ExportNamedDeclaration') {
-        if (stmt.specifiers) {
-          for (const spec of stmt.specifiers) if (spec.local?.name) names.add(spec.local.name);
+    return memoize(exportedNamesCache, programPath.node, () => {
+      const names = new Set();
+      for (const stmt of programPath.node.body) {
+        if (stmt.type === 'ExportNamedDeclaration') {
+          if (stmt.specifiers) {
+            for (const spec of stmt.specifiers) if (spec.local?.name) names.add(spec.local.name);
+          }
+          const decl = stmt.declaration;
+          if (decl?.type === 'VariableDeclaration') {
+            for (const d of decl.declarations ?? []) if (d.id?.type === 'Identifier') names.add(d.id.name);
+          } else if (decl?.id?.name) names.add(decl.id.name);  // ClassDeclaration / FunctionDeclaration
+        } else if (stmt.type === 'ExportDefaultDeclaration' && stmt.declaration?.id?.name) {
+          // `export default class X {}` / `export default function X() {}` - the named form
+          // both exposes `default` to importers AND retains the local binding `X`. anonymous
+          // default declarations (`export default {...}`) carry no in-module name, so caller
+          // already had no enumerable name to track
+          names.add(stmt.declaration.id.name);
         }
-        const decl = stmt.declaration;
-        if (decl?.type === 'VariableDeclaration') {
-          for (const d of decl.declarations ?? []) if (d.id?.type === 'Identifier') names.add(d.id.name);
-        } else if (decl?.id?.name) names.add(decl.id.name);  // ClassDeclaration / FunctionDeclaration
-      } else if (stmt.type === 'ExportDefaultDeclaration' && stmt.declaration?.id?.name) {
-        // `export default class X {}` / `export default function X() {}` - the named form
-        // both exposes `default` to importers AND retains the local binding `X`. anonymous
-        // default declarations (`export default {...}`) carry no in-module name, so caller
-        // already had no enumerable name to track
-        names.add(stmt.declaration.id.name);
       }
-    }
-    exportedNamesCache.set(programPath.node, names);
-    return names;
+      return names;
+    });
   }
 
   function isBindingExportedByName(name, programPath) {
@@ -3872,14 +3890,12 @@ function createResolveNodeType(babelNodeType, t) {
   let objectAliasClosureCache = new WeakMap();
   const EMPTY_CLOSURE = new Map();
   function computeObjectAliasClosure(objectPath) {
-    const cached = objectAliasClosureCache.get(objectPath.node);
-    if (cached !== undefined) return cached;
-    const rootName = objectBindingName(objectPath);
-    const closure = rootName
-      ? computeAliasClosureFromBinding(objectPath.scope?.getBinding(rootName), rootName, objectPath)
-      : EMPTY_CLOSURE;
-    objectAliasClosureCache.set(objectPath.node, closure);
-    return closure;
+    return memoize(objectAliasClosureCache, objectPath.node, () => {
+      const rootName = objectBindingName(objectPath);
+      return rootName
+        ? computeAliasClosureFromBinding(objectPath.scope?.getBinding(rootName), rootName, objectPath)
+        : EMPTY_CLOSURE;
+    });
   }
 
   // does the write's receiver Identifier resolve (via scope-binding identity) to a name in
@@ -3928,32 +3944,41 @@ function createResolveNodeType(babelNodeType, t) {
   // shared between object-literal and class-instance closures. `extraVisitorsFactory`
   // optionally supplies additional traversal visitors (class case adds NewExpression to
   // catch direct `new C().method(...)` chain calls, which don't go through closure bindings)
+  // cached by closure Map identity. closures are themselves cached upstream (per class /
+  // object node), so the same Map instance is reused across multiple field queries on the
+  // same anchor - one program walk per closure instead of one per field. for the class case
+  // `extraVisitorsFactory` captures classNames derived from the same class as the closure,
+  // so the bound is determined entirely by closure identity (class with N instance fields:
+  // N walks -> 1 walk + N - 1 cache hits)
+  let closureTemporalBoundCache = new WeakMap();
   function getClosureTemporalBound(closure, programPath, extraVisitorsFactory) {
-    let latestCallStart = -Infinity;
-    let extracted = false;
-    const noteCall = start => {
-      if (start !== null && start !== undefined && start > latestCallStart) latestCallStart = start;
-    };
-    const visitors = {
-      Identifier(p) {
-        if (extracted || !closure.has(p.node.name)) return;
-        const binding = closure.get(p.node.name);
-        if (p.scope?.getBinding(p.node.name) !== binding) return;
-        const cls = classifyClosureRef(p);
-        if (cls === null || cls.kind === 'write') return;
-        if (cls.kind === 'extraction') extracted = true;
-        else noteCall(cls.start);
-      },
-    };
-    if (extraVisitorsFactory) {
-      Object.assign(visitors, extraVisitorsFactory({
-        noteCall,
-        markExtraction: () => { extracted = true; },
-        isExtracted: () => extracted,
-      }));
-    }
-    programPath.traverse(visitors);
-    return extracted ? Infinity : latestCallStart;
+    return memoize(closureTemporalBoundCache, closure, () => {
+      let latestCallStart = -Infinity;
+      let extracted = false;
+      const noteCall = start => {
+        if (start !== null && start !== undefined && start > latestCallStart) latestCallStart = start;
+      };
+      const visitors = {
+        Identifier(p) {
+          if (extracted || !closure.has(p.node.name)) return;
+          const binding = closure.get(p.node.name);
+          if (p.scope?.getBinding(p.node.name) !== binding) return;
+          const cls = classifyClosureRef(p);
+          if (cls === null || cls.kind === 'write') return;
+          if (cls.kind === 'extraction') extracted = true;
+          else noteCall(cls.start);
+        },
+      };
+      if (extraVisitorsFactory) {
+        Object.assign(visitors, extraVisitorsFactory({
+          noteCall,
+          markExtraction: () => { extracted = true; },
+          isExtracted: () => extracted,
+        }));
+      }
+      programPath.traverse(visitors);
+      return extracted ? Infinity : latestCallStart;
+    });
   }
 
   // class-side temporal bound: closure refs PLUS direct `new C().method(...)` chain calls
@@ -4030,10 +4055,7 @@ function createResolveNodeType(babelNodeType, t) {
   // caches in the cache-reset hook
   let classInstanceClosureCache = new WeakMap();
   function getClassInstanceClosure(classPath, programPath) {
-    if (classInstanceClosureCache.has(classPath.node)) return classInstanceClosureCache.get(classPath.node);
-    const closure = collectClassInstanceClosure(classPath, programPath);
-    classInstanceClosureCache.set(classPath.node, closure);
-    return closure;
+    return memoize(classInstanceClosureCache, classPath.node, () => collectClassInstanceClosure(classPath, programPath));
   }
 
   // class binding closure: the class identifier itself (`C`) and all `const A = C` aliases.
@@ -4047,24 +4069,21 @@ function createResolveNodeType(babelNodeType, t) {
   // scope tracker may include type-position refs we can't categorize precisely
   let classBindingClosureCache = new WeakMap();
   function getClassBindingClosure(classPath, anchorPath) {
-    if (classBindingClosureCache.has(classPath.node)) return classBindingClosureCache.get(classPath.node);
-    const className = classBindingName(classPath);
-    const binding = className ? classPath.scope?.getBinding(className) : null;
-    if (!binding) {
-      classBindingClosureCache.set(classPath.node, null);
-      return null;
-    }
-    const expanded = computeAliasClosureFromBinding(binding, className, anchorPath, classBindingRefClassifier);
-    const closure = expanded ?? new Map([[className, binding]]);
-    classBindingClosureCache.set(classPath.node, closure);
-    return closure;
+    return memoize(classBindingClosureCache, classPath.node, () => {
+      const className = classBindingName(classPath);
+      const binding = className ? classPath.scope?.getBinding(className) : null;
+      if (!binding) return null;
+      const expanded = computeAliasClosureFromBinding(binding, className, anchorPath, classBindingRefClassifier);
+      return expanded ?? new Map([[className, binding]]);
+    });
   }
 
   // generic write-folder: `writePath` is a pre-filtered `<expr>.<fieldName> = Y` from the
   // module index (operator / member / field-name already satisfied). caller supplies a
   // `predicate(objPath)` that decides whether this write's receiver belongs to the field's
-  // monitored set. `this.<fieldName> = ...` writes are scanned separately by
-  // `scanThisFieldWrites`, so they're skipped here to avoid double-counting
+  // monitored set. `this.<fieldName> = ...` writes are scanned separately by the per-owner
+  // this-writes index (`getInstanceMethodThisWrites` / `getStaticMethodThisWrites`), so
+  // they're skipped here to avoid double-counting
   function pushIfWriteMatches(writePath, predicate, out) {
     const objPath = writePath.get('left').get('object');
     if (t.isThisExpression(objPath.node)) return;
@@ -4079,36 +4098,34 @@ function createResolveNodeType(babelNodeType, t) {
   // public field query in the module
   let moduleFieldIndexCache = new WeakMap();
   function getModuleFieldIndex(programPath) {
-    const cached = moduleFieldIndexCache.get(programPath.node);
-    if (cached) return cached;
-    const writesByField = new Map();
-    const subclassesBySuper = new Map();
-    const pushMultimap = (map, key, value) => {
-      const list = map.get(key);
-      if (list) list.push(value);
-      else map.set(key, [value]);
-    };
-    programPath.traverse({
-      'ClassDeclaration|ClassExpression'(p) {
-        const sup = p.node.superClass;
-        if (t.isIdentifier(sup)) pushMultimap(subclassesBySuper, sup.name, p);
-      },
-      AssignmentExpression(p) {
-        // only pure `=` is type-precise here: RHS value becomes the new field type.
-        // compound (`+=` / `||=` / `??=` / `*=` ...) is operator-coerced - the resulting
-        // type depends on BOTH operands and the operator's coercion rules, which the
-        // candidate-union model can't represent (pushing RHS as a candidate is wrong:
-        // for `+= 'x'` the field becomes `string` regardless of init, not `init | string`)
-        if (p.node.operator !== '=') return;
-        const { left } = p.node;
-        if (!t.isMemberExpression(left) || left.computed) return;
-        const name = getKeyName(left.property);
-        if (name) pushMultimap(writesByField, name, p);
-      },
+    return memoize(moduleFieldIndexCache, programPath.node, () => {
+      const writesByField = new Map();
+      const subclassesBySuper = new Map();
+      const pushMultimap = (map, key, value) => {
+        const list = map.get(key);
+        if (list) list.push(value);
+        else map.set(key, [value]);
+      };
+      programPath.traverse({
+        'ClassDeclaration|ClassExpression'(p) {
+          const sup = p.node.superClass;
+          if (t.isIdentifier(sup)) pushMultimap(subclassesBySuper, sup.name, p);
+        },
+        AssignmentExpression(p) {
+          // only pure `=` is type-precise here: RHS value becomes the new field type.
+          // compound (`+=` / `||=` / `??=` / `*=` ...) is operator-coerced - the resulting
+          // type depends on BOTH operands and the operator's coercion rules, which the
+          // candidate-union model can't represent (pushing RHS as a candidate is wrong:
+          // for `+= 'x'` the field becomes `string` regardless of init, not `init | string`)
+          if (p.node.operator !== '=') return;
+          const { left } = p.node;
+          if (!t.isMemberExpression(left) || left.computed) return;
+          const name = getKeyName(left.property);
+          if (name) pushMultimap(writesByField, name, p);
+        },
+      });
+      return { writesByField, subclassesBySuper };
     });
-    const index = { writesByField, subclassesBySuper };
-    moduleFieldIndexCache.set(programPath.node, index);
-    return index;
   }
 
   // clone a TSTypeReference with each typeParameters arg substituted via `subst`. used to
@@ -6357,6 +6374,9 @@ function createResolveNodeType(babelNodeType, t) {
     classBindingClosureCache = new WeakMap();
     classDescendantPathsCache = new WeakMap();
     exportedNamesCache = new WeakMap();
+    closureTemporalBoundCache = new WeakMap();
+    instanceMethodThisWritesCache = new WeakMap();
+    staticMethodThisWritesCache = new WeakMap();
   }
 
   function resolveNodeType(path) {
