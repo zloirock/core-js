@@ -932,14 +932,17 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // resolve `NS.Inner.Decl` segments inside a statement list. `collect=null` short-circuits
-  // on the first hit; `collect=[]` keeps walking to enable TS interface merging
-  function walkStatementsForDecl(segments, statements, collect) {
+  // on the first hit; `collect=[]` keeps walking to enable TS interface merging.
+  // `leafMatch` is the predicate the LEAF declaration must satisfy - defaults to type-bearing
+  // (alias / interface / class / enum) for findTypeDeclaration; typeof-name resolution swaps
+  // in `isFunctionOrClassDeclaration` to also surface `declare function fn` inside a namespace
+  function walkStatementsForDecl(segments, statements, collect, leafMatch = isTypeBearingDeclaration) {
     if (!Array.isArray(statements) || !segments.length) return null;
     const [head, ...rest] = segments;
     for (const statement of statements) {
       const decl = unwrapExportedDeclaration(statement);
       if (!decl) continue;
-      if (rest.length === 0 && decl.id?.name === head && isTypeBearingDeclaration(decl)) {
+      if (rest.length === 0 && decl.id?.name === head && leafMatch(decl)) {
         if (!collect) return decl;
         collect.push(decl);
         continue;
@@ -949,20 +952,21 @@ function createResolveNodeType(babelNodeType, t) {
       if (!moduleSegs) continue;
       // bare name: descend into every namespace; dotted: namespace must prefix segments
       if (rest.length === 0) {
-        const inner = walkStatementsForDecl(segments, moduleStatements(decl), collect);
+        const inner = walkStatementsForDecl(segments, moduleStatements(decl), collect, leafMatch);
         if (inner && !collect) return inner;
         continue;
       }
       if (!startsWithSegments(segments, moduleSegs)) continue;
-      const inner = walkStatementsForDecl(segments.slice(moduleSegs.length), moduleStatements(decl), collect);
+      const inner = walkStatementsForDecl(segments.slice(moduleSegs.length), moduleStatements(decl), collect, leafMatch);
       if (inner && !collect) return inner;
     }
     return null;
   }
 
   // walk scope chain; `collect=null` returns first hit, `collect=[]` collects siblings
-  // at the first containing scope (interface merging only - others don't merge)
-  function walkScopesForDecl(name, scope, collect) {
+  // at the first containing scope (interface merging only - others don't merge).
+  // `leafMatch` threads through to `walkStatementsForDecl`; see there for the contract
+  function walkScopesForDecl(name, scope, collect, leafMatch = isTypeBearingDeclaration) {
     if (!scope) return null;
     const segments = typeof name === 'string' ? name.split('.') : name;
     for (let cur = scope; cur; cur = cur.parent) {
@@ -970,11 +974,23 @@ function createResolveNodeType(babelNodeType, t) {
       if (!block) continue;
       const body = block.type === 'Program' ? block.body : block.body?.body;
       const before = collect?.length;
-      const result = walkStatementsForDecl(segments, body, collect);
+      const result = walkStatementsForDecl(segments, body, collect, leafMatch);
       if (!collect && result) return result;
       if (collect && collect.length > before) return null;
     }
     return null;
+  }
+
+  // resolve `typeof NS.Inner.fn` namespaced lookups: babel doesn't bind TS `namespace`
+  // declarations as scope values, so `constantBindingPath` returns null. delegate to
+  // `walkScopesForDecl` with the function/class leaf-match, and surface the result as a
+  // {node, scope}-shape - resolveReturnType only consumes those two properties (not full
+  // NodePath methods). passes the input scope as the result scope: babel doesn't create
+  // separate scopes for TSModuleDeclaration anyway, so type names referenced in the
+  // function's signature resolve through the same outer scope chain
+  function findNamespacedFunctionPath(segments, scope) {
+    const node = scope && walkScopesForDecl(segments, scope, null, isFunctionOrClassDeclaration);
+    return node ? { node, scope } : null;
   }
 
   // per-scope cache. serialize multi-segment / array inputs to a dotted string so qualified
@@ -1750,50 +1766,64 @@ function createResolveNodeType(babelNodeType, t) {
 
   // resolve TSTypeQuery (typeof x or typeof x.y) to the runtime path of the target.
   // falls back to ambient `declare function/class` when the name isn't in scope.bindings
-  function resolveTypeQueryBinding(param, scope) {
-    if (param.type !== 'TSTypeQuery') return null;
-    const { exprName } = param;
-    if (exprName?.type === 'TSQualifiedName') {
-      const { left, right } = exprName;
-      if (left.type !== 'Identifier' || right.type !== 'Identifier') return null;
-      const bindingPath = constantBindingPath(left.name, scope);
-      return bindingPath ? resolveMemberValuePath(bindingPath, right.name) : null;
-    }
-    if (exprName?.type !== 'Identifier') return null;
-    const { name } = exprName;
+  // resolve a bare `typeof X` (no member chain) to its declaring path: const-bound value
+  // (function/class decl, var declarator with init), runtime-init expression, or ambient
+  // (`declare function` / `declare class` not in scope.bindings)
+  function resolveBareTypeQueryBinding(name, scope) {
     const bindingPath = constantBindingPath(name, scope);
-    if (bindingPath) {
-      if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return bindingPath;
-      if (t.isVariableDeclarator(bindingPath.node)) {
-        const init = bindingPath.get('init');
-        return init.node ? resolveRuntimeExpression(init) : null;
-      }
-      return null;
-    }
-    return findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
-  }
-
-  // locate the function-like TYPE that a `typeof X` / `typeof NS.fn` annotation points at.
-  // `declare const` bindings have no runtime init to resolve - the type lives on the binding's
-  // annotation instead. for qualified names we walk the root binding's annotation to the
-  // referenced member. returns {type, scope} or null
-  function findTypeQueryFunctionType(exprName, scope) {
-    if (exprName?.type === 'Identifier') {
-      const binding = constantBindingPath(exprName.name, scope);
-      const annotation = binding ? unwrapTypeAnnotation(findBindingAnnotation(binding)) : null;
-      return annotation ? { type: annotation, scope: binding.scope } : null;
-    }
-    if (exprName?.type === 'TSQualifiedName' && exprName.left?.type === 'Identifier'
-        && exprName.right?.type === 'Identifier') {
-      const binding = constantBindingPath(exprName.left.name, scope);
-      const annotation = binding ? unwrapTypeAnnotation(findBindingAnnotation(binding)) : null;
-      const member = annotation ? findTypeMember(annotation, exprName.right.name, binding.scope) : null;
-      // `findTypeMember` returns the member's RESOLVED type (after `withSubst`), already
-      // unwrapped from its TSTypeAnnotation wrapper - use it directly, NOT `member.typeAnnotation`
-      // (which on a TSFunctionType is the RETURN annotation, not the function type)
-      return member ? { type: unwrapTypeAnnotation(member), scope: binding.scope } : null;
+    if (!bindingPath) return findAmbientDeclarationPath(name, scope, isAmbientFunctionOrClassNode);
+    if (t.isFunctionDeclaration(bindingPath.node) || t.isClassDeclaration(bindingPath.node)) return bindingPath;
+    if (t.isVariableDeclarator(bindingPath.node)) {
+      const init = bindingPath.get('init');
+      return init.node ? resolveRuntimeExpression(init) : null;
     }
     return null;
+  }
+
+  function resolveTypeQueryBinding(param, scope) {
+    if (param.type !== 'TSTypeQuery') return null;
+    const segments = collectQualifiedSegments(param.exprName);
+    if (!segments?.length) return null;
+    const [rootName, ...path] = segments;
+    if (path.length === 0) return resolveBareTypeQueryBinding(rootName, scope);
+    // 2-segment runtime member access: `const obj = {fn:...}; typeof obj.fn`. deeper paths
+    // through nested ObjectExpression initializers fall through to the namespace branch -
+    // runtime-init descent isn't wired here. const+namespace declaration merging also
+    // falls through when the value side has no matching member
+    if (path.length === 1) {
+      const bindingPath = constantBindingPath(rootName, scope);
+      if (bindingPath) {
+        const memberValue = resolveMemberValuePath(bindingPath, path[0]);
+        if (memberValue) return memberValue;
+      }
+    }
+    // namespace path: `namespace NS { declare function fn() }` - babel doesn't bind NS as
+    // a value (or has a separate value binding via decl merging). arbitrary-depth qualified
+    // names handled here via TSModuleDeclaration scope walk
+    return findNamespacedFunctionPath(segments, scope);
+  }
+
+  // locate the function-like TYPE that a `typeof X` / `typeof X.Y[.Z...]` annotation points
+  // at. `declare const` bindings have no runtime init to resolve - the type lives on the
+  // binding's annotation instead. arbitrary-depth qualified names walk the root binding's
+  // annotation segment-by-segment via `findTypeMember` (which already handles substitution,
+  // union/intersection branches, and returns the member type unwrapped from TSTypeAnnotation).
+  // returns {type, scope} or null
+  function findTypeQueryFunctionType(exprName, scope) {
+    const segments = collectQualifiedSegments(exprName);
+    if (!segments?.length) return null;
+    const [rootName, ...path] = segments;
+    const binding = constantBindingPath(rootName, scope);
+    if (!binding) return null;
+    let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding));
+    if (!annotation) return null;
+    for (const name of path) {
+      const member = findTypeMember(annotation, name, binding.scope);
+      if (!member) return null;
+      annotation = unwrapTypeAnnotation(member);
+      if (!annotation) return null;
+    }
+    return { type: annotation, scope: binding.scope };
   }
 
   // TS resolves `ReturnType<typeof fn>` against the LAST overload signature when `fn` is an
