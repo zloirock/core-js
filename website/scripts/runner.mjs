@@ -48,8 +48,10 @@ async function copyWeb() {
 async function createBuildDir() {
   console.log(`Creating build directory "${ BUILD_DIR }"`);
   console.time(`Created build directory ${ BUILD_DIR }`);
-  await exec(`mkdir -p ${ BUILD_DIR }`);
-  await exec(`mkdir -p ${ BUILD_DOCS_DIR }`);
+  await Promise.all([
+    exec(`mkdir -p ${ BUILD_DIR }`),
+    exec(`mkdir -p ${ BUILD_DOCS_DIR }`),
+  ]);
   console.timeEnd(`Created build directory ${ BUILD_DIR }`);
 }
 
@@ -81,8 +83,10 @@ async function switchToLatestBuild() {
 async function clearBuildDir() {
   console.log(`Clearing build directory "${ BUILD_SRC_DIR }"`);
   console.time(`Cleared build directories ${ BUILD_SRC_DIR } and ${ BUILD_DOCS_DIR }`);
-  await exec(`rm -rf ${ BUILD_SRC_DIR }`);
-  await exec(`rm -rf ${ BUILD_DOCS_DIR }`);
+  await Promise.all([
+    exec(`rm -rf ${ BUILD_SRC_DIR }`),
+    exec(`rm -rf ${ BUILD_DOCS_DIR }`),
+  ]);
   console.timeEnd(`Cleared build directories ${ BUILD_SRC_DIR } and ${ BUILD_DOCS_DIR }`);
 }
 
