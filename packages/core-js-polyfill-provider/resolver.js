@@ -125,6 +125,14 @@ export function createPolyfillResolver(options, {
     method, mode, version, package: pkg, additionalPackages, include, exclude, shippedProposals, shouldInjectPolyfill,
   });
 
+  // statically-known incompatible receiver: enhanceMeta either rejects the hint (returns
+  // null) or folds it into a TYPE_HINT slot for which desc lacks a variant (resolveHint
+  // already returned null upstream). gates the generic-fallback path against typed receivers
+  function receiverIncompatibleWithDesc(meta, path, desc) {
+    const enhanced = enhanceMeta(meta, path, desc);
+    return enhanced === null || TYPE_HINTS.has(enhanced.object);
+  }
+
   // any inherited `receiverHint` from destructure-meta is stale once `enhanceMeta` derives
   // its own placement / hint info; defensive `receiverHint: undefined` in the new-shape
   // returns blocks future writers / `resolveHint` re-orderings from leaking that stale state
@@ -254,6 +262,13 @@ export function createPolyfillResolver(options, {
     const { kind, desc: { pure: desc } } = resolved;
     if (kind !== 'instance') return null;
     if (!hasOwn(desc, 'common')) return null;
+    // bail when the receiver type is statically known and incompatible with desc's variants.
+    // enhanceMeta returns null when the hint isn't in TYPE_HINTS but desc requires hints;
+    // returns a meta with `object` ∈ TYPE_HINTS when the type folded into a primitive /
+    // collection slot. either way the upstream resolvePure already concluded "no polyfill
+    // applies" - emitting common here over-injects relative to babel's natural-bail (babel
+    // only deopts to common AFTER an inner polyfill mutation, never for a typed receiver)
+    if (path && receiverIncompatibleWithDesc(meta, path, desc)) return null;
     // pass meta with object stripped so resolveHint's placement-based branch skips and the
     // `!excludedHints && !includedHints && hasOwn(desc, 'common')` branch picks up common
     const genericMeta = { ...meta, object: null };
