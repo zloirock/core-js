@@ -11,7 +11,7 @@ import {
   isThisReceiver,
   isUpdateTarget,
   TS_EXPR_WRAPPERS,
-  unwrapInitValue,
+  unwrapReceiverLeaf,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { createClassHelpers, resolveSuperImportName } from '@core-js/polyfill-provider/helpers/class-walk';
 import { isCoreJSFile, stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normalize';
@@ -564,6 +564,12 @@ export default function createPlugin(options) {
           // shape intact. proxy-global path (replaceGlobalOrStatic) does strip `?.` since the
           // polyfill renames the proxy itself, the user-visible chain has no surface there
           transforms.add(node.object.start, node.object.end, binding);
+          // outer text-emit absorbs the whole receiver: any inner Identifier whose name
+          // matches the polyfill's substitution would compose into the emit (`_Map` substring
+          // inside the outer's `_Map` -> `__Map`). peel through wrappers + IIFE shells to find
+          // the effective receiver leaf and mark it skipped before the Identifier visitor runs
+          const inner = unwrapReceiverLeaf(node.object);
+          if (inner?.type === 'Identifier') skippedNodes.add(inner);
           return;
         }
         // babel-compat: babel's AST mutation + deoptionalization re-visits outer members whose
@@ -606,10 +612,11 @@ export default function createPlugin(options) {
           // without seeding skippedNodes the identifier visitor queues a parallel `Symbol -> _Symbol`
           // transform whose needle composes into the outer's `_Symbol$iterator` replacement as
           // `__Symbol$iterator` (substring `Symbol` inside the outer's emit gets re-prefixed).
-          // peels parens + SE-tail unconditionally - SE-prefix is preserved via `meta.sideEffects`,
-          // so the receiver Identifier we want to suppress is at the deepest tail position
+          // peels parens / SE-tail / TS wrappers / chain wrappers AND no-arg arrow / fn IIFE
+          // shells (`(() => Symbol)?.()`) so the receiver Identifier we want to suppress is
+          // reached through any combination of transparent wrappers
           if (node.type === 'MemberExpression') {
-            const inner = unwrapInitValue(node.object);
+            const inner = unwrapReceiverLeaf(node.object);
             if (inner?.type === 'Identifier') skippedNodes.add(inner);
           }
         }
