@@ -325,26 +325,205 @@ function createResolveNodeType(babelNodeType, t) {
     return { param, isRest: false };
   }
 
+  // sentinel for `as never` / unmatched conditional (TS filters the member out of the result).
+  // distinct from `null` (which means the template is statically un-evaluable -> bail expansion)
+  const RENAME_SKIP = Symbol('rename-skip');
+
+  // intrinsic TS string transformers (`Uppercase<S>` / `Capitalize<S>` / ...)
+  const INTRINSIC_STRING_TRANSFORMERS = {
+    Uppercase: s => s.toUpperCase(),
+    Lowercase: s => s.toLowerCase(),
+    Capitalize: s => s.charAt(0).toUpperCase() + s.slice(1),
+    Uncapitalize: s => s.charAt(0).toLowerCase() + s.slice(1),
+  };
+
+  // cooked text of a TemplateElement quasi; raw fallback covers post-ES2018 invalid escapes
+  // where cooked is null (rare in type-level templates but cheap to handle)
+  const quasiText = q => q?.value?.cooked ?? q?.value?.raw ?? '';
+
+  // shared shape extraction for `{ [K in keyof T] ... }`. Babel nests `typeParameter:
+  // TSTypeParameter { name, constraint }`; oxc/TS-ESTree flattens to `key: Identifier` +
+  // `constraint` on the mapped type itself. key name is a bare string in babel-parser
+  // ASTs and an Identifier in oxc/ESTree. returns null for non-`keyof T` shapes
+  function parseMappedTypeShape(node) {
+    const constraint = node.typeParameter?.constraint ?? node.constraint;
+    const keyNameNode = node.typeParameter?.name ?? node.key;
+    if (constraint?.type !== 'TSTypeOperator' || constraint.operator !== 'keyof') return null;
+    const paramName = typeof keyNameNode === 'string' ? keyNameNode : keyNameNode?.name;
+    if (!paramName) return null;
+    return { paramName, source: constraint.typeAnnotation };
+  }
+
+  // peel the parser-specific template-literal-type shape into a uniform { quasis, exprs } pair.
+  // babel emits `TSLiteralType { literal: TemplateLiteral { quasis, expressions } }`;
+  // oxc/TS-ESTree emits `TSTemplateLiteralType { quasis, types }` directly. quasis carry
+  // `value.cooked` text; exprs are TS types interleaved with quasis (n+1 quasis for n exprs)
+  function templateLiteralTypeParts(node) {
+    if (node?.type === 'TSTemplateLiteralType') return { quasis: node.quasis, exprs: node.types };
+    if (node?.type === 'TSLiteralType' && node.literal?.type === 'TemplateLiteral') {
+      return { quasis: node.literal.quasis, exprs: node.literal.expressions };
+    }
+    return null;
+  }
+
   // detect the trivial passthrough mapped type `{ [K in keyof T]: T[K] }` and return T.
   // `readonly` / `optional` / `-readonly` / `-?` modifiers don't change the member set, only
   // descriptor flags, so we let them through; `nameType` (key remap via `as`) does rename and blocks
   function unwrapMappedTypePassthrough(node) {
     if (!node || node.type !== 'TSMappedType') return null;
     if (node.nameType || !node.typeAnnotation) return null;
-    // Babel nests `typeParameter: TSTypeParameter { name, constraint }`;
-    // oxc/TS-ESTree flattens to `key: Identifier` + `constraint` on the mapped type itself
-    const constraint = node.typeParameter?.constraint ?? node.constraint;
-    const keyNameNode = node.typeParameter?.name ?? node.key;
-    if (constraint?.type !== 'TSTypeOperator' || constraint.operator !== 'keyof') return null;
-    // key name is a bare string in babel-parser ASTs and an Identifier in oxc/ESTree
-    const paramName = typeof keyNameNode === 'string' ? keyNameNode : keyNameNode?.name;
-    if (!paramName) return null;
+    const shape = parseMappedTypeShape(node);
+    if (!shape) return null;
     const body = node.typeAnnotation;
     if (body.type !== 'TSIndexedAccessType') return null;
     const indexParam = body.indexType;
     if (indexParam?.type !== 'TSTypeReference' || indexParam.typeName?.type !== 'Identifier'
-      || indexParam.typeName.name !== paramName) return null;
+      || indexParam.typeName.name !== shape.paramName) return null;
     return body.objectType ?? null;
+  }
+
+  // statically evaluate a mapped-type rename template against a single source key.
+  // returns the renamed key string, RENAME_SKIP for `as never` / un-matched conditional
+  // branches, or null when the template can't be resolved to a literal string
+  function evalRenameTemplate(template, paramName, keyValue) {
+    if (!template) return null;
+    if (template.type === 'TSNeverKeyword') return RENAME_SKIP;
+    if (template.type === 'TSStringKeyword') return keyValue;
+    // `\`prefix\${...}suffix\`` - cross-parser via templateLiteralTypeParts; concatenate
+    // quasis interleaved with the per-expression evaluation results
+    const parts = templateLiteralTypeParts(template);
+    if (parts) {
+      let out = quasiText(parts.quasis[0]);
+      for (let i = 0; i < parts.exprs.length; i++) {
+        const sub = evalRenameTemplate(parts.exprs[i], paramName, keyValue);
+        if (typeof sub !== 'string') return sub;
+        out += sub + quasiText(parts.quasis[i + 1]);
+      }
+      return out;
+    }
+    // `as 'fixed'` - direct string / numeric literal type
+    if (template.type === 'TSLiteralType') return literalKeyValue(template.literal);
+    if (template.type === 'TSTypeReference' && template.typeName?.type === 'Identifier') {
+      const { name } = template.typeName;
+      if (name === paramName) return keyValue;
+      const xform = INTRINSIC_STRING_TRANSFORMERS[name];
+      if (!xform) return null;
+      const arg = getTypeArgs(template)?.params?.[0];
+      if (!arg) return null;
+      const inner = evalRenameTemplate(arg, paramName, keyValue);
+      return typeof inner === 'string' ? xform(inner) : inner;
+    }
+    // `string & K` - drop the string-keyword half, evaluate the remaining type-level part
+    if (template.type === 'TSIntersectionType') {
+      let result = null;
+      for (const part of template.types) {
+        if (part?.type === 'TSStringKeyword') continue;
+        const sub = evalRenameTemplate(part, paramName, keyValue);
+        if (typeof sub !== 'string') return sub;
+        if (result !== null && result !== sub) return null;
+        result = sub;
+      }
+      return result;
+    }
+    // distributive conditional rename: `as K extends Pat ? New : never` filters/renames members.
+    // only handles `K extends ...` checks; the extends-side must be a literal or a string
+    // template that we can pattern-match against the concrete key
+    if (template.type === 'TSConditionalType') {
+      const matched = matchesConditionalPattern(template.checkType, template.extendsType, paramName, keyValue);
+      if (matched === true) return evalRenameTemplate(template.trueType, paramName, keyValue);
+      if (matched === false) return evalRenameTemplate(template.falseType, paramName, keyValue);
+      return null;
+    }
+    return null;
+  }
+
+  // `K extends 'a' ? ... : ...` - true when keyValue equals the extendsType literal.
+  // `K extends string ? ... : ...` - always true (keyof yields string-assignable keys).
+  // `K extends `${...}` ? ... : ...` - pattern-match keyValue against the template literal.
+  // `K extends 'a' | 'b' ? ... : ...` - any-branch match.
+  // returns null when the pattern can't be statically decided (caller bails)
+  function matchesConditionalPattern(checkType, extendsType, paramName, keyValue) {
+    if (checkType?.type !== 'TSTypeReference' || checkType.typeName?.name !== paramName) return null;
+    if (extendsType?.type === 'TSStringKeyword' || extendsType?.type === 'TSAnyKeyword'
+      || extendsType?.type === 'TSUnknownKeyword') return true;
+    if (templateLiteralTypeParts(extendsType)) return matchTemplatePattern(extendsType, keyValue);
+    if (extendsType?.type === 'TSLiteralType') {
+      const expected = literalKeyValue(extendsType.literal);
+      return expected === null ? null : keyValue === expected;
+    }
+    if (extendsType?.type === 'TSUnionType') {
+      let result = false;
+      for (const branch of extendsType.types) {
+        const m = matchesConditionalPattern(checkType, branch, paramName, keyValue);
+        if (m === true) return true;
+        if (m === null) result = null;
+      }
+      return result;
+    }
+    return null;
+  }
+
+  // template-literal pattern match: `\`prefix\${string}suffix\`` admits any key with that
+  // prefix/suffix. only handles `${string}` placeholders (the common case). bails on
+  // type-level expressions like `${number}` or referenced types - those need full assignability
+  function matchTemplatePattern(template, keyValue) {
+    const parts = templateLiteralTypeParts(template);
+    if (!parts) return null;
+    const { quasis, exprs } = parts;
+    for (const e of exprs) if (e?.type !== 'TSStringKeyword') return null;
+    const head = quasiText(quasis[0]);
+    if (!keyValue.startsWith(head)) return false;
+    let pos = head.length;
+    // each subsequent quasi must appear (in order) somewhere in the remaining keyValue.
+    // last quasi must terminate the value (no trailing chars after the final fixed text)
+    for (let i = 1; i < quasis.length; i++) {
+      const q = quasiText(quasis[i]);
+      const isLast = i === quasis.length - 1;
+      const idx = isLast
+        ? (keyValue.endsWith(q) ? keyValue.length - q.length : -1)
+        : keyValue.indexOf(q, pos);
+      if (idx < 0 || idx < pos) return false;
+      pos = idx + q.length;
+    }
+    return true;
+  }
+
+  // expand a mapped type with `as` rename clause to a flat member list:
+  //   `{ [K in keyof T as RENAME(K)]: BODY }` -> for each literal key k of T,
+  //     synthesize `{ key: RENAME(k), typeAnnotation: BODY[K -> k] }`
+  // bails (returns null) for any non-statically-evaluable shape so the caller falls back
+  // to the previous behaviour (no narrow). callers must apply outer T-subst BEFORE invoking
+  // (the substituted source type's keys must be statically enumerable)
+  function expandMappedTypeMembers(node, scope, depth, visited) {
+    if (!node.nameType || !node.typeAnnotation) return null;
+    const shape = parseMappedTypeShape(node);
+    if (!shape) return null;
+    const sourceType = unwrapTypeAnnotation(shape.source);
+    if (!sourceType) return null;
+    const sourceMembers = getTypeMembers(sourceType, scope, depth + 1, visited);
+    if (!sourceMembers) return null;
+    const body = unwrapTypeAnnotation(node.typeAnnotation);
+    if (!body) return null;
+    const out = [];
+    for (const m of sourceMembers) {
+      if (m.computed) return null;
+      const keyName = getKeyName(m.key);
+      if (keyName === null || keyName.startsWith('#')) return null;
+      const renamed = evalRenameTemplate(node.nameType, shape.paramName, keyName);
+      if (renamed === RENAME_SKIP) continue;
+      if (typeof renamed !== 'string') return null;
+      const subst = new Map([[shape.paramName, {
+        type: 'TSLiteralType',
+        literal: { type: 'StringLiteral', value: keyName },
+      }]]);
+      out.push({
+        type: 'TSPropertySignature',
+        key: { type: 'Identifier', name: renamed },
+        computed: false,
+        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: applyAliasSubstDeep(body, subst) },
+      });
+    }
+    return out;
   }
 
   // decompose a type reference into its dotted segments. `Foo` -> ['Foo'],
@@ -431,10 +610,15 @@ function createResolveNodeType(babelNodeType, t) {
       node = unwrapTypeAnnotation(typeAliasBody(decl));
     }
     // unwrap a final-step trivial mapped passthrough so `Copy<T> = { [K in keyof T]: T[K] }`
-    // resolves through to T (substituted) instead of stopping at the mapped type
+    // resolves through to T (substituted) instead of stopping at the mapped type. for
+    // `as`-rename mapped types we can't passthrough, but downstream `expandMappedTypeMembers`
+    // needs the source type concrete (`keyof T` enumeration requires T's literal members);
+    // fold accumulated subst into the whole node so the rename expansion runs on the
+    // post-substitution mapped type
     if (node?.type === 'TSMappedType') {
       const passthrough = unwrapMappedTypePassthrough(node);
       if (passthrough) node = unwrapTypeAnnotation(subst ? applyAliasSubstDeep(passthrough, subst) : passthrough);
+      else if (subst) node = applyAliasSubstDeep(node, subst);
     }
     return { node, subst };
   }
@@ -541,16 +725,26 @@ function createResolveNodeType(babelNodeType, t) {
       }
       case 'TSTypeOperator':
         return substSlot(node, 'typeAnnotation', subst, depth);
-      // mapped type: `{ [K in T]: T[K] }` - substitute `typeParameter.constraint`, `typeAnnotation`,
+      // mapped type: `{ [K in T]: T[K] }` - substitute the constraint, `typeAnnotation`,
       // and `nameType` (TS `as` remapping). without this, `type Box<T> = { [K in keyof T]: T[K] }`
-      // passed `Box<{a: string[]}>` wouldn't substitute T in the mapped body
+      // passed `Box<{a: string[]}>` wouldn't substitute T in the mapped body. babel nests
+      // the constraint under `typeParameter.constraint`; oxc/TS-ESTree flattens to
+      // `node.constraint` directly - both shapes need a substitution slot here
       case 'TSMappedType': {
         const tp = node.typeParameter;
         const tpConstraint = tp?.constraint ? applyAliasSubstDeep(tp.constraint, subst, depth + 1) : tp?.constraint;
+        const flatConstraint = node.constraint ? applyAliasSubstDeep(node.constraint, subst, depth + 1) : node.constraint;
         const ann = node.typeAnnotation ? applyAliasSubstDeep(node.typeAnnotation, subst, depth + 1) : node.typeAnnotation;
         const nameType = node.nameType ? applyAliasSubstDeep(node.nameType, subst, depth + 1) : node.nameType;
-        if (tpConstraint === tp?.constraint && ann === node.typeAnnotation && nameType === node.nameType) return node;
-        return { ...node, typeParameter: tp ? { ...tp, constraint: tpConstraint } : tp, typeAnnotation: ann, nameType };
+        if (tpConstraint === tp?.constraint && flatConstraint === node.constraint
+          && ann === node.typeAnnotation && nameType === node.nameType) return node;
+        return {
+          ...node,
+          typeParameter: tp ? { ...tp, constraint: tpConstraint } : tp,
+          ...node.constraint !== undefined && { constraint: flatConstraint },
+          typeAnnotation: ann,
+          nameType,
+        };
       }
       // rest type inside tuples: `[...T[]]` / `[first, ...Rest]` - substitute inner
       case 'TSRestType': return substSlot(node, 'typeAnnotation', subst, depth);
@@ -1075,6 +1269,14 @@ function createResolveNodeType(babelNodeType, t) {
     if (objectType.type === 'TSTypeLiteral') return objectType.members;
     if (objectType.type === 'ObjectTypeAnnotation') return objectType.properties;
     if (objectType.type === 'TSIndexedAccessType') return resolveIndexedAccessMembers(objectType, scope, depth);
+    // mapped type: trivial passthrough delegates to the source's members; `as`-rename
+    // expands per-key with statically-evaluated rename templates so `r._a` on
+    // `{ [K in keyof T as `_${K}`]: T[K] }` resolves through to the source field type
+    if (objectType.type === 'TSMappedType') {
+      const passthrough = unwrapMappedTypePassthrough(objectType);
+      if (passthrough) return getTypeMembers(unwrapTypeAnnotation(passthrough), scope, depth + 1, visited);
+      return expandMappedTypeMembers(objectType, scope, depth, visited);
+    }
     // intersection: collect members from all parts
     if (objectType.type === 'TSIntersectionType' || objectType.type === 'IntersectionTypeAnnotation') {
       const all = [];
