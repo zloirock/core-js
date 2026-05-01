@@ -10,6 +10,7 @@ import {
   kebabToCamel,
   mayHaveSideEffects,
   singleQuasiString,
+  singleReturnBodyExpression,
 } from '../helpers/ast-patterns.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
@@ -259,33 +260,6 @@ function inlineCallReturnExpression(callNode, scope, adapter, seen, path) {
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression')
     || callee.params?.length || callee.async || callee.generator) return null;
   return singleReturnBodyExpression(callee.body);
-}
-
-// statement types that bind names locally to a function-like body. when present, the
-// body's free identifiers may resolve to those bindings instead of caller-scope globals,
-// so inline-call resolution must bail to keep receiver opacity faithful
-const LOCAL_BINDING_DECL_TYPES = new Set([
-  'VariableDeclaration',
-  'FunctionDeclaration',
-  'ClassDeclaration',
-]);
-
-// extract the single return expression of a function-like body. arrow expression-body returns
-// directly; block bodies must contain exactly one ReturnStatement at top level
-function singleReturnBodyExpression(body) {
-  if (body.type !== 'BlockStatement') return body;
-  let ret = null;
-  for (const stmt of body.body) {
-    // local declarations would bind names that shadow free identifiers in the return
-    // value at body scope; the caller resolves the inlined return at the CALLER's scope,
-    // so a body `const Map = WeakMap; return Map` would mis-resolve as global Map. bail
-    // here so the receiver stays opaque whenever the body introduces its own bindings
-    if (LOCAL_BINDING_DECL_TYPES.has(stmt.type)) return null;
-    if (stmt.type !== 'ReturnStatement') continue;
-    if (ret) return null;
-    ret = stmt;
-  }
-  return ret?.argument ?? null;
 }
 
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
