@@ -1796,8 +1796,20 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // TS resolves `ReturnType<typeof fn>` against the LAST overload signature when `fn` is an
+  // ambient with multiple `declare function` headers; earlier headers are specialized cases,
+  // the last is canonical (mirrors `infer R` over an intersection-of-call-signatures, which
+  // picks the rightmost). retarget the binding here. runtime `FunctionDeclaration` can't
+  // overload, so non-ambient bindings stay as-is
+  function pickLastAmbientOverload(resolved, param, scope) {
+    if (!resolved || !isAmbientFunctionNode(resolved.node)) return resolved;
+    if (param.type !== 'TSTypeQuery' || param.exprName?.type !== 'Identifier') return resolved;
+    const ambients = findAmbientFunctionPaths(param.exprName.name, scope);
+    return ambients.length > 1 ? ambients.at(-1) : resolved;
+  }
+
   function resolveReturnTypeFromTypeQuery(param, scope) {
-    const resolved = resolveTypeQueryBinding(param, scope);
+    const resolved = pickLastAmbientOverload(resolveTypeQueryBinding(param, scope), param, scope);
     if (isFunctionLike(resolved?.node)) return resolveReturnType(resolved);
     if (param?.type !== 'TSTypeQuery') return null;
     // `resolveTypeQueryBinding` returns null for no-init `declare const` shapes; fall back to
