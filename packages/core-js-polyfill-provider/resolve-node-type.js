@@ -6040,67 +6040,101 @@ function createResolveNodeType(babelNodeType, t) {
     return member ? { member, scope: scopeRef } : null;
   }
 
-  // resolve a callee identifier to a guard descriptor when the callee is a function whose
-  // return type is a `TSTypePredicate`. `asserts` flag picks between the two predicate forms:
-  //   `x is T`         - narrows only inside the truthy branch; callers pass `asserts=false`
-  //   `asserts x is T` - narrows after the call completes normally; callers pass `asserts=true`
-  // three annotation locations for a predicate:
-  //   function isStr(x): x is string { ... }   -> FunctionDeclaration.returnType
-  //   const isStr = (x): x is string => ...    -> init ArrowFunctionExpression.returnType
-  //   const isStr: (x) => x is string = impl   -> VariableDeclarator.id.typeAnnotation.TSFunctionType
-  // the last form is common when `impl` has no inline annotation (e.g. `const f: T = other`).
+  // resolve a callee identifier to its function-like decl: returns {fnNode, returnType}
+  // where fnNode carries the param list (`params` for FunctionDeclaration / arrow / TSDeclare,
+  // `parameters` on a TSFunctionType binding-annotation) and returnType is the unwrapped
+  // declared return annotation. unifies the four shapes a function-like binding can take so
+  // callers can map a `TSTypePredicate.parameterName` to a positional call-arg uniformly:
+  //   function isStr(x): x is T { ... }      -> FunctionDeclaration / TSDeclareFunction
+  //   const isStr = (x): x is T => ...       -> VariableDeclarator + init ArrowFunctionExpression
+  //   const isStr: (x) => x is T = impl      -> VariableDeclarator + TSFunctionType annotation
   // babel quirk: TSFunctionType stores the return type under `.typeAnnotation`, not `.returnType`
-  function resolveBindingReturnType(declNode) {
-    // ambient `declare function isStr(): asserts x is T` — TSDeclareFunction stores
-    // returnType under the same field as FunctionDeclaration but isn't matched by
-    // `t.isFunction`. without this case the binding-based predicate path silently misses
-    // ambient declarations
-    if (t.isFunction(declNode) || isAmbientFunctionNode(declNode)) return unwrapTypeAnnotation(declNode.returnType);
+  function resolveBindingReturnInfo(declNode) {
+    if (t.isFunction(declNode) || isAmbientFunctionNode(declNode)) {
+      return { fnNode: declNode, returnType: unwrapTypeAnnotation(declNode.returnType) };
+    }
     if (!t.isVariableDeclarator(declNode)) return null;
+    // inline annotation on init wins (`const f = (x): x is T => ...`); fall through to the
+    // binding-annotation form (`const f: (x) => x is T = impl`) when init is annotation-less,
+    // including the common `const f: T = otherFn` shape where the predicate lives on the
+    // binding annotation
     if (declNode.init && t.isFunction(declNode.init)) {
-      const inline = unwrapTypeAnnotation(declNode.init.returnType);
-      if (inline) return inline;
+      const inlineReturn = unwrapTypeAnnotation(declNode.init.returnType);
+      if (inlineReturn) return { fnNode: declNode.init, returnType: inlineReturn };
     }
     const bindingAnnotation = unwrapTypeAnnotation(declNode.id?.typeAnnotation);
     if (bindingAnnotation?.type !== 'TSFunctionType') return null;
-    return unwrapTypeAnnotation(bindingAnnotation.typeAnnotation ?? bindingAnnotation.returnType);
+    return {
+      fnNode: bindingAnnotation,
+      returnType: unwrapTypeAnnotation(bindingAnnotation.typeAnnotation ?? bindingAnnotation.returnType),
+    };
   }
 
-  function resolvePredicateGuard(callee, scope, negated, asserts) {
-    if (!scope) return null;
-    // method-form predicate: `obj.isStr(x)` / `obj.util.isStr(x)` - resolve the receiver's
-    // annotation, walk member-by-member down the dotted chain, then check the leaf method's
-    // return type for a TSTypePredicate. covers class instances and interface / type-literal
-    // members. without this branch, user-defined member predicates miss narrowing because
-    // the bare-identifier-callee path below requires `callee.type === 'Identifier'`
+  // verify a `TSTypePredicate` references the call-arg identified by varName: walk fnParams
+  // for the slot named `parameterName`, then check `args[slot]` is `Identifier{varName}`.
+  // without this, `function isStr(opts, x): x is string` paired with `isStr(o, input)` would
+  // narrow the wrong arg. babel uses `params`, oxc/TS-ESTree uses `parameters` for method sigs;
+  // probe both. peel TS expression wrappers (`as`, `!`, parens) on the call-arg so wrapped
+  // forms (`isStr(o, input as any)`) still bind
+  function matchPredicateArg(predicate, fnNode, args, varName) {
+    if (predicate?.parameterName?.type !== 'Identifier') return false;
+    const params = fnNode?.params ?? fnNode?.parameters;
+    if (!params) return false;
+    const targetName = predicate.parameterName.name;
+    for (let i = 0; i < params.length; i++) {
+      if (params[i]?.name !== targetName) continue;
+      const arg = args?.[i];
+      if (!arg) return false;
+      const unwrapped = unwrapRuntimeExpr(arg);
+      return unwrapped?.type === 'Identifier' && unwrapped.name === varName;
+    }
+    return false;
+  }
+
+  // enumerate the function-like declarations a callee may resolve to, paired with their
+  // declared return annotation and the lexical scope to resolve type names against. method-
+  // form yields a single leaf-member candidate from the dotted chain. identifier-form yields
+  // the runtime binding plus all ambient overload siblings (TSDeclareFunction headers) so
+  // multi-overload predicates - where only one header carries `x is T` - are still found.
+  // ambient list is filtered against the runtime binding to avoid retesting the same node
+  function predicateCandidates(callee, scope) {
     if (callee.type === 'MemberExpression' && !callee.computed
       && callee.property?.type === 'Identifier') {
       const result = resolveMemberCallChain(callee, scope);
-      const returnType = result && unwrapTypeAnnotation(memberCallReturnAnnotation(result.member));
-      if (returnType?.type === 'TSTypePredicate' && !!returnType.asserts === asserts) {
-        const resolved = resolveTypeAnnotation(returnType.typeAnnotation, result.scope);
-        const guard = guardFromResolvedType(resolved, negated);
-        if (guard) return guard;
-      }
-      return null;
+      if (!result) return [];
+      return [{
+        fnNode: result.member,
+        returnType: unwrapTypeAnnotation(memberCallReturnAnnotation(result.member)),
+        scope: result.scope,
+      }];
     }
-    if (callee.type !== 'Identifier') return null;
-    // try the runtime binding first (covers regular function decl, var with init / annot)
+    if (callee.type !== 'Identifier') return [];
+    const out = [];
     const binding = scope.getBinding(callee.name);
-    const candidates = [];
-    if (binding) candidates.push(binding.path);
-    // fallback: ambient `declare function` (not in scope.bindings) and overload siblings
-    // (TSDeclareFunction header next to a FunctionDeclaration impl missing returnType).
-    // collect ALL ambient siblings - 3+ overloads where the predicate of interest is on a
-    // non-first header would miss with single-result lookup. binding is filtered out so
-    // FunctionDeclaration self isn't re-tested
-    for (const ambient of findAmbientFunctionPaths(callee.name, scope)) {
-      if (ambient !== binding?.path) candidates.push(ambient);
-    }
-    for (const path of candidates) {
-      const returnType = resolveBindingReturnType(path.node);
-      if (returnType?.type !== 'TSTypePredicate' || !!returnType.asserts !== asserts) continue;
-      const resolved = resolveTypeAnnotation(returnType.typeAnnotation, path.scope);
+    const seen = new Set();
+    const push = path => {
+      if (seen.has(path)) return;
+      seen.add(path);
+      const info = resolveBindingReturnInfo(path.node);
+      if (info) out.push({ fnNode: info.fnNode, returnType: info.returnType, scope: path.scope });
+    };
+    if (binding) push(binding.path);
+    for (const ambient of findAmbientFunctionPaths(callee.name, scope)) push(ambient);
+    return out;
+  }
+
+  // resolve a callee to a guard descriptor when its return type is a `TSTypePredicate`.
+  // `asserts` flag picks between the two predicate forms:
+  //   `x is T`         - narrows only inside the truthy branch (asserts=false)
+  //   `asserts x is T` - narrows after the call completes normally (asserts=true)
+  // `args` + `varName` bind `parameterName` to a positional call-arg so non-first-arg
+  // predicates (`function isStr(opts, x): x is T`) narrow the right binding
+  function resolvePredicateGuard(callee, scope, negated, asserts, args, varName) {
+    if (!scope) return null;
+    for (const c of predicateCandidates(callee, scope)) {
+      if (c.returnType?.type !== 'TSTypePredicate' || !!c.returnType.asserts !== asserts) continue;
+      if (!matchPredicateArg(c.returnType, c.fnNode, args, varName)) continue;
+      const resolved = resolveTypeAnnotation(c.returnType.typeAnnotation, c.scope);
       const guard = guardFromResolvedType(resolved, negated);
       if (guard) return guard;
     }
@@ -6108,26 +6142,28 @@ function createResolveNodeType(babelNodeType, t) {
   }
 
   // user-defined type predicate: `function isStr(x): x is string`, arrow form, or method
-  // assigned to a const
-  function parseUserPredicateGuard(callee, scope, negated) {
-    return resolvePredicateGuard(callee, scope, negated, false);
+  // assigned to a const. assertion form (`asserts x is T`) goes through `resolvePredicateGuard`
+  // with asserts=true via `parseAssertionStatementGuard`
+  function parseUserPredicateGuard(callee, scope, negated, args, varName) {
+    return resolvePredicateGuard(callee, scope, negated, false, args, varName);
   }
 
   // `assertArray(x)` as a statement - `asserts x is T` narrows x from that point forward.
-  // only the first argument participates (TS doesn't support asserts on non-first params).
-  // `unwrapRuntimeExpr` peels TS wrappers (`x as any`, `x!`, `x satisfies T`) so the
-  // assertion narrows the underlying binding regardless of cast shape, matching
-  // `parseTypeGuard`'s approach for binary/typeof guards
+  // any-arg-position via predicate.parameterName matching, so `obj.assertStr(opts, input)`
+  // with `(opts, x): asserts x is T` narrows `input` (not the first arg). peel callee
+  // wrappers (`(0, isStr)`, `((isStr))`, `isStr as any`, `isStr!`, `isStr?.()`) so non-
+  // Identifier shapes still hit the binding-name check inside resolvePredicateGuard.
+  // accept optional-call forms: babel emits `OptionalCallExpression` directly; oxc/TS-ESTree
+  // wraps the call in `ChainExpression` - peel the wrapper so `obj.assertStr?.(input)` reaches
+  // the same code path as `obj.assertStr(input)`
   function parseAssertionStatementGuard(sibling, varName) {
     if (sibling.node?.type !== 'ExpressionStatement') return null;
-    const call = sibling.node.expression;
-    if (call?.type !== 'CallExpression' || !call.arguments?.length) return null;
-    const arg = unwrapRuntimeExpr(call.arguments[0]);
-    if (arg?.type !== 'Identifier' || arg.name !== varName) return null;
-    // peel callee wrappers so non-Identifier shapes still match the binding-name check
-    // inside `resolvePredicateGuard`. covers `(0, isStr)`, `((isStr))`, `isStr as any`,
-    // `isStr!`, `isStr?.()`, and any nested combination (`((0, isStr) as any)`)
-    const guard = resolvePredicateGuard(unwrapExpressionChain(call.callee), sibling.scope, false, true);
+    const call = unwrapRuntimeExpr(sibling.node.expression);
+    if ((call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression')
+      || !call.arguments?.length) return null;
+    const guard = resolvePredicateGuard(
+      unwrapExpressionChain(call.callee), sibling.scope, false, true, call.arguments, varName,
+    );
     if (guard) guard.positive = true;
     return guard;
   }
@@ -6178,26 +6214,26 @@ function createResolveNodeType(babelNodeType, t) {
         if (constructorName) return instanceofGuard(constructorName, negated);
       }
     }
-    // multi-arg user predicates (`function isFoo(x, opts): x is Foo`) narrow on the first
-    // arg only. KNOWN_STATIC_TYPE_GUARDS (`Array.isArray` / `Number.isFinite` / ...) all
-    // narrow first-arg too; extra trailing args are ignored at runtime, so accepting them
-    // here matches user intent. predicates that narrow a non-first param are rare and
-    // would require pulling `parameterName` from the TSTypePredicate to disambiguate.
+    // KNOWN_STATIC_TYPE_GUARDS (`Array.isArray` / `Number.isFinite` / ...) narrow first-arg
+    // only; extra trailing args are ignored at runtime, so accepting them matches user intent.
+    // user predicates with positional arg-binding via `parameterName` route through
+    // `parseUserPredicateGuard`, which inspects the call's full args list to find the slot
+    // matching `varName` (so `function isFoo(opts, x): x is Foo` narrows the second arg).
     // OptionalCallExpression (`Array.isArray?.(x)`) is babel's optional-call shape; ESTree
     // wraps it in ChainExpression which `peelNegation`'s `unwrapRuntimeExpr` already strips
     if ((test.type === 'CallExpression' || test.type === 'OptionalCallExpression')
         && test.arguments?.length >= 1) {
-      const arg = unwrapParens(test.arguments[0]);
-      if (arg.type === 'Identifier' && arg.name === varName) {
-        const { callee } = test;
-        const propName = getMemberProperty(callee);
-        if (propName !== null && callee.object.type === 'Identifier') {
+      const { callee } = test;
+      const propName = getMemberProperty(callee);
+      if (propName !== null && callee.object?.type === 'Identifier') {
+        const arg0 = unwrapParens(test.arguments[0]);
+        if (arg0.type === 'Identifier' && arg0.name === varName) {
           const hint = lookupNested(KNOWN_STATIC_TYPE_GUARDS, callee.object.name, propName);
           if (hint) return guardFromHint(hint, negated);
         }
-        const userGuard = parseUserPredicateGuard(callee, scope, negated);
-        if (userGuard) return userGuard;
       }
+      const userGuard = parseUserPredicateGuard(callee, scope, negated, test.arguments, varName);
+      if (userGuard) return userGuard;
     }
     return null;
   }
