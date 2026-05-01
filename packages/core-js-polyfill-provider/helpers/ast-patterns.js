@@ -886,6 +886,67 @@ export function unwrapExpressionChain(node) {
   return node;
 }
 
+// statement types that bind names locally to a function-like body. when present, the
+// body's free identifiers may resolve to those bindings instead of caller-scope globals,
+// so inline-call resolution must bail to keep receiver opacity faithful
+const LOCAL_BINDING_DECL_TYPES = new Set([
+  'VariableDeclaration',
+  'FunctionDeclaration',
+  'ClassDeclaration',
+]);
+
+// extract the single return expression of a function-like body. arrow expression-body
+// returns directly; block bodies must contain exactly one ReturnStatement at top level
+// and no local bindings (which would shadow free identifiers in the return value at
+// body scope - inlining the bare return at the caller's scope would mis-resolve)
+export function singleReturnBodyExpression(body) {
+  if (!body) return null;
+  if (body.type !== 'BlockStatement') return body;
+  let ret = null;
+  for (const stmt of body.body) {
+    if (LOCAL_BINDING_DECL_TYPES.has(stmt.type)) return null;
+    if (stmt.type !== 'ReturnStatement') continue;
+    if (ret) return null;
+    ret = stmt;
+  }
+  return ret?.argument ?? null;
+}
+
+// peel an IIFE shell `(() => X)()` / `(() => X)?.()` / `(function(){return X})()` to its
+// body's return expression. callee must be a sync, non-generator, zero-param arrow / fn
+// expression; call-site args are ignored (zero params drop them at runtime). mirrors the
+// inline contract `inlineCallReturnExpression` uses for receiver-name resolution
+function peelIIFEReturn(node) {
+  if (node?.type !== 'CallExpression' && node?.type !== 'OptionalCallExpression') return null;
+  const callee = unwrapInitValue(unwrapRuntimeExpr(node.callee));
+  if ((callee?.type !== 'ArrowFunctionExpression' && callee?.type !== 'FunctionExpression')
+    || callee.params?.length || callee.async || callee.generator) return null;
+  return singleReturnBodyExpression(callee.body);
+}
+
+// peel transparent wrappers AND no-arg arrow / function-expression IIFE shells around an
+// expression to expose the effective receiver leaf. mirrors the inline-call traversal
+// `resolveObjectName` does for receiver-name resolution, but stays AST-only (no scope /
+// binding lookup - identifier-bound IIFEs aren't peeled here; the receiver-Identifier
+// visitor handles those via its own binding walk). used by emit suppression: when an
+// outer transform absorbs the whole receiver text, the leaf Identifier's parallel
+// substitution would compose into the outer's emit (`_Map` -> `__Map`).
+// depth-bounded against malformed input (cyclic AST shouldn't reach this helper, but
+// 64 is the same safety limit `unwrapExpressionChain` uses)
+export function unwrapReceiverLeaf(node) {
+  for (let depth = 0; depth < 64; depth++) {
+    const before = node;
+    node = unwrapInitValue(unwrapRuntimeExpr(node));
+    const iifeReturn = peelIIFEReturn(node);
+    if (iifeReturn) {
+      node = iifeReturn;
+      continue;
+    }
+    if (node === before) return node;
+  }
+  return node;
+}
+
 // generic type arguments at a use-site (`Array<string>`) - babel: `typeParameters`,
 // oxc TS-ESTree: `typeArguments`. class `extends` uses `superTypeParameters` /
 // `superTypeArguments` under the same split
