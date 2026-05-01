@@ -6008,6 +6008,38 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // walk a (possibly nested) `obj.a.b.c` member-chain to its leaf member node. for each
+  // intermediate hop we step into the carried annotation via `getTypeMembers` + match;
+  // the leaf member is returned raw (not its typeAnnotation) so the caller can inspect
+  // a method's full TSMethodSignature - `findTypeMember` would synth a stub there and
+  // lose return-type info (e.g. TSTypePredicate). returns null on any non-Identifier link,
+  // missing root binding, or unresolvable intermediate hop
+  function resolveMemberCallChain(callee, scope) {
+    const props = [];
+    let node = callee;
+    while (node?.type === 'MemberExpression' && !node.computed && node.property?.type === 'Identifier') {
+      props.push(node.property.name);
+      node = node.object;
+    }
+    if (node?.type !== 'Identifier' || !props.length) return null;
+    const binding = scope.getBinding(node.name);
+    if (!binding) return null;
+    let annotation = unwrapTypeAnnotation(findBindingAnnotation(binding.path));
+    const scopeRef = binding.path.scope;
+    // props collected leaf-first; consume from the end to walk root-down. last entry stays
+    // for the leaf-member lookup below (its raw signature is what callers need)
+    for (let i = props.length - 1; i > 0; i--) {
+      if (!annotation) return null;
+      const members = getTypeMembers(annotation, scopeRef);
+      const m = members?.find(mm => keyMatchesName(mm.key, props[i]));
+      annotation = m ? unwrapTypeAnnotation(m.typeAnnotation ?? m.returnType) : null;
+    }
+    if (!annotation) return null;
+    const members = getTypeMembers(annotation, scopeRef);
+    const member = members?.find(m => keyMatchesName(m.key, props[0]));
+    return member ? { member, scope: scopeRef } : null;
+  }
+
   // resolve a callee identifier to a guard descriptor when the callee is a function whose
   // return type is a `TSTypePredicate`. `asserts` flag picks between the two predicate forms:
   //   `x is T`         - narrows only inside the truthy branch; callers pass `asserts=false`
@@ -6036,27 +6068,19 @@ function createResolveNodeType(babelNodeType, t) {
 
   function resolvePredicateGuard(callee, scope, negated, asserts) {
     if (!scope) return null;
-    // method-form predicate: `obj.isStr(x)` - resolve obj's annotation, find the method
-    // member, check its return type for a TSTypePredicate. covers class instances and
-    // interface / type-literal members. without this branch, user-defined member predicates
-    // miss narrowing because the existing path only handles bare-identifier callees
+    // method-form predicate: `obj.isStr(x)` / `obj.util.isStr(x)` - resolve the receiver's
+    // annotation, walk member-by-member down the dotted chain, then check the leaf method's
+    // return type for a TSTypePredicate. covers class instances and interface / type-literal
+    // members. without this branch, user-defined member predicates miss narrowing because
+    // the bare-identifier-callee path below requires `callee.type === 'Identifier'`
     if (callee.type === 'MemberExpression' && !callee.computed
-      && callee.property?.type === 'Identifier'
-      && callee.object?.type === 'Identifier') {
-      const objBinding = scope.getBinding(callee.object.name);
-      if (objBinding) {
-        const objAnnotation = unwrapTypeAnnotation(findBindingAnnotation(objBinding.path));
-        // walk type members directly - `findTypeMember` returns a synthetic `{type:'TSFunctionType'}`
-        // stub for methods that loses the predicate return-type info we need here
-        const members = objAnnotation ? getTypeMembers(objAnnotation, objBinding.path.scope) : null;
-        const methodName = callee.property.name;
-        const member = members?.find(m => keyMatchesName(m.key, methodName));
-        const returnType = member && unwrapTypeAnnotation(memberCallReturnAnnotation(member));
-        if (returnType?.type === 'TSTypePredicate' && !!returnType.asserts === asserts) {
-          const resolved = resolveTypeAnnotation(returnType.typeAnnotation, objBinding.path.scope);
-          const guard = guardFromResolvedType(resolved, negated);
-          if (guard) return guard;
-        }
+      && callee.property?.type === 'Identifier') {
+      const result = resolveMemberCallChain(callee, scope);
+      const returnType = result && unwrapTypeAnnotation(memberCallReturnAnnotation(result.member));
+      if (returnType?.type === 'TSTypePredicate' && !!returnType.asserts === asserts) {
+        const resolved = resolveTypeAnnotation(returnType.typeAnnotation, result.scope);
+        const guard = guardFromResolvedType(resolved, negated);
+        if (guard) return guard;
       }
       return null;
     }
