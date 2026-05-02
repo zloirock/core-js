@@ -2,9 +2,6 @@
   "name": "tests/unit-karma",
   "devDependencies": {
     "@onslip/karma-playwright-launcher": "^0.3.0",
-    "@playwright/browser-chromium": "^1.59.1",
-    "@playwright/browser-firefox": "^1.59.1",
-    "@playwright/browser-webkit": "^1.59.1",
     "karma": "^6.4.4",
     "karma-ie-launcher": "^1.0.0",
     "karma-phantomjs-launcher": "~1.0.4",

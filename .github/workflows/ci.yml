@@ -23,12 +23,18 @@ jobs:
 
   karma:
     runs-on: windows-2022
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: D:\ms-playwright
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 25
           cache: npm
+      - uses: actions/cache@v5
+        with:
+          path: D:\ms-playwright
+          key: playwright-windows-2022-${{ hashFiles('tests/unit-karma/package-lock.json') }}
       - run: npm run prepare-monorepo
       - run: npx run-s bundle test-unit-karma
 

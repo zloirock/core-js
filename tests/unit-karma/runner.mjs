@@ -1,4 +1,5 @@
-if (process.env.CI) await $`playwright install-deps`;
+if (process.env.CI) await $`playwright install --with-deps chromium firefox webkit`;
+else await $`playwright install chromium firefox webkit`;
 
 $.quote = it => `'${ it }'`;
 
