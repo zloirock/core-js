@@ -39,11 +39,19 @@ export function directivePrologueEnd(ast) {
 }
 
 // matches the leading import region (top-of-body contiguous run): ImportDeclaration,
-// `require(...)` ExpressionStatement, or VariableDeclaration with at least one
-// `require()` initializer. mirrors babel-plugin's `reorderRefsAfterImports.isImport`
-// so the `var _ref;` placement decision uses the same boundary on both pipelines
+// `export ... from 'mod'` re-export, `require(...)` ExpressionStatement, or
+// VariableDeclaration with at least one `require()` initializer. mirrors babel-plugin's
+// `reorderRefsAfterImports.isImport` so the `var _ref;` placement decision uses the same
+// boundary on both pipelines. re-exports counted as imports because TC39 module records
+// fetch the re-exported module before evaluating user body - placing `var _ref;` before
+// them would interleave with the fetch order lint (`import/first`) flags
 function isTopLevelImportLike(stmt) {
   if (stmt?.type === 'ImportDeclaration') return true;
+  // `export { x } from 'mod'` / `export * from 'mod'` / `export * as ns from 'mod'`.
+  // `ExportNamedDeclaration` without `.source` is a local re-export of an already-bound
+  // identifier and is NOT an import - exclude via the `.source` check
+  if (stmt?.type === 'ExportNamedDeclaration' && stmt.source) return true;
+  if (stmt?.type === 'ExportAllDeclaration') return true;
   if (stmt?.type === 'ExpressionStatement'
     && stmt.expression?.type === 'CallExpression'
     && stmt.expression.callee?.type === 'Identifier'
