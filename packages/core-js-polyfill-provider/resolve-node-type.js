@@ -6025,9 +6025,14 @@ function createResolveNodeType(babelNodeType, t) {
     return !resolved.primitive && resolved.constructor === guard.constructorName;
   }
 
+  // peel parens / chain / TS expression wrappers (`as` / `satisfies` / `!`) inside the
+  // typeof operand so `typeof (x as any) === 'string'` and `typeof x! === 'number'` narrow
+  // the same as bare `typeof x`. asymmetric `unwrapParens` would only strip parens, leaving
+  // the TS cast in place and failing the bare-Identifier check. mirrors `parseTypeGuard`'s
+  // left/right peel
   function isTypeofVar(node, varName) {
     if (node?.type !== 'UnaryExpression' || node.operator !== 'typeof') return false;
-    const arg = unwrapParens(node.argument);
+    const arg = unwrapRuntimeExpr(node.argument);
     return arg?.type === 'Identifier' && arg.name === varName;
   }
 
@@ -6554,17 +6559,33 @@ function createResolveNodeType(babelNodeType, t) {
   function hasMutationAfterGuards(binding, usagePath, varName) {
     const { constantViolations } = binding;
     const usageStart = usagePath.node.start;
-    const isDescendant = (v, scope) => {
-      for (let p = v; p; p = p.parentPath) if (p === scope) return true;
+    const isDescendantOf = (path, scope) => {
+      for (let p = path; p; p = p.parentPath) if (p === scope) return true;
       return false;
     };
-    // any mutation inside scope
-    const violates = scope => constantViolations.some(v => isDescendant(v, scope));
-    // only mutations inside scope that are positionally before usagePath
-    // if either position is missing (synthetic AST nodes), conservatively assume mutation is before usage
+    // missing source positions (synthetic AST nodes) - conservatively assume mutation
+    // is positionally before usage so narrowing drops rather than over-keeps
     const isBefore = v => v.node.start === null || v.node.start === undefined
       || usageStart === null || usageStart === undefined || v.node.start < usageStart;
-    const violatesBefore = scope => constantViolations.some(v => isDescendant(v, scope) && isBefore(v));
+    const violates = scope => constantViolations.some(v => isDescendantOf(v, scope));
+    const violatesBefore = scope => constantViolations.some(v => isDescendantOf(v, scope) && isBefore(v));
+    // early-exit-guard invalidation: only the NEAREST guard to usage matters - closer
+    // guards re-narrow the binding independently of older guards' invalidation, and the
+    // mutation window `(nearestIdx, current.key]` (incl. prefix of current sibling before
+    // usage) is the only window that can invalidate runtime narrowing. older guards are
+    // subsumed; their invalidation by mutations BEFORE the nearest guard is irrelevant
+    const earlyExitInvalidates = (current, siblings) => {
+      let nearestIdx = -1;
+      for (let i = current.key - 1; i >= 0; i--) {
+        if (siblingGuardsBinding(siblings[i], varName)) {
+          nearestIdx = i;
+          break;
+        }
+      }
+      if (nearestIdx < 0) return false;
+      for (let j = nearestIdx + 1; j < current.key; j++) if (violates(siblings[j])) return true;
+      return violatesBefore(siblings[current.key]);
+    };
     // a fresh inner conditional whose guard has no mutations between it and the usage
     // re-narrows at runtime regardless of outer-scope mutations - the inner guard's
     // condition re-evaluates after any outer-scope reassignment. once seen, outer-level
@@ -6577,19 +6598,8 @@ function createResolveNodeType(babelNodeType, t) {
         else if (!innerFreshConditional) return true;
       }
       if (findSwitchCaseGuards(current, varName).length && violatesBefore(parent) && !innerFreshConditional) return true;
-      if (findEarlyExitGuards(current, varName).length) {
-        const siblings = getStatementSiblings(current);
-        // mutation window for any guard at sibling[i]: any reassign in (i, current.key],
-        // including the prefix of the current sibling before the usage. covers both forms
-        // uniformly via `siblingGuardsBinding`. ALL guards are checked (not just nearest)
-        // so a weaker guard closer to usage doesn't shadow mutations that already
-        // invalidated a stronger guard further back
-        for (let i = current.key - 1; i >= 0; i--) {
-          if (!siblingGuardsBinding(siblings[i], varName)) continue;
-          for (let j = i + 1; j < current.key; j++) if (violates(siblings[j]) && !innerFreshConditional) return true;
-          if (violatesBefore(siblings[current.key]) && !innerFreshConditional) return true;
-        }
-      }
+      if (findEarlyExitGuards(current, varName).length && !innerFreshConditional
+        && earlyExitInvalidates(current, getStatementSiblings(current))) return true;
     }
     return false;
   }
