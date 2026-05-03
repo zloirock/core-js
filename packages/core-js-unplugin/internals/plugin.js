@@ -95,7 +95,13 @@ export default function createPlugin(options) {
   // Node.js JS is single-threaded; Vite/Rollup contracts serialize transforms per plugin.
   // genuine parallelism (worker_threads, parallel test runs) instantiates separate plugins
   // so each gets its own typeResolvers - no cross-worker mutation race
-  const typeResolvers = createResolveNodeType(nodeType, types);
+  // `currentInjector` is the per-transform injector, set inside the transform fn below;
+  // resolver's `getPolyfillBindingEntry` reads it lazily so the shared typeResolvers can
+  // resolve polyfilled-static aliases without paying a per-transform factory cost
+  let currentInjector = null;
+  const typeResolvers = createResolveNodeType(nodeType, types, {
+    getPolyfillBindingEntry: (scope, name) => currentInjector?.getBindingInfo?.(name)?.entry ?? null,
+  });
 
   // upstream unplugin's framework union drifts - unknown values degrade to generic handling
   // (`isWebpack = false`) instead of hard-crashing every transform
@@ -261,6 +267,11 @@ export default function createPlugin(options) {
       inherit,
       getDebugOutput: () => debugOutput,
     });
+    // expose to typeResolvers' `getPolyfillBindingHint` closure for the duration of this
+    // transform - cleared at end so any out-of-transform invocation can't read a stale
+    // injector. cross-transform AST node identity won't carry through (ASTs differ per
+    // transform), so resolver's WeakMap caches don't observe the swap
+    currentInjector = injector;
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`
