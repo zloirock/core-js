@@ -41,7 +41,13 @@ import createSynthSwapEmitter from './internals/synth-swap-emitter.js';
 export default function plugin(api, options) {
   const { types: t, caller } = api;
 
-  const typeResolvers = createResolveNodeType(node => node?.type, t);
+  // `getPolyfillBindingEntry` reads `injector` lazily (assigned in Program enter, declared
+  // below) - same late-binding closure pattern as `createASTHelpers` / `createBabelAdapter`.
+  // resolves polyfilled-static aliases (`const from = Array.from` after rewrite) so the
+  // call return type propagates to outer member-access narrowing
+  const typeResolvers = createResolveNodeType(node => node?.type, t, {
+    getPolyfillBindingEntry: (scope, name) => injector?.getBindingInfo?.(name)?.entry ?? null,
+  });
   const { resolvePropertyObjectType, resolveNodeType, resolvedType, toHint } = typeResolvers;
 
   const { resolver, createDebugOutput } = createPolyfillResolver(options, {
