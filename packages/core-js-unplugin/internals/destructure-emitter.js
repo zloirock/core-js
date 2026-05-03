@@ -755,10 +755,13 @@ export function createDestructureEmitter({
       ? findSynthSwapReceiver(metaPath.parentPath?.parentPath, objectPattern) : null;
     if (!receiver) {
       // synth-swap bailed (computed-key sibling / non-Identifier shape) - try body-extract
-      // first: insert `const from = _polyfill;` at function body top + remove the prop from
-      // destructure. preserves "polyfill always wins" even at the cost of caller-passed
-      // `{from: customFrom}` being ignored. expr-body arrows skipped (no statement slot)
-      if (!isAssign && tryBodyExtractFromParamDestructurePure(metaPath, propNode, binding, objectPattern)) return;
+      // first: insert `let from = _polyfill;` at function body top + remove the prop from
+      // destructure. preserves "polyfill always wins" even at the cost of caller-
+      // passed `{from: customFrom}` being ignored. covers all four prop-value shapes
+      // (`{x}` / `{x: alias}` / `{x = default}` / `{x: alias = default}`) via
+      // `propBindingIdentifier`'s AssignmentPattern.left peel - matches babel-plugin's
+      // unconditional body-extract dispatch. expr-body arrows skip (no statement slot)
+      if (tryBodyExtractFromParamDestructurePure(metaPath, propNode, binding, objectPattern)) return;
       if (isAssign) transforms.add(value.right.start, value.right.end, binding);
       else transforms.insert(value.end, ` = ${ binding }`);
       return;
