@@ -15,8 +15,11 @@ import { stripQueryHash } from '@core-js/polyfill-provider/helpers/path-normaliz
 // - collapse `//` -> `/` so a doubled slash on one side still matches the other
 // `/@fs` requires trailing `/` OR end-of-input boundary: without it `/@fsfoo/bar.js`
 // would get its leading `/@fs` stripped, producing `foo/bar.js` - theoretical virtual
-// module collision. `/@id/` already has trailing slash literal in the pattern
-const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/|\/@fs(?=\/|$)|\/@id\/)/i;
+// module collision. `/@id/` already has trailing slash literal in the pattern.
+// `file://` accepts optional `localhost` host segment per RFC 3986 - some bundlers /
+// Node URL helpers serialize file URLs as `file://localhost/abs/path` instead of the
+// canonical `file:///abs/path` triple-slash form
+const VITE_SCHEME_PREFIX_RE = /^(?:file:\/\/(?:localhost)?|\/@fs(?=\/|$)|\/@id\/)/i;
 const REPEATED_SLASHES_RE = /\/{2,}/g;
 // only framework SFC markers count as sub-block identifiers. pairing `type=`/`lang=`/`setup`
 // with a framework key (`vue` / `astro` / `svelte`) avoids matching generic `?type=module` or
@@ -45,11 +48,15 @@ function normalizePath(path) {
 // Vite HMR appends `&t=<timestamp>` (or `?t=` if no other query) to invalidate module
 // cache. each HMR re-fire produces a different timestamp, breaking pre->post snapshot
 // lookup for the same logical file. strip the timestamp marker so the key stays stable.
-// trailing `?`/`&` and `?&` collapse keep the resulting key in canonical query shape -
-// `app.vue?t=1` -> `app.vue` (not `app.vue?`); `?t=1&type=script` -> `?type=script`
-const HMR_TIMESTAMP_RE = /[&?]t=\d+/;
+// `g` flag handles legitimate multi-marker shapes (`?t=1&t=2` from re-fire wrapping a
+// previous wrapper). post-strip cleanup keeps the resulting key in canonical query shape:
+// `?t=1&type=script` -> `?type=script`, `?t=1` -> `''`, `?t=1&import` -> `?import`
+const HMR_TIMESTAMP_RE = /[&?]t=\d+/g;
+// when the FIRST `?t=` was stripped a leading `&` may now sit where `?` belonged - swap
+const LEADING_AMP_FIX_RE = /(?<head>^[^?]*)&/;
 const stripHMRTimestamp = id => id
-  .replace(HMR_TIMESTAMP_RE, '')
+  .replaceAll(HMR_TIMESTAMP_RE, '')
+  .replace(LEADING_AMP_FIX_RE, '$<head>?')
   .replace(/\?&/, '?')
   .replace(/[&?]$/, '');
 
