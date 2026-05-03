@@ -1,0 +1,14 @@
+// mixed import region: ESM `import`, ESM `export ... from`, ESM `export *`, and a
+// CJS-style `var X = require(...)` declarator must ALL count as the leading import
+// region for `var _ref;` placement. without re-export accept in the import-region
+// predicate, the scan would bail on the first `export ... from` and `_ref` would land
+// between import and re-export - lint `import/first` would warn. the `getArr()` call
+// forces a `_ref` allocation so the placement is observable in output. distinct methods
+// per polyfill site (`.at(0)` and `.flat()`) so per-line dispatch is visible
+import { foo } from './lib-foo.mjs';
+export { bar } from './lib-bar.mjs';
+export * from './lib-all.mjs';
+var fs = require('fs');
+declare function getArr(): unknown[];
+const a = getArr().at(0);
+const b = getArr().flat();
