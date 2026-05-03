@@ -708,16 +708,18 @@ export function createDestructureEmitter({
       const pure = isViableBranchForKey(branch, key, scope, estreeAdapter, resolvePure);
       if (!pure) continue;
       const binding = injectPureImport(pure.entry, pure.hintName);
-      // skip both the wrapper (ParenthesizedExpression / TS expression) AND the inner
-      // Identifier - otherwise the inner Identifier visitor fires on `Iterator` and emits
-      // a parallel constructor polyfill (`_Iterator`) that conflicts with the synth-swap
-      // emit (`{from: _Iterator$from}`)
+      // skip the wrapper chain (ParenthesizedExpression / TS expression) AND the inner
+      // resolved receiver (Identifier or proxy-global MemberExpression chain) - otherwise
+      // the inner Identifier visitor fires on `Iterator` / `globalThis` and emits a parallel
+      // polyfill that conflicts with the synth-swap emit (`{from: _Iterator$from}`).
+      // wrappers walked inline; MemberExpression hop delegated to `markSynthReceiverSkipped`
+      // so `globalThis.Array` -> skip `globalThis` Identifier too
       let cur = branch;
-      while (cur) {
+      while (cur && (cur.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(cur.type))) {
         skippedNodes.add(cur);
-        if (cur.type === 'ParenthesizedExpression' || TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
-        else break;
+        cur = cur.expression;
       }
+      markSynthReceiverSkipped(cur, skippedNodes);
       let pending = pendingSynthSwaps.get(branch);
       if (!pending) {
         pending = { receiver: branch, objectPattern, polyfills: new Map() };
