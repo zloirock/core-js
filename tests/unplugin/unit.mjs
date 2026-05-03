@@ -105,6 +105,24 @@ const shouldTransformCases = [
   ['/src/App.TSX', true, 'uppercase .TSX'],
   ['/src/App.MJS', true, 'uppercase .MJS'],
   ['/src/types.D.TS', false, 'uppercase .D.TS still excluded'],
+  // Vite SFC sub-block id with multiple non-marker query keys. Vue's SFC compiler
+  // appends `setup=true&t=<timestamp>&v=<hash>` for HMR / setup-block disambiguation;
+  // shouldTransform must still admit such ids when `lang=ts` is present
+  ['/src/App.vue?vue&type=script&setup=true&lang=ts&t=12345', true, 'SFC with HMR timestamp + setup query'],
+  ['/src/App.vue?vue&type=script&lang=tsx&v=abc123', true, 'SFC with version-hash query'],
+  // bare id (no extension) carrying a `lang=` query - virtual modules sometimes use
+  // bare paths; SFC dispatch matches on the query alone, so transform fires
+  ['/virtual:component?lang=ts', true, 'bare virtual id with lang=ts'],
+  // SFC sub-block with `.js` extension on the base path AND `lang=` token: extension
+  // takes precedence (JS_RE matches the post-strip base), still transforms
+  ['/src/foo.js?lang=tsx', true, '.js base with lang= override'],
+  // SFC sub-block + Vite asset query mixing: VITE_ASSET_QUERY_RE wins, the body is
+  // bundler-synthetic output regardless of lang= hint
+  ['/src/App.vue?vue&type=script&lang=ts&inline', false, 'SFC lang=ts trumped by ?inline'],
+  ['/src/App.vue?vue&type=script&lang=ts&worker', false, 'SFC lang=ts trumped by ?worker'],
+  // worker sub-form must match exactly one [-_][a-z]+ segment - a second hyphen breaks
+  // the match (Vite never emits `?worker-foo-bar` so this stays a no-op gate)
+  ['/src/foo.js?worker-module-extra', true, 'worker- with second hyphen escapes asset gate'],
 ];
 
 for (const [id, want, label] of shouldTransformCases) check(`shouldTransform/${ label }`, shouldTransform(id), want);
@@ -876,6 +894,35 @@ function checkContainsRangeOnSplitEntries() {
   check('split sub-range past logical end is not contained', tq.containsRange(5, 11), false);
 }
 checkContainsRangeOnSplitEntries();
+
+// `deoptionalizeNeedle` skips ASCII whitespace between `?.` and the next token via
+// `WS_RE = /\s/`. positive lock: tab / CR / LF are stripped so `obj?.\t(args)` reaches
+// the same shape as `obj(args)` after deopt. note: comments in this slot are NOT skipped
+// today (P19A14-01 documented as latent bug in TASKS.md §9 backlog) - asserting the
+// buggy output here would lock-in the bug; we only assert the well-defined whitespace
+// path so a future fix to widen the skip to comments doesn't break this lock
+function checkDeoptWhitespaceSkip() {
+  check('deopt/tab before call', deoptionalizeNeedle('obj?.\t(args)'), 'obj\t(args)');
+  check('deopt/CR before call', deoptionalizeNeedle('obj?.\r\n(args)'), 'obj\r\n(args)');
+}
+checkDeoptWhitespaceSkip();
+
+// `findOuterGuardRef` tie-break: when two transforms share the SAME guardedRoot AND the
+// SAME range size, the strict-`>` comparator keeps the earliest registered. Production
+// shape is parent-first visit (outer always wider), so ties are rare; the lock catches
+// any accidental shift to LIFO ordering during refactor
+function checkFindOuterGuardRefTieBreak() {
+  const code = '0123456789abcdef';
+  const tq = new TransformQueue(code, new MagicString(code));
+  const root = { id: 'shared-root' };
+  tq.add(0, 10, 'AAA', root, { rootRaw: 'src', guardRef: '_first', deoptPositions: [],
+    objectStart: 0, absorbsRoot: false });
+  tq.add(0, 10, 'BBB', root, { rootRaw: 'src', guardRef: '_second', deoptPositions: [],
+    objectStart: 0, absorbsRoot: false });
+  check('findOuterGuardRef tie-break: earliest wins',
+    tq.findOuterGuardRef(root), '_first');
+}
+checkFindOuterGuardRefTieBreak();
 
 // --- bundler adapter named exports ---
 // supported bundlers per package.json description + exports map: 8 adapters with both
