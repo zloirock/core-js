@@ -472,6 +472,10 @@ function createResolveNodeType(babelNodeType, t) {
     const { quasis, exprs } = parts;
     for (const e of exprs) if (e?.type !== 'TSStringKeyword') return null;
     const head = quasiText(quasis[0]);
+    // no-placeholder template (`as 'fixed'` / `` `fixed` ``) is semantically a literal
+    // string match. without exact equality, `startsWith(head)` would admit any keyValue
+    // with that prefix as a match (`'abc'` vs `'abcdef'`)
+    if (exprs.length === 0) return keyValue === head;
     if (!keyValue.startsWith(head)) return false;
     let pos = head.length;
     // each subsequent quasi must appear (in order) somewhere in the remaining keyValue.
@@ -6195,19 +6199,37 @@ function createResolveNodeType(babelNodeType, t) {
     return resolvePredicateGuard(callee, scope, negated, false, args, varName);
   }
 
+  // detect `?.` anywhere in a call-expression chain.
+  // ESTree wraps any optional segment in `ChainExpression`; babel encodes optionality
+  // via dedicated types (`OptionalCallExpression` / `OptionalMemberExpression`).
+  // run this BEFORE `unwrapRuntimeExpr` strips ChainExpression - that strip would erase
+  // the signal on the ESTree path
+  function hasOptionalChainInCall(rawExpr) {
+    let cur = rawExpr;
+    while (cur) {
+      if (cur.type === 'ChainExpression'
+        || cur.type === 'OptionalCallExpression'
+        || cur.type === 'OptionalMemberExpression') return true;
+      if (cur.type === 'CallExpression') cur = cur.callee;
+      else if (cur.type === 'MemberExpression') cur = cur.object;
+      else return false;
+    }
+    return false;
+  }
+
   // `assertArray(x)` as a statement - `asserts x is T` narrows x from that point forward.
   // any-arg-position via predicate.parameterName matching, so `obj.assertStr(opts, input)`
   // with `(opts, x): asserts x is T` narrows `input` (not the first arg). peel callee
-  // wrappers (`(0, isStr)`, `((isStr))`, `isStr as any`, `isStr!`, `isStr?.()`) so non-
-  // Identifier shapes still hit the binding-name check inside resolvePredicateGuard.
-  // accept optional-call forms: babel emits `OptionalCallExpression` directly; oxc/TS-ESTree
-  // wraps the call in `ChainExpression` - peel the wrapper so `obj.assertStr?.(input)` reaches
-  // the same code path as `obj.assertStr(input)`
+  // wrappers (`(0, isStr)`, `((isStr))`, `isStr as any`, `isStr!`) so non-Identifier shapes
+  // still hit the binding-name check inside resolvePredicateGuard.
+  // optional-chain forms (`obj?.assertStr(x)`, `obj.assertStr?.(x)`, `(asrt as any)?.(x)`)
+  // do NOT narrow in TS - the assertion may be skipped at runtime when the receiver is
+  // null/undefined, so post-statement code can't trust the assertion's signature
   function parseAssertionStatementGuard(sibling, varName) {
     if (sibling.node?.type !== 'ExpressionStatement') return null;
+    if (hasOptionalChainInCall(sibling.node.expression)) return null;
     const call = unwrapRuntimeExpr(sibling.node.expression);
-    if ((call?.type !== 'CallExpression' && call?.type !== 'OptionalCallExpression')
-      || !call.arguments?.length) return null;
+    if (call?.type !== 'CallExpression' || !call.arguments?.length) return null;
     const guard = resolvePredicateGuard(
       unwrapExpressionChain(call.callee), sibling.scope, false, true, call.arguments, varName,
     );

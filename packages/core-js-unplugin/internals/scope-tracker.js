@@ -31,11 +31,14 @@ export default class ScopeTracker {
 
   // advance past `{` and any directive prologue (`"use strict"`, etc.) so that
   // inserted `var _ref;` does not split the directive off from being first in body
-  // and silently flip the function to sloppy mode
+  // and silently flip the function to sloppy mode. empty-string `""` directive is
+  // parser-emitable but not a valid prologue - reject for symmetry with the
+  // `directivePrologueEnd` Program-level helper (plugin-helpers.js)
   static skipDirectives(statements, startPos) {
     let end = startPos;
     for (const stmt of statements ?? []) {
-      if (stmt.type !== 'ExpressionStatement' || typeof stmt.directive !== 'string') break;
+      if (stmt.type !== 'ExpressionStatement' || typeof stmt.directive !== 'string'
+        || stmt.directive.length === 0) break;
       end = stmt.end;
     }
     return end;
