@@ -277,6 +277,10 @@ export default class ImportInjector extends ImportInjectorState {
     // import-region members - the reorder loop accumulates `importEnd` over them and bails
     // on the first non-member. coverage:
     //   - `import ... from 'm'`
+    //   - `export { x } from 'm'` / `export * from 'm'` / `export * as ns from 'm'` re-exports;
+    //     TC39 module records fetch the re-exported module before evaluating user body so the
+    //     re-export belongs in the import header. `ExportNamedDeclaration` without `.source`
+    //     is a local re-export of an already-bound id - excluded via the `.source` check
     //   - `require('m')` ExpressionStatement (CJS bare require)
     //   - mixed-declarator `var fs = require('fs'), x = 1` - any declarator with `require(...)`
     //     counts the row in (`some` not `every`); otherwise such rows would push `var _ref;`
@@ -284,6 +288,8 @@ export default class ImportInjector extends ImportInjectorState {
     //   - leading `'use strict'` synthesized as ExpressionStatement(StringLiteral) by sibling
     //     plugins (instead of `program.directives`); `Literal` covers the ESTree shape
     const isImportRegion = stmt => stmt.type === 'ImportDeclaration'
+      || (stmt.type === 'ExportNamedDeclaration' && stmt.source)
+      || stmt.type === 'ExportAllDeclaration'
       || (stmt.type === 'ExpressionStatement' && (
         (stmt.expression?.type === 'CallExpression' && stmt.expression.callee?.name === 'require')
         || stmt.expression?.type === 'StringLiteral'

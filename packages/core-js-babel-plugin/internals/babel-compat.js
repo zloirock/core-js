@@ -79,13 +79,18 @@ export default function (t, { getInjector, typeResolvers } = {}) {
   // stripFirstOptional: also deoptionalize the first user-written ?. in the chain
   // (used when the replacement is always defined, e.g., polyfill imports)
   // is `child` the operand slot (object/callee) of an optional expression,
-  // possibly through TS wrappers?
+  // possibly through TS wrappers OR explicit ParenthesizedExpression?
+  // default babel parser strips parens (records via `extra.parenthesized`); under
+  // `parserOpts.createParenthesizedExpressions: true` parens become real AST nodes
+  // and would block the match without an explicit peel
   function isOptionalOperand(child, parent) {
     const slot = parent.isOptionalMemberExpression() ? 'object'
       : parent.isOptionalCallExpression() ? 'callee' : null;
     if (!slot) return false;
     let cur = parent.node[slot];
-    while (cur && TS_EXPR_WRAPPERS.has(cur.type)) cur = cur.expression;
+    while (cur && (TS_EXPR_WRAPPERS.has(cur.type) || cur.type === 'ParenthesizedExpression')) {
+      cur = cur.expression;
+    }
     return cur === child.node;
   }
 
