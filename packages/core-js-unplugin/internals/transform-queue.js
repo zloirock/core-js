@@ -63,27 +63,51 @@ function replaceNthOccurrence(str, needle, replacement, n) {
   return str.slice(0, idx) + replacement + str.slice(idx + needle.length);
 }
 
+// fast single-char whitespace test - covers space, tab, CR, LF; no need for the full
+// `\s` lexicon (vertical tabs, exotic Unicode whitespace) because parsers normalize
+// optional-chain tokens through standard ECMAScript whitespace
+const WS_RE = /\s/;
+
+// scan past whitespace + line/block comments starting at `from`. returns first index of a
+// non-gap char or `src.length` for unterminated trailing run. parser-tolerant boundary -
+// source can hold `obj ?. (args)`, `obj?./*c*/(args)`, `obj?.// hint\n(args)` between
+// `?.` and the token, and a single-char lookahead would misclassify all three
+function skipWhitespaceAndComments(src, from) {
+  let i = from;
+  while (i < src.length) {
+    if (WS_RE.test(src[i])) {
+      i++;
+      continue;
+    }
+    if (src[i] === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      if (end === -1) return src.length;
+      i = end + 2;
+      continue;
+    }
+    if (src[i] === '/' && src[i + 1] === '/') {
+      const nl = src.indexOf('\n', i + 2);
+      if (nl === -1) return src.length;
+      i = nl + 1;
+      continue;
+    }
+    return i;
+  }
+  return i;
+}
+
 // `?.(` / `?.[` drop BOTH chars, `?.prop` keeps `.` - naive `replaceAll('?.', '.')`
 // produces `.(` that never matches the `(` emitted by the inner transform.
 // raw text transform - not AST-aware. `?.` inside a template literal (`` `a?.b` ``) or a
 // regular string would also be rewritten. in practice the needle is always a slice of an
 // AST MemberExpression / CallExpression range where strings can't appear in the optional
-// position - the malformed-needle risk is bounded by the caller supplying correct ranges.
-// scan past whitespace before classifying: source can hold `obj ?. (args)` or `obj?.\n[i]`
-// (parsers tolerate whitespace between `?.` and the token); single-char lookahead would
-// miss those and emit `obj. (args)` instead of `obj (args)`
+// position - the malformed-needle risk is bounded by the caller supplying correct ranges
 export function deoptionalizeNeedle(needle) {
   return needle.replaceAll('?.', (_, offset) => {
-    let i = offset + 2;
-    while (i < needle.length && WS_RE.test(needle[i])) i++;
-    const next = needle[i];
+    const next = needle[skipWhitespaceAndComments(needle, offset + 2)];
     return next === '(' || next === '[' ? '' : '.';
   });
 }
-// fast single-char whitespace test - covers space, tab, CR, LF; no need for the full
-// `\s` lexicon (vertical tabs, exotic Unicode whitespace) because parsers normalize
-// optional-chain tokens through standard ECMAScript whitespace
-const WS_RE = /\s/;
 
 // try needle shapes: raw slice -> deoptionalized -> guardRef-rewritten
 // (`rootRaw -> guardRef + deopt`) for nested polyfills sharing a chain root

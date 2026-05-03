@@ -7,6 +7,7 @@ import { patternToRegExp } from '../../packages/core-js-polyfill-provider/helper
 import TransformQueue, { deoptionalizeNeedle } from '../../packages/core-js-unplugin/internals/transform-queue.js';
 import ImportInjector from '../../packages/core-js-unplugin/internals/import-injector.js';
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
+import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
 import { collectAllBindingNames, directivePrologueEnd, liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
@@ -679,27 +680,31 @@ function checkPartialOverlapDiagnostic() {
 }
 checkPartialOverlapDiagnostic();
 
+// --- SnapshotCache shared probe ---
+// per-test fresh cache: store under one id, query by another, report hit/miss. shared
+// helper across HMR / UNC / multi-timestamp / file-localhost suites so the normalization
+// pipeline is exercised through one consistent lookup pattern
+const sentinelEntry = { code: 'foo', map: null, ast: null, source: 'foo' };
+function probeSnapshotHit(storeId, takeId) {
+  const cache = new SnapshotCache();
+  cache.store(storeId, sentinelEntry);
+  return cache.take(takeId) !== null;
+}
+
 // --- SnapshotCache: Vite HMR `&t=<timestamp>` stripping ---
 // Vite HMR re-fires modules with `?t=<ms>` cache-buster. each fire generates a different
 // timestamp, but the logical module is the same. snapshot lookup keyed by normalized id
 // (timestamp stripped) so pre→post lookup survives HMR. without the strip, post-pass
 // missed pre's snapshot and emitted duplicate `var _ref;` / re-allocated UIDs
 function checkSnapshotHMRTimestampStrip() {
-  const entry = { code: 'foo', map: null, ast: null, source: 'foo' };
-  // helper: store under one id, query by another, report whether the lookup hit
-  const probeHit = (storeId, takeId) => {
-    const cache = new SnapshotCache();
-    cache.store(storeId, entry);
-    return cache.take(takeId) !== null;
-  };
   check('snapshot/HMR &t= different timestamp finds same entry',
-    probeHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=script&t=9999'), true);
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=script&t=9999'), true);
   check('snapshot/SFC sub-block query distinguishes',
-    probeHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=template'), false);
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=1733', '/src/App.vue?vue&type=template'), false);
   check('snapshot/non-SFC ?t= strip',
-    probeHit('/src/util.js?t=100', '/src/util.js?t=200'), true);
+    probeSnapshotHit('/src/util.js?t=100', '/src/util.js?t=200'), true);
   check('snapshot/bare ?t=N strips clean',
-    probeHit('/src/x.js?t=1', '/src/x.js'), true);
+    probeSnapshotHit('/src/x.js?t=1', '/src/x.js'), true);
 }
 checkSnapshotHMRTimestampStrip();
 
@@ -708,19 +713,12 @@ checkSnapshotHMRTimestampStrip();
 // `C:/src/App.vue` after path-mangling stages. without UNC strip, snapshot lookups
 // across pre→post (where mid-pipeline normalization may have run) miss
 function checkSnapshotWindowsUNC() {
-  const entry = { code: 'foo', map: null, ast: null, source: 'foo' };
-  // helper: store under one id, query by another
-  const probeHit = (storeId, takeId) => {
-    const cache = new SnapshotCache();
-    cache.store(storeId, entry);
-    return cache.take(takeId) !== null;
-  };
   // backslash UNC paired with forward-slash POSIX path (after normalize stage)
   check('snapshot/UNC backslash matches forward-slash same path',
-    probeHit('\\\\?\\C:\\src\\App.vue', 'C:/src/App.vue'), true);
+    probeSnapshotHit('\\\\?\\C:\\src\\App.vue', 'C:/src/App.vue'), true);
   // forward-slash UNC (Vite-normalized form) matches POSIX
   check('snapshot/UNC forward-slash matches POSIX',
-    probeHit('//?/C:/src/App.vue', 'C:/src/App.vue'), true);
+    probeSnapshotHit('//?/C:/src/App.vue', 'C:/src/App.vue'), true);
 }
 checkSnapshotWindowsUNC();
 
@@ -729,19 +727,79 @@ checkSnapshotWindowsUNC();
 // that file's entry (not the whole cache) so unrelated files keep their pre-snapshot state
 function checkSnapshotInvalidate() {
   const cache = new SnapshotCache();
-  const entry = { code: 'foo', map: null, ast: null, source: 'foo' };
-  cache.store('/src/a.js', entry);
-  cache.store('/src/b.js', entry);
+  cache.store('/src/a.js', sentinelEntry);
+  cache.store('/src/b.js', sentinelEntry);
   check('snapshot/invalidate returns true for existing entry', cache.invalidate('/src/a.js'), true);
   check('snapshot/invalidate returns false for missing entry', cache.invalidate('/src/missing.js'), false);
   check('snapshot/invalidate preserves siblings', cache.take('/src/b.js') !== null, true);
   // path normalization carries through invalidate
-  cache.store('/src/c.js?vue&type=script&t=100', entry);
+  cache.store('/src/c.js?vue&type=script&t=100', sentinelEntry);
   cache.invalidate('/src/c.js?vue&type=script&t=999');
   check('snapshot/invalidate normalizes HMR timestamp',
     cache.take('/src/c.js?vue&type=script&t=1') !== null, false);
 }
 checkSnapshotInvalidate();
+
+// --- SnapshotCache: HMR multi-`?t=` re-fire chain ---
+// Vite HMR appending `?t=N` more than once (re-fire wrapping a previous wrapper) used to
+// leave a leftover `&t=N` in the key because the strip regex was non-global. with the
+// global flag plus post-strip cleanup the doubled marker collapses to a stable key
+function checkSnapshotHMRMultiTimestamp() {
+  check('snapshot/HMR ?t=1&t=2 multi-marker collapses',
+    probeSnapshotHit('/src/x.js?t=1&t=2', '/src/x.js'), true);
+  check('snapshot/HMR ?t=1&type=script preserves type',
+    probeSnapshotHit('/src/x.js?t=1&type=script', '/src/x.js?type=script'), true);
+  check('snapshot/HMR ?t=1&import preserves marker',
+    probeSnapshotHit('/src/x.js?t=1&import', '/src/x.js?import'), true);
+  check('snapshot/HMR ?type=script&t=1 strips trailing &t=',
+    probeSnapshotHit('/src/x.js?type=script&t=1', '/src/x.js?type=script'), true);
+}
+checkSnapshotHMRMultiTimestamp();
+
+// --- SnapshotCache: file://localhost authority ---
+// some bundlers / Node URL helpers serialize file URLs with an explicit `localhost` host
+// per RFC 3986 instead of the canonical triple-slash form. without the optional host
+// segment in VITE_SCHEME_PREFIX_RE the prefix wouldn't strip and `file://localhost/...`
+// stayed distinct from `/...` -> snapshot lookup miss across pre+post pipelines that
+// normalize file URLs differently
+function checkSnapshotFileLocalhost() {
+  check('snapshot/file://localhost matches triple-slash form',
+    probeSnapshotHit('file://localhost/abs/foo.js', 'file:///abs/foo.js'), true);
+  check('snapshot/file://localhost matches bare path',
+    probeSnapshotHit('file://localhost/abs/foo.js', '/abs/foo.js'), true);
+  check('snapshot/FILE://LOCALHOST case-insensitive scheme',
+    probeSnapshotHit('FILE://LOCALHOST/abs/foo.js', '/abs/foo.js'), true);
+}
+checkSnapshotFileLocalhost();
+
+// --- ScopeTracker.skipDirectives: empty-string directive rejected ---
+// parser-emitable but not a valid prologue: `""` directive should NOT count as the end of
+// the directive prologue. otherwise the `var _ref;` insertion point would skip past the
+// empty statement that the parser produced from `"";` and split it from any real prologue
+// preceding it. shares the same length-0 guard with `directivePrologueEnd` (Program-level)
+function checkSkipDirectivesEmpty() {
+  const empty = { type: 'ExpressionStatement', directive: '', end: 5 };
+  const real = { type: 'ExpressionStatement', directive: 'use strict', end: 16 };
+  const expr = { type: 'ExpressionStatement', expression: { type: 'Identifier' }, end: 20 };
+  // empty `""` doesn't advance past startPos; real prologue advances to its end; non-directive
+  // breaks the scan and returns the last advanced end (or startPos if none seen yet)
+  check('skipDirectives/empty directive does not advance startPos',
+    ScopeTracker.skipDirectives([empty], 0), 0);
+  check('skipDirectives/use strict advances to its end',
+    ScopeTracker.skipDirectives([real], 0), 16);
+  check('skipDirectives/non-directive breaks scan',
+    ScopeTracker.skipDirectives([expr], 0), 0);
+  // mixed: real prologue first, then empty `""` should NOT keep advancing
+  check('skipDirectives/real then empty stops at real',
+    ScopeTracker.skipDirectives([real, empty], 0), 16);
+  // mixed: real prologue first, then non-directive expression
+  check('skipDirectives/real then expression stops at real',
+    ScopeTracker.skipDirectives([real, expr], 0), 16);
+  // null/undefined statements list (defensive guard via `?? []`)
+  check('skipDirectives/missing statements list returns startPos',
+    ScopeTracker.skipDirectives(null, 7), 7);
+}
+checkSkipDirectivesEmpty();
 
 // --- phase: pre+post pipeline pass-through ---
 // for `pass: 'pre'` the plugin processes and stores snapshot for the next pass. for
