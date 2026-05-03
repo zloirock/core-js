@@ -1,4 +1,5 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
+import { entryToGlobalHint } from './index.js';
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from './helpers/class-walk.js';
 import {
   getSuperTypeArgs,
@@ -63,7 +64,7 @@ function cycleFlipDetector(visited) {
 }
 
 // eslint-disable-next-line max-statements -- factory of type inference engine
-function createResolveNodeType(babelNodeType, t) {
+function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () => null } = {}) {
   // --- AST walkers & predicates ---
   // get the primitive type name, unboxing wrapper objects: $Object('String') -> 'string', $Primitive('number') -> 'number'
   function primitiveTypeOf(type) {
@@ -5150,6 +5151,20 @@ function createResolveNodeType(babelNodeType, t) {
     if (isFunctionLike(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
     // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
+    // alias to a known static method through either shape:
+    //   - direct: `const from = Array.from; from(x)`. babel mutates the AST to
+    //     `const from = _Array$from`, so the binding init is the polyfill UID; injector
+    //     publishes the canonical entry path (`array/from`) for that name
+    //   - destructure: `const { from } = Array; from(x)`. unplugin keeps the AST shape -
+    //     the binding's declarator carries `id: ObjectPattern, init: Identifier(Array)`,
+    //     decomposable to (Array, from) via structural walk
+    // both shapes yield a `(constructor, method)` pair that feeds the same lookup; without
+    // this the receiver of `(from(x)).method` falls to generic dispatch instead of
+    // narrowing through to the constructor's prototype
+    if (resolved.node?.type === 'Identifier') {
+      const aliased = resolveAliasedStaticReturn(resolved);
+      if (aliased) return aliased;
+    }
     // identifier callees that didn't resolve to a function-like via the binding chain may still
     // be reachable through an ambient `declare function` not registered in scope.bindings,
     // or a binding whose annotation is a function-type (`declare const f: () => T`)
@@ -5157,6 +5172,60 @@ function createResolveNodeType(babelNodeType, t) {
     const ambient = findAmbientFunctionPath(callee.node.name, callee.scope);
     if (ambient) return resolveReturnType(ambient, callee.parentPath);
     return resolveCallReturnTypeFromAnnotation(callee);
+  }
+
+  // resolve a polyfilled static-method binding's return type. caller supplies the canonical
+  // entry path (`array/from`, `iterator/from`, `symbol/iterator`) - the leading segment
+  // identifies the constructor namespace (`array` -> `Array` via `entryToGlobalHint`'s
+  // index + kebab-Pascal fallback), and the trailing segment is the method name. returns
+  // null on decomposition failure or when the (constructor, method) pair isn't in the
+  // return-type registry (instance entries like `array/instance/at` correctly fall through
+  // since `KNOWN_STATIC_METHOD_RETURN_TYPES.Array.at` doesn't exist for the instance form).
+  // entry path is the canonical form the registry already keys on - no UID-shape coupling
+  // resolve aliased static-method call return type. tries each alias shape's extractor
+  // until one yields a (constructor, method) pair, then runs the shared registry lookup.
+  // both extractors return null for non-matching shapes so the caller order doesn't
+  // matter for correctness - polyfilled-entry first only because it's the cheaper probe
+  function resolveAliasedStaticReturn(callee) {
+    const pair = staticPairFromPolyfillEntry(callee.scope, callee.node.name)
+      ?? staticPairFromDestructure(callee.scope, callee.node.name);
+    if (!pair) return null;
+    const retHint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, pair.constructor, pair.method);
+    return retHint ? typeFromHint(retHint) : null;
+  }
+
+  // post-rewrite alias `const from = _Array$from`: injector exposes the canonical entry
+  // path (`array/from`) - leading segment maps to the constructor name via the same
+  // resolver injector itself uses (`entryToGlobalHint`), trailing segment is the method
+  function staticPairFromPolyfillEntry(scope, name) {
+    const entry = getPolyfillBindingEntry(scope, name);
+    if (!entry) return null;
+    const segments = entry.split('/');
+    if (segments.length < 2) return null;
+    const constructor = entryToGlobalHint(segments[0]);
+    return constructor ? { constructor, method: segments.at(-1) } : null;
+  }
+
+  // unrewriten destructure alias `const { from } = Array`: walks binding ->
+  // VariableDeclarator, confirms `id: ObjectPattern, init: Identifier(<Constructor>)`,
+  // and locates the property whose VALUE identifier matches the binding name. covers
+  // shorthand (`{ from }`) and renamed (`{ from: f }`); computed / nested patterns and
+  // non-Identifier init bail to null
+  function staticPairFromDestructure(scope, name) {
+    const binding = scope?.getBinding(name);
+    if (!binding?.path) return null;
+    let declarator = binding.path;
+    while (declarator && !t.isVariableDeclarator(declarator.node)) declarator = declarator.parentPath;
+    if (!declarator) return null;
+    const { id, init } = declarator.node;
+    if (id?.type !== 'ObjectPattern' || init?.type !== 'Identifier') return null;
+    if (!hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, init.name)) return null;
+    for (const prop of id.properties) {
+      if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+      if (prop.computed || prop.value?.type !== 'Identifier' || prop.value.name !== name) continue;
+      return prop.key?.type === 'Identifier' ? { constructor: init.name, method: prop.key.name } : null;
+    }
+    return null;
   }
 
   // Babel TSFunctionType: `typeAnnotation` (TSTypeAnnotation wrapper)
