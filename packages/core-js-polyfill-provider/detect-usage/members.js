@@ -6,6 +6,7 @@ import {
   asSymbolRef,
   bindingSymbolKey,
   findProxyGlobal,
+  inlineCallHasObservableEffects,
   isStaticPlacement,
   isTransparentWrapper,
   MAX_KEY_DEPTH,
@@ -57,6 +58,15 @@ function buildMemberMeta(node, scope, adapter, path) {
     }
     const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
     meta = { kind: 'property', object: objectName, key, placement };
+    // inline-resolved receiver call (`(() => Promise)()`, `f()` where `const f = () => Promise`)
+    // carries through to the polyfill emit if the body block has a prefix expression statement
+    // (`() => { calls++; return Promise; }`). without preserving the original call here, emit
+    // would replace `k().resolve(3)` with `_Promise$resolve(3)` and silently drop `calls++`.
+    // the original call node is pushed to sideEffects so the SequenceExpression wrap re-emits
+    // it: `(k(), _Promise$resolve(3))`. only fires when objectName resolved (i.e. the receiver
+    // really is a recognised constructor); unresolved calls fall through unchanged
+    if (objectName && (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression')
+      && inlineCallHasObservableEffects(obj, scope, adapter, path)) sideEffects.push(obj);
   }
   if (sideEffects.length) meta.sideEffects = sideEffects;
   return meta;
