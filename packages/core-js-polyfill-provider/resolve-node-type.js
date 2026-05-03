@@ -463,14 +463,30 @@ function createResolveNodeType(babelNodeType, t) {
     return null;
   }
 
+  // per-placeholder segment validators. table is the single source of truth for which
+  // `${T}` placeholder types are statically decidable. extending support to `${bigint}` /
+  // `${boolean}` is one entry each. unsupported types (booleans, type references, etc.)
+  // are absent from the table - caller bails on lookup miss to keep rename undecidable.
+  // `${number}`: regex enforces TS number-literal syntax, `Number.isFinite` guards Infinity
+  // / NaN edge cases the regex alone would mis-classify
+  const NUMBER_LITERAL_RE = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+  const PLACEHOLDER_VALIDATORS = {
+    TSStringKeyword: () => true,
+    TSNumberKeyword: segment => NUMBER_LITERAL_RE.test(segment) && Number.isFinite(Number(segment)),
+  };
+
   // template-literal pattern match: `\`prefix\${string}suffix\`` admits any key with that
-  // prefix/suffix. only handles `${string}` placeholders (the common case). bails on
-  // type-level expressions like `${number}` or referenced types - those need full assignability
+  // prefix/suffix; `${number}` accepts only number-literal-shaped segments. multi-placeholder
+  // matches use lazy left-to-right segmentation (each non-last quasi captures up to its
+  // first occurrence after the previous quasi) - precision-limited but safe miss when
+  // alternative segmentations would also match
   function matchTemplatePattern(template, keyValue) {
     const parts = templateLiteralTypeParts(template);
     if (!parts) return null;
     const { quasis, exprs } = parts;
-    for (const e of exprs) if (e?.type !== 'TSStringKeyword') return null;
+    // resolve validators upfront: any unrecognised placeholder type bails the whole match
+    const validators = exprs.map(e => PLACEHOLDER_VALIDATORS[e?.type]);
+    if (validators.some(v => !v)) return null;
     const head = quasiText(quasis[0]);
     // no-placeholder template (`as 'fixed'` / `` `fixed` ``) is semantically a literal
     // string match. without exact equality, `startsWith(head)` would admit any keyValue
@@ -478,8 +494,9 @@ function createResolveNodeType(babelNodeType, t) {
     if (exprs.length === 0) return keyValue === head;
     if (!keyValue.startsWith(head)) return false;
     let pos = head.length;
-    // each subsequent quasi must appear (in order) somewhere in the remaining keyValue.
-    // last quasi must terminate the value (no trailing chars after the final fixed text)
+    // each subsequent quasi must appear (in order) somewhere in the remaining keyValue;
+    // the segment between previous quasi-end and current quasi-start must satisfy the
+    // corresponding placeholder validator. last quasi must terminate the value (no trail)
     for (let i = 1; i < quasis.length; i++) {
       const q = quasiText(quasis[i]);
       const isLast = i === quasis.length - 1;
@@ -487,19 +504,23 @@ function createResolveNodeType(babelNodeType, t) {
         ? (keyValue.endsWith(q) ? keyValue.length - q.length : -1)
         : keyValue.indexOf(q, pos);
       if (idx < 0 || idx < pos) return false;
+      if (!validators[i - 1](keyValue.slice(pos, idx))) return false;
       pos = idx + q.length;
     }
     return true;
   }
 
-  // expand a mapped type with `as` rename clause to a flat member list:
-  //   `{ [K in keyof T as RENAME(K)]: BODY }` -> for each literal key k of T,
-  //     synthesize `{ key: RENAME(k), typeAnnotation: BODY[K -> k] }`
+  // expand a mapped type to a flat member list. two shapes:
+  //   `{ [K in keyof T as RENAME(K)]: BODY }` - rename clause renames each source key
+  //   `{ [K in keyof T]: BODY }`              - no rename, source key passes through;
+  //     covers non-passthrough bodies (`number[]`, `T[K][]`, `Promise<T[K]>`) that
+  //     `unwrapMappedTypePassthrough` rejects (it requires body === `T[K]` exactly)
+  // for each literal key k of T, synthesize `{ key: renamed(k), typeAnnotation: BODY[K -> k] }`.
   // bails (returns null) for any non-statically-evaluable shape so the caller falls back
   // to the previous behaviour (no narrow). callers must apply outer T-subst BEFORE invoking
   // (the substituted source type's keys must be statically enumerable)
   function expandMappedTypeMembers(node, scope, depth, visited) {
-    if (!node.nameType || !node.typeAnnotation) return null;
+    if (!node.typeAnnotation) return null;
     const shape = parseMappedTypeShape(node);
     if (!shape) return null;
     const sourceType = unwrapTypeAnnotation(shape.source);
@@ -513,9 +534,19 @@ function createResolveNodeType(babelNodeType, t) {
       if (m.computed) return null;
       const keyName = getKeyName(m.key);
       if (keyName === null || keyName.startsWith('#')) return null;
-      const renamed = evalRenameTemplate(node.nameType, shape.paramName, keyName);
+      // no `as` clause = identity rename (keyName passes through). nameType present but
+      // unevaluable splits into two outcomes:
+      //   RENAME_SKIP        - explicit `as never` branch / mismatched conditional, drop key
+      //   non-string (null)  - rename undecidable for THIS key (e.g. union with a partially-
+      //                        unresolvable TypeReference branch). drop the key from the
+      //                        partial expansion: decidable keys still narrow, undecidable
+      //                        keys fall through to generic dispatch downstream. safe upper
+      //                        bound - we never include a key that user-rename would exclude
+      const renamed = node.nameType
+        ? evalRenameTemplate(node.nameType, shape.paramName, keyName)
+        : keyName;
       if (renamed === RENAME_SKIP) continue;
-      if (typeof renamed !== 'string') return null;
+      if (typeof renamed !== 'string') continue;
       const subst = new Map([[shape.paramName, {
         type: 'TSLiteralType',
         literal: { type: 'StringLiteral', value: keyName },
