@@ -953,8 +953,9 @@ const LOCAL_BINDING_DECL_TYPES = new Set([
 
 // extract the single return expression of a function-like body. arrow expression-body
 // returns directly; block bodies must contain exactly one ReturnStatement at top level
-// and no local bindings (which would shadow free identifiers in the return value at
-// body scope - inlining the bare return at the caller's scope would mis-resolve)
+// and no local bindings. prefix ExpressionStatements (e.g. `calls++; return X;`) are
+// allowed - the inlined replacement preserves them as side effects via the caller's
+// `meta.sideEffects` channel (see `inlineCallHasObservableEffects` in detect-usage)
 export function singleReturnBodyExpression(body) {
   if (!body) return null;
   if (body.type !== 'BlockStatement') return body;
