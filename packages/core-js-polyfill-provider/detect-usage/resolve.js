@@ -230,36 +230,55 @@ export function resolveObjectName(objectNode, scope, adapter, seen, path) {
   return resolveProxyGlobalRoot(objectNode.object, scope, adapter, seen, path) ? propertyName : null;
 }
 
-// resolve a call-expression callee to its function-like body, then extract the body's single
-// return expression. handles direct IIFE (callee = arrow/fn-expr) AND identifier-bound
-// callees (`const f = () => X; f()` walks through the binding's init to the same inline form).
-// `seen` (always non-null per resolveObjectName's entry init) carries names of bindings already
-// in the resolution chain - cyclic `const f = () => g(); const g = () => f();` bails on the
-// second visit
-function inlineCallReturnExpression(callNode, scope, adapter, seen, path) {
+// resolve a call-expression callee to a function-like node (arrow / fn-expr) suitable
+// for inlining. handles direct IIFE (callee = arrow/fn-expr) AND identifier-bound callees
+// (`const f = () => X; f()` walks through the binding's init to the same form).
+// rejects shapes where inlining would change semantics: non-VariableDeclarator bindings,
+// reassigned bindings (constantViolations), parameter-bearing fn (would shadow free
+// identifiers), async / generator fn (wrapped return value misrepresents the result type
+// for downstream `resolveObjectName` consumers - `(async()=>Map)().has(1)` tags the
+// receiver as Map and emits es.map.* polyfills for a Promise call site).
+// `seen` (caller-owned Set) tracks binding names already in the resolution chain for
+// cycle protection (`const f = () => g(); const g = () => f();`); pass an empty Set when
+// recursion isn't possible at the call site
+function resolveInlineCalleeFunction(callNode, scope, adapter, path, seen) {
   let callee = unwrapParens(callNode.callee);
   if (callee.type === 'Identifier') {
-    const calleeName = callee.name;
-    if (!adapter.hasBinding(scope, calleeName, path) || seen.has(calleeName)) return null;
-    const binding = adapter.getBinding(scope, calleeName);
-    // const-only: any reassignment makes the inline result indeterminate at the call site
+    const { name } = callee;
+    if (!adapter.hasBinding(scope, name, path) || seen.has(name)) return null;
+    const binding = adapter.getBinding(scope, name);
     if (!binding || binding.constantViolations?.length) return null;
-    if (adapter.getBindingNodeType(scope, calleeName) !== 'VariableDeclarator') return null;
+    if (adapter.getBindingNodeType(scope, name) !== 'VariableDeclarator') return null;
     const initNode = binding.node?.init;
     if (!initNode) return null;
     callee = unwrapParens(initNode);
-    seen.add(calleeName);
+    seen.add(name);
   }
-  // params would shadow free identifiers in the body; bail to keep the body's free-identifier
-  // resolution faithful to the call site. block bodies must contain exactly one return at top
-  // level (no early-exit branches, no try/catch / loops) so the return value is unambiguous.
-  // async/generator wrap the return value (Promise / Generator) - inlining the bare return
-  // misrepresents the call result type. `resolveObjectName` consumers downstream don't model
-  // wrapper types, so they would mis-dispatch (`(async()=>Map)().has(1)` would tag receiver
-  // as Map, emitting es.map.* polyfills for a Promise call site)
   if ((callee.type !== 'ArrowFunctionExpression' && callee.type !== 'FunctionExpression')
     || callee.params?.length || callee.async || callee.generator) return null;
-  return singleReturnBodyExpression(callee.body);
+  return callee;
+}
+
+// resolve an inline-eligible call to its single-return expression. `null` if the callee
+// isn't inlineable or the body has multiple returns / local bindings (see
+// `singleReturnBodyExpression`). prefix ExpressionStatements ARE allowed - their effects
+// are preserved at the call site via `inlineCallHasObservableEffects` + `meta.sideEffects`
+function inlineCallReturnExpression(callNode, scope, adapter, seen, path) {
+  const callee = resolveInlineCalleeFunction(callNode, scope, adapter, path, seen);
+  return callee ? singleReturnBodyExpression(callee.body) : null;
+}
+
+// does the inline-resolved call carry prefix statements that would be lost if the site is
+// replaced by the polyfill? expression-body (`() => X`) and direct-return block-body
+// (`() => { return X; }`) - false. block bodies with any non-return statement - true;
+// the caller pushes the original call into `meta.sideEffects` so emit re-emits it via
+// SequenceExpression wrap, preserving `calls++; return Promise;` execution alongside
+// the polyfilled static dispatch
+export function inlineCallHasObservableEffects(callNode, scope, adapter, path) {
+  const callee = resolveInlineCalleeFunction(callNode, scope, adapter, path, new Set());
+  const body = callee?.body;
+  if (!body || body.type !== 'BlockStatement') return false;
+  return body.body.length !== 1 || body.body[0].type !== 'ReturnStatement';
 }
 
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
