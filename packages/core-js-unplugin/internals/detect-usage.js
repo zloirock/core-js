@@ -15,6 +15,7 @@ import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-pr
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
 import {
   TS_EXPR_WRAPPERS,
+  findFunctionScopeVarInPath,
   findIifeArgForParam,
   findTSRuntimeBindingInPath,
   flattenableHostSlot,
@@ -122,7 +123,15 @@ function isAmbientBinding(binding) {
 
 function hasRuntimeBinding(scope, name, path = null) {
   if (!(scope?.hasBinding?.(name) ?? false)) {
-    return hasTSRuntimeBinding(scope, name, path);
+    if (hasTSRuntimeBinding(scope, name, path)) return true;
+    // estree-toolkit doesn't hoist `var` declarations from nested non-function blocks to
+    // the enclosing function scope (babel's tracker does). without this fallback,
+    // `function () { if (cond) { var globalThis = ...; } return globalThis; }` reports
+    // no binding at the inner reference, the Identifier visitor queues
+    // `globalThis -> _globalThis`, and `polyfillSiblingReceiverRefs`'s OWN var-walker
+    // disagrees - the resulting nth-occurrence mismatch fails compose with "could not
+    // locate inner needle". walking `path` ancestors for var-scope owners closes the gap
+    return path ? findFunctionScopeVarInPath(path, name) : false;
   }
   // hasBinding=true; for real scopes where getBinding is also available, filter out ambient
   // TS-only declarations. stub scopes (`detectEntries` shadowScope) don't expose getBinding -
