@@ -150,6 +150,62 @@ export function findEnclosingFunctionLikePath(path) {
   return cur ?? null;
 }
 
+// var-scope boundaries: own scope owners that catch hoisted `var`. `var` declarations
+// hoist to the nearest one regardless of nested BlockStatement / IfStatement / loop /
+// try-catch wrapping. estree-toolkit's `scope.hasBinding` doesn't reflect this — `var`
+// inside a nested block reports false at sibling lookup even though the binding is alive
+// at runtime. babel's tracker hoists correctly. closes the parser asymmetry
+const VAR_SCOPE_OWNER_TYPES = new Set([
+  ...FUNCTION_LIKE_NODE_TYPES,
+  'StaticBlock',
+  'Program',
+]);
+
+const isVarScopeBoundary = type => VAR_SCOPE_OWNER_TYPES.has(type);
+
+// recursively collect `var` bindings inside `scopeNode`, descending through arbitrary
+// non-boundary node shapes (block / if / loop / switch / try-catch / etc). stops at
+// nested var-scope boundaries so inner-function vars don't leak. result includes vars
+// from `scopeNode.body` (function-like bodies wrap in BlockStatement; Program / Block /
+// StaticBlock host statements directly at `.body`)
+export function collectScopeVars(scopeNode) {
+  const locals = new Set();
+  const visit = node => {
+    if (!node || typeof node !== 'object' || typeof node.type !== 'string') return;
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') {
+      for (const d of node.declarations ?? []) walkPatternIdentifiers(d.id, id => locals.add(id.name));
+      return;
+    }
+    if (isVarScopeBoundary(node.type)) return;
+    for (const key of Object.keys(node)) {
+      const value = node[key];
+      if (Array.isArray(value)) for (const v of value) visit(v);
+      else visit(value);
+    }
+  };
+  if (Array.isArray(scopeNode?.body)) for (const stmt of scopeNode.body) visit(stmt);
+  else visit(scopeNode?.body);
+  return locals;
+}
+
+// walk path's ancestor chain to the first var-scope owner; check if `name` is among its
+// vars. `var` doesn't propagate past function boundaries, so an inner-function miss is
+// final - no need to continue walking. complements `findTSRuntimeBindingInPath` for
+// runtime (vs TS-ambient) shadow detection. result cached per-node via WeakMap (caller
+// stays correct under sibling-plugin AST mutation only when this file isn't re-traversed
+// after the mutation - same constraint as `tsRuntimeBindingsCache`)
+const scopeVarsCache = new WeakMap();
+export function findFunctionScopeVarInPath(path, name) {
+  for (let cur = path; cur; cur = cur.parentPath) {
+    const { node } = cur;
+    if (!node || !isVarScopeBoundary(node.type)) continue;
+    let vars = scopeVarsCache.get(node);
+    if (!vars) scopeVarsCache.set(node, vars = collectScopeVars(node));
+    return vars.has(name);
+  }
+  return false;
+}
+
 // resolve the argument at `index` in a call's `arguments` list, expanding any `...[lit]`
 // spread of an inline array literal. returns null if a non-literal spread precedes `index`,
 // since we can't statically know the expanded length
