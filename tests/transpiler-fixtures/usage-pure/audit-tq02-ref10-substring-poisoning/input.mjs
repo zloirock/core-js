@@ -1,7 +1,7 @@
-// Stress test for TQ-02 substring poisoning. Chain enough polyfills to push UID
-// numbering past `_ref9` to `_ref10` - `_ref` substring lives inside `_ref10`.
+// stress test for substring poisoning of `_ref` UIDs. chain enough polyfills to push
+// numbering past `_ref9` to `_ref10` - the `_ref` substring lives inside `_ref10`, so
 // nth-occurrence math + indexOf-based scan must distinguish needle position when
-// multiple identifiers share the prefix. Distinct methods per line ensure separate
+// multiple identifiers share the prefix. distinct methods per line ensure separate
 // emission slots, so any cross-contamination would surface in the fixture diff
 const a = arr.flat().at(0).includes(1);
 const b = arr.flat().at(0).findLast(p);
