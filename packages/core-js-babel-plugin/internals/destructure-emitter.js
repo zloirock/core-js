@@ -74,8 +74,18 @@ export default function createDestructureEmitter({
 
   // inline-default `{ p = _polyfill }` - only fires on undefined property. used when
   // synth-swap can't run (complex receiver, rest element, no default wrapper): it misses
-  // the buggy-present native case, but preserves receiver evaluation semantics
+  // the buggy-present native case, but preserves receiver evaluation semantics.
+  // when value is already an AssignmentPattern (`{from = []}`), swap the user's default
+  // expression with the polyfill ID directly - wrapping in another `t.assignmentPattern`
+  // produces nested-AssignmentPattern AST which fails @babel/types validation
+  // (AssignmentPattern.left expects Identifier / ObjectPattern / ArrayPattern / MemberExpression
+  // / TS wrappers). reachable for arrow expr-body + AssignmentPattern + rest sibling, where
+  // body-extract bails on the missing BlockStatement
   function emitParamInlineDefault(prop, id) {
+    if (t.isAssignmentPattern(prop.node.value)) {
+      prop.get('value').get('right').replaceWith(t.cloneNode(id));
+      return;
+    }
     prop.get('value').replaceWith(t.assignmentPattern(t.cloneNode(prop.node.value), t.cloneNode(id)));
     prop.node.shorthand = false;
   }
