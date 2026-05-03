@@ -1,0 +1,14 @@
+import _Array$from from "@core-js/pure/actual/array/from";
+// shorthand-with-default `{from = []}` + computed-key sibling forces synth-swap bail.
+// body-extract removes the prop entirely (no rest sibling) and prepends body decl.
+// pre-fix this case fell through to inline-default `{from = _polyfill}` which let user-
+// passed `{from: customFn}` override the polyfill. now matches babel-plugin's polyfill-
+// always-wins contract (BPE-16-3)
+const TAG = 't';
+function run({
+  [TAG]: tag
+} = Array) {
+  let from = _Array$from;
+  return [from, tag];
+}
+run();
