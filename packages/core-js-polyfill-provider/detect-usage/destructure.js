@@ -112,19 +112,29 @@ function resolveConditionalDestructureMeta(node, key, scope, adapter) {
 }
 
 // per-branch synth-swap viability check: branch is a candidate for `{key: _Branch$key}`
-// rewrite when it's a bare global Identifier resolving to a static method with a viable
-// pure entry. returns the resolved pure descriptor (with `entry`/`hintName`/`kind`) or null.
+// rewrite when it resolves to a static method on a known global with a viable pure entry.
+// accepts:
+//   - bare Identifier (`Array`) - direct global reference
+//   - MemberExpression (`globalThis.Array`, `window.Array`) - proxy-global member chain;
+//     `buildDestructuringInitMeta` -> `resolveObjectName` walks the chain to the actual
+//     constructor name. without this, Identifier-only check left member-form branches
+//     to a side-channel rewrite (`globalThis` -> `_globalThis`) that asymmetric'd Identifier
+//     and MemberExpression branches in the same conditional
+// returns the resolved pure descriptor (with `entry`/`hintName`/`kind`) or null.
 // shared between babel-plugin and unplugin so the branch-detection rules stay in lockstep
 export function isViableBranchForKey(branch, key, scope, adapter, resolvePure) {
-  // peel ParenthesizedExpression / TS expression wrappers around the branch identifier:
+  // peel ParenthesizedExpression / TS expression wrappers around the branch:
   // `cond ? (Array) : (Iterator)` (oxc preserves) / `cond ? Array! : Iterator!` (TS).
   // without the peel the strict Identifier check rejected wrapped branches and the synth
   // swap silently bailed for that side
   const inner = peelFallbackWrappers(branch);
-  if (inner?.type !== 'Identifier') return null;
+  if (inner?.type !== 'Identifier'
+    && inner?.type !== 'MemberExpression'
+    && inner?.type !== 'OptionalMemberExpression') return null;
   // user-shadowed (`function f(Array) { ({from} = cond ? Array : Set) }`) - shadow makes
-  // `Array` a local binding, not a global polyfill candidate
-  if (adapter.hasBinding(scope, inner.name)) return null;
+  // `Array` a local binding, not a global polyfill candidate. only meaningful for the
+  // bare Identifier shape; MemberExpression's binding hop is handled inside resolveObjectName
+  if (inner.type === 'Identifier' && adapter.hasBinding(scope, inner.name)) return null;
   const meta = buildDestructuringInitMeta(inner, key, scope, adapter);
   if (!meta?.object || meta.kind !== 'property' || meta.placement !== 'static') return null;
   const pure = resolvePure(meta);
