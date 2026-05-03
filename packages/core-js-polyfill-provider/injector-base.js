@@ -102,7 +102,11 @@ export default class ImportInjectorState {
     }
     const name = this.uniqueName(`_${ hint.replaceAll('.', '$') }`);
     this.pureImports.set(source, name);
-    this.#importInfoByName.set(name, { source, hint });
+    // store `entry` alongside hint - downstream type resolution (`resolveCallReturnType`'s
+    // polyfilled-alias branch) decomposes the canonical entry path (`array/from`) instead
+    // of reverse-engineering the UID hint shape, so changing the UID convention can't
+    // silently break receiver-type narrowing through alias chains
+    this.#importInfoByName.set(name, { source, hint, entry });
     this.trackReferencedName(name);
     return name;
   }
@@ -122,7 +126,7 @@ export default class ImportInjectorState {
     // binding -> global hint lets `resolveSuperImportName` find `statics.Promise.try` for
     // `import MyPromise from '@core-js/pure/actual/promise'`; source feeds the adapter's
     // `importSource` lookup (Symbol.X detection via path)
-    this.#importInfoByName.set(name, { source, hint: entryToGlobalHint(entry) ?? name });
+    this.#importInfoByName.set(name, { source, hint: entryToGlobalHint(entry) ?? name, entry });
   }
 
   // binding-name -> { source, hint } for super-import back-mapping (see `resolveSuperImportName`
@@ -150,16 +154,16 @@ export default class ImportInjectorState {
     this.usedNames.add(name);
   }
 
-  // unified lookup for the adapter's `getBinding` - pure-import or global-alias, whichever
-  // hits first. shape is `{ hint, source }` in both cases; callers only read these fields
-  // and don't branch on kind, so the overlap is intentional. `source` is null for aliases
-  // (they're synthetic bindings with no standalone import); use `getPureImport(name)` when
-  // you need pure-specific fields (e.g. full entry path)
+  // unified lookup for the adapter's `getBinding`. pure imports carry `{ hint, source, entry }`;
+  // aliases carry `{ hint, source: null, entry: null }` (synthetic bindings with no standalone
+  // import). callers read whichever fields they need and don't branch on kind. `entry` enables
+  // canonical-path lookups (return-type narrowing through alias chains) without coupling to
+  // the UID hint shape
   getBindingInfo(name) {
     const pure = this.#importInfoByName.get(name);
-    if (pure) return { hint: pure.hint, source: pure.source };
+    if (pure) return { hint: pure.hint, source: pure.source, entry: pure.entry };
     const alias = this.#globalAliases.get(name);
-    return alias ? { hint: alias, source: null } : null;
+    return alias ? { hint: alias, source: null, entry: null } : null;
   }
 
   seedReservedNames(names) {
