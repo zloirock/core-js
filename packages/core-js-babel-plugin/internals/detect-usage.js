@@ -1,4 +1,7 @@
-import { buildDestructuringInitMeta } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  buildDestructuringInitMeta,
+  resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   checkLogicalAssignLhsGlobal,
   checkLogicalAssignLhsMember,
@@ -8,7 +11,6 @@ import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfi
 import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
-  resolveObjectName as sharedResolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
@@ -17,16 +19,14 @@ import {
   TS_EXPR_WRAPPERS,
   findIifeArgForParam,
   findTSRuntimeBindingInPath,
-  flattenableHostSlot,
   isAmbientBindingShape,
   isFunctionParamDestructureParent,
   isInUpdateOperand,
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   resolveCallArgument,
-  unwrapInitValue,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
 
 const IMPORT_SPECIFIER_TYPES = new Set([
   'ImportDefaultSpecifier',
@@ -214,50 +214,10 @@ export function createUsageVisitors({
   function emitNestedDestructureMeta(path, outerProp) {
     const innerKey = sharedResolveKey(path.node.key, path.node.computed, path.scope, adapter);
     if (!innerKey) return;
-    const receiverKey = resolveNestedDestructureReceiver(outerProp);
+    const receiverKey = sharedResolveNestedDestructureReceiver(outerProp, adapter);
     onUsage(receiverKey !== null
       ? { kind: 'property', object: receiverKey, key: innerKey, placement: 'static' }
       : { kind: 'property', object: null, key: innerKey, placement: null }, path);
-  }
-
-  // walks up the outer property chain until a destructure host. returns the last (deepest)
-  // outer key when every intermediate hop is itself a proxy-global name and the host's
-  // receiver slot is a proxy-global. null -> caller emits typeless meta.
-  // `self.Array.from` via nest -> 'Array'. hosts: VariableDeclarator (`const {Array:{from}} = G`),
-  // AssignmentExpression (`({Array:{from}} = G)` in ExpressionStatement). AssignmentPattern
-  // (function param default) is intentionally excluded - inline-default would pick native
-  // first when present, contradicting usage-pure's "polyfill always wins" contract; user
-  // must rewrite as `function f() { const from = _Array$from; ... }` instead
-  function resolveNestedDestructureReceiver(outerProp) {
-    const keys = [];
-    let cur = outerProp;
-    for (;;) {
-      const pattern = cur.parentPath;
-      if (!pattern?.isObjectPattern()) return null;
-      const key = sharedResolveKey(cur.node.key, cur.node.computed, pattern.scope, adapter);
-      if (!key) return null;
-      keys.unshift(key);
-      const parent = pattern.parentPath;
-      // shared `flattenableHostSlot` returns 'init' for VariableDeclarator,
-      // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise.
-      // AssignmentPattern excluded (see helper docstring)
-      const slot = flattenableHostSlot(parent?.node, parent);
-      const receiverNode = slot ? parent.node[slot] : null;
-      if (receiverNode !== null) {
-        // `(se(), globalThis)` - peel to the semantic init value so nested chains resolve
-        // the receiver through SequenceExpression prefixes. parity with non-nested
-        // `handleDestructuring` which unwraps via `buildDestructuringInitMeta`
-        const init = unwrapInitValue(receiverNode);
-        const receiver = init ? sharedResolveObjectName(init, parent.scope, adapter) : null;
-        if (!receiver || !POSSIBLE_GLOBAL_OBJECTS.has(receiver)) return null;
-        // intermediate keys (everything except the deepest) must all be proxy-global hops,
-        // otherwise the chain describes a user namespace and we can't polyfill
-        if (!keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))) return null;
-        return keys[keys.length - 1];
-      }
-      if (!parent?.isObjectProperty()) return null;
-      cur = parent;
-    }
   }
 
   function handleDestructuring(path) {
