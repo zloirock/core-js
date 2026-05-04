@@ -479,9 +479,20 @@ export function createPolyfillEmitter({
     skipProxyGlobal(node);
   }
 
+  // parenthesized optional member followed by NON-optional outer call: `(arr?.includes)(1)`.
+  // semantics differ from `arr?.includes(1)` - on nullish receiver native throws TypeError
+  // because the chain ends at the inner `?.` and the outer `()` is non-optional. emit
+  // lookup-only (no `.call(arr, args)` injection) to preserve the throw shape; injecting
+  // would silently swap throw-on-nullish for "no-op on nullish". `this`-binding is
+  // technically also lost on the success path, but throw-preservation dominates the design
+  // tradeoff. optional outer call `(arr?.at)?.(0)` is semantically equivalent to
+  // `arr?.at?.(0)` (Reference Type preserved through parens, both short-circuit on nullish),
+  // so it falls through to the standard path with proper `.call(arr, 0)` receiver-binding
   function replaceInstance(binding, node, parent, metaPath, sideEffects) {
-    if (isCallee(node, parent) && parent.callee !== node
-        && parent.callee?.type === 'ParenthesizedExpression' && node.optional) {
+    const isParenLookupOnly = isCallee(node, parent) && parent.callee !== node
+      && parent.callee?.type === 'ParenthesizedExpression'
+      && node.optional && !parent.optional;
+    if (isParenLookupOnly) {
       addInstanceTransform(binding, node, parent, metaPath, false, false, sideEffects);
       return;
     }
