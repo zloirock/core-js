@@ -19,8 +19,14 @@ export default function (t, { getInjector, typeResolvers } = {}) {
 
   // identifiers and `this` are safe to double-evaluate. TS wrappers are deliberately NOT
   // peeled here - keeping them in the check keeps babel's `_ref` emission in sync with
-  // unplugin's source-text regex, especially inside optional chains
-  const isSafeToReuse = node => t.isIdentifier(node) || t.isThisExpression(node);
+  // unplugin's source-text regex, especially inside optional chains.
+  // ParenthesizedExpression IS peeled so `(arr)?.(0)` under `createParenthesizedExpressions:
+  // true` aligns with unplugin's NO_REF_NEEDED set - both pipelines avoid `_ref` allocation
+  // for paren-wrapped Identifier / ThisExpression
+  const isSafeToReuse = node => {
+    while (node?.type === 'ParenthesizedExpression') node = node.expression;
+    return t.isIdentifier(node) || t.isThisExpression(node);
+  };
 
   const generateRef = scope => getInjector().generateDeclaredRef(scope);
   const generateLocalRef = scope => getInjector().generateLocalRef(scope);
