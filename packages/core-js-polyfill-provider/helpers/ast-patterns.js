@@ -1,7 +1,17 @@
+import { MAX_DEPTH } from '../resolve-node-type-base.js';
+
 // typed AST node predicate - excludes scalars, SourceLocation objects, and foreign markers
 // (Babel `extra`, parent back-refs, per-visitor caches stamped by sibling tools).
 // prefer over hardcoded SKIP-keys - new plugins can stamp arbitrary keys, a skip list rots
 export const isASTNode = v => v !== null && typeof v === 'object' && typeof v.type === 'string';
+
+// directive-prologue detection ('use strict' etc.). oxc surfaces directives as top-of-body
+// ExpressionStatement nodes with `.directive: string`; babel separates module-level directives
+// into `Program.directives[]` but inline function-body directives still appear as
+// ExpressionStatement w/ `.directive`. empty-string `""` is parser-emitable but NOT a valid
+// prologue token - reject so it doesn't count as directive
+export const isDirectiveStatement = node => node?.type === 'ExpressionStatement'
+  && typeof node.directive === 'string' && node.directive.length > 0;
 
 // `\`foo\`` - TemplateLiteral with no interpolations, used as a static string key. returns
 // the cooked text; null when interpolations present, node isn't a template literal, or
@@ -932,9 +942,12 @@ export function unwrapInitValue(node) {
 // about preceding side effects: `(0, isStr)(x)`, `((isStr) as any)(x)`, `(0, (isStr as
 // any))(x)`, `isStr?.()` — every wrapper combination reaches the same effective callee.
 // SE prefix side-effects are dropped from the peeled view (consumer is doing predicate
-// resolution, not codegen, so prefix elision is semantics-preserving)
+// resolution, not codegen, so prefix elision is semantics-preserving).
+// depth-capped at `MAX_DEPTH` alternations as a safety net against pathologically-nested
+// wrappers (cyclic AST shouldn't reach this helper; cap matches `unwrapReceiverLeaf`'s
+// defense - fixpoint detection alone is insufficient if a wrapper transforms node identity)
 export function unwrapExpressionChain(node) {
-  while (node) {
+  for (let depth = 0; depth < MAX_DEPTH && node; depth++) {
     const before = node;
     node = unwrapInitValue(unwrapRuntimeExpr(node));
     if (node === before) return node;
@@ -989,10 +1002,10 @@ function peelIIFEReturn(node) {
 // visitor handles those via its own binding walk). used by emit suppression: when an
 // outer transform absorbs the whole receiver text, the leaf Identifier's parallel
 // substitution would compose into the outer's emit (`_Map` -> `__Map`).
-// depth-bounded against malformed input (cyclic AST shouldn't reach this helper, but
-// 64 is the same safety limit `unwrapExpressionChain` uses)
+// depth-bounded against malformed input (cyclic AST shouldn't reach this helper; cap
+// matches `unwrapExpressionChain`'s `MAX_DEPTH` defense)
 export function unwrapReceiverLeaf(node) {
-  for (let depth = 0; depth < 64; depth++) {
+  for (let depth = 0; depth < MAX_DEPTH; depth++) {
     const before = node;
     node = unwrapInitValue(unwrapRuntimeExpr(node));
     const iifeReturn = peelIIFEReturn(node);
