@@ -178,8 +178,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // same way babel does; type-declaration walker works uniformly for both
     const memberName = getMemberProperty(key);
     if (memberName !== null && key.object?.type === 'Identifier') {
-      const enumDecl = findTypeDeclaration(key.object.name, scope);
-      if (enumDecl?.type === 'TSEnumDeclaration') {
+      const enumDecl = findEnumDeclaration(key.object.name, scope);
+      if (enumDecl) {
         const member = findEnumMember(enumDecl, memberName);
         const initValue = member?.initializer ? literalKeyValue(member.initializer) : null;
         if (initValue !== null) return initValue;
@@ -839,8 +839,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // `typeof Enum` (alone in annotation) - enum's runtime value is the enum object itself.
     // TSEnumDeclaration has no typeAnnotation slot so the bindingPath walk below returns null;
     // treat it as $Object('Object') so downstream member inference uses the enum as a receiver
-    const typeDecl = findTypeDeclaration(name, scope);
-    if (typeDecl?.type === 'TSEnumDeclaration') return new $Object('Object');
+    if (findEnumDeclaration(name, scope)) return new $Object('Object');
     const bindingPath = constantBindingPath(name, scope);
     if (!bindingPath) return null;
     if (t.isVariableDeclarator(bindingPath.node)) {
@@ -863,12 +862,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // other shapes fall through to the binding's type annotation
   function resolveTypeofQualifiedMember(objectName, memberPath, scope) {
     // `typeof Enum.Member` - TSEnumDeclaration has no typeAnnotation and its bindingPath
-    // fallthrough returns null. look it up via findTypeDeclaration and map the member to
+    // fallthrough returns null. look it up via findEnumDeclaration and map the member to
     // the enum's value kind ($Primitive('string'|'number'))
     if (memberPath.length === 1) {
-      const typeDecl = findTypeDeclaration(objectName, scope);
-      if (typeDecl?.type === 'TSEnumDeclaration') {
-        const type = resolveEnumMemberType(typeDecl, memberPath[0]);
+      const enumDecl = findEnumDeclaration(objectName, scope);
+      if (enumDecl) {
+        const type = resolveEnumMemberType(enumDecl, memberPath[0]);
         if (type) return type;
       }
     }
@@ -1074,6 +1073,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const decl = walkScopesForDecl(name, scope, null);
     byName.set(key, decl);
     return decl;
+  }
+
+  // narrow `findTypeDeclaration` to TSEnumDeclaration. callers care about the enum-decl
+  // shape specifically (member-type lookup, value-kind probe, reverse-mapping check), so
+  // collapse the find + type-check pattern into one call to keep predicate and lookup at
+  // the same level of abstraction
+  function findEnumDeclaration(name, scope) {
+    const decl = findTypeDeclaration(name, scope);
+    return decl?.type === 'TSEnumDeclaration' ? decl : null;
   }
 
   // all `interface X {}` siblings at the first scope level that contains one
@@ -2901,6 +2909,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'OptionalMemberExpression':
         return resolveFromMemberExpression(path)
           || resolveArrayIndexAccess(path)
+          || resolveEnumMemberAccess(path)
           || resolveKnownPropertyReturnType(path)
           || resolveGlobalStaticReference(path)
           || resolvePrototypeAsInstance(path)
@@ -5066,6 +5075,36 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return resolveArrayLiteralElement(objectPath, index);
   }
 
+  // numeric enum reverse mapping: TS auto-generates `E[<number>]` -> name (string) for
+  // numeric enums. `enum E { A, B }; E[E.A]` is 'A' at runtime even though TS types `E.A`
+  // as a numeric literal. without this, receiver-narrowing on `v = E[E.A]` falls back to
+  // the value-kind primitive (number) - method dispatch on `v.includes('A')` then misses
+  // the string narrowing. only fires when:
+  //   - access is computed `E[<key>]`
+  //   - receiver is an Identifier resolving to TSEnumDeclaration
+  //   - enum is uniformly numeric (resolveEnumType returns Number primitive)
+  //   - key expression resolves to number type (forward `E['A']` -> string key stays
+  //     number-typed at runtime, leave it to the caller's other resolvers)
+  // member access on a TSEnumDeclaration receiver. covers two shapes:
+  //   - non-computed `E.A` -> enum value-kind primitive (the member's resolved kind via
+  //     `resolveEnumMemberKind`, defaulting to number for implicit auto-numbered members)
+  //   - computed `E[<number-key>]` -> string (numeric enum reverse mapping). TS auto-
+  //     generates `E[E.A] === 'A'` at runtime for numeric enums; without this branch `v` in
+  //     `const v = E[E.A]; v.includes('A')` falls back to a generic `_includes` instead of
+  //     the string-narrowed variant. computed access with non-numeric key (forward
+  //     `E['A']` / index by user expr) bails - those resolve through other paths
+  function resolveEnumMemberAccess(path) {
+    if (path.node.object?.type !== 'Identifier') return null;
+    const enumDecl = findEnumDeclaration(path.node.object.name, path.scope);
+    if (!enumDecl) return null;
+    if (!path.node.computed) {
+      const memberName = path.node.property?.type === 'Identifier' ? path.node.property.name : null;
+      return memberName ? resolveEnumMemberType(enumDecl, memberName) : null;
+    }
+    if (resolveEnumType(enumDecl)?.type !== 'number') return null;
+    return resolveNodeType(path.get('property'))?.type === 'number' ? new $Primitive('string') : null;
+  }
+
   // convert a normalized hint to a type object
   // objectType (optional) enables resolution of 'element'/'inherit' directives in instance method hints
   function typeFromHint(hint, objectType) {
@@ -5123,18 +5162,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function resolveAwaitedAnnotation(node, scope, depth, typeParamMap, seen) {
     if (!node || depth > MAX_DEPTH) return null;
     const peeled = unwrapTypeAnnotation(node);
+    const recurse = next => resolveAwaitedAnnotation(next, scope, depth + 1, typeParamMap, seen);
     if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation') {
-      return foldUnionTypes(peeled.types,
-        m => resolveAwaitedAnnotation(m, scope, depth + 1, typeParamMap, seen));
+      return foldUnionTypes(peeled.types, recurse);
     }
     const promiseInner = getPromiseInnerAnnotation(peeled);
-    if (promiseInner) return resolveAwaitedAnnotation(promiseInner, scope, depth + 1, typeParamMap, seen);
+    if (promiseInner) return recurse(promiseInner);
     // type alias hop: `type Inner = Promise<...>; Awaited<Inner>` - chase to the underlying
     // shape so the outer Promise / union dispatch fires on the aliased form
     const aliased = followTypeAliasChain(peeled, scope);
     if (aliased?.node && aliased.node !== peeled) {
-      const next = applySubst(aliased.node, aliased.subst);
-      return resolveAwaitedAnnotation(next, scope, depth + 1, typeParamMap, seen);
+      return recurse(applySubst(aliased.node, aliased.subst));
     }
     return resolveAnnotationInContext(node, scope, depth + 1, typeParamMap, seen);
   }
@@ -5820,9 +5858,9 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const segments = collectQualifiedSegments(unwrapped.exprName);
       const rootName = segments?.[0];
       if (rootName && segments.length === 1) {
-        const typeDecl = findTypeDeclaration(rootName, scope);
-        if (typeDecl?.type === 'TSEnumDeclaration') {
-          const type = resolveEnumMemberType(typeDecl, keyName);
+        const enumDecl = findEnumDeclaration(rootName, scope);
+        if (enumDecl) {
+          const type = resolveEnumMemberType(enumDecl, keyName);
           if (type) return type;
         }
       }
