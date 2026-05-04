@@ -68,6 +68,19 @@ function replaceNthOccurrence(str, needle, replacement, n) {
 // optional-chain tokens through standard ECMAScript whitespace
 const WS_RE = /\s/;
 
+// ECMAScript line terminator code points: LF, CR, LS (U+2028), PS (U+2029). all four
+// terminate a `//` line comment per spec - LF-only scan walks past LS/PS into real code
+// and would misclassify the next significant char (turning `obj?.// h (args)` into
+// `obj.// h (args)` instead of `obj// h (args)`). charcode loop avoids both regex
+// `lastIndex` mutation and the `\s` superset that matches non-terminator whitespace
+function indexOfLineTerminator(src, from) {
+  for (let i = from; i < src.length; i++) {
+    const c = src.charCodeAt(i);
+    if (c === 0x0A || c === 0x0D || c === 0x2028 || c === 0x2029) return i;
+  }
+  return -1;
+}
+
 // scan past whitespace + line/block comments starting at `from`. returns first index of a
 // non-gap char or `src.length` for unterminated trailing run. parser-tolerant boundary -
 // source can hold `obj ?. (args)`, `obj?./*c*/(args)`, `obj?.// hint\n(args)` between
@@ -86,7 +99,7 @@ function skipWhitespaceAndComments(src, from) {
       continue;
     }
     if (src[i] === '/' && src[i + 1] === '/') {
-      const nl = src.indexOf('\n', i + 2);
+      const nl = indexOfLineTerminator(src, i + 2);
       if (nl === -1) return src.length;
       i = nl + 1;
       continue;

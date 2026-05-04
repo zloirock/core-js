@@ -36,7 +36,7 @@ import {
 } from '@core-js/polyfill-provider/helpers/class-walk';
 import { resolve as resolveBuiltIn } from '@core-js/polyfill-provider';
 import { findProxyGlobal, resolveObjectName as sharedResolveObjectName } from '@core-js/polyfill-provider/detect-usage/resolve';
-import { isViableBranchForKey } from '@core-js/polyfill-provider/detect-usage/destructure';
+import { isViableBranchForKey, walkStaticReceiverChain } from '@core-js/polyfill-provider/detect-usage/destructure';
 import { classifyVariableDeclarationHost } from '@core-js/polyfill-provider/destructure-host-shape';
 import {
   canTransformDestructuring,
@@ -352,11 +352,18 @@ export function createDestructureEmitter({
       + (preservedDecls.length ? `\n${ kind } ${ preservedDecls.join(', ') };` : '');
   }
 
-  // plan factory: classify every outer prop of a proxy-global declarator without
-  // side effects. returned shape:
+  // plan factory: classify every outer prop of a destructure declarator without side
+  // effects. returned shape:
   //   { receiver, outerProps: [{ extractions?, preservedSrc }] }
   // preservedSrc === null -> outer prop was fully consumed (drop).
-  // null when the init isn't a proxy-global ObjectPattern source or nothing matches
+  // null when the init isn't a recognisable host shape or nothing matches.
+  // dispatches across two complementary host shapes:
+  //   - proxy-global: `{Array: {from}} = globalThis` - outer key IS the constructor name
+  //   - static-object: `{a: {from}} = wrapper` where `wrapper = {a: Array}` - constructor
+  //     hidden behind const-bound ObjectExpression, walk init through outer-key path to
+  //     locate it. mirrors babel-plugin's `tryFlattenNestedProxyDestructure` so both
+  //     pipelines emit the same `const from = _Array$from` extraction (full polyfill-wins
+  //     semantics) instead of unplugin's older inline-default fallback
   function planDeclarator(declarator, scope) {
     if (planCache.has(declarator)) return planCache.get(declarator);
     let plan = null;
@@ -369,10 +376,36 @@ export function createDestructureEmitter({
       if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
         const outerProps = declarator.id.properties.map(planOuterProp);
         if (outerProps.some(p => p.extractions?.length)) plan = { receiver, outerProps };
+      } else if (init) {
+        const outerProps = declarator.id.properties.map(p => planOuterPropStatic(p, init, [], scope));
+        if (outerProps.some(p => p.extractions?.length)) plan = { receiver: null, outerProps };
       }
     }
     planCache.set(declarator, plan);
     return plan;
+  }
+
+  // static-object descent. given an outer prop `key: ObjectPattern` at depth N (path =
+  // [k1, k2, ...] from declarator-root to here), walk hostInit through `path + key`:
+  //   - leaf Identifier (constructor name): plan inner ObjectPattern via `planInnerProp`
+  //     so `from` / `from: alias` / `from = default` get extracted
+  //   - intermediate ObjectExpression: recurse one level deeper, descending into the
+  //     inner ObjectPattern with extended path
+  // non-Property / computed / non-ObjectPattern values bail to opaque preservedSrc.
+  // shorthand / Identifier-valued outer props are NOT supported here - they would name a
+  // local binding outside the static path, so static-object descent doesn't apply
+  function planOuterPropStatic(outerProp, hostInit, path, scope) {
+    if (outerProp.type !== 'Property' || outerProp.computed
+      || outerProp.key?.type !== 'Identifier'
+      || outerProp.value?.type !== 'ObjectPattern') {
+      return { preservedSrc: nodeSrc(outerProp) };
+    }
+    const newPath = [...path, outerProp.key.name];
+    const constructor = walkStaticReceiverChain(hostInit, newPath, scope, estreeAdapter);
+    if (constructor) {
+      return foldNestedPattern(outerProp, innerProp => planInnerProp(innerProp, constructor));
+    }
+    return foldNestedPattern(outerProp, innerProp => planOuterPropStatic(innerProp, hostInit, newPath, scope));
   }
 
   // proxy-global outer prop: four shapes
