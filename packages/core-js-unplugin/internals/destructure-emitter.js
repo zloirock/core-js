@@ -473,6 +473,11 @@ export function createDestructureEmitter({
       const outer = plan.outerProps[i];
       for (const e of outer.extractions ?? []) {
         const binding = injectPureImport(e.entry, e.hint);
+        // register the body-extract alias so receiver-narrowing through this binding
+        // (`xs = from('hi'); xs.at(0)`) finds the polyfill entry path. matches babel's
+        // body-extract paths so multi-method narrowing works on extracted `from` / `of`
+        // / etc. (without it, `at` / `includes` fall to generic `_at` / `_includes`)
+        injector.registerBodyExtractAlias(e.localName, e.entry);
         extractions.push({ decl: `${ e.localName } = ${ binding }` });
       }
       if (outer.preservedSrc !== null) {
@@ -763,7 +768,7 @@ export function createDestructureEmitter({
       // (`{x}` / `{x: alias}` / `{x = default}` / `{x: alias = default}`) via
       // `propBindingIdentifier`'s AssignmentPattern.left peel - matches babel-plugin's
       // unconditional body-extract dispatch. expr-body arrows skip (no statement slot)
-      if (tryBodyExtractFromParamDestructurePure(metaPath, propNode, binding, objectPattern)) return;
+      if (tryBodyExtractFromParamDestructurePure(metaPath, propNode, binding, objectPattern, pureResult.entry)) return;
       if (isAssign) transforms.add(value.right.start, value.right.end, binding);
       else transforms.insert(value.end, ` = ${ binding }`);
       return;
@@ -794,7 +799,7 @@ export function createDestructureEmitter({
   // consumes the adjacent comma. user-written default is dropped (dead code under polyfill-
   // always-wins). preserves "polyfill always wins" at the cost of caller-passed
   // `{from: customFrom}` being ignored
-  function tryBodyExtractFromParamDestructurePure(propPath, propNode, binding, objectPattern) {
+  function tryBodyExtractFromParamDestructurePure(propPath, propNode, binding, objectPattern, entry) {
     const localId = propBindingIdentifier(propNode.value);
     if (!localId) return false;
     const fnPath = findEnclosingFunctionLikePath(propPath);
@@ -809,6 +814,11 @@ export function createDestructureEmitter({
       transforms.add(range.start, range.end, '');
     }
     transforms.insert(bodyOpenAfter, `\n  let ${ localId.name } = ${ binding };`);
+    // register the local name -> entry path so receiver-narrowing through this binding
+    // (`arr = from('x'); arr.at(-1)`) finds the polyfill's static return type without
+    // having to re-derive (Constructor, method) from the destructure pattern shape. matches
+    // babel-plugin's body-extract paths which register the same alias post-AST-mutation
+    injector.registerBodyExtractAlias(localId.name, entry);
     skippedNodes.add(propNode);
     if (propNode.value) skippedNodes.add(propNode.value);
     return true;
