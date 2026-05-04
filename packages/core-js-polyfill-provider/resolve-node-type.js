@@ -664,7 +664,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // post-substitution mapped type
     if (node?.type === 'TSMappedType') {
       const passthrough = unwrapMappedTypePassthrough(node);
-      if (passthrough) node = unwrapTypeAnnotation(subst ? applyAliasSubstDeep(passthrough, subst) : passthrough);
+      if (passthrough) node = unwrapTypeAnnotation(applySubst(passthrough, subst));
       else if (subst) node = applyAliasSubstDeep(node, subst);
     }
     return { node, subst };
@@ -817,6 +817,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
           ? subst.get(node.exprName.name) : node;
       default: return node;
     }
+  }
+
+  // small predicate-style helper for the `subst ? applyAliasSubstDeep(node, subst) : node`
+  // idiom that appears across alias-chain consumers. extracting keeps the conditional out
+  // of expression-tail position where it nests awkwardly inside `?:`, `??`, and ternary
+  // arguments. no behavioural change - identical to the inlined branch
+  function applySubst(node, subst) {
+    return subst ? applyAliasSubstDeep(node, subst) : node;
   }
 
   // --- Scope lookup & declarations ---
@@ -1392,7 +1400,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
         const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
         if (!ret) return null;
-        const target = subst ? applyAliasSubstDeep(ret, subst) : ret;
+        const target = applySubst(ret, subst);
         return getTypeMembers(unwrapTypeAnnotation(target), scope, depth + 1, visited);
       }
       if (arg.type !== 'TSTypeQuery') return null;
@@ -1408,7 +1416,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // recursive InstanceType branch). InstanceType's synthesized class reference has no
       // type-param to substitute - subst is a no-op there
       const subst = buildCallSiteSubst(resolved.node, arg);
-      return getTypeMembers(subst ? applyAliasSubstDeep(target, subst) : target, scope, depth + 1, visited);
+      return getTypeMembers(applySubst(target, subst), scope, depth + 1, visited);
     }
     // fast path first; only re-walk for the rare interface-merging case
     const declaration = findTypeDeclaration(segments, scope);
@@ -1552,13 +1560,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // concrete args; apply to the unwrapped inner before recursing
     const passthrough = unwrapPassthroughWrapper(aliased ?? objectType);
     if (passthrough) {
-      const substituted = subst ? applyAliasSubstDeep(passthrough, subst) : passthrough;
+      const substituted = applySubst(passthrough, subst);
       return findTypeMember(substituted, key, scope, depth + 1);
     }
     const withSubst = node => {
       if (!node) return node;
       const unwrapped = unwrapTypeAnnotation(node);
-      return subst ? applyAliasSubstDeep(unwrapped, subst) : unwrapped;
+      return applySubst(unwrapped, subst);
     };
     const resolveBranch = member => findTypeMember(withSubst(unwrapTypeAnnotation(member)), key, scope, depth + 1);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
@@ -1584,7 +1592,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const index = typeof key === 'number' ? key : Number(key);
       if (!Number.isInteger(index) || index < 0) return null;
       const element = findTupleElement(aliased, index, scope);
-      return element ? (subst ? applyAliasSubstDeep(element, subst) : element) : null;
+      return element ? applySubst(element, subst) : null;
     }
     // walk through trivial mapped passthroughs / aliases when looking up members
     const members = getTypeMembers(aliased ?? objectType, scope, depth);
@@ -1724,7 +1732,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // through to generic `_at`
     const peeledAfter = peelStructurePreservingWrapper(target);
     if (peeledAfter) {
-      const substituted = subst ? applyAliasSubstDeep(peeledAfter, subst) : peeledAfter;
+      const substituted = applySubst(peeledAfter, subst);
       return findTupleElement(substituted, index, scope);
     }
     if (target.type !== 'TSTupleType' && target.type !== 'TupleTypeAnnotation') return null;
@@ -1784,7 +1792,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     let result = null;
     let anyKept = false;
     for (const member of types) {
-      const substituted = subst ? applyAliasSubstDeep(member, subst) : member;
+      const substituted = applySubst(member, subst);
       const resolved = resolve(substituted);
       if (!resolved) return null;
       if (isAssignableTo(resolved, target) !== keep) continue;
@@ -1996,7 +2004,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       }
       case 'Awaited': {
         const arg = firstArg();
-        return arg ? unwrapPromise(resolveArgInner(arg)) : null;
+        return arg ? resolveAwaitedAnnotation(arg, scope, depth, typeParamMap, seen) : null;
       }
       case 'ReturnType': {
         const arg = firstArg();
@@ -2008,7 +2016,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         if (arg.type === 'TSTypeQuery') return resolveReturnTypeFromTypeQuery(arg, scope);
         const { node: aliased, subst } = followTypeAliasChain(unwrapTypeAnnotation(arg), scope);
         const ret = functionTypeReturnAnnotation(unwrapTypeAnnotation(aliased));
-        return ret ? resolveTypeAnnotation(subst ? applyAliasSubstDeep(ret, subst) : ret, scope) : null;
+        return ret ? resolveTypeAnnotation(applySubst(ret, subst), scope) : null;
       }
       case 'InstanceType': {
         const arg = firstArg();
@@ -3587,7 +3595,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `resolveTypeAnnotation` (which itself peels, idempotent on inner) or use it directly
   function classSubstInner(annotation, subst) {
     const inner = unwrapTypeAnnotation(annotation);
-    return inner && subst ? applyAliasSubstDeep(inner, subst) : inner;
+    return inner ? applySubst(inner, subst) : inner;
   }
 
   // dispatch for "calling a method-shaped or getter member": for a regular method, resolve
@@ -4605,14 +4613,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function resolveMemberCallReturn(annotation, name, scope, resolve, depth = 0) {
     if (depth > MAX_DEPTH) return null;
     const { node: aliased, subst } = followTypeAliasChain(annotation, scope);
-    const applySubst = branch => {
-      const unwrapped = unwrapTypeAnnotation(branch);
-      return subst ? applyAliasSubstDeep(unwrapped, subst) : unwrapped;
-    };
+    const peelBranch = branch => applySubst(unwrapTypeAnnotation(branch), subst);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       let result = null;
       for (const branch of aliased.types) {
-        const branchResult = resolveMemberCallReturn(applySubst(branch), name, scope, resolve, depth + 1);
+        const branchResult = resolveMemberCallReturn(peelBranch(branch), name, scope, resolve, depth + 1);
         if (!branchResult) return null;
         result = commonType(result, branchResult);
         if (!result) return null;
@@ -4621,7 +4626,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     if (aliased?.type === 'TSIntersectionType' || aliased?.type === 'IntersectionTypeAnnotation') {
       for (const branch of aliased.types) {
-        const branchResult = resolveMemberCallReturn(applySubst(branch), name, scope, resolve, depth + 1);
+        const branchResult = resolveMemberCallReturn(peelBranch(branch), name, scope, resolve, depth + 1);
         if (branchResult) return branchResult;
       }
       return null;
@@ -4917,7 +4922,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // preserve accumulated type-param substitutions through the narrowed result - without
     // applying subst, `T[]` inside a surviving branch of `type Foo<T> = { kind: 'a'; val: T[] } | ...`
     // would stay unresolved and downstream dispatch would see Array(null) instead of Array<string>
-    return subst ? applyAliasSubstDeep(narrowed, subst) : narrowed;
+    return applySubst(narrowed, subst);
   }
 
   // a branch survives discriminant filtering when every guard's expected value agrees with
@@ -5093,6 +5098,45 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       result = inner;
     }
     return result;
+  }
+
+  // peel a Promise / PromiseLike / Thenable type-reference annotation, returning the
+  // inner type-argument annotation (`Promise<X>` -> X) or null when the node isn't a
+  // recognisable Promise reference. operates on the AST so callers can distribute over
+  // syntactic shape (unions, type aliases) before resolved-type fold loses information
+  function getPromiseInnerAnnotation(node) {
+    const refName = typeRefName(node);
+    if (!refName || (refName !== 'Promise' && !PROMISE_SYNONYMS.has(refName))) return null;
+    return getTypeArgs(node)?.params?.[0] ?? null;
+  }
+
+  // `Awaited<T>` semantics mirror TS's distributive recursive conditional:
+  //   - `Awaited<Promise<U>>` -> `Awaited<U>` (peel one layer, recurse)
+  //   - `Awaited<A | B>`      -> `Awaited<A> | Awaited<B>` (distribute, fold members)
+  //   - `Awaited<TypeAlias>`  -> follow the alias chain, retry
+  //   - otherwise              -> resolve T as-is
+  // distributing at the AST stage preserves union shape past `Promise<>` wrappers -
+  // resolved-type fold (`foldUnionTypes`) collapses `Promise<T> | U` to null because
+  // Promise's `constructor` differs from U's, but distributing first turns it into
+  // `T | U` which CAN fold when T and U share a constructor (`number[] | string[]` ->
+  // Array). depth + cycle bounds match `followTypeAliasChain`'s budget
+  function resolveAwaitedAnnotation(node, scope, depth, typeParamMap, seen) {
+    if (!node || depth > MAX_DEPTH) return null;
+    const peeled = unwrapTypeAnnotation(node);
+    if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation') {
+      return foldUnionTypes(peeled.types,
+        m => resolveAwaitedAnnotation(m, scope, depth + 1, typeParamMap, seen));
+    }
+    const promiseInner = getPromiseInnerAnnotation(peeled);
+    if (promiseInner) return resolveAwaitedAnnotation(promiseInner, scope, depth + 1, typeParamMap, seen);
+    // type alias hop: `type Inner = Promise<...>; Awaited<Inner>` - chase to the underlying
+    // shape so the outer Promise / union dispatch fires on the aliased form
+    const aliased = followTypeAliasChain(peeled, scope);
+    if (aliased?.node && aliased.node !== peeled) {
+      const next = applySubst(aliased.node, aliased.subst);
+      return resolveAwaitedAnnotation(next, scope, depth + 1, typeParamMap, seen);
+    }
+    return resolveAnnotationInContext(node, scope, depth + 1, typeParamMap, seen);
   }
 
   // two-level table lookup: table[key1][key2]
@@ -5526,7 +5570,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const isMethodProper = m.type === 'TSMethodSignature' && m.kind !== 'get';
       const raw = m.typeAnnotation ?? m.returnType ?? (isMethodProper ? m : null);
       if (!raw) continue;
-      return { annotation: subst ? applyAliasSubstDeep(raw, subst) : raw, scope: objInfo.scope };
+      return { annotation: applySubst(raw, subst), scope: objInfo.scope };
     }
     return null;
   }
