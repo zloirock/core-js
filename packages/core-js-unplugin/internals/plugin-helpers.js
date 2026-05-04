@@ -1,6 +1,11 @@
 import { isBodylessStatementSlot } from '@core-js/polyfill-provider/destructure-host-shape';
-import { isASTNode, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers/ast-patterns';
+import { isASTNode, isDirectiveStatement, walkPatternIdentifiers } from '@core-js/polyfill-provider/helpers/ast-patterns';
 import { ORPHAN_REF_PATTERN } from '@core-js/polyfill-provider/injector-base';
+
+// re-export the shared `isDirectiveStatement` so existing unplugin consumers
+// (`directivePrologueEnd`, `lastUserImportEnd`, `plugin.js`) keep working without
+// refactor; single source of truth for the predicate lives in provider helpers
+export { isDirectiveStatement };
 
 // recursive AST walker - seeds skippedNodes before batch overwrite so queued visits
 // on descendants short-circuit (no duplicate polyfill inject from sibling handlers).
@@ -19,14 +24,6 @@ export function walkAstNodes(root, visit, parent = null, depth = 0) {
     else walkAstNodes(value, visit, root, depth + 1);
   }
 }
-
-// unplugin parses exclusively via oxc, which represents directives as top-of-body
-// ExpressionStatement nodes with `.directive: string` (babel uses a separate
-// `Program.directives` array - out of scope here). empty-string directive (`"";`) is
-// technically parser-emitable but not a valid prologue - reject so we don't count it
-// as directive-end
-export const isDirectiveStatement = n => n?.type === 'ExpressionStatement'
-  && typeof n.directive === 'string' && n.directive.length > 0;
 
 // end position of the leading directive prologue ('use strict', etc.) - 0 if none
 export function directivePrologueEnd(ast) {
