@@ -6,15 +6,17 @@
 // (`canTransformDestructuring`)
 import {
   destructureReceiverSlot,
+  flattenableHostSlot,
   getFallbackBranchSlots,
   isChainAssignment,
   peelFallbackReceiver,
   peelFallbackWrappers,
+  unwrapInitValue,
 } from '../helpers/ast-patterns.js';
 import { POSSIBLE_GLOBAL_OBJECTS } from '../helpers/class-walk.js';
 import { resolve as resolveBuiltIn } from '../index.js';
 import { KNOWN_FUNCTION_GLOBALS, KNOWN_NAMESPACE_GLOBALS } from './globals.js';
-import { isStaticPlacement, resolveObjectName, unwrapParens } from './resolve.js';
+import { isStaticPlacement, resolveKey as sharedResolveKey, resolveObjectName, unwrapParens } from './resolve.js';
 
 // map a destructure source identifier to its runtime receiver type hint
 // unknown identifiers return null so the resolver falls through to its default type-hint fold
@@ -181,4 +183,109 @@ export function canTransformDestructuring({ parentType, parentInit, grandParentT
     return true;
   }
   return parentType === 'AssignmentExpression';
+}
+
+const STATIC_WALK_DEPTH = 64;
+
+// resolve a destructure receiver chain through static const-bound ObjectExpression hops:
+// `{ a: { from } } = wrapper` where `wrapper = { a: Array }` walks `wrapper.a` to
+// `Array`. complements the proxy-global path (`{ Array: { from } } = globalThis` reads
+// the constructor name directly from the destructure chain) - here the constructor is
+// HIDDEN inside a const-bound static object literal, walk its ObjectExpression structure.
+// returns the leaf Identifier name or null when any hop bails:
+//   - non-const binding (reassignable) - shape may not hold at destructure site
+//   - non-VariableDeclarator pattern (param, catch, loop) - no literal init to walk
+//   - non-ObjectExpression intermediate
+//   - missing / computed / shorthand-mismatched property
+//   - non-Identifier leaf - need a constructor name to dispatch polyfill
+// depth-bounded against pathological alias chains (`a -> b -> c -> ...`)
+export function walkStaticReceiverChain(receiverNode, walkPath, scope, adapter) {
+  return walkStaticReceiverStep(receiverNode, walkPath, scope, adapter, 0);
+}
+
+function walkStaticReceiverStep(node, walkPath, scope, adapter, depth) {
+  if (depth > STATIC_WALK_DEPTH) return null;
+  let current = unwrapParens(node);
+  let currentScope = scope;
+  let hops = 0;
+  // dereference const-bound Identifier through its VariableDeclarator initializer,
+  // chasing re-aliases (`const Foo = Array; const wrapper = { a: Foo }`) until we
+  // either land on an unbound Identifier (the global - leaf name we return) or an
+  // ObjectExpression (intermediate hop for further key descent). chain bounded against
+  // `a -> b -> c -> ...` blowups
+  while (current?.type === 'Identifier' && adapter.hasBinding(currentScope, current.name)) {
+    if (++hops > STATIC_WALK_DEPTH) return null;
+    if (adapter.getBindingNodeType(currentScope, current.name) !== 'VariableDeclarator') return null;
+    const binding = adapter.getBinding(currentScope, current.name);
+    // `binding.constant` may be undefined depending on adapter (babel computes it lazily,
+    // estree-toolkit doesn't expose it). use the underlying `constantViolations` list which
+    // both adapters surface; empty / missing means no reassignment - shape holds at use site
+    if (!binding || binding.constantViolations?.length) return null;
+    // adapter divergence: babel exposes the VariableDeclarator at `binding.path.node`,
+    // estree-toolkit at `binding.node` directly. fall through both shapes
+    const initNode = binding.path?.node?.init ?? binding.node?.init;
+    if (!initNode) return null;
+    current = unwrapParens(initNode);
+    currentScope = binding.scope ?? currentScope;
+  }
+  if (walkPath.length === 0) return current?.type === 'Identifier' ? current.name : null;
+  if (current?.type !== 'ObjectExpression') return null;
+  for (const prop of current.properties) {
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
+    if (prop.computed) continue;
+    const keyName = prop.key?.type === 'Identifier' ? prop.key.name
+      : prop.key?.type === 'Literal' ? typeof prop.key.value === 'string' ? prop.key.value : null
+        : prop.key?.type === 'StringLiteral' ? prop.key.value
+          : null;
+    if (keyName !== walkPath[0]) continue;
+    return walkStaticReceiverStep(prop.value, walkPath.slice(1), currentScope, adapter, depth + 1);
+  }
+  return null;
+}
+
+// walks the outer-prop chain (Property / ObjectProperty -> ObjectPattern -> ...) up to
+// the destructure host (VariableDeclarator / AssignmentExpression-in-ExpressionStatement).
+// returns the constructor name for the inner prop's receiver across two complementary
+// shapes:
+//   - proxy-global descent: receiver is a known global (`globalThis`, `self`, ...) and
+//     every intermediate key is itself a proxy-global hop. constructor = deepest key
+//     (`{Array: {from}} = globalThis` -> 'Array')
+//   - static-object descent: receiver is a const-bound Identifier whose initializer is an
+//     ObjectExpression, and the keys path resolves to a leaf Identifier of a known
+//     constructor (`{a: {from}} = wrapper` where `wrapper = {a: Array}` -> 'Array')
+// path-API agnostic: works with both babel's NodePath (`.parentPath`, `.scope`, `.node`)
+// and estree-toolkit's. accepts both 'Property' (estree) and 'ObjectProperty' (babel)
+// outer-prop type names. AssignmentPattern host (function param default) is intentionally
+// excluded - inline-default would pick native first when present, contradicting
+// usage-pure's "polyfill always wins" contract
+export function resolveNestedDestructureReceiver(outerProp, adapter) {
+  const keys = [];
+  let cur = outerProp;
+  for (;;) {
+    const pattern = cur.parentPath;
+    if (pattern?.node?.type !== 'ObjectPattern') return null;
+    const key = sharedResolveKey(cur.node.key, cur.node.computed, pattern.scope, adapter);
+    if (!key) return null;
+    keys.unshift(key);
+    const parent = pattern.parentPath;
+    // shared `flattenableHostSlot` returns 'init' for VariableDeclarator,
+    // 'right' for AssignmentExpression-in-ExpressionStatement, null otherwise
+    const slot = flattenableHostSlot(parent?.node, parent);
+    const receiverNode = slot ? parent.node[slot] : null;
+    if (receiverNode !== null) {
+      // `(se(), globalThis)` - peel to the semantic init value so nested chains resolve
+      // through SequenceExpression prefixes. parity with non-nested destructure
+      const init = unwrapInitValue(receiverNode);
+      if (!init) return null;
+      const receiver = resolveObjectName(init, parent.scope, adapter);
+      if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)
+          && keys.slice(0, -1).every(k => POSSIBLE_GLOBAL_OBJECTS.has(k))) {
+        return keys.at(-1);
+      }
+      return walkStaticReceiverChain(init, keys, parent.scope, adapter);
+    }
+    const parentType = parent?.node?.type;
+    if (parentType !== 'Property' && parentType !== 'ObjectProperty') return null;
+    cur = parent;
+  }
 }

@@ -439,9 +439,14 @@ export function createSelfRefVarGuard(getKind) {
   };
 }
 
-// find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain
+// find the proxy global identifier (globalThis, self, etc.) at the root of a MemberExpression chain.
+// depth-ceiling protects against pathological chains - same MAX_KEY_DEPTH bound used elsewhere
 export function findProxyGlobal(node) {
   let obj = unwrapParens(node);
-  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') obj = unwrapParens(obj.object);
+  let depth = 0;
+  while (obj.type === 'MemberExpression' || obj.type === 'OptionalMemberExpression') {
+    if (++depth > MAX_KEY_DEPTH) return null;
+    obj = unwrapParens(obj.object);
+  }
   return obj.type === 'Identifier' && POSSIBLE_GLOBAL_OBJECTS.has(obj.name) ? obj : null;
 }
