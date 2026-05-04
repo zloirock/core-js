@@ -1,5 +1,6 @@
 import knownBuiltInReturnTypes from '@core-js/compat/known-built-in-return-types' with { type: 'json' };
 import { entryToGlobalHint } from './index.js';
+import { walkStaticReceiverChain } from './detect-usage/destructure.js';
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from './helpers/class-walk.js';
 import {
   getSuperTypeArgs,
@@ -37,6 +38,16 @@ const {
 } = knownBuiltInReturnTypes;
 
 const { assign, create, hasOwn } = Object;
+
+// thin binding adapter for `walkStaticReceiverChain` (detect-usage/destructure.js) so the
+// resolver layer can reuse the shared walker. babel scopes expose getBinding directly;
+// `binding.path.node` carries the VariableDeclarator. matches the babel-plugin adapter's
+// shape minus the polyfillHint / TS-runtime extras the resolver doesn't need
+const BABEL_BINDING_ADAPTER = {
+  hasBinding: (scope, name) => !!scope?.getBinding(name),
+  getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type,
+  getBinding: (scope, name) => scope?.getBinding(name),
+};
 
 // side-channel cycle flag: Set instances that hit a declaration-cycle during a walk.
 // per-walk, keyed on the decl-set's identity so parent frames can detect cycles without
@@ -5226,11 +5237,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return constructor ? { constructor, method: segments.at(-1) } : null;
   }
 
-  // unrewriten destructure alias `const { from } = Array`: walks binding ->
-  // VariableDeclarator, confirms `id: ObjectPattern, init: Identifier(<Constructor>)`,
-  // and locates the property whose VALUE identifier matches the binding name. covers
-  // shorthand (`{ from }`) and renamed (`{ from: f }`); computed / nested patterns and
-  // non-Identifier init bail to null
+  // unrewriten destructure alias resolution: walks the destructure pattern through nested
+  // ObjectPatterns (`const { from } = Array`, `const { a: { from } } = wrapper`,
+  // `const { ns: { from } } = { ns: Array }`) to a (constructor, method) pair. shorthand
+  // (`{ from }`), renamed (`{ from: f }`), and AssignmentPattern wrappers (`{ from = ... }`)
+  // are peeled inside `findDestructuredKeyPath`. delegates the init-walk to the shared
+  // `walkStaticReceiverChain` (detect-usage/destructure.js) via a thin babel-binding
+  // adapter; constructor registry gate stays here so the resolver still distinguishes
+  // "any global Identifier at the leaf" from "known-static constructor with return type"
   function staticPairFromDestructure(scope, name) {
     const binding = scope?.getBinding(name);
     if (!binding?.path) return null;
@@ -5238,19 +5252,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     while (declarator && !t.isVariableDeclarator(declarator.node)) declarator = declarator.parentPath;
     if (!declarator) return null;
     const { id, init } = declarator.node;
-    if (id?.type !== 'ObjectPattern' || init?.type !== 'Identifier') return null;
-    if (!hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, init.name)) return null;
-    for (const prop of id.properties) {
-      if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-      if (prop.computed) continue;
-      // peel AssignmentPattern wrapper (`{ from = () => [] }`) so default-value shapes
-      // still narrow. user's default never fires when init is non-nullable (Array et al.
-      // are statically-defined globals); narrowing is sound regardless of default expr
-      const valueId = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
-      if (valueId?.type !== 'Identifier' || valueId.name !== name) continue;
-      return prop.key?.type === 'Identifier' ? { constructor: init.name, method: prop.key.name } : null;
-    }
-    return null;
+    if (id?.type !== 'ObjectPattern' || !init) return null;
+    const keyPath = findDestructuredKeyPath(id, name, declarator.scope);
+    if (!keyPath?.length) return null;
+    const constructor = walkStaticReceiverChain(init, keyPath.slice(0, -1), declarator.scope, BABEL_BINDING_ADAPTER);
+    if (!constructor || !hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, constructor)) return null;
+    return { constructor, method: keyPath.at(-1) };
   }
 
   // Babel TSFunctionType: `typeAnnotation` (TSTypeAnnotation wrapper)

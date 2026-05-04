@@ -1,5 +1,8 @@
 // detect polyfillable usage patterns (usage-global and usage-pure modes)
-import { buildDestructuringInitMeta } from '@core-js/polyfill-provider/detect-usage/destructure';
+import {
+  buildDestructuringInitMeta,
+  resolveNestedDestructureReceiver as sharedResolveNestedDestructureReceiver,
+} from '@core-js/polyfill-provider/detect-usage/destructure';
 import {
   checkLogicalAssignLhsGlobal,
   checkLogicalAssignLhsMember,
@@ -9,7 +12,6 @@ import { checkTypeAnnotations, walkTypeAnnotationGlobals } from '@core-js/polyfi
 import {
   createSelfRefVarGuard,
   resolveKey as sharedResolveKey,
-  resolveObjectName as sharedResolveObjectName,
 } from '@core-js/polyfill-provider/detect-usage/resolve';
 import { handleBinaryIn, handleMemberExpressionNode } from '@core-js/polyfill-provider/detect-usage/members';
 import { createSyntaxRules } from '@core-js/polyfill-provider/detect-syntax';
@@ -18,7 +20,6 @@ import {
   findFunctionScopeVarInPath,
   findIifeArgForParam,
   findTSRuntimeBindingInPath,
-  flattenableHostSlot,
   isASTNode,
   isAmbientBindingShape,
   isFunctionParamDestructureParent,
@@ -26,11 +27,10 @@ import {
   isMemberWriteOnlyContext,
   isTSTypeOnlyIdentifierPath,
   resolveCallArgument,
-  unwrapInitValue,
   unwrapParens,
   walkPatternIdentifiers,
 } from '@core-js/polyfill-provider/helpers/ast-patterns';
-import { isClassifiableReceiverArg, POSSIBLE_GLOBAL_OBJECTS } from '@core-js/polyfill-provider/helpers/class-walk';
+import { isClassifiableReceiverArg } from '@core-js/polyfill-provider/helpers/class-walk';
 
 // --- isReferenced ---
 
@@ -229,30 +229,13 @@ function buildDestructuringMeta(propNode, parentPath) {
       }
       break;
     case 'Property': {
-      // nested pattern `{ Array: { from } } = globalThis` - inner Property's outer chain:
-      // Property -> ObjectPattern -> VariableDeclarator. resolve outer init; if proxy-global,
-      // return structured meta with outer key as receiver and inner as key.
-      // peel ParenthesizedExpression + SequenceExpression tails so `(se(), globalThis)` init
-      // still resolves to the proxy-global receiver (parity with non-nested destructure)
-      const outerPattern = parent.parentPath;
-      const outerHost = outerPattern?.parentPath;
-      // shared `flattenableHostSlot` returns 'init' for VariableDeclarator, 'right' for
-      // AssignmentExpression-in-ExpressionStatement (peeling oxc's preserved parens),
-      // null otherwise. AssignmentPattern excluded - see helper docstring
-      const slot = flattenableHostSlot(outerHost?.node, outerHost);
-      const receiverNode = slot ? outerHost.node[slot] : null;
-      if (outerPattern?.node?.type === 'ObjectPattern' && receiverNode) {
-        const outerInit = unwrapInitValue(receiverNode);
-        const receiver = outerInit
-          ? sharedResolveObjectName(outerInit, outerHost.scope ?? scope, estreeAdapter)
-          : null;
-        if (receiver && POSSIBLE_GLOBAL_OBJECTS.has(receiver)) {
-          const innerKey = extractPropertyKey(propNode, scope);
-          const outerKey = sharedResolveKey(parent.node.key, parent.node.computed, outerHost.scope ?? scope, estreeAdapter);
-          if (innerKey && outerKey) {
-            return { kind: 'property', object: outerKey, key: innerKey, placement: 'static' };
-          }
-        }
+      // nested pattern - shared `resolveNestedDestructureReceiver` walks outer-prop chain
+      // up to the destructure host and returns the constructor name across proxy-global
+      // and static-object descent shapes (see helper docstring)
+      const innerKey = extractPropertyKey(propNode, scope);
+      const constructor = innerKey ? sharedResolveNestedDestructureReceiver(parent, estreeAdapter) : null;
+      if (constructor) {
+        return { kind: 'property', object: constructor, key: innerKey, placement: 'static' };
       }
       break;
     }
