@@ -268,17 +268,32 @@ function inlineCallReturnExpression(callNode, scope, adapter, seen, path) {
   return callee ? singleReturnBodyExpression(callee.body) : null;
 }
 
+const isCallShape = node => node?.type === 'CallExpression' || node?.type === 'OptionalCallExpression';
+
 // does the inline-resolved call carry prefix statements that would be lost if the site is
 // replaced by the polyfill? expression-body (`() => X`) and direct-return block-body
 // (`() => { return X; }`) - false. block bodies with any non-return statement - true;
 // the caller pushes the original call into `meta.sideEffects` so emit re-emits it via
 // SequenceExpression wrap, preserving `calls++; return Promise;` execution alongside
-// the polyfilled static dispatch
+// the polyfilled static dispatch.
+// recurses through alias chains: `outerSE = () => innerSE()` where innerSE has block-body
+// prefix statements - effects propagate up the chain so the OUTER call site SE-wraps,
+// preserving inner prefix execution. `seen` Set carries cycle protection across hops
 export function inlineCallHasObservableEffects(callNode, scope, adapter, path) {
-  const callee = resolveInlineCalleeFunction(callNode, scope, adapter, path, new Set());
-  const body = callee?.body;
-  if (!body || body.type !== 'BlockStatement') return false;
-  return body.body.length !== 1 || body.body[0].type !== 'ReturnStatement';
+  return hasObservableEffectsRec(callNode, scope, adapter, path, new Set());
+}
+
+function hasObservableEffectsRec(callNode, scope, adapter, path, seen) {
+  const body = resolveInlineCalleeFunction(callNode, scope, adapter, path, seen)?.body;
+  if (!body) return false;
+  const isBlock = body.type === 'BlockStatement';
+  // block w/ anything beyond a single `return X;` carries observable effects directly
+  if (isBlock && (body.body.length !== 1 || body.body[0].type !== 'ReturnStatement')) return true;
+  // chain target: block-body extracts return arg, expression-body is itself the target.
+  // recurse only when next is an inline-resolvable call - else chain bottoms out on a
+  // value (constructor / literal) with no own effects
+  const next = isBlock ? body.body[0].argument : body;
+  return isCallShape(next) && hasObservableEffectsRec(next, scope, adapter, path, seen);
 }
 
 // check if an identifier refers to a proxy global: either directly (`globalThis`)
