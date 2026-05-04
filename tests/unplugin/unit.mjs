@@ -9,7 +9,7 @@ import ImportInjector from '../../packages/core-js-unplugin/internals/import-inj
 import createPlugin from '../../packages/core-js-unplugin/internals/plugin.js';
 import ScopeTracker from '../../packages/core-js-unplugin/internals/scope-tracker.js';
 import SnapshotCache from '../../packages/core-js-unplugin/internals/snapshot-cache.js';
-import { collectAllBindingNames, directivePrologueEnd, liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
+import { collectAllBindingNames, directivePrologueEnd, lastUserImportEnd, liftSfcLangSuffix } from '../../packages/core-js-unplugin/internals/plugin-helpers.js';
 
 const { cyan, green, red } = chalk;
 
@@ -403,6 +403,60 @@ function checkDirectivePrologueEnd() {
 }
 checkDirectivePrologueEnd();
 
+// --- lastUserImportEnd: re-export and interleave shapes ---
+// `var _ref;` lands AFTER the trailing user import / re-export so the injected line
+// doesn't sit between two import statements (lint `import/first` would warn). re-exports
+// with a `.source` (`export { x } from 'mod'`, `export * as ns from 'mod'`, `export *
+// from 'mod'`, `export { default } from 'mod'`) count as imports because the module
+// record fetches them at evaluation entry. local re-exports without `.source` are NOT
+// imports and break the scan. interleaved shapes that mix declarations and code break
+// the scan at the first non-import statement, matching babel-plugin's reorderRefsAfterImports
+function checkLastUserImportEnd() {
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const programOf = src => parseSync('/x.mjs', src, { sourceType: 'module' }).program;
+  // eslint-disable-next-line node/no-sync -- oxc-parser sync-only API
+  const tsProgramOf = src => parseSync('/x.ts', src, { sourceType: 'module' }).program;
+  // empty body returns null (no anchor)
+  check('lastUserImportEnd/empty', lastUserImportEnd(programOf('')), null);
+  // single import: end at the import's `;`
+  const singleImport = 'import a from "a";\nfoo();';
+  check('lastUserImportEnd/single import', lastUserImportEnd(programOf(singleImport)), 18);
+  // re-export with source acts as import - scan continues past it
+  const reexportNamed = 'import a from "a";\nexport { y } from "m";\nfoo();';
+  check('lastUserImportEnd/re-export named extends region',
+    lastUserImportEnd(programOf(reexportNamed)), 41);
+  // `export { default } from 'mod'` - default re-export still has .source
+  const reexportDefault = 'import a from "a";\nexport { default } from "m";\nfoo();';
+  check('lastUserImportEnd/re-export default extends region',
+    lastUserImportEnd(programOf(reexportDefault)), 47);
+  // `export * as ns from 'mod'` - namespace re-export with .source
+  const reexportNs = 'import a from "a";\nexport * as ns from "m";\nfoo();';
+  check('lastUserImportEnd/re-export ns extends region',
+    lastUserImportEnd(programOf(reexportNs)), 43);
+  // `export * from 'mod'` - ExportAllDeclaration variant
+  const reexportAll = 'import a from "a";\nexport * from "m";\nfoo();';
+  check('lastUserImportEnd/re-export * extends region',
+    lastUserImportEnd(programOf(reexportAll)), 37);
+  // local re-export (no source) breaks the scan - it's a binding re-export, not an import
+  const localReexport = 'import a from "a";\nvar localVar = 1;\nexport { localVar };\nimport z from "z";';
+  check('lastUserImportEnd/local re-export (no source) breaks at code',
+    lastUserImportEnd(programOf(localReexport)), 18);
+  // interleave: import -> re-export -> import all run as one contiguous import region
+  const interleave = 'import a from "a";\nexport { y } from "m";\nimport z from "z";\nfoo();';
+  check('lastUserImportEnd/import + re-export + import contiguous region',
+    lastUserImportEnd(programOf(interleave)), 60);
+  // user code between imports breaks the scan immediately
+  const codeBreaks = 'import a from "a";\nfoo();\nimport z from "z";';
+  check('lastUserImportEnd/code statement breaks scan',
+    lastUserImportEnd(programOf(codeBreaks)), 18);
+  // type-only re-export `export type { X } from 'm'` - has .source, treated as import
+  // (TC39 spec fetches the module record even when the export is tsc-elided)
+  const typeReexport = 'import a from "a";\nexport type { X } from "m";\nfoo();';
+  check('lastUserImportEnd/type-only re-export extends region',
+    lastUserImportEnd(tsProgramOf(typeReexport)), 46);
+}
+checkLastUserImportEnd();
+
 // --- transform parse-error path ---
 // fatal parse errors return null + emit a `this.warn(...)` describing the failure so the
 // user identifies the file. oxc-parser is forgiving and returns an `errors` array rather
@@ -753,6 +807,33 @@ function checkSnapshotHMRMultiTimestamp() {
     probeSnapshotHit('/src/x.js?t=1&import', '/src/x.js?import'), true);
   check('snapshot/HMR ?type=script&t=1 strips trailing &t=',
     probeSnapshotHit('/src/x.js?type=script&t=1', '/src/x.js?type=script'), true);
+  // triple `?t=N&t=N&t=N` chain - Vite re-fire wrapping multiple times leaves three
+  // markers; the global-flag strip plus post-strip cleanup chain must collapse all
+  check('snapshot/HMR triple ?t=1&t=2&t=3 collapses to bare',
+    probeSnapshotHit('/src/x.js?t=1&t=2&t=3', '/src/x.js'), true);
+  // hash component must be preserved across HMR strip - `?t=N#hash` keeps the hash
+  // intact (only the query token is stripped). hash-only re-fire (no `?` prefix) must
+  // also leave the key stable across the strip pipeline
+  check('snapshot/HMR ?t=1#hash preserves hash',
+    probeSnapshotHit('/src/x.js?t=1#L10', '/src/x.js#L10'), true);
+  // decimal timestamp `?t=N.M` - some bundlers emit fractional ms; integer-only `\d+`
+  // would leave the `.M` tail glued to the path, breaking lookup. boundary anchor
+  // `(?=[&#]|$)` prevents the regex from truncating path text when `?t=` is followed
+  // by something else (e.g. `?t=1.5/foo` should NOT match - real param value never
+  // contains `/`, but defensive)
+  check('snapshot/HMR ?t=1.5 decimal collapses to bare',
+    probeSnapshotHit('/src/x.js?t=1.5', '/src/x.js'), true);
+  check('snapshot/HMR ?t=1.5&import preserves marker',
+    probeSnapshotHit('/src/x.js?t=1.5&import', '/src/x.js?import'), true);
+  check('snapshot/HMR ?t=1.5#hash preserves hash',
+    probeSnapshotHit('/src/x.js?t=1.5#L10', '/src/x.js#L10'), true);
+  // SFC sub-block keeps query intact (only HMR_TIMESTAMP_RE touches `t=`); these probe
+  // the regex shape directly. without SFC marker, `stripQueryHash` would strip the
+  // whole query downstream and mask any HMR-strip mistakes
+  check('snapshot/HMR SFC ?t=1.5 decimal in sub-block strips token',
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=1.5', '/src/App.vue?vue&type=script'), true);
+  check('snapshot/HMR SFC empty ?t= preserved (regex rejects)',
+    probeSnapshotHit('/src/App.vue?vue&type=script&t=', '/src/App.vue?vue&type=script&t='), true);
 }
 checkSnapshotHMRMultiTimestamp();
 
@@ -769,6 +850,17 @@ function checkSnapshotFileLocalhost() {
     probeSnapshotHit('file://localhost/abs/foo.js', '/abs/foo.js'), true);
   check('snapshot/FILE://LOCALHOST case-insensitive scheme',
     probeSnapshotHit('FILE://LOCALHOST/abs/foo.js', '/abs/foo.js'), true);
+  // non-localhost authority MUST NOT strip - `file://otherhost/abs/foo.js` is a remote
+  // file URL whose authority is meaningful. stripping `file://` would collapse to
+  // `otherhost/abs/foo.js`, an entirely different path. regex `(?:localhost)?` is
+  // optional but must not match a stray hostname; the pattern is anchored after the
+  // `//` so non-`localhost` authorities pass through untouched
+  check('snapshot/file://otherhost authority rejected (different paths)',
+    probeSnapshotHit('file://otherhost/abs/foo.js', '/abs/foo.js'), false);
+  // four-slash file URL `file:////abs/path` (Windows-friendly absolute) - prefix strips
+  // the `file://`, leaves `//abs/path`, REPEATED_SLASHES_RE collapses to `/abs/path`
+  check('snapshot/file:/// quad-slash collapses via REPEATED_SLASHES_RE',
+    probeSnapshotHit('file:////abs/quad.js', '/abs/quad.js'), true);
 }
 checkSnapshotFileLocalhost();
 

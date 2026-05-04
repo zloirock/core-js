@@ -50,8 +50,11 @@ function normalizePath(path) {
 // lookup for the same logical file. strip the timestamp marker so the key stays stable.
 // `g` flag handles legitimate multi-marker shapes (`?t=1&t=2` from re-fire wrapping a
 // previous wrapper). post-strip cleanup keeps the resulting key in canonical query shape:
-// `?t=1&type=script` -> `?type=script`, `?t=1` -> `''`, `?t=1&import` -> `?import`
-const HMR_TIMESTAMP_RE = /[&?]t=\d+/g;
+// `?t=1&type=script` -> `?type=script`, `?t=1` -> `''`, `?t=1&import` -> `?import`.
+// optional `(?:\.\d+)?` accepts decimal timestamps (some bundlers emit `?t=1234.5`); the
+// `(?=[&#]|$)` boundary anchors the match so `?t=1.5/foo` doesn't truncate path text -
+// without it `\d+` alone would consume only `1`, leaving `.5` as garbage in the key
+const HMR_TIMESTAMP_RE = /[&?]t=\d+(?:\.\d+)?(?=[#&]|$)/g;
 // when the FIRST `?t=` was stripped a leading `&` may now sit where `?` belonged - swap
 const LEADING_AMP_FIX_RE = /(?<head>^[^?]*)&/;
 const stripHMRTimestamp = id => id
