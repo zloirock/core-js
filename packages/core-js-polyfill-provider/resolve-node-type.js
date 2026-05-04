@@ -683,7 +683,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
     return { ...base, [argsKey]: { ...args, params: next } };
   }
-  function applyAliasSubstDeep(node, subst, depth = 0) {
+  function applyAliasSubstDeep(node, subst, depth = 0, visited = null) {
     if (depth > MAX_DEPTH || !subst || !node || typeof node !== 'object') return node;
     switch (node.type) {
       case 'TSTypeReference':
@@ -692,9 +692,14 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         // chained generic aliases can stash a compound arg under a param key - e.g.
         // `type A<T> = B<T[]>; type B<U> = U[]` leaves subst {T: string, U: T[]}, and
         // naive `subst.get(U)` leaks T. re-run the replacement through the same subst
-        // to finish resolving references inside the compound AST
+        // to finish resolving references inside the compound AST. cycle guard via
+        // `visited` Set on param names prevents `T -> U; U -> T` from looping forever
+        // (depth bound alone catches it eventually but allocates O(MAX_DEPTH) frames)
         if (name && subst.has(name)) {
-          const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1);
+          const seen = visited ?? new Set();
+          if (seen.has(name)) return node;
+          seen.add(name);
+          const replaced = applyAliasSubstDeep(subst.get(name), subst, depth + 1, seen);
           // higher-kinded `Wrap<F, U> = F<U>` with F->Box: travel ownArgs onto the replacement
           // when it's a parameterisable shape without its own args. otherwise (primitive
           // keyword, array, already-parameterised) ownArgs stay dropped - attaching would
@@ -768,10 +773,19 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       // `node.constraint` directly - both shapes need a substitution slot here
       case 'TSMappedType': {
         const tp = node.typeParameter;
+        // alpha-rename guard: the mapped type binds its own K, so outer subst entries
+        // for the same key MUST NOT propagate into body / nameType (variable capture).
+        // constraint references outer types (`keyof T`) and uses the unmodified subst.
+        // body / nameType see the inner K as a fresh variable - drop the outer shadowing
+        // entry from the subst clone passed in
+        const innerName = tp?.name?.name;
+        const innerSubst = innerName && subst.has(innerName)
+          ? new Map([...subst].filter(([k]) => k !== innerName))
+          : subst;
         const tpConstraint = tp?.constraint ? applyAliasSubstDeep(tp.constraint, subst, depth + 1) : tp?.constraint;
         const flatConstraint = node.constraint ? applyAliasSubstDeep(node.constraint, subst, depth + 1) : node.constraint;
-        const ann = node.typeAnnotation ? applyAliasSubstDeep(node.typeAnnotation, subst, depth + 1) : node.typeAnnotation;
-        const nameType = node.nameType ? applyAliasSubstDeep(node.nameType, subst, depth + 1) : node.nameType;
+        const ann = node.typeAnnotation ? applyAliasSubstDeep(node.typeAnnotation, innerSubst, depth + 1) : node.typeAnnotation;
+        const nameType = node.nameType ? applyAliasSubstDeep(node.nameType, innerSubst, depth + 1) : node.nameType;
         if (tpConstraint === tp?.constraint && flatConstraint === node.constraint
           && ann === node.typeAnnotation && nameType === node.nameType) return node;
         return {
@@ -5151,17 +5165,23 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (isFunctionLike(resolved.node)) return resolveReturnType(resolved, callee.parentPath);
     // indirect call: const fn = obj.method; fn() - resolve through the stored member reference
     if (isMemberLike(resolved)) return resolveMemberCallType(resolved, callee.parentPath);
-    // alias to a known static method through either shape:
-    //   - direct: `const from = Array.from; from(x)`. babel mutates the AST to
-    //     `const from = _Array$from`, so the binding init is the polyfill UID; injector
-    //     publishes the canonical entry path (`array/from`) for that name
-    //   - destructure: `const { from } = Array; from(x)`. unplugin keeps the AST shape -
-    //     the binding's declarator carries `id: ObjectPattern, init: Identifier(Array)`,
-    //     decomposable to (Array, from) via structural walk
-    // both shapes yield a `(constructor, method)` pair that feeds the same lookup; without
-    // this the receiver of `(from(x)).method` falls to generic dispatch instead of
-    // narrowing through to the constructor's prototype
-    if (resolved.node?.type === 'Identifier') {
+    // alias to a known static method through any shape:
+    //   - direct: `const from = Array.from; from(x)` (babel mutates AST to
+    //     `const from = _Array$from`, injector exposes entry='array/from' for `_Array$from`)
+    //   - destructure: `const { from } = Array; from(x)` (unplugin keeps AST shape;
+    //     `staticPairFromDestructure` walks pattern; babel post-rewrite alias map covers it)
+    //   - default: `const { from = () => [] } = Array; from(x)` (babel post-rewrite emits
+    //     `const from = _Array$from === void 0 ? () => [] : _Array$from;` - resolved
+    //     node is ConditionalExpression, but the user-facing name `from` is registered
+    //     in the body-extract alias map so polyfill-entry lookup succeeds)
+    // probe via the callee's user-facing name first (matches ANY post-rewrite shape via
+    // injector alias), then fall back to walked-resolved Identifier (covers cases where
+    // alias map miss but resolved is itself a polyfill UID)
+    if (t.isIdentifier(callee.node)) {
+      const aliased = resolveAliasedStaticReturn(callee);
+      if (aliased) return aliased;
+    }
+    if (resolved.node?.type === 'Identifier' && resolved.node !== callee.node) {
       const aliased = resolveAliasedStaticReturn(resolved);
       if (aliased) return aliased;
     }
@@ -5222,7 +5242,12 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (!hasOwn(KNOWN_STATIC_METHOD_RETURN_TYPES, init.name)) return null;
     for (const prop of id.properties) {
       if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
-      if (prop.computed || prop.value?.type !== 'Identifier' || prop.value.name !== name) continue;
+      if (prop.computed) continue;
+      // peel AssignmentPattern wrapper (`{ from = () => [] }`) so default-value shapes
+      // still narrow. user's default never fires when init is non-nullable (Array et al.
+      // are statically-defined globals); narrowing is sound regardless of default expr
+      const valueId = prop.value?.type === 'AssignmentPattern' ? prop.value.left : prop.value;
+      if (valueId?.type !== 'Identifier' || valueId.name !== name) continue;
       return prop.key?.type === 'Identifier' ? { constructor: init.name, method: prop.key.name } : null;
     }
     return null;
@@ -6307,12 +6332,18 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function hasOptionalChainInCall(rawExpr) {
     let cur = rawExpr;
     while (cur) {
-      if (cur.type === 'ChainExpression'
-        || cur.type === 'OptionalCallExpression'
-        || cur.type === 'OptionalMemberExpression') return true;
-      if (cur.type === 'CallExpression') cur = cur.callee;
-      else if (cur.type === 'MemberExpression') cur = cur.object;
-      else return false;
+      // SE-extracted callee `(0, obj?.assertStr)(x)`: walk SE tail (runtime callee).
+      // CallExpression / MemberExpression: descend into callee / object respectively.
+      // ChainExpression / Optional* types: optional segment found, bail caller
+      switch (cur.type) {
+        case 'ChainExpression':
+        case 'OptionalCallExpression':
+        case 'OptionalMemberExpression': return true;
+        case 'CallExpression': cur = cur.callee; break;
+        case 'MemberExpression': cur = cur.object; break;
+        case 'SequenceExpression': cur = cur.expressions.at(-1); break;
+        default: return false;
+      }
     }
     return false;
   }

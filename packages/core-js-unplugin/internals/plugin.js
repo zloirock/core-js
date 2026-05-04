@@ -28,7 +28,7 @@ import { nodeType, types } from './estree-compat.js';
 import ImportInjector from './import-injector.js';
 import TransformQueue from './transform-queue.js';
 import detectEntries, { removeTopLevelStatement } from './detect-entry.js';
-import { estreeAdapter, createUsageVisitors, createSyntaxVisitors } from './detect-usage.js';
+import { estreeAdapter, createUsageVisitors, createSyntaxVisitors, setPolyfillBindingHintLookup } from './detect-usage.js';
 import ScopeTracker from './scope-tracker.js';
 import { isOutermostOptionalChainMember } from './emit-utils.js';
 import { createPolyfillEmitter } from './polyfill-emitter.js';
@@ -154,6 +154,12 @@ export default function createPlugin(options) {
     } catch (error) {
       tagErrorWithFile(error, id);
       throw error;
+    } finally {
+      // clear per-transform state so any out-of-transform invocation of the resolver
+      // / adapter (e.g. unit-test direct call into typeResolvers, sibling-plugin probe)
+      // can't read stale state from a previously-completed transform
+      currentInjector = null;
+      setPolyfillBindingHintLookup(null);
     }
   }
 
@@ -272,6 +278,10 @@ export default function createPlugin(options) {
     // injector. cross-transform AST node identity won't carry through (ASTs differ per
     // transform), so resolver's WeakMap caches don't observe the swap
     currentInjector = injector;
+    // wire estreeAdapter's polyfill-hint lookup so `import _Promise from '.../constructor';
+    // _Promise.resolve(1)` recognises `_Promise` as a proxy-global for the Promise
+    // constructor and rewrites to `_Promise$resolve(1)` (matches babel adapter behavior)
+    setPolyfillBindingHintLookup(name => injector.getBindingInfo(name)?.hint ?? null);
     // single AST scan - `names` seeds UID-collision guards at every nesting level;
     // `orphanRefs` feeds orphan adoption when post runs without a prior pre snapshot
     // (sibling-plugin invalidation between passes); filter out user-owned `let _ref` via `names`

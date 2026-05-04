@@ -140,6 +140,18 @@ function hasRuntimeBinding(scope, name, path = null) {
   return !(native && isAmbientBinding(native));
 }
 
+// per-transform polyfill-hint lookup; plugin.js sets this via `setPolyfillBindingHintLookup`
+// at the start of each transform and resets it on completion. without this, user-imported
+// polyfill UIDs (`import _Promise from '@core-js/pure/.../promise/constructor'; _Promise.resolve(1)`)
+// don't get recognised as proxy-globals - babel adapter already exposes `polyfillHint` via
+// its own injector closure; unplugin matches the contract through this module-level setter
+// `?.()` invocation on null when no setter has fired - any `name` is a no-op
+let polyfillBindingHintLookup = null;
+
+export function setPolyfillBindingHintLookup(fn) {
+  polyfillBindingHintLookup = fn ?? null;
+}
+
 export const estreeAdapter = {
   hasBinding: (scope, name, path = null) => hasRuntimeBinding(scope, name, path),
   getBinding(scope, name) {
@@ -148,12 +160,21 @@ export const estreeAdapter = {
     // `importSource` is part of the adapter contract: `resolveKey` in polyfill-provider
     // needs it to recognise `import X from '.../symbol/<name>'` as Symbol.X. exposing the
     // raw module source at this interface is deliberate - not a leak, just the minimum
-    // parser-agnostic info the provider requires to infer well-known symbol imports
+    // parser-agnostic info the provider requires to infer well-known symbol imports.
+    // `polyfillHint` enables proxy-global recognition for user-imported polyfill UIDs
+    // (`_Promise` -> 'Promise') so `_Promise.resolve(1)` rewrites to `_Promise$resolve(1)`
+    // matching babel-plugin's behavior - constructor module typically doesn't expose
+    // statics, so the rewrite avoids a runtime undefined-call crash
     let importSource = null;
     if (IMPORT_SPECIFIER_TYPES.has(b.path.node?.type)) {
       importSource = b.path.parent?.source?.value ?? null;
     }
-    return { node: b.path.node, constantViolations: b.constantViolations, importSource };
+    return {
+      node: b.path.node,
+      constantViolations: b.constantViolations,
+      importSource,
+      polyfillHint: polyfillBindingHintLookup?.(name) ?? null,
+    };
   },
   getBindingNodeType: (scope, name) => scope?.getBinding(name)?.path?.node?.type ?? null,
   // oxc-parser preserves `ParenthesizedExpression`; unwrap so `require(('x'))` /
