@@ -6,11 +6,12 @@
 // (`resolvesToGlobalSymbol`, `asSymbolRef`) consumed by the members submodule
 import { POSSIBLE_GLOBAL_OBJECTS, globalProxyMemberName } from '../helpers/class-walk.js';
 import {
-  TS_EXPR_WRAPPERS,
+  isDirectiveStatement,
   kebabToCamel,
   mayHaveSideEffects,
   singleQuasiString,
   singleReturnBodyExpression,
+  TS_EXPR_WRAPPERS,
 } from '../helpers/ast-patterns.js';
 
 // same ceiling as `resolve-node-type.MAX_DEPTH`; 10 is too low for cross-module alias chains.
@@ -287,12 +288,16 @@ function hasObservableEffectsRec(callNode, scope, adapter, path, seen) {
   const body = resolveInlineCalleeFunction(callNode, scope, adapter, path, seen)?.body;
   if (!body) return false;
   const isBlock = body.type === 'BlockStatement';
+  // filter out leading directive ExpressionStatements (`'use strict';`) - parser-shape
+  // diff only: oxc inlines them in body[]; babel separates into `program.directives`.
+  // either way `'use strict'` carries no observable runtime effect for SE-wrap purposes
+  const stmts = isBlock ? body.body.filter(s => !isDirectiveStatement(s)) : null;
   // block w/ anything beyond a single `return X;` carries observable effects directly
-  if (isBlock && (body.body.length !== 1 || body.body[0].type !== 'ReturnStatement')) return true;
+  if (isBlock && (stmts.length !== 1 || stmts[0].type !== 'ReturnStatement')) return true;
   // chain target: block-body extracts return arg, expression-body is itself the target.
   // recurse only when next is an inline-resolvable call - else chain bottoms out on a
   // value (constructor / literal) with no own effects
-  const next = isBlock ? body.body[0].argument : body;
+  const next = isBlock ? stmts[0].argument : body;
   return isCallShape(next) && hasObservableEffectsRec(next, scope, adapter, path, seen);
 }
 
