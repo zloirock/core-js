@@ -942,29 +942,30 @@ export function unwrapExpressionChain(node) {
   return node;
 }
 
-// statement types that bind names locally to a function-like body. when present, the
-// body's free identifiers may resolve to those bindings instead of caller-scope globals,
-// so inline-call resolution must bail to keep receiver opacity faithful
-const LOCAL_BINDING_DECL_TYPES = new Set([
-  'VariableDeclaration',
-  'FunctionDeclaration',
-  'ClassDeclaration',
-]);
-
 // extract the single return expression of a function-like body. arrow expression-body
-// returns directly; block bodies must contain exactly one ReturnStatement at top level
-// and no local bindings. prefix ExpressionStatements (e.g. `calls++; return X;`) are
-// allowed - the inlined replacement preserves them as side effects via the caller's
-// `meta.sideEffects` channel (see `inlineCallHasObservableEffects` in detect-usage)
+// returns directly; block bodies must contain EXACTLY one ReturnStatement and any other
+// statement type bails — the inlined replacement at the caller swaps the entire call site
+// for the extracted return expression, so anything besides a side-effect-only prefix would
+// be silently lost. allowlist:
+//   - ReturnStatement (must appear exactly once)
+//   - ExpressionStatement (`calls++;` / `'use strict';` / `console.log(x);`) - preserved
+//     via caller's `meta.sideEffects` channel + SE-wrap (see `inlineCallHasObservableEffects`)
+// EVERYTHING ELSE bails - declarations introduce local bindings that shadow caller-scope
+// free identifiers; control-flow (IfStatement / TryStatement / ForStatement / SwitchStatement
+// / ThrowStatement / WhileStatement / DoWhileStatement / etc.) carries branches the scan
+// can't statically pick. without the strict gate, a body like `if (cond) return X; return Y;`
+// would resolve to Y, ignoring the conditional branch — silent semantic mismatch
 export function singleReturnBodyExpression(body) {
   if (!body) return null;
   if (body.type !== 'BlockStatement') return body;
   let ret = null;
   for (const stmt of body.body) {
-    if (LOCAL_BINDING_DECL_TYPES.has(stmt.type)) return null;
-    if (stmt.type !== 'ReturnStatement') continue;
-    if (ret) return null;
-    ret = stmt;
+    if (stmt.type === 'ReturnStatement') {
+      if (ret) return null;
+      ret = stmt;
+      continue;
+    }
+    if (stmt.type !== 'ExpressionStatement') return null;
   }
   return ret?.argument ?? null;
 }
