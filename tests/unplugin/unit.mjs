@@ -1045,15 +1045,21 @@ function checkContainsRangeOnSplitEntries() {
 }
 checkContainsRangeOnSplitEntries();
 
-// `deoptionalizeNeedle` skips ASCII whitespace between `?.` and the next token via
-// `WS_RE = /\s/`. positive lock: tab / CR / LF are stripped so `obj?.\t(args)` reaches
-// the same shape as `obj(args)` after deopt. note: comments in this slot are NOT skipped
-// today (P19A14-01 documented as latent bug in TASKS.md §9 backlog) - asserting the
-// buggy output here would lock-in the bug; we only assert the well-defined whitespace
-// path so a future fix to widen the skip to comments doesn't break this lock
+// `deoptionalizeNeedle` skips ASCII whitespace AND comments (line + block) between `?.`
+// and the next token. line-comment terminator covers all four ECMAScript line terminators
+// (LF / CR / U+2028 LS / U+2029 PS) - WS_RE alone matched all four but the LF-only scan
+// would walk past LS/PS into real code, then misclassify the next char. positive locks
+// for each terminator + block comment + mixed prefix so a future regression to indexOf('\n')
+// or a slot-position miscount fails here before it reaches a real fixture
 function checkDeoptWhitespaceSkip() {
   check('deopt/tab before call', deoptionalizeNeedle('obj?.\t(args)'), 'obj\t(args)');
   check('deopt/CR before call', deoptionalizeNeedle('obj?.\r\n(args)'), 'obj\r\n(args)');
+  check('deopt/line comment LF call', deoptionalizeNeedle('obj?.// c\n(args)'), 'obj// c\n(args)');
+  check('deopt/line comment LS call', deoptionalizeNeedle('obj?.// c\u2028(args)'), 'obj// c\u2028(args)');
+  check('deopt/line comment PS call', deoptionalizeNeedle('obj?.// c\u2029(args)'), 'obj// c\u2029(args)');
+  check('deopt/line comment LS prop', deoptionalizeNeedle('obj?.// c\u2028prop'), 'obj.// c\u2028prop');
+  check('deopt/block comment call', deoptionalizeNeedle('obj?./*c*/(args)'), 'obj/*c*/(args)');
+  check('deopt/block comment prop', deoptionalizeNeedle('obj?./*c*/prop'), 'obj./*c*/prop');
 }
 checkDeoptWhitespaceSkip();
 
