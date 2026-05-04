@@ -584,8 +584,8 @@ export function peelFallbackWrappers(node) {
 // tails (`(0, cond ? A : B)`), alternating until stable. shape: `r = (cond ? A : B)` ->
 // ConditionalExpression. used by per-branch synth-swap and fallback enumeration to reach
 // the underlying conditional/logical regardless of chain-assign / paren / TS / safe-SE
-// layering order. SE prefix that carries observable side effects bails the peel - dropping
-// it would silently elide effects the rewrite can't preserve.
+// layering order. SE prefix that carries observable side effects stops further SE-layer
+// peeling - dropping it would silently elide effects the rewrite can't preserve.
 // visited Set guards against synthetic cyclic ASTs (`a = (a = ...)`-shaped self-loops):
 // every step adds the current node, re-visiting any prior bails the walk
 export function peelFallbackReceiver(node) {
