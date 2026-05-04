@@ -225,25 +225,29 @@ export default function (t, { getInjector, typeResolvers } = {}) {
       : result;
   }
 
+  // parenthesized optional member followed by a NON-optional outer call: `(arr?.includes)(1)`
+  // semantics differ from `arr?.includes(1)` - on nullish receiver native `(arr?.includes)(1)`
+  // throws TypeError ("not a function") because the chain ENDS at the inner `?.` and the outer
+  // `()` is a non-optional call on void 0. emit lookup-only `(arr == null ? void 0 :
+  // _includes(arr))(1)` so the throw shape survives; injecting `.call(arr, 1)` would silently
+  // swap throw-on-nullish for "no-op on nullish". `this`-binding is technically also lost on
+  // the success path, but throw-preservation dominates the design tradeoff.
+  // optional outer call `(arr?.at)?.(0)` is semantically equivalent to `arr?.at?.(0)` (Reference
+  // Type preserved through parens, both short-circuit on nullish), so it goes through the
+  // standard buildMethodCall path with proper `.call(arr, args)` receiver-binding
   function replaceInstanceLike(path, id, skipOptional, sideEffects) {
-    // (arr?.includes)(1) - parenthesized optional callee breaks the chain.
-    // replace only the member expression, keep the original call site.
-    // only for optional chains - non-optional (arr.includes)(1) at runtime is
-    // `arr.includes.call(undefined, 1)` (detached `this`), which polyfill emission would
-    // "fix" to `_includes.call(arr, 1)` with `this=arr`. changing a broken-runtime case
-    // to a working one silently is design-dilemma: conservative path preserves the non-
-    // optional shape verbatim, users who rely on the parenthesized detach get a lint
-    if (isWrappedInParens(path) && path.isOptionalMemberExpression()) {
-      const [check, object, embed] = extractCheck(path, skipOptional);
-      const lookup = t.callExpression(id, [t.cloneNode(object)]);
-      replaceAndWrap(path, withSideEffects(lookup, sideEffects), check, embed);
-      return;
-    }
     const callerPath = unwrapTSExpressionParent(path);
     const { parent } = callerPath;
     const isCall = (t.isCallExpression(parent) || t.isOptionalCallExpression(parent))
       && parent.callee === callerPath.node;
+    const isParenLookupOnly = isCall && !t.isOptionalCallExpression(parent)
+      && isWrappedInParens(path) && path.isOptionalMemberExpression();
     const [check, object, embed] = extractCheck(path, skipOptional);
+    if (isParenLookupOnly) {
+      const lookup = t.callExpression(id, [t.cloneNode(object)]);
+      replaceAndWrap(path, withSideEffects(lookup, sideEffects), check, embed);
+      return;
+    }
     const result = isCall
       ? buildMethodCall(id, object, path.scope, parent.arguments, parent.optional)
       : t.callExpression(id, [t.cloneNode(object)]);
