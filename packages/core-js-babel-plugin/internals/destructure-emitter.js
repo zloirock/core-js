@@ -138,6 +138,12 @@ export default function createDestructureEmitter({
     const fnPath = findEnclosingFunctionLikePath(prop);
     if (!fnPath || !t.isBlockStatement(fnPath.node.body)) return false;
     const id = injectPureImport(entry, hintName);
+    // register the local name -> entry path so receiver-narrowing through this binding
+    // (`arr = from('x'); arr.at(-1)`) finds the polyfill's static return type. babel scope
+    // tracker may keep the original ObjectProperty binding stale post-AST-mutation, so the
+    // structural `staticPairFromDestructure` extractor can't re-derive (Constructor, method)
+    // from the renamed `_unused` value - injector alias is the authoritative path
+    injector.registerBodyExtractAlias(valueNode.name, entry);
     // `let` (not `const`): the original was a function parameter binding, which is
     // reassignable. swapping in `const` would silently reject downstream `from = newValue`
     // assignments in the body that were valid pre-rewrite
@@ -247,6 +253,8 @@ export default function createDestructureEmitter({
   function cascadeAssignmentExpressionDestructure(assignPath, valueNode, prop, chain, entry, hintName) {
     const exprStmt = assignPath.parentPath;
     const id = injectPureImport(entry, hintName);
+    // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
+    injector.registerBodyExtractAlias(valueNode.name, entry);
     // skip the orphaned prop subtree before mutation so re-entered visitors don't fire on
     // a removed-from-parent node. receiver tail stays visible so its proxy-global Identifier
     // (`globalThis`) can substitute via the normal visitor pass
@@ -321,6 +329,8 @@ export default function createDestructureEmitter({
     const isForInitWithSE = isForInit && forInitRaw?.type === 'SequenceExpression';
     const declCount = declaration.node?.declarations?.length ?? 1;
     const id = injectPureImport(entry, hintName);
+    // see `tryBodyExtractFromParamDestructure` for rationale on body-extract alias
+    injector.registerBodyExtractAlias(valueNode.name, entry);
     const extractedDeclarator = t.variableDeclarator(t.cloneNode(valueNode), t.cloneNode(id));
     // cascade: each level removes its property when the inner pattern has no siblings.
     // `willRemoveDeclarator` iff EVERY level's pattern had this as its sole property
@@ -446,6 +456,15 @@ export default function createDestructureEmitter({
     if (kind === 'global') {
       const localName = patternBindingName(prop.node.value);
       if (localName) injector.registerGlobalAlias(localName, hintName);
+    }
+    // body-extract alias for static methods: AST mutation rewrites the destructure value
+    // to `_unused` (rest sibling) or removes the prop entirely, leaving the new
+    // `const <localName> = _Polyfill$Method;` shadow declaration as the only path receiver
+    // narrowing can find. injector lookup `getBindingInfo(localName).entry` returns the
+    // canonical entry path, so `arr = from('hi'); arr.at(-1)` narrows correctly post-mutation
+    if (kind === 'static') {
+      const localName = patternBindingName(prop.node.value);
+      if (localName) injector.registerBodyExtractAlias(localName, entry);
     }
     // mark property as handled - rest-rename triggers re-traversal which must be skipped
     skippedNodes.add(prop.node);

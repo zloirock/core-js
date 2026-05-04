@@ -115,18 +115,41 @@ export default class ImportInjectorState {
     this.existingGlobalImports.add(moduleName);
   }
 
+  // shared `#importInfoByName` writer for entry-derived metadata. computes canonical
+  // shape `{source, hint, entry}` from (mode, entry, name); first-write-wins so subsequent
+  // re-registrations for the same name don't overwrite (e.g. user re-imports same source
+  // under a second alias). callers handle their own dedup-target updates (existingPureImports)
+  // separately - this method is the metadata-only side of registration
+  #recordImportInfo(name, entry) {
+    if (this.#importInfoByName.has(name)) return;
+    this.#importInfoByName.set(name, {
+      source: `${ this.mode }/${ entry }`,
+      hint: entryToGlobalHint(entry) ?? name,
+      entry,
+    });
+  }
+
   registerUserPureImport(entry, name) {
     const source = `${ this.mode }/${ entry }`;
     this.usedNames.add(name);
-    // first-write-wins on both maps - keeps dedup target stable when one declaration mixes
-    // `import Def, { default as Alt }`. without it last-write-wins would pick the alias as
-    // dedup target, which is asymmetric with `#importInfoByName` (also first-write-wins below)
+    // first-write-wins on existingPureImports - keeps dedup target stable when one
+    // declaration mixes `import Def, { default as Alt }`. without it last-write-wins
+    // would pick the alias as dedup target, asymmetric with `#importInfoByName` (also
+    // first-write-wins via `#recordImportInfo`). hint feeds `resolveSuperImportName`
+    // for `import MyPromise from '@core-js/pure/actual/promise'` -> `statics.Promise.try`
     if (!this.existingPureImports.has(source)) this.existingPureImports.set(source, name);
-    if (this.#importInfoByName.has(name)) return;
-    // binding -> global hint lets `resolveSuperImportName` find `statics.Promise.try` for
-    // `import MyPromise from '@core-js/pure/actual/promise'`; source feeds the adapter's
-    // `importSource` lookup (Symbol.X detection via path)
-    this.#importInfoByName.set(name, { source, hint: entryToGlobalHint(entry) ?? name, entry });
+    this.#recordImportInfo(name, entry);
+  }
+
+  // body-extract emits `let <localName> = _<Constructor>$<method>;` shadowing a destructure
+  // binding (`const { from, ...rest } = Array;` -> babel AST-mutates pattern + emits
+  // `const from = _Array$from;`). receiver-narrowing through `from` needs to find the
+  // entry path so `arr = from('hi'); arr.at(-1)` narrows to `_atMaybeArray`. registering
+  // the alias in `#importInfoByName` lets `getPolyfillBindingEntry` return `array/from`
+  // for `from`. does NOT touch `existingPureImports` / `pureImports` - dedup target
+  // stays the original polyfill UID (`_Array$from`)
+  registerBodyExtractAlias(name, entry) {
+    this.#recordImportInfo(name, entry);
   }
 
   // binding-name -> { source, hint } for super-import back-mapping (see `resolveSuperImportName`
