@@ -1631,6 +1631,16 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return peelAwaitedArgument(promiseInner, scope, depth + 1);
+    // conditional reached via post-subst alias body: pick firing branch (AST-level for
+    // literal precision, then resolved-type for primitive disjoint check sides) and recurse
+    // on the chosen branch's AST so member-lookup callers see the picked shape directly.
+    // undecidable -> return AST as-is so findTypeMember's TSConditionalType branch can try
+    // its own AST-only pick downstream
+    if (peeled.type === 'TSConditionalType') {
+      const branch = pickAwaitedConditionalBranch(peeled, scope, depth);
+      if (branch !== null) return peelAwaitedArgument(branch ? peeled.trueType : peeled.falseType, scope, depth + 1);
+      return peeled;
+    }
     const aliased = followTypeAliasChain(peeled, scope);
     if (aliased?.node && aliased.node !== peeled) {
       return peelAwaitedArgument(applySubst(aliased.node, aliased.subst), scope, depth + 1);
@@ -5308,6 +5318,11 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   //     drops the plain Object branch, leaving X. without this, `Awaited<Promise<X> & Y>`
   //     bottoms out via `resolveAnnotationInContext` which folds intersection AFTER both
   //     branches resolve - Promise<X> survives as a Promise object (not peeled to X)
+  //   - `Awaited<C ? T : F>`  -> pick branch when statically decidable, recurse on picked
+  //     so Awaited semantics applies post-pick. without this, multi-hop alias chains whose
+  //     body is a conditional (`type A<X> = X extends string ? never : Promise<X[]>`) bottom
+  //     out via `resolveAnnotationInContext` which evaluates the conditional but loses the
+  //     outer Awaited wrapper - falseBranch resolves to `Promise<X[]>` instead of `X[]`
   //   - `Awaited<TypeAlias>`  -> follow the alias chain, retry
   //   - otherwise              -> resolve T as-is
   // distributing at the AST stage preserves union/intersection shape past `Promise<>`
@@ -5330,6 +5345,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return recurse(promiseInner);
+    // post-subst alias body landing on a conditional must be evaluated BEFORE the alias-chain
+    // re-walk so Awaited<picked-branch> recurses with the chosen AST. undecidable -> fold both
+    // branches under Awaited (mirrors TS's distributive widening). identical structure in
+    // peelAwaitedArgument
+    if (peeled.type === 'TSConditionalType') {
+      const branch = pickAwaitedConditionalBranch(peeled, scope, depth, typeParamMap, seen);
+      if (branch !== null) return recurse(branch ? peeled.trueType : peeled.falseType);
+      return foldUnionTypes([peeled.trueType, peeled.falseType], recurse);
+    }
     // type alias hop: `type Inner = Promise<...>; Awaited<Inner>` - chase to the underlying
     // shape so the outer Promise / union dispatch fires on the aliased form
     const aliased = followTypeAliasChain(peeled, scope);
@@ -5337,6 +5361,19 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       return recurse(applySubst(aliased.node, aliased.subst));
     }
     return resolveAnnotationInContext(node, scope, depth + 1, typeParamMap, seen);
+  }
+
+  // pick a conditional-type branch in Awaited contexts: prefer AST-level literal precision
+  // (`'a' extends 'a'`), then resolve check / extend with caller's typeParamMap so
+  // post-applySubst free type-param refs see their substitutions, then dispatch to
+  // pickConditionalBranch. returns true / false / null (undecidable - caller folds /
+  // returns AS-IS). shared between resolveAwaitedAnnotation and peelAwaitedArgument
+  function pickAwaitedConditionalBranch(node, scope, depth, typeParamMap, seen) {
+    const astPick = pickConditionalBranchByAST(node.checkType, node.extendsType);
+    if (astPick !== null) return astPick;
+    const checkResolved = resolveAnnotationInContext(node.checkType, scope, depth + 1, typeParamMap, seen);
+    const extendsResolved = resolveAnnotationInContext(node.extendsType, scope, depth + 1, typeParamMap, seen);
+    return pickConditionalBranch(checkResolved, extendsResolved, node.extendsType);
   }
 
   // two-level table lookup: table[key1][key2]
