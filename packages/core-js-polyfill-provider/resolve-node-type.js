@@ -2978,24 +2978,44 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return resolveCallReturnType(callee);
   }
 
+  // peel one Awaited layer from `await fn()` when `fn`'s body return is more precise than
+  // its annotation. annotation widening via multi-hop alias chains landing on disjoint
+  // unions / undecidable conditionals collapses to null, but the body's actual return
+  // statement often pins a runtime-precise type. example: `async fn(): Promise<X | string>
+  // { return [1,2,3]; }` - annotation gives null (Array vs primitive disjoint); body
+  // return narrows to Array<number>. resolveBodyReturnType commonType-folds multi-return
+  // disagreements so this never widens beyond what TS itself would infer
+  function resolveAwaitedFromCallBody(argument) {
+    const type = babelNodeType(argument.node);
+    if (type !== 'CallExpression' && type !== 'OptionalCallExpression') return null;
+    const fnPath = resolveRuntimeExpression(argument.get('callee'));
+    if (!isFunctionLike(fnPath?.node)) return null;
+    const bodyType = resolveBodyReturnType(fnPath, argument);
+    if (!bodyType) return null;
+    return bodyType.constructor === 'Promise' ? unwrapPromise(bodyType) : bodyType;
+  }
+
   function resolveAwaitExpressionType(path) {
     const argument = path.get('argument');
     const type = resolveNodeType(argument);
     // await on non-Promise value returns the value type unchanged
     if (type && type.constructor !== 'Promise') return type;
     // recursively unwrap Promise<Promise<...T>> -> T
-    const resolved = unwrapPromise(type);
-    if (resolved && resolved !== type) return resolved;
-    // try to unwrap Promise<T> from type annotation on the awaited expression
+    const peeled = unwrapPromise(type);
+    if (peeled) return peeled;
+    // annotation fallback: route through `resolveAwaitedAnnotation` so multi-hop alias
+    // chains (`type MyPromise<X> = Promise<X>`), conditional bodies, and union /
+    // intersection distribution apply per `Awaited<T>` semantics. previously we only peeled
+    // a direct `Promise<X>` ref via `resolveTypeAnnotation`, leaving aliased / conditional
+    // / union shapes resolving as `$Object('Promise')` - misroutes downstream member
+    // dispatch (Promise.<x> isn't in built-in definitions, so polyfill emission skipped)
     const annotationInfo = findExpressionAnnotation(argument);
     if (annotationInfo) {
       const annotation = unwrapTypeAnnotation(annotationInfo.annotation);
-      if (annotation && typeRefName(annotation) === 'Promise') {
-        const inner = getTypeArgs(annotation)?.params[0];
-        if (inner) return resolveTypeAnnotation(inner, annotationInfo.scope);
-      }
+      const annotated = annotation && resolveAwaitedAnnotation(annotation, annotationInfo.scope, 0);
+      if (annotated) return annotated;
     }
-    return null;
+    return resolveAwaitedFromCallBody(argument);
   }
 
   function resolveYieldExpressionType(path) {
@@ -5404,12 +5424,32 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return typeFromHint(hint, objectType);
   }
 
-  function resolveKnownStaticReturnType(callee) {
+  // `Promise.resolve(x)` -> `Promise<typeof x>`: arg-based inner inference. the static
+  // hint table can't carry "infer inner from argN" cleanly (it'd require typeFromHint to
+  // accept callPath everywhere), so handle this widely-used resolver-style static specially.
+  // without this, `await Promise.resolve([1,2,3])` resolves to $Promise<null>, unwrapPromise
+  // returns null, await gives unknown, downstream member dispatch goes generic.
+  // `Promise.resolve(thenable)` flattens at runtime; treat outer Promise<Promise<X>> as
+  // Promise<X> so unwrapPromise lands on a precise inner without two-layer peel
+  function inferPromiseResolveReturnType(callPath) {
+    const [argPath] = callPath.get('arguments');
+    if (!argPath || babelNodeType(argPath.node) === 'SpreadElement') return null;
+    const argType = resolveNodeType(argPath);
+    if (!argType || isNullableOrNever(argType)) return null;
+    return new $Object('Promise', argType.constructor === 'Promise' ? resolveInnerType(argType) : argType);
+  }
+
+  function resolveKnownStaticReturnType(callee, callPath) {
     if (!isMemberLike(callee)) return null;
     const info = resolveGlobalMember(callee);
     if (!info) return null;
     const hint = lookupNested(KNOWN_STATIC_METHOD_RETURN_TYPES, info.objectName, info.memberName);
-    return hint ? typeFromHint(hint) : null;
+    if (!hint) return null;
+    if (callPath && info.objectName === 'Promise' && info.memberName === 'resolve') {
+      const inferred = inferPromiseResolveReturnType(callPath);
+      if (inferred) return inferred;
+    }
+    return typeFromHint(hint);
   }
 
   function resolveKnownPropertyReturnType(path) {
@@ -5439,7 +5479,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
 
   function resolveMemberCallType(memberPath, callPath) {
     return resolveFromMemberExpression(memberPath, callPath)
-      || resolveKnownStaticReturnType(memberPath)
+      || resolveKnownStaticReturnType(memberPath, callPath)
       || resolveKnownInstanceMember(memberPath, KNOWN_INSTANCE_METHOD_RETURN_TYPES);
   }
 
