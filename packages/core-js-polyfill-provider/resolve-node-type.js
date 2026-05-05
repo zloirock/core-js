@@ -328,6 +328,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     return node;
   }
 
+  // peel transparent paren wrappers from a TYPE annotation. oxc preserves `(T)` shape as
+  // `TSParenthesizedType` AST node (babel strips it during parsing). callers that pattern-
+  // match on the inner type's discriminator (`TSUnionType` / `TSIntersectionType` / etc.)
+  // must peel first or paren-wrapped shapes leak past the dispatch
+  function peelTSParenthesized(node) {
+    while (node?.type === 'TSParenthesizedType') node = node.typeAnnotation;
+    return node;
+  }
+
   // `function fn(x = 'a')` - default wraps param in AssignmentPattern; type is on `.left`.
   // `function fn(...xs: T[])` - RestElement carries `T[]` annotation; caller must unwrap one level
   function effectiveParam(param) {
@@ -1589,20 +1598,63 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // keep the element types intact. `findTypeMember`'s tuple case expects raw TSTupleType,
   // `getTypeMembers`'s wrapper case returns null for tuples (they have no property members).
   // recurse through the wrapper so the tuple index path below can pick up the element
+  // extract the single typeArg of a type-reference whose head is one of the wrapper names
+  // accepted by `namePredicate`. shared between `peelStructurePreservingWrapper` (Pick / Omit
+  // / Readonly / ...) and `peelAwaitedWrapper` (Awaited<X>) — both unwrap a single-segment
+  // TypeReference to its first generic arg, differ only in name predicate and post-extract
+  // transform of the arg
+  function getSingleTypeRefArg(node, namePredicate) {
+    if (node?.type !== 'TSTypeReference' && node?.type !== 'GenericTypeAnnotation') return null;
+    const segments = typeRefSegments(node);
+    if (segments?.length !== 1 || !namePredicate(segments[0])) return null;
+    return getTypeArgs(node)?.params?.[0] ?? null;
+  }
+
   function peelStructurePreservingWrapper(objectType) {
-    if (objectType?.type !== 'TSTypeReference' && objectType?.type !== 'GenericTypeAnnotation') return null;
-    const segments = typeRefSegments(objectType);
-    if (segments?.length !== 1 || !STRUCTURE_PRESERVING_WRAPPERS.has(segments[0])) return null;
-    const arg = getTypeArgs(objectType)?.params[0];
+    const arg = getSingleTypeRefArg(objectType, n => STRUCTURE_PRESERVING_WRAPPERS.has(n));
     return arg ? unwrapTypeAnnotation(arg) : null;
   }
 
+  // apply Awaited semantics at AST level: recursively peel Promise / PromiseLike wrappers,
+  // distribute over union / intersection, follow type-alias hops. resolveAwaitedAnnotation
+  // returns a Type object (not AST), but callers like findTypeMember need a substituted AST
+  // to recurse into - so this helper runs the same peel structurally and returns AST.
+  // depth bound matches `followTypeAliasChain`'s budget; cycle prevention via the depth cap
+  function peelAwaitedArgument(arg, scope, depth = 0) {
+    if (!arg || depth > MAX_DEPTH) return arg;
+    const peeled = peelTSParenthesized(unwrapTypeAnnotation(arg));
+    // distribute Awaited over union / intersection (AST rebuild with peeled members).
+    // both shapes carry their members under `.types` and differ only in the discriminator
+    if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation'
+        || peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
+      return { ...peeled, types: peeled.types.map(member => peelAwaitedArgument(member, scope, depth + 1)) };
+    }
+    const promiseInner = getPromiseInnerAnnotation(peeled);
+    if (promiseInner) return peelAwaitedArgument(promiseInner, scope, depth + 1);
+    const aliased = followTypeAliasChain(peeled, scope);
+    if (aliased?.node && aliased.node !== peeled) {
+      return peelAwaitedArgument(applySubst(aliased.node, aliased.subst), scope, depth + 1);
+    }
+    return peeled;
+  }
+
+  // `Awaited<X>` wrapper: returns the peeled inner X (with Promise / union / intersection
+  // distribution applied per Awaited semantics) when `node` is a TSTypeReference to Awaited;
+  // null for any other shape. used by findTypeMember so member access through `Awaited<T>`
+  // walks T's members directly (TS spec: Awaited<T> = T when T is not Promise-like)
+  function peelAwaitedWrapper(node, scope) {
+    const arg = getSingleTypeRefArg(node, n => n === 'Awaited');
+    return arg ? peelAwaitedArgument(arg, scope) : null;
+  }
+
   // unified passthrough detection: structure-preserving wrapper (`Readonly<T>`, `Partial<T>`,
-  // ...) OR trivial mapped-type passthrough (`{ [K in keyof T]: T[K] }`). both are
-  // structurally identical to their inner type for property-lookup purposes; callers recurse
-  // findTypeMember on the unwrapped inner with accumulated subst applied
-  function unwrapPassthroughWrapper(node) {
+  // ...), `Awaited<T>` (Promise peel + distribute), OR trivial mapped-type passthrough
+  // (`{ [K in keyof T]: T[K] }`). all are structurally identical to their inner type for
+  // property-lookup purposes; callers recurse findTypeMember on the unwrapped inner with
+  // accumulated subst applied
+  function unwrapPassthroughWrapper(node, scope) {
     return peelStructurePreservingWrapper(node)
+      ?? peelAwaitedWrapper(node, scope)
       ?? (node?.type === 'TSMappedType' ? unwrapMappedTypePassthrough(node) : null);
   }
 
@@ -1636,7 +1688,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     // (`{ [K in keyof T]: T[K] }`) - both unwrap to T for property-lookup purposes. subst
     // from `followTypeAliasChain` already maps the alias's type-params to the receiver's
     // concrete args; apply to the unwrapped inner before recursing
-    const passthrough = unwrapPassthroughWrapper(aliased ?? objectType);
+    const passthrough = unwrapPassthroughWrapper(aliased ?? objectType, scope);
     if (passthrough) {
       const substituted = applySubst(passthrough, subst);
       return findTypeMember(substituted, key, scope, depth + 1);
@@ -2584,9 +2636,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // vs primitive `string`) is preserved. returns true / false / null (undecidable)
   function pickConditionalBranchByAST(check, extend) {
     if (!check || !extend) return null;
-    // peel transparent wrappers
-    while (check?.type === 'TSParenthesizedType') check = check.typeAnnotation;
-    while (extend?.type === 'TSParenthesizedType') extend = extend.typeAnnotation;
+    check = peelTSParenthesized(check);
+    extend = peelTSParenthesized(extend);
     // both literal types: compare values (the precision case `'narrow' extends 'narrow'`)
     if (check?.type === 'TSLiteralType' && extend?.type === 'TSLiteralType') {
       const cv = check.literal?.value;
@@ -2622,8 +2673,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // resolve to the same inner-less Type object but should NOT match arbitrary inners
   function isUnconstrainedTypeReference(node) {
     if (!node) return false;
-    let target = node;
-    while (target?.type === 'TSParenthesizedType') target = target.typeAnnotation;
+    const target = peelTSParenthesized(node);
     if (target?.type !== 'TSTypeReference' && target?.type !== 'GenericTypeAnnotation') return false;
     return !getTypeArgs(target)?.params?.length;
   }
@@ -2677,8 +2727,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     if (node?.type === 'TSArrayType') {
       // babel wraps `(infer U)` in TSParenthesizedType; oxc collapses to bare TSInferType.
       // peel the wrapper so both shapes reach the inner inference name
-      let element = node.elementType;
-      while (element?.type === 'TSParenthesizedType') element = element.typeAnnotation;
+      const element = peelTSParenthesized(node.elementType);
       if (element?.type === 'TSInferType') {
         return element.typeParameter?.name?.name ?? element.typeParameter?.name;
       }
@@ -5254,19 +5303,30 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // `Awaited<T>` semantics mirror TS's distributive recursive conditional:
   //   - `Awaited<Promise<U>>` -> `Awaited<U>` (peel one layer, recurse)
   //   - `Awaited<A | B>`      -> `Awaited<A> | Awaited<B>` (distribute, fold members)
+  //   - `Awaited<A & B>`      -> `Awaited<A> & Awaited<B>` (distribute, fold intersection).
+  //     `Promise<X> & {tag: 'X'}` peels Promise via the recursion + foldIntersectionTypes
+  //     drops the plain Object branch, leaving X. without this, `Awaited<Promise<X> & Y>`
+  //     bottoms out via `resolveAnnotationInContext` which folds intersection AFTER both
+  //     branches resolve - Promise<X> survives as a Promise object (not peeled to X)
   //   - `Awaited<TypeAlias>`  -> follow the alias chain, retry
   //   - otherwise              -> resolve T as-is
-  // distributing at the AST stage preserves union shape past `Promise<>` wrappers -
-  // resolved-type fold (`foldUnionTypes`) collapses `Promise<T> | U` to null because
-  // Promise's `constructor` differs from U's, but distributing first turns it into
-  // `T | U` which CAN fold when T and U share a constructor (`number[] | string[]` ->
-  // Array). depth + cycle bounds match `followTypeAliasChain`'s budget
+  // distributing at the AST stage preserves union/intersection shape past `Promise<>`
+  // wrappers - resolved-type fold collapses `Promise<T> | U` / `Promise<T> & U` because
+  // Promise's `constructor` differs from U's; distributing first turns into `T | U` /
+  // `T & U` which CAN fold (when T and U share a constructor for unions, or when
+  // intersection's plain-Object branch is dropped). depth + cycle bounds match
+  // `followTypeAliasChain`'s budget
   function resolveAwaitedAnnotation(node, scope, depth, typeParamMap, seen) {
     if (!node || depth > MAX_DEPTH) return null;
-    const peeled = unwrapTypeAnnotation(node);
+    // oxc preserves `(T)` as TSParenthesizedType (babel strips); must peel before the
+    // union / intersection / Promise check or distribution misses the inner shape
+    const peeled = peelTSParenthesized(unwrapTypeAnnotation(node));
     const recurse = next => resolveAwaitedAnnotation(next, scope, depth + 1, typeParamMap, seen);
     if (peeled.type === 'TSUnionType' || peeled.type === 'UnionTypeAnnotation') {
       return foldUnionTypes(peeled.types, recurse);
+    }
+    if (peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
+      return foldIntersectionTypes(peeled.types, recurse);
     }
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return recurse(promiseInner);
