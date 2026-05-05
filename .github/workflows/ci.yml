@@ -27,7 +27,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 25
+          node-version: 26
           cache: npm
       - run: npm run prepare-monorepo
       - run: npx run-s build-types types-coverage test-type-definitions-ci
