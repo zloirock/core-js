@@ -1629,6 +1629,13 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
         || peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
       return { ...peeled, types: peeled.types.map(member => peelAwaitedArgument(member, scope, depth + 1)) };
     }
+    // distribute Awaited over tuple elements per TS spec `Awaited<[A, B, C]>` =
+    // `[Awaited<A>, Awaited<B>, Awaited<C>]`. peel inside TSNamedTupleMember /
+    // TSRestType wrappers without dropping their structure so downstream findTupleElement
+    // still sees the tuple shape with the awaited inner types
+    if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
+      return rebuildTupleElements(peeled, el => peelAwaitedTupleElement(el, scope, depth));
+    }
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return peelAwaitedArgument(promiseInner, scope, depth + 1);
     // conditional reached via post-subst alias body: pick firing branch (AST-level for
@@ -1646,6 +1653,19 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       return peelAwaitedArgument(applySubst(aliased.node, aliased.subst), scope, depth + 1);
     }
     return peeled;
+  }
+
+  // peel Awaited inside a tuple element preserving TSNamedTupleMember / TSRestType
+  // wrappers (`[name: Promise<X>]`, `[...Promise<X>[]]`) - we want the inner type peeled
+  // but the labelled / rest structure kept so findTupleElement still recognises the shape
+  function peelAwaitedTupleElement(element, scope, depth) {
+    if (element.type === 'TSNamedTupleMember') {
+      return { ...element, elementType: peelAwaitedTupleElement(element.elementType, scope, depth + 1) };
+    }
+    if (element.type === 'TSRestType') {
+      return { ...element, typeAnnotation: peelAwaitedArgument(element.typeAnnotation, scope, depth + 1) };
+    }
+    return peelAwaitedArgument(element, scope, depth + 1);
   }
 
   // `Awaited<X>` wrapper: returns the peeled inner X (with Promise / union / intersection
@@ -1828,6 +1848,21 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // get tuple element list: TS uses elementTypes, Flow uses types
   function tupleElements(node) {
     return node.elementTypes || node.types;
+  }
+
+  // rebuild tuple AST with elements mapped through `mapper`. preserves the dialect's element
+  // slot name (TS: elementTypes, Flow: types) so downstream consumers see the same shape
+  function rebuildTupleElements(node, mapper) {
+    const slot = node.elementTypes ? 'elementTypes' : 'types';
+    return { ...node, [slot]: node[slot].map(mapper) };
+  }
+
+  // collapse TSTupleType / TupleTypeAnnotation to Array<commonInner> via resolveTupleInner.
+  // empty tuple -> Array<null> (no inner). shared by resolveTypeAnnotation,
+  // substituteTypeParams, resolveAwaitedAnnotation - same shape, different per-element resolver
+  function tupleAsArrayType(node, resolver) {
+    const elements = tupleElements(node);
+    return new $Object('Array', elements?.length ? resolveTupleInner(elements, resolver) : null);
   }
 
   // params list of the function/class referenced by `Parameters<typeof fn>` /
@@ -2350,12 +2385,8 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'ArrayTypeAnnotation':
         return new $Object('Array', resolveNonNullableAnnotation(node.elementType, scope, depth));
       case 'TSTupleType':
-      case 'TupleTypeAnnotation': {
-        const elements = tupleElements(node);
-        return new $Object('Array', elements?.length
-          ? resolveTupleInner(elements, e => resolveTypeAnnotation(e, scope, depth + 1))
-          : null);
-      }
+      case 'TupleTypeAnnotation':
+        return tupleAsArrayType(node, e => resolveTypeAnnotation(e, scope, depth + 1));
       // TS / Flow named types - only well-known built-ins and utility types.
       // handle dotted refs (`NS.Data`) by joining segments so resolveNamedType /
       // findTypeDeclaration can split them back into a path-walk
@@ -3488,10 +3519,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     // [T, U] - resolve to Array, compute inner type if all elements agree
     if (node.type === 'TSTupleType' || node.type === 'TupleTypeAnnotation') {
-      const elements = tupleElements(node);
-      return new $Object('Array', elements?.length
-        ? resolveTupleInner(elements, e => substituteTypeParams(e, typeParamMap, scope, depth + 1, seen))
-        : null);
+      return tupleAsArrayType(node, e => substituteTypeParams(e, typeParamMap, scope, depth + 1, seen));
     }
     // T["key"] or T[number] - resolve indexed access, substituting type params in the object type
     if (node.type === 'TSIndexedAccessType') {
@@ -5362,6 +5390,15 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     }
     if (peeled.type === 'TSIntersectionType' || peeled.type === 'IntersectionTypeAnnotation') {
       return foldIntersectionTypes(peeled.types, recurse);
+    }
+    // TS spec: `Awaited<[A, B, C]>` = `[Awaited<A>, Awaited<B>, Awaited<C>]` -
+    // element-wise mapping. Type representation is atomic (no tuple), so collapse to
+    // Array<commonInner> after per-element Awaited peel. without this, tuples of Promises
+    // bottom out via resolveAnnotationInContext as `Array<Promise>` (commonInner of unpeeled
+    // promise elements), and indexed access (`p[0]`) yields Promise instead of the awaited
+    // element type
+    if (peeled.type === 'TSTupleType' || peeled.type === 'TupleTypeAnnotation') {
+      return tupleAsArrayType(peeled, recurse);
     }
     const promiseInner = getPromiseInnerAnnotation(peeled);
     if (promiseInner) return recurse(promiseInner);
