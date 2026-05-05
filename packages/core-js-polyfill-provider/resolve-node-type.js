@@ -360,10 +360,24 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   function parseMappedTypeShape(node) {
     const constraint = node.typeParameter?.constraint ?? node.constraint;
     const keyNameNode = node.typeParameter?.name ?? node.key;
-    if (constraint?.type !== 'TSTypeOperator' || constraint.operator !== 'keyof') return null;
     const paramName = typeof keyNameNode === 'string' ? keyNameNode : keyNameNode?.name;
-    if (!paramName) return null;
-    return { paramName, source: constraint.typeAnnotation };
+    if (!paramName || !constraint) return null;
+    // `[K in keyof T]` - source is T, iterated via getTypeMembers
+    if (constraint.type === 'TSTypeOperator' && constraint.operator === 'keyof') {
+      return { paramName, source: constraint.typeAnnotation, kind: 'keyof' };
+    }
+    // `[K in 'a' | 'b']` / `[K in 'a']` - literal union (or single literal) constraint;
+    // each literal value drives one synthesized key. supports string + number literals.
+    // TSLiteralType wraps the actual literal under `.literal`; literalKeyValue checks the
+    // wrapped node directly (StringLiteral / NumericLiteral)
+    if (constraint.type === 'TSLiteralType' && literalKeyValue(constraint.literal) !== null) {
+      return { paramName, source: constraint, kind: 'literal-union' };
+    }
+    if (constraint.type === 'TSUnionType' && constraint.types.length
+        && constraint.types.every(m => m.type === 'TSLiteralType' && literalKeyValue(m.literal) !== null)) {
+      return { paramName, source: constraint, kind: 'literal-union' };
+    }
+    return null;
   }
 
   // peel the parser-specific template-literal-type shape into a uniform { quasis, exprs } pair.
@@ -531,44 +545,64 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // bails (returns null) for any non-statically-evaluable shape so the caller falls back
   // to the previous behaviour (no narrow). callers must apply outer T-subst BEFORE invoking
   // (the substituted source type's keys must be statically enumerable)
+  // synth an AST literal type node wrapping a string key — used as the substitution value
+  // for paramName when expanding `[K in source]` mapped types. mirrors the shape of an
+  // explicit `'key'` literal-type so subsequent applyAliasSubstDeep into body / nameType
+  // sees the same structure regardless of whether the source was `keyof T` or `'a' | 'b'`
+  function literalTypeFromKeyName(keyName) {
+    return { type: 'TSLiteralType', literal: { type: 'StringLiteral', value: keyName } };
+  }
+
+  // synth a property signature for one expanded mapped key. shared between literal-union
+  // and keyof source paths. nameType present but unevaluable splits into two outcomes:
+  //   RENAME_SKIP        - explicit `as never` / mismatched conditional, drop key
+  //   non-string (null)  - rename undecidable for THIS key (e.g. union with a partially-
+  //                        unresolvable TypeReference branch). drop key from the partial
+  //                        expansion: decidable keys still narrow, undecidable fall through
+  //                        to generic dispatch. safe upper bound - never includes a key that
+  //                        user-rename would exclude
+  function buildMappedMember(node, paramName, keyName, substValue, body) {
+    const renamed = node.nameType ? evalRenameTemplate(node.nameType, paramName, keyName) : keyName;
+    if (renamed === RENAME_SKIP || typeof renamed !== 'string') return null;
+    const subst = new Map([[paramName, substValue]]);
+    return {
+      type: 'TSPropertySignature',
+      key: { type: 'Identifier', name: renamed },
+      computed: false,
+      typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: applyAliasSubstDeep(body, subst) },
+    };
+  }
+
   function expandMappedTypeMembers(node, scope, depth, visited) {
     if (!node.typeAnnotation) return null;
     const shape = parseMappedTypeShape(node);
     if (!shape) return null;
+    const body = unwrapTypeAnnotation(node.typeAnnotation);
+    if (!body) return null;
+    const out = [];
+    // literal-union constraint: each literal value drives one synthesized member; the
+    // substitution value is the literal node itself (already in the right shape)
+    if (shape.kind === 'literal-union') {
+      const sourceType = unwrapTypeAnnotation(shape.source);
+      const literals = sourceType.type === 'TSLiteralType' ? [sourceType] : sourceType.types;
+      for (const lit of literals) {
+        const keyName = String(literalKeyValue(lit.literal));
+        const member = buildMappedMember(node, shape.paramName, keyName, lit, body);
+        if (member) out.push(member);
+      }
+      return out;
+    }
+    // `keyof T` constraint: enumerate T's members, synth literal-type for each key name
     const sourceType = unwrapTypeAnnotation(shape.source);
     if (!sourceType) return null;
     const sourceMembers = getTypeMembers(sourceType, scope, depth + 1, visited);
     if (!sourceMembers) return null;
-    const body = unwrapTypeAnnotation(node.typeAnnotation);
-    if (!body) return null;
-    const out = [];
     for (const m of sourceMembers) {
       if (m.computed) return null;
       const keyName = getKeyName(m.key);
       if (keyName === null || keyName.startsWith('#')) return null;
-      // no `as` clause = identity rename (keyName passes through). nameType present but
-      // unevaluable splits into two outcomes:
-      //   RENAME_SKIP        - explicit `as never` branch / mismatched conditional, drop key
-      //   non-string (null)  - rename undecidable for THIS key (e.g. union with a partially-
-      //                        unresolvable TypeReference branch). drop the key from the
-      //                        partial expansion: decidable keys still narrow, undecidable
-      //                        keys fall through to generic dispatch downstream. safe upper
-      //                        bound - we never include a key that user-rename would exclude
-      const renamed = node.nameType
-        ? evalRenameTemplate(node.nameType, shape.paramName, keyName)
-        : keyName;
-      if (renamed === RENAME_SKIP) continue;
-      if (typeof renamed !== 'string') continue;
-      const subst = new Map([[shape.paramName, {
-        type: 'TSLiteralType',
-        literal: { type: 'StringLiteral', value: keyName },
-      }]]);
-      out.push({
-        type: 'TSPropertySignature',
-        key: { type: 'Identifier', name: renamed },
-        computed: false,
-        typeAnnotation: { type: 'TSTypeAnnotation', typeAnnotation: applyAliasSubstDeep(body, subst) },
-      });
+      const member = buildMappedMember(node, shape.paramName, keyName, literalTypeFromKeyName(keyName), body);
+      if (member) out.push(member);
     }
     return out;
   }
@@ -694,8 +728,33 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     const argsKey = node.typeParameters ? 'typeParameters' : 'typeArguments';
     return { ...base, [argsKey]: { ...args, params: next } };
   }
+  // memoize `(node, subst)` -> result. without cache, deep-nested generic mapped passthroughs
+  // (`type Step1<T> = { [K in keyof T]: T[K] }; type Step2<T> = Step1<{...}>; ...`) cause
+  // exponential redundant walks because each recursion branches into the substitution value
+  // (which contains TypeReferences that re-enter the walk). cycle guard `seen` Set is local
+  // to TypeReference walks - doesn't dedup work across cousin branches. WeakMap on node
+  // GC-clears with the AST; inner WeakMap on subst Map identity scopes per-walk. visited-aware
+  // calls bypass cache (the visited Set restricts result vs unvisited)
+  let applySubstCache = new WeakMap();
   function applyAliasSubstDeep(node, subst, depth = 0, visited = null) {
     if (depth > MAX_DEPTH || !subst || !node || typeof node !== 'object') return node;
+    // cache miss: compute via inner switch, store result keyed by (node, subst). visited
+    // walks (cycle guard active) skip cache - their result depends on caller's `seen` state
+    if (visited) return applyAliasSubstDeepInner(node, subst, depth, visited);
+    let perNode = applySubstCache.get(node);
+    if (perNode) {
+      const cached = perNode.get(subst);
+      if (cached !== undefined) return cached;
+    }
+    const result = applyAliasSubstDeepInner(node, subst, depth, visited);
+    if (!perNode) {
+      perNode = new WeakMap();
+      applySubstCache.set(node, perNode);
+    }
+    perNode.set(subst, result);
+    return result;
+  }
+  function applyAliasSubstDeepInner(node, subst, depth, visited) {
     switch (node.type) {
       case 'TSTypeReference':
       case 'GenericTypeAnnotation': {
@@ -815,6 +874,17 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       case 'TSTypeQuery':
         return node.exprName?.type === 'Identifier' && subst.has(node.exprName.name)
           ? subst.get(node.exprName.name) : node;
+      // template literal type `\`${A}_${B}\``: substitute each interpolated expression so
+      // mapped-type rename templates (`as \`${InnerKey}_${K}\``) reach evalRenameTemplate
+      // with type-param refs replaced. oxc emits `TSTemplateLiteralType { types: [...] }`,
+      // babel emits `TSLiteralType { literal: TemplateLiteral { expressions: [...] } }`.
+      // quasis are pure text and don't carry substitutable refs
+      case 'TSTemplateLiteralType': return substList(node, 'types', subst, depth);
+      case 'TSLiteralType': {
+        if (node.literal?.type !== 'TemplateLiteral') return node;
+        const inner = substList(node.literal, 'expressions', subst, depth);
+        return inner === node.literal ? node : { ...node, literal: inner };
+      }
       default: return node;
     }
   }
@@ -1576,6 +1646,20 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
       const unwrapped = unwrapTypeAnnotation(node);
       return applySubst(unwrapped, subst);
     };
+    // conditional `T extends U ? trueType : falseType`: pick branch via AST equality on
+    // substituted check / extends shapes, then recurse into the chosen branch's members.
+    // without this, member-lookup на `ShadowedRenameProbe<'narrow'>` (where body is
+    // `K extends 'narrow' ? {...} : never`) bottoms out на null because getTypeMembers
+    // doesn't have a TSConditionalType branch
+    if (aliased?.type === 'TSConditionalType') {
+      const checkSubst = withSubst(aliased.checkType);
+      const extendSubst = withSubst(aliased.extendsType);
+      const branch = pickConditionalBranchByAST(checkSubst, extendSubst);
+      if (branch !== null) {
+        return findTypeMember(withSubst(branch ? aliased.trueType : aliased.falseType), key, scope, depth + 1);
+      }
+      return null;
+    }
     const resolveBranch = member => findTypeMember(withSubst(unwrapTypeAnnotation(member)), key, scope, depth + 1);
     if (aliased?.type === 'TSUnionType' || aliased?.type === 'UnionTypeAnnotation') {
       const found = aliased.types.map(resolveBranch).filter(Boolean);
@@ -2494,6 +2578,24 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
   // without typeArguments == Array<any>, matches any concrete inner) from concrete-shape
   // forms that ALSO post-subst as `$Object('Array', null)` (`[]` empty tuple - non-empty
   // tuples do NOT extend `[]`)
+  // AST-level conditional branch picker for findTypeMember (which works on AST nodes,
+  // not resolved $Primitive / $Object types). complementary к `pickConditionalBranch` —
+  // operates on AST shape after subst applied, so literal-type precision (`'narrow'`
+  // vs primitive `string`) is preserved. returns true / false / null (undecidable)
+  function pickConditionalBranchByAST(check, extend) {
+    if (!check || !extend) return null;
+    // peel transparent wrappers
+    while (check?.type === 'TSParenthesizedType') check = check.typeAnnotation;
+    while (extend?.type === 'TSParenthesizedType') extend = extend.typeAnnotation;
+    // both literal types: compare values (the precision case `'narrow' extends 'narrow'`)
+    if (check?.type === 'TSLiteralType' && extend?.type === 'TSLiteralType') {
+      const cv = check.literal?.value;
+      const ev = extend.literal?.value;
+      if (cv !== undefined && ev !== undefined) return cv === ev;
+    }
+    return null;
+  }
+
   function pickConditionalBranch(check, extend, extendNode) {
     if (!check || !extend) return null;
     if (typesEqual(check, extend)) {
@@ -6945,6 +7047,7 @@ function createResolveNodeType(babelNodeType, t, { getPolyfillBindingEntry = () 
     resolveCache = new WeakMap();
     resolvedTypeCache = new WeakMap();
     typeDeclCache = new WeakMap();
+    applySubstCache = new WeakMap();
     classFieldTypeCache = new WeakMap();
     moduleFieldIndexCache = new WeakMap();
     objectFieldTypeCache = new WeakMap();
