@@ -1,9 +1,9 @@
+import _Map from "@core-js/pure/actual/map/constructor";
+import _Promise from "@core-js/pure/actual/promise/constructor";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Array$of from "@core-js/pure/actual/array/of";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-import _Map from "@core-js/pure/actual/map/constructor";
-import _Promise from "@core-js/pure/actual/promise/constructor";
 // destructure receiver is a ternary / logical-or: each viable branch becomes its own
 // `{key: _Branch$key}` literal independently; non-viable branches (unknown identifiers
 // or no matching static method) are left raw
