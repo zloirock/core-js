@@ -517,7 +517,7 @@ export default function plugin(api, options) {
         // re-instantiate per-file so the emitter's closure-captured `skippedNodes` ref
         // points to the freshly-allocated WeakSet (skippedNodes is reassigned, not mutated)
         synthSwap = createSynthSwapEmitter({
-          adapter, injectPureImport, isOrphaned, resolvePure, skippedNodes, t,
+          adapter, injectPureImport, resolvePure, skippedNodes, t,
         });
         destructureEmit = createDestructureEmitter({
           generateRef,
@@ -608,6 +608,14 @@ export default function plugin(api, options) {
         if (skipFile) return;
         path.traverse(visitors);
         processDeferredSideEffects(path);
+        // drain registered synth-swap receivers BEFORE other plugins run their visitors:
+        // sibling transforms (transform-parameters extracting param defaults to body var
+        // declarations, transform-destructuring rewriting ObjectPatterns) typically clone
+        // AST nodes, breaking node-identity lookup. applying here lets the synth literal
+        // ride along with whatever rewrite happens downstream. programExit's apply pass
+        // handles any synth-swap registrations from `reTraverseHelperBodies` (sibling-
+        // injected nodes), idempotent via per-pending `applied` flag
+        synthSwap?.apply(path);
         injector?.flush();
         // snapshot AFTER flush + deferred SE so programExit's reTraverseHelperBodies skips
         // already-traversed nodes (our flushed imports, lifted SE statements) and only
@@ -673,9 +681,10 @@ export default function plugin(api, options) {
         // the same body-index ordering as the primary pass
         processDeferredSideEffects(path);
         postSweepUnboundGlobals(path);
-        // drain deferred synth-swap receivers - all sibling props have now been visited
-        // against the original receiver, so the key set is final
-        synthSwap.apply();
+        // drain deferred synth-swap receivers via program walk - finds receivers via
+        // node-identity WeakMap regardless of where sibling plugins (transform-parameters
+        // extracting param defaults to body var declarations) moved them
+        synthSwap.apply(path);
         injector?.flush();
         // ordering: normalize THEN prune. normalize converts arrow-expression-body to block
         // and lifts trailing-`_ref` params into `var _ref;`. prune then walks scope bindings -

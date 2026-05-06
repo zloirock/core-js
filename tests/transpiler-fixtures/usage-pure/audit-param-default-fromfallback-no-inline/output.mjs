@@ -1,8 +1,8 @@
+import _Set from "@core-js/pure/actual/set/constructor";
+import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 import _Array$from from "@core-js/pure/actual/array/from";
 import _Map$groupBy from "@core-js/pure/actual/map/group-by";
 import _Promise$try from "@core-js/pure/actual/promise/try";
-import _Set from "@core-js/pure/actual/set/constructor";
-import _WeakMap from "@core-js/pure/actual/weak-map/constructor";
 // `function f({key} = cond ? A : B)` - the param-default expression evaluates per-call.
 // each viable branch becomes its own `{key: _Branch$key}` literal independently:
 // `Array.from` / `Map.groupBy` / `Promise.try` resolve to their pure entries; `Set.from`
