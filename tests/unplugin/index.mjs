@@ -55,7 +55,7 @@ function collapseWhitespace(code) {
       }
     } else if (/\s/.test(ch)) {
       // keep a single space only when both neighbors are word characters
-      const before = result[result.length - 1];
+      const before = result.at(-1);
       // scan ahead to the next non-whitespace
       let j = i + 1;
       while (j < code.length && /\s/.test(code[j])) j++;
