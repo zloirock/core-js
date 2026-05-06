@@ -33,7 +33,7 @@ async function getModuleMetadata(path, stack = new Set()) {
   if (cache.has(path)) return cache.get(path);
   if (stack.has(path)) throw new Error(red(`Circular dependency: ${ cyan(path) }`));
   stack.add(path);
-  const module = String(await fs.readFile(`./packages/core-js/${ path }.js`));
+  const module = await fs.readFile(`./packages/core-js/${ path }.js`, 'utf8');
   const directDependencies = konan(module).strings.map(normalizeModulePath);
   const declaredDependencies = [...module.matchAll(DEPENDENCY_DIRECTIVE)].map(it => normalizeModulePath(it.groups.module));
   const dependencies = unique([...directDependencies, ...declaredDependencies]);
