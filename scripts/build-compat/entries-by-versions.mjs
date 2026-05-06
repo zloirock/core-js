@@ -1,8 +1,9 @@
 import coerce from 'semver/functions/coerce.js';
 
-const entries = await fs.readJson('packages/core-js-compat/entries.json');
-
-const { version } = await fs.readJson('package.json');
+const [entries, { version }] = await Promise.all([
+  fs.readJson('packages/core-js-compat/entries.json'),
+  fs.readJson('package.json'),
+]);
 const $version = coerce(version);
 
 // TODO: set to `true` after the first core-js@4 stable release
