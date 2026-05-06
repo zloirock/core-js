@@ -21,6 +21,9 @@ function normalizeHint(hint) {
   const result = { type: hint.type };
   if (hint.element !== undefined) result.element = normalizeHint(hint.element);
   if (hint.resolved !== undefined) result.resolved = normalizeHint(hint.resolved);
+  // mutatesArgument: list of zero-based arg indices a static method mutates in place
+  // (e.g. Object.assign -> [0] target). passed through unchanged - no inner hint
+  if (hint.mutatesArgument !== undefined) result.mutatesArgument = hint.mutatesArgument;
   return result;
 }
 
