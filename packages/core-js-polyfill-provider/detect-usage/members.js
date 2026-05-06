@@ -10,6 +10,7 @@ import {
   isStaticPlacement,
   isTransparentWrapper,
   MAX_KEY_DEPTH,
+  peelChainAssignment,
   resolveKey,
   resolveObjectName,
   unwrapParens,
@@ -47,13 +48,18 @@ function buildMemberMeta(node, scope, adapter, path) {
   if (!key || key === 'prototype') return null;
   let meta = tryBuildPrototypeMeta(obj, key, scope, adapter, path);
   if (!meta) {
-    const objectName = resolveObjectName(obj, scope, adapter, undefined, path);
+    // chain-assignment receiver `(a = Array).from(...)`: peel `=` chain so receiver
+    // classification sees the rhs-most constructor (`Array`). don't push to sideEffects
+    // here - instance dispatch captures the assignment via memoize `_ref = (a = Array)`,
+    // and static dispatch picks up the outermost assignment separately at emission time
+    const { value: classifyTarget } = peelChainAssignment(obj);
+    const objectName = resolveObjectName(classifyTarget, scope, adapter, undefined, path);
     // bail for plugin-injected polyfill bindings (`_flatMaybeArray`, `_Map`, ...) - they carry
     // `polyfillHint` and re-detection would chase the polyfill itself. user imports
     // (`import { items } from './data'`) have NO polyfillHint and must fall through so the
     // Maybe-variant `instance/X` polyfill emits for unknown receiver types
-    if (!objectName && obj.type === 'Identifier') {
-      const binding = adapter.getBinding(scope, obj.name);
+    if (!objectName && classifyTarget.type === 'Identifier') {
+      const binding = adapter.getBinding(scope, classifyTarget.name);
       if (binding?.polyfillHint) return null;
     }
     const placement = objectName ? isStaticPlacement(objectName) : 'prototype';
@@ -65,8 +71,8 @@ function buildMemberMeta(node, scope, adapter, path) {
     // the original call node is pushed to sideEffects so the SequenceExpression wrap re-emits
     // it: `(k(), _Promise$resolve(3))`. only fires when objectName resolved (i.e. the receiver
     // really is a recognised constructor); unresolved calls fall through unchanged
-    if (objectName && (obj.type === 'CallExpression' || obj.type === 'OptionalCallExpression')
-      && inlineCallHasObservableEffects(obj, scope, adapter, path)) sideEffects.push(obj);
+    if (objectName && (classifyTarget.type === 'CallExpression' || classifyTarget.type === 'OptionalCallExpression')
+      && inlineCallHasObservableEffects(classifyTarget, scope, adapter, path)) sideEffects.push(classifyTarget);
   }
   if (sideEffects.length) meta.sideEffects = sideEffects;
   return meta;
