@@ -1,5 +1,5 @@
-import _globalThis from "@core-js/pure/actual/global-this";
 import _Array$from from "@core-js/pure/actual/array/from";
+import _globalThis from "@core-js/pure/actual/global-this";
 // two distinct functions with the SAME receiver-name + SAME destructure shape - each
 // default-value-param node is a separate AST node with its own identity, so per-node
 // receiver-rewrite state must isolate them. f's `Array` and g's `Array` are different
