@@ -67,10 +67,8 @@ jobs:
     strategy:
       matrix:
         node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
+          - ^22.18
+          - ^24.11
           - 25
           - 26
     runs-on: ubuntu-latest
@@ -91,10 +89,8 @@ jobs:
           - windows-latest
           - macos-latest
         node:
-          - ^20.19
-          - ^22.12
-          - 23
-          - 24
+          - ^22.18
+          - ^24.11
           - 25
           - 26
     runs-on: ${{ matrix.os }}

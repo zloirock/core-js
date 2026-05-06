@@ -28,8 +28,8 @@ import pluginTSDoc from 'eslint-plugin-tsdoc';
 import pluginUnicorn from 'eslint-plugin-unicorn';
 import { yaml as pluginYaml } from 'eslint-yaml';
 
-const PACKAGES_NODE_VERSIONS = '^20.19';
-const DEV_NODE_VERSIONS = '^20.19';
+const PACKAGES_NODE_VERSIONS = '^22.18.0 || >=24.11.0';
+const DEV_NODE_VERSIONS = PACKAGES_NODE_VERSIONS;
 
 const ERROR = 'error';
 const OFF = 'off';
