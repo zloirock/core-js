@@ -1,12 +1,13 @@
 import builder from '@core-js/builder';
 
+const { cyan, green } = chalk;
+const ESMODULES = argv._.includes('esmodules');
+
 function namedArg(name, fallback) {
   const idx = argv._.indexOf(name);
   return idx === -1 ? fallback : argv._[idx + 1];
 }
 
-const { cyan, green } = chalk;
-const ESMODULES = argv._.includes('esmodules');
 const BUNDLED_NAME = namedArg('bundled-name', 'index');
 const MINIFIED_NAME = namedArg('minified-name', 'minified');
 const PATH = 'packages/core-js-bundle/';
