@@ -61,3 +61,27 @@ QUnit.test('generator: chained polyfills on yield', assert => {
   assert.deepEqual(it.next().value, [1, 2, 3]);
   assert.same(it.next().value, 'b');
 });
+
+QUnit.test('async function: try / catch with polyfill in catch arm', assert => {
+  const async = assert.async();
+  (async () => {
+    try {
+      await Promise.reject(new Error('oops'));
+    } catch (err) {
+      assert.true(err.message.includes('oops'));
+      assert.same(err.message.at(0), 'o');
+    }
+    async();
+  })();
+});
+
+QUnit.test('async: nested await with destructured polyfill alias', assert => {
+  const async = assert.async();
+  (async () => {
+    const { from } = Array;
+    const inner = await Promise.resolve([3, 1, 2]);
+    const sorted = from(inner).toSorted();
+    assert.deepEqual(sorted, [1, 2, 3]);
+    async();
+  })();
+});
