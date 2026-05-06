@@ -2,7 +2,7 @@ import browserslist from 'browserslist';
 import { compare } from './helpers.js';
 import external from './external.json' with { type: 'json' };
 
-const { entries, hasOwn } = Object;
+const { entries, fromEntries, hasOwn } = Object;
 const { isArray } = Array;
 
 const aliases = new Map([
@@ -41,10 +41,7 @@ const validTargets = new Set([
 ]);
 
 function toLowerKeys(object) {
-  return entries(object).reduce((accumulator, [key, value]) => {
-    accumulator[key.toLowerCase()] = value;
-    return accumulator;
-  }, {});
+  return fromEntries(entries(object).map(([key, value]) => [key.toLowerCase(), value]));
 }
 
 // sentinel for "latest version" - higher than any real engine version, so no polyfills are injected

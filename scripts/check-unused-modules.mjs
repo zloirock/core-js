@@ -13,15 +13,14 @@ function log(set, kind) {
   } else echo(chalk.green(`unused ${ kind } not found`));
 }
 
-const globalModules = await jsModulesFrom('packages/core-js/modules');
 const definedModules = new Set([
   ...modules,
   ...ignored,
 ]);
 
-globalModules.forEach(it => definedModules.has(it) && globalModules.delete(it));
+const unusedGlobalModules = (await jsModulesFrom('packages/core-js/modules')).difference(definedModules);
 
-log(globalModules, 'modules');
+log(unusedGlobalModules, 'modules');
 
 const [internalModules, allModules] = await Promise.all([
   jsModulesFrom('packages/core-js/internals'),
