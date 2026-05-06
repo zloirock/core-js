@@ -288,18 +288,14 @@ async function buildPackageJson(breakpoints, namespaces) {
 
 async function clearPackage() {
   const entries = await readdir(BUILD_DIR, { withFileTypes: true });
-  for (const entry of entries) {
-    if (/^ts\d{1,3}-\d{1,3}$/.test(entry.name)) {
-      await remove(path.join(BUILD_DIR, entry.name));
-    }
-  }
+  await Promise.all(entries
+    .filter(entry => /^ts\d{1,3}-\d{1,3}$/.test(entry.name))
+    .map(entry => remove(path.join(BUILD_DIR, entry.name))));
 }
 
 async function saveOutputFiles() {
-  const filePaths = Object.keys(outputFiles);
-  for (const filePath of filePaths) {
-    await outputFile(filePath, outputFiles[filePath], { flag: 'w' });
-  }
+  await Promise.all(Object.entries(outputFiles)
+    .map(([filePath, content]) => outputFile(filePath, content, { flag: 'w' })));
 }
 
 await clearPackage();
