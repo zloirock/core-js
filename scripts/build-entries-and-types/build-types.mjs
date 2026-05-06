@@ -39,7 +39,7 @@ function addType(tsVersion, subset, template, options) {
     return;
   }
   const filePath = buildFilePath(tsVersion, subset);
-  if (!outputFiles[filePath]) outputFiles[filePath] = '';
+  outputFiles[filePath] ??= '';
   const entryWithTypes = template(options);
   outputFiles[filePath] += `${ entryWithTypes.types }${ entryWithTypes.types ? '\n' : '' }`;
 }
@@ -131,7 +131,7 @@ async function buildType(entry, options) {
 
   if (proposal || ownEntryPoint) {
     const ownFilePath = buildFilePath(tsVersion, entry);
-    if (!outputFiles[ownFilePath]) outputFiles[ownFilePath] = '';
+    outputFiles[ownFilePath] ??= '';
     const ownImports = buildImports(types, 1);
     outputFiles[ownFilePath] = `${ ownImports }\n`;
   }
