@@ -800,10 +800,10 @@ export const staticMethods = {
     parseInt: 'number',
   },
   Object: {
-    assign: 'Object',
+    assign: { type: 'Object', mutatesArgument: [0] },
     create: 'Object',
-    defineProperties: 'Object',
-    defineProperty: 'Object',
+    defineProperties: { type: 'Object', mutatesArgument: [0] },
+    defineProperty: { type: 'Object', mutatesArgument: [0] },
     entries: { type: 'Array', element: 'Array' },
     freeze: 'Object',
     fromEntries: 'Object',
@@ -846,8 +846,8 @@ export const staticMethods = {
     isError: 'boolean',
   },
   Reflect: {
-    defineProperty: 'boolean',
-    deleteProperty: 'boolean',
+    defineProperty: { type: 'boolean', mutatesArgument: [0] },
+    deleteProperty: { type: 'boolean', mutatesArgument: [0] },
     // only `Object` - acceptable assumption
     getOwnPropertyDescriptor: 'Object',
     getPrototypeOf: 'Object',
@@ -855,7 +855,11 @@ export const staticMethods = {
     isExtensible: 'boolean',
     ownKeys: 'Array',
     preventExtensions: 'boolean',
-    set: 'boolean',
+    // 3-arg form mutates target (index 0); 4-arg `Reflect.set(t, k, v, receiver)` routes
+    // the write through `target.[[Set]]` and lands on receiver (index 3). flag both - sound
+    // over-bail for 3-arg of position-3 (no such arg) and for 4-arg of position-0 (target
+    // searched but not written when receiver provided)
+    set: { type: 'boolean', mutatesArgument: [0, 3] },
     setPrototypeOf: 'boolean',
   },
   RegExp: {
