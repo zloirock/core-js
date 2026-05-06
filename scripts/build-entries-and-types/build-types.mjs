@@ -279,12 +279,9 @@ async function buildPackageJson(breakpoints, namespaces) {
     });
     packageJson.exports[namespaceKey].default = `./ts${ defaultBreakpoint }/${ namespace }${ options.isDir ? '/*' : '' }.d.ts`;
   });
-  const exportsKeys = Object.keys(packageJson.exports).sort();
-  const exports = {};
-  exportsKeys.forEach(key => {
-    exports[key] = packageJson.exports[key];
-  });
-  packageJson.exports = exports;
+  packageJson.exports = Object.fromEntries(
+    Object.keys(packageJson.exports).sort().map(key => [key, packageJson.exports[key]]),
+  );
 
   await writeJson(path.join(PACKAGE_JSON_DIR, 'package.json'), packageJson, { spaces: 2 });
 }
